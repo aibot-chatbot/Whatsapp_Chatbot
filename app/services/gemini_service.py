@@ -296,8 +296,6 @@ def detect_intent(message):
 def handle_greeting():
     return """Hello! Thank you for reaching out to us. I’m OlympicEdu, your AI assistant, here to help you with anything you need. How can I assist you today? 😊
 
-My default language is English, but I’m able to translate into any language as needed. Just let me know your preferred language by saying: Please translate to [language name].
-
 Please reply with the appropriate code based on your inquiry:
 A. Competitions
 B. Books
@@ -458,7 +456,7 @@ def get_exact_code_chunk(code):
     code = code.upper().strip()
     lines = [line.strip() for line in PDF_TEXT.splitlines() if line.strip()]
 
-    start_pattern = re.compile(rf'^{re.escape(code)}\s*[:.]?', re.IGNORECASE)
+    start_pattern = re.compile(rf'^{re.escape(code)}(?=[\s:.]|$)', re.IGNORECASE)
     code_line_pattern = re.compile(r'^[A-E](?:\d+(?:\.\d+)*)\s*[:.]?', re.IGNORECASE)
 
     matches = []
@@ -607,6 +605,10 @@ def generate_response(message, wa_id):
 
         intent = detect_intent(message)
         logging.info(f"Detected intent: {intent}")
+
+        msg = message.strip().lower()
+        if msg in ["main", "main page", "menu", "home"]:
+            return handle_greeting()
 
         if intent == "greeting":
             reply = handle_greeting()
