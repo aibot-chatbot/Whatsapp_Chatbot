@@ -2,12 +2,15 @@ import logging
 import json
 
 from flask import Blueprint, request, jsonify, current_app
+import os
+from werkzeug.utils import secure_filename
 
 from .decorators.security import signature_required
 from .utils.whatsapp_utils import (
     process_whatsapp_message,
     is_valid_whatsapp_message,
 )
+from .services.gemini_service import reload_pdf, update_pdf_path
 
 webhook_blueprint = Blueprint("webhook", __name__)
 
@@ -87,3 +90,22 @@ def webhook_post():
     return handle_message()
 
 
+@webhook_blueprint.route("/upload-pdf", methods=["POST"])
+def upload_pdf():
+    if 'pdf_file' not in request.files:
+        return jsonify({"status": "error", "message": "No file part"}), 400
+    file = request.files['pdf_file']
+    if file.filename == '':
+        return jsonify({"status": "error", "message": "No selected file"}), 400
+    if file and file.filename.endswith('.pdf'):
+        # Save dynamically based on uploaded filename
+        safe_name = secure_filename(file.filename)
+        filepath = os.path.abspath(os.path.join(current_app.root_path, '..', 'data', safe_name))
+        file.save(filepath)
+        
+        # Hot-reload the memory configuration with the new path
+        update_pdf_path(os.path.join('data', safe_name))
+        reload_pdf()
+        
+        return jsonify({"status": "success", "message": f"PDF {safe_name} updated"}), 200
+    return jsonify({"status": "error", "message": "Invalid file type"}), 400

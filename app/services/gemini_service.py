@@ -11,10 +11,24 @@ load_dotenv()
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-3-flash-preview")
 
+import glob
+
 CHAT_HISTORY_DB = "chat_history_db"
 MAX_HISTORY = 6
 
-PDF_PATH = "data/Speedbot.pdf"
+def get_latest_pdf():
+    # Automatically find the most recently uploaded PDF in the data folder
+    pdf_files = glob.glob(os.path.join("data", "*.pdf"))
+    if pdf_files:
+        return max(pdf_files, key=os.path.getmtime)
+    return "data/Speedbot.pdf"
+
+PDF_PATH = get_latest_pdf()
+
+def update_pdf_path(new_path):
+    global PDF_PATH
+    PDF_PATH = new_path
+    logging.info(f"Updated global PDF_PATH to: {PDF_PATH}")
 
 STOPWORDS = {
     "is", "am", "are", "the", "a", "an", "of", "to", "for", "and", "or", "in",
@@ -239,21 +253,19 @@ def build_prompt(history, message, context_chunks):
     context = "\n\n".join(context_chunks)
 
     prompt = f"""
-You are OlympicEdu, a helpful WhatsApp assistant for Tiger Maths Competition.
+You are a helpful and intelligent WhatsApp assistant.
 
 Follow these rules strictly:
 - Be warm, friendly, and natural.
 - Sound like a real human assistant, not like a copied FAQ page.
 - Keep replies clear, short, and helpful.
 - Do not use asterisks.
-- Use ONLY the provided knowledge below.
+- Use ONLY the provided knowledge below to answer the user's question.
 - Do not invent facts that are not in the knowledge.
 - If the answer is clearly found, explain it naturally in your own words.
 - Do not copy the knowledge word-for-word unless necessary for names, dates, fees, links, or official terms.
 - If a link is provided in the knowledge and is relevant, include it.
-- If the answer is not clearly found in the knowledge, politely say you are not sure and suggest contacting admin staff.
-- If the user's message is a greeting like hi, hello, hey, morning, afternoon, or salam, greet warmly and show the main menu.
-- If menu codes like A, A1, A1.2 are relevant, guide the user naturally.
+- If the answer is not clearly found in the knowledge, politely say you are not sure according to the files and suggest contacting admin staff.
 - Keep the answer focused on the user's exact question.
 - Avoid sounding too long, formal, or repetitive.
 
@@ -294,14 +306,17 @@ def detect_intent(message):
 
 
 def handle_greeting():
-    return """Hello! Thank you for reaching out to us. I’m OlympicEdu, your AI assistant, here to help you with anything you need. How can I assist you today? 😊
-
-Please reply with the appropriate code based on your inquiry:
-A. Competitions
-B. Books
-C. Course/Training
-D. Biz Opportunities
-E. Live Streaming Portal"""
+    base_greeting = "Hello! Thank you for reaching out. I’m your AI assistant, here to help you with anything you need. How can I assist you today? 😊\n\n"
+    
+    top_level_codes = [pair for pair in CODE_TITLE_PAIRS if re.fullmatch(r'[A-E]', pair[0])]
+    
+    if top_level_codes:
+        menu = "Please reply with the appropriate code based on your inquiry:\n"
+        for code, title in top_level_codes:
+            menu += f"{code}. {title}\n"
+        return base_greeting + menu.strip()
+    
+    return base_greeting + "Feel free to ask me any questions based on our provided information."
 
 def format_structured_reply(main_text, extra_text=None, link=None):
     reply = main_text.strip()
@@ -365,9 +380,9 @@ def extract_code_title_pairs():
     pairs = []
     lines = [line.strip() for line in PDF_TEXT.splitlines() if line.strip()]
 
-    print("PDF_TEXT length:", len(PDF_TEXT))
-    print("First 50 raw lines:", lines[:50])
-
+    # Safely print without crashing Windows console
+    logging.info(f"PDF_TEXT length: {len(PDF_TEXT)}")
+    
     pattern = re.compile(r'^([A-E](?:\d+(?:\.\d+)*)?)[\.:]?\s*(.+)$')
 
     for line in lines:
@@ -425,6 +440,14 @@ def extract_code_title_pairs():
 
 CODE_TITLE_PAIRS = extract_code_title_pairs()
 
+def reload_pdf():
+    global PDF_TEXT, PDF_CHUNKS, CODE_TITLE_PAIRS
+    logging.info("Reloading PDF into memory...")
+    PDF_TEXT = load_pdf_text()
+    PDF_CHUNKS = split_text_into_sections(PDF_TEXT)
+    CODE_TITLE_PAIRS = extract_code_title_pairs()
+    logging.info("PDF reloaded successfully!")
+
 print("Total code-title pairs:", len(CODE_TITLE_PAIRS))
 print("First 30 code-title pairs:", CODE_TITLE_PAIRS[:30])
 print("A-related pairs:", [item for item in CODE_TITLE_PAIRS if str(item[0]).startswith("A")])
@@ -456,7 +479,7 @@ def get_exact_code_chunk(code):
     code = code.upper().strip()
     lines = [line.strip() for line in PDF_TEXT.splitlines() if line.strip()]
 
-    start_pattern = re.compile(rf'^{re.escape(code)}(?=[\s:.]|$)', re.IGNORECASE)
+    start_pattern = re.compile(rf'^{re.escape(code)}\s*[:.]?', re.IGNORECASE)
     code_line_pattern = re.compile(r'^[A-E](?:\d+(?:\.\d+)*)\s*[:.]?', re.IGNORECASE)
 
     matches = []
@@ -473,10 +496,6 @@ def get_exact_code_chunk(code):
 
             chunk = " ".join(collected)
             matches.append(chunk)
-
-    print("Total matching sections for code:", len(matches))
-    for idx, m in enumerate(matches, 1):
-        print(f"Match {idx}:", m[:300])
 
     if not matches:
         return None
@@ -562,21 +581,7 @@ def handle_code_input(message, context_chunks=None):
     print("Cleaned answer for code:", cleaned)
     if child_items:
         if re.fullmatch(r'[A-E]', code):
-            title_map = {
-                "A": "Here are the competition options:",
-                "B": "Here are the bookstore options:",
-                "C": "Here are the course and training options:",
-                "D": "Here are the business opportunity options:",
-                "E": "Here’s the live streaming portal information:"
-            }
-
-            if code == "E":
-                exact_chunk = get_exact_code_chunk(code)
-                cleaned = clean_code_answer(exact_chunk, code)
-                if cleaned:
-                    return format_structured_reply(cleaned)
-
-            return format_menu_reply(title_map.get(code, "Here are the available options:"), child_items)
+            return format_menu_reply(f"Here are the options for {code}:", child_items)
 
         if re.fullmatch(r'[A-E]\d+', code):
             return format_menu_reply(f"Here are the available options under {code}:", child_items)
@@ -605,10 +610,6 @@ def generate_response(message, wa_id):
 
         intent = detect_intent(message)
         logging.info(f"Detected intent: {intent}")
-
-        msg = message.strip().lower()
-        if msg in ["main", "main page", "menu", "home"]:
-            return handle_greeting()
 
         if intent == "greeting":
             reply = handle_greeting()

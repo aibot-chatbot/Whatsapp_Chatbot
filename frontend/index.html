@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bot Admin Dashboard</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-base: #0f172a;
+            --bg-card: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .dashboard-container {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        .upload-area {
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 32px 24px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+            background: rgba(255, 255, 255, 0.02);
+            margin-bottom: 24px;
+        }
+
+        .upload-area:hover, .upload-area.drag-over {
+            border-color: var(--primary);
+            background: rgba(37, 99, 235, 0.05);
+        }
+
+        .upload-area input[type="file"] {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .upload-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            color: var(--text-muted);
+            transition: color 0.2s ease;
+        }
+
+        .upload-area:hover .upload-icon {
+            color: var(--primary);
+        }
+
+        .file-name {
+            font-size: 14px;
+            color: var(--primary);
+            font-weight: 500;
+            margin-top: 12px;
+            word-break: break-all;
+        }
+
+        .btn-submit {
+            background: var(--primary);
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 14px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+
+        .btn-submit:hover:not(:disabled) {
+            background: var(--primary-hover);
+        }
+
+        .btn-submit:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .btn-submit:disabled {
+            background: var(--border-color);
+            color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            margin-top: 16px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .status-message.success { color: var(--success); }
+        .status-message.error { color: var(--error); }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Spinner */
+        .spinner {
+            display: inline-block;
+            width: 18px;
+            height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useRef } = React;
+
+        function App() {
+            const [file, setFile] = useState(null);
+            const [dragActive, setDragActive] = useState(false);
+            const [status, setStatus] = useState({ type: '', text: '' });
+            const [isUploading, setIsUploading] = useState(false);
+
+            const handleFileSelect = (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const selectedFile = e.target.files[0];
+                    if (selectedFile.type === "application/pdf") {
+                        setFile(selectedFile);
+                        setStatus({ type: '', text: '' });
+                    } else {
+                        setStatus({ type: 'error', text: 'Please select a valid PDF file.' });
+                    }
+                }
+            };
+
+            const handleUpload = async () => {
+                if (!file) return;
+
+                setIsUploading(true);
+                setStatus({ type: '', text: '' });
+
+                const formData = new FormData();
+                formData.append('pdf_file', file);
+
+                try {
+                    // Assuming Flask runs on localhost:8000
+                    const response = await fetch('http://127.0.0.1:8000/upload-pdf', {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (response.ok) {
+                        setStatus({ type: 'success', text: 'PDF successfully uploaded and reloaded into memory!' });
+                        setFile(null); // Reset after upload
+                    } else {
+                        const data = await response.json();
+                        setStatus({ type: 'error', text: `Upload failed: ${data.message || 'Unknown error'}` });
+                    }
+                } catch (error) {
+                    setStatus({ type: 'error', text: 'Network connection failed. Is the backend running?' });
+                } finally {
+                    setIsUploading(false);
+                }
+            };
+
+            return (
+                <div className="dashboard-container">
+                    <h1>Update Bot Knowledge</h1>
+                    <p className="subtitle">Upload a new PDF to instantly update the bot's memory without restarting.</p>
+                    
+                    <div 
+                        className={`upload-area ${dragActive ? 'drag-over' : ''}`}
+                        onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+                        onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+                        onDrop={(e) => { e.preventDefault(); setDragActive(false); handleFileSelect({target: {files: e.dataTransfer.files}}); }}
+                    >
+                        <input type="file" accept=".pdf" onChange={handleFileSelect} />
+                        <div className="upload-icon">📄</div>
+                        <div><strong>Click to upload</strong> or drag and drop</div>
+                        <div style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px'}}>PDF files only</div>
+                        
+                        {file && (
+                            <div className="file-name">✅ Selected: {file.name}</div>
+                        )}
+                    </div>
+
+                    <button 
+                        className="btn-submit" 
+                        onClick={handleUpload} 
+                        disabled={!file || isUploading}
+                    >
+                        {isUploading ? (
+                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}>
+                                <div className="spinner"></div> Uploading...
+                            </span>
+                        ) : 'Update Bot Knowledge'}
+                    </button>
+
+                    {status.text && (
+                        <div className={`status-message ${status.type}`}>
+                            {status.type === 'success' ? '✨' : '⚠️'} {status.text}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
