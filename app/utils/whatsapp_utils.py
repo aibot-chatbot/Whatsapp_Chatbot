@@ -2,25 +2,23 @@ import logging
 from flask import current_app, jsonify
 import json
 import requests
-import os
-from dotenv import load_dotenv
-import google.generativeai as genai
-# from app.services.openai_service import generate_response
 import re
 import shelve
 
-load_dotenv()
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-3-flash-preview")
+from app.services.gemini_service import generate_response
+
+PROCESSED_MESSAGES_DB = "processed_messages_db"
+
 
 def is_message_processed(message_id):
-    with shelve.open("processed_messages_db") as db:
+    with shelve.open(PROCESSED_MESSAGES_DB) as db:
         return db.get(message_id, False)
 
 
 def mark_message_processed(message_id):
-    with shelve.open("processed_messages_db", writeback=True) as db:
+    with shelve.open(PROCESSED_MESSAGES_DB, writeback=True) as db:
         db[message_id] = True
+
 
 def log_http_response(response):
     logging.info(f"Status: {response.status_code}")
@@ -40,20 +38,6 @@ def get_text_message_input(recipient, text):
     )
 
 
-def generate_response(message):
-    try:
-        prompt = f"""
-You are a helpful WhatsApp business assistant.
-Reply clearly, naturally, and briefly.
-User message: {message}
-"""
-        response = model.generate_content(prompt)
-        return response.text.strip()
-    except Exception as e:
-        logging.error(f"Gemini error: {e}")
-        return "Sorry, I’m having trouble replying right now."
-
-
 def send_message(data):
     headers = {
         "Content-type": "application/json",
@@ -63,9 +47,7 @@ def send_message(data):
     url = f"https://graph.facebook.com/{current_app.config['VERSION']}/{current_app.config['PHONE_NUMBER_ID']}/messages"
 
     try:
-        response = requests.post(
-            url, data=data, headers=headers, timeout=10
-        )
+        response = requests.post(url, data=data, headers=headers, timeout=10)
         response.raise_for_status()
     except requests.Timeout:
         logging.error("Timeout occurred while sending message")
@@ -91,7 +73,6 @@ def process_text_for_whatsapp(text):
 
 def process_whatsapp_message(body):
     wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
-    name = body["entry"][0]["changes"][0]["value"]["contacts"][0]["profile"]["name"]
 
     message = body["entry"][0]["changes"][0]["value"]["messages"][0]
     message_id = message["id"]
@@ -103,11 +84,12 @@ def process_whatsapp_message(body):
 
     mark_message_processed(message_id)
 
-    response = generate_response(message_body)
+    response = generate_response(message_body, wa_id)
     response = process_text_for_whatsapp(response)
 
-    data = get_text_message_input(current_app.config["RECIPIENT_WAID"], response)
+    data = get_text_message_input(wa_id, response)
     send_message(data)
+
 
 def is_valid_whatsapp_message(body):
     """
