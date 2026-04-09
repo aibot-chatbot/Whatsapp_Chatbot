@@ -479,7 +479,7 @@ def get_exact_code_chunk(code):
     code = code.upper().strip()
     lines = [line.strip() for line in PDF_TEXT.splitlines() if line.strip()]
 
-    start_pattern = re.compile(rf'^{re.escape(code)}\s*[:.]?', re.IGNORECASE)
+    start_pattern = re.compile(rf'^{re.escape(code)}(?=[\s:.]|$)', re.IGNORECASE)
     code_line_pattern = re.compile(r'^[A-E](?:\d+(?:\.\d+)*)\s*[:.]?', re.IGNORECASE)
 
     matches = []
@@ -611,7 +611,12 @@ def generate_response(message, wa_id):
         intent = detect_intent(message)
         logging.info(f"Detected intent: {intent}")
 
-        if intent == "greeting":
+        msg = message.strip().lower()
+
+        if msg in ["main", "main page", "menu", "home"]:
+            reply = handle_greeting()
+
+        elif intent == "greeting":
             reply = handle_greeting()
 
         else:
