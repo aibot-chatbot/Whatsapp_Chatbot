@@ -5,13 +5,17 @@ import shelve
 import fitz  #PyMuPDF
 from dotenv import load_dotenv
 import google.generativeai as genai
+import glob
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 
 load_dotenv()
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel("gemini-3-flash-preview")
-
-import glob
 
 CHAT_HISTORY_DB = "chat_history_db"
 MAX_HISTORY = 6
