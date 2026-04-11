@@ -243,7 +243,6 @@ def save_chat_history(wa_id, history):
     with shelve.open(CHAT_HISTORY_DB, writeback=True) as db:
         db[wa_id] = history
 
-
 # ===== BUILD PROMPT =====
 def build_prompt(history, message, context_chunks):
     conversation = ""
@@ -257,21 +256,37 @@ def build_prompt(history, message, context_chunks):
     context = "\n\n".join(context_chunks)
 
     prompt = f"""
-You are a helpful and intelligent WhatsApp assistant.
+You are OlympicEdu, a helpful WhatsApp assistant for Tiger Maths Competition.
 
 Follow these rules strictly:
 - Be warm, friendly, and natural.
 - Sound like a real human assistant, not like a copied FAQ page.
 - Keep replies clear, short, and helpful.
 - Do not use asterisks.
-- Use ONLY the provided knowledge below to answer the user's question.
-- Do not invent facts that are not in the knowledge.
-- If the answer is clearly found, explain it naturally in your own words.
-- Do not copy the knowledge word-for-word unless necessary for names, dates, fees, links, or official terms.
+- Do not mention that you are an AI unless necessary.
+- Use ONLY the provided knowledge below as the factual source.
+- Do not invent facts, policies, requirements, dates, fees, eligibility, links, or promises that are not supported by the knowledge.
+- If the answer is clearly found in the knowledge, answer naturally in your own words.
+- If the user asks a related question but the answer is not stated directly, give a careful and helpful general reply based on the available knowledge.
+- When information is incomplete, say "based on the available information" or similar natural wording.
+- Start by mentioning what is known before saying what is not known.
+- Do not start too quickly with "I’m not sure" or "I don’t know" if there is still useful related information in the knowledge.
+- Suggest contacting admin only when the answer truly needs confirmation or is not available in the knowledge.
+- Do not promise actions you cannot actually perform.
+- Do not say things like "I can check for you", "I can guide you better", or "I can recommend the best option" unless that is clearly supported by the knowledge and system.
 - If a link is provided in the knowledge and is relevant, include it.
-- If the answer is not clearly found in the knowledge, politely say you are not sure according to the files and suggest contacting admin staff.
-- Keep the answer focused on the user's exact question.
-- Avoid sounding too long, formal, or repetitive.
+- Keep the answer focused on the user’s exact question.
+- Do not repeat the full main menu unless the user is asking for the menu, main page, home, or available options.
+- If the user asks something unrelated to Tiger Maths Competition, books, training, business opportunities, or the live streaming portal, politely explain that you can help only with the provided company-related information and invite the user to choose a menu option.
+- For related questions about suitability, difficulty, age, or general learning concerns, give a careful, general answer based on the available information without making unsupported claims.
+- If the knowledge does not clearly answer a related question, do not guess. Give a safe, helpful response and suggest admin only if necessary.
+- Avoid sounding too formal, repetitive, robotic, or defensive.
+
+Preferred answer style:
+- First, answer the user’s question directly.
+- Second, mention any important limitation naturally if needed.
+- Third, suggest the next step only if it is useful.
+- Keep most replies to one short paragraph or two short paragraphs.
 
 Knowledge:
 {context}
@@ -294,7 +309,11 @@ def detect_intent(message):
     if re.fullmatch(r"[A-E](\d+(\.\d+)*)?", message.strip().upper()):
         return "code_input"
 
-    registration_keywords = ["register", "registration", "sign up", "join", "enroll", "enrol"]
+    registration_keywords = [
+        "register", "registration", "sign up", "join", "enroll", "enrol",
+        "prerequisite", "pre-requisite", "requirement", "requirements",
+        "eligibility", "eligible", "criteria", "condition"
+    ]
     if any(word in msg for word in registration_keywords):
         return "registration"
 
@@ -308,6 +327,20 @@ def detect_intent(message):
 
     return "general"
 
+def is_out_of_scope(message):
+    msg = message.lower()
+
+    out_keywords = [
+        "weather", "temperature", "rain",
+        "football", "soccer", "match", "score",
+        "movie", "film", "actor",
+        "music", "song",
+        "news", "politics",
+        "stock", "crypto", "bitcoin",
+        "joke", "funny"
+    ]
+
+    return any(word in msg for word in out_keywords)
 
 def handle_greeting():
     base_greeting = "Hello! Thank you for reaching out. I’m your AI assistant, here to help you with anything you need. How can I assist you today? 😊\n\n"
@@ -335,16 +368,31 @@ def format_structured_reply(main_text, extra_text=None, link=None):
     return reply
 
 
-def handle_registration(context_chunks):
+def handle_registration(message, context_chunks):
     context = "\n\n".join(context_chunks)
+    msg = message.lower()
+
+    reply_parts = []
 
     if "olympicmaths.com" in context.lower():
-        return format_structured_reply(
-            "You can register for TMC online through the official website.",
-            link="http://www.olympicmaths.com"
+        reply_parts.append(
+            "You can register for TMC online through the official website:\n\nhttp://www.olympicmaths.com"
+        )
+    else:
+        reply_parts.append(
+            "You can register for TMC online through the official website."
         )
 
-    return None
+    if any(word in msg for word in [
+        "prerequisite", "pre-requisite", "requirement", "requirements",
+        "eligibility", "eligible", "criteria", "condition", "age"
+    ]):
+        reply_parts.append(
+            "Based on the available information, there isn’t a specific prerequisite or eligibility requirement stated here. "
+            "For exact requirements, it would be best to confirm with the admin."
+        )
+
+    return format_structured_reply("\n\n".join(reply_parts))
 
 
 def handle_approval(context_chunks):
@@ -484,7 +532,7 @@ def get_exact_code_chunk(code):
     lines = [line.strip() for line in PDF_TEXT.splitlines() if line.strip()]
 
     start_pattern = re.compile(rf'^{re.escape(code)}(?=[\s:.]|$)', re.IGNORECASE)
-    code_line_pattern = re.compile(r'^[A-E](?:\d+(?:\.\d+)*)\s*[:.]?', re.IGNORECASE)
+    next_code_pattern = re.compile(r'^[A-E](?:\d+(?:\.\d+)*)\b', re.IGNORECASE)
 
     matches = []
 
@@ -493,22 +541,22 @@ def get_exact_code_chunk(code):
             collected = [line]
 
             for j in range(i + 1, len(lines)):
-                next_line = lines[j]
-                if code_line_pattern.match(next_line):
+                if next_code_pattern.match(lines[j]):
                     break
-                collected.append(next_line)
+                collected.append(lines[j])
 
-            chunk = " ".join(collected)
-            matches.append(chunk)
+            matches.append(" ".join(collected))
 
     if not matches:
         return None
 
+    # Prefer the detailed section with chatbot response
     for chunk in matches:
         lower_chunk = chunk.lower()
         if "chatbot response" in lower_chunk or "chatbotresponse" in lower_chunk:
             return chunk
 
+    # Otherwise return the longest exact match
     return max(matches, key=len)
 
 def clean_code_answer(chunk, code):
@@ -617,19 +665,30 @@ def generate_response(message, wa_id):
 
         msg = message.strip().lower()
 
-        if msg in ["main", "main page", "menu", "home"]:
+        show_code_match = re.fullmatch(r'(show|open|see|list)\s+([A-E](?:\d+(?:\.\d+)*)?)', msg, re.IGNORECASE)
+        if show_code_match:
+            normalized_code = show_code_match.group(2).upper()
+            reply = handle_code_input(normalized_code, retrieve_relevant_chunks(normalized_code))
+
+        elif msg in ["main", "main page", "menu", "home"]:
             reply = handle_greeting()
 
         elif intent == "greeting":
             reply = handle_greeting()
 
         else:
+            if is_out_of_scope(message):
+                return format_structured_reply(
+                    "I’m here to help with information related to our programs and competitions.",
+                    extra_text="Please reply with A, B, C, D, or E to explore available options."
+                )
+
             context_chunks = retrieve_relevant_chunks(message)
             logging.info(f"Retrieved chunks: {len(context_chunks)}")
             logging.info(f"User message: {message}")
 
             if intent == "registration":
-                reply = handle_registration(context_chunks)
+                reply = handle_registration(message, context_chunks)
 
             elif intent == "approval":
                 reply = handle_approval(context_chunks)
