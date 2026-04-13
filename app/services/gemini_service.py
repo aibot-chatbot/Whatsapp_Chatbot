@@ -33,6 +33,7 @@ def update_pdf_path(new_path):
     global PDF_PATH
     PDF_PATH = new_path
     logging.info(f"Updated global PDF_PATH to: {PDF_PATH}")
+    reload_pdf()
 
 STOPWORDS = {
     "is", "am", "are", "the", "a", "an", "of", "to", "for", "and", "or", "in",
@@ -227,7 +228,7 @@ def retrieve_relevant_chunks(query, top_k=3):
 
     if not selected:
         logging.info("No strong chunk match found, using fallback chunk.")
-        return PDF_CHUNKS[:1]
+        return []
 
     logging.info(f"Top chunk score: {scored_chunks[0][0] if scored_chunks else 0}")
     return selected
@@ -256,51 +257,77 @@ def build_prompt(history, message, context_chunks):
     context = "\n\n".join(context_chunks)
 
     prompt = f"""
-You are OlympicEdu, a helpful WhatsApp assistant for Tiger Maths Competition.
+    You are OlympicEdu, an AI assistant representing Olympic Edu Sdn Bhd.
 
-Follow these rules strictly:
-- Be warm, friendly, and natural.
-- Sound like a real human assistant, not like a copied FAQ page.
-- Keep replies clear, short, and helpful.
-- Do not use asterisks.
-- Do not mention that you are an AI unless necessary.
-- Use ONLY the provided knowledge below as the factual source.
-- Do not invent facts, policies, requirements, dates, fees, eligibility, links, or promises that are not supported by the knowledge.
-- If the answer is clearly found in the knowledge, answer naturally in your own words.
-- If the user asks a related question but the answer is not stated directly, give a careful and helpful general reply based on the available knowledge.
-- When information is incomplete, say "based on the available information" or similar natural wording.
-- Start by mentioning what is known before saying what is not known.
-- Do not start too quickly with "I’m not sure" or "I don’t know" if there is still useful related information in the knowledge.
-- Suggest contacting admin only when the answer truly needs confirmation or is not available in the knowledge.
-- Do not promise actions you cannot actually perform.
-- Do not say things like "I can check for you", "I can guide you better", or "I can recommend the best option" unless that is clearly supported by the knowledge and system.
-- If a link is provided in the knowledge and is relevant, include it.
-- Keep the answer focused on the user’s exact question.
-- Do not repeat the full main menu unless the user is asking for the menu, main page, home, or available options.
-- If the user asks something unrelated to Tiger Maths Competition, books, training, business opportunities, or the live streaming portal, politely explain that you can help only with the provided company-related information and invite the user to choose a menu option.
-- For related questions about suitability, difficulty, age, or general learning concerns, give a careful, general answer based on the available information without making unsupported claims.
-- If the knowledge does not clearly answer a related question, do not guess. Give a safe, helpful response and suggest admin only if necessary.
-- Avoid sounding too formal, repetitive, robotic, or defensive.
+    Your role is to help users with inquiries related to:
+    - Mathematics competitions (e.g. TMC, ASMO, etc.)
+    - Courses and training programs
+    - Books and learning materials
+    - Business opportunities and services
 
-Preferred answer style:
-- First, answer the user’s question directly.
-- Second, mention any important limitation naturally if needed.
-- Third, suggest the next step only if it is useful.
-- Keep most replies to one short paragraph or two short paragraphs.
+    You should behave like a knowledgeable and helpful human assistant for the organization.
 
-Knowledge:
-{context}
+    STYLE & TONE:
+    - Be warm, polite, and conversational
+    - Keep replies clear, simple, and easy to understand
+    - Avoid robotic or overly formal phrases
+    - Keep responses concise but helpful
 
-Recent conversation:
-{conversation}
+    GENERAL BEHAVIOR:
+    - Always try to be helpful based on available information
+    - Do NOT make up facts or provide information that is not supported
+    - Avoid sounding overly certain unless the information is clearly stated
 
-User: {message}
-Assistant:
-"""
+    CONFIDENCE CONTROL (VERY IMPORTANT):
+    - If information is clearly available → answer confidently
+    - If information is partial or unclear → use soft language:
+      - "Based on the available information..."
+      - "From the information provided..."
+      - "It appears that..."
+    - Avoid strong claims like:
+      - "Absolutely", "Definitely", "For sure"
+      unless explicitly supported by the knowledge
+
+    WHEN ANSWER IS CLEAR:
+    - Give a direct and clear answer
+
+    WHEN ANSWER IS PARTIAL OR NOT DIRECT:
+    - Start with what is known from the available information
+    - Then give a helpful explanation or suggestion
+    - Only suggest contacting admin if necessary
+
+    WHEN QUESTION IS RELATED BUT NOT IN DETAIL:
+    - Give a general helpful answer based on:
+      - school-level suitability
+      - learning purpose
+      - student participation
+    - Do NOT guess or invent facts
+
+    WHEN QUESTION IS OUT OF SCOPE:
+    - Politely guide user back to OlympicEdu-related topics
+
+    ANSWER STYLE:
+    - Answer the question first
+    - Then mention limitation if needed
+    - Keep reply short (1–2 paragraphs max)
+    - Do NOT repeat the full menu unless user asks
+
+    Knowledge:
+    {context}
+
+    Recent conversation:
+    {conversation}
+
+    User: {message}
+    Assistant:
+    """
     return prompt
 
 def detect_intent(message):
     msg = message.lower().strip()
+
+    if msg in ["main", "main page", "menu", "home"]:
+        return "main_menu"
 
     greeting_words = ["hi", "hello", "hey", "morning", "afternoon", "salam"]
     if msg in greeting_words:
@@ -310,11 +337,29 @@ def detect_intent(message):
         return "code_input"
 
     registration_keywords = [
-        "register", "registration", "sign up", "join", "enroll", "enrol",
+        "register", "registration", "sign up", "enroll", "enrol"
+    ]
+
+    registration_phrases = [
+        "how do i join", "how to join", "how can i join",
+        "how do i register", "how to register",
+        "where do i register", "where can i register"
+    ]
+
+    registration_requirement_keywords = [
         "prerequisite", "pre-requisite", "requirement", "requirements",
         "eligibility", "eligible", "criteria", "condition"
     ]
+
+    if any(phrase in msg for phrase in registration_phrases):
+        return "registration"
+
     if any(word in msg for word in registration_keywords):
+        return "registration"
+
+    if any(word in msg for word in registration_requirement_keywords) and (
+            "join" in msg or "register" in msg or "registration" in msg
+    ):
         return "registration"
 
     approval_keywords = ["approved", "approval", "kpm", "moe", "ministry of education", "pajsk"]
@@ -328,17 +373,30 @@ def detect_intent(message):
     return "general"
 
 def is_out_of_scope(message):
-    msg = message.lower()
+    msg = message.lower().strip()
 
     out_keywords = [
-        "weather", "temperature", "rain",
-        "football", "soccer", "match", "score",
-        "movie", "film", "actor",
-        "music", "song",
-        "news", "politics",
-        "stock", "crypto", "bitcoin",
-        "joke", "funny"
+        "weather", "temperature", "rain", "forecast",
+        "football", "soccer", "match", "score", "basketball", "badminton",
+        "movie", "film", "actor", "actress", "drama",
+        "music", "song", "singer",
+        "news", "politics", "election",
+        "stock", "crypto", "bitcoin", "ethereum",
+        "joke", "funny", "meme",
+        "recipe", "cooking", "food delivery"
     ]
+
+    out_phrases = [
+        "tell me a joke",
+        "who won",
+        "what's the weather",
+        "what is the weather",
+        "latest news",
+        "tell me something funny"
+    ]
+
+    if any(phrase in msg for phrase in out_phrases):
+        return True
 
     return any(word in msg for word in out_keywords)
 
@@ -500,16 +558,16 @@ def reload_pdf():
     CODE_TITLE_PAIRS = extract_code_title_pairs()
     logging.info("PDF reloaded successfully!")
 
-print("Total code-title pairs:", len(CODE_TITLE_PAIRS))
-print("First 30 code-title pairs:", CODE_TITLE_PAIRS[:30])
-print("A-related pairs:", [item for item in CODE_TITLE_PAIRS if str(item[0]).startswith("A")])
+logging.info(f"Total code-title pairs: {len(CODE_TITLE_PAIRS)}")
+logging.info(f"First 30 code-title pairs: {CODE_TITLE_PAIRS[:30]}")
+logging.info(f"A-related pairs: {[item for item in CODE_TITLE_PAIRS if str(item[0]).startswith('A')]}")
 
 def get_child_codes(parent_code):
     parent_code = parent_code.upper().strip()
     children = []
     seen_codes = set()
 
-    print("Checking children for parent_code:", parent_code)
+    logging.info(f"Checking children for parent_code: {parent_code}")
 
     for code, title in CODE_TITLE_PAIRS:
         if re.fullmatch(r'[A-E]', parent_code):
@@ -524,7 +582,7 @@ def get_child_codes(parent_code):
                     children.append((code, title))
                     seen_codes.add(code)
 
-    print("Matched children:", children)
+    logging.info(f"Matched children: {children}")
     return children
 
 def get_exact_code_chunk(code):
@@ -623,23 +681,20 @@ def handle_code_input(message, context_chunks=None):
     code = message.strip().upper()
 
     child_items = get_child_codes(code)
-    print("Code input received:", code)
-    print("Child items for code:", child_items)
+    logging.info(f"Code input received: {code}")
+    logging.info(f"Child items for code: {child_items}")
 
     exact_chunk = get_exact_code_chunk(code)
-    print("Exact chunk for code:", exact_chunk)
+    logging.info(f"Exact chunk for code: {exact_chunk}")
 
     cleaned = clean_code_answer(exact_chunk, code)
-    print("Cleaned answer for code:", cleaned)
+    logging.info(f"Cleaned answer for code: {cleaned}")
     if child_items:
         if re.fullmatch(r'[A-E]', code):
             return format_menu_reply(f"Here are the options for {code}:", child_items)
 
         if re.fullmatch(r'[A-E]\d+', code):
             return format_menu_reply(f"Here are the available options under {code}:", child_items)
-
-    exact_chunk = get_exact_code_chunk(code)
-    cleaned = clean_code_answer(exact_chunk, code)
 
     if cleaned:
         if "need update by admin" in cleaned.lower():
@@ -670,7 +725,7 @@ def generate_response(message, wa_id):
             normalized_code = show_code_match.group(2).upper()
             reply = handle_code_input(normalized_code, retrieve_relevant_chunks(normalized_code))
 
-        elif msg in ["main", "main page", "menu", "home"]:
+        elif intent == "main_menu":
             reply = handle_greeting()
 
         elif intent == "greeting":
@@ -678,34 +733,35 @@ def generate_response(message, wa_id):
 
         else:
             if is_out_of_scope(message):
-                return format_structured_reply(
+                logging.info("Out-of-scope message detected.")
+                reply = format_structured_reply(
                     "I’m here to help with information related to our programs and competitions.",
                     extra_text="Please reply with A, B, C, D, or E to explore available options."
                 )
-
-            context_chunks = retrieve_relevant_chunks(message)
-            logging.info(f"Retrieved chunks: {len(context_chunks)}")
-            logging.info(f"User message: {message}")
-
-            if intent == "registration":
-                reply = handle_registration(message, context_chunks)
-
-            elif intent == "approval":
-                reply = handle_approval(context_chunks)
-
-            elif intent == "fee":
-                reply = handle_fee(context_chunks)
-
-            elif intent == "code_input":
-                reply = handle_code_input(message, context_chunks)
-
             else:
-                reply = None
+                context_chunks = retrieve_relevant_chunks(message)
+                logging.info(f"Retrieved chunks: {len(context_chunks)}")
+                logging.info(f"User message: {message}")
 
-            if not reply:
-                prompt = build_prompt(history, message, context_chunks)
-                response = model.generate_content(prompt)
-                reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
+                if intent == "registration":
+                    reply = handle_registration(message, context_chunks)
+
+                elif intent == "approval":
+                    reply = handle_approval(context_chunks)
+
+                elif intent == "fee":
+                    reply = handle_fee(context_chunks)
+
+                elif intent == "code_input":
+                    reply = handle_code_input(message, context_chunks)
+
+                else:
+                    reply = None
+
+                if not reply:
+                    prompt = build_prompt(history, message, context_chunks)
+                    response = model.generate_content(prompt)
+                    reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
 
         history.append({"role": "user", "content": message})
         history.append({"role": "assistant", "content": reply})

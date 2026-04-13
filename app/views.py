@@ -30,7 +30,7 @@ def handle_message():
         response: A tuple containing a JSON response and an HTTP status code.
     """
     body = request.get_json()
-    # logging.info(f"request body: {body}")
+    logging.info(f"request body: {body}")
 
     # Check if it's a WhatsApp status update
     if (
@@ -44,17 +44,17 @@ def handle_message():
 
     try:
         if is_valid_whatsapp_message(body):
+            logging.info("Valid WhatsApp message received.")
             process_whatsapp_message(body)
             return jsonify({"status": "ok"}), 200
         else:
-            # if the request is not a WhatsApp API event, return an error
             return (
                 jsonify({"status": "error", "message": "Not a WhatsApp API event"}),
                 404,
             )
-    except json.JSONDecodeError:
-        logging.error("Failed to decode JSON")
-        return jsonify({"status": "error", "message": "Invalid JSON provided"}), 400
+    except Exception as e:
+        logging.error(f"Webhook error: {e}")
+        return jsonify({"status": "error", "message": "Internal error"}), 500
 
 
 # Required webhook verifictaion for WhatsApp
@@ -97,7 +97,7 @@ def upload_pdf():
     file = request.files['pdf_file']
     if file.filename == '':
         return jsonify({"status": "error", "message": "No selected file"}), 400
-    if file and file.filename.endswith('.pdf'):
+    if file and file.filename.lower().endswith('.pdf'):
         # Save dynamically based on uploaded filename
         safe_name = secure_filename(file.filename)
         filepath = os.path.abspath(os.path.join(current_app.root_path, '..', 'data', safe_name))
@@ -105,7 +105,6 @@ def upload_pdf():
         
         # Hot-reload the memory configuration with the new path
         update_pdf_path(os.path.join('data', safe_name))
-        reload_pdf()
         
         return jsonify({"status": "success", "message": f"PDF {safe_name} updated"}), 200
     return jsonify({"status": "error", "message": "Invalid file type"}), 400
