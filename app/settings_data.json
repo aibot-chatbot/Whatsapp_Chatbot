@@ -1,0 +1,5 @@
+{
+    "bot_name": "OlympicEdu Test Bot",
+    "greeting_message": "Hi, I am OlympicEdu Test Bot. Welcome! ??",
+    "fallback_message": "Sorry, I can only help with questions related to our programs, competitions, and services."
+}

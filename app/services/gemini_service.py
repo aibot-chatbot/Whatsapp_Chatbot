@@ -6,6 +6,7 @@ import fitz  #PyMuPDF
 from dotenv import load_dotenv
 import google.generativeai as genai
 import glob
+from app.services.settings_service import get_settings
 
 logging.basicConfig(
     level=logging.INFO,
@@ -401,16 +402,23 @@ def is_out_of_scope(message):
     return any(word in msg for word in out_keywords)
 
 def handle_greeting():
-    base_greeting = "Hello! Thank you for reaching out. I’m your AI assistant, here to help you with anything you need. How can I assist you today? 😊\n\n"
-    
+    settings = get_settings()
+    bot_name = settings.get("bot_name", "OlympicEdu")
+    greeting_message = settings.get(
+        "greeting_message",
+        f"Hello! Thank you for reaching out. I’m {bot_name}, your AI assistant, here to help you with anything you need. How can I assist you today? 😊"
+    )
+
+    base_greeting = greeting_message + "\n\n"
+
     top_level_codes = [pair for pair in CODE_TITLE_PAIRS if re.fullmatch(r'[A-E]', pair[0])]
-    
+
     if top_level_codes:
         menu = "Please reply with the appropriate code based on your inquiry:\n"
         for code, title in top_level_codes:
             menu += f"{code}. {title}\n"
         return base_greeting + menu.strip()
-    
+
     return base_greeting + "Feel free to ask me any questions based on our provided information."
 
 def format_structured_reply(main_text, extra_text=None, link=None):
