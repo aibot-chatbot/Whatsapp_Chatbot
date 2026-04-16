@@ -4,6 +4,7 @@ from app.config import load_configurations, configure_logging
 from .views import webhook_blueprint
 from app.routes.chat_routes import chat_blueprint
 from app.routes.settings_routes import settings_blueprint
+from app.routes.knowledge_routes import knowledge_blueprint
 
 def create_app():
     app = Flask(__name__)
@@ -17,5 +18,6 @@ def create_app():
     app.register_blueprint(webhook_blueprint)
     app.register_blueprint(chat_blueprint)
     app.register_blueprint(settings_blueprint)
+    app.register_blueprint(knowledge_blueprint)
 
     return app

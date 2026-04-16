@@ -11,6 +11,7 @@ from .utils.whatsapp_utils import (
     is_valid_whatsapp_message,
 )
 from .services.gemini_service import reload_pdf, update_pdf_path
+from app.services.knowledge_service import save_uploaded_pdf
 
 webhook_blueprint = Blueprint("webhook", __name__)
 
@@ -92,19 +93,19 @@ def webhook_post():
 
 @webhook_blueprint.route("/upload-pdf", methods=["POST"])
 def upload_pdf():
-    if 'pdf_file' not in request.files:
-        return jsonify({"status": "error", "message": "No file part"}), 400
-    file = request.files['pdf_file']
-    if file.filename == '':
-        return jsonify({"status": "error", "message": "No selected file"}), 400
-    if file and file.filename.lower().endswith('.pdf'):
-        # Save dynamically based on uploaded filename
-        safe_name = secure_filename(file.filename)
-        filepath = os.path.abspath(os.path.join(current_app.root_path, '..', 'data', safe_name))
-        file.save(filepath)
-        
-        # Hot-reload the memory configuration with the new path
-        update_pdf_path(os.path.join('data', safe_name))
-        
-        return jsonify({"status": "success", "message": f"PDF {safe_name} updated"}), 200
-    return jsonify({"status": "error", "message": "Invalid file type"}), 400
+    try:
+        if "pdf_file" not in request.files:
+            return jsonify({"message": "No file part"}), 400
+
+        file = request.files["pdf_file"]
+
+        result = save_uploaded_pdf(file)
+
+        return jsonify({
+            "message": result["message"]
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "message": str(e)
+        }), 500

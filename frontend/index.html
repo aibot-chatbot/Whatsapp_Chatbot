@@ -180,6 +180,8 @@
             const [dragActive, setDragActive] = useState(false);
             const [status, setStatus] = useState({ type: '', text: '' });
             const [isUploading, setIsUploading] = useState(false);
+            const [files, setFiles] = useState([]);
+            const [activeFile, setActiveFile] = useState("");
 
             const handleFileSelect = (e) => {
                 if (e.target.files && e.target.files[0]) {
@@ -212,6 +214,7 @@
                     if (response.ok) {
                         setStatus({ type: 'success', text: 'PDF successfully uploaded and reloaded into memory!' });
                         setFile(null); // Reset after upload
+                        fetchFiles();
                     } else {
                         const data = await response.json();
                         setStatus({ type: 'error', text: `Upload failed: ${data.message || 'Unknown error'}` });
@@ -222,6 +225,72 @@
                     setIsUploading(false);
                 }
             };
+
+            const fetchFiles = async () => {
+                try {
+                    const res = await fetch("http://127.0.0.1:8000/api/knowledge/files");
+                    const data = await res.json();
+
+                    const activeRes = await fetch("http://127.0.0.1:8000/api/knowledge/active");
+                    const activeData = await activeRes.json();
+
+                    if (data.status === "success") {
+                        setFiles(data.data);
+                    }
+
+                    if (activeData.status === "success") {
+                        setActiveFile(activeData.data.file_name);
+                    }
+                } catch (error) {
+                    console.error("Failed to fetch files");
+                }
+            };
+
+            const handleSetActive = async (fileName) => {
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/knowledge/set-active", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ file_name: fileName })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "success", text: data.data.message });
+                        fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to set active PDF" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend" });
+                }
+            };
+
+            const handleDeleteFile = async (fileName) => {
+                try {
+                    const response = await fetch(`http://127.0.0.1:8000/api/knowledge/files/${encodeURIComponent(fileName)}`, {
+                        method: "DELETE"
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "success", text: data.data.message });
+                        fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to delete PDF" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend" });
+                }
+            };
+
+            React.useEffect(() => {
+                fetchFiles();
+            }, []);
 
             return (
                 <div className="dashboard-container">
@@ -261,6 +330,76 @@
                             {status.type === 'success' ? '✨' : '⚠️'} {status.text}
                         </div>
                     )}
+
+                    <div style={{ marginTop: "24px", textAlign: "left" }}>
+                        <h3 style={{ fontSize: "16px" }}>📄 Uploaded Files</h3>
+
+                        {files.length === 0 ? (
+                            <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                                No files uploaded yet.
+                            </p>
+                        ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                {files.map((f, index) => (
+                                    <div
+                                        key={index}
+                                        style={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            background: "rgba(255,255,255,0.03)",
+                                            border: "1px solid var(--border-color)",
+                                            borderRadius: "8px",
+                                            padding: "10px 12px"
+                                        }}
+                                    >
+                                        <div style={{ fontSize: "14px" }}>
+                                            {f.file_name}
+                                            {f.file_name === activeFile && (
+                                                <span style={{ color: "var(--success)", marginLeft: "6px" }}>
+                                                    (Active)
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div style={{ display: "flex", gap: "8px" }}>
+                                            <button
+                                                onClick={() => handleSetActive(f.file_name)}
+                                                disabled={f.file_name === activeFile}
+                                                style={{
+                                                    background: f.file_name === activeFile ? "var(--border-color)" : "var(--primary)",
+                                                    color: "white",
+                                                    border: "none",
+                                                    borderRadius: "6px",
+                                                    padding: "6px 10px",
+                                                    cursor: f.file_name === activeFile ? "not-allowed" : "pointer",
+                                                    fontSize: "12px"
+                                                }}
+                                            >
+                                                Set Active
+                                            </button>
+
+                                            <button
+                                                onClick={() => handleDeleteFile(f.file_name)}
+                                                disabled={f.file_name === activeFile}
+                                                style={{
+                                                    background: f.file_name === activeFile ? "var(--border-color)" : "var(--error)",
+                                                    color: "white",
+                                                    border: "none",
+                                                    borderRadius: "6px",
+                                                    padding: "6px 10px",
+                                                    cursor: f.file_name === activeFile ? "not-allowed" : "pointer",
+                                                    fontSize: "12px"
+                                                }}
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             );
         }
