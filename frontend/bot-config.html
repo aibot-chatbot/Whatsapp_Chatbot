@@ -1,0 +1,431 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Bot Configuration</title>
+
+        <!-- React & ReactDOM -->
+        <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+        <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+        <!-- Babel for JSX -->
+        <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+        <!-- Google Fonts -->
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+        <style>
+            :root {
+                --primary: #2563eb;
+                --primary-hover: #1d4ed8;
+                --bg-base: #0f172a;
+                --bg-card: #1e293b;
+                --text-main: #f8fafc;
+                --text-muted: #94a3b8;
+                --border-color: #334155;
+                --success: #10b981;
+                --error: #ef4444;
+            }
+
+            body {
+                background-color: var(--bg-base);
+                color: var(--text-main);
+                font-family: 'Inter', sans-serif;
+                margin: 0;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+            }
+
+            .dashboard-container {
+                background: var(--bg-card);
+                border-radius: 16px;
+                padding: 40px;
+                width: 100%;
+                max-width: 450px;
+                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+                border: 1px solid var(--border-color);
+                text-align: center;
+            }
+
+            h1 {
+                margin-top: 0;
+                font-size: 24px;
+                font-weight: 600;
+                margin-bottom: 8px;
+            }
+
+            p.subtitle {
+                color: var(--text-muted);
+                font-size: 14px;
+                margin-bottom: 32px;
+            }
+
+            .upload-area {
+                border: 2px dashed var(--border-color);
+                border-radius: 12px;
+                padding: 32px 24px;
+                transition: all 0.2s ease;
+                cursor: pointer;
+                position: relative;
+                background: rgba(255, 255, 255, 0.02);
+                margin-bottom: 24px;
+            }
+
+            .upload-area:hover, .upload-area.drag-over {
+                border-color: var(--primary);
+                background: rgba(37, 99, 235, 0.05);
+            }
+
+            .upload-area input[type="file"] {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                opacity: 0;
+                cursor: pointer;
+            }
+
+            .upload-icon {
+                font-size: 32px;
+                margin-bottom: 12px;
+                color: var(--text-muted);
+                transition: color 0.2s ease;
+            }
+
+            .upload-area:hover .upload-icon {
+                color: var(--primary);
+            }
+
+            .file-name {
+                font-size: 14px;
+                color: var(--primary);
+                font-weight: 500;
+                margin-top: 12px;
+                word-break: break-all;
+            }
+
+            .btn-submit {
+                background: var(--primary);
+                color: white;
+                border: none;
+                width: 100%;
+                padding: 14px;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: background 0.2s ease, transform 0.1s ease;
+            }
+
+            .btn-submit:hover:not(:disabled) {
+                background: var(--primary-hover);
+            }
+
+            .btn-submit:active:not(:disabled) {
+                transform: scale(0.98);
+            }
+
+            .btn-submit:disabled {
+                background: var(--border-color);
+                color: var(--text-muted);
+                cursor: not-allowed;
+            }
+
+            .status-message {
+                margin-top: 16px;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                animation: fadeIn 0.3s ease;
+            }
+
+            .status-message.success { color: var(--success); }
+            .status-message.error { color: var(--error); }
+
+            @keyframes fadeIn {
+                from { opacity: 0; transform: translateY(-5px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+
+            /* Spinner */
+            .spinner {
+                display: inline-block;
+                width: 18px;
+                height: 18px;
+                border: 2px solid rgba(255,255,255,0.3);
+                border-radius: 50%;
+                border-top-color: white;
+                animation: spin 1s ease-in-out infinite;
+            }
+
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="root"></div>
+
+        <script type="text/babel">
+            const { useState } = React;
+
+            function App() {
+                const [status, setStatus] = useState({ type: '', text: '' });
+
+                const [isSaving, setIsSaving] = useState(false);
+
+                const [botName, setBotName] = useState("");
+                const [companyName, setCompanyName] = useState("");
+                const [businessDescription, setBusinessDescription] = useState("");
+                const [tone, setTone] = useState("Friendly");
+                const [additionalInstructions, setAdditionalInstructions] = useState("");
+
+                const fetchSettings = async () => {
+                    try {
+                        const response = await fetch("http://127.0.0.1:8000/api/settings");
+                        const data = await response.json();
+
+                        if (data.status === "success") {
+                            const settings = data.data;
+
+                            setBotName(settings.bot_name || "");
+                            setCompanyName(settings.company_name || "");
+                            setBusinessDescription(settings.business_description || "");
+                            setTone(settings.tone || "Friendly");
+                            setAdditionalInstructions(settings.additional_instructions || "");
+                        } else {
+                            setStatus({ type: "error", text: "Failed to load settings." });
+                        }
+                    } catch (error) {
+                        setStatus({ type: "error", text: "Failed to connect to backend." });
+                    }
+                };
+
+                const handleSave = async () => {
+                    setIsSaving(true);
+                    setStatus({ type: "", text: "" });
+
+                    try {
+                        const response = await fetch("http://127.0.0.1:8000/api/settings", {
+                            method: "PUT",
+                            headers: {
+                                "Content-Type": "application/json"
+                            },
+                            body: JSON.stringify({
+                                bot_name: botName,
+                                company_name: companyName,
+                                business_description: businessDescription,
+                                tone: tone,
+                                additional_instructions: additionalInstructions
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (data.status === "success") {
+                            setStatus({ type: "success", text: "Settings saved successfully!" });
+                        } else {
+                            setStatus({ type: "error", text: data.message || "Save failed" });
+                        }
+
+                    } catch (error) {
+                        setStatus({ type: "error", text: "Network error. Is backend running?" });
+                    } finally {
+                        setIsSaving(false);
+                    }
+                };
+
+                React.useEffect(() => {
+                    fetchSettings();
+                }, []);
+
+                return (
+                    <div className="dashboard-container">
+
+                        <div style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            gap: "10px",
+                            marginBottom: "24px"
+                        }}>
+                            <a
+                                href="index.html"
+                                style={{
+                                    padding: "8px 14px",
+                                    borderRadius: "8px",
+                                    textDecoration: "none",
+                                    background: "rgba(255,255,255,0.05)",
+                                    color: "var(--text-main)",
+                                    border: "1px solid var(--border-color)",
+                                    fontSize: "14px"
+                                }}
+                            >
+                                Knowledge Base
+                            </a>
+
+                            <a
+                                href="bot-config.html"
+                                style={{
+                                    padding: "8px 14px",
+                                    borderRadius: "8px",
+                                    textDecoration: "none",
+                                    background: "var(--primary)",
+                                    color: "white",
+                                    border: "1px solid var(--primary)",
+                                    fontSize: "14px"
+                                }}
+                            >
+                                Bot Configuration
+                            </a>
+                        </div>
+
+                        <h1>Bot Configuration</h1>
+                        <p className="subtitle">Configure your chatbot behavior and business details.</p>
+
+                        <div style={{ textAlign: "left", marginTop: "20px" }}>
+
+                            {/* Bot Name */}
+                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+                                Bot Name
+                            </label>
+                            <input
+                                type="text"
+                                value={botName}
+                                onChange={(e) => setBotName(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    padding: "10px",
+                                    marginTop: "6px",
+                                    marginBottom: "16px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--border-color)",
+                                    background: "var(--bg-base)",
+                                    color: "var(--text-main)"
+                                }}
+                            />
+
+                            {/* Company Name */}
+                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+                                Company Name
+                            </label>
+                            <input
+                                type="text"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    padding: "10px",
+                                    marginTop: "6px",
+                                    marginBottom: "16px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--border-color)",
+                                    background: "var(--bg-base)",
+                                    color: "var(--text-main)"
+                                }}
+                            />
+
+                            {/* Business Description */}
+                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+                                Business Description
+                            </label>
+                            <textarea
+                                value={businessDescription}
+                                onChange={(e) => setBusinessDescription(e.target.value)}
+                                rows="4"
+                                style={{
+                                    width: "100%",
+                                    padding: "10px",
+                                    marginTop: "6px",
+                                    marginBottom: "16px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--border-color)",
+                                    background: "var(--bg-base)",
+                                    color: "var(--text-main)",
+                                    resize: "none"
+                                }}
+                            />
+
+                            {/* Tone */}
+                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+                                Tone
+                            </label>
+                            <select
+                                value={tone}
+                                onChange={(e) => setTone(e.target.value)}
+                                style={{
+                                    width: "100%",
+                                    padding: "10px",
+                                    marginTop: "6px",
+                                    marginBottom: "16px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--border-color)",
+                                    background: "var(--bg-base)",
+                                    color: "var(--text-main)"
+                                }}
+                            >
+                                <option value="Friendly">Friendly</option>
+                                <option value="Professional">Professional</option>
+                                <option value="Formal">Formal</option>
+                            </select>
+
+                            {/* Additional Instructions */}
+                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+                                Additional Instructions
+                            </label>
+                            <textarea
+                                value={additionalInstructions}
+                                onChange={(e) => setAdditionalInstructions(e.target.value)}
+                                rows="4"
+                                style={{
+                                    width: "100%",
+                                    padding: "10px",
+                                    marginTop: "6px",
+                                    marginBottom: "16px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--border-color)",
+                                    background: "var(--bg-base)",
+                                    color: "var(--text-main)",
+                                    resize: "none"
+                                }}
+                            />
+
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                style={{
+                                    width: "100%",
+                                    marginTop: "10px",
+                                    padding: "12px",
+                                    borderRadius: "8px",
+                                    border: "none",
+                                    background: "var(--primary)",
+                                    color: "white",
+                                    cursor: "pointer",
+                                    fontWeight: "600"
+                                }}
+                            >
+                                {isSaving ? "Saving..." : "Save Configuration"}
+                            </button>
+
+                            {status.text && (
+                                <div className={`status-message ${status.type}`}>
+                                    {status.type === "success" ? "✨ " : "⚠️ "} {status.text}
+                                </div>
+                            )}
+
+                        </div>
+                    </div>
+                );
+            }
+
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(<App />);
+        </script>
+    </body>
+    </html>

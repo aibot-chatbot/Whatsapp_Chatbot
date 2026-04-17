@@ -6,7 +6,7 @@ import fitz  #PyMuPDF
 from dotenv import load_dotenv
 import google.generativeai as genai
 import glob
-from app.services.settings_service import get_settings
+from app.services.settings_service import get_settings, generate_greeting, generate_fallback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -247,6 +247,18 @@ def save_chat_history(wa_id, history):
 
 # ===== BUILD PROMPT =====
 def build_prompt(history, message, context_chunks):
+    settings = get_settings()
+
+    bot_name = settings.get("bot_name", "OlympicEdu Assistant")
+    company_name = settings.get("company_name", "Olympic Edu Sdn Bhd")
+    business_description = settings.get(
+        "business_description",
+        "We provide mathematics competitions, training programs, books, and educational services."
+    )
+    tone = settings.get("tone", "Friendly")
+    additional_instructions = settings.get("additional_instructions", "")
+    fallback_message = generate_fallback(settings)
+
     conversation = ""
 
     for item in history:
@@ -258,60 +270,35 @@ def build_prompt(history, message, context_chunks):
     context = "\n\n".join(context_chunks)
 
     prompt = f"""
-    You are OlympicEdu, an AI assistant representing Olympic Edu Sdn Bhd.
+    You are {bot_name}, an AI assistant for {company_name}.
 
-    Your role is to help users with inquiries related to:
-    - Mathematics competitions (e.g. TMC, ASMO, etc.)
-    - Courses and training programs
-    - Books and learning materials
-    - Business opportunities and services
+    Business context:
+    {business_description}
 
-    You should behave like a knowledgeable and helpful human assistant for the organization.
+    Your purpose:
+    You are a helpful AI assistant for {company_name}.
 
-    STYLE & TONE:
-    - Be warm, polite, and conversational
-    - Keep replies clear, simple, and easy to understand
-    - Avoid robotic or overly formal phrases
-    - Keep responses concise but helpful
+    Tone:
+    Respond in a {tone.lower()} tone.
 
-    GENERAL BEHAVIOR:
-    - Always try to be helpful based on available information
-    - Do NOT make up facts or provide information that is not supported
-    - Avoid sounding overly certain unless the information is clearly stated
+    Additional instructions:
+    {additional_instructions if additional_instructions else "None"}
 
-    CONFIDENCE CONTROL (VERY IMPORTANT):
-    - If information is clearly available → answer confidently
-    - If information is partial or unclear → use soft language:
+    RULES:
+    - Always try to be helpful based on the available information
+    - Do NOT make up facts or provide unsupported information
+    - If information is partial or unclear, use soft wording such as:
       - "Based on the available information..."
       - "From the information provided..."
       - "It appears that..."
-    - Avoid strong claims like:
+    - Avoid strong unsupported claims like:
       - "Absolutely", "Definitely", "For sure"
-      unless explicitly supported by the knowledge
-
-    WHEN ANSWER IS CLEAR:
-    - Give a direct and clear answer
-
-    WHEN ANSWER IS PARTIAL OR NOT DIRECT:
-    - Start with what is known from the available information
-    - Then give a helpful explanation or suggestion
-    - Only suggest contacting admin if necessary
-
-    WHEN QUESTION IS RELATED BUT NOT IN DETAIL:
-    - Give a general helpful answer based on:
-      - school-level suitability
-      - learning purpose
-      - student participation
-    - Do NOT guess or invent facts
-
-    WHEN QUESTION IS OUT OF SCOPE:
-    - Politely guide user back to OlympicEdu-related topics
-
-    ANSWER STYLE:
-    - Answer the question first
-    - Then mention limitation if needed
-    - Keep reply short (1–2 paragraphs max)
-    - Do NOT repeat the full menu unless user asks
+    - Keep responses clear, concise, and easy to understand
+    - Answer the question first, then add explanation only if needed
+    - Keep replies short, ideally within 1–2 paragraphs
+    - If the question is out of scope or unsupported, politely guide the user back
+    - If the answer cannot be found clearly, use this fallback style:
+      {fallback_message}
 
     Knowledge:
     {context}
@@ -403,13 +390,7 @@ def is_out_of_scope(message):
 
 def handle_greeting():
     settings = get_settings()
-    bot_name = settings.get("bot_name", "OlympicEdu")
-    greeting_message = settings.get(
-        "greeting_message",
-        f"Hello! Thank you for reaching out. I’m {bot_name}, your AI assistant, here to help you with anything you need. How can I assist you today? 😊"
-    )
-
-    base_greeting = greeting_message + "\n\n"
+    base_greeting = generate_greeting(settings) + "\n\n"
 
     top_level_codes = [pair for pair in CODE_TITLE_PAIRS if re.fullmatch(r'[A-E]', pair[0])]
 
@@ -742,9 +723,12 @@ def generate_response(message, wa_id):
         else:
             if is_out_of_scope(message):
                 logging.info("Out-of-scope message detected.")
+                settings = get_settings()
+                fallback_message = generate_fallback(settings)
+
                 reply = format_structured_reply(
-                    "I’m here to help with information related to our programs and competitions.",
-                    extra_text="Please reply with A, B, C, D, or E to explore available options."
+                    fallback_message,
+                    extra_text="Please ask about topics related to the uploaded knowledge or configured business information."
                 )
             else:
                 context_chunks = retrieve_relevant_chunks(message)
