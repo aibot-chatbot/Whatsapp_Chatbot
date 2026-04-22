@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt | AI CHATBOT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --input-bg: rgba(15, 23, 42, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 40px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 50px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(to right, #60a5fa, #10b981);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-list { list-style: none; flex-grow: 1; }
+        .nav-item { margin-bottom: 8px; }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-dim);
+            padding: 12px 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+        }
+
+        .nav-link:hover { background: rgba(255, 255, 255, 0.05); color: var(--text-main); transform: translateX(5px); }
+        .nav-link.active { background: var(--primary); color: white; box-shadow: 0 4px 20px var(--primary-glow); }
+
+        /* Dropdown Styles */
+        .dropdown-container { margin-bottom: 8px; }
+        .dropdown-toggle { width: 100%; justify-content: space-between; background: transparent; border: none; cursor: pointer; text-align: left; }
+        .dropdown-content { max-height: 0; overflow: hidden; transition: all 0.3s ease-in-out; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+        .dropdown-container.open .dropdown-content { max-height: 500px; margin-top: 8px; padding-bottom: 8px; }
+        .chevron { transition: transform 0.3s; opacity: 0.5; }
+        .dropdown-container.open .chevron { transform: rotate(180deg); opacity: 1; }
+        .sub-link { font-size: 0.9rem; padding: 10px 16px; }
+
+        .logout-btn { margin-top: auto; color: #ef4444; display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-decoration: none; font-weight: 600; border-radius: 12px; transition: background 0.3s; }
+
+        .main-container { flex-grow: 1; padding: 50px 60px; max-width: 1400px; }
+        .header { margin-bottom: 40px; }
+        .header h1 { font-size: 2.2rem; font-weight: 700; letter-spacing: -1px; }
+        .header p { color: var(--text-dim); margin-top: 8px; }
+
+        .glass-card { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); padding: 40px; border-radius: 32px; transition: all 0.3s; }
+        .input-group { margin-bottom: 25px; }
+        .input-group label { display: block; margin-bottom: 12px; font-weight: 600; font-size: 0.9rem; color: var(--text-dim); }
+        input[type="text"], textarea { 
+            width: 100%; 
+            background: var(--input-bg); 
+            border: 1px solid var(--glass-border); 
+            border-radius: 16px; 
+            padding: 16px 20px; 
+            color: white; 
+            outline: none; 
+            transition: all 0.3s;
+            font-size: 1rem;
+        }
+        input:focus, textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+            background: rgba(15, 23, 42, 0.8);
+        }
+        .btn { padding: 12px 28px; border-radius: 40px; font-weight: 700; cursor: pointer; border: none; transition: all 0.3s; }
+        .btn-primary { background: var(--primary); color: white; box-shadow: 0 4px 15px var(--primary-glow); }
+        .btn-primary:active { transform: scale(0.95); }
+        
+        .success-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(16, 185, 129, 0.1);
+            backdrop-filter: blur(5px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            border-radius: 32px;
+            z-index: 10;
+            animation: fadeIn 0.3s ease-out;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="logo">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><path d="M12 6v6l4 2"></path></svg>
+            <span>AI CHATBOT</span>
+        </div>
+        <nav class="nav-list">
+            <div class="nav-item"><a href="index.html" class="nav-link">📊 Dashboard</a></div>
+            
+            <div class="dropdown-container" id="training-dropdown">
+                <div class="nav-item">
+                    <button class="nav-link dropdown-toggle" onclick="toggleDropdown('training-dropdown')">
+                        <span>📁 Training Data</span>
+                        <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                </div>
+                <div class="dropdown-content">
+                    <a href="linksdocs.html" class="nav-link sub-link">🔗 Links / Docs</a>
+                    <a href="prompt.html" class="nav-link sub-link">📋 Prompt</a>
+                    <a href="training.html" class="nav-link sub-link">📚 Help & Documentation</a>
+                </div>
+            </div>
+            
+            <div class="dropdown-container" id="behaviour-dropdown">
+                <div class="nav-item">
+                    <button class="nav-link dropdown-toggle" onclick="toggleDropdown('behaviour-dropdown')">
+                        <span>⚙️ Behaviour</span>
+                        <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                </div>
+                <div class="dropdown-content">
+                    <a href="behaviour.html" class="nav-link sub-link">🤖 Tune AI</a>
+                    <a href="testbot.html" class="nav-link sub-link">🧪 Test Your Bot</a>
+                </div>
+            </div>
+            
+            <div class="nav-item"><a href="integration.html" class="nav-link">🔌 Integration</a></div>
+        </nav>
+        <a href="login.html?logout=1" class="logout-btn">🚪 Logout</a>
+    </aside>
+
+    <main class="main-container">
+        <div class="header">
+            <h1>Prompt Training</h1>
+            <p>Add custom text to train your chatbot dynamically.</p>
+        </div>
+        <div style="position: relative; max-width: 800px; margin: 0 auto;">
+            <div class="glass-card">
+                <div class="input-group">
+                    <label>Description</label>
+                    <input type="text" id="p-desc" placeholder="e.g. Q4 Policy Update">
+                </div>
+                <div class="input-group">
+                    <label>System Content (The AI's personality and rules)</label>
+                    <textarea id="p-system" style="min-height: 120px;" placeholder="You are a helpful assistant for AI CHATBOT..."></textarea>
+                </div>
+                <div class="input-group">
+                    <label>User Content (Specific context or examples)</label>
+                    <textarea id="p-user" style="min-height: 120px;" placeholder="When a user asks about pricing, mention our flexible tiers..."></textarea>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:12px;">
+                    <button class="btn" style="background: rgba(255,255,255,0.05); color: var(--text-dim);">Clear</button>
+                    <button class="btn btn-primary" id="go-btn" style="padding:15px 60px; font-size:1.1rem;" onclick="handlePromptSubmit()">GO</button>
+                </div>
+            </div>
+            <div class="success-overlay" id="success-overlay">
+                <div style="text-align: center;">
+                    <div style="width: 80px; height: 80px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; box-shadow: 0 0 30px rgba(16, 185, 129, 0.4);">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    </div>
+                    <h2 style="color: white; margin-bottom: 8px;">Training Injection Successful</h2>
+                    <p style="color: rgba(255,255,255,0.7);">Your bot's intelligence has been updated.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        requireLogin();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initSidebar();
+        });
+
+        function toggleDropdown(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('open');
+            }
+        }
+
+        function initSidebar() {
+            const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            navLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
+            });
+
+            // Auto-expand dropdowns if child is active
+            if (['linksdocs.html', 'prompt.html', 'training.html'].includes(currentPath)) {
+                const drop = document.getElementById('training-dropdown');
+                if (drop) drop.classList.add('open');
+            }
+            if (['behaviour.html', 'testbot.html'].includes(currentPath)) {
+                const drop = document.getElementById('behaviour-dropdown');
+                if (drop) drop.classList.add('open');
+            }
+        }
+
+        function handlePromptSubmit() {
+            const desc = document.getElementById('p-desc').value;
+            if (!desc) return alert("Please enter a description");
+
+            const btn = document.getElementById('go-btn');
+            const overlay = document.getElementById('success-overlay');
+            
+            btn.innerText = "Injecting...";
+            btn.disabled = true;
+
+            setTimeout(() => {
+                overlay.style.display = 'flex';
+                
+                setTimeout(() => {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => {
+                        overlay.style.display = 'none';
+                        overlay.style.opacity = '1';
+                        btn.innerText = "GO";
+                        btn.disabled = false;
+                        document.getElementById('p-desc').value = '';
+                        document.getElementById('p-system').value = '';
+                        document.getElementById('p-user').value = '';
+                    }, 300);
+                }, 2000);
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integration | AI CHATBOT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --input-bg: rgba(15, 23, 42, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 40px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 50px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(to right, #60a5fa, #10b981);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-list { list-style: none; flex-grow: 1; }
+        .nav-item { margin-bottom: 8px; }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-dim);
+            padding: 12px 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+        }
+
+        .nav-link:hover { background: rgba(255, 255, 255, 0.05); color: var(--text-main); transform: translateX(5px); }
+        .nav-link.active { background: var(--primary); color: white; box-shadow: 0 4px 20px var(--primary-glow); }
+
+        /* Dropdown Styles */
+        .dropdown-container { margin-bottom: 8px; }
+        .dropdown-toggle { width: 100%; justify-content: space-between; background: transparent; border: none; cursor: pointer; text-align: left; }
+        .dropdown-content { max-height: 0; overflow: hidden; transition: all 0.3s ease-in-out; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+        .dropdown-container.open .dropdown-content { max-height: 500px; margin-top: 8px; padding-bottom: 8px; }
+        .chevron { transition: transform 0.3s; opacity: 0.5; }
+        .dropdown-container.open .chevron { transform: rotate(180deg); opacity: 1; }
+        .sub-link { font-size: 0.9rem; padding: 10px 16px; }
+
+        .logout-btn { margin-top: auto; color: #ef4444; display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-decoration: none; font-weight: 600; border-radius: 12px; transition: background 0.3s; }
+
+        .main-container { flex-grow: 1; padding: 50px 60px; max-width: 1400px; }
+        .header { margin-bottom: 40px; }
+        .header h1 { font-size: 2.2rem; font-weight: 700; letter-spacing: -1px; }
+        .header p { color: var(--text-dim); margin-top: 8px; }
+
+        .glass-card { 
+            background: var(--card-bg); 
+            backdrop-filter: blur(15px); 
+            border: 1px solid var(--glass-border); 
+            padding: 40px; 
+            border-radius: 32px; 
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        .glass-card:hover {
+            transform: translateY(-12px);
+            background: rgba(255, 255, 255, 0.08);
+            border-color: var(--primary);
+            box-shadow: 0 30px 60px rgba(0,0,0,0.4);
+        }
+        .platforms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 30px; }
+        .platform-icon-container {
+            width: 80px; height: 80px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 20px;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        .btn { padding: 14px 28px; border-radius: 40px; font-weight: 700; cursor: pointer; border: none; width: 100%; transition: 0.3s; }
+        .btn:hover { transform: scale(1.03); filter: brightness(1.1); }
+        
+        /* Modal Styles */
+        .modal-backdrop {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(15px);
+            z-index: 1000; display: none; align-items: center; justify-content: center;
+            animation: fadeIn 0.3s ease-out;
+        }
+        .modal-content {
+            background: var(--card-bg); border: 1px solid var(--glass-border);
+            border-radius: 32px; width: 100%; max-width: 550px; padding: 40px;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .step-item {
+            display: flex; gap: 16px; margin-bottom: 20px;
+            background: rgba(255,255,255,0.03); padding: 16px; border-radius: 16px;
+        }
+        .step-number {
+            min-width: 32px; height: 32px; background: var(--primary);
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: 800; font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="logo">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><path d="M12 6v6l4 2"></path></svg>
+            <span>AI CHATBOT</span>
+        </div>
+        <nav class="nav-list">
+            <div class="nav-item"><a href="index.html" class="nav-link">📊 Dashboard</a></div>
+            
+            <div class="dropdown-container" id="training-dropdown">
+                <div class="nav-item">
+                    <button class="nav-link dropdown-toggle" onclick="toggleDropdown('training-dropdown')">
+                        <span>📁 Training Data</span>
+                        <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                </div>
+                <div class="dropdown-content">
+                    <a href="linksdocs.html" class="nav-link sub-link">🔗 Links / Docs</a>
+                    <a href="prompt.html" class="nav-link sub-link">📋 Prompt</a>
+                    <a href="training.html" class="nav-link sub-link">📚 Help & Documentation</a>
+                </div>
+            </div>
+            
+            <div class="dropdown-container" id="behaviour-dropdown">
+                <div class="nav-item">
+                    <button class="nav-link dropdown-toggle" onclick="toggleDropdown('behaviour-dropdown')">
+                        <span>⚙️ Behaviour</span>
+                        <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                </div>
+                <div class="dropdown-content">
+                    <a href="behaviour.html" class="nav-link sub-link">🤖 Tune AI</a>
+                    <a href="testbot.html" class="nav-link sub-link">🧪 Test Your Bot</a>
+                </div>
+            </div>
+            
+            <div class="nav-item"><a href="integration.html" class="nav-link active">🔌 Integration</a></div>
+        </nav>
+        <a href="login.html?logout=1" class="logout-btn">🚪 Logout</a>
+    </aside>
+
+    <main class="main-container">
+        <div class="header">
+            <h1>Select Platform</h1>
+            <p>Connect your chatbot to messaging platforms.</p>
+        </div>
+        <div class="platforms-grid">
+            <div class="glass-card" onclick="openSetup('whatsapp')">
+                <div class="platform-icon-container" style="background: rgba(37, 211, 102, 0.1); color: #25D366; border: 1px solid rgba(37, 211, 102, 0.2);">💬</div>
+                <h3 style="font-size: 1.5rem; color: #25D366;">WhatsApp</h3>
+                <p style="color: var(--text-dim); text-align: center;">Sync your AI bot with WhatsApp Business API to reach billions of users instantly.</p>
+                <div style="flex-grow: 1;"></div>
+                <button class="btn" style="background:#25D366; color:white; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);">Connect WhatsApp</button>
+            </div>
+
+            <div class="glass-card" onclick="openSetup('telegram')">
+                <div class="platform-icon-container" style="background: rgba(38, 165, 228, 0.1); color: #26A5E4; border: 1px solid rgba(38, 165, 228, 0.2);">✈️</div>
+                <h3 style="font-size: 1.5rem; color: #26A5E4;">Telegram</h3>
+                <p style="color: var(--text-dim); text-align: center;">Deploy your bot on Telegram for a lightweight, secure, and fast messaging experience.</p>
+                <div style="flex-grow: 1;"></div>
+                <button class="btn" style="background:#26A5E4; color:white; box-shadow: 0 4px 15px rgba(38, 165, 228, 0.3);">Connect Telegram</button>
+            </div>
+            
+            <div class="glass-card" style="opacity: 0.5; cursor: default;">
+                <div class="platform-icon-container" style="background: rgba(255, 255, 255, 0.05); color: #fff;">🌐</div>
+                <h3 style="font-size: 1.2rem;">Web Widget</h3>
+                <p style="color: var(--text-dim); text-align: center;">Embed a floating chat bubble directly on your website. (Coming Soon)</p>
+                <div style="flex-grow: 1;"></div>
+                <button class="btn" disabled style="background:rgba(255,255,255,0.1); color: var(--text-dim);">Coming Soon</button>
+            </div>
+        </div>
+    </main>
+
+    <div class="modal-backdrop" id="setup-modal" onclick="if(event.target === this) closeSetup()">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+                <h2 id="modal-title">Setup Connection</h2>
+                <button onclick="closeSetup()" style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1.5rem;">&times;</button>
+            </div>
+            
+            <div id="setup-steps">
+                <!-- Steps injected by JS -->
+            </div>
+
+            <div style="margin-top: 30px;">
+                <button class="btn btn-primary" onclick="closeSetup()">I've Completed Setup</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        requireLogin();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initSidebar();
+        });
+
+        function toggleDropdown(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('open');
+            }
+        }
+
+        function initSidebar() {
+            const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            navLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
+            });
+
+            // Auto-expand dropdowns if child is active
+            if (['linksdocs.html', 'prompt.html', 'training.html'].includes(currentPath)) {
+                const drop = document.getElementById('training-dropdown');
+                if (drop) drop.classList.add('open');
+            }
+            if (['behaviour.html', 'testbot.html'].includes(currentPath)) {
+                const drop = document.getElementById('behaviour-dropdown');
+                if (drop) drop.classList.add('open');
+            }
+        }
+
+        const platformData = {
+            whatsapp: {
+                title: "WhatsApp API Setup",
+                steps: [
+                    "Go to Meta for Developers dashboard.",
+                    "Create a WhatsApp Business App.",
+                    "Generate a Permanent Access Token.",
+                    "Enter your Phone Number ID in the fields below."
+                ]
+            },
+            telegram: {
+                title: "Telegram Bot Setup",
+                steps: [
+                    "Open Telegram and search for @BotFather.",
+                    "Use /newbot to create your agent.",
+                    "Copy the HTTP API Token provided.",
+                    "Paste the token in your AI CHATBOT integration settings."
+                ]
+            }
+        };
+
+        function openSetup(platform) {
+            const data = platformData[platform];
+            document.getElementById('modal-title').innerText = data.title;
+            const container = document.getElementById('setup-steps');
+            container.innerHTML = '';
+            
+            data.steps.forEach((step, index) => {
+                container.innerHTML += `
+                    <div class="step-item">
+                        <div class="step-number">${index + 1}</div>
+                        <div class="step-text" style="font-size: 0.95rem; color: var(--text-dim);">${step}</div>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('setup-modal').style.display = 'flex';
+        }
+
+        function closeSetup() {
+            document.getElementById('setup-modal').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

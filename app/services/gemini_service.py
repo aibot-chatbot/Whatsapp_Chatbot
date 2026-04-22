@@ -2,7 +2,8 @@ import logging
 import os
 import re
 import shelve
-import fitz  #PyMuPDF
+import json
+import fitz  # PyMuPDF
 from dotenv import load_dotenv
 import google.generativeai as genai
 import glob
@@ -21,20 +22,52 @@ model = genai.GenerativeModel("gemini-3-flash-preview")
 CHAT_HISTORY_DB = "chat_history_db"
 MAX_HISTORY = 6
 
+KNOWLEDGE_STATE_FILE = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "knowledge_state.json")
+)
+
+
+def save_active_pdf_state(pdf_path):
+    state = {
+        "active_pdf": pdf_path
+    }
+
+    with open(KNOWLEDGE_STATE_FILE, "w", encoding="utf-8") as file:
+        json.dump(state, file, indent=4, ensure_ascii=False)
+
+
+def load_active_pdf_state():
+    if not os.path.exists(KNOWLEDGE_STATE_FILE):
+        return None
+
+    try:
+        with open(KNOWLEDGE_STATE_FILE, "r", encoding="utf-8") as file:
+            data = json.load(file)
+            return data.get("active_pdf")
+    except Exception:
+        return None
+
+
 def get_latest_pdf():
-    # Automatically find the most recently uploaded PDF in the data folder
     pdf_files = glob.glob(os.path.join("data", "*.pdf"))
     if pdf_files:
         return max(pdf_files, key=os.path.getmtime)
     return "data/Speedbot.pdf"
 
-PDF_PATH = get_latest_pdf()
 
-def update_pdf_path(new_path):
-    global PDF_PATH
-    PDF_PATH = new_path
-    logging.info(f"Updated global PDF_PATH to: {PDF_PATH}")
-    reload_pdf()
+def get_initial_pdf_path():
+    saved_pdf = load_active_pdf_state()
+
+    if saved_pdf and os.path.exists(saved_pdf):
+        logging.info(f"Loaded saved active PDF from state file: {saved_pdf}")
+        return saved_pdf
+
+    save_active_pdf_state("")
+    logging.info("No valid saved active PDF found. No active PDF will be loaded.")
+    return ""
+
+
+PDF_PATH = get_initial_pdf_path()
 
 STOPWORDS = {
     "is", "am", "are", "the", "a", "an", "of", "to", "for", "and", "or", "in",
@@ -54,14 +87,17 @@ ALIASES = {
 }
 
 
-# ===== LOAD PDF =====
 def load_pdf_text():
+    if not PDF_PATH or not os.path.exists(PDF_PATH):
+        logging.info("No active PDF found when loading PDF text.")
+        return ""
+
     doc = fitz.open(PDF_PATH)
     lines = []
 
     for page in doc:
         blocks = page.get_text("blocks")
-        blocks = sorted(blocks, key=lambda b: (b[1], b[0]))  # top → bottom
+        blocks = sorted(blocks, key=lambda b: (b[1], b[0]))
 
         for block in blocks:
             text = block[4].strip()
@@ -74,7 +110,6 @@ def load_pdf_text():
     return "\n".join(lines)
 
 
-# ===== CLEAN TEXT =====
 def normalize_text(text):
     text = text.replace("\u2019", "'").replace("\u2018", "'")
     text = text.replace("\u201c", '"').replace("\u201d", '"')
@@ -94,7 +129,6 @@ def expand_query_words(query_words):
         if word in ALIASES:
             expanded.update(ALIASES[word])
 
-    # cross-add related aliases when query contains one of the values
     for key, values in ALIASES.items():
         for value in values:
             if value in " ".join(query_words):
@@ -103,7 +137,6 @@ def expand_query_words(query_words):
     return list(expanded)
 
 
-# ===== SPLIT INTO BETTER CHUNKS =====
 def split_text_into_sections(text, max_chunk_length=900):
     text = normalize_text(text)
 
@@ -143,7 +176,14 @@ PDF_TEXT = load_pdf_text()
 PDF_CHUNKS = split_text_into_sections(PDF_TEXT)
 
 
-# ===== DIRECT CODE MATCH =====
+def update_pdf_path(new_path):
+    global PDF_PATH
+    PDF_PATH = new_path or ""
+    save_active_pdf_state(PDF_PATH)
+    logging.info(f"Updated global PDF_PATH to: {PDF_PATH}")
+    reload_pdf()
+
+
 def find_code_matches(query):
     query_upper = query.upper()
     codes = re.findall(r"\b[A-E](?:\d+(?:\.\d+)*)?\b", query_upper)
@@ -170,7 +210,6 @@ def find_code_matches(query):
     return unique_chunks[:3]
 
 
-# ===== IMPROVED RETRIEVAL =====
 def score_chunk(query, query_words, chunk):
     chunk_lower = chunk.lower()
     score = 0
@@ -179,11 +218,9 @@ def score_chunk(query, query_words, chunk):
         if word in chunk_lower:
             score += 2
 
-    # exact phrase bonus
     if query.lower() in chunk_lower:
         score += 6
 
-    # strong FAQ signal boosts
     if "register" in query_words or "registration" in query_words or "sign up" in query.lower():
         if "register" in chunk_lower or "registration" in chunk_lower:
             score += 8
@@ -235,7 +272,6 @@ def retrieve_relevant_chunks(query, top_k=3):
     return selected
 
 
-# ===== CHAT HISTORY =====
 def load_chat_history(wa_id):
     with shelve.open(CHAT_HISTORY_DB) as db:
         return db.get(wa_id, [])
@@ -245,7 +281,7 @@ def save_chat_history(wa_id, history):
     with shelve.open(CHAT_HISTORY_DB, writeback=True) as db:
         db[wa_id] = history
 
-# ===== BUILD PROMPT =====
+
 def build_prompt(history, message, context_chunks):
     settings = get_settings()
 
@@ -311,6 +347,7 @@ def build_prompt(history, message, context_chunks):
     """
     return prompt
 
+
 def detect_intent(message):
     msg = message.lower().strip()
 
@@ -346,7 +383,7 @@ def detect_intent(message):
         return "registration"
 
     if any(word in msg for word in registration_requirement_keywords) and (
-            "join" in msg or "register" in msg or "registration" in msg
+        "join" in msg or "register" in msg or "registration" in msg
     ):
         return "registration"
 
@@ -359,6 +396,7 @@ def detect_intent(message):
         return "fee"
 
     return "general"
+
 
 def is_out_of_scope(message):
     msg = message.lower().strip()
@@ -388,6 +426,7 @@ def is_out_of_scope(message):
 
     return any(word in msg for word in out_keywords)
 
+
 def handle_greeting():
     settings = get_settings()
     base_greeting = generate_greeting(settings) + "\n\n"
@@ -401,6 +440,7 @@ def handle_greeting():
         return base_greeting + menu.strip()
 
     return base_greeting + "Feel free to ask me any questions based on our provided information."
+
 
 def format_structured_reply(main_text, extra_text=None, link=None):
     reply = main_text.strip()
@@ -475,13 +515,13 @@ def handle_fee(context_chunks):
 
     return None
 
+
 def extract_code_title_pairs():
     pairs = []
     lines = [line.strip() for line in PDF_TEXT.splitlines() if line.strip()]
 
-    # Safely print without crashing Windows console
     logging.info(f"PDF_TEXT length: {len(PDF_TEXT)}")
-    
+
     pattern = re.compile(r'^([A-E](?:\d+(?:\.\d+)*)?)[\.:]?\s*(.+)$')
 
     for line in lines:
@@ -490,14 +530,11 @@ def extract_code_title_pairs():
             code = match.group(1).upper()
             title = normalize_text(match.group(2))
 
-            # ✅ ADD THIS FILTER
             if not re.match(r'^[A-E](?:\d+(?:\.\d+)*)?[\.:]', line):
                 continue
 
-            raw_code_part = match.group(1)
             raw_title_part = match.group(2)
 
-            # skip obvious fake matches from normal words like Examples, Avoid, ChatbotResponse
             if len(code) == 1 and not raw_title_part:
                 continue
 
@@ -539,6 +576,7 @@ def extract_code_title_pairs():
 
 CODE_TITLE_PAIRS = extract_code_title_pairs()
 
+
 def reload_pdf():
     global PDF_TEXT, PDF_CHUNKS, CODE_TITLE_PAIRS
     logging.info("Reloading PDF into memory...")
@@ -547,9 +585,11 @@ def reload_pdf():
     CODE_TITLE_PAIRS = extract_code_title_pairs()
     logging.info("PDF reloaded successfully!")
 
+
 logging.info(f"Total code-title pairs: {len(CODE_TITLE_PAIRS)}")
 logging.info(f"First 30 code-title pairs: {CODE_TITLE_PAIRS[:30]}")
 logging.info(f"A-related pairs: {[item for item in CODE_TITLE_PAIRS if str(item[0]).startswith('A')]}")
+
 
 def get_child_codes(parent_code):
     parent_code = parent_code.upper().strip()
@@ -574,6 +614,7 @@ def get_child_codes(parent_code):
     logging.info(f"Matched children: {children}")
     return children
 
+
 def get_exact_code_chunk(code):
     code = code.upper().strip()
     lines = [line.strip() for line in PDF_TEXT.splitlines() if line.strip()]
@@ -597,14 +638,13 @@ def get_exact_code_chunk(code):
     if not matches:
         return None
 
-    # Prefer the detailed section with chatbot response
     for chunk in matches:
         lower_chunk = chunk.lower()
         if "chatbot response" in lower_chunk or "chatbotresponse" in lower_chunk:
             return chunk
 
-    # Otherwise return the longest exact match
     return max(matches, key=len)
+
 
 def clean_code_answer(chunk, code):
     if not chunk:
@@ -612,7 +652,6 @@ def clean_code_answer(chunk, code):
 
     text = " ".join(chunk.split())
 
-    # try to extract only chatbot response first
     match = re.search(r'Chatbot\s*Response\s*:\s*["“]?(.*?)(["”]?$)', text, flags=re.IGNORECASE)
     if not match:
         match = re.search(r'ChatbotResponse\s*:\s*["“]?(.*?)(["”]?$)', text, flags=re.IGNORECASE)
@@ -620,7 +659,6 @@ def clean_code_answer(chunk, code):
     if match:
         text = match.group(1)
     else:
-        # fallback cleanup if response label is not found
         text = re.sub(r'^.*?\b' + re.escape(code) + r'\b\s*[:.]?\s*', '', text, flags=re.IGNORECASE)
         text = re.sub(r'Trigger\s*Keyword\s*:.*?(?=Chatbot\s*Response\s*:|ChatbotResponse\s*:|$)', '', text, flags=re.IGNORECASE)
         text = re.sub(r'TriggerKeyword\s*:.*?(?=Chatbot\s*Response\s*:|ChatbotResponse\s*:|$)', '', text, flags=re.IGNORECASE)
@@ -632,6 +670,7 @@ def clean_code_answer(chunk, code):
     text = text.strip().strip('"“”')
 
     return text.strip()
+
 
 def format_menu_reply(title, items, max_items=12):
     clean_items = []
@@ -666,6 +705,7 @@ def format_menu_reply(title, items, max_items=12):
 
     return reply
 
+
 def handle_code_input(message, context_chunks=None):
     code = message.strip().upper()
 
@@ -678,6 +718,7 @@ def handle_code_input(message, context_chunks=None):
 
     cleaned = clean_code_answer(exact_chunk, code)
     logging.info(f"Cleaned answer for code: {cleaned}")
+
     if child_items:
         if re.fullmatch(r'[A-E]', code):
             return format_menu_reply(f"Here are the options for {code}:", child_items)
@@ -699,7 +740,7 @@ def handle_code_input(message, context_chunks=None):
 
     return "Sorry, I couldn’t find that menu option clearly. Please try another code."
 
-# ===== MAIN FUNCTION =====
+
 def generate_response(message, wa_id):
     try:
         history = load_chat_history(wa_id)

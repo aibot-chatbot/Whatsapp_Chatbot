@@ -1,431 +1,1051 @@
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Bot Configuration</title>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bot Configuration</title>
 
-        <!-- React & ReactDOM -->
-        <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-        <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-        <!-- Babel for JSX -->
-        <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
-        <!-- Google Fonts -->
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-base: #0f172a;
+            --bg-card: #1e293b;
+            --bg-soft: #273449;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --success: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
 
-        <style>
-            :root {
-                --primary: #2563eb;
-                --primary-hover: #1d4ed8;
-                --bg-base: #0f172a;
-                --bg-card: #1e293b;
-                --text-main: #f8fafc;
-                --text-muted: #94a3b8;
-                --border-color: #334155;
-                --success: #10b981;
-                --error: #ef4444;
-            }
+        * { box-sizing: border-box; }
 
-            body {
-                background-color: var(--bg-base);
-                color: var(--text-main);
-                font-family: 'Inter', sans-serif;
-                margin: 0;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 100vh;
-            }
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            min-height: 100vh;
+            padding: 32px 16px;
+        }
 
-            .dashboard-container {
-                background: var(--bg-card);
-                border-radius: 16px;
-                padding: 40px;
-                width: 100%;
-                max-width: 450px;
-                box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-                border: 1px solid var(--border-color);
-                text-align: center;
-            }
+        .page-shell {
+            width: 100%;
+            max-width: 820px;
+            margin: 0 auto;
+        }
 
-            h1 {
-                margin-top: 0;
-                font-size: 24px;
-                font-weight: 600;
-                margin-bottom: 8px;
-            }
+        .dashboard-container {
+            background: var(--bg-card);
+            border-radius: 18px;
+            padding: 28px;
+            width: 100%;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border-color);
+        }
 
-            p.subtitle {
-                color: var(--text-muted);
-                font-size: 14px;
-                margin-bottom: 32px;
-            }
+        h1 {
+            margin-top: 0;
+            font-size: 34px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-align: center;
+        }
 
-            .upload-area {
-                border: 2px dashed var(--border-color);
-                border-radius: 12px;
-                padding: 32px 24px;
-                transition: all 0.2s ease;
-                cursor: pointer;
-                position: relative;
-                background: rgba(255, 255, 255, 0.02);
-                margin-bottom: 24px;
-            }
+        p.subtitle {
+            color: var(--text-muted);
+            font-size: 15px;
+            margin-bottom: 28px;
+            text-align: center;
+        }
 
-            .upload-area:hover, .upload-area.drag-over {
-                border-color: var(--primary);
-                background: rgba(37, 99, 235, 0.05);
-            }
+        .top-nav {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
 
-            .upload-area input[type="file"] {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                opacity: 0;
-                cursor: pointer;
-            }
+        .nav-link {
+            padding: 10px 16px;
+            border-radius: 10px;
+            text-decoration: none;
+            font-size: 14px;
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            background: rgba(255,255,255,0.05);
+        }
 
-            .upload-icon {
-                font-size: 32px;
-                margin-bottom: 12px;
-                color: var(--text-muted);
-                transition: color 0.2s ease;
-            }
+        .nav-link.active {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: white;
+        }
 
-            .upload-area:hover .upload-icon {
-                color: var(--primary);
-            }
+        .section-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 20px;
+        }
 
-            .file-name {
-                font-size: 14px;
-                color: var(--primary);
-                font-weight: 500;
-                margin-top: 12px;
-                word-break: break-all;
-            }
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
 
-            .btn-submit {
-                background: var(--primary);
-                color: white;
-                border: none;
-                width: 100%;
-                padding: 14px;
-                border-radius: 8px;
-                font-size: 16px;
-                font-weight: 500;
-                cursor: pointer;
-                transition: background 0.2s ease, transform 0.1s ease;
-            }
+        .section-subtitle {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
 
-            .btn-submit:hover:not(:disabled) {
-                background: var(--primary-hover);
-            }
+        .context-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
 
-            .btn-submit:active:not(:disabled) {
-                transform: scale(0.98);
-            }
+        .context-item,
+        .preview-card {
+            background: var(--bg-soft);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 14px;
+        }
 
-            .btn-submit:disabled {
-                background: var(--border-color);
-                color: var(--text-muted);
-                cursor: not-allowed;
-            }
+        .context-item {
+            min-height: 86px;
+        }
 
-            .status-message {
-                margin-top: 16px;
-                font-size: 14px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
-                animation: fadeIn 0.3s ease;
-            }
+        .context-label,
+        .preview-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
 
-            .status-message.success { color: var(--success); }
-            .status-message.error { color: var(--error); }
+        .context-value,
+        .preview-value {
+            font-size: 15px;
+            font-weight: 600;
+            line-height: 1.4;
+            word-break: break-word;
+        }
 
-            @keyframes fadeIn {
-                from { opacity: 0; transform: translateY(-5px); }
-                to { opacity: 1; transform: translateY(0); }
-            }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+        }
 
-            /* Spinner */
-            .spinner {
-                display: inline-block;
-                width: 18px;
-                height: 18px;
-                border: 2px solid rgba(255,255,255,0.3);
-                border-radius: 50%;
-                border-top-color: white;
-                animation: spin 1s ease-in-out infinite;
-            }
+        .status-neutral {
+            background: rgba(148, 163, 184, 0.12);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.2);
+        }
 
-            @keyframes spin {
-                to { transform: rotate(360deg); }
-            }
-        </style>
-    </head>
-    <body>
-        <div id="root"></div>
+        .status-success {
+            background: rgba(16, 185, 129, 0.12);
+            color: #86efac;
+            border: 1px solid rgba(16, 185, 129, 0.25);
+        }
 
-        <script type="text/babel">
-            const { useState } = React;
+        .status-error {
+            background: rgba(239, 68, 68, 0.12);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
 
-            function App() {
-                const [status, setStatus] = useState({ type: '', text: '' });
+        .status-warning {
+            background: rgba(245, 158, 11, 0.12);
+            color: #fcd34d;
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
 
-                const [isSaving, setIsSaving] = useState(false);
+        .match-result-box {
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 12px;
+            text-align: left;
+            font-size: 13px;
+            line-height: 1.5;
+        }
 
-                const [botName, setBotName] = useState("");
-                const [companyName, setCompanyName] = useState("");
-                const [businessDescription, setBusinessDescription] = useState("");
-                const [tone, setTone] = useState("Friendly");
-                const [additionalInstructions, setAdditionalInstructions] = useState("");
+        .match-result-box.success {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            color: #86efac;
+        }
 
-                const fetchSettings = async () => {
-                    try {
-                        const response = await fetch("http://127.0.0.1:8000/api/settings");
-                        const data = await response.json();
+        .match-result-box.error {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+        }
 
-                        if (data.status === "success") {
-                            const settings = data.data;
+        .match-result-title {
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
 
-                            setBotName(settings.bot_name || "");
-                            setCompanyName(settings.company_name || "");
-                            setBusinessDescription(settings.business_description || "");
-                            setTone(settings.tone || "Friendly");
-                            setAdditionalInstructions(settings.additional_instructions || "");
-                        } else {
-                            setStatus({ type: "error", text: "Failed to load settings." });
-                        }
-                    } catch (error) {
-                        setStatus({ type: "error", text: "Failed to connect to backend." });
+        .form-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .field-group {
+            text-align: left;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .preview-full {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        input, select, textarea {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: #09142c;
+            color: var(--text-main);
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 110px;
+        }
+
+        .btn-primary,
+        .btn-secondary,
+        .btn-danger,
+        .inline-btn {
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease, opacity 0.2s ease;
+            min-height: 50px;
+        }
+
+        .btn-primary {
+            border: none;
+            width: 100%;
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--primary-hover);
+        }
+
+        .btn-secondary,
+        .inline-btn {
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.08);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            width: 100%;
+        }
+
+        .btn-primary:active:not(:disabled),
+        .btn-secondary:active:not(:disabled),
+        .btn-danger:active:not(:disabled),
+        .inline-btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .btn-primary:disabled,
+        .btn-secondary:disabled,
+        .btn-danger:disabled,
+        .inline-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        .button-stack {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .button-stack .btn-primary,
+        .button-stack .btn-secondary,
+        .button-stack .btn-danger {
+            width: auto;
+            min-width: 220px;
+        }
+
+        .status-message {
+            margin-top: 16px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .status-message.success { color: var(--success); }
+        .status-message.error { color: var(--error); }
+
+        .mode-badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(37,99,235,0.12);
+            color: #93c5fd;
+            border: 1px solid rgba(37,99,235,0.25);
+            margin-bottom: 10px;
+        }
+
+        .empty-preview {
+            color: var(--text-muted);
+            font-size: 14px;
+            padding: 6px 0;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @media (max-width: 700px) {
+            .dashboard-container { padding: 20px; }
+            .context-grid,
+            .preview-grid { grid-template-columns: 1fr; }
+            .field-row,
+            .button-stack { grid-template-columns: 1fr; }
+            h1 { font-size: 28px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        function App() {
+            const emptyForm = {
+                profileName: "",
+                botName: "",
+                companyName: "",
+                businessDescription: "",
+                tone: "",
+                additionalInstructions: ""
+            };
+
+            const [status, setStatus] = useState({ type: "", text: "" });
+            const [isSaving, setIsSaving] = useState(false);
+            const [isSavingProfile, setIsSavingProfile] = useState(false);
+            const [isCheckingMatch, setIsCheckingMatch] = useState(false);
+            const configFormRef = useRef(null);
+
+            const [botName, setBotName] = useState("");
+            const [companyName, setCompanyName] = useState("");
+            const [businessDescription, setBusinessDescription] = useState("");
+            const [tone, setTone] = useState("");
+            const [additionalInstructions, setAdditionalInstructions] = useState("");
+
+            const [activePdf, setActivePdf] = useState("");
+            const [profiles, setProfiles] = useState([]);
+            const [profileName, setProfileName] = useState("");
+            const [selectedProfile, setSelectedProfile] = useState("");
+            const [activeProfile, setActiveProfile] = useState("");
+            const [previewProfile, setPreviewProfile] = useState(null);
+            const [formMode, setFormMode] = useState("create");
+
+            const [matchResult, setMatchResult] = useState(null);
+
+            const fetchSettings = async () => {
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/settings");
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        const settings = data.data || {};
+                        setBotName(settings.bot_name || "");
+                        setCompanyName(settings.company_name || "");
+                        setBusinessDescription(settings.business_description || "");
+                        setTone(settings.tone || "Friendly");
+                        setAdditionalInstructions(settings.additional_instructions || "");
+                        setActiveProfile(settings.active_profile || "");
+                    } else {
+                        setStatus({ type: "error", text: "Failed to load settings." });
                     }
-                };
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                }
+            };
 
-                const handleSave = async () => {
-                    setIsSaving(true);
-                    setStatus({ type: "", text: "" });
+            const fetchActivePdf = async () => {
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/knowledge/active");
+                    const data = await response.json();
 
-                    try {
-                        const response = await fetch("http://127.0.0.1:8000/api/settings", {
-                            method: "PUT",
-                            headers: {
-                                "Content-Type": "application/json"
-                            },
-                            body: JSON.stringify({
-                                bot_name: botName,
-                                company_name: companyName,
-                                business_description: businessDescription,
-                                tone: tone,
-                                additional_instructions: additionalInstructions
-                            })
+                    if (data.status === "success") {
+                        setActivePdf(data.data?.file_name || "");
+                    } else {
+                        setActivePdf("");
+                    }
+                } catch (error) {
+                    setActivePdf("");
+                }
+            };
+
+            const fetchProfiles = async () => {
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/profiles");
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setProfiles(data.data || []);
+                    } else {
+                        setStatus({ type: "error", text: "Failed to load profiles." });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                }
+            };
+
+            const getSelectedProfileObject = () => {
+                return profiles.find((p) => p.name === selectedProfile) || null;
+            };
+
+            const fetchActiveProfile = async () => {
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/settings");
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setActiveProfile(data.data?.active_profile || "");
+                    } else {
+                        setActiveProfile("");
+                    }
+                } catch (error) {
+                    setActiveProfile("");
+                }
+            };
+
+            const fillFormFromProfile = (profile) => {
+                if (!profile) return;
+                setProfileName(profile.name || "");
+                setBotName(profile.bot_name || "");
+                setCompanyName(profile.company_name || "");
+                setBusinessDescription(profile.business_description || "");
+                setTone(profile.tone || "Friendly");
+                setAdditionalInstructions(profile.additional_instructions || "");
+            };
+
+            const clearForm = () => {
+                setProfileName(emptyForm.profileName);
+                setBotName(emptyForm.botName);
+                setCompanyName(emptyForm.companyName);
+                setBusinessDescription(emptyForm.businessDescription);
+                setTone(emptyForm.tone);
+                setAdditionalInstructions(emptyForm.additionalInstructions);
+                setFormMode("create");
+                setStatus({ type: "success", text: "Form cleared. You can create a new profile now." });
+            };
+
+            const handleDeleteProfile = async () => {
+                if (!profileName.trim()) {
+                    setStatus({ type: "error", text: "No profile selected for deletion." });
+                    return;
+                }
+
+                const confirmed = window.confirm(`Delete profile "${profileName}"?`);
+                if (!confirmed) return;
+
+                try {
+                    const response = await fetch(
+                        `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(profileName)}`,
+                        {
+                            method: "DELETE"
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        if (activeProfile === profileName) {
+                            setActiveProfile("");
+                        }
+
+                        setPreviewProfile(null);
+                        setSelectedProfile("");
+                        clearForm();
+                        await fetchProfiles();
+
+                        setStatus({ type: "success", text: `Profile "${profileName}" deleted.` });
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to delete profile." });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                }
+            };
+
+            const handlePreviewProfile = () => {
+                if (!selectedProfile) {
+                    setStatus({ type: "error", text: "Please select a profile first." });
+                    return;
+                }
+
+                const profile = getSelectedProfileObject();
+
+                if (!profile) {
+                    setStatus({ type: "error", text: "Selected profile not found." });
+                    return;
+                }
+
+                setPreviewProfile(profile);
+                setStatus({ type: "success", text: `Previewing profile "${profile.name}".` });
+            };
+
+            const handleSetActiveProfile = async () => {
+                if (!selectedProfile) {
+                    setStatus({ type: "error", text: "Please select a profile first." });
+                    return;
+                }
+
+                const profile = getSelectedProfileObject();
+
+                if (!profile) {
+                    setStatus({ type: "error", text: "Selected profile not found." });
+                    return;
+                }
+
+                setPreviewProfile(profile);
+                setActiveProfile(profile.name || "");
+                await fetch("http://127.0.0.1:8000/api/settings/active-profile", {
+                    method: "PUT",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        active_profile: profile.name || ""
+                    })
+                });
+                setMatchResult(null);
+                setStatus({ type: "success", text: `Profile "${profile.name}" set as active.` });
+            };
+
+            const handleEditProfileToForm = () => {
+                if (!selectedProfile) {
+                    setStatus({ type: "error", text: "Please select a profile first." });
+                    return;
+                }
+
+                const profile = getSelectedProfileObject();
+
+                if (!profile) {
+                    setStatus({ type: "error", text: "Selected profile not found." });
+                    return;
+                }
+
+                setPreviewProfile(profile);
+                fillFormFromProfile(profile);
+                setFormMode("edit");
+                setStatus({ type: "success", text: `Profile "${profile.name}" loaded into form for editing.` });
+
+                setTimeout(() => {
+                    if (configFormRef.current) {
+                        configFormRef.current.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start"
                         });
-
-                        const data = await response.json();
-
-                        if (data.status === "success") {
-                            setStatus({ type: "success", text: "Settings saved successfully!" });
-                        } else {
-                            setStatus({ type: "error", text: data.message || "Save failed" });
-                        }
-
-                    } catch (error) {
-                        setStatus({ type: "error", text: "Network error. Is backend running?" });
-                    } finally {
-                        setIsSaving(false);
                     }
-                };
+                }, 100);
+            };
 
-                React.useEffect(() => {
-                    fetchSettings();
-                }, []);
+            const handleSave = async () => {
+                setIsSaving(true);
+                setStatus({ type: "", text: "" });
 
-                return (
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/settings", {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            bot_name: botName,
+                            company_name: companyName,
+                            business_description: businessDescription,
+                            tone: tone,
+                            additional_instructions: additionalInstructions,
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setStatus({ type: "success", text: "Configuration saved successfully." });
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Save failed." });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network error. Is backend running?" });
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleSaveProfile = async () => {
+                if (!profileName.trim()) {
+                    setStatus({ type: "error", text: "Please enter a profile name." });
+                    return;
+                }
+
+                setIsSavingProfile(true);
+                setStatus({ type: "", text: "" });
+
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/profiles", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            name: profileName,
+                            bot_name: botName,
+                            company_name: companyName,
+                            business_description: businessDescription,
+                            tone: tone,
+                            additional_instructions: additionalInstructions,
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setPreviewProfile({
+                            name: profileName,
+                            bot_name: botName,
+                            company_name: companyName,
+                            business_description: businessDescription,
+                            tone: tone,
+                            additional_instructions: additionalInstructions,
+                        });
+                        setSelectedProfile(profileName.trim());
+                        setActiveProfile(profileName.trim());
+                        setStatus({ type: "success", text: `Profile "${profileName}" saved and set as active.` });
+                        await fetchProfiles();
+                        setFormMode("edit");
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to save profile." });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                } finally {
+                    setIsSavingProfile(false);
+                }
+            };
+
+            const handleCheckMatch = async () => {
+                if (!activePdf) {
+                    setStatus({ type: "error", text: "No active PDF selected." });
+                    return;
+                }
+
+                if (!activeProfile) {
+                    setStatus({ type: "error", text: "Please set an active profile first." });
+                    return;
+                }
+
+                setIsCheckingMatch(true);
+                setMatchResult(null);
+                setStatus({ type: "", text: "" });
+
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/match/check", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({
+                            profile_name: activeProfile
+                        })
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setMatchResult(data.data);
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to check match." });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                } finally {
+                    setIsCheckingMatch(false);
+                }
+            };
+
+            const getMatchStatusMeta = () => {
+                if (isCheckingMatch) {
+                    return { className: "status-warning", text: "Checking match..." };
+                }
+
+                if (!matchResult) {
+                    return { className: "status-neutral", text: "Not checked yet" };
+                }
+
+                if (matchResult.match) {
+                    return { className: "status-success", text: "Matched" };
+                }
+
+                return { className: "status-error", text: "Mismatch detected" };
+            };
+
+            useEffect(() => {
+                fetchProfiles();
+                fetchActivePdf();
+                fetchActiveProfile();
+            }, []);
+
+            const matchStatus = getMatchStatusMeta();
+
+            return (
+                <div className="page-shell">
                     <div className="dashboard-container">
-
-                        <div style={{
-                            display: "flex",
-                            justifyContent: "center",
-                            gap: "10px",
-                            marginBottom: "24px"
-                        }}>
-                            <a
-                                href="index.html"
-                                style={{
-                                    padding: "8px 14px",
-                                    borderRadius: "8px",
-                                    textDecoration: "none",
-                                    background: "rgba(255,255,255,0.05)",
-                                    color: "var(--text-main)",
-                                    border: "1px solid var(--border-color)",
-                                    fontSize: "14px"
-                                }}
-                            >
-                                Knowledge Base
-                            </a>
-
-                            <a
-                                href="bot-config.html"
-                                style={{
-                                    padding: "8px 14px",
-                                    borderRadius: "8px",
-                                    textDecoration: "none",
-                                    background: "var(--primary)",
-                                    color: "white",
-                                    border: "1px solid var(--primary)",
-                                    fontSize: "14px"
-                                }}
-                            >
-                                Bot Configuration
-                            </a>
+                        <div className="top-nav">
+                            <a href="index.html" className="nav-link">Knowledge Base</a>
+                            <a href="bot-config.html" className="nav-link active">Bot Configuration</a>
                         </div>
 
                         <h1>Bot Configuration</h1>
-                        <p className="subtitle">Configure your chatbot behavior and business details.</p>
+                        <p className="subtitle">
+                            Manage your active PDF, active profile, and chatbot configuration in one place.
+                        </p>
 
-                        <div style={{ textAlign: "left", marginTop: "20px" }}>
+                        <div className="section-card">
+                            <div className="section-title">Current Session</div>
+                            <div className="section-subtitle">
+                                This section shows what is currently active for match checking.
+                            </div>
 
-                            {/* Bot Name */}
-                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                                Bot Name
-                            </label>
-                            <input
-                                type="text"
-                                value={botName}
-                                onChange={(e) => setBotName(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    padding: "10px",
-                                    marginTop: "6px",
-                                    marginBottom: "16px",
-                                    borderRadius: "6px",
-                                    border: "1px solid var(--border-color)",
-                                    background: "var(--bg-base)",
-                                    color: "var(--text-main)"
-                                }}
-                            />
+                            <div className="context-grid">
+                                <div className="context-item">
+                                    <div className="context-label">Active PDF</div>
+                                    <div className="context-value">
+                                        {activePdf || "No active PDF selected"}
+                                    </div>
+                                </div>
 
-                            {/* Company Name */}
-                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                                Company Name
-                            </label>
-                            <input
-                                type="text"
-                                value={companyName}
-                                onChange={(e) => setCompanyName(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    padding: "10px",
-                                    marginTop: "6px",
-                                    marginBottom: "16px",
-                                    borderRadius: "6px",
-                                    border: "1px solid var(--border-color)",
-                                    background: "var(--bg-base)",
-                                    color: "var(--text-main)"
-                                }}
-                            />
+                                <div className="context-item">
+                                    <div className="context-label">Active Profile</div>
+                                    <div className="context-value">
+                                        {activeProfile || "No active profile selected"}
+                                    </div>
+                                </div>
+                            </div>
 
-                            {/* Business Description */}
-                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                                Business Description
-                            </label>
-                            <textarea
-                                value={businessDescription}
-                                onChange={(e) => setBusinessDescription(e.target.value)}
-                                rows="4"
-                                style={{
-                                    width: "100%",
-                                    padding: "10px",
-                                    marginTop: "6px",
-                                    marginBottom: "16px",
-                                    borderRadius: "6px",
-                                    border: "1px solid var(--border-color)",
-                                    background: "var(--bg-base)",
-                                    color: "var(--text-main)",
-                                    resize: "none"
-                                }}
-                            />
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                                <div className={`status-badge ${matchStatus.className}`}>
+                                    {matchStatus.text}
+                                </div>
 
-                            {/* Tone */}
-                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                                Tone
-                            </label>
-                            <select
-                                value={tone}
-                                onChange={(e) => setTone(e.target.value)}
-                                style={{
-                                    width: "100%",
-                                    padding: "10px",
-                                    marginTop: "6px",
-                                    marginBottom: "16px",
-                                    borderRadius: "6px",
-                                    border: "1px solid var(--border-color)",
-                                    background: "var(--bg-base)",
-                                    color: "var(--text-main)"
-                                }}
-                            >
-                                <option value="Friendly">Friendly</option>
-                                <option value="Professional">Professional</option>
-                                <option value="Formal">Formal</option>
-                            </select>
+                                <button
+                                    className="btn-primary"
+                                    onClick={handleCheckMatch}
+                                    disabled={isCheckingMatch}
+                                    style={{ width: "auto", minWidth: "230px" }}
+                                >
+                                    {isCheckingMatch ? "Checking Match..." : "Check Match with Active PDF"}
+                                </button>
+                            </div>
 
-                            {/* Additional Instructions */}
-                            <label style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                                Additional Instructions
-                            </label>
-                            <textarea
-                                value={additionalInstructions}
-                                onChange={(e) => setAdditionalInstructions(e.target.value)}
-                                rows="4"
-                                style={{
-                                    width: "100%",
-                                    padding: "10px",
-                                    marginTop: "6px",
-                                    marginBottom: "16px",
-                                    borderRadius: "6px",
-                                    border: "1px solid var(--border-color)",
-                                    background: "var(--bg-base)",
-                                    color: "var(--text-main)",
-                                    resize: "none"
-                                }}
-                            />
-
-                            <button
-                                onClick={handleSave}
-                                disabled={isSaving}
-                                style={{
-                                    width: "100%",
-                                    marginTop: "10px",
-                                    padding: "12px",
-                                    borderRadius: "8px",
-                                    border: "none",
-                                    background: "var(--primary)",
-                                    color: "white",
-                                    cursor: "pointer",
-                                    fontWeight: "600"
-                                }}
-                            >
-                                {isSaving ? "Saving..." : "Save Configuration"}
-                            </button>
-
-                            {status.text && (
-                                <div className={`status-message ${status.type}`}>
-                                    {status.type === "success" ? "✨ " : "⚠️ "} {status.text}
+                            {matchResult && (
+                                <div className={`match-result-box ${matchResult.match ? "success" : "error"}`}>
+                                    <div className="match-result-title">
+                                        {matchResult.match ? "✅ Match Result" : "⚠️ Match Result"}
+                                    </div>
+                                    <div>{matchResult.reason}</div>
                                 </div>
                             )}
+                        </div>
 
+                        <div className="section-card">
+                            <div className="section-title">Saved Profiles</div>
+                            <div className="section-subtitle">
+                                Select a profile, preview it, then choose whether to set it active or edit it.
+                            </div>
+
+                            <div className="field-group">
+                                <label>Select Profile</label>
+                                <div className="field-row">
+                                    <select
+                                        value={selectedProfile}
+                                        onChange={(e) => setSelectedProfile(e.target.value)}
+                                    >
+                                        <option value="">Select a saved profile</option>
+                                        {profiles.map((profile, index) => (
+                                            <option key={index} value={profile.name}>
+                                                {profile.name}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (previewProfile && selectedProfile && previewProfile.name === selectedProfile) {
+                                                setPreviewProfile(null);
+                                            } else {
+                                                handlePreviewProfile();
+                                            }
+                                        }}
+                                        className="inline-btn"
+                                    >
+                                        {previewProfile && selectedProfile && previewProfile.name === selectedProfile
+                                            ? "Close Preview"
+                                            : "Preview"}
+                                    </button>
+
+                                    <button type="button" onClick={handleSetActiveProfile} className="inline-btn">
+                                        Set Active
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style={{ marginTop: "12px" }}>
+                                <button type="button" onClick={handleEditProfileToForm} className="btn-secondary">
+                                    Edit Selected Profile in Form
+                                </button>
+                            </div>
+
+                            <div style={{ marginTop: "16px" }}>
+                                <div className="section-title" style={{ fontSize: "14px", marginBottom: "12px" }}>
+                                    Profile Preview
+                                </div>
+
+                                {!previewProfile ? (
+                                    <div className="empty-preview">No profile preview selected yet.</div>
+                                ) : (
+                                    <div className="preview-grid">
+                                        <div className="preview-card">
+                                            <div className="preview-label">Profile Name</div>
+                                            <div className="preview-value">{previewProfile.name || "-"}</div>
+                                        </div>
+
+                                        <div className="preview-card">
+                                            <div className="preview-label">Tone</div>
+                                            <div className="preview-value">{previewProfile.tone || "-"}</div>
+                                        </div>
+
+                                        <div className="preview-card">
+                                            <div className="preview-label">Bot Name</div>
+                                            <div className="preview-value">{previewProfile.bot_name || "-"}</div>
+                                        </div>
+
+                                        <div className="preview-card">
+                                            <div className="preview-label">Company Name</div>
+                                            <div className="preview-value">{previewProfile.company_name || "-"}</div>
+                                        </div>
+
+                                        <div className="preview-card preview-full">
+                                            <div className="preview-label">Business Description</div>
+                                            <div className="preview-value">{previewProfile.business_description || "-"}</div>
+                                        </div>
+
+                                        <div className="preview-card preview-full">
+                                            <div className="preview-label">Additional Instructions</div>
+                                            <div className="preview-value">{previewProfile.additional_instructions || "-"}</div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="section-card" ref={configFormRef}>
+                            <div className="section-title">Configuration Form</div>
+                            <div className="section-subtitle">
+                                Use this form only for creating a new profile or editing a selected one.
+                            </div>
+
+                            <div className="mode-badge">
+                                {formMode === "edit" ? "Edit Mode" : "Create Mode"}
+                            </div>
+
+                            <div className="form-grid">
+                                <div className="field-group">
+                                    <label>Profile Name</label>
+                                    <input
+                                        type="text"
+                                        value={profileName}
+                                        onChange={(e) => setProfileName(e.target.value)}
+                                        placeholder="e.g. OlympicEdu Competition Bot"
+                                    />
+                                </div>
+
+                                <div className="field-group">
+                                    <label>Bot Name</label>
+                                    <input
+                                        type="text"
+                                        value={botName}
+                                        onChange={(e) => setBotName(e.target.value)}
+                                        placeholder="e.g. OlympicEdu Assistant"
+                                    />
+                                </div>
+
+                                <div className="field-group">
+                                    <label>Company Name</label>
+                                    <input
+                                        type="text"
+                                        value={companyName}
+                                        onChange={(e) => setCompanyName(e.target.value)}
+                                        placeholder="e.g. Olympic Edu Sdn Bhd"
+                                    />
+                                </div>
+
+                                <div className="field-group">
+                                    <label>Business Description</label>
+                                    <textarea
+                                        value={businessDescription}
+                                        onChange={(e) => setBusinessDescription(e.target.value)}
+                                        rows="4"
+                                        placeholder="e.g. We provide mathematics competitions, training programs, books, and educational services, including Tiger Maths Competition and ASMO."
+                                    />
+                                </div>
+
+                                <div className="field-group">
+                                    <label>Tone</label>
+                                    <select
+                                        value={tone}
+                                        onChange={(e) => setTone(e.target.value)}
+                                    >
+                                        <option value="">Select tone</option>
+                                        <option value="Friendly">Friendly</option>
+                                        <option value="Professional">Professional</option>
+                                        <option value="Formal">Formal</option>
+
+                                    </select>
+                                </div>
+
+                                <div className="field-group">
+                                    <label>Additional Instructions</label>
+                                    <textarea
+                                        value={additionalInstructions}
+                                        onChange={(e) => setAdditionalInstructions(e.target.value)}
+                                        rows="6"
+                                        placeholder="e.g. Act as a helpful assistant for mathematics competitions and educational services. Keep responses clear, structured, and easy to understand."
+                                    />
+                                </div>
+
+                                <div className="button-stack">
+                                    {formMode === "edit" ? (
+                                        <>
+                                            <button
+                                                onClick={handleSaveProfile}
+                                                disabled={isSavingProfile}
+                                                className="btn-primary"
+                                            >
+                                                {isSavingProfile ? "Updating Profile..." : "Update Profile"}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleDeleteProfile}
+                                                className="btn-secondary"
+                                            >
+                                                Delete Profile
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={clearForm}
+                                                className="btn-danger"
+                                            >
+                                                Clear Form
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={handleSaveProfile}
+                                                disabled={isSavingProfile}
+                                                className="btn-primary"
+                                            >
+                                                {isSavingProfile ? "Saving Profile..." : "Save as Profile"}
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={clearForm}
+                                                className="btn-danger"
+                                            >
+                                                Clear Form
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+
+                                {status.text && (
+                                    <div className={`status-message ${status.type}`}>
+                                        {status.type === "success" ? "✨" : "⚠️"} {status.text}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
-                );
-            }
+                </div>
+            );
+        }
 
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(<App />);
-        </script>
-    </body>
-    </html>
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
+    </script>
+</body>
+</html>

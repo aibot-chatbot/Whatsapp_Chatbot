@@ -14,7 +14,8 @@ def get_settings():
             "company_name": "Olympic Edu Sdn Bhd",
             "business_description": "We provide mathematics competitions, training programs, books, and educational services.",
             "tone": "Friendly",
-            "additional_instructions": ""
+            "additional_instructions": "",
+            "active_profile": ""
         }
 
     with open(SETTINGS_FILE, "r", encoding="utf-8") as file:
@@ -42,29 +43,48 @@ def generate_greeting(settings):
     tone = settings.get("tone", "Friendly")
 
     if tone.lower() == "professional":
-        return f"Hello! Welcome to {company_name}. How may I assist you today?"
+        return f"Hello! Welcome to {company_name}. How can I assist you today?"
     elif tone.lower() == "formal":
-        return f"Good day. Welcome to {company_name}. How may I assist you?"
+        return f"Good day. Welcome to {company_name}. How may I assist you today?"
     else:
         return f"Hi there! Welcome to {company_name} 😊 How can I help you today?"
+
 
 def generate_fallback(settings):
     business_description = settings.get("business_description", "our services")
 
-    short_desc = business_description.split(".")[0].strip()
+    short_desc = business_description.split(".")[0].strip().lower()
 
+    # Remove leading phrases
     prefixes = [
         "we provide ",
         "we help ",
+        "we help guests with ",
+        "we help customers with ",
         "we offer ",
         "our business covers ",
         "our company provides "
     ]
 
-    short_desc_lower = short_desc.lower()
     for prefix in prefixes:
-        if short_desc_lower.startswith(prefix):
+        if short_desc.startswith(prefix):
             short_desc = short_desc[len(prefix):]
             break
 
-    return f"Sorry, I can only help with questions related to {short_desc}."
+    tone = settings.get("tone", "Friendly")
+
+    if tone.lower() == "professional":
+        return f"I'm here to assist with topics related to {short_desc}. Please feel free to ask about those."
+    elif tone.lower() == "formal":
+        return f"I can only assist with matters related to {short_desc}. Kindly provide a relevant inquiry."
+    else:
+        return f"Sorry, I can help with things like {short_desc} 😊 Try asking about those!"
+
+def set_active_profile(profile_name):
+    current_settings = get_settings()
+    current_settings["active_profile"] = profile_name or ""
+
+    with open(SETTINGS_FILE, "w", encoding="utf-8") as file:
+        json.dump(current_settings, file, indent=4, ensure_ascii=False)
+
+    return current_settings

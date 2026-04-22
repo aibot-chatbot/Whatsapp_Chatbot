@@ -32,8 +32,9 @@ def save_uploaded_pdf(file):
     return {
         "file_name": safe_name,
         "file_path": filepath,
-        "message": f"PDF {safe_name} updated"
+        "message": f"PDF {safe_name} uploaded and set as active"
     }
+
 
 def list_uploaded_pdfs():
     os.makedirs(DATA_FOLDER, exist_ok=True)
@@ -48,14 +49,16 @@ def list_uploaded_pdfs():
     pdf_files.sort(key=lambda x: x["file_name"].lower())
     return pdf_files
 
+
 def get_active_pdf():
-    active_pdf_path = gemini_service.PDF_PATH
-    active_pdf_name = os.path.basename(active_pdf_path)
+    active_pdf_path = gemini_service.PDF_PATH or ""
+    active_pdf_name = os.path.basename(active_pdf_path) if active_pdf_path else ""
 
     return {
         "file_name": active_pdf_name,
         "file_path": active_pdf_path
     }
+
 
 def set_active_pdf(file_name):
     if not file_name:
@@ -75,6 +78,7 @@ def set_active_pdf(file_name):
         "file_path": relative_pdf_path,
         "message": f"Active PDF set to {safe_name}"
     }
+
 
 def delete_pdf_file(file_name):
     if not file_name:

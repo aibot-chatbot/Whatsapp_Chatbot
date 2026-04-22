@@ -1,0 +1,16 @@
+{
+    "siteName": "Antigravity AI",
+    "navigation": [
+        { "name": "Dashboard", "link": "index.html", "icon": "📊" },
+        { "name": "Training Data", "link": "training.html", "icon": "📚" },
+        { "name": "Behaviour", "link": "behaviour.html", "icon": "⚙️" },
+        { "name": "Integration", "link": "integration.html", "icon": "🔌" },
+        { "name": "Prompt", "link": "prompt.html", "icon": "📋" },
+        { "name": "Test Your Bot", "link": "testbot.html", "icon": "🧪" }
+    ],
+    "theme": {
+        "primary": "#3b82f6",
+        "bg": "#050b18",
+        "accent": "#10b981"
+    }
+}

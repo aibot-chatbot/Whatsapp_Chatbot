@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 
-from app.services.settings_service import get_settings, update_settings
+from app.services.settings_service import get_settings, update_settings, set_active_profile
+
 
 settings_blueprint = Blueprint("settings", __name__)
 
@@ -32,6 +33,31 @@ def save_settings():
             }), 400
 
         updated_settings = update_settings(data)
+
+        return jsonify({
+            "status": "success",
+            "data": updated_settings
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@settings_blueprint.route("/api/settings/active-profile", methods=["PUT"])
+def save_active_profile():
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No data provided"
+            }), 400
+
+        active_profile = data.get("active_profile", "")
+        updated_settings = set_active_profile(active_profile)
 
         return jsonify({
             "status": "success",
