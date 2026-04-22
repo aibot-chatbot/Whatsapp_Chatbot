@@ -156,7 +156,7 @@
                 <h3 style="font-weight: 600;">Ai Chatbot · Test Instance</h3>
             </div>
             <div class="messages-area" id="chat-messages">
-                <div class="message bot">Hello! I'm your trained AI. How can I help you today?</div>
+                <div class="message bot">Loading test bot context...</div>
             </div>
             <div class="input-area">
                 <input type="text" class="chat-input" id="message-input" placeholder="Type your message here...">
@@ -171,34 +171,107 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initSidebar();
-            
+
             const sendBtn = document.getElementById('send-btn');
             const input = document.getElementById('message-input');
             const messages = document.getElementById('chat-messages');
+            const chatHeader = document.querySelector('.chat-header h3');
 
-            function sendMessage() {
-                if (!input.value.trim()) return;
-                
-                const userMsg = document.createElement('div');
-                userMsg.className = 'message user';
-                userMsg.innerText = input.value;
-                messages.appendChild(userMsg);
-                
-                const val = input.value;
+            function appendMessage(role, text, isHtml = false) {
+                const msg = document.createElement('div');
+                msg.className = `message ${role}`;
+
+                if (isHtml) {
+                    msg.innerHTML = text;
+                } else {
+                    msg.innerText = text;
+                }
+
+                messages.appendChild(msg);
+                messages.scrollTop = messages.scrollHeight;
+            }
+
+            async function loadContext() {
+                try {
+                    const response = await fetch('http://127.0.0.1:8000/api/testbot/context');
+                    const data = await response.json();
+
+                    messages.innerHTML = "";
+
+                    if (data.status === 'success') {
+                        const ctx = data.data || {};
+                        const botName = ctx.bot_name || 'AI Chatbot';
+                        const activeProfile = ctx.active_profile || 'No active profile';
+                        const activePdf = ctx.active_pdf || 'No active PDF';
+
+                        chatHeader.textContent = `${botName} · Test Instance`;
+
+                        appendMessage(
+                            'bot',
+                            `<strong>Active Profile:</strong> ${activeProfile}<br><strong>Active PDF:</strong> ${activePdf}`,
+                            true
+                        );
+                    } else {
+                        appendMessage('bot', data.message || 'Failed to load bot context.');
+                    }
+                } catch (error) {
+                    messages.innerHTML = "";
+                    appendMessage('bot', 'Failed to load bot context from backend.');
+                }
+            }
+
+            async function sendMessage() {
+                const text = input.value.trim();
+                if (!text) return;
+
+                appendMessage('user', text);
                 input.value = '';
+                sendBtn.disabled = true;
+                input.disabled = true;
+
+                const loadingMsg = document.createElement('div');
+                loadingMsg.className = 'message bot';
+                loadingMsg.innerText = 'Typing...';
+                messages.appendChild(loadingMsg);
                 messages.scrollTop = messages.scrollHeight;
 
-                setTimeout(() => {
-                    const botMsg = document.createElement('div');
-                    botMsg.className = 'message bot';
-                    botMsg.innerText = "I've received your message: '" + val + "'. Since I'm in offline mode, this is a simulated response!";
-                    messages.appendChild(botMsg);
-                    messages.scrollTop = messages.scrollHeight;
-                }, 1000);
+                try {
+                    const response = await fetch('http://127.0.0.1:8000/api/testbot/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            message: text
+                        })
+                    });
+
+                    const data = await response.json();
+                    loadingMsg.remove();
+
+                    if (data.status === 'success') {
+                        appendMessage('bot', data.data?.reply || 'No reply received.');
+                    } else {
+                        appendMessage('bot', data.message || 'Failed to get response.');
+                    }
+                } catch (error) {
+                    loadingMsg.remove();
+                    appendMessage('bot', 'Failed to connect to backend.');
+                } finally {
+                    sendBtn.disabled = false;
+                    input.disabled = false;
+                    input.focus();
+                }
             }
 
             if (sendBtn) sendBtn.addEventListener('click', sendMessage);
-            if (input) input.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+            if (input) {
+                input.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') sendMessage();
+                });
+            }
+
+            loadContext();
         });
 
         function toggleDropdown(id) {
@@ -211,18 +284,18 @@
         function initSidebar() {
             const currentPath = window.location.pathname.split('/').pop() || 'index.html';
             const navLinks = document.querySelectorAll('.nav-link');
-            
+
             navLinks.forEach(link => {
                 if (link.getAttribute('href') === currentPath) {
                     link.classList.add('active');
                 }
             });
 
-            // Auto-expand dropdowns if child is active
             if (['linksdocs.html', 'prompt.html', 'training.html'].includes(currentPath)) {
                 const drop = document.getElementById('training-dropdown');
                 if (drop) drop.classList.add('open');
             }
+
             if (['behaviour.html', 'testbot.html'].includes(currentPath)) {
                 const drop = document.getElementById('behaviour-dropdown');
                 if (drop) drop.classList.add('open');

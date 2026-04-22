@@ -7,6 +7,7 @@ from app.routes.settings_routes import settings_blueprint
 from app.routes.knowledge_routes import knowledge_blueprint
 from app.routes.profile_routes import profile_blueprint
 from app.routes.match_routes import match_blueprint
+from app.routes.testbot_routes import testbot_blueprint
 
 def create_app():
     app = Flask(__name__)
@@ -23,5 +24,6 @@ def create_app():
     app.register_blueprint(knowledge_blueprint)
     app.register_blueprint(profile_blueprint)
     app.register_blueprint(match_blueprint)
+    app.register_blueprint(testbot_blueprint)
 
     return app

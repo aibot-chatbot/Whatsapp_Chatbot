@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from app.services.settings_service import get_settings, update_settings, set_active_profile
-
+from app.services.settings_service import get_settings, update_settings, set_active_profile, apply_profile_to_settings
 
 settings_blueprint = Blueprint("settings", __name__)
 
@@ -63,6 +62,38 @@ def save_active_profile():
             "status": "success",
             "data": updated_settings
         }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+@settings_blueprint.route("/api/settings/apply-profile", methods=["PUT"])
+def apply_profile():
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No data provided"
+            }), 400
+
+        profile_name = data.get("profile_name", "")
+        updated_settings = apply_profile_to_settings(profile_name)
+
+        return jsonify({
+            "status": "success",
+            "data": updated_settings,
+            "message": f'Profile "{profile_name}" has been applied to WhatsApp bot settings.'
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+
     except Exception as e:
         return jsonify({
             "status": "error",

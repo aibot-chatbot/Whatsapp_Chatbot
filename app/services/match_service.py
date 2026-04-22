@@ -64,12 +64,31 @@ Rules:
 """
 
     client = genai.Client()
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=prompt
-    )
 
-    raw_text = response.text.strip()
+    try:
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+        raw_text = response.text.strip()
+
+    except Exception as e:
+        error_text = str(e)
+
+        if "503" in error_text or "Service Unavailable" in error_text or "high demand" in error_text:
+            return {
+                "match": False,
+                "reason": "Match check is temporarily unavailable because the AI service is busy. Please try again in a moment.",
+                "profile_name": profile_name or "Current Settings",
+                "pdf_path": active_pdf_path
+            }
+
+        return {
+            "match": False,
+            "reason": f"Match check failed: {error_text}",
+            "profile_name": profile_name or "Current Settings",
+            "pdf_path": active_pdf_path
+        }
 
     try:
         result = json.loads(raw_text)

@@ -404,8 +404,18 @@
             const [activeProfile, setActiveProfile] = useState("");
             const [previewProfile, setPreviewProfile] = useState(null);
             const [formMode, setFormMode] = useState("create");
+            const [sessionStatus, setSessionStatus] = useState({ type: "", text: "" });
+            const [formStatus, setFormStatus] = useState({ type: "", text: "" });
 
             const [matchResult, setMatchResult] = useState(null);
+
+            const getApplyButtonHint = () => {
+                if (!activePdf) return "Please select an active PDF first.";
+                if (!activeProfile) return "Please set an active profile first.";
+                if (!matchResult) return "Please check match first before applying to WhatsApp.";
+                if (!matchResult.match) return "Current profile and PDF do not match. Please fix them before applying.";
+                return "Apply the current matched profile to WhatsApp.";
+            };
 
             const fetchSettings = async () => {
                 try {
@@ -451,10 +461,10 @@
                     if (data.status === "success") {
                         setProfiles(data.data || []);
                     } else {
-                        setStatus({ type: "error", text: "Failed to load profiles." });
+                        setFormStatus({ type: "error", text: "Failed to load profiles." });
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                    setFormStatus({ type: "error", text: "Failed to connect to backend." });
                 }
             };
 
@@ -495,12 +505,12 @@
                 setTone(emptyForm.tone);
                 setAdditionalInstructions(emptyForm.additionalInstructions);
                 setFormMode("create");
-                setStatus({ type: "success", text: "Form cleared. You can create a new profile now." });
+                setFormStatus({ type: "success", text: "Form cleared. You can create a new profile now." });
             };
 
             const handleDeleteProfile = async () => {
                 if (!profileName.trim()) {
-                    setStatus({ type: "error", text: "No profile selected for deletion." });
+                    setFormStatus({ type: "error", text: "No profile selected for deletion." });
                     return;
                 }
 
@@ -527,42 +537,42 @@
                         clearForm();
                         await fetchProfiles();
 
-                        setStatus({ type: "success", text: `Profile "${profileName}" deleted.` });
+                        setFormStatus({ type: "success", text: `Profile "${profileName}" deleted.` });
                     } else {
-                        setStatus({ type: "error", text: data.message || "Failed to delete profile." });
+                        setFormStatus({ type: "error", text: data.message || "Failed to delete profile." });
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                    setFormStatus({ type: "error", text: "Failed to connect to backend." });
                 }
             };
 
             const handlePreviewProfile = () => {
                 if (!selectedProfile) {
-                    setStatus({ type: "error", text: "Please select a profile first." });
+                    setFormStatus({ type: "error", text: "Please select a profile first." });
                     return;
                 }
 
                 const profile = getSelectedProfileObject();
 
                 if (!profile) {
-                    setStatus({ type: "error", text: "Selected profile not found." });
+                    setFormStatus({ type: "error", text: "Selected profile not found." });
                     return;
                 }
 
                 setPreviewProfile(profile);
-                setStatus({ type: "success", text: `Previewing profile "${profile.name}".` });
+                setFormStatus({ type: "success", text: `Previewing profile "${profile.name}".` });
             };
 
             const handleSetActiveProfile = async () => {
                 if (!selectedProfile) {
-                    setStatus({ type: "error", text: "Please select a profile first." });
+                    setFormStatus({ type: "error", text: "Please select a profile first." });
                     return;
                 }
 
                 const profile = getSelectedProfileObject();
 
                 if (!profile) {
-                    setStatus({ type: "error", text: "Selected profile not found." });
+                    setFormStatus({ type: "error", text: "Selected profile not found." });
                     return;
                 }
 
@@ -578,26 +588,26 @@
                     })
                 });
                 setMatchResult(null);
-                setStatus({ type: "success", text: `Profile "${profile.name}" set as active.` });
+                setFormStatus({ type: "success", text: `Profile "${profile.name}" set as active.` });
             };
 
             const handleEditProfileToForm = () => {
                 if (!selectedProfile) {
-                    setStatus({ type: "error", text: "Please select a profile first." });
+                    setFormStatus({ type: "error", text: "Please select a profile first." });
                     return;
                 }
 
                 const profile = getSelectedProfileObject();
 
                 if (!profile) {
-                    setStatus({ type: "error", text: "Selected profile not found." });
+                    setFormStatus({ type: "error", text: "Selected profile not found." });
                     return;
                 }
 
                 setPreviewProfile(profile);
                 fillFormFromProfile(profile);
                 setFormMode("edit");
-                setStatus({ type: "success", text: `Profile "${profile.name}" loaded into form for editing.` });
+                setFormStatus({ type: "success", text: `Profile "${profile.name}" loaded into form for editing.` });
 
                 setTimeout(() => {
                     if (configFormRef.current) {
@@ -644,12 +654,12 @@
 
             const handleSaveProfile = async () => {
                 if (!profileName.trim()) {
-                    setStatus({ type: "error", text: "Please enter a profile name." });
+                    setFormStatus({ type: "error", text: "Please enter a profile name." });
                     return;
                 }
 
                 setIsSavingProfile(true);
-                setStatus({ type: "", text: "" });
+                setFormStatus({ type: "", text: "" });
 
                 try {
                     const response = await fetch("http://127.0.0.1:8000/api/profiles", {
@@ -680,14 +690,14 @@
                         });
                         setSelectedProfile(profileName.trim());
                         setActiveProfile(profileName.trim());
-                        setStatus({ type: "success", text: `Profile "${profileName}" saved and set as active.` });
+                        setFormStatus({ type: "success", text: `Profile "${profileName}" saved and set as active.` });
                         await fetchProfiles();
                         setFormMode("edit");
                     } else {
-                        setStatus({ type: "error", text: data.message || "Failed to save profile." });
+                        setFormStatus({ type: "error", text: data.message || "Failed to save profile." });
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                    setFormStatus({ type: "error", text: "Failed to connect to backend." });
                 } finally {
                     setIsSavingProfile(false);
                 }
@@ -695,18 +705,18 @@
 
             const handleCheckMatch = async () => {
                 if (!activePdf) {
-                    setStatus({ type: "error", text: "No active PDF selected." });
+                    setSessionStatus({ type: "error", text: "No active PDF selected." });
                     return;
                 }
 
                 if (!activeProfile) {
-                    setStatus({ type: "error", text: "Please set an active profile first." });
+                    setSessionStatus({ type: "error", text: "Please set an active profile first." });
                     return;
                 }
 
                 setIsCheckingMatch(true);
                 setMatchResult(null);
-                setStatus({ type: "", text: "" });
+                setSessionStatus({ type: "", text: "" });
 
                 try {
                     const response = await fetch("http://127.0.0.1:8000/api/match/check", {
@@ -724,10 +734,10 @@
                     if (data.status === "success") {
                         setMatchResult(data.data);
                     } else {
-                        setStatus({ type: "error", text: data.message || "Failed to check match." });
+                        setSessionStatus({ type: "error", text: data.message || "Failed to check match." });
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                    setSessionStatus({ type: "error", text: "Failed to connect to backend." });
                 } finally {
                     setIsCheckingMatch(false);
                 }
@@ -743,10 +753,54 @@
                 }
 
                 if (matchResult.match) {
-                    return { className: "status-success", text: "Matched" };
+                    return { className: "status-success", text: "Ready to Apply" };
                 }
 
                 return { className: "status-error", text: "Mismatch detected" };
+            };
+
+            const handleApplyToWhatsApp = async () => {
+                if (!activePdf) {
+                    setSessionStatus({ type: "error", text: "Please select an active PDF first." });
+                    return;
+                }
+
+                if (!activeProfile) {
+                    setSessionStatus({ type: "error", text: "Please set an active profile first." });
+                    return;
+                }
+
+                if (!matchResult) {
+                    setSessionStatus({ type: "error", text: "Please check match first before applying to WhatsApp." });
+                    return;
+                }
+
+                if (!matchResult.match) {
+                    setSessionStatus({ type: "error", text: "Current profile and PDF do not match. Please fix them before applying to WhatsApp." });
+                    return;
+                }
+
+                try {
+                    const response = await fetch("http://127.0.0.1:8000/api/settings/apply-profile", {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            profile_name: activeProfile
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setSessionStatus({ type: "success", text: data.message || "Profile applied to WhatsApp successfully." });
+                    } else {
+                        setSessionStatus({ type: "error", text: data.message || "Failed to apply profile to WhatsApp." });
+                    }
+                } catch (error) {
+                    setSessionStatus({ type: "error", text: "Failed to connect to backend." });
+                }
             };
 
             useEffect(() => {
@@ -771,9 +825,9 @@
                         </p>
 
                         <div className="section-card">
-                            <div className="section-title">Current Session</div>
+                            <div className="section-title">Live Bot Setup</div>
                             <div className="section-subtitle">
-                                This section shows what is currently active for match checking.
+                                Review the active PDF and profile before validating or applying them to WhatsApp.
                             </div>
 
                             <div className="context-grid">
@@ -797,34 +851,54 @@
                                     {matchStatus.text}
                                 </div>
 
-                                <button
-                                    className="btn-primary"
-                                    onClick={handleCheckMatch}
-                                    disabled={isCheckingMatch}
-                                    style={{ width: "auto", minWidth: "230px" }}
-                                >
-                                    {isCheckingMatch ? "Checking Match..." : "Check Match with Active PDF"}
-                                </button>
+                                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                                    <button
+                                        className="btn-primary"
+                                        onClick={handleCheckMatch}
+                                        disabled={isCheckingMatch}
+                                        style={{ width: "auto", minWidth: "230px" }}
+                                    >
+                                        {isCheckingMatch ? "Checking Match..." : "Validate PDF & Profile"}
+                                    </button>
+
+                                    <button
+                                        className="btn-secondary"
+                                        onClick={handleApplyToWhatsApp}
+                                        title={getApplyButtonHint()}
+                                        style={{ width: "auto", minWidth: "200px" }}
+                                    >
+                                        Apply to WhatsApp
+                                    </button>
+                                </div>
                             </div>
 
                             {matchResult && (
                                 <div className={`match-result-box ${matchResult.match ? "success" : "error"}`}>
                                     <div className="match-result-title">
-                                        {matchResult.match ? "✅ Match Result" : "⚠️ Match Result"}
+                                        {matchResult.match ? "✅ Validation Result" : "⚠️ Validation Result"}
                                     </div>
                                     <div>{matchResult.reason}</div>
+                                </div>
+                            )}
+
+                            {sessionStatus.text && (
+                                <div
+                                    className={`status-message ${sessionStatus.type}`}
+                                    style={{ justifyContent: "flex-start", marginTop: "14px" }}
+                                >
+                                    {sessionStatus.type === "success" ? "✨" : "⚠️"} {sessionStatus.text}
                                 </div>
                             )}
                         </div>
 
                         <div className="section-card">
-                            <div className="section-title">Saved Profiles</div>
+                            <div className="section-title">Profile Library</div>
                             <div className="section-subtitle">
-                                Select a profile, preview it, then choose whether to set it active or edit it.
+                                Browse saved profiles, preview their details, then choose one to activate or edit.
                             </div>
 
                             <div className="field-group">
-                                <label>Select Profile</label>
+                                <label>Choose Profile</label>
                                 <div className="field-row">
                                     <select
                                         value={selectedProfile}
@@ -855,24 +929,24 @@
                                     </button>
 
                                     <button type="button" onClick={handleSetActiveProfile} className="inline-btn">
-                                        Set Active
+                                        Set as Active
                                     </button>
                                 </div>
                             </div>
 
                             <div style={{ marginTop: "12px" }}>
                                 <button type="button" onClick={handleEditProfileToForm} className="btn-secondary">
-                                    Edit Selected Profile in Form
+                                    Edit in Form
                                 </button>
                             </div>
 
                             <div style={{ marginTop: "16px" }}>
                                 <div className="section-title" style={{ fontSize: "14px", marginBottom: "12px" }}>
-                                    Profile Preview
+                                    Profile Details
                                 </div>
 
                                 {!previewProfile ? (
-                                    <div className="empty-preview">No profile preview selected yet.</div>
+                                    <div className="empty-preview">No profile selected for preview.</div>
                                 ) : (
                                     <div className="preview-grid">
                                         <div className="preview-card">
@@ -1032,9 +1106,9 @@
                                     )}
                                 </div>
 
-                                {status.text && (
-                                    <div className={`status-message ${status.type}`}>
-                                        {status.type === "success" ? "✨" : "⚠️"} {status.text}
+                                {formStatus.text && (
+                                    <div className={`status-message ${formStatus.type}`}>
+                                        {formStatus.type === "success" ? "✨" : "⚠️"} {formStatus.text}
                                     </div>
                                 )}
                             </div>

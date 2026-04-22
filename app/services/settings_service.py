@@ -1,6 +1,6 @@
 import json
 import os
-
+from app.services.profile_service import get_profile_by_name
 
 SETTINGS_FILE = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "settings_data.json")
@@ -83,6 +83,28 @@ def generate_fallback(settings):
 def set_active_profile(profile_name):
     current_settings = get_settings()
     current_settings["active_profile"] = profile_name or ""
+
+    with open(SETTINGS_FILE, "w", encoding="utf-8") as file:
+        json.dump(current_settings, file, indent=4, ensure_ascii=False)
+
+    return current_settings
+
+def apply_profile_to_settings(profile_name):
+    if not profile_name:
+        raise ValueError("Profile name is required")
+
+    profile = get_profile_by_name(profile_name)
+    if not profile:
+        raise ValueError("Profile not found")
+
+    current_settings = get_settings()
+
+    current_settings["bot_name"] = profile.get("bot_name", "")
+    current_settings["company_name"] = profile.get("company_name", "")
+    current_settings["business_description"] = profile.get("business_description", "")
+    current_settings["tone"] = profile.get("tone", "")
+    current_settings["additional_instructions"] = profile.get("additional_instructions", "")
+    current_settings["active_profile"] = profile.get("name", "")
 
     with open(SETTINGS_FILE, "w", encoding="utf-8") as file:
         json.dump(current_settings, file, indent=4, ensure_ascii=False)
