@@ -5,7 +5,7 @@ import shelve
 import json
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 import glob
 from app.services.settings_service import get_settings, generate_greeting, generate_fallback
 
@@ -16,8 +16,11 @@ logging.basicConfig(
 
 load_dotenv()
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel("gemini-3-flash-preview")
+# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# model = genai.GenerativeModel("gemini-3-flash-preview")
+
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+model_id="gemini-2.0-flash"
 
 CHAT_HISTORY_DB = "chat_history_db"
 MAX_HISTORY = 6
@@ -793,7 +796,13 @@ def generate_response(message, wa_id):
 
                 if not reply:
                     prompt = build_prompt(history, message, context_chunks)
-                    response = model.generate_content(prompt)
+                    
+                    # Correct way to call it using the NEW library
+                    response = client.models.generate_content(
+                        model=model_id, 
+                        contents=prompt
+                    )
+                    
                     reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
 
         history.append({"role": "user", "content": message})

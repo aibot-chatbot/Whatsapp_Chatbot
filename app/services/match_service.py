@@ -70,7 +70,12 @@ Rules:
             model="gemini-2.5-flash",
             contents=prompt
         )
-        raw_text = response.text.strip()
+        # Use a conditional check to avoid errors
+        if response.text:
+            raw_text = response.text.strip()
+        else:
+            raw_text = ""
+            print("Warning: The model returned no text.")
 
     except Exception as e:
         error_text = str(e)
