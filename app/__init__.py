@@ -1,4 +1,5 @@
 from flask import Flask
+import os
 from flask_cors import CORS
 from app.config import load_configurations, configure_logging
 from .views import webhook_blueprint
@@ -8,16 +9,24 @@ from app.routes.knowledge_routes import knowledge_blueprint
 from app.routes.profile_routes import profile_blueprint
 from app.routes.match_routes import match_blueprint
 from app.routes.testbot_routes import testbot_blueprint
+from app.routes.analytics_routes import analytics_blueprint
 
 def create_app():
-    app = Flask(__name__)
+    # 1. Correctly locate the project root (up one level from 'app' folder)
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        
+    # 2. Define both the template and the static folder paths
+    app = Flask(__name__, 
+                template_folder=os.path.join(root_dir, 'frontend'),
+                static_folder=os.path.join(root_dir, 'frontend', 'static')) # Added this!
+
     CORS(app)
 
     # Load configurations and logging settings
     load_configurations(app)
     configure_logging()
 
-    # Import and register blueprints, if any
+    # Register blueprints
     app.register_blueprint(webhook_blueprint)
     app.register_blueprint(chat_blueprint)
     app.register_blueprint(settings_blueprint)
@@ -25,5 +34,6 @@ def create_app():
     app.register_blueprint(profile_blueprint)
     app.register_blueprint(match_blueprint)
     app.register_blueprint(testbot_blueprint)
+    app.register_blueprint(analytics_blueprint)
 
     return app

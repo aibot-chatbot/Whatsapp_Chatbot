@@ -308,46 +308,61 @@ def build_prompt(history, message, context_chunks):
 
     context = "\n\n".join(context_chunks)
 
-    prompt = f"""
-    You are {bot_name}, an AI assistant for {company_name}.
+    prompt_template = settings.get("custom_prompt", "").strip()
 
-    Business context:
-    {business_description}
+    if prompt_template:
+        prompt = prompt_template.format(
+            bot_name=bot_name,
+            company_name=company_name,
+            business_description=business_description,
+            tone=tone,
+            additional_instructions=additional_instructions,
+            fallback_message=fallback_message,
+            context=context,
+            conversation=conversation,
+            message=message
+        )
+    else:
+        prompt = f"""
+        You are {bot_name}, an AI assistant for {company_name}.
 
-    Your purpose:
-    You are a helpful AI assistant for {company_name}.
+        Business context:
+        {business_description}
 
-    Tone:
-    Respond in a {tone.lower()} tone.
+        Your purpose:
+        You are a helpful AI assistant for {company_name}.
 
-    Additional instructions:
-    {additional_instructions if additional_instructions else "None"}
+        Tone:
+        Respond in a {tone.lower()} tone.
 
-    RULES:
-    - Always try to be helpful based on the available information
-    - Do NOT make up facts or provide unsupported information
-    - If information is partial or unclear, use soft wording such as:
-      - "Based on the available information..."
-      - "From the information provided..."
-      - "It appears that..."
-    - Avoid strong unsupported claims like:
-      - "Absolutely", "Definitely", "For sure"
-    - Keep responses clear, concise, and easy to understand
-    - Answer the question first, then add explanation only if needed
-    - Keep replies short, ideally within 1–2 paragraphs
-    - If the question is out of scope or unsupported, politely guide the user back
-    - If the answer cannot be found clearly, use this fallback style:
-      {fallback_message}
+        Additional instructions:
+        {additional_instructions if additional_instructions else "None"}
 
-    Knowledge:
-    {context}
+        RULES:
+        - Always try to be helpful based on the available information
+        - Do NOT make up facts or provide unsupported information
+        - If information is partial or unclear, use soft wording such as:
+          - "Based on the available information..."
+          - "From the information provided..."
+          - "It appears that..."
+        - Avoid strong unsupported claims like:
+          - "Absolutely", "Definitely", "For sure"
+        - Keep responses clear, concise, and easy to understand
+        - Answer the question first, then add explanation only if needed
+        - Keep replies short, ideally within 1–2 paragraphs
+        - If the question is out of scope or unsupported, politely guide the user back
+        - If the answer cannot be found clearly, use this fallback style:
+          {fallback_message}
 
-    Recent conversation:
-    {conversation}
+        Knowledge:
+        {context}
 
-    User: {message}
-    Assistant:
-    """
+        Recent conversation:
+        {conversation}
+
+        User: {message}
+        Assistant:
+        """
     return prompt
 
 
@@ -573,6 +588,17 @@ def extract_code_title_pairs():
         if key not in seen:
             unique_pairs.append((code, title))
             seen.add(key)
+
+    # Check for invalid menu structures (e.g., Q&A documents where every answer starts with 'A.')
+    code_counts = {}
+    for code, _ in unique_pairs:
+        code_counts[code] = code_counts.get(code, 0) + 1
+
+    # If any top-level code has multiple different titles, it's not a real structured menu
+    for code, count in code_counts.items():
+        if count > 3 and re.fullmatch(r'[A-E]', code):
+            logging.info(f"Detected invalid menu structure (code {code} repeated {count} times). Disabling menu extraction.")
+            return []
 
     return unique_pairs
 
@@ -805,8 +831,10 @@ def generate_response(message, wa_id):
                     
                     reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
 
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": reply})
+        from datetime import datetime
+        now = datetime.now().isoformat()
+        history.append({"role": "user", "content": message, "timestamp": now})
+        history.append({"role": "assistant", "content": reply, "timestamp": now})
 
         history = history[-MAX_HISTORY:]
         save_chat_history(wa_id, history)

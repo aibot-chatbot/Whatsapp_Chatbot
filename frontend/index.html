@@ -3,483 +3,463 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bot Admin Dashboard</title>
-    
-    <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
-    <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    
+    <title>Dashboard | AI Chatbot </title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #2563eb;
-            --primary-hover: #1d4ed8;
-            --bg-base: #0f172a;
-            --bg-card: #1e293b;
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
             --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border-color: #334155;
-            --success: #10b981;
-            --error: #ef4444;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --input-bg: rgba(15, 23, 42, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
         }
 
         body {
-            background-color: var(--bg-base);
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
             color: var(--text-main);
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            display: flex;
-            justify-content: center;
-            align-items: center;
             min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
         }
 
-        .dashboard-container {
-            background: var(--bg-card);
-            border-radius: 16px;
-            padding: 40px;
-            width: 100%;
-            max-width: 450px;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.3);
-            border: 1px solid var(--border-color);
-            text-align: center;
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 280px;
+            background: var(--sidebar-bg);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--glass-border);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 40px 20px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
-        h1 {
-            margin-top: 0;
-            font-size: 24px;
-            font-weight: 600;
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 50px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(to right, #60a5fa, #10b981);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .nav-list {
+            list-style: none;
+            flex-grow: 1;
+        }
+
+        .nav-item {
             margin-bottom: 8px;
         }
 
-        p.subtitle {
-            color: var(--text-muted);
-            font-size: 14px;
-            margin-bottom: 32px;
-        }
-
-        .upload-area {
-            border: 2px dashed var(--border-color);
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-dim);
+            padding: 12px 16px;
             border-radius: 12px;
-            padding: 32px 24px;
-            transition: all 0.2s ease;
-            cursor: pointer;
-            position: relative;
-            background: rgba(255, 255, 255, 0.02);
-            margin-bottom: 24px;
-        }
-
-        .upload-area:hover, .upload-area.drag-over {
-            border-color: var(--primary);
-            background: rgba(37, 99, 235, 0.05);
-        }
-
-        .upload-area input[type="file"] {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
-        }
-
-        .upload-icon {
-            font-size: 32px;
-            margin-bottom: 12px;
-            color: var(--text-muted);
-            transition: color 0.2s ease;
-        }
-
-        .upload-area:hover .upload-icon {
-            color: var(--primary);
-        }
-
-        .file-name {
-            font-size: 14px;
-            color: var(--primary);
-            font-weight: 500;
-            margin-top: 12px;
-            word-break: break-all;
-        }
-
-        .btn-submit {
-            background: var(--primary);
-            color: white;
-            border: none;
-            width: 100%;
-            padding: 14px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.2s ease, transform 0.1s ease;
-        }
-
-        .btn-submit:hover:not(:disabled) {
-            background: var(--primary-hover);
-        }
-
-        .btn-submit:active:not(:disabled) {
-            transform: scale(0.98);
-        }
-
-        .btn-submit:disabled {
-            background: var(--border-color);
-            color: var(--text-muted);
-            cursor: not-allowed;
-        }
-
-        .status-message {
-            margin-top: 16px;
-            font-size: 14px;
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: 8px;
-            animation: fadeIn 0.3s ease;
+            gap: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
         }
 
-        .status-message.success { color: var(--success); }
-        .status-message.error { color: var(--error); }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-5px); }
-            to { opacity: 1; transform: translateY(0); }
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            transform: translateX(5px);
         }
 
-        /* Spinner */
-        .spinner {
-            display: inline-block;
-            width: 18px;
-            height: 18px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-radius: 50%;
-            border-top-color: white;
-            animation: spin 1s ease-in-out infinite;
+        .nav-link.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 20px var(--primary-glow);
         }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        /* Dropdown Styles */
+        .dropdown-container {
+            margin-bottom: 8px;
+        }
+
+        .dropdown-toggle {
+            width: 100%;
+            justify-content: space-between;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .dropdown-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease-in-out;
+            padding-left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .dropdown-container.open .dropdown-content {
+            max-height: 500px;
+            margin-top: 8px;
+            padding-bottom: 8px;
+        }
+
+        .chevron {
+            transition: transform 0.3s;
+            opacity: 0.5;
+        }
+
+        .dropdown-container.open .chevron {
+            transform: rotate(180deg);
+            opacity: 1;
+        }
+
+        .sub-link {
+            font-size: 0.9rem;
+            padding: 10px 16px;
+        }
+
+        .logout-btn {
+            margin-top: auto;
+            color: #ef4444;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            text-decoration: none;
+            font-weight: 600;
+            border-radius: 12px;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        /* Main Content Layout */
+        .main-container {
+            flex-grow: 1;
+            padding: 50px 60px;
+            max-width: 1400px;
+        }
+
+        .header {
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            padding: 24px;
+            border-radius: 24px;
+            transition: all 0.3s;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .stat-val {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 12px 0 4px 0;
+        }
+
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .content-sections {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        .activity-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .activity-table th {
+            text-align: left;
+            padding: 12px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .activity-table td {
+            padding: 16px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success { background: rgba(16, 185, 129, 0.2); color: #10b981; }
+        .badge-info { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+
+        .floating {
+            animation: float 6s ease-in-out infinite;
         }
     </style>
 </head>
 <body>
-    <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useRef } = React;
+    <script src="sidebar-component.js"></script>
+    <chatbot-sidebar></chatbot-sidebar>
 
-        function App() {
-            const [file, setFile] = useState(null);
-            const [dragActive, setDragActive] = useState(false);
-            const [status, setStatus] = useState({ type: '', text: '' });
-            const [isUploading, setIsUploading] = useState(false);
-            const [files, setFiles] = useState([]);
-            const [activeFile, setActiveFile] = useState("");
+    <main class="main-container">
+        <div class="header">
+            <div>
+                <h1>Dashboard</h1>
+                <p>Welcome back! Here's the live overview of your Chatbot's configuration and usage.</p>
+            </div>
+            <div class="glass-card" style="padding: 10px 20px; color: var(--accent); font-weight: 600;">
+                <span id="date-display">--</span>
+            </div>
+        </div>
 
-            const handleFileSelect = (e) => {
-                if (e.target.files && e.target.files[0]) {
-                    const selectedFile = e.target.files[0];
-                    if (selectedFile.type === "application/pdf") {
-                        setFile(selectedFile);
-                        setStatus({ type: '', text: '' });
-                    } else {
-                        setStatus({ type: 'error', text: 'Please select a valid PDF file.' });
-                    }
-                }
-            };
+        <div class="stats-grid">
+            <div class="glass-card">
+                <div class="stat-label">Total Users</div>
+                <div class="stat-val" id="stat-total-users">...</div>
+                <div style="color: var(--text-dim); font-size: 0.8rem;">Unique phone numbers</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Total Messages</div>
+                <div class="stat-val" id="stat-total-msgs">...</div>
+                <div style="color: var(--text-dim); font-size: 0.8rem;">Overall interaction volume</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Active Profile</div>
+                <div class="stat-val" id="stat-active-profile" style="font-size: 1.3rem; margin-top: 18px;">...</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Active PDF</div>
+                <div class="stat-val" id="stat-active-pdf" style="font-size: 1.3rem; margin-top: 18px;">...</div>
+            </div>
+        </div>
 
-            const handleUpload = async () => {
-                if (!file) return;
-
-                setIsUploading(true);
-                setStatus({ type: '', text: '' });
-
-                const formData = new FormData();
-                formData.append('pdf_file', file);
-
-                try {
-                    // Assuming Flask runs on localhost:8000
-                    const response = await fetch('http://127.0.0.1:8000/upload-pdf', {
-                        method: 'POST',
-                        body: formData,
-                    });
-
-                    if (response.ok) {
-                        setStatus({ type: 'success', text: 'PDF successfully uploaded and reloaded into memory!' });
-                        setFile(null); // Reset after upload
-                        fetchFiles();
-                    } else {
-                        const data = await response.json();
-                        setStatus({ type: 'error', text: `Upload failed: ${data.message || 'Unknown error'}` });
-                    }
-                } catch (error) {
-                    setStatus({ type: 'error', text: 'Network connection failed. Is the backend running?' });
-                } finally {
-                    setIsUploading(false);
-                }
-            };
-
-            const fetchFiles = async () => {
-                try {
-                    const res = await fetch("http://127.0.0.1:8000/api/knowledge/files");
-                    const data = await res.json();
-
-                    const activeRes = await fetch("http://127.0.0.1:8000/api/knowledge/active");
-                    const activeData = await activeRes.json();
-
-                    if (data.status === "success") {
-                        setFiles(data.data);
-                    }
-
-                    if (activeData.status === "success") {
-                        setActiveFile(activeData.data.file_name);
-                    }
-                } catch (error) {
-                    console.error("Failed to fetch files");
-                }
-            };
-
-            const handleSetActive = async (fileName) => {
-                try {
-                    const response = await fetch("http://127.0.0.1:8000/api/knowledge/set-active", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json"
-                        },
-                        body: JSON.stringify({ file_name: fileName })
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        setStatus({ type: "success", text: data.data.message });
-                        fetchFiles();
-                    } else {
-                        setStatus({ type: "error", text: data.message || "Failed to set active PDF" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend" });
-                }
-            };
-
-            const handleDeleteFile = async (fileName) => {
-                try {
-                    const response = await fetch(`http://127.0.0.1:8000/api/knowledge/files/${encodeURIComponent(fileName)}`, {
-                        method: "DELETE"
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        setStatus({ type: "success", text: data.data.message });
-                        fetchFiles();
-                    } else {
-                        setStatus({ type: "error", text: data.message || "Failed to delete PDF" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend" });
-                }
-            };
-
-            React.useEffect(() => {
-                fetchFiles();
-            }, []);
-
-            return (
-                <div className="dashboard-container">
-
-                    {/* NAV BAR */}
-                    <div style={{
-                        display: "flex",
-                        justifyContent: "center",
-                        gap: "10px",
-                        marginBottom: "24px"
-                    }}>
-                        <a
-                            href="index.html"
-                            style={{
-                                padding: "8px 14px",
-                                borderRadius: "8px",
-                                textDecoration: "none",
-                                background: "var(--primary)",
-                                color: "white",
-                                border: "1px solid var(--primary)",
-                                fontSize: "14px"
-                            }}
-                        >
-                            Knowledge Base
-                        </a>
-
-                        <a
-                            href="bot-config.html"
-                            style={{
-                                padding: "8px 14px",
-                                borderRadius: "8px",
-                                textDecoration: "none",
-                                background: "rgba(255,255,255,0.05)",
-                                color: "var(--text-main)",
-                                border: "1px solid var(--border-color)",
-                                fontSize: "14px"
-                            }}
-                        >
-                            Bot Configuration
-                        </a>
-                    </div>
-
-                    <h1>Update Bot Knowledge</h1>
-                    <p className="subtitle">Upload a new PDF to instantly update the bot's memory without restarting.</p>
-                    
-                    <div 
-                        className={`upload-area ${dragActive ? 'drag-over' : ''}`}
-                        onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-                        onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-                        onDrop={(e) => { e.preventDefault(); setDragActive(false); handleFileSelect({target: {files: e.dataTransfer.files}}); }}
-                    >
-                        <input type="file" accept=".pdf" onChange={handleFileSelect} />
-                        <div className="upload-icon">📄</div>
-                        <div><strong>Click to upload</strong> or drag and drop</div>
-                        <div style={{fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px'}}>PDF files only</div>
-                        
-                        {file && (
-                            <div className="file-name">✅ Selected: {file.name}</div>
-                        )}
-                    </div>
-
-                    <button 
-                        className="btn-submit" 
-                        onClick={handleUpload} 
-                        disabled={!file || isUploading}
-                    >
-                        {isUploading ? (
-                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'}}>
-                                <div className="spinner"></div> Uploading...
-                            </span>
-                        ) : 'Update Bot Knowledge'}
-                    </button>
-
-                    {status.text && (
-                        <div className={`status-message ${status.type}`}>
-                            {status.type === 'success' ? '✨' : '⚠️'} {status.text}
-                        </div>
-                    )}
-
-                    {status.type === "success" && (
-                        <div
-                            style={{
-                                marginTop: "14px",
-                                padding: "14px",
-                                borderRadius: "10px",
-                                background: "rgba(37, 99, 235, 0.08)",
-                                border: "1px solid var(--border-color)",
-                                textAlign: "left"
-                            }}
-                        >
-                            <div style={{ fontSize: "14px", fontWeight: "600", marginBottom: "6px" }}>
-                                Next step
-                            </div>
-                            <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
-                                Please review Bot Configuration so the chatbot matches this uploaded document.
-                            </div>
-                            <a
-                                href="bot-config.html"
-                                style={{
-                                    display: "inline-block",
-                                    padding: "8px 12px",
-                                    borderRadius: "8px",
-                                    textDecoration: "none",
-                                    background: "var(--primary)",
-                                    color: "white",
-                                    fontSize: "13px",
-                                    fontWeight: "600"
-                                }}
-                            >
-                                Open Bot Configuration
-                            </a>
-                        </div>
-                    )}
-
-                    <div style={{ marginTop: "24px", textAlign: "left" }}>
-                        <h3 style={{ fontSize: "16px" }}>📄 Uploaded Files</h3>
-
-                        {files.length === 0 ? (
-                            <p style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                                No files uploaded yet.
-                            </p>
-                        ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                                {files.map((f, index) => (
-                                    <div
-                                        key={index}
-                                        style={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                            background: "rgba(255,255,255,0.03)",
-                                            border: "1px solid var(--border-color)",
-                                            borderRadius: "8px",
-                                            padding: "10px 12px"
-                                        }}
-                                    >
-                                        <div style={{ fontSize: "14px" }}>
-                                            {f.file_name}
-                                            {f.file_name === activeFile && (
-                                                <span style={{ color: "var(--success)", marginLeft: "6px" }}>
-                                                    (Active)
-                                                </span>
-                                            )}
-                                        </div>
-
-                                        <div style={{ display: "flex", gap: "8px" }}>
-                                            <button
-                                                onClick={() => handleSetActive(f.file_name)}
-                                                disabled={f.file_name === activeFile}
-                                                style={{
-                                                    background: f.file_name === activeFile ? "var(--border-color)" : "var(--primary)",
-                                                    color: "white",
-                                                    border: "none",
-                                                    borderRadius: "6px",
-                                                    padding: "6px 10px",
-                                                    cursor: f.file_name === activeFile ? "not-allowed" : "pointer",
-                                                    fontSize: "12px"
-                                                }}
-                                            >
-                                                Set Active
-                                            </button>
-
-                                            <button
-                                                onClick={() => handleDeleteFile(f.file_name)}
-                                                disabled={f.file_name === activeFile}
-                                                style={{
-                                                    background: f.file_name === activeFile ? "var(--border-color)" : "var(--error)",
-                                                    color: "white",
-                                                    border: "none",
-                                                    borderRadius: "6px",
-                                                    padding: "6px 10px",
-                                                    cursor: f.file_name === activeFile ? "not-allowed" : "pointer",
-                                                    fontSize: "12px"
-                                                }}
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
+        <div class="content-sections">
+            <div class="glass-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 class="section-title" style="margin: 0;">📉 Usage Analytics (Last 7 Days)</h3>
                 </div>
-            );
+                <div id="chart-container" style="height: 200px; display: flex; align-items: flex-end; gap: 10px; padding-top: 20px;">
+                    <div style="width: 100%; text-align: center; color: var(--text-dim); margin-bottom: auto; margin-top:auto;">Loading chart data...</div>
+                </div>
+                <div id="chart-labels" style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.8rem; color: var(--text-dim);">
+                </div>
+            </div>
+            <div class="glass-card">
+                <h3 class="section-title">📜 Recent History</h3>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th>User (Last 4)</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-history-body">
+                        <tr><td colspan="2" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- <script src="assets/js/auth.js"></script> -->
+    <script>
+        // requireLogin();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDate();
+            initSidebar();
+            fetchDashboardData();
+        });
+
+        function updateDate() {
+            const dateEl = document.getElementById('date-display');
+            if (dateEl) {
+                const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' };
+                dateEl.innerText = new Date().toLocaleDateString(undefined, options);
+            }
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        async function fetchDashboardData() {
+            try {
+                // 1. Fetch Analytics
+                const analyticsRes = await fetch("http://127.0.0.1:8000/api/analytics");
+                const analytics = await analyticsRes.json();
+                
+                if (analytics.status === "success") {
+                    document.getElementById('stat-total-users').innerText = analytics.data.total_users;
+                    document.getElementById('stat-total-msgs').innerText = analytics.data.total_messages;
+                    
+                    // Render Chart
+                    renderChart(analytics.data.chart.labels, analytics.data.chart.data);
+                    
+                    // Render Recent History
+                    renderHistory(analytics.data.recent_history);
+                }
+
+                // 2. Fetch Settings
+                const settingsRes = await fetch("http://127.0.0.1:8000/api/settings");
+                const settings = await settingsRes.json();
+                if (settings.status === "success") {
+                    document.getElementById('stat-active-profile').innerText = settings.data.active_profile || "None";
+                }
+
+                // 3. Fetch Active Knowledge
+                const knowledgeRes = await fetch("http://127.0.0.1:8000/api/knowledge/active");
+                if (knowledgeRes.ok) {
+                    const knowledge = await knowledgeRes.json();
+                    document.getElementById('stat-active-pdf').innerText = knowledge.data?.file_name || "None";
+                }
+                
+            } catch (err) {
+                console.error("Dashboard failed to fetch data", err);
+            }
+        }
+        
+        function renderChart(labels, data) {
+            const container = document.getElementById('chart-container');
+            const labelsContainer = document.getElementById('chart-labels');
+            
+            container.innerHTML = "";
+            labelsContainer.innerHTML = "";
+            
+            const maxVal = Math.max(...data, 10); // Minimum scale 10
+            
+            data.forEach((val, i) => {
+                const percentage = (val / maxVal) * 100;
+                const bar = document.createElement('div');
+                bar.style.flex = "1";
+                bar.style.backgroundColor = i === data.length - 1 ? "var(--accent)" : "var(--primary)";
+                bar.style.height = `${Math.max(percentage, 5)}%`; // minimum 5% height to show it exists
+                bar.style.borderRadius = "4px";
+                bar.style.transition = "height 1s ease";
+                bar.title = `${val} messages`;
+                container.appendChild(bar);
+                
+                const label = document.createElement('div');
+                label.style.flex = "1";
+                label.style.textAlign = "center";
+                label.innerText = labels[i];
+                labelsContainer.appendChild(label);
+            });
+        }
+        
+        function renderHistory(historyItems) {
+            const tbody = document.getElementById('recent-history-body');
+            tbody.innerHTML = "";
+            
+            if (!historyItems || historyItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color: var(--text-dim);">No chats yet</td></tr>';
+                return;
+            }
+            
+            historyItems.forEach(item => {
+                const tr = document.createElement('tr');
+                const isRecent = new Date() - new Date(item.timestamp) < 86400000;
+                tr.innerHTML = `
+                    <td title="${item.last_content}">***${item.user}</td>
+                    <td><span class="badge ${isRecent ? 'badge-info' : 'badge-success'}">${isRecent ? 'Recent' : 'Offline'}</span></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleDropdown(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('open');
+            }
+        }
+
+        function initSidebar() {
+            const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+            const navLinks = document.querySelectorAll('.nav-link');
+            
+            navLinks.forEach(link => {
+                if (link.getAttribute('href') === currentPath) {
+                    link.classList.add('active');
+                }
+            });
+
+            // Auto-expand dropdowns if child is active
+            if (['new_linkdocs.html', 'new_prompt.html', 'training.html'].includes(currentPath)) {
+                const drop = document.getElementById('training-dropdown');
+                if (drop) drop.classList.add('open');
+            }
+            if (['behaviour.html', 'testbot.html'].includes(currentPath)) {
+                const drop = document.getElementById('behaviour-dropdown');
+                if (drop) drop.classList.add('open');
+            }
+        }
     </script>
 </body>
 </html>

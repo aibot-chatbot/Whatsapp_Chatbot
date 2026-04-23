@@ -109,45 +109,8 @@
     </style>
 </head>
 <body>
-    <aside class="sidebar">
-        <div class="logo">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><path d="M12 6v6l4 2"></path></svg>
-            <span>AI CHATBOT</span>
-        </div>
-        <nav class="nav-list">
-            <div class="nav-item"><a href="index.html" class="nav-link">📊 Dashboard</a></div>
-            
-            <div class="dropdown-container" id="training-dropdown">
-                <div class="nav-item">
-                    <button class="nav-link dropdown-toggle" onclick="toggleDropdown('training-dropdown')">
-                        <span>📁 Training Data</span>
-                        <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </button>
-                </div>
-                <div class="dropdown-content">
-                    <a href="linksdocs.html" class="nav-link sub-link">🔗 Links / Docs</a>
-                    <a href="prompt.html" class="nav-link sub-link">📋 Prompt</a>
-                    <a href="training.html" class="nav-link sub-link">📚 Help & Documentation</a>
-                </div>
-            </div>
-            
-            <div class="dropdown-container" id="behaviour-dropdown">
-                <div class="nav-item">
-                    <button class="nav-link dropdown-toggle" onclick="toggleDropdown('behaviour-dropdown')">
-                        <span>⚙️ Behaviour</span>
-                        <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                    </button>
-                </div>
-                <div class="dropdown-content">
-                    <a href="behaviour.html" class="nav-link sub-link">🤖 Tune AI</a>
-                    <a href="testbot.html" class="nav-link sub-link">🧪 Test Your Bot</a>
-                </div>
-            </div>
-            
-            <div class="nav-item"><a href="integration.html" class="nav-link">🔌 Integration</a></div>
-        </nav>
-        <a href="login.html?logout=1" class="logout-btn">🚪 Logout</a>
-    </aside>
+    <script src="sidebar-component.js"></script>
+    <chatbot-sidebar></chatbot-sidebar>
 
     <main class="main-container">
         <div class="chat-interface">
@@ -165,9 +128,9 @@
         </div>
     </main>
 
-    <script src="assets/js/auth.js"></script>
+    <!-- <script src="assets/js/auth.js"></script> -->
     <script>
-        requireLogin();
+        // requireLogin();
 
         document.addEventListener('DOMContentLoaded', () => {
             initSidebar();

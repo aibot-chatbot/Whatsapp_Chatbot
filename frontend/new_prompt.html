@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -12,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-
+    <script src="sidebar-component.js"></script>
     <style>
         :root {
             --primary: #3b82f6;
@@ -112,7 +113,10 @@
             box-shadow: 0 4px 20px var(--primary-glow);
         }
 
-        .dropdown-container { margin-bottom: 8px; }
+        .dropdown-container {
+            margin-bottom: 8px;
+        }
+
         .dropdown-toggle {
             width: 100%;
             justify-content: space-between;
@@ -121,6 +125,7 @@
             cursor: pointer;
             text-align: left;
         }
+
         .dropdown-content {
             max-height: 0;
             overflow: hidden;
@@ -130,19 +135,23 @@
             flex-direction: column;
             gap: 4px;
         }
+
         .dropdown-container.open .dropdown-content {
             max-height: 500px;
             margin-top: 8px;
             padding-bottom: 8px;
         }
+
         .chevron {
             transition: transform 0.3s;
             opacity: 0.5;
         }
+
         .dropdown-container.open .chevron {
             transform: rotate(180deg);
             opacity: 1;
         }
+
         .sub-link {
             font-size: 0.9rem;
             padding: 10px 16px;
@@ -319,7 +328,9 @@
             font-weight: 600;
         }
 
-        input, select, textarea {
+        input,
+        select,
+        textarea {
             width: 100%;
             background: var(--input-bg);
             border: 1px solid var(--glass-border);
@@ -331,7 +342,9 @@
             transition: all 0.25s ease;
         }
 
-        input:focus, select:focus, textarea:focus {
+        input:focus,
+        select:focus,
+        textarea:focus {
             border-color: var(--primary);
             box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
             background: rgba(15, 23, 42, 0.82);
@@ -390,14 +403,14 @@
 
         .btn-secondary,
         .inline-btn {
-            background: rgba(255,255,255,0.05);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-main);
             border: 1px solid var(--glass-border);
         }
 
         .btn-secondary:hover:not(:disabled),
         .inline-btn:hover:not(:disabled) {
-            background: rgba(255,255,255,0.1);
+            background: rgba(255, 255, 255, 0.1);
         }
 
         .btn-danger {
@@ -444,8 +457,13 @@
             gap: 8px;
         }
 
-        .status-message.success { color: var(--accent); }
-        .status-message.error { color: var(--error); }
+        .status-message.success {
+            color: var(--accent);
+        }
+
+        .status-message.error {
+            color: var(--error);
+        }
 
         .mode-badge {
             display: inline-block;
@@ -491,6 +509,7 @@
         }
 
         @media (max-width: 700px) {
+
             .context-grid,
             .preview-grid {
                 grid-template-columns: 1fr;
@@ -514,8 +533,49 @@
                 font-size: 1.9rem;
             }
         }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        /* Modal Content Box */
+        .modal-content {
+            background: #0f172a;
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 30px;
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 24px;
+            cursor: pointer;
+        }
     </style>
 </head>
+
 <body>
     <div id="root"></div>
 
@@ -529,7 +589,8 @@
                 companyName: "",
                 businessDescription: "",
                 tone: "",
-                additionalInstructions: ""
+                additionalInstructions: "",
+                customPrompt: ""
             };
 
             const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -541,6 +602,7 @@
             const [businessDescription, setBusinessDescription] = useState("");
             const [tone, setTone] = useState("");
             const [additionalInstructions, setAdditionalInstructions] = useState("");
+            const [customPrompt, setCustomPrompt] = useState("");
 
             const [activePdf, setActivePdf] = useState("");
             const [profiles, setProfiles] = useState([]);
@@ -548,6 +610,7 @@
             const [selectedProfile, setSelectedProfile] = useState("");
             const [activeProfile, setActiveProfile] = useState("");
             const [previewProfile, setPreviewProfile] = useState(null);
+            const [isModalOpen, setIsModalOpen] = useState(false);
             const [formMode, setFormMode] = useState("create");
             const [sessionStatus, setSessionStatus] = useState({ type: "", text: "" });
             const [formStatus, setFormStatus] = useState({ type: "", text: "" });
@@ -618,6 +681,7 @@
                 setBusinessDescription(profile.business_description || "");
                 setTone(profile.tone || "");
                 setAdditionalInstructions(profile.additional_instructions || "");
+                setCustomPrompt(profile.custom_prompt || "");
             };
 
             const clearForm = () => {
@@ -627,6 +691,7 @@
                 setBusinessDescription(emptyForm.businessDescription);
                 setTone(emptyForm.tone);
                 setAdditionalInstructions(emptyForm.additionalInstructions);
+                setCustomPrompt(emptyForm.customPrompt);
                 setFormMode("create");
                 setFormStatus({ type: "success", text: "Form cleared. You can create a new profile now." });
             };
@@ -731,21 +796,24 @@
                     setFormStatus({ type: "error", text: "Selected profile not found." });
                     return;
                 }
-
                 setPreviewProfile(profile);
                 fillFormFromProfile(profile);
                 setFormMode("edit");
+                setIsModalOpen(true); // Open the popup
                 setFormStatus({ type: "success", text: `Profile "${profile.name}" loaded into form for editing.` });
 
-                setTimeout(() => {
-                    if (configFormRef.current) {
-                        configFormRef.current.scrollIntoView({
-                            behavior: "smooth",
-                            block: "start"
-                        });
-                    }
-                }, 100);
             };
+
+
+            //     setTimeout(() => {
+            //         if (configFormRef.current) {
+            //             configFormRef.current.scrollIntoView({
+            //                 behavior: "smooth",
+            //                 block: "start"
+            //             });
+            //         }
+            //     }, 100);
+            // };
 
             const handleSaveProfile = async () => {
                 if (!profileName.trim()) {
@@ -769,6 +837,7 @@
                             business_description: businessDescription,
                             tone: tone,
                             additional_instructions: additionalInstructions,
+                            custom_prompt: customPrompt,
                         }),
                     });
 
@@ -782,6 +851,7 @@
                             business_description: businessDescription,
                             tone: tone,
                             additional_instructions: additionalInstructions,
+                            custom_prompt: customPrompt,
                         };
 
                         setPreviewProfile(savedProfile);
@@ -892,7 +962,10 @@
                     const data = await response.json();
 
                     if (data.status === "success") {
-                        setSessionStatus({ type: "success", text: data.message || "Profile applied to WhatsApp successfully." });
+                        setSessionStatus({ type: "success", text: data.message || "Profile applied successfully. Navigating to Test Bot..." });
+                        setTimeout(() => {
+                            window.location.href = "testbot.html";
+                        }, 1200);
                     } else {
                         setSessionStatus({ type: "error", text: data.message || "Failed to apply profile to WhatsApp." });
                     }
@@ -911,61 +984,133 @@
 
             return (
                 <>
-                    <aside className="sidebar">
-                        <div className="logo">
-                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
-                                <path d="M12 6v6l4 2"></path>
-                            </svg>
-                            <span>AI CHATBOT</span>
-                        </div>
-
-                        <nav className="nav-list">
-                            <div className="nav-item">
-                                <a href="index.html" className="nav-link">📁 Knowledge Base</a>
-                            </div>
-
-                            <div className="dropdown-container open">
-                                <div className="nav-item">
-                                    <button className="nav-link dropdown-toggle" type="button">
-                                        <span>📁 Training Data</span>
-                                        <svg className="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="6 9 12 15 18 9"></polyline>
-                                        </svg>
-                                    </button>
-                                </div>
-                                <div className="dropdown-content">
-                                    <a href="index.html" className="nav-link sub-link">🔗 Links / Docs</a>
-                                    <a href="bot-config.html" className="nav-link sub-link active">📋 Prompt</a>
-                                    <a href="training.html" className="nav-link sub-link">📚 Help & Documentation</a>
-                                </div>
-                            </div>
-
-                            <div className="dropdown-container">
-                                <div className="nav-item">
-                                    <button className="nav-link dropdown-toggle" type="button">
-                                        <span>⚙️ Behaviour</span>
-                                        <svg className="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="6 9 12 15 18 9"></polyline>
-                                        </svg>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="nav-item">
-                                <a href="integration.html" className="nav-link">🔌 Integration</a>
-                            </div>
-                        </nav>
-
-                        <a href="login.html?logout=1" className="logout-btn">🚪 Logout</a>
-                    </aside>
+                    <chatbot-sidebar></chatbot-sidebar>
 
                     <main className="main-container">
-                        <div className="header">
-                            <h1>Bot Configuration</h1>
-                            <p>Manage your active PDF, saved profiles, and live WhatsApp setup in one place.</p>
+                        <div className="header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
+                            <div>
+                                <h1>Bot Configuration</h1>
+                                <p>Manage your active PDF, saved profiles, and live WhatsApp setup in one place.</p>
+                            </div>
+                            <button 
+                                className="btn-primary" 
+                                type="button" 
+                                onClick={() => {
+                                    clearForm();
+                                    setIsModalOpen(true);
+                                }}
+                            >
+                                ➕ Add Profile
+                            </button>
                         </div>
 
+                        <div className="section-card">
+                            <div className="section-title">Profile Library</div>
+                            <div className="section-subtitle">
+                                Browse saved profiles, preview their details, then choose one to activate or edit.
+                            </div>
+
+                            <div className="field-group">
+                                <label>Choose Profile</label>
+                                <div className="field-row">
+                                    <select
+                                        value={selectedProfile}
+                                        onChange={(e) => {
+                                            setSelectedProfile(e.target.value);
+                                            setPreviewProfile(null); // Hide preview when selection changes
+                                        }}
+                                    >
+                                        <option value="">Select a saved profile</option>
+                                        {profiles.map((profile, index) => (
+                                            <option key={index} value={profile.name}>
+                                                {profile.name}
+                                            </option>
+                                        ))}
+                                    </select>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (previewProfile && selectedProfile && previewProfile.name === selectedProfile) {
+                                                setPreviewProfile(null);
+                                            } else {
+                                                handlePreviewProfile();
+                                            }
+                                        }}
+                                        className="inline-btn"
+                                    >
+                                        {previewProfile && selectedProfile && previewProfile.name === selectedProfile
+                                            ? "Close Preview"
+                                            : "Preview"}
+                                    </button>
+
+                                    <button type="button" onClick={handleSetActiveProfile} className="inline-btn">
+                                        Set as Active
+                                    </button>
+                                </div>
+                                
+                                {formStatus.text && !isModalOpen && (
+                                    <div className={`status-message ${formStatus.type}`} style={{ justifyContent: "flex-start", marginTop: "12px" }}>
+                                        {formStatus.type === "success" ? "✨" : "⚠️"} {formStatus.text}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Details Section */}
+                            <div style={{ marginTop: "16px" }}>
+                                <div className="section-title" style={{ fontSize: "14px", marginBottom: "12px" }}>
+                                    Profile Details
+                                </div>
+
+                                {!previewProfile ? (
+                                    <div className="empty-preview">No profile selected for preview.</div>
+                                ) : (
+                                    <>
+                                        <div className="preview-grid">
+                                            <div className="preview-card">
+                                                <div className="preview-label">Profile Name</div>
+                                                <div className="preview-value">{previewProfile.name || "-"}</div>
+                                            </div>
+                                            <div className="preview-card">
+                                                <div className="preview-label">Tone</div>
+                                                <div className="preview-value">{previewProfile.tone || "-"}</div>
+                                            </div>
+                                            <div className="preview-card">
+                                                <div className="preview-label">Bot Name</div>
+                                                <div className="preview-value">{previewProfile.bot_name || "-"}</div>
+                                            </div>
+                                            <div className="preview-card">
+                                                <div className="preview-label">Company Name</div>
+                                                <div className="preview-value">{previewProfile.company_name || "-"}</div>
+                                            </div>
+                                            <div className="preview-card preview-full">
+                                                <div className="preview-label">Business Description</div>
+                                                <div className="preview-value">{previewProfile.business_description || "-"}</div>
+                                            </div>
+                                            <div className="preview-card preview-full">
+                                                <div className="preview-label">Additional Instructions</div>
+                                                <div className="preview-value">{previewProfile.additional_instructions || "-"}</div>
+                                            </div>
+                                            <div className="preview-card preview-full">
+                                                <div className="preview-label">Custom Prompt Template</div>
+                                                <div className="preview-value" style={{ whiteSpace: "pre-wrap" }}>
+                                                    {previewProfile.custom_prompt || "-"}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* This is the correct placement for bottom-right */}
+                                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+                                            <button type="button" onClick={handleEditProfileToForm} className="btn-secondary" style={{ minWidth: "160px" }}>
+                                                Edit in Form
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Live Setup Section */}
                         <div className="section-card">
                             <div className="section-title">Live Bot Setup</div>
                             <div className="section-subtitle">
@@ -1029,229 +1174,93 @@
                                 </div>
                             )}
                         </div>
+                    </main>
 
-                        <div className="section-card">
-                            <div className="section-title">Profile Library</div>
-                            <div className="section-subtitle">
-                                Browse saved profiles, preview their details, then choose one to activate or edit.
-                            </div>
-
-                            <div className="field-group">
-                                <label>Choose Profile</label>
-                                <div className="field-row">
-                                    <select
-                                        value={selectedProfile}
-                                        onChange={(e) => setSelectedProfile(e.target.value)}
-                                    >
-                                        <option value="">Select a saved profile</option>
-                                        {profiles.map((profile, index) => (
-                                            <option key={index} value={profile.name}>
-                                                {profile.name}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (previewProfile && selectedProfile && previewProfile.name === selectedProfile) {
-                                                setPreviewProfile(null);
-                                            } else {
-                                                handlePreviewProfile();
-                                            }
-                                        }}
-                                        className="inline-btn"
-                                    >
-                                        {previewProfile && selectedProfile && previewProfile.name === selectedProfile
-                                            ? "Close Preview"
-                                            : "Preview"}
-                                    </button>
-
-                                    <button type="button" onClick={handleSetActiveProfile} className="inline-btn">
-                                        Set as Active
-                                    </button>
+                    {isModalOpen && (
+                        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
+                            <div className="modal-content">
+                                <button className="close-modal" onClick={() => setIsModalOpen(false)}>×</button>
+                                <div className="section-title" style={{ fontSize: "1.4rem" }}>
+                                    {formMode === "edit" ? "Edit Profile Configuration" : "Create Profile Configuration"}
                                 </div>
-                            </div>
-
-                            <div style={{ marginTop: "12px" }}>
-                                <button type="button" onClick={handleEditProfileToForm} className="btn-secondary">
-                                    Edit in Form
-                                </button>
-                            </div>
-
-                            <div style={{ marginTop: "16px" }}>
-                                <div className="section-title" style={{ fontSize: "14px", marginBottom: "12px" }}>
-                                    Profile Details
+                                <div className="section-subtitle" style={{ marginBottom: "20px" }}>
+                                    {formMode === "edit" ? "Make changes to your bot profile below." : "Fill in the details for your new bot profile."}
                                 </div>
 
-                                {!previewProfile ? (
-                                    <div className="empty-preview">No profile selected for preview.</div>
-                                ) : (
-                                    <div className="preview-grid">
-                                        <div className="preview-card">
-                                            <div className="preview-label">Profile Name</div>
-                                            <div className="preview-value">{previewProfile.name || "-"}</div>
-                                        </div>
+                                <div className="mode-badge">
+                                    {formMode === "edit" ? "Edit Mode" : "Create Mode"}
+                                </div>
 
-                                        <div className="preview-card">
-                                            <div className="preview-label">Tone</div>
-                                            <div className="preview-value">{previewProfile.tone || "-"}</div>
-                                        </div>
-
-                                        <div className="preview-card">
-                                            <div className="preview-label">Bot Name</div>
-                                            <div className="preview-value">{previewProfile.bot_name || "-"}</div>
-                                        </div>
-
-                                        <div className="preview-card">
-                                            <div className="preview-label">Company Name</div>
-                                            <div className="preview-value">{previewProfile.company_name || "-"}</div>
-                                        </div>
-
-                                        <div className="preview-card preview-full">
-                                            <div className="preview-label">Business Description</div>
-                                            <div className="preview-value">{previewProfile.business_description || "-"}</div>
-                                        </div>
-
-                                        <div className="preview-card preview-full">
-                                            <div className="preview-label">Additional Instructions</div>
-                                            <div className="preview-value">{previewProfile.additional_instructions || "-"}</div>
-                                        </div>
+                                <div className="form-grid">
+                                    <div className="field-group">
+                                        <label>Profile Name</label>
+                                        <input type="text" value={profileName} onChange={(e) => setProfileName(e.target.value)} />
                                     </div>
-                                )}
-                            </div>
-                        </div>
 
-                        <div className="section-card" ref={configFormRef}>
-                            <div className="section-title">Configuration Form</div>
-                            <div className="section-subtitle">
-                                Use this form only for creating a new profile or editing a selected one.
-                            </div>
+                                    <div className="field-group">
+                                        <label>Bot Name</label>
+                                        <input type="text" value={botName} onChange={(e) => setBotName(e.target.value)} />
+                                    </div>
 
-                            <div className="mode-badge">
-                                {formMode === "edit" ? "Edit Mode" : "Create Mode"}
-                            </div>
+                                    <div className="field-group">
+                                        <label>Company Name</label>
+                                        <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} />
+                                    </div>
 
-                            <div className="form-grid">
-                                <div className="field-group">
-                                    <label>Profile Name</label>
-                                    <input
-                                        type="text"
-                                        value={profileName}
-                                        onChange={(e) => setProfileName(e.target.value)}
-                                        placeholder="e.g. OlympicEdu Competition Bot"
-                                    />
-                                </div>
+                                    <div className="field-group">
+                                        <label>Business Description</label>
+                                        <textarea value={businessDescription} onChange={(e) => setBusinessDescription(e.target.value)} rows="4" />
+                                    </div>
 
-                                <div className="field-group">
-                                    <label>Bot Name</label>
-                                    <input
-                                        type="text"
-                                        value={botName}
-                                        onChange={(e) => setBotName(e.target.value)}
-                                        placeholder="e.g. OlympicEdu Assistant"
-                                    />
-                                </div>
+                                    <div className="field-group">
+                                        <label>Tone</label>
+                                        <select value={tone} onChange={(e) => setTone(e.target.value)}>
+                                            <option value="">Select tone</option>
+                                            <option value="Friendly">Friendly</option>
+                                            <option value="Professional">Professional</option>
+                                            <option value="Formal">Formal</option>
+                                        </select>
+                                    </div>
 
-                                <div className="field-group">
-                                    <label>Company Name</label>
-                                    <input
-                                        type="text"
-                                        value={companyName}
-                                        onChange={(e) => setCompanyName(e.target.value)}
-                                        placeholder="e.g. Olympic Edu Sdn Bhd"
-                                    />
-                                </div>
+                                    <div className="field-group">
+                                        <label>Additional Instructions</label>
+                                        <textarea value={additionalInstructions} onChange={(e) => setAdditionalInstructions(e.target.value)} rows="6" />
+                                    </div>
 
-                                <div className="field-group">
-                                    <label>Business Description</label>
-                                    <textarea
-                                        value={businessDescription}
-                                        onChange={(e) => setBusinessDescription(e.target.value)}
-                                        rows="4"
-                                        placeholder="e.g. We provide mathematics competitions, training programs, books, and educational services."
-                                    />
-                                </div>
+                                    <div className="field-group">
+                                        <label>Custom Prompt Template</label>
+                                        <div style={{ fontSize: "12px", color: "var(--text-dim)", marginBottom: "8px" }}>
+                                            Optional: Override the default prompt structure. Available variables: {'{bot_name}'}, {'{company_name}'}, {'{business_description}'}, {'{tone}'}, {'{context}'}, {'{conversation}'}, {'{message}'}
+                                        </div>
+                                        <textarea value={customPrompt} onChange={(e) => setCustomPrompt(e.target.value)} rows="8" placeholder="Leave blank to use the default static prompt structure..." />
+                                    </div>
 
-                                <div className="field-group">
-                                    <label>Tone</label>
-                                    <select
-                                        value={tone}
-                                        onChange={(e) => setTone(e.target.value)}
-                                    >
-                                        <option value="">Select tone</option>
-                                        <option value="Friendly">Friendly</option>
-                                        <option value="Professional">Professional</option>
-                                        <option value="Formal">Formal</option>
-                                    </select>
-                                </div>
+                                    <div className="button-stack">
+                                        <button
+                                            onClick={async () => {
+                                                await handleSaveProfile();
+                                                setIsModalOpen(false); // Close modal after saving
+                                            }}
+                                            disabled={isSavingProfile}
+                                            className="btn-primary"
+                                        >
+                                            {isSavingProfile ? "Saving..." : (formMode === "edit" ? "Update Profile" : "Save Profile")}
+                                        </button>
 
-                                <div className="field-group">
-                                    <label>Additional Instructions</label>
-                                    <textarea
-                                        value={additionalInstructions}
-                                        onChange={(e) => setAdditionalInstructions(e.target.value)}
-                                        rows="6"
-                                        placeholder="e.g. Act as a helpful assistant. Keep responses clear, structured, and easy to understand."
-                                    />
-                                </div>
+                                        <button type="button" onClick={() => setIsModalOpen(false)} className="btn-secondary">
+                                            Cancel
+                                        </button>
+                                    </div>
 
-                                <div className="button-stack">
-                                    {formMode === "edit" ? (
-                                        <>
-                                            <button
-                                                onClick={handleSaveProfile}
-                                                disabled={isSavingProfile}
-                                                className="btn-primary"
-                                            >
-                                                {isSavingProfile ? "Updating Profile..." : "Update Profile"}
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={handleDeleteProfile}
-                                                className="btn-secondary"
-                                            >
-                                                Delete Profile
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={clearForm}
-                                                className="btn-danger"
-                                            >
-                                                Clear Form
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <button
-                                                onClick={handleSaveProfile}
-                                                disabled={isSavingProfile}
-                                                className="btn-primary"
-                                            >
-                                                {isSavingProfile ? "Saving Profile..." : "Save as Profile"}
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={clearForm}
-                                                className="btn-danger"
-                                            >
-                                                Clear Form
-                                            </button>
-                                        </>
+                                    {formStatus.text && (
+                                        <div className={`status-message ${formStatus.type}`}>
+                                            {formStatus.text}
+                                        </div>
                                     )}
                                 </div>
-
-                                {formStatus.text && (
-                                    <div className={`status-message ${formStatus.type}`}>
-                                        {formStatus.type === "success" ? "✨" : "⚠️"} {formStatus.text}
-                                    </div>
-                                )}
                             </div>
                         </div>
-                    </main>
+                    )}
                 </>
             );
         }
@@ -1260,4 +1269,5 @@
         root.render(<App />);
     </script>
 </body>
+
 </html>

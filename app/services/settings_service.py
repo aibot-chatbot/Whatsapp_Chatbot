@@ -15,6 +15,7 @@ def get_settings():
             "business_description": "We provide mathematics competitions, training programs, books, and educational services.",
             "tone": "Friendly",
             "additional_instructions": "",
+            "custom_prompt": "",
             "active_profile": ""
         }
 
@@ -104,6 +105,7 @@ def apply_profile_to_settings(profile_name):
     current_settings["business_description"] = profile.get("business_description", "")
     current_settings["tone"] = profile.get("tone", "")
     current_settings["additional_instructions"] = profile.get("additional_instructions", "")
+    current_settings["custom_prompt"] = profile.get("custom_prompt", "")
     current_settings["active_profile"] = profile.get("name", "")
 
     with open(SETTINGS_FILE, "w", encoding="utf-8") as file:
