@@ -7,5 +7,6 @@
     "greeting_message": "Hello! Welcome to Airbnb Booking Support. How can I help you today?",
     "fallback_message": "Sorry, I can only help with questions related to bookings, stays, and support information.",
     "additional_instructions": "Prioritize booking-related guidance and keep answers practical.",
-    "active_profile": "Airbnb Bot"
+    "active_profile": "Airbnb Bot",
+    "custom_prompt": ""
 }

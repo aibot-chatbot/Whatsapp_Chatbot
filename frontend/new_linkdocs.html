@@ -366,6 +366,7 @@
 
         .status-message.success { color: var(--accent); }
         .status-message.error { color: var(--error); }
+        .status-message.deleted { color: var(--error); }
 
         .name-cell {
             display: flex;
@@ -552,16 +553,17 @@
 
         function App() {
             const [file, setFile] = useState(null);
-            const [status, setStatus] = useState({ type: "", text: "" });
+            const [status, setStatus] = useState({ type: "", text: "", action: "" });
             const [isUploading, setIsUploading] = useState(false);
             const [files, setFiles] = useState([]);
             const [activeFile, setActiveFile] = useState("");
             const [isModalOpen, setIsModalOpen] = useState(false);
+            const [fileToDelete, setFileToDelete] = useState(null);
             const [activeTab, setActiveTab] = useState("file");
             const [linkUrl, setLinkUrl] = useState("");
 
             const openModal = () => {
-                setStatus({ type: "", text: "" });
+                setStatus({ type: "", text: "", action: "" });
                 setFile(null);
                 setLinkUrl("");
                 setActiveTab("file");
@@ -581,12 +583,12 @@
                 if (!selectedFile) return;
 
                 if (selectedFile.type !== "application/pdf") {
-                    setStatus({ type: "error", text: "Please select a valid PDF file." });
+                    setStatus({ type: "error", text: "Please select a valid PDF file.", action: "" });
                     return;
                 }
 
                 setFile(selectedFile);
-                setStatus({ type: "", text: "" });
+                setStatus({ type: "", text: "", action: "" });
             };
 
             const fetchFiles = async () => {
@@ -605,23 +607,23 @@
                         setActiveFile(activeData.data?.file_name || "");
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Failed to load files from backend." });
+                    setStatus({ type: "error", text: "Failed to load files from backend.", action: "" });
                 }
             };
 
             const handleUpload = async () => {
                 if (activeTab === "link") {
-                    setStatus({ type: "error", text: "Website link training is not connected yet. Please use PDF upload for now." });
+                    setStatus({ type: "error", text: "Website link training is not connected yet. Please use PDF upload for now.", action: "" });
                     return;
                 }
 
                 if (!file) {
-                    setStatus({ type: "error", text: "Please select a PDF file first." });
+                    setStatus({ type: "error", text: "Please select a PDF file first.", action: "" });
                     return;
                 }
 
                 setIsUploading(true);
-                setStatus({ type: "", text: "" });
+                setStatus({ type: "", text: "", action: "" });
 
                 const formData = new FormData();
                 formData.append("pdf_file", file);
@@ -633,16 +635,16 @@
                     });
 
                     if (response.ok) {
-                        setStatus({ type: "success", text: "PDF uploaded successfully. Please set it active if needed." });
+                        setStatus({ type: "success", text: "PDF uploaded successfully. Please set it active if needed.", action: "upload" });
                         setFile(null);
                         setIsModalOpen(false);
                         await fetchFiles();
                     } else {
                         const data = await response.json();
-                        setStatus({ type: "error", text: `Upload failed: ${data.message || "Unknown error"}` });
+                        setStatus({ type: "error", text: `Upload failed: ${data.message || "Unknown error"}`, action: "" });
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?" });
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
                 } finally {
                     setIsUploading(false);
                 }
@@ -661,17 +663,25 @@
                     const data = await response.json();
 
                     if (response.ok) {
-                        setStatus({ type: "success", text: data.data?.message || `${fileName} is now active.` });
+                        setStatus({ type: "success", text: data.data?.message || `${fileName} is now active.`, action: "setActive" });
                         await fetchFiles();
                     } else {
-                        setStatus({ type: "error", text: data.message || "Failed to set active PDF." });
+                        setStatus({ type: "error", text: data.message || "Failed to set active PDF.", action: "" });
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
                 }
             };
 
-            const handleDeleteFile = async (fileName) => {
+            const triggerDeleteFile = (fileName) => {
+                setFileToDelete(fileName);
+            };
+
+            const confirmDeleteFile = async () => {
+                if (!fileToDelete) return;
+                const fileName = fileToDelete;
+                setFileToDelete(null);
+
                 try {
                     const response = await fetch(`http://127.0.0.1:8000/api/knowledge/files/${encodeURIComponent(fileName)}`, {
                         method: "DELETE",
@@ -680,13 +690,13 @@
                     const data = await response.json();
 
                     if (response.ok) {
-                        setStatus({ type: "success", text: data.data?.message || `${fileName} deleted successfully.` });
+                        setStatus({ type: "deleted", text: data.data?.message || `${fileName} deleted successfully.`, action: "delete" });
                         await fetchFiles();
                     } else {
-                        setStatus({ type: "error", text: data.message || "Failed to delete PDF." });
+                        setStatus({ type: "error", text: data.message || "Failed to delete PDF.", action: "" });
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend." });
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
                 }
             };
 
@@ -713,11 +723,11 @@
 
                         {status.text && (
                             <div className={`status-message ${status.type}`}>
-                                {status.type === "success" ? "✨" : "⚠️"} {status.text}
+                                {status.type === "success" ? "✨" : status.type === "deleted" ? "🗑️" : "⚠️"} {status.text}
                             </div>
                         )}
 
-                        {status.type === "success" && (
+                        {status.type === "success" && status.action === "setActive" && (
                             <div
                                 style={{
                                     marginBottom: "20px",
@@ -735,7 +745,7 @@
                                     Please review Bot Configuration so the chatbot matches this uploaded document.
                                 </div>
                                 <a
-                                    href="bot-config.html"
+                                    href="new_prompt.html"
                                     style={{
                                         display: "inline-block",
                                         padding: "10px 16px",
@@ -840,7 +850,7 @@
                                                         <button
                                                             className="btn btn-danger"
                                                             type="button"
-                                                            onClick={() => handleDeleteFile(f.file_name)}
+                                                            onClick={() => triggerDeleteFile(f.file_name)}
                                                             disabled={f.file_name === activeFile}
                                                             title={f.file_name === activeFile ? "Active file cannot be deleted." : "Delete this file"}
                                                         >
@@ -935,6 +945,26 @@
                                     disabled={isUploading || (activeTab === "file" && !file)}
                                 >
                                     {isUploading ? <span><span className="spinner"></span> Uploading...</span> : "Add Resource"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Custom Delete Confirmation Modal */}
+                    <div className={`modal-backdrop ${fileToDelete ? "open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) setFileToDelete(null); }}>
+                        <div className="modal-content" style={{ maxWidth: "420px", textAlign: "center", padding: "40px 30px" }}>
+                            <div style={{ fontSize: "48px", marginBottom: "20px" }}>🗑️</div>
+                            <h2 style={{ marginBottom: "12px" }}>Delete Document?</h2>
+                            <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "32px", lineHeight: "1.5" }}>
+                                Are you sure you want to delete <strong>{fileToDelete}</strong>?<br/>
+                                This action cannot be undone.
+                            </p>
+                            <div className="modal-footer" style={{ justifyContent: "center", gap: "16px" }}>
+                                <button className="btn" type="button" onClick={() => setFileToDelete(null)}>
+                                    Cancel
+                                </button>
+                                <button className="btn btn-danger" type="button" onClick={confirmDeleteFile}>
+                                    Delete
                                 </button>
                             </div>
                         </div>
