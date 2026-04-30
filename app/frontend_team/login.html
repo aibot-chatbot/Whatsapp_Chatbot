@@ -208,12 +208,12 @@
         <form id="login-form">
             <div class="input-group">
                 <label>Email Address</label>
-                <input type="email" placeholder="name@company.com" required value="admin@aichatbot.ai.com">
+                <input type="email" placeholder="name@company.com" required value="iomaths123@gmail.com">
             </div>
 
             <div class="input-group">
                 <label>Password</label>
-                <input type="password" placeholder="••••••••" required value="password123">
+                <input type="password" placeholder="••••••••" required value="test123">
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; font-size: 0.85rem; padding: 0 4px;">
@@ -235,29 +235,47 @@
     </div>
 
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
         const loginForm = document.getElementById('login-form');
         const loginBtn = document.getElementById('login-btn');
 
-        if (urlParams.get('logout') === '1') {
-            localStorage.removeItem('isLoggedIn');
-        }
-
-        if (localStorage.getItem('isLoggedIn') === 'true' && !urlParams.has('logout')) {
-            const returnUrl = urlParams.get('returnUrl');
-            window.location.href = returnUrl ? decodeURIComponent(returnUrl) : 'index.html';
-        }
-
-        loginForm.addEventListener('submit', (e) => {
+        loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            
-            loginBtn.classList.add('loading');
-            localStorage.setItem('isLoggedIn', 'true');
 
-            setTimeout(() => {
-                const returnUrl = urlParams.get('returnUrl');
-                window.location.href = returnUrl ? decodeURIComponent(returnUrl) : 'index.html';
-            }, 1200);
+            const email = loginForm.querySelector('input[type="email"]').value;
+            const password = loginForm.querySelector('input[type="password"]').value;
+
+            loginBtn.classList.add('loading');
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    alert(result.error || "Login failed");
+                    loginBtn.classList.remove('loading');
+                    return;
+                }
+
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("user", JSON.stringify(result.user));
+
+                window.location.href = "index.html";
+
+            } catch (error) {
+                console.error("Login error:", error);
+                alert("Cannot connect to server");
+                loginBtn.classList.remove('loading');
+            }
         });
     </script>
 </body>

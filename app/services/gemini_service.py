@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from google import genai
 import glob
 from app.services.settings_service import get_settings, generate_greeting, generate_fallback
+from app.database.knowledge_file_repository import get_active_knowledge_file
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,7 +21,7 @@ load_dotenv()
 # model = genai.GenerativeModel("gemini-3-flash-preview")
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-model_id="gemini-2.0-flash"
+model_id="gemini-2.5-flash"
 
 CHAT_HISTORY_DB = "chat_history_db"
 MAX_HISTORY = 6
@@ -59,14 +60,13 @@ def get_latest_pdf():
 
 
 def get_initial_pdf_path():
-    saved_pdf = load_active_pdf_state()
+    active = get_active_knowledge_file(chatbot_id=1)
 
-    if saved_pdf and os.path.exists(saved_pdf):
-        logging.info(f"Loaded saved active PDF from state file: {saved_pdf}")
-        return saved_pdf
+    if active and active.get("file_path") and os.path.exists(active.get("file_path")):
+        logging.info(f"Loaded active PDF from Supabase: {active.get('file_path')}")
+        return active.get("file_path")
 
-    save_active_pdf_state("")
-    logging.info("No valid saved active PDF found. No active PDF will be loaded.")
+    logging.info("No valid active PDF found in Supabase. No active PDF will be loaded.")
     return ""
 
 
@@ -78,17 +78,7 @@ STOPWORDS = {
     "i", "you", "we", "it", "this", "that", "my", "your", "our", "please"
 }
 
-ALIASES = {
-    "tmc": ["tmc", "tiger maths competition"],
-    "asmo": ["asmo", "asian science & maths olympiad", "asian science and maths olympiad"],
-    "kpm": ["kpm", "moe", "ministry of education"],
-    "register": ["register", "registration", "sign up", "join", "enroll", "enrol"],
-    "fee": ["fee", "fees", "price", "cost", "charges", "admin fee", "administration fee"],
-    "result": ["result", "results", "announcement", "announced"],
-    "date": ["date", "competition date", "schedule", "when"],
-    "approved": ["approved", "approval", "moe", "kpm"],
-}
-
+ALIASES = {}
 
 def load_pdf_text():
     if not PDF_PATH or not os.path.exists(PDF_PATH):
@@ -119,10 +109,20 @@ def normalize_text(text):
     text = re.sub(r"\s+", " ", text)
     return text.strip()
 
+def normalize_for_search(text):
+    text = normalize_text(text).lower()
+    text = text.replace("-", " ")
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
 
 def clean_query_words(text):
-    words = re.findall(r"[A-Za-z0-9.]+", text.lower())
-    return [word for word in words if word not in STOPWORDS]
+    words = re.findall(r"[a-z0-9]+", normalize_for_search(text))
+    return [
+        word for word in words
+        if word not in STOPWORDS and len(word) > 1
+    ]
 
 
 def expand_query_words(query_words):
@@ -143,7 +143,21 @@ def expand_query_words(query_words):
 def split_text_into_sections(text, max_chunk_length=900):
     text = normalize_text(text)
 
-    raw_sections = re.split(r'(?=\b[A-E](?:\d+(?:\.\d+)*)?\b\s*[:.])', text)
+    if not text:
+        return []
+
+    # Best for FAQ documents like:
+    # 1 Q: ...
+    # A: ...
+    if re.search(r"\b\d+\s+Q:", text, re.IGNORECASE):
+        raw_sections = re.split(r"(?=\b\d+\s+Q:)", text)
+
+    # Best for menu/code documents like:
+    # A. Competitions
+    # B. Books
+    else:
+        raw_sections = re.split(r'(?=\b[A-E](?:\d+(?:\.\d+)*)?\b\s*[:.])', text)
+
     chunks = []
 
     for section in raw_sections:
@@ -174,7 +188,6 @@ def split_text_into_sections(text, max_chunk_length=900):
 
     return chunks
 
-
 PDF_TEXT = load_pdf_text()
 PDF_CHUNKS = split_text_into_sections(PDF_TEXT)
 
@@ -182,7 +195,7 @@ PDF_CHUNKS = split_text_into_sections(PDF_TEXT)
 def update_pdf_path(new_path):
     global PDF_PATH
     PDF_PATH = new_path or ""
-    save_active_pdf_state(PDF_PATH)
+    # save_active_pdf_state(PDF_PATH)  # no longer needed, Supabase handles active PDF
     logging.info(f"Updated global PDF_PATH to: {PDF_PATH}")
     reload_pdf()
 
@@ -214,38 +227,41 @@ def find_code_matches(query):
 
 
 def score_chunk(query, query_words, chunk):
-    chunk_lower = chunk.lower()
+    query_normalized = normalize_for_search(query)
+    chunk_normalized = normalize_for_search(chunk)
+
+    if not query_normalized or not chunk_normalized:
+        return 0
+
     score = 0
 
-    for word in query_words:
-        if word in chunk_lower:
-            score += 2
+    # Exact full question / phrase match
+    if query_normalized in chunk_normalized:
+        score += 10
 
-    if query.lower() in chunk_lower:
-        score += 6
+    important_words = [word for word in query_words if len(word) >= 3]
 
-    if "register" in query_words or "registration" in query_words or "sign up" in query.lower():
-        if "register" in chunk_lower or "registration" in chunk_lower:
+    for word in important_words:
+        if re.search(rf"\b{re.escape(word)}\b", chunk_normalized):
+            score += 3
+        elif word in chunk_normalized:
+            score += 1
+
+    # Bonus if most important words are inside the same chunk
+    if important_words:
+        matched_count = sum(1 for word in important_words if word in chunk_normalized)
+        match_ratio = matched_count / len(important_words)
+
+        if match_ratio >= 0.75:
             score += 8
+        elif match_ratio >= 0.5:
+            score += 4
 
-    if "tmc" in query_words or "tiger maths competition" in query.lower():
-        if "tmc" in chunk_lower or "tiger maths competition" in chunk_lower:
-            score += 5
-
-    if "asmo" in query_words:
-        if "asmo" in chunk_lower:
-            score += 5
-
-    if "approved" in query_words or "kpm" in query_words or "moe" in query_words:
-        if "approved" in chunk_lower or "kpm" in chunk_lower or "moe" in chunk_lower:
-            score += 7
-
-    if "fee" in query_words or "fees" in query_words or "price" in query_words or "cost" in query_words:
-        if "fee" in chunk_lower or "fees" in chunk_lower or "price" in chunk_lower or "cost" in chunk_lower:
-            score += 7
+    # FAQ bonus
+    if " q " in f" {chunk_normalized} " and " a " in f" {chunk_normalized} ":
+        score += 2
 
     return score
-
 
 def retrieve_relevant_chunks(query, top_k=3):
     direct_matches = find_code_matches(query)
@@ -288,14 +304,11 @@ def save_chat_history(wa_id, history):
 def build_prompt(history, message, context_chunks):
     settings = get_settings()
 
-    bot_name = settings.get("bot_name", "OlympicEdu Assistant")
-    company_name = settings.get("company_name", "Olympic Edu Sdn Bhd")
-    business_description = settings.get(
-        "business_description",
-        "We provide mathematics competitions, training programs, books, and educational services."
-    )
-    tone = settings.get("tone", "Friendly")
-    additional_instructions = settings.get("additional_instructions", "")
+    bot_name = settings.get("bot_name") or "AI Assistant"
+    company_name = settings.get("company_name") or "the company"
+    business_description = settings.get("business_description") or "No business description provided."
+    tone = settings.get("tone") or "Friendly"
+    additional_instructions = settings.get("additional_instructions") or ""
     fallback_message = generate_fallback(settings)
 
     conversation = ""
@@ -307,11 +320,10 @@ def build_prompt(history, message, context_chunks):
             conversation += f"Assistant: {item['content']}\n"
 
     context = "\n\n".join(context_chunks)
-
     prompt_template = settings.get("custom_prompt", "").strip()
 
     if prompt_template:
-        prompt = prompt_template.format(
+        return prompt_template.format(
             bot_name=bot_name,
             company_name=company_name,
             business_description=business_description,
@@ -322,47 +334,42 @@ def build_prompt(history, message, context_chunks):
             conversation=conversation,
             message=message
         )
-    else:
-        prompt = f"""
-        You are {bot_name}, an AI assistant for {company_name}.
 
-        Business context:
-        {business_description}
+    prompt = f"""
+You are {bot_name}, an AI assistant for {company_name}.
 
-        Your purpose:
-        You are a helpful AI assistant for {company_name}.
+Company / business information:
+{business_description}
 
-        Tone:
-        Respond in a {tone.lower()} tone.
+Tone:
+Reply in a {tone.lower()} tone.
 
-        Additional instructions:
-        {additional_instructions if additional_instructions else "None"}
+Additional company instructions:
+{additional_instructions if additional_instructions else "None"}
 
-        RULES:
-        - Always try to be helpful based on the available information
-        - Do NOT make up facts or provide unsupported information
-        - If information is partial or unclear, use soft wording such as:
-          - "Based on the available information..."
-          - "From the information provided..."
-          - "It appears that..."
-        - Avoid strong unsupported claims like:
-          - "Absolutely", "Definitely", "For sure"
-        - Keep responses clear, concise, and easy to understand
-        - Answer the question first, then add explanation only if needed
-        - Keep replies short, ideally within 1–2 paragraphs
-        - If the question is out of scope or unsupported, politely guide the user back
-        - If the answer cannot be found clearly, use this fallback style:
-          {fallback_message}
+Knowledge provided:
+{context if context else "No relevant knowledge was found."}
 
-        Knowledge:
-        {context}
+Recent conversation:
+{conversation if conversation else "No recent conversation."}
 
-        Recent conversation:
-        {conversation}
+User question:
+{message}
 
-        User: {message}
-        Assistant:
-        """
+Important rules:
+1. Answer using the provided Knowledge first.
+2. If the Knowledge contains the answer, answer directly and do not use the fallback message.
+3. Do not reject the question if it is related to the Knowledge or company information.
+4. Do not make up facts that are not in the Knowledge.
+5. If the Knowledge does not contain the answer, say you do not have that information and guide the user back to relevant topics.
+6. Keep the reply short, clear, and useful.
+7. Do not mention internal words like "context", "chunks", "database", or "PDF".
+
+Fallback style if the answer is not available:
+{fallback_message}
+
+Assistant:
+"""
     return prompt
 
 
@@ -790,46 +797,48 @@ def generate_response(message, wa_id):
         elif intent == "greeting":
             reply = handle_greeting()
 
+
         else:
-            if is_out_of_scope(message):
-                logging.info("Out-of-scope message detected.")
+
+            context_chunks = retrieve_relevant_chunks(message)
+
+            logging.info(f"Retrieved chunks: {len(context_chunks)}")
+
+            logging.info(f"User message: {message}")
+
+            if intent == "code_input":
+
+                reply = handle_code_input(message, context_chunks)
+
+
+            elif not context_chunks:
+
                 settings = get_settings()
+
                 fallback_message = generate_fallback(settings)
 
                 reply = format_structured_reply(
+
                     fallback_message,
+
                     extra_text="Please ask about topics related to the uploaded knowledge or configured business information."
+
                 )
+
+
             else:
-                context_chunks = retrieve_relevant_chunks(message)
-                logging.info(f"Retrieved chunks: {len(context_chunks)}")
-                logging.info(f"User message: {message}")
 
-                if intent == "registration":
-                    reply = handle_registration(message, context_chunks)
+                prompt = build_prompt(history, message, context_chunks)
 
-                elif intent == "approval":
-                    reply = handle_approval(context_chunks)
+                response = client.models.generate_content(
 
-                elif intent == "fee":
-                    reply = handle_fee(context_chunks)
+                    model=model_id,
 
-                elif intent == "code_input":
-                    reply = handle_code_input(message, context_chunks)
+                    contents=prompt
 
-                else:
-                    reply = None
+                )
 
-                if not reply:
-                    prompt = build_prompt(history, message, context_chunks)
-                    
-                    # Correct way to call it using the NEW library
-                    response = client.models.generate_content(
-                        model=model_id, 
-                        contents=prompt
-                    )
-                    
-                    reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
+                reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
 
         from datetime import datetime
         now = datetime.now().isoformat()

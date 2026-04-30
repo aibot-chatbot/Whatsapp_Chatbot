@@ -10,6 +10,7 @@ from app.routes.profile_routes import profile_blueprint
 from app.routes.match_routes import match_blueprint
 from app.routes.testbot_routes import testbot_blueprint
 from app.routes.analytics_routes import analytics_blueprint
+from app.routes.auth_routes import auth_bp
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -35,5 +36,6 @@ def create_app():
     app.register_blueprint(match_blueprint)
     app.register_blueprint(testbot_blueprint)
     app.register_blueprint(analytics_blueprint)
+    app.register_blueprint(auth_bp)
 
     return app

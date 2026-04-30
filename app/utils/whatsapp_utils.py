@@ -6,6 +6,8 @@ import re
 import shelve
 
 from app.services.gemini_service import generate_response
+from app.database.conversation_repository import get_or_create_conversation
+from app.database.message_repository import save_message
 
 PROCESSED_MESSAGES_DB = "processed_messages_db"
 
@@ -72,9 +74,12 @@ def process_text_for_whatsapp(text):
 
 
 def process_whatsapp_message(body):
-    wa_id = body["entry"][0]["changes"][0]["value"]["contacts"][0]["wa_id"]
+    value = body["entry"][0]["changes"][0]["value"]
 
-    message = body["entry"][0]["changes"][0]["value"]["messages"][0]
+    wa_id = value["contacts"][0]["wa_id"]
+    customer_name = value["contacts"][0].get("profile", {}).get("name")
+
+    message = value["messages"][0]
     message_id = message["id"]
     message_body = message["text"]["body"]
 
@@ -82,13 +87,42 @@ def process_whatsapp_message(body):
         logging.info(f"Duplicate message ignored: {message_id}")
         return
 
-    mark_message_processed(message_id)
+    # TEMP: use chatbot_id = 1 first
+    # Later we will detect which bot based on phone_number_id or channel
+    chatbot_id = 1
+
+    conversation = get_or_create_conversation(
+        chatbot_id=chatbot_id,
+        customer_phone=wa_id,
+        customer_name=customer_name,
+    )
+
+    save_message(
+        conversation_id=conversation["id"],
+        sender_type="customer",
+        message_text=message_body,
+        message_type="text",
+        platform_message_id=message_id,
+        delivery_status="received",
+        ai_generated=False,
+    )
 
     response = generate_response(message_body, wa_id)
     response = process_text_for_whatsapp(response)
 
+    save_message(
+        conversation_id=conversation["id"],
+        sender_type="bot",
+        message_text=response,
+        message_type="text",
+        delivery_status="sent",
+        ai_generated=True,
+    )
+
     data = get_text_message_input(wa_id, response)
     send_message(data)
+
+    mark_message_processed(message_id)
 
 
 def is_valid_whatsapp_message(body):
