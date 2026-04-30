@@ -3,8 +3,9 @@ from datetime import datetime, timezone
 from app.database.db import supabase
 from app.services.profile_service import get_profile_by_name
 
-
 TABLE_NAME = "bot_configs"
+CHATBOTS_TABLE = "chatbots"
+CHATBOT_ID = 1
 
 
 DEFAULT_SETTINGS = {
@@ -55,6 +56,66 @@ def _get_active_config_row():
         return None
 
     return rows[0]
+
+
+def _get_chatbot_row(chatbot_id=CHATBOT_ID):
+    response = (
+        supabase
+        .table(CHATBOTS_TABLE)
+        .select("*")
+        .eq("id", chatbot_id)
+        .limit(1)
+        .execute()
+    )
+
+    rows = response.data or []
+
+    if not rows:
+        return None
+
+    return rows[0]
+
+
+def update_chatbot_runtime(data, chatbot_id=CHATBOT_ID):
+    payload = dict(data)
+    payload["updated_at"] = _now_iso()
+
+    response = (
+        supabase
+        .table(CHATBOTS_TABLE)
+        .update(payload)
+        .eq("id", chatbot_id)
+        .execute()
+    )
+
+    rows = response.data or []
+
+    if not rows:
+        raise ValueError("Failed to update chatbot runtime")
+
+    return rows[0]
+
+
+def get_draft_runtime(chatbot_id=CHATBOT_ID):
+    row = _get_chatbot_row(chatbot_id) or {}
+
+    return {
+        "draft_profile_name": row.get("draft_profile_name") or "",
+        "draft_pdf_file_name": row.get("draft_pdf_file_name") or "",
+        "draft_pdf_path": row.get("draft_pdf_path") or "",
+        "last_match_result": row.get("last_match_result"),
+        "last_match_reason": row.get("last_match_reason") or "",
+    }
+
+
+def get_deployed_runtime(chatbot_id=CHATBOT_ID):
+    row = _get_chatbot_row(chatbot_id) or {}
+
+    return {
+        "deployed_profile_name": row.get("deployed_profile_name") or "",
+        "deployed_pdf_file_name": row.get("deployed_pdf_file_name") or "",
+        "deployed_pdf_path": row.get("deployed_pdf_path") or "",
+    }
 
 
 def get_settings():
@@ -179,38 +240,58 @@ def set_active_profile(profile_name):
     if not profile:
         raise ValueError("Profile not found")
 
-    (
-        supabase
-        .table(TABLE_NAME)
-        .update({
-            "is_active": False,
-            "updated_at": _now_iso(),
-        })
-        .neq("id", 0)
-        .execute()
-    )
+    update_chatbot_runtime({
+        "draft_profile_name": profile_name,
+        "last_match_result": None,
+        "last_match_reason": "",
+    })
 
-    response = (
-        supabase
-        .table(TABLE_NAME)
-        .update({
-            "is_active": True,
-            "updated_at": _now_iso(),
-        })
-        .eq("profile_name", profile_name)
-        .execute()
-    )
-
-    rows = response.data or []
-
-    if not rows:
-        raise ValueError("Failed to set active profile")
-
-    return _row_to_settings(rows[0])
+    return {
+        "active_profile": profile_name,
+        "bot_name": profile.get("bot_name", ""),
+        "company_name": profile.get("company_name", ""),
+        "business_description": profile.get("business_description", ""),
+        "tone": profile.get("tone", ""),
+        "additional_instructions": profile.get("additional_instructions", ""),
+        "custom_prompt": profile.get("custom_prompt", ""),
+    }
 
 
 def apply_profile_to_settings(profile_name):
+    from app.services.gemini_service import update_pdf_path
+
     if not profile_name:
         raise ValueError("Profile name is required")
 
-    return set_active_profile(profile_name)
+    profile = get_profile_by_name(profile_name)
+
+    if not profile:
+        raise ValueError("Profile not found")
+
+    draft_runtime = get_draft_runtime()
+
+    deployed_pdf_file_name = draft_runtime.get("draft_pdf_file_name", "")
+    deployed_pdf_path = draft_runtime.get("draft_pdf_path", "")
+
+    update_chatbot_runtime({
+        "deployed_profile_name": profile_name,
+        "deployed_pdf_file_name": deployed_pdf_file_name,
+        "deployed_pdf_path": deployed_pdf_path,
+        "last_match_result": draft_runtime.get("last_match_result"),
+        "last_match_reason": draft_runtime.get("last_match_reason", ""),
+    })
+
+    if deployed_pdf_path:
+        update_pdf_path(deployed_pdf_path)
+
+    return {
+        "active_profile": profile_name,
+        "bot_name": profile.get("bot_name", ""),
+        "company_name": profile.get("company_name", ""),
+        "business_description": profile.get("business_description", ""),
+        "tone": profile.get("tone", ""),
+        "additional_instructions": profile.get("additional_instructions", ""),
+        "custom_prompt": profile.get("custom_prompt", ""),
+        "deployed_pdf_file_name": deployed_pdf_file_name,
+        "deployed_pdf_path": deployed_pdf_path,
+    }
