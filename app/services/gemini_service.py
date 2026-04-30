@@ -7,8 +7,13 @@ import fitz  # PyMuPDF
 from dotenv import load_dotenv
 from google import genai
 import glob
-from app.services.settings_service import get_settings, generate_greeting, generate_fallback
-from app.database.knowledge_file_repository import get_active_knowledge_file
+from app.services.settings_service import (
+    get_settings,
+    generate_greeting,
+    generate_fallback,
+    get_deployed_runtime,
+)
+from app.services.profile_service import get_profile_by_name
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,14 +65,34 @@ def get_latest_pdf():
 
 
 def get_initial_pdf_path():
-    active = get_active_knowledge_file(chatbot_id=1)
+    deployed = get_deployed_runtime()
+    deployed_pdf_path = deployed.get("deployed_pdf_path", "")
 
-    if active and active.get("file_path") and os.path.exists(active.get("file_path")):
-        logging.info(f"Loaded active PDF from Supabase: {active.get('file_path')}")
-        return active.get("file_path")
+    if deployed_pdf_path and os.path.exists(deployed_pdf_path):
+        logging.info(f"Loaded deployed PDF from chatbot runtime: {deployed_pdf_path}")
+        return deployed_pdf_path
 
-    logging.info("No valid active PDF found in Supabase. No active PDF will be loaded.")
+    logging.info("No deployed PDF found. No live PDF will be loaded.")
     return ""
+
+def get_deployed_settings():
+    deployed = get_deployed_runtime()
+    deployed_profile_name = deployed.get("deployed_profile_name", "")
+
+    if deployed_profile_name:
+        profile = get_profile_by_name(deployed_profile_name)
+        if profile:
+            return {
+                "bot_name": profile.get("bot_name", ""),
+                "company_name": profile.get("company_name", ""),
+                "business_description": profile.get("business_description", ""),
+                "tone": profile.get("tone", ""),
+                "additional_instructions": profile.get("additional_instructions", ""),
+                "custom_prompt": profile.get("custom_prompt", ""),
+                "active_profile": deployed_profile_name,
+            }
+
+    return get_settings()
 
 
 PDF_PATH = get_initial_pdf_path()
@@ -302,7 +327,7 @@ def save_chat_history(wa_id, history):
 
 
 def build_prompt(history, message, context_chunks):
-    settings = get_settings()
+    settings = get_deployed_settings()
 
     bot_name = settings.get("bot_name") or "AI Assistant"
     company_name = settings.get("company_name") or "the company"
@@ -453,7 +478,7 @@ def is_out_of_scope(message):
 
 
 def handle_greeting():
-    settings = get_settings()
+    settings = get_deployed_settings()
     base_greeting = generate_greeting(settings) + "\n\n"
 
     top_level_codes = [pair for pair in CODE_TITLE_PAIRS if re.fullmatch(r'[A-E]', pair[0])]
@@ -813,7 +838,7 @@ def generate_response(message, wa_id):
 
             elif not context_chunks:
 
-                settings = get_settings()
+                settings = get_deployed_settings()
 
                 fallback_message = generate_fallback(settings)
 

@@ -1,9 +1,26 @@
 import json
+import fitz  # PyMuPDF
 
-from app.services.settings_service import get_settings
+from app.services.settings_service import get_settings, get_draft_runtime
 from app.services.profile_service import get_profile_by_name
-from app.services import gemini_service
+from app.services.knowledge_service import get_active_pdf
 from google import genai
+
+
+def extract_pdf_preview(pdf_path, max_chars=4000):
+    if not pdf_path:
+        return ""
+
+    try:
+        doc = fitz.open(pdf_path)
+        text_parts = []
+
+        for page in doc:
+            text_parts.append(page.get_text())
+
+        return "\n".join(text_parts)[:max_chars]
+    except Exception:
+        return ""
 
 
 def check_pdf_config_match(profile_name=None):
@@ -29,8 +46,22 @@ Tone: {tone}
 Custom Instructions: {additional_instructions}
 """.strip()
 
-    pdf_preview = (gemini_service.PDF_TEXT or "")[:4000]
-    active_pdf_path = gemini_service.PDF_PATH or ""
+    draft_runtime = get_draft_runtime()
+    active_pdf_path = draft_runtime.get("draft_pdf_path", "")
+
+    if not active_pdf_path:
+        active_pdf = get_active_pdf()
+        active_pdf_path = active_pdf.get("file_path", "")
+
+    pdf_preview = extract_pdf_preview(active_pdf_path)
+
+    if not pdf_preview:
+        return {
+            "match": False,
+            "reason": "PDF content is missing, cannot determine alignment.",
+            "profile_name": profile_name or "Current Settings",
+            "pdf_path": active_pdf_path
+        }
 
     prompt = f"""
 You are checking whether a chatbot configuration matches the content of an uploaded PDF.
@@ -70,7 +101,7 @@ Rules:
             model="gemini-2.5-flash",
             contents=prompt
         )
-        # Use a conditional check to avoid errors
+
         if response.text:
             raw_text = response.text.strip()
         else:
