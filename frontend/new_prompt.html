@@ -856,10 +856,15 @@
 
                         setPreviewProfile(savedProfile);
                         setSelectedProfile(profileName.trim());
-                        setActiveProfile(profileName.trim());
-                        setFormStatus({ type: "success", text: `Profile "${profileName}" saved and set as active.` });
+
+                        setFormStatus({
+                            type: "success",
+                            text: `Profile "${profileName}" saved successfully. Click "Set as Active" if you want to use it.`
+                        });
 
                         await fetchProfiles();
+                        await fetchActiveProfile();
+
                         setFormMode("edit");
                     } else {
                         setFormStatus({ type: "error", text: data.message || "Failed to save profile." });

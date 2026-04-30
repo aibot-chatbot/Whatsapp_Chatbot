@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | AI CHATBOT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --bg: #030816;
+            --card-bg: rgba(15, 23, 42, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Ambient Background Elements */
+        .blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            filter: blur(80px);
+            z-index: -1;
+            animation: float 20s infinite alternate cubic-bezier(0.45, 0, 0.55, 1);
+        }
+
+        .blob-1 { top: -10%; left: -10%; }
+        .blob-2 { bottom: -10%; right: -10%; background: radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, transparent 70%); }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(100px, 50px) scale(1.1); }
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 440px;
+            padding: 40px;
+            background: var(--card-bg);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            animation: fadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-area {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--primary), #10b981);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            box-shadow: 0 10px 30px var(--primary-glow);
+        }
+
+        .logo-text {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            background: linear-gradient(to bottom, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+            margin-left: 4px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 14px 20px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            background: rgba(15, 23, 42, 0.4);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+        }
+
+        .btn-login {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px var(--primary-glow);
+        }
+
+        .btn-login:active { transform: translateY(0); }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            position: absolute;
+            left: 50%;
+            margin-left: -10px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn-login.loading .btn-text { visibility: hidden; }
+        .btn-login.loading .loader { display: block; }
+
+        .footer-links {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .footer-links a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .footer-links a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="login-container">
+        <div class="logo-area">
+            <div class="logo-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><path d="M12 6v6l4 2"></path></svg>
+            </div>
+            <div class="logo-text">AI CHATBOT</div>
+            <p style="color: var(--text-dim); margin-top: 8px; font-size: 0.9rem;">Sign in to your weightless dashboard</p>
+        </div>
+
+        <form id="login-form">
+            <div class="input-group">
+                <label>Email Address</label>
+                <input type="email" placeholder="name@company.com" required value="iomaths123@gmail.com">
+            </div>
+
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" placeholder="••••••••" required value="test123">
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; font-size: 0.85rem; padding: 0 4px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" style="width:16px; height:16px;"> Remember me
+                </label>
+                <a href="forgot.html" style="color: var(--text-dim); text-decoration:none;">Forgot?</a>
+            </div>
+
+            <button type="submit" class="btn-login" id="login-btn">
+                <span class="btn-text">Get Started</span>
+                <div class="loader"></div>
+            </button>
+        </form>
+
+        <div class="footer-links">
+            Don't have an account? <a href="register.html">Create one free</a>
+        </div>
+    </div>
+
+    <script>
+        const loginForm = document.getElementById('login-form');
+        const loginBtn = document.getElementById('login-btn');
+
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const email = loginForm.querySelector('input[type="email"]').value;
+            const password = loginForm.querySelector('input[type="password"]').value;
+
+            loginBtn.classList.add('loading');
+
+            try {
+                const response = await fetch("http://127.0.0.1:8000/api/auth/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    alert(result.error || "Login failed");
+                    loginBtn.classList.remove('loading');
+                    return;
+                }
+
+                localStorage.setItem("isLoggedIn", "true");
+                localStorage.setItem("user", JSON.stringify(result.user));
+
+                window.location.href = "index.html";
+
+            } catch (error) {
+                console.error("Login error:", error);
+                alert("Cannot connect to server");
+                loginBtn.classList.remove('loading');
+            }
+        });
+    </script>
+</body>
+</html>

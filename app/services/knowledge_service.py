@@ -3,7 +3,11 @@ from werkzeug.utils import secure_filename
 
 from app.services import gemini_service
 from app.services.gemini_service import update_pdf_path
-
+from app.database.knowledge_file_repository import save_knowledge_file
+from app.database.knowledge_file_repository import delete_knowledge_file_by_name
+from app.database.knowledge_file_repository import set_active_knowledge_file
+from app.database.knowledge_file_repository import get_knowledge_files
+from app.database.knowledge_file_repository import get_active_knowledge_file
 
 DATA_FOLDER = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "data")
@@ -27,6 +31,19 @@ def save_uploaded_pdf(file):
     file.save(filepath)
 
     relative_pdf_path = os.path.join("data", safe_name)
+    file_size = os.path.getsize(filepath)
+
+    save_knowledge_file(
+        chatbot_id=1,  # temporary for now
+        file_name=safe_name,
+        file_type="pdf",
+        file_size=file_size,
+        file_path=relative_pdf_path,
+        upload_status="uploaded",
+        processing_status="completed",
+        match_status="unchecked"
+    )
+
     update_pdf_path(relative_pdf_path)
 
     return {
@@ -37,26 +54,31 @@ def save_uploaded_pdf(file):
 
 
 def list_uploaded_pdfs():
-    os.makedirs(DATA_FOLDER, exist_ok=True)
+    files = get_knowledge_files(chatbot_id=1)
 
-    pdf_files = []
-    for filename in os.listdir(DATA_FOLDER):
-        if filename.lower().endswith(".pdf"):
-            pdf_files.append({
-                "file_name": filename
-            })
-
-    pdf_files.sort(key=lambda x: x["file_name"].lower())
-    return pdf_files
+    return [
+        {
+            "file_name": file["file_name"],
+            "name": file["file_name"],  # keep both for safety
+            "size": file.get("file_size"),
+            "status": "active" if file.get("is_active") else "available",
+        }
+        for file in files
+    ]
 
 
 def get_active_pdf():
-    active_pdf_path = gemini_service.PDF_PATH or ""
-    active_pdf_name = os.path.basename(active_pdf_path) if active_pdf_path else ""
+    active = get_active_knowledge_file(chatbot_id=1)
+
+    if not active:
+        return {
+            "file_name": "",
+            "file_path": ""
+        }
 
     return {
-        "file_name": active_pdf_name,
-        "file_path": active_pdf_path
+        "file_name": active.get("file_name", ""),
+        "file_path": active.get("file_path", "")
     }
 
 
@@ -72,6 +94,11 @@ def set_active_pdf(file_name):
 
     relative_pdf_path = os.path.join("data", safe_name)
     update_pdf_path(relative_pdf_path)
+
+    set_active_knowledge_file(
+        chatbot_id=1,
+        file_name=safe_name
+    )
 
     return {
         "file_name": safe_name,
@@ -90,12 +117,14 @@ def delete_pdf_file(file_name):
     if not os.path.exists(target_path):
         raise ValueError("File not found")
 
-    active_pdf_name = os.path.basename(gemini_service.PDF_PATH)
+    active = get_active_knowledge_file(chatbot_id=1)
 
-    if safe_name == active_pdf_name:
+    if active and safe_name == active.get("file_name"):
         raise ValueError("Cannot delete the currently active PDF")
 
     os.remove(target_path)
+
+    delete_knowledge_file_by_name(safe_name)
 
     return {
         "file_name": safe_name,
