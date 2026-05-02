@@ -1,8 +1,7 @@
 import os
 from werkzeug.utils import secure_filename
 
-from app.services import gemini_service
-from app.services.gemini_service import update_pdf_path
+from app.services.settings_service import update_chatbot_runtime
 from app.database.knowledge_file_repository import save_knowledge_file
 from app.database.knowledge_file_repository import delete_knowledge_file_by_name
 from app.database.knowledge_file_repository import set_active_knowledge_file
@@ -44,12 +43,22 @@ def save_uploaded_pdf(file):
         match_status="unchecked"
     )
 
-    update_pdf_path(relative_pdf_path)
+    set_active_knowledge_file(
+        chatbot_id=1,
+        file_name=safe_name
+    )
+
+    update_chatbot_runtime({
+        "draft_pdf_file_name": safe_name,
+        "draft_pdf_path": relative_pdf_path,
+        "last_match_result": None,
+        "last_match_reason": "",
+    })
 
     return {
         "file_name": safe_name,
         "file_path": filepath,
-        "message": f"PDF {safe_name} uploaded and set as active"
+        "message": f"PDF {safe_name} uploaded and set as draft active"
     }
 
 
@@ -93,17 +102,23 @@ def set_active_pdf(file_name):
         raise ValueError("File not found")
 
     relative_pdf_path = os.path.join("data", safe_name)
-    update_pdf_path(relative_pdf_path)
 
     set_active_knowledge_file(
         chatbot_id=1,
         file_name=safe_name
     )
 
+    update_chatbot_runtime({
+        "draft_pdf_file_name": safe_name,
+        "draft_pdf_path": relative_pdf_path,
+        "last_match_result": None,
+        "last_match_reason": "",
+    })
+
     return {
         "file_name": safe_name,
         "file_path": relative_pdf_path,
-        "message": f"Active PDF set to {safe_name}"
+        "message": f"Draft active PDF set to {safe_name}"
     }
 
 

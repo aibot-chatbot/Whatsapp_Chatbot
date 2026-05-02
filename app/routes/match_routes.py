@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 
 from app.services.match_service import check_pdf_config_match
+from app.services.settings_service import update_chatbot_runtime
 
 match_blueprint = Blueprint("match", __name__)
 
@@ -12,6 +13,11 @@ def check_match():
         profile_name = data.get("profile_name")
 
         result = check_pdf_config_match(profile_name=profile_name)
+
+        update_chatbot_runtime({
+            "last_match_result": bool(result.get("match", False)),
+            "last_match_reason": result.get("reason", ""),
+        })
 
         return jsonify({
             "status": "success",
