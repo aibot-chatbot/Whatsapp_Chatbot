@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from app.services.gemini_service import generate_response
 from app.services.settings_service import get_settings
 from app.services.knowledge_service import get_active_pdf
+from app.decorators.auth_decorator import token_required
 
 testbot_blueprint = Blueprint("testbot", __name__)
 
@@ -10,6 +11,7 @@ TESTBOT_SESSION_ID = "web_testbot_session"
 
 
 @testbot_blueprint.route("/api/testbot/context", methods=["GET"])
+@token_required
 def get_testbot_context():
     try:
         settings = get_settings() or {}
@@ -33,6 +35,7 @@ def get_testbot_context():
 
 
 @testbot_blueprint.route("/api/testbot/chat", methods=["POST"])
+@token_required
 def chat_with_testbot():
     try:
         data = request.get_json() or {}

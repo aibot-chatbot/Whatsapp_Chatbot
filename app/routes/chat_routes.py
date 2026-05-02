@@ -2,12 +2,14 @@ from flask import Blueprint, request, jsonify
 
 # import your existing chatbot function
 from app.services.gemini_service import generate_response
+from app.decorators.auth_decorator import token_required
 
 # create blueprint
 chat_blueprint = Blueprint("chat", __name__)
 
 
 @chat_blueprint.route("/api/chat/test", methods=["POST"])
+@token_required
 def test_chat():
     try:
         data = request.get_json()

@@ -2,12 +2,14 @@ from flask import Blueprint, jsonify
 import shelve
 import os
 from datetime import datetime, timedelta
+from app.decorators.auth_decorator import token_required
 
 analytics_blueprint = Blueprint("analytics", __name__)
 
 CHAT_HISTORY_DB = "chat_history_db"
 
 @analytics_blueprint.route("/api/analytics", methods=["GET"])
+@token_required
 def get_analytics():
     try:
         total_users = 0

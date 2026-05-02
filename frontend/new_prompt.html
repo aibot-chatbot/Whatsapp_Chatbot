@@ -13,6 +13,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
     <script src="sidebar-component.js"></script>
     <style>
         :root {
@@ -250,7 +252,8 @@
             font-size: 0.98rem;
             font-weight: 600;
             line-height: 1.45;
-            word-break: break-word;
+            word-break: break-all;
+            overflow-wrap: anywhere;
         }
 
         .status-badge {
@@ -626,7 +629,7 @@
 
             const fetchActivePdf = async () => {
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/knowledge/active");
+                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/knowledge/active");
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -641,7 +644,7 @@
 
             const fetchProfiles = async () => {
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/profiles");
+                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/profiles");
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -656,7 +659,7 @@
 
             const fetchActiveProfile = async () => {
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/settings");
+                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/settings");
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -706,7 +709,7 @@
                 if (!confirmed) return;
 
                 try {
-                    const response = await fetch(
+                    const response = await authenticatedFetch(
                         `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(profileName)}`,
                         { method: "DELETE" }
                     );
@@ -749,13 +752,15 @@
                 setFormStatus({ type: "success", text: `Previewing profile "${profile.name}".` });
             };
 
-            const handleSetActiveProfile = async () => {
-                if (!selectedProfile) {
+            const handleSetActiveProfile = async (targetProfileName = null) => {
+                const nameToActivate = targetProfileName || selectedProfile;
+
+                if (!nameToActivate) {
                     setFormStatus({ type: "error", text: "Please select a profile first." });
                     return;
                 }
 
-                const profile = getSelectedProfileObject();
+                const profile = profiles.find((p) => p.name === nameToActivate);
 
                 if (!profile) {
                     setFormStatus({ type: "error", text: "Selected profile not found." });
@@ -766,7 +771,7 @@
                     setPreviewProfile(profile);
                     setActiveProfile(profile.name || "");
 
-                    await fetch("http://127.0.0.1:8000/api/settings/active-profile", {
+                    await authenticatedFetch("http://127.0.0.1:8000/api/settings/active-profile", {
                         method: "PUT",
                         headers: {
                             "Content-Type": "application/json",
@@ -825,7 +830,7 @@
                 setFormStatus({ type: "", text: "" });
 
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/profiles", {
+                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/profiles", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -859,7 +864,7 @@
 
                         setFormStatus({
                             type: "success",
-                            text: `Profile "${profileName}" saved successfully. Click "Set as Active" if you want to use it.`
+                            text: `Profile "${profileName}" saved successfully and is now active.`
                         });
 
                         await fetchProfiles();
@@ -892,7 +897,7 @@
                 setSessionStatus({ type: "", text: "" });
 
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/match/check", {
+                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/match/check", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -954,7 +959,7 @@
                 }
 
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/settings/apply-profile", {
+                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/settings/apply-profile", {
                         method: "PUT",
                         headers: {
                             "Content-Type": "application/json",
@@ -997,9 +1002,9 @@
                                 <h1>Bot Configuration</h1>
                                 <p>Manage your active PDF, saved profiles, and live WhatsApp setup in one place.</p>
                             </div>
-                            <button 
-                                className="btn-primary" 
-                                type="button" 
+                            <button
+                                className="btn-primary"
+                                type="button"
                                 onClick={() => {
                                     clearForm();
                                     setIsModalOpen(true);
@@ -1021,8 +1026,12 @@
                                     <select
                                         value={selectedProfile}
                                         onChange={(e) => {
-                                            setSelectedProfile(e.target.value);
+                                            const val = e.target.value;
+                                            setSelectedProfile(val);
                                             setPreviewProfile(null); // Hide preview when selection changes
+                                            if (val) {
+                                                handleSetActiveProfile(val);
+                                            }
                                         }}
                                     >
                                         <option value="">Select a saved profile</option>
@@ -1049,11 +1058,8 @@
                                             : "Preview"}
                                     </button>
 
-                                    <button type="button" onClick={handleSetActiveProfile} className="inline-btn">
-                                        Set as Active
-                                    </button>
                                 </div>
-                                
+
                                 {formStatus.text && !isModalOpen && (
                                     <div className={`status-message ${formStatus.type}`} style={{ justifyContent: "flex-start", marginTop: "12px" }}>
                                         {formStatus.type === "success" ? "✨" : "⚠️"} {formStatus.text}
@@ -1125,7 +1131,7 @@
                             <div className="context-grid">
                                 <div className="context-item">
                                     <div className="context-label">Active PDF</div>
-                                    <div className="context-value">
+                                    <div className="context-value" style={{ fontSize: activePdf.length > 25 ? '0.82rem' : '0.98rem' }}>
                                         {activePdf || "No active PDF selected"}
                                     </div>
                                 </div>
