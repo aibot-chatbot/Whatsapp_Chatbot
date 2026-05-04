@@ -12,6 +12,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
     <script src="sidebar-component.js"></script>
 
     <style>
@@ -372,6 +374,9 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            max-width: 300px;
+            word-break: break-all;
+            overflow-wrap: anywhere;
         }
 
         .table-actions {
@@ -582,6 +587,15 @@
                 const selectedFile = input?.files?.[0];
                 if (!selectedFile) return;
 
+                if (selectedFile.name.length > 60) {
+                    setStatus({
+                        type: "error",
+                        text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`,
+                        action: ""
+                    });
+                    return;
+                }
+
                 if (selectedFile.type !== "application/pdf") {
                     setStatus({ type: "error", text: "Please select a valid PDF file.", action: "" });
                     return;
@@ -593,10 +607,10 @@
 
             const fetchFiles = async () => {
                 try {
-                    const res = await fetch("http://127.0.0.1:8000/api/knowledge/files");
+                    const res = await authenticatedFetch("http://127.0.0.1:8000/api/knowledge/files");
                     const data = await res.json();
 
-                    const activeRes = await fetch("http://127.0.0.1:8000/api/knowledge/active");
+                    const activeRes = await authenticatedFetch("http://127.0.0.1:8000/api/knowledge/active");
                     const activeData = await activeRes.json();
 
                     if (data.status === "success") {
@@ -629,7 +643,7 @@
                 formData.append("pdf_file", file);
 
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/upload-pdf", {
+                    const response = await authenticatedFetch("http://127.0.0.1:8000/upload-pdf", {
                         method: "POST",
                         body: formData,
                     });
@@ -652,7 +666,7 @@
 
             const handleSetActive = async (fileName) => {
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/knowledge/set-active", {
+                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/knowledge/set-active", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -683,7 +697,7 @@
                 setFileToDelete(null);
 
                 try {
-                    const response = await fetch(`http://127.0.0.1:8000/api/knowledge/files/${encodeURIComponent(fileName)}`, {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/files/${encodeURIComponent(fileName)}`, {
                         method: "DELETE",
                     });
 

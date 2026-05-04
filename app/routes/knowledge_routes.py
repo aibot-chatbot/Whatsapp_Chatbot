@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from app.decorators.auth_decorator import token_required
 
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
@@ -11,6 +12,7 @@ knowledge_blueprint = Blueprint("knowledge", __name__)
 
 
 @knowledge_blueprint.route("/api/knowledge/files", methods=["GET"])
+@token_required
 def get_uploaded_pdfs():
     try:
         files = list_uploaded_pdfs()
@@ -26,6 +28,7 @@ def get_uploaded_pdfs():
 
 
 @knowledge_blueprint.route("/api/knowledge/active", methods=["GET"])
+@token_required
 def get_current_active_pdf():
     try:
         active_pdf = get_active_pdf()
@@ -41,6 +44,7 @@ def get_current_active_pdf():
 
 
 @knowledge_blueprint.route("/api/knowledge/set-active", methods=["POST"])
+@token_required
 def set_current_active_pdf():
     try:
         data = request.get_json()
@@ -71,6 +75,7 @@ def set_current_active_pdf():
 
 
 @knowledge_blueprint.route("/api/knowledge/files/<file_name>", methods=["DELETE"])
+@token_required
 def delete_uploaded_pdf(file_name):
     try:
         result = delete_pdf_file(file_name)

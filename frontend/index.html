@@ -212,6 +212,8 @@
             font-size: 1.8rem;
             font-weight: 700;
             margin: 12px 0 4px 0;
+            word-break: break-all;
+            overflow-wrap: anywhere;
         }
 
         .stat-label {
@@ -331,9 +333,9 @@
         </div>
     </main>
 
-    <!-- <script src="assets/js/auth.js"></script> -->
+    <script src="assets/js/auth.js"></script>
     <script>
-        // requireLogin();
+        requireLogin();
 
         document.addEventListener('DOMContentLoaded', () => {
             updateDate();
@@ -352,7 +354,7 @@
         async function fetchDashboardData() {
             try {
                 // 1. Fetch Analytics
-                const analyticsRes = await fetch("http://127.0.0.1:8000/api/analytics");
+                const analyticsRes = await authenticatedFetch("http://127.0.0.1:8000/api/analytics");
                 const analytics = await analyticsRes.json();
                 
                 if (analytics.status === "success") {
@@ -367,17 +369,25 @@
                 }
 
                 // 2. Fetch Settings
-                const settingsRes = await fetch("http://127.0.0.1:8000/api/settings");
+                const settingsRes = await authenticatedFetch("http://127.0.0.1:8000/api/settings");
                 const settings = await settingsRes.json();
                 if (settings.status === "success") {
                     document.getElementById('stat-active-profile').innerText = settings.data.active_profile || "None";
+                    const profileEl = document.getElementById('stat-active-profile');
+                    const profileName = settings.data.active_profile || "None";
+                    profileEl.innerText = profileName;
+                    profileEl.style.fontSize = profileName.length > 20 ? "1.1rem" : "1.3rem";
                 }
 
                 // 3. Fetch Active Knowledge
-                const knowledgeRes = await fetch("http://127.0.0.1:8000/api/knowledge/active");
+                const knowledgeRes = await authenticatedFetch("http://127.0.0.1:8000/api/knowledge/active");
                 if (knowledgeRes.ok) {
                     const knowledge = await knowledgeRes.json();
                     document.getElementById('stat-active-pdf').innerText = knowledge.data?.file_name || "None";
+                    const pdfEl = document.getElementById('stat-active-pdf');
+                    const pdfName = knowledge.data?.file_name || "None";
+                    pdfEl.innerText = pdfName;
+                    pdfEl.style.fontSize = pdfName.length > 20 ? "1.1rem" : "1.3rem";
                 }
                 
             } catch (err) {
