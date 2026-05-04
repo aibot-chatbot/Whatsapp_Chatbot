@@ -295,3 +295,25 @@ def apply_profile_to_settings(profile_name):
         "deployed_pdf_file_name": deployed_pdf_file_name,
         "deployed_pdf_path": deployed_pdf_path,
     }
+
+def get_deployed_settings_summary():
+    deployed = get_deployed_runtime()
+    deployed_profile_name = deployed.get("deployed_profile_name", "")
+
+    if deployed_profile_name:
+        profile = get_profile_by_name(deployed_profile_name)
+        if profile:
+            return {
+                "bot_name": profile.get("bot_name", ""),
+                "company_name": profile.get("company_name", ""),
+                "business_description": profile.get("business_description", ""),
+                "tone": profile.get("tone", ""),
+                "additional_instructions": profile.get("additional_instructions", ""),
+                "custom_prompt": profile.get("custom_prompt", ""),
+                "active_profile": deployed_profile_name,
+                "active_pdf": deployed.get("deployed_pdf_file_name", ""),
+            }
+
+    settings = get_settings()
+    settings["active_pdf"] = deployed.get("deployed_pdf_file_name", "")
+    return settings

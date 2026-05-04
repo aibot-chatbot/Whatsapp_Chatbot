@@ -1,8 +1,8 @@
 from flask import Blueprint, jsonify, request
 
 from app.services.gemini_service import generate_response
-from app.services.settings_service import get_settings
-from app.services.knowledge_service import get_active_pdf
+from app.services.settings_service import get_deployed_runtime
+from app.services.profile_service import get_profile_by_name
 from app.decorators.auth_decorator import token_required
 
 testbot_blueprint = Blueprint("testbot", __name__)
@@ -12,16 +12,17 @@ TESTBOT_SESSION_ID = "web_testbot_session"
 @token_required
 def get_testbot_context():
     try:
-        settings = get_settings() or {}
-        active_pdf_data = get_active_pdf() or {}
+        deployed = get_deployed_runtime()
+        profile_name = deployed.get("deployed_profile_name", "")
+        profile = get_profile_by_name(profile_name) if profile_name else {}
 
         return jsonify({
             "status": "success",
             "data": {
-                "active_profile": settings.get("active_profile", ""),
-                "bot_name": settings.get("bot_name", ""),
-                "company_name": settings.get("company_name", ""),
-                "active_pdf": active_pdf_data.get("file_name", "")
+                "active_profile": profile_name,
+                "bot_name": (profile or {}).get("bot_name", ""),
+                "company_name": (profile or {}).get("company_name", ""),
+                "active_pdf": deployed.get("deployed_pdf_file_name", "")
             }
         }), 200
 

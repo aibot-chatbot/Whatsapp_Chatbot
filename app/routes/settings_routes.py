@@ -1,6 +1,12 @@
 from flask import Blueprint, jsonify, request
 
-from app.services.settings_service import get_settings, update_settings, set_active_profile, apply_profile_to_settings
+from app.services.settings_service import (
+    get_settings,
+    get_deployed_settings_summary,
+    update_settings,
+    set_active_profile,
+    apply_profile_to_settings,
+)
 from app.decorators.auth_decorator import token_required
 
 settings_blueprint = Blueprint("settings", __name__)
@@ -9,7 +15,7 @@ settings_blueprint = Blueprint("settings", __name__)
 @token_required
 def fetch_settings():
     try:
-        settings = get_settings()
+        settings = get_deployed_settings_summary()
         return jsonify({
             "status": "success",
             "data": settings
