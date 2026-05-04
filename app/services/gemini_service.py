@@ -383,10 +383,10 @@ User question:
 
 Important rules:
 1. Answer using the provided Knowledge first.
-2. If the Knowledge contains the answer, answer directly and do not use the fallback message.
-3. Do not reject the question if it is related to the Knowledge or company information.
-4. Do not make up facts that are not in the Knowledge.
-5. If the Knowledge does not contain the answer, say you do not have that information and guide the user back to relevant topics.
+2. If the Knowledge contains the answer, answer directly.
+3. If the question is related to the bot's business/domain but the Knowledge is incomplete, you may still provide a helpful general answer that fits the business context.
+4. Do not invent exact company-specific facts, prices, policies, or guarantees that are not supported by the Knowledge.
+5. For general domain questions, give a practical and helpful answer instead of refusing too quickly.
 6. Keep the reply short, clear, and useful.
 7. Do not mention internal words like "context", "chunks", "database", or "PDF".
 
@@ -832,38 +832,53 @@ def generate_response(message, wa_id):
             logging.info(f"User message: {message}")
 
             if intent == "code_input":
-
                 reply = handle_code_input(message, context_chunks)
 
-
             elif not context_chunks:
-
                 settings = get_deployed_settings()
 
-                fallback_message = generate_fallback(settings)
+                prompt = f"""
+            You are a helpful AI assistant for {settings.get("company_name", "the company")}.
 
-                reply = format_structured_reply(
+            Business description:
+            {settings.get("business_description", "")}
 
-                    fallback_message,
+            Tone:
+            {settings.get("tone", "Friendly")}
 
-                    extra_text="Please ask about topics related to the uploaded knowledge or configured business information."
+            Additional instructions:
+            {settings.get("additional_instructions", "")}
 
-                )
+            User question:
+            {message}
 
+            Rules:
+            1. The question is related to the business/domain, but there is no strong matching knowledge snippet.
+            2. Give a helpful general answer that fits the business/domain.
+            3. Do not invent exact company-specific facts, pricing, policies, or guarantees.
+            4. Keep the answer practical, natural, and concise.
+            5. Do not mention missing PDF, database, or internal system details.
 
-            else:
-
-                prompt = build_prompt(history, message, context_chunks)
+            Assistant:
+            """
 
                 response = client.models.generate_content(
-
                     model=model_id,
-
                     contents=prompt
-
                 )
 
                 reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
+
+            else:
+                prompt = build_prompt(history, message, context_chunks)
+
+                response = client.models.generate_content(
+                    model=model_id,
+                    contents=prompt
+                )
+
+                reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
+
 
         from datetime import datetime
         now = datetime.now().isoformat()
