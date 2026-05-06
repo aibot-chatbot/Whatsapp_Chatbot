@@ -13,7 +13,7 @@ DATA_FOLDER = os.path.abspath(
 )
 
 
-def save_uploaded_pdf(file):
+def save_uploaded_pdf(file, chatbot_id):
     if not file:
         raise ValueError("No file provided")
 
@@ -33,7 +33,7 @@ def save_uploaded_pdf(file):
     file_size = os.path.getsize(filepath)
 
     save_knowledge_file(
-        chatbot_id=1,  # temporary for now
+        chatbot_id=chatbot_id,
         file_name=safe_name,
         file_type="pdf",
         file_size=file_size,
@@ -44,7 +44,7 @@ def save_uploaded_pdf(file):
     )
 
     set_active_knowledge_file(
-        chatbot_id=1,
+        chatbot_id=chatbot_id,
         file_name=safe_name
     )
 
@@ -53,7 +53,7 @@ def save_uploaded_pdf(file):
         "draft_pdf_path": relative_pdf_path,
         "last_match_result": None,
         "last_match_reason": "",
-    })
+    }, chatbot_id)
 
     return {
         "file_name": safe_name,
@@ -62,8 +62,8 @@ def save_uploaded_pdf(file):
     }
 
 
-def list_uploaded_pdfs():
-    files = get_knowledge_files(chatbot_id=1)
+def list_uploaded_pdfs(chatbot_id):
+    files = get_knowledge_files(chatbot_id=chatbot_id)
 
     return [
         {
@@ -76,8 +76,8 @@ def list_uploaded_pdfs():
     ]
 
 
-def get_active_pdf():
-    active = get_active_knowledge_file(chatbot_id=1)
+def get_active_pdf(chatbot_id):
+    active = get_active_knowledge_file(chatbot_id=chatbot_id)
 
     if not active:
         return {
@@ -91,7 +91,7 @@ def get_active_pdf():
     }
 
 
-def set_active_pdf(file_name):
+def set_active_pdf(file_name, chatbot_id):
     if not file_name:
         raise ValueError("File name is required")
 
@@ -104,7 +104,7 @@ def set_active_pdf(file_name):
     relative_pdf_path = os.path.join("data", safe_name)
 
     set_active_knowledge_file(
-        chatbot_id=1,
+        chatbot_id=chatbot_id,
         file_name=safe_name
     )
 
@@ -113,7 +113,7 @@ def set_active_pdf(file_name):
         "draft_pdf_path": relative_pdf_path,
         "last_match_result": None,
         "last_match_reason": "",
-    })
+    }, chatbot_id)
 
     return {
         "file_name": safe_name,
@@ -122,7 +122,7 @@ def set_active_pdf(file_name):
     }
 
 
-def delete_pdf_file(file_name):
+def delete_pdf_file(file_name, chatbot_id):
     if not file_name:
         raise ValueError("File name is required")
 
@@ -132,14 +132,14 @@ def delete_pdf_file(file_name):
     if not os.path.exists(target_path):
         raise ValueError("File not found")
 
-    active = get_active_knowledge_file(chatbot_id=1)
+    active = get_active_knowledge_file(chatbot_id=chatbot_id)
 
     if active and safe_name == active.get("file_name"):
         raise ValueError("Cannot delete the currently active PDF")
 
     os.remove(target_path)
 
-    delete_knowledge_file_by_name(safe_name)
+    delete_knowledge_file_by_name(chatbot_id, safe_name)
 
     return {
         "file_name": safe_name,

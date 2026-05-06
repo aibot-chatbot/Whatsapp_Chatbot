@@ -28,7 +28,7 @@ def login():
     if user["password_hash"] != password:
         return jsonify({"error": "Invalid password"}), 401
 
-    # Generate JWT token
+        # Generate JWT token
     token = jwt.encode({
         'user_id': user['id'],
         'email': user['email'],

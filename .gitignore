@@ -89,3 +89,6 @@ target/
 
 # Exlcude the database file
 .db
+
+chat_history_db*
+processed_messages_db*
