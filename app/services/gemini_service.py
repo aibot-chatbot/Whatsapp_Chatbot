@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import shelve
 import json
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
@@ -14,6 +13,8 @@ from app.services.settings_service import (
     get_deployed_runtime,
 )
 from app.services.profile_service import get_profile_by_name
+from app.database.chat_history_repository import get_recent_chat_history
+from app.database.conversation_repository import get_or_create_conversation
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +29,6 @@ load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 model_id="gemini-2.5-flash"
 
-CHAT_HISTORY_DB = "chat_history_db"
 MAX_HISTORY = 6
 
 KNOWLEDGE_STATE_FILE = os.path.abspath(
@@ -64,8 +64,8 @@ def get_latest_pdf():
     return "data/Speedbot.pdf"
 
 
-def get_initial_pdf_path():
-    deployed = get_deployed_runtime()
+def get_initial_pdf_path(chatbot_id=1):
+    deployed = get_deployed_runtime(chatbot_id)
     deployed_pdf_path = deployed.get("deployed_pdf_path", "")
 
     if deployed_pdf_path and os.path.exists(deployed_pdf_path):
@@ -75,12 +75,12 @@ def get_initial_pdf_path():
     logging.info("No deployed PDF found. No live PDF will be loaded.")
     return ""
 
-def get_deployed_settings():
-    deployed = get_deployed_runtime()
+def get_deployed_settings(chatbot_id=1):
+    deployed = get_deployed_runtime(chatbot_id)
     deployed_profile_name = deployed.get("deployed_profile_name", "")
 
     if deployed_profile_name:
-        profile = get_profile_by_name(deployed_profile_name)
+        profile = get_profile_by_name(deployed_profile_name, chatbot_id)
         if profile:
             return {
                 "bot_name": profile.get("bot_name", ""),
@@ -95,7 +95,7 @@ def get_deployed_settings():
     return get_settings()
 
 
-PDF_PATH = get_initial_pdf_path()
+PDF_PATH = get_initial_pdf_path(1)
 
 STOPWORDS = {
     "is", "am", "are", "the", "a", "an", "of", "to", "for", "and", "or", "in",
@@ -315,19 +315,8 @@ def retrieve_relevant_chunks(query, top_k=3):
     logging.info(f"Top chunk score: {scored_chunks[0][0] if scored_chunks else 0}")
     return selected
 
-
-def load_chat_history(wa_id):
-    with shelve.open(CHAT_HISTORY_DB) as db:
-        return db.get(wa_id, [])
-
-
-def save_chat_history(wa_id, history):
-    with shelve.open(CHAT_HISTORY_DB, writeback=True) as db:
-        db[wa_id] = history
-
-
-def build_prompt(history, message, context_chunks):
-    settings = get_deployed_settings()
+def build_prompt(history, message, context_chunks, chatbot_id=1):
+    settings = get_deployed_settings(chatbot_id)
 
     bot_name = settings.get("bot_name") or "AI Assistant"
     company_name = settings.get("company_name") or "the company"
@@ -477,8 +466,8 @@ def is_out_of_scope(message):
     return any(word in msg for word in out_keywords)
 
 
-def handle_greeting():
-    settings = get_deployed_settings()
+def handle_greeting(chatbot_id=1):
+    settings = get_deployed_settings(chatbot_id)
     base_greeting = generate_greeting(settings) + "\n\n"
 
     top_level_codes = [pair for pair in CODE_TITLE_PAIRS if re.fullmatch(r'[A-E]', pair[0])]
@@ -802,9 +791,14 @@ def handle_code_input(message, context_chunks=None):
     return "Sorry, I couldn’t find that menu option clearly. Please try another code."
 
 
-def generate_response(message, wa_id):
+def generate_response(message, wa_id, chatbot_id=1):
     try:
-        history = load_chat_history(wa_id)
+        conversation = get_or_create_conversation(
+            chatbot_id=chatbot_id,
+            customer_phone=wa_id,
+            customer_name=None,
+        )
+        history = get_recent_chat_history(conversation["id"], limit=MAX_HISTORY)
 
         intent = detect_intent(message)
         logging.info(f"Detected intent: {intent}")
@@ -817,10 +811,10 @@ def generate_response(message, wa_id):
             reply = handle_code_input(normalized_code, retrieve_relevant_chunks(normalized_code))
 
         elif intent == "main_menu":
-            reply = handle_greeting()
+            reply = handle_greeting(chatbot_id)
 
         elif intent == "greeting":
-            reply = handle_greeting()
+            reply = handle_greeting(chatbot_id)
 
 
         else:
@@ -835,7 +829,7 @@ def generate_response(message, wa_id):
                 reply = handle_code_input(message, context_chunks)
 
             elif not context_chunks:
-                settings = get_deployed_settings()
+                settings = get_deployed_settings(chatbot_id)
 
                 prompt = f"""
             You are a helpful AI assistant for {settings.get("company_name", "the company")}.
@@ -870,7 +864,7 @@ def generate_response(message, wa_id):
                 reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
 
             else:
-                prompt = build_prompt(history, message, context_chunks)
+                prompt = build_prompt(history, message, context_chunks, chatbot_id)
 
                 response = client.models.generate_content(
                     model=model_id,
@@ -878,15 +872,6 @@ def generate_response(message, wa_id):
                 )
 
                 reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
-
-
-        from datetime import datetime
-        now = datetime.now().isoformat()
-        history.append({"role": "user", "content": message, "timestamp": now})
-        history.append({"role": "assistant", "content": reply, "timestamp": now})
-
-        history = history[-MAX_HISTORY:]
-        save_chat_history(wa_id, history)
 
         return reply
 

@@ -26,11 +26,12 @@ def _row_to_profile(row):
     }
 
 
-def get_profiles():
+def get_profiles(chatbot_id):
     response = (
         supabase
         .table(TABLE_NAME)
         .select("*")
+        .eq("chatbot_id", chatbot_id)
         .order("id")
         .execute()
     )
@@ -39,7 +40,7 @@ def get_profiles():
     return [_row_to_profile(row) for row in rows]
 
 
-def get_profile_by_name(profile_name):
+def get_profile_by_name(profile_name, chatbot_id):
     if not profile_name:
         return None
 
@@ -47,6 +48,7 @@ def get_profile_by_name(profile_name):
         supabase
         .table(TABLE_NAME)
         .select("*")
+        .eq("chatbot_id", chatbot_id)
         .eq("profile_name", profile_name)
         .limit(1)
         .execute()
@@ -60,13 +62,14 @@ def get_profile_by_name(profile_name):
     return _row_to_profile(rows[0])
 
 
-def save_profile(profile_data):
+def save_profile(profile_data, chatbot_id):
     profile_name = profile_data.get("name", "").strip()
 
     if not profile_name:
         raise ValueError("Profile name is required")
 
     row_data = {
+        "chatbot_id": chatbot_id,
         "profile_name": profile_name,
         "bot_name": profile_data.get("bot_name", ""),
         "company_name": profile_data.get("company_name", ""),
@@ -88,6 +91,7 @@ def save_profile(profile_data):
         supabase
         .table(TABLE_NAME)
         .select("id")
+        .eq("chatbot_id", chatbot_id)
         .eq("profile_name", profile_name)
         .limit(1)
         .execute()
@@ -123,11 +127,11 @@ def save_profile(profile_data):
     return _row_to_profile(rows[0])
 
 
-def delete_profile(profile_name):
+def delete_profile(profile_name, chatbot_id):
     if not profile_name:
         raise ValueError("Profile name is required")
 
-    existing_profile = get_profile_by_name(profile_name)
+    existing_profile = get_profile_by_name(profile_name, chatbot_id)
 
     if not existing_profile:
         raise ValueError("Profile not found")
@@ -136,6 +140,7 @@ def delete_profile(profile_name):
         supabase
         .table(TABLE_NAME)
         .delete()
+        .eq("chatbot_id", chatbot_id)
         .eq("profile_name", profile_name)
         .execute()
     )

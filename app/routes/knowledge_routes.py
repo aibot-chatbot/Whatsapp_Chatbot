@@ -15,7 +15,8 @@ knowledge_blueprint = Blueprint("knowledge", __name__)
 @token_required
 def get_uploaded_pdfs():
     try:
-        files = list_uploaded_pdfs()
+        chatbot_id = 1
+        files = list_uploaded_pdfs(chatbot_id)
         return jsonify({
             "status": "success",
             "data": files
@@ -31,7 +32,8 @@ def get_uploaded_pdfs():
 @token_required
 def get_current_active_pdf():
     try:
-        active_pdf = get_active_pdf()
+        chatbot_id = 1
+        active_pdf = get_active_pdf(chatbot_id)
         return jsonify({
             "status": "success",
             "data": active_pdf
@@ -55,7 +57,8 @@ def set_current_active_pdf():
                 "message": "file_name is required"
             }), 400
 
-        result = set_active_pdf(data["file_name"])
+        chatbot_id = 1
+        result = set_active_pdf(data["file_name"], chatbot_id)
 
         return jsonify({
             "status": "success",
@@ -78,7 +81,8 @@ def set_current_active_pdf():
 @token_required
 def delete_uploaded_pdf(file_name):
     try:
-        result = delete_pdf_file(file_name)
+        chatbot_id = 1
+        result = delete_pdf_file(file_name, chatbot_id)
         return jsonify({
             "status": "success",
             "data": result
