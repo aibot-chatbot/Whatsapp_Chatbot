@@ -372,6 +372,7 @@
                 const settingsRes = await authenticatedFetch("http://127.0.0.1:8000/api/settings");
                 const settings = await settingsRes.json();
                 if (settings.status === "success") {
+                    document.getElementById('stat-active-profile').innerText = settings.data.active_profile || "None";
                     const profileEl = document.getElementById('stat-active-profile');
                     const profileName = settings.data.active_profile || "None";
                     profileEl.innerText = profileName;
@@ -382,6 +383,7 @@
                 const knowledgeRes = await authenticatedFetch("http://127.0.0.1:8000/api/knowledge/active");
                 if (knowledgeRes.ok) {
                     const knowledge = await knowledgeRes.json();
+                    document.getElementById('stat-active-pdf').innerText = knowledge.data?.file_name || "None";
                     const pdfEl = document.getElementById('stat-active-pdf');
                     const pdfName = knowledge.data?.file_name || "None";
                     pdfEl.innerText = pdfName;

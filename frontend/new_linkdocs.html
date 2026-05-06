@@ -588,10 +588,10 @@
                 if (!selectedFile) return;
 
                 if (selectedFile.name.length > 60) {
-                    setStatus({ 
-                        type: "error", 
-                        text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`, 
-                        action: "" 
+                    setStatus({
+                        type: "error",
+                        text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`,
+                        action: ""
                     });
                     return;
                 }

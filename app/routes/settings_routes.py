@@ -1,16 +1,22 @@
 from flask import Blueprint, jsonify, request
 
-from app.services.settings_service import get_settings, update_settings, set_active_profile, apply_profile_to_settings
+from app.services.settings_service import (
+    get_settings,
+    get_deployed_settings_summary,
+    update_settings,
+    set_active_profile,
+    apply_profile_to_settings,
+)
 from app.decorators.auth_decorator import token_required
 
 settings_blueprint = Blueprint("settings", __name__)
-
 
 @settings_blueprint.route("/api/settings", methods=["GET"])
 @token_required
 def fetch_settings():
     try:
-        settings = get_settings()
+        chatbot_id = 1
+        settings = get_deployed_settings_summary(chatbot_id)
         return jsonify({
             "status": "success",
             "data": settings
@@ -60,7 +66,8 @@ def save_active_profile():
             }), 400
 
         active_profile = data.get("active_profile", "")
-        updated_settings = set_active_profile(active_profile)
+        chatbot_id = 1
+        updated_settings = set_active_profile(active_profile, chatbot_id)
 
         return jsonify({
             "status": "success",
@@ -85,7 +92,8 @@ def apply_profile():
             }), 400
 
         profile_name = data.get("profile_name", "")
-        updated_settings = apply_profile_to_settings(profile_name)
+        chatbot_id = 1
+        updated_settings = apply_profile_to_settings(profile_name, chatbot_id)
 
         return jsonify({
             "status": "success",

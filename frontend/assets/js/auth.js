@@ -15,24 +15,24 @@ function requireLogin() {
  */
 async function authenticatedFetch(url, options = {}) {
     const token = sessionStorage.getItem("token");
-    
+
     // Ensure headers exist
     if (!options.headers) {
         options.headers = {};
     }
-    
+
     // Add Authorization header if token exists
     if (token) {
         options.headers["Authorization"] = `Bearer ${token}`;
     }
-    
+
     const response = await fetch(url, options);
-    
+
     // Auto-logout if unauthorized
     if (response.status === 401) {
         logout();
     }
-    
+
     return response;
 }
 

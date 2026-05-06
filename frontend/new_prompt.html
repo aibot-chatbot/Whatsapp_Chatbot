@@ -546,10 +546,14 @@
             height: 100%;
             background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(8px);
-            display: flex;
+            display: none;
             justify-content: center;
             align-items: center;
             z-index: 2000;
+        }
+
+        .modal-overlay.open {
+            display: flex;
         }
 
         /* Modal Content Box */
@@ -618,6 +622,7 @@
             const [sessionStatus, setSessionStatus] = useState({ type: "", text: "" });
             const [formStatus, setFormStatus] = useState({ type: "", text: "" });
             const [matchResult, setMatchResult] = useState(null);
+            const [profileToDelete, setProfileToDelete] = useState(null);
 
             const getApplyButtonHint = () => {
                 if (!activePdf) return "Please select an active PDF first.";
@@ -700,33 +705,52 @@
             };
 
             const handleDeleteProfile = async () => {
-                if (!profileName.trim()) {
+                const nameToDelete =
+                    (previewProfile && previewProfile.name) ||
+                    selectedProfile ||
+                    profileName.trim();
+
+                if (!nameToDelete) {
                     setFormStatus({ type: "error", text: "No profile selected for deletion." });
                     return;
                 }
 
-                const confirmed = window.confirm(`Delete profile "${profileName}"?`);
-                if (!confirmed) return;
+                setProfileToDelete(nameToDelete);
+            };
+
+            const confirmDeleteProfile = async () => {
+                if (!profileToDelete) return;
+
+                const nameToDelete = profileToDelete;
+                setProfileToDelete(null);
 
                 try {
                     const response = await authenticatedFetch(
-                        `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(profileName)}`,
+                        `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(nameToDelete)}`,
                         { method: "DELETE" }
                     );
 
                     const data = await response.json();
 
                     if (data.status === "success") {
-                        if (activeProfile === profileName) {
+                        if (activeProfile === nameToDelete) {
                             setActiveProfile("");
                         }
 
                         setPreviewProfile(null);
                         setSelectedProfile("");
-                        clearForm();
+                        setProfileName("");
+                        setBotName("");
+                        setCompanyName("");
+                        setBusinessDescription("");
+                        setTone("");
+                        setAdditionalInstructions("");
+                        setCustomPrompt("");
+                        setFormMode("create");
+
                         await fetchProfiles();
 
-                        setFormStatus({ type: "success", text: `Profile "${profileName}" deleted.` });
+                        setFormStatus({ type: "success", text: `Profile "${nameToDelete}" deleted.` });
                     } else {
                         setFormStatus({ type: "error", text: data.message || "Failed to delete profile." });
                     }
@@ -1111,8 +1135,22 @@
                                         </div>
 
                                         {/* This is the correct placement for bottom-right */}
-                                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                                            <button type="button" onClick={handleEditProfileToForm} className="btn-secondary" style={{ minWidth: "160px" }}>
+                                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "16px" }}>
+                                            <button
+                                                type="button"
+                                                onClick={handleDeleteProfile}
+                                                className="btn-danger"
+                                                style={{ minWidth: "160px" }}
+                                            >
+                                                Delete Profile
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleEditProfileToForm}
+                                                className="btn-secondary"
+                                                style={{ minWidth: "160px" }}
+                                            >
                                                 Edit in Form
                                             </button>
                                         </div>
@@ -1272,6 +1310,43 @@
                             </div>
                         </div>
                     )}
+                    <div
+                        className={`modal-overlay ${profileToDelete ? "open" : ""}`}
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) setProfileToDelete(null);
+                        }}
+                    >
+                        <div className="modal-content" style={{ maxWidth: "420px", textAlign: "center", padding: "40px 30px" }}>
+                            <div style={{ fontSize: "48px", marginBottom: "20px" }}>🗑️</div>
+                            <div className="section-title" style={{ fontSize: "1.6rem", marginBottom: "12px" }}>
+                                Delete Profile?
+                            </div>
+                            <div style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "32px", lineHeight: "1.6" }}>
+                                Are you sure you want to delete <strong>{profileToDelete}</strong>?<br />
+                                This action cannot be undone.
+                            </div>
+
+                            <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => setProfileToDelete(null)}
+                                    style={{ minWidth: "120px" }}
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="btn-danger"
+                                    onClick={confirmDeleteProfile}
+                                    style={{ minWidth: "120px" }}
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </>
             );
         }

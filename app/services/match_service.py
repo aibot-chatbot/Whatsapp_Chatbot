@@ -25,7 +25,8 @@ def extract_pdf_preview(pdf_path, max_chars=4000):
 
 def check_pdf_config_match(profile_name=None):
     if profile_name:
-        settings = get_profile_by_name(profile_name)
+        chatbot_id = 1
+        settings = get_profile_by_name(profile_name, chatbot_id)
 
         if not settings:
             raise ValueError(f'Profile "{profile_name}" not found')
@@ -46,11 +47,12 @@ Tone: {tone}
 Custom Instructions: {additional_instructions}
 """.strip()
 
-    draft_runtime = get_draft_runtime()
+    chatbot_id = 1
+    draft_runtime = get_draft_runtime(chatbot_id)
     active_pdf_path = draft_runtime.get("draft_pdf_path", "")
 
     if not active_pdf_path:
-        active_pdf = get_active_pdf()
+        active_pdf = get_active_pdf(chatbot_id)
         active_pdf_path = active_pdf.get("file_path", "")
 
     pdf_preview = extract_pdf_preview(active_pdf_path)
