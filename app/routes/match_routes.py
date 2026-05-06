@@ -16,10 +16,11 @@ def check_match():
 
         result = check_pdf_config_match(profile_name=profile_name)
 
+        chatbot_id = 1
         update_chatbot_runtime({
             "last_match_result": bool(result.get("match", False)),
             "last_match_reason": result.get("reason", ""),
-        })
+        }, chatbot_id)
 
         return jsonify({
             "status": "success",
