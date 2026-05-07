@@ -6,11 +6,20 @@ def get_total_users(chatbot_id=1):
     response = (
         supabase
         .table("conversations")
-        .select("id", count="exact")
+        .select("customer_phone")
         .eq("chatbot_id", chatbot_id)
         .execute()
     )
-    return response.count or 0
+
+    rows = response.data or []
+    unique_phones = set()
+
+    for row in rows:
+        phone = row.get("customer_phone")
+        if phone:
+            unique_phones.add(phone)
+
+    return len(unique_phones)
 
 
 def get_total_user_messages(chatbot_id=1):

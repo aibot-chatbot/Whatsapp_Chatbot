@@ -12,7 +12,7 @@ TESTBOT_SESSION_ID = "web_testbot_session"
 @token_required
 def get_testbot_context():
     try:
-        chatbot_id = 1
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
         deployed = get_deployed_runtime(chatbot_id)
         profile_name = deployed.get("deployed_profile_name", "")
         profile = get_profile_by_name(profile_name, chatbot_id) if profile_name else {}
@@ -46,7 +46,7 @@ def chat_with_testbot():
                 "message": "Message is required."
             }), 400
 
-        chatbot_id = 1
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
         reply = generate_response(user_message, TESTBOT_SESSION_ID, chatbot_id)
 
         return jsonify({

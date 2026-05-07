@@ -99,7 +99,7 @@ def upload_pdf():
 
         file = request.files["pdf_file"]
 
-        chatbot_id = 1
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
         result = save_uploaded_pdf(file, chatbot_id)
 
         return jsonify({

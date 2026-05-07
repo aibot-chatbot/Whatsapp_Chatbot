@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 
 from app.decorators.auth_decorator import token_required
 from app.database.analytics_repository import (
@@ -14,7 +14,10 @@ analytics_blueprint = Blueprint("analytics", __name__)
 @token_required
 def get_analytics():
     try:
-        chatbot_id = 1
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        print("Dashboard analytics chatbot_id:", chatbot_id)
 
         total_users = get_total_users(chatbot_id)
         total_messages = get_total_user_messages(chatbot_id)

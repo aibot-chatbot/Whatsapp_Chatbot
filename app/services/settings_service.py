@@ -312,6 +312,13 @@ def get_deployed_settings_summary(chatbot_id):
                 "active_pdf": deployed.get("deployed_pdf_file_name", ""),
             }
 
-    settings = get_settings()
-    settings["active_pdf"] = deployed.get("deployed_pdf_file_name", "")
-    return settings
+    return {
+        "bot_name": "",
+        "company_name": "",
+        "business_description": "",
+        "tone": "",
+        "additional_instructions": "",
+        "custom_prompt": "",
+        "active_profile": "None",
+        "active_pdf": deployed.get("deployed_pdf_file_name", "") or "None",
+    }

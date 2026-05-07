@@ -15,7 +15,7 @@ settings_blueprint = Blueprint("settings", __name__)
 @token_required
 def fetch_settings():
     try:
-        chatbot_id = 1
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
         settings = get_deployed_settings_summary(chatbot_id)
         return jsonify({
             "status": "success",
@@ -66,7 +66,7 @@ def save_active_profile():
             }), 400
 
         active_profile = data.get("active_profile", "")
-        chatbot_id = 1
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
         updated_settings = set_active_profile(active_profile, chatbot_id)
 
         return jsonify({
@@ -92,7 +92,7 @@ def apply_profile():
             }), 400
 
         profile_name = data.get("profile_name", "")
-        chatbot_id = 1
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
         updated_settings = apply_profile_to_settings(profile_name, chatbot_id)
 
         return jsonify({

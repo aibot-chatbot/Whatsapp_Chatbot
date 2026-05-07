@@ -600,6 +600,11 @@
                 customPrompt: ""
             };
 
+            const urlParams = new URLSearchParams(window.location.search);
+            const selectedBotId = urlParams.get("bot_id") || 1;
+            const botQuery = `?chatbot_id=${selectedBotId}`;
+            const pageQuery = `?bot_id=${selectedBotId}`;
+
             const [isSavingProfile, setIsSavingProfile] = useState(false);
             const [isCheckingMatch, setIsCheckingMatch] = useState(false);
             const configFormRef = useRef(null);
@@ -623,6 +628,7 @@
             const [formStatus, setFormStatus] = useState({ type: "", text: "" });
             const [matchResult, setMatchResult] = useState(null);
             const [profileToDelete, setProfileToDelete] = useState(null);
+            const [currentBotName, setCurrentBotName] = useState("");
 
             const getApplyButtonHint = () => {
                 if (!activePdf) return "Please select an active PDF first.";
@@ -632,9 +638,22 @@
                 return "Apply the current matched profile to WhatsApp.";
             };
 
+            const fetchBotInfo = async () => {
+                try {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setCurrentBotName(data.data.bot_name || "Bot");
+                    }
+                } catch (error) {
+                    setCurrentBotName("Bot");
+                }
+            };
+
             const fetchActivePdf = async () => {
                 try {
-                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/knowledge/active");
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/active${botQuery}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -649,7 +668,7 @@
 
             const fetchProfiles = async () => {
                 try {
-                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/profiles");
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/profiles${botQuery}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -664,7 +683,7 @@
 
             const fetchActiveProfile = async () => {
                 try {
-                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/settings");
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/settings?chatbot_id=${selectedBotId}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -726,7 +745,7 @@
 
                 try {
                     const response = await authenticatedFetch(
-                        `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(nameToDelete)}`,
+                        `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(nameToDelete)}${botQuery}`,
                         { method: "DELETE" }
                     );
 
@@ -795,7 +814,7 @@
                     setPreviewProfile(profile);
                     setActiveProfile(profile.name || "");
 
-                    await authenticatedFetch("http://127.0.0.1:8000/api/settings/active-profile", {
+                    await authenticatedFetch(`http://127.0.0.1:8000/api/settings/active-profile?chatbot_id=${selectedBotId}`, {
                         method: "PUT",
                         headers: {
                             "Content-Type": "application/json",
@@ -854,7 +873,7 @@
                 setFormStatus({ type: "", text: "" });
 
                 try {
-                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/profiles", {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/profiles${botQuery}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -921,7 +940,7 @@
                 setSessionStatus({ type: "", text: "" });
 
                 try {
-                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/match/check", {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/match/check?chatbot_id=${selectedBotId}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -983,7 +1002,7 @@
                 }
 
                 try {
-                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/settings/apply-profile", {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/settings/apply-profile?chatbot_id=${selectedBotId}`, {
                         method: "PUT",
                         headers: {
                             "Content-Type": "application/json",
@@ -998,7 +1017,7 @@
                     if (data.status === "success") {
                         setSessionStatus({ type: "success", text: data.message || "Profile applied successfully. Navigating to Test Bot..." });
                         setTimeout(() => {
-                            window.location.href = "testbot.html";
+                            window.location.href = `testbot.html${pageQuery}`;
                         }, 1200);
                     } else {
                         setSessionStatus({ type: "error", text: data.message || "Failed to apply profile to WhatsApp." });
@@ -1009,6 +1028,7 @@
             };
 
             useEffect(() => {
+                fetchBotInfo();
                 fetchProfiles();
                 fetchActivePdf();
                 fetchActiveProfile();
@@ -1023,7 +1043,7 @@
                     <main className="main-container">
                         <div className="header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
                             <div>
-                                <h1>Bot Configuration</h1>
+                                <h1>Bot Configuration ({currentBotName || "Bot"})</h1>
                                 <p>Manage your active PDF, saved profiles, and live WhatsApp setup in one place.</p>
                             </div>
                             <button
