@@ -1,8 +1,6 @@
 from flask import Blueprint, jsonify, request
 from app.decorators.auth_decorator import token_required
 
-from app.decorators.auth_decorator import token_required
-
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
     delete_pdf_file,
