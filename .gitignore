@@ -89,3 +89,15 @@ target/
 
 # Exlcude the database file
 .db
+
+# chatbot history/database files
+chat_history_db.*
+processed_messages_db.*
+
+# shelve database files
+*.bak
+*.dat
+*.dir
+
+# virtual environment
+pwb/
