@@ -15,6 +15,7 @@ from app.services.settings_service import (
 from app.services.profile_service import get_profile_by_name
 from app.database.chat_history_repository import get_recent_chat_history
 from app.database.conversation_repository import get_or_create_conversation
+from app.database.knowledge_chunk_repository import search_similar_chunks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -288,32 +289,46 @@ def score_chunk(query, query_words, chunk):
 
     return score
 
-def retrieve_relevant_chunks(query, top_k=3):
+def generate_embedding(text):
+    if not text:
+        return []
+    try:
+        response = client.models.embed_content(
+            model='gemini-embedding-2',
+            contents=text,
+            config={"output_dimensionality": 768}
+        )
+        return response.embeddings[0].values
+    except Exception as e:
+        logging.error(f"Error generating embedding: {e}")
+        return []
+
+def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
     direct_matches = find_code_matches(query)
     if direct_matches:
         logging.info("Using direct code match retrieval.")
         return direct_matches
 
-    base_words = clean_query_words(query)
-    query_words = expand_query_words(base_words)
-
-    scored_chunks = []
-
-    for chunk in PDF_CHUNKS:
-        score = score_chunk(query, query_words, chunk)
-        if score > 0:
-            scored_chunks.append((score, chunk))
-
-    scored_chunks.sort(key=lambda x: x[0], reverse=True)
-
-    selected = [chunk for score, chunk in scored_chunks[:top_k]]
-
-    if not selected:
-        logging.info("No strong chunk match found, using fallback chunk.")
+    # 1. Generate embedding for the question
+    query_embedding = generate_embedding(query)
+    if not query_embedding:
+        logging.warning("Could not generate embedding for query.")
         return []
 
-    logging.info(f"Top chunk score: {scored_chunks[0][0] if scored_chunks else 0}")
-    return selected
+    # 2. Search Supabase for similar chunks
+    # match_threshold controls how strict the match should be (0.0 to 1.0)
+    # usually 0.5 is a good starting point for cosine similarity
+    try:
+        results = search_similar_chunks(chatbot_id, query_embedding, match_threshold=0.5, match_count=top_k)
+        if not results:
+            logging.info("No strong chunk match found via vector search.")
+            return []
+        
+        logging.info(f"Top chunk similarity: {results[0].get('similarity')}")
+        return [res.get("content") for res in results]
+    except Exception as e:
+        logging.error(f"Vector search failed: {e}")
+        return []
 
 def build_prompt(history, message, context_chunks, chatbot_id=1):
     settings = get_deployed_settings(chatbot_id)
@@ -808,7 +823,7 @@ def generate_response(message, wa_id, chatbot_id=1):
         show_code_match = re.fullmatch(r'(show|open|see|list)\s+([A-E](?:\d+(?:\.\d+)*)?)', msg, re.IGNORECASE)
         if show_code_match:
             normalized_code = show_code_match.group(2).upper()
-            reply = handle_code_input(normalized_code, retrieve_relevant_chunks(normalized_code))
+            reply = handle_code_input(normalized_code, retrieve_relevant_chunks(normalized_code, chatbot_id=chatbot_id))
 
         elif intent == "main_menu":
             reply = handle_greeting(chatbot_id)
@@ -819,7 +834,7 @@ def generate_response(message, wa_id, chatbot_id=1):
 
         else:
 
-            context_chunks = retrieve_relevant_chunks(message)
+            context_chunks = retrieve_relevant_chunks(message, chatbot_id=chatbot_id)
 
             logging.info(f"Retrieved chunks: {len(context_chunks)}")
 
