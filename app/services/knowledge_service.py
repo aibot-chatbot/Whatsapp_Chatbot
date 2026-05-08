@@ -32,7 +32,7 @@ def save_uploaded_pdf(file, chatbot_id):
     relative_pdf_path = os.path.join("data", safe_name)
     file_size = os.path.getsize(filepath)
 
-    save_knowledge_file(
+    file_record = save_knowledge_file(
         chatbot_id=chatbot_id,
         file_name=safe_name,
         file_type="pdf",
@@ -42,6 +42,49 @@ def save_uploaded_pdf(file, chatbot_id):
         processing_status="completed",
         match_status="unchecked"
     )
+
+    file_id = file_record["id"]
+
+    # --- PROCESS AND CHUNK PDF ---
+    try:
+        import fitz
+        import logging
+        from app.services.gemini_service import split_text_into_sections, generate_embedding
+        from app.database.knowledge_chunk_repository import save_knowledge_chunk
+
+        doc = fitz.open(filepath)
+        lines = []
+        for page in doc:
+            blocks = page.get_text("blocks")
+            blocks = sorted(blocks, key=lambda b: (b[1], b[0]))
+            for block in blocks:
+                text = block[4].strip()
+                if text:
+                    for line in text.splitlines():
+                        clean_line = " ".join(line.split())
+                        if clean_line:
+                            lines.append(clean_line)
+        pdf_text = "\n".join(lines)
+
+        chunks = split_text_into_sections(pdf_text)
+        
+        logging.info(f"Processing {len(chunks)} chunks for database insertion...")
+        
+        for idx, chunk in enumerate(chunks):
+            embedding = generate_embedding(chunk)
+            if embedding:
+                save_knowledge_chunk(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    content=chunk,
+                    embedding=embedding,
+                    metadata={"chunk_index": idx}
+                )
+        logging.info("Successfully saved all chunks to Supabase.")
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to process PDF chunks: {e}")
+    # -----------------------------
 
     set_active_knowledge_file(
         chatbot_id=chatbot_id,
