@@ -23,9 +23,8 @@ def extract_pdf_preview(pdf_path, max_chars=4000):
         return ""
 
 
-def check_pdf_config_match(profile_name=None):
+def check_pdf_config_match(profile_name=None, chatbot_id=1):
     if profile_name:
-        chatbot_id = 1
         settings = get_profile_by_name(profile_name, chatbot_id)
 
         if not settings:
@@ -47,7 +46,6 @@ Tone: {tone}
 Custom Instructions: {additional_instructions}
 """.strip()
 
-    chatbot_id = 1
     draft_runtime = get_draft_runtime(chatbot_id)
     active_pdf_path = draft_runtime.get("draft_pdf_path", "")
 
