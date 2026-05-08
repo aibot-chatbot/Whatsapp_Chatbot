@@ -304,11 +304,6 @@ def generate_embedding(text):
         return []
 
 def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
-    direct_matches = find_code_matches(query)
-    if direct_matches:
-        logging.info("Using direct code match retrieval.")
-        return direct_matches
-
     # 1. Generate embedding for the question
     query_embedding = generate_embedding(query)
     if not query_embedding:
@@ -483,17 +478,9 @@ def is_out_of_scope(message):
 
 def handle_greeting(chatbot_id=1):
     settings = get_deployed_settings(chatbot_id)
-    base_greeting = generate_greeting(settings) + "\n\n"
+    base_greeting = generate_greeting(settings)
 
-    top_level_codes = [pair for pair in CODE_TITLE_PAIRS if re.fullmatch(r'[A-E]', pair[0])]
-
-    if top_level_codes:
-        menu = "Please reply with the appropriate code based on your inquiry:\n"
-        for code, title in top_level_codes:
-            menu += f"{code}. {title}\n"
-        return base_greeting + menu.strip()
-
-    return base_greeting + "Feel free to ask me any questions based on our provided information."
+    return base_greeting + "\n\nFeel free to ask me any questions based on our provided information."
 
 
 def format_structured_reply(main_text, extra_text=None, link=None):
@@ -772,38 +759,10 @@ def format_menu_reply(title, items, max_items=12):
 
 
 def handle_code_input(message, context_chunks=None):
-    code = message.strip().upper()
-
-    child_items = get_child_codes(code)
-    logging.info(f"Code input received: {code}")
-    logging.info(f"Child items for code: {child_items}")
-
-    exact_chunk = get_exact_code_chunk(code)
-    logging.info(f"Exact chunk for code: {exact_chunk}")
-
-    cleaned = clean_code_answer(exact_chunk, code)
-    logging.info(f"Cleaned answer for code: {cleaned}")
-
-    if child_items:
-        if re.fullmatch(r'[A-E]', code):
-            return format_menu_reply(f"Here are the options for {code}:", child_items)
-
-        if re.fullmatch(r'[A-E]\d+', code):
-            return format_menu_reply(f"Here are the available options under {code}:", child_items)
-
-    if cleaned:
-        if "need update by admin" in cleaned.lower():
-            return format_structured_reply(
-                "The detailed information for this item is not available yet.",
-                extra_text="Please contact the admin staff for the latest update."
-            )
-
-        return format_structured_reply(cleaned)
-
     if context_chunks:
         return format_structured_reply(context_chunks[0])
 
-    return "Sorry, I couldn’t find that menu option clearly. Please try another code."
+    return "Sorry, I couldn’t find that information clearly. Please try asking in a different way."
 
 
 def generate_response(message, wa_id, chatbot_id=1):

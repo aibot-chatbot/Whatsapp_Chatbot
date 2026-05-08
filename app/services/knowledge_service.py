@@ -25,7 +25,9 @@ def save_uploaded_pdf(file, chatbot_id):
 
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
-    safe_name = secure_filename(file.filename)
+    original_name = secure_filename(file.filename)
+    safe_name = f"bot_{chatbot_id}_{original_name}"
+
     filepath = os.path.join(DATA_FOLDER, safe_name)
     file.save(filepath)
 
