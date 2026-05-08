@@ -13,7 +13,7 @@ DATA_FOLDER = os.path.abspath(
 )
 
 
-def save_uploaded_pdf(file):
+def save_uploaded_pdf(file, chatbot_id):
     if not file:
         raise ValueError("No file provided")
 
@@ -25,15 +25,17 @@ def save_uploaded_pdf(file):
 
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
-    safe_name = secure_filename(file.filename)
+    original_name = secure_filename(file.filename)
+    safe_name = f"bot_{chatbot_id}_{original_name}"
+
     filepath = os.path.join(DATA_FOLDER, safe_name)
     file.save(filepath)
 
     relative_pdf_path = os.path.join("data", safe_name)
     file_size = os.path.getsize(filepath)
 
-    save_knowledge_file(
-        chatbot_id=1,  # temporary for now
+    file_record = save_knowledge_file(
+        chatbot_id=chatbot_id,
         file_name=safe_name,
         file_type="pdf",
         file_size=file_size,
@@ -43,8 +45,51 @@ def save_uploaded_pdf(file):
         match_status="unchecked"
     )
 
+    file_id = file_record["id"]
+
+    # --- PROCESS AND CHUNK PDF ---
+    try:
+        import fitz
+        import logging
+        from app.services.gemini_service import split_text_into_sections, generate_embedding
+        from app.database.knowledge_chunk_repository import save_knowledge_chunk
+
+        doc = fitz.open(filepath)
+        lines = []
+        for page in doc:
+            blocks = page.get_text("blocks")
+            blocks = sorted(blocks, key=lambda b: (b[1], b[0]))
+            for block in blocks:
+                text = block[4].strip()
+                if text:
+                    for line in text.splitlines():
+                        clean_line = " ".join(line.split())
+                        if clean_line:
+                            lines.append(clean_line)
+        pdf_text = "\n".join(lines)
+
+        chunks = split_text_into_sections(pdf_text)
+        
+        logging.info(f"Processing {len(chunks)} chunks for database insertion...")
+        
+        for idx, chunk in enumerate(chunks):
+            embedding = generate_embedding(chunk)
+            if embedding:
+                save_knowledge_chunk(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    content=chunk,
+                    embedding=embedding,
+                    metadata={"chunk_index": idx}
+                )
+        logging.info("Successfully saved all chunks to Supabase.")
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to process PDF chunks: {e}")
+    # -----------------------------
+
     set_active_knowledge_file(
-        chatbot_id=1,
+        chatbot_id=chatbot_id,
         file_name=safe_name
     )
 
@@ -53,7 +98,7 @@ def save_uploaded_pdf(file):
         "draft_pdf_path": relative_pdf_path,
         "last_match_result": None,
         "last_match_reason": "",
-    })
+    }, chatbot_id)
 
     return {
         "file_name": safe_name,
@@ -62,8 +107,8 @@ def save_uploaded_pdf(file):
     }
 
 
-def list_uploaded_pdfs():
-    files = get_knowledge_files(chatbot_id=1)
+def list_uploaded_pdfs(chatbot_id):
+    files = get_knowledge_files(chatbot_id=chatbot_id)
 
     return [
         {
@@ -76,8 +121,8 @@ def list_uploaded_pdfs():
     ]
 
 
-def get_active_pdf():
-    active = get_active_knowledge_file(chatbot_id=1)
+def get_active_pdf(chatbot_id):
+    active = get_active_knowledge_file(chatbot_id=chatbot_id)
 
     if not active:
         return {
@@ -91,7 +136,7 @@ def get_active_pdf():
     }
 
 
-def set_active_pdf(file_name):
+def set_active_pdf(file_name, chatbot_id):
     if not file_name:
         raise ValueError("File name is required")
 
@@ -104,7 +149,7 @@ def set_active_pdf(file_name):
     relative_pdf_path = os.path.join("data", safe_name)
 
     set_active_knowledge_file(
-        chatbot_id=1,
+        chatbot_id=chatbot_id,
         file_name=safe_name
     )
 
@@ -113,7 +158,7 @@ def set_active_pdf(file_name):
         "draft_pdf_path": relative_pdf_path,
         "last_match_result": None,
         "last_match_reason": "",
-    })
+    }, chatbot_id)
 
     return {
         "file_name": safe_name,
@@ -122,7 +167,7 @@ def set_active_pdf(file_name):
     }
 
 
-def delete_pdf_file(file_name):
+def delete_pdf_file(file_name, chatbot_id):
     if not file_name:
         raise ValueError("File name is required")
 
@@ -132,14 +177,14 @@ def delete_pdf_file(file_name):
     if not os.path.exists(target_path):
         raise ValueError("File not found")
 
-    active = get_active_knowledge_file(chatbot_id=1)
+    active = get_active_knowledge_file(chatbot_id=chatbot_id)
 
     if active and safe_name == active.get("file_name"):
         raise ValueError("Cannot delete the currently active PDF")
 
     os.remove(target_path)
 
-    delete_knowledge_file_by_name(safe_name)
+    delete_knowledge_file_by_name(chatbot_id, safe_name)
 
     return {
         "file_name": safe_name,

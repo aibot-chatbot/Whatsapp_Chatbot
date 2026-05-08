@@ -5,8 +5,6 @@ from app.services.profile_service import get_profile_by_name
 
 TABLE_NAME = "bot_configs"
 CHATBOTS_TABLE = "chatbots"
-CHATBOT_ID = 1
-
 
 DEFAULT_SETTINGS = {
     "bot_name": "AI Assistant",
@@ -58,7 +56,7 @@ def _get_active_config_row():
     return rows[0]
 
 
-def _get_chatbot_row(chatbot_id=CHATBOT_ID):
+def _get_chatbot_row(chatbot_id):
     response = (
         supabase
         .table(CHATBOTS_TABLE)
@@ -76,7 +74,7 @@ def _get_chatbot_row(chatbot_id=CHATBOT_ID):
     return rows[0]
 
 
-def update_chatbot_runtime(data, chatbot_id=CHATBOT_ID):
+def update_chatbot_runtime(data, chatbot_id):
     payload = dict(data)
     payload["updated_at"] = _now_iso()
 
@@ -96,7 +94,7 @@ def update_chatbot_runtime(data, chatbot_id=CHATBOT_ID):
     return rows[0]
 
 
-def get_draft_runtime(chatbot_id=CHATBOT_ID):
+def get_draft_runtime(chatbot_id):
     row = _get_chatbot_row(chatbot_id) or {}
 
     return {
@@ -108,7 +106,7 @@ def get_draft_runtime(chatbot_id=CHATBOT_ID):
     }
 
 
-def get_deployed_runtime(chatbot_id=CHATBOT_ID):
+def get_deployed_runtime(chatbot_id):
     row = _get_chatbot_row(chatbot_id) or {}
 
     return {
@@ -231,11 +229,11 @@ def generate_fallback(settings):
         return f"Sorry, I can help with things like {short_desc} 😊 Try asking about those!"
 
 
-def set_active_profile(profile_name):
+def set_active_profile(profile_name, chatbot_id):
     if not profile_name:
         raise ValueError("Profile name is required")
 
-    profile = get_profile_by_name(profile_name)
+    profile = get_profile_by_name(profile_name, chatbot_id)
 
     if not profile:
         raise ValueError("Profile not found")
@@ -244,7 +242,7 @@ def set_active_profile(profile_name):
         "draft_profile_name": profile_name,
         "last_match_result": None,
         "last_match_reason": "",
-    })
+    }, chatbot_id)
 
     return {
         "active_profile": profile_name,
@@ -257,18 +255,18 @@ def set_active_profile(profile_name):
     }
 
 
-def apply_profile_to_settings(profile_name):
+def apply_profile_to_settings(profile_name, chatbot_id):
     from app.services.gemini_service import update_pdf_path
 
     if not profile_name:
         raise ValueError("Profile name is required")
 
-    profile = get_profile_by_name(profile_name)
+    profile = get_profile_by_name(profile_name, chatbot_id)
 
     if not profile:
         raise ValueError("Profile not found")
 
-    draft_runtime = get_draft_runtime()
+    draft_runtime = get_draft_runtime(chatbot_id)
 
     deployed_pdf_file_name = draft_runtime.get("draft_pdf_file_name", "")
     deployed_pdf_path = draft_runtime.get("draft_pdf_path", "")
@@ -279,7 +277,7 @@ def apply_profile_to_settings(profile_name):
         "deployed_pdf_path": deployed_pdf_path,
         "last_match_result": draft_runtime.get("last_match_result"),
         "last_match_reason": draft_runtime.get("last_match_reason", ""),
-    })
+    }, chatbot_id)
 
     if deployed_pdf_path:
         update_pdf_path(deployed_pdf_path)
@@ -294,4 +292,33 @@ def apply_profile_to_settings(profile_name):
         "custom_prompt": profile.get("custom_prompt", ""),
         "deployed_pdf_file_name": deployed_pdf_file_name,
         "deployed_pdf_path": deployed_pdf_path,
+    }
+
+def get_deployed_settings_summary(chatbot_id):
+    deployed = get_deployed_runtime(chatbot_id)
+    deployed_profile_name = deployed.get("deployed_profile_name", "")
+
+    if deployed_profile_name:
+        profile = get_profile_by_name(deployed_profile_name, chatbot_id)
+        if profile:
+            return {
+                "bot_name": profile.get("bot_name", ""),
+                "company_name": profile.get("company_name", ""),
+                "business_description": profile.get("business_description", ""),
+                "tone": profile.get("tone", ""),
+                "additional_instructions": profile.get("additional_instructions", ""),
+                "custom_prompt": profile.get("custom_prompt", ""),
+                "active_profile": deployed_profile_name,
+                "active_pdf": deployed.get("deployed_pdf_file_name", ""),
+            }
+
+    return {
+        "bot_name": "",
+        "company_name": "",
+        "business_description": "",
+        "tone": "",
+        "additional_instructions": "",
+        "custom_prompt": "",
+        "active_profile": "None",
+        "active_pdf": deployed.get("deployed_pdf_file_name", "") or "None",
     }

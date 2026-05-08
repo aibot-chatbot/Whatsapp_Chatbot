@@ -1,14 +1,22 @@
 from flask import Blueprint, jsonify, request
 
-from app.services.settings_service import get_settings, update_settings, set_active_profile, apply_profile_to_settings
+from app.services.settings_service import (
+    get_settings,
+    get_deployed_settings_summary,
+    update_settings,
+    set_active_profile,
+    apply_profile_to_settings,
+)
+from app.decorators.auth_decorator import token_required
 
 settings_blueprint = Blueprint("settings", __name__)
 
-
 @settings_blueprint.route("/api/settings", methods=["GET"])
+@token_required
 def fetch_settings():
     try:
-        settings = get_settings()
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        settings = get_deployed_settings_summary(chatbot_id)
         return jsonify({
             "status": "success",
             "data": settings
@@ -21,6 +29,7 @@ def fetch_settings():
 
 
 @settings_blueprint.route("/api/settings", methods=["PUT"])
+@token_required
 def save_settings():
     try:
         data = request.get_json()
@@ -45,6 +54,7 @@ def save_settings():
 
 
 @settings_blueprint.route("/api/settings/active-profile", methods=["PUT"])
+@token_required
 def save_active_profile():
     try:
         data = request.get_json()
@@ -56,7 +66,8 @@ def save_active_profile():
             }), 400
 
         active_profile = data.get("active_profile", "")
-        updated_settings = set_active_profile(active_profile)
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        updated_settings = set_active_profile(active_profile, chatbot_id)
 
         return jsonify({
             "status": "success",
@@ -69,6 +80,7 @@ def save_active_profile():
         }), 500
 
 @settings_blueprint.route("/api/settings/apply-profile", methods=["PUT"])
+@token_required
 def apply_profile():
     try:
         data = request.get_json()
@@ -80,7 +92,8 @@ def apply_profile():
             }), 400
 
         profile_name = data.get("profile_name", "")
-        updated_settings = apply_profile_to_settings(profile_name)
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        updated_settings = apply_profile_to_settings(profile_name, chatbot_id)
 
         return jsonify({
             "status": "success",

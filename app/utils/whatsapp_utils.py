@@ -3,23 +3,11 @@ from flask import current_app, jsonify
 import json
 import requests
 import re
-import shelve
 
 from app.services.gemini_service import generate_response
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
-
-PROCESSED_MESSAGES_DB = "processed_messages_db"
-
-
-def is_message_processed(message_id):
-    with shelve.open(PROCESSED_MESSAGES_DB) as db:
-        return db.get(message_id, False)
-
-
-def mark_message_processed(message_id):
-    with shelve.open(PROCESSED_MESSAGES_DB, writeback=True) as db:
-        db[message_id] = True
+from app.database.processed_message_repository import is_processed, save_processed
 
 
 def log_http_response(response):
@@ -83,13 +71,13 @@ def process_whatsapp_message(body):
     message_id = message["id"]
     message_body = message["text"]["body"]
 
-    if is_message_processed(message_id):
-        logging.info(f"Duplicate message ignored: {message_id}")
-        return
-
     # TEMP: use chatbot_id = 1 first
     # Later we will detect which bot based on phone_number_id or channel
     chatbot_id = 1
+
+    if is_processed(chatbot_id, message_id):
+        logging.info(f"Duplicate message ignored: {message_id}")
+        return
 
     conversation = get_or_create_conversation(
         chatbot_id=chatbot_id,
@@ -107,7 +95,7 @@ def process_whatsapp_message(body):
         ai_generated=False,
     )
 
-    response = generate_response(message_body, wa_id)
+    response = generate_response(message_body, wa_id, chatbot_id)
     response = process_text_for_whatsapp(response)
 
     save_message(
@@ -122,7 +110,7 @@ def process_whatsapp_message(body):
     data = get_text_message_input(wa_id, response)
     send_message(data)
 
-    mark_message_processed(message_id)
+    save_processed(chatbot_id, message_id)
 
 
 def is_valid_whatsapp_message(body):

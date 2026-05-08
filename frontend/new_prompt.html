@@ -13,6 +13,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
     <script src="sidebar-component.js"></script>
     <style>
         :root {
@@ -250,7 +252,8 @@
             font-size: 0.98rem;
             font-weight: 600;
             line-height: 1.45;
-            word-break: break-word;
+            word-break: break-all;
+            overflow-wrap: anywhere;
         }
 
         .status-badge {
@@ -543,10 +546,14 @@
             height: 100%;
             background: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(8px);
-            display: flex;
+            display: none;
             justify-content: center;
             align-items: center;
             z-index: 2000;
+        }
+
+        .modal-overlay.open {
+            display: flex;
         }
 
         /* Modal Content Box */
@@ -593,6 +600,11 @@
                 customPrompt: ""
             };
 
+            const urlParams = new URLSearchParams(window.location.search);
+            const selectedBotId = urlParams.get("bot_id") || 1;
+            const botQuery = `?chatbot_id=${selectedBotId}`;
+            const pageQuery = `?bot_id=${selectedBotId}`;
+
             const [isSavingProfile, setIsSavingProfile] = useState(false);
             const [isCheckingMatch, setIsCheckingMatch] = useState(false);
             const configFormRef = useRef(null);
@@ -615,6 +627,8 @@
             const [sessionStatus, setSessionStatus] = useState({ type: "", text: "" });
             const [formStatus, setFormStatus] = useState({ type: "", text: "" });
             const [matchResult, setMatchResult] = useState(null);
+            const [profileToDelete, setProfileToDelete] = useState(null);
+            const [currentBotName, setCurrentBotName] = useState("");
 
             const getApplyButtonHint = () => {
                 if (!activePdf) return "Please select an active PDF first.";
@@ -624,9 +638,22 @@
                 return "Apply the current matched profile to WhatsApp.";
             };
 
+            const fetchBotInfo = async () => {
+                try {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setCurrentBotName(data.data.bot_name || "Bot");
+                    }
+                } catch (error) {
+                    setCurrentBotName("Bot");
+                }
+            };
+
             const fetchActivePdf = async () => {
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/knowledge/active");
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/active${botQuery}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -641,7 +668,7 @@
 
             const fetchProfiles = async () => {
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/profiles");
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/profiles${botQuery}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -656,7 +683,7 @@
 
             const fetchActiveProfile = async () => {
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/settings");
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/settings?chatbot_id=${selectedBotId}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -697,33 +724,52 @@
             };
 
             const handleDeleteProfile = async () => {
-                if (!profileName.trim()) {
+                const nameToDelete =
+                    (previewProfile && previewProfile.name) ||
+                    selectedProfile ||
+                    profileName.trim();
+
+                if (!nameToDelete) {
                     setFormStatus({ type: "error", text: "No profile selected for deletion." });
                     return;
                 }
 
-                const confirmed = window.confirm(`Delete profile "${profileName}"?`);
-                if (!confirmed) return;
+                setProfileToDelete(nameToDelete);
+            };
+
+            const confirmDeleteProfile = async () => {
+                if (!profileToDelete) return;
+
+                const nameToDelete = profileToDelete;
+                setProfileToDelete(null);
 
                 try {
-                    const response = await fetch(
-                        `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(profileName)}`,
+                    const response = await authenticatedFetch(
+                        `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(nameToDelete)}${botQuery}`,
                         { method: "DELETE" }
                     );
 
                     const data = await response.json();
 
                     if (data.status === "success") {
-                        if (activeProfile === profileName) {
+                        if (activeProfile === nameToDelete) {
                             setActiveProfile("");
                         }
 
                         setPreviewProfile(null);
                         setSelectedProfile("");
-                        clearForm();
+                        setProfileName("");
+                        setBotName("");
+                        setCompanyName("");
+                        setBusinessDescription("");
+                        setTone("");
+                        setAdditionalInstructions("");
+                        setCustomPrompt("");
+                        setFormMode("create");
+
                         await fetchProfiles();
 
-                        setFormStatus({ type: "success", text: `Profile "${profileName}" deleted.` });
+                        setFormStatus({ type: "success", text: `Profile "${nameToDelete}" deleted.` });
                     } else {
                         setFormStatus({ type: "error", text: data.message || "Failed to delete profile." });
                     }
@@ -749,13 +795,15 @@
                 setFormStatus({ type: "success", text: `Previewing profile "${profile.name}".` });
             };
 
-            const handleSetActiveProfile = async () => {
-                if (!selectedProfile) {
+            const handleSetActiveProfile = async (targetProfileName = null) => {
+                const nameToActivate = targetProfileName || selectedProfile;
+
+                if (!nameToActivate) {
                     setFormStatus({ type: "error", text: "Please select a profile first." });
                     return;
                 }
 
-                const profile = getSelectedProfileObject();
+                const profile = profiles.find((p) => p.name === nameToActivate);
 
                 if (!profile) {
                     setFormStatus({ type: "error", text: "Selected profile not found." });
@@ -766,7 +814,7 @@
                     setPreviewProfile(profile);
                     setActiveProfile(profile.name || "");
 
-                    await fetch("http://127.0.0.1:8000/api/settings/active-profile", {
+                    await authenticatedFetch(`http://127.0.0.1:8000/api/settings/active-profile?chatbot_id=${selectedBotId}`, {
                         method: "PUT",
                         headers: {
                             "Content-Type": "application/json",
@@ -825,7 +873,7 @@
                 setFormStatus({ type: "", text: "" });
 
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/profiles", {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/profiles${botQuery}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -859,7 +907,7 @@
 
                         setFormStatus({
                             type: "success",
-                            text: `Profile "${profileName}" saved successfully. Click "Set as Active" if you want to use it.`
+                            text: `Profile "${profileName}" saved successfully and is now active.`
                         });
 
                         await fetchProfiles();
@@ -892,7 +940,7 @@
                 setSessionStatus({ type: "", text: "" });
 
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/match/check", {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/match/check?chatbot_id=${selectedBotId}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -954,7 +1002,7 @@
                 }
 
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/settings/apply-profile", {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/settings/apply-profile?chatbot_id=${selectedBotId}`, {
                         method: "PUT",
                         headers: {
                             "Content-Type": "application/json",
@@ -969,7 +1017,7 @@
                     if (data.status === "success") {
                         setSessionStatus({ type: "success", text: data.message || "Profile applied successfully. Navigating to Test Bot..." });
                         setTimeout(() => {
-                            window.location.href = "testbot.html";
+                            window.location.href = `testbot.html${pageQuery}`;
                         }, 1200);
                     } else {
                         setSessionStatus({ type: "error", text: data.message || "Failed to apply profile to WhatsApp." });
@@ -980,6 +1028,7 @@
             };
 
             useEffect(() => {
+                fetchBotInfo();
                 fetchProfiles();
                 fetchActivePdf();
                 fetchActiveProfile();
@@ -994,12 +1043,12 @@
                     <main className="main-container">
                         <div className="header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
                             <div>
-                                <h1>Bot Configuration</h1>
+                                <h1>Bot Configuration ({currentBotName || "Bot"})</h1>
                                 <p>Manage your active PDF, saved profiles, and live WhatsApp setup in one place.</p>
                             </div>
-                            <button 
-                                className="btn-primary" 
-                                type="button" 
+                            <button
+                                className="btn-primary"
+                                type="button"
                                 onClick={() => {
                                     clearForm();
                                     setIsModalOpen(true);
@@ -1021,8 +1070,12 @@
                                     <select
                                         value={selectedProfile}
                                         onChange={(e) => {
-                                            setSelectedProfile(e.target.value);
+                                            const val = e.target.value;
+                                            setSelectedProfile(val);
                                             setPreviewProfile(null); // Hide preview when selection changes
+                                            if (val) {
+                                                handleSetActiveProfile(val);
+                                            }
                                         }}
                                     >
                                         <option value="">Select a saved profile</option>
@@ -1049,11 +1102,8 @@
                                             : "Preview"}
                                     </button>
 
-                                    <button type="button" onClick={handleSetActiveProfile} className="inline-btn">
-                                        Set as Active
-                                    </button>
                                 </div>
-                                
+
                                 {formStatus.text && !isModalOpen && (
                                     <div className={`status-message ${formStatus.type}`} style={{ justifyContent: "flex-start", marginTop: "12px" }}>
                                         {formStatus.type === "success" ? "✨" : "⚠️"} {formStatus.text}
@@ -1105,8 +1155,22 @@
                                         </div>
 
                                         {/* This is the correct placement for bottom-right */}
-                                        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
-                                            <button type="button" onClick={handleEditProfileToForm} className="btn-secondary" style={{ minWidth: "160px" }}>
+                                        <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px", marginTop: "16px" }}>
+                                            <button
+                                                type="button"
+                                                onClick={handleDeleteProfile}
+                                                className="btn-danger"
+                                                style={{ minWidth: "160px" }}
+                                            >
+                                                Delete Profile
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={handleEditProfileToForm}
+                                                className="btn-secondary"
+                                                style={{ minWidth: "160px" }}
+                                            >
                                                 Edit in Form
                                             </button>
                                         </div>
@@ -1125,7 +1189,7 @@
                             <div className="context-grid">
                                 <div className="context-item">
                                     <div className="context-label">Active PDF</div>
-                                    <div className="context-value">
+                                    <div className="context-value" style={{ fontSize: activePdf.length > 25 ? '0.82rem' : '0.98rem' }}>
                                         {activePdf || "No active PDF selected"}
                                     </div>
                                 </div>
@@ -1182,7 +1246,7 @@
                     </main>
 
                     {isModalOpen && (
-                        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
+                        <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) setIsModalOpen(false); }}>
                             <div className="modal-content">
                                 <button className="close-modal" onClick={() => setIsModalOpen(false)}>×</button>
                                 <div className="section-title" style={{ fontSize: "1.4rem" }}>
@@ -1266,6 +1330,43 @@
                             </div>
                         </div>
                     )}
+                    <div
+                        className={`modal-overlay ${profileToDelete ? "open" : ""}`}
+                        onClick={(e) => {
+                            if (e.target === e.currentTarget) setProfileToDelete(null);
+                        }}
+                    >
+                        <div className="modal-content" style={{ maxWidth: "420px", textAlign: "center", padding: "40px 30px" }}>
+                            <div style={{ fontSize: "48px", marginBottom: "20px" }}>🗑️</div>
+                            <div className="section-title" style={{ fontSize: "1.6rem", marginBottom: "12px" }}>
+                                Delete Profile?
+                            </div>
+                            <div style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "32px", lineHeight: "1.6" }}>
+                                Are you sure you want to delete <strong>{profileToDelete}</strong>?<br />
+                                This action cannot be undone.
+                            </div>
+
+                            <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
+                                <button
+                                    type="button"
+                                    className="btn-secondary"
+                                    onClick={() => setProfileToDelete(null)}
+                                    style={{ minWidth: "120px" }}
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="button"
+                                    className="btn-danger"
+                                    onClick={confirmDeleteProfile}
+                                    style={{ minWidth: "120px" }}
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </>
             );
         }

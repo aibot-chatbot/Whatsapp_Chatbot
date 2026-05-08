@@ -1,27 +1,29 @@
 from flask import Blueprint, jsonify, request
 
 from app.services.gemini_service import generate_response
-from app.services.settings_service import get_settings
-from app.services.knowledge_service import get_active_pdf
+from app.services.settings_service import get_deployed_runtime
+from app.services.profile_service import get_profile_by_name
+from app.decorators.auth_decorator import token_required
 
 testbot_blueprint = Blueprint("testbot", __name__)
-
 TESTBOT_SESSION_ID = "web_testbot_session"
 
-
 @testbot_blueprint.route("/api/testbot/context", methods=["GET"])
+@token_required
 def get_testbot_context():
     try:
-        settings = get_settings() or {}
-        active_pdf_data = get_active_pdf() or {}
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        deployed = get_deployed_runtime(chatbot_id)
+        profile_name = deployed.get("deployed_profile_name", "")
+        profile = get_profile_by_name(profile_name, chatbot_id) if profile_name else {}
 
         return jsonify({
             "status": "success",
             "data": {
-                "active_profile": settings.get("active_profile", ""),
-                "bot_name": settings.get("bot_name", ""),
-                "company_name": settings.get("company_name", ""),
-                "active_pdf": active_pdf_data.get("file_name", "")
+                "active_profile": profile_name,
+                "bot_name": (profile or {}).get("bot_name", ""),
+                "company_name": (profile or {}).get("company_name", ""),
+                "active_pdf": deployed.get("deployed_pdf_file_name", "")
             }
         }), 200
 
@@ -31,8 +33,8 @@ def get_testbot_context():
             "message": str(e)
         }), 500
 
-
 @testbot_blueprint.route("/api/testbot/chat", methods=["POST"])
+@token_required
 def chat_with_testbot():
     try:
         data = request.get_json() or {}
@@ -44,7 +46,8 @@ def chat_with_testbot():
                 "message": "Message is required."
             }), 400
 
-        reply = generate_response(user_message, TESTBOT_SESSION_ID)
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        reply = generate_response(user_message, TESTBOT_SESSION_ID, chatbot_id)
 
         return jsonify({
             "status": "success",
