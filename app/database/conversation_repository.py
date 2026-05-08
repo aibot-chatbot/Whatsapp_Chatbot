@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
 from app.database.db import supabase
 
 
 def get_or_create_conversation(chatbot_id: int, customer_phone: str, customer_name: str = None):
+    now = datetime.now(timezone.utc).isoformat()
+
     existing = (
         supabase.table("conversations")
         .select("*")
@@ -13,7 +16,23 @@ def get_or_create_conversation(chatbot_id: int, customer_phone: str, customer_na
     )
 
     if existing.data:
-        return existing.data[0]
+        conversation_id = existing.data[0]["id"]
+
+        update_data = {
+            "updated_at": now
+        }
+
+        if customer_name:
+            update_data["customer_name"] = customer_name
+
+        updated = (
+            supabase.table("conversations")
+            .update(update_data)
+            .eq("id", conversation_id)
+            .execute()
+        )
+
+        return updated.data[0] if updated.data else existing.data[0]
 
     new_conversation = {
         "chatbot_id": chatbot_id,
@@ -21,6 +40,7 @@ def get_or_create_conversation(chatbot_id: int, customer_phone: str, customer_na
         "customer_name": customer_name,
         "source_channel": "whatsapp",
         "conversation_status": "open",
+        "updated_at": now,
     }
 
     result = supabase.table("conversations").insert(new_conversation).execute()

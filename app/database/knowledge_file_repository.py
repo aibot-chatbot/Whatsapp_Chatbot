@@ -54,10 +54,11 @@ def update_knowledge_file_status(
 
     return result.data[0]
 
-def delete_knowledge_file_by_name(file_name: str):
+def delete_knowledge_file_by_name(chatbot_id: int, file_name: str):
     result = (
         supabase.table("knowledge_files")
         .delete()
+        .eq("chatbot_id", chatbot_id)
         .eq("file_name", file_name)
         .execute()
     )
@@ -82,7 +83,7 @@ def set_active_knowledge_file(chatbot_id: int, file_name: str):
 
     return result.data[0] if result.data else None
 
-def get_knowledge_files(chatbot_id: int = 1):
+def get_knowledge_files(chatbot_id: int):
     result = (
         supabase.table("knowledge_files")
         .select("*")
@@ -93,7 +94,7 @@ def get_knowledge_files(chatbot_id: int = 1):
 
     return result.data
 
-def get_active_knowledge_file(chatbot_id: int = 1):
+def get_active_knowledge_file(chatbot_id: int):
     result = (
         supabase.table("knowledge_files")
         .select("*")

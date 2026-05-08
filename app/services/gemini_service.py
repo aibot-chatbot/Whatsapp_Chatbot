@@ -1,7 +1,6 @@
 import logging
 import os
 import re
-import shelve
 import json
 import fitz  # PyMuPDF
 from dotenv import load_dotenv
@@ -14,6 +13,9 @@ from app.services.settings_service import (
     get_deployed_runtime,
 )
 from app.services.profile_service import get_profile_by_name
+from app.database.chat_history_repository import get_recent_chat_history
+from app.database.conversation_repository import get_or_create_conversation
+from app.database.knowledge_chunk_repository import search_similar_chunks
 
 logging.basicConfig(
     level=logging.INFO,
@@ -28,7 +30,6 @@ load_dotenv()
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 model_id="gemini-2.5-flash"
 
-CHAT_HISTORY_DB = "chat_history_db"
 MAX_HISTORY = 6
 
 KNOWLEDGE_STATE_FILE = os.path.abspath(
@@ -64,8 +65,8 @@ def get_latest_pdf():
     return "data/Speedbot.pdf"
 
 
-def get_initial_pdf_path():
-    deployed = get_deployed_runtime()
+def get_initial_pdf_path(chatbot_id=1):
+    deployed = get_deployed_runtime(chatbot_id)
     deployed_pdf_path = deployed.get("deployed_pdf_path", "")
 
     if deployed_pdf_path and os.path.exists(deployed_pdf_path):
@@ -75,12 +76,12 @@ def get_initial_pdf_path():
     logging.info("No deployed PDF found. No live PDF will be loaded.")
     return ""
 
-def get_deployed_settings():
-    deployed = get_deployed_runtime()
+def get_deployed_settings(chatbot_id=1):
+    deployed = get_deployed_runtime(chatbot_id)
     deployed_profile_name = deployed.get("deployed_profile_name", "")
 
     if deployed_profile_name:
-        profile = get_profile_by_name(deployed_profile_name)
+        profile = get_profile_by_name(deployed_profile_name, chatbot_id)
         if profile:
             return {
                 "bot_name": profile.get("bot_name", ""),
@@ -95,7 +96,7 @@ def get_deployed_settings():
     return get_settings()
 
 
-PDF_PATH = get_initial_pdf_path()
+PDF_PATH = get_initial_pdf_path(1)
 
 STOPWORDS = {
     "is", "am", "are", "the", "a", "an", "of", "to", "for", "and", "or", "in",
@@ -288,46 +289,44 @@ def score_chunk(query, query_words, chunk):
 
     return score
 
-def retrieve_relevant_chunks(query, top_k=3):
-    direct_matches = find_code_matches(query)
-    if direct_matches:
-        logging.info("Using direct code match retrieval.")
-        return direct_matches
-
-    base_words = clean_query_words(query)
-    query_words = expand_query_words(base_words)
-
-    scored_chunks = []
-
-    for chunk in PDF_CHUNKS:
-        score = score_chunk(query, query_words, chunk)
-        if score > 0:
-            scored_chunks.append((score, chunk))
-
-    scored_chunks.sort(key=lambda x: x[0], reverse=True)
-
-    selected = [chunk for score, chunk in scored_chunks[:top_k]]
-
-    if not selected:
-        logging.info("No strong chunk match found, using fallback chunk.")
+def generate_embedding(text):
+    if not text:
+        return []
+    try:
+        response = client.models.embed_content(
+            model='gemini-embedding-2',
+            contents=text,
+            config={"output_dimensionality": 768}
+        )
+        return response.embeddings[0].values
+    except Exception as e:
+        logging.error(f"Error generating embedding: {e}")
         return []
 
-    logging.info(f"Top chunk score: {scored_chunks[0][0] if scored_chunks else 0}")
-    return selected
+def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
+    # 1. Generate embedding for the question
+    query_embedding = generate_embedding(query)
+    if not query_embedding:
+        logging.warning("Could not generate embedding for query.")
+        return []
 
+    # 2. Search Supabase for similar chunks
+    # match_threshold controls how strict the match should be (0.0 to 1.0)
+    # usually 0.5 is a good starting point for cosine similarity
+    try:
+        results = search_similar_chunks(chatbot_id, query_embedding, match_threshold=0.5, match_count=top_k)
+        if not results:
+            logging.info("No strong chunk match found via vector search.")
+            return []
+        
+        logging.info(f"Top chunk similarity: {results[0].get('similarity')}")
+        return [res.get("content") for res in results]
+    except Exception as e:
+        logging.error(f"Vector search failed: {e}")
+        return []
 
-def load_chat_history(wa_id):
-    with shelve.open(CHAT_HISTORY_DB) as db:
-        return db.get(wa_id, [])
-
-
-def save_chat_history(wa_id, history):
-    with shelve.open(CHAT_HISTORY_DB, writeback=True) as db:
-        db[wa_id] = history
-
-
-def build_prompt(history, message, context_chunks):
-    settings = get_deployed_settings()
+def build_prompt(history, message, context_chunks, chatbot_id=1):
+    settings = get_deployed_settings(chatbot_id)
 
     bot_name = settings.get("bot_name") or "AI Assistant"
     company_name = settings.get("company_name") or "the company"
@@ -383,10 +382,10 @@ User question:
 
 Important rules:
 1. Answer using the provided Knowledge first.
-2. If the Knowledge contains the answer, answer directly and do not use the fallback message.
-3. Do not reject the question if it is related to the Knowledge or company information.
-4. Do not make up facts that are not in the Knowledge.
-5. If the Knowledge does not contain the answer, say you do not have that information and guide the user back to relevant topics.
+2. If the Knowledge contains the answer, answer directly.
+3. If the question is related to the bot's business/domain but the Knowledge is incomplete, you may still provide a helpful general answer that fits the business context.
+4. Do not invent exact company-specific facts, prices, policies, or guarantees that are not supported by the Knowledge.
+5. For general domain questions, give a practical and helpful answer instead of refusing too quickly.
 6. Keep the reply short, clear, and useful.
 7. Do not mention internal words like "context", "chunks", "database", or "PDF".
 
@@ -477,19 +476,11 @@ def is_out_of_scope(message):
     return any(word in msg for word in out_keywords)
 
 
-def handle_greeting():
-    settings = get_deployed_settings()
-    base_greeting = generate_greeting(settings) + "\n\n"
+def handle_greeting(chatbot_id=1):
+    settings = get_deployed_settings(chatbot_id)
+    base_greeting = generate_greeting(settings)
 
-    top_level_codes = [pair for pair in CODE_TITLE_PAIRS if re.fullmatch(r'[A-E]', pair[0])]
-
-    if top_level_codes:
-        menu = "Please reply with the appropriate code based on your inquiry:\n"
-        for code, title in top_level_codes:
-            menu += f"{code}. {title}\n"
-        return base_greeting + menu.strip()
-
-    return base_greeting + "Feel free to ask me any questions based on our provided information."
+    return base_greeting + "\n\nFeel free to ask me any questions based on our provided information."
 
 
 def format_structured_reply(main_text, extra_text=None, link=None):
@@ -768,43 +759,20 @@ def format_menu_reply(title, items, max_items=12):
 
 
 def handle_code_input(message, context_chunks=None):
-    code = message.strip().upper()
-
-    child_items = get_child_codes(code)
-    logging.info(f"Code input received: {code}")
-    logging.info(f"Child items for code: {child_items}")
-
-    exact_chunk = get_exact_code_chunk(code)
-    logging.info(f"Exact chunk for code: {exact_chunk}")
-
-    cleaned = clean_code_answer(exact_chunk, code)
-    logging.info(f"Cleaned answer for code: {cleaned}")
-
-    if child_items:
-        if re.fullmatch(r'[A-E]', code):
-            return format_menu_reply(f"Here are the options for {code}:", child_items)
-
-        if re.fullmatch(r'[A-E]\d+', code):
-            return format_menu_reply(f"Here are the available options under {code}:", child_items)
-
-    if cleaned:
-        if "need update by admin" in cleaned.lower():
-            return format_structured_reply(
-                "The detailed information for this item is not available yet.",
-                extra_text="Please contact the admin staff for the latest update."
-            )
-
-        return format_structured_reply(cleaned)
-
     if context_chunks:
         return format_structured_reply(context_chunks[0])
 
-    return "Sorry, I couldn’t find that menu option clearly. Please try another code."
+    return "Sorry, I couldn’t find that information clearly. Please try asking in a different way."
 
 
-def generate_response(message, wa_id):
+def generate_response(message, wa_id, chatbot_id=1):
     try:
-        history = load_chat_history(wa_id)
+        conversation = get_or_create_conversation(
+            chatbot_id=chatbot_id,
+            customer_phone=wa_id,
+            customer_name=None,
+        )
+        history = get_recent_chat_history(conversation["id"], limit=MAX_HISTORY)
 
         intent = detect_intent(message)
         logging.info(f"Detected intent: {intent}")
@@ -814,64 +782,70 @@ def generate_response(message, wa_id):
         show_code_match = re.fullmatch(r'(show|open|see|list)\s+([A-E](?:\d+(?:\.\d+)*)?)', msg, re.IGNORECASE)
         if show_code_match:
             normalized_code = show_code_match.group(2).upper()
-            reply = handle_code_input(normalized_code, retrieve_relevant_chunks(normalized_code))
+            reply = handle_code_input(normalized_code, retrieve_relevant_chunks(normalized_code, chatbot_id=chatbot_id))
 
         elif intent == "main_menu":
-            reply = handle_greeting()
+            reply = handle_greeting(chatbot_id)
 
         elif intent == "greeting":
-            reply = handle_greeting()
+            reply = handle_greeting(chatbot_id)
 
 
         else:
 
-            context_chunks = retrieve_relevant_chunks(message)
+            context_chunks = retrieve_relevant_chunks(message, chatbot_id=chatbot_id)
 
             logging.info(f"Retrieved chunks: {len(context_chunks)}")
 
             logging.info(f"User message: {message}")
 
             if intent == "code_input":
-
                 reply = handle_code_input(message, context_chunks)
 
-
             elif not context_chunks:
+                settings = get_deployed_settings(chatbot_id)
 
-                settings = get_deployed_settings()
+                prompt = f"""
+            You are a helpful AI assistant for {settings.get("company_name", "the company")}.
 
-                fallback_message = generate_fallback(settings)
+            Business description:
+            {settings.get("business_description", "")}
 
-                reply = format_structured_reply(
+            Tone:
+            {settings.get("tone", "Friendly")}
 
-                    fallback_message,
+            Additional instructions:
+            {settings.get("additional_instructions", "")}
 
-                    extra_text="Please ask about topics related to the uploaded knowledge or configured business information."
+            User question:
+            {message}
 
-                )
+            Rules:
+            1. The question is related to the business/domain, but there is no strong matching knowledge snippet.
+            2. Give a helpful general answer that fits the business/domain.
+            3. Do not invent exact company-specific facts, pricing, policies, or guarantees.
+            4. Keep the answer practical, natural, and concise.
+            5. Do not mention missing PDF, database, or internal system details.
 
-
-            else:
-
-                prompt = build_prompt(history, message, context_chunks)
+            Assistant:
+            """
 
                 response = client.models.generate_content(
-
                     model=model_id,
-
                     contents=prompt
-
                 )
 
                 reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
 
-        from datetime import datetime
-        now = datetime.now().isoformat()
-        history.append({"role": "user", "content": message, "timestamp": now})
-        history.append({"role": "assistant", "content": reply, "timestamp": now})
+            else:
+                prompt = build_prompt(history, message, context_chunks, chatbot_id)
 
-        history = history[-MAX_HISTORY:]
-        save_chat_history(wa_id, history)
+                response = client.models.generate_content(
+                    model=model_id,
+                    contents=prompt
+                )
+
+                reply = response.text.strip() if response.text else "Sorry, I’m not sure how to answer that right now."
 
         return reply
 

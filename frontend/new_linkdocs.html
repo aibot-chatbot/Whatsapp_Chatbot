@@ -12,6 +12,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
     <script src="sidebar-component.js"></script>
 
     <style>
@@ -372,6 +374,9 @@
             display: flex;
             align-items: center;
             gap: 10px;
+            max-width: 300px;
+            word-break: break-all;
+            overflow-wrap: anywhere;
         }
 
         .table-actions {
@@ -561,6 +566,24 @@
             const [fileToDelete, setFileToDelete] = useState(null);
             const [activeTab, setActiveTab] = useState("file");
             const [linkUrl, setLinkUrl] = useState("");
+            const urlParams = new URLSearchParams(window.location.search);
+            const selectedBotId = urlParams.get("bot_id") || 1;
+            const botQuery = `?chatbot_id=${selectedBotId}`;
+            const pageQuery = `?bot_id=${selectedBotId}`;
+            const [botName, setBotName] = useState("");
+
+            const fetchBotInfo = async () => {
+                try {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setBotName(data.data.bot_name || "Bot");
+                    }
+                } catch (error) {
+                    setBotName("Bot");
+                }
+            };
 
             const openModal = () => {
                 setStatus({ type: "", text: "", action: "" });
@@ -582,6 +605,15 @@
                 const selectedFile = input?.files?.[0];
                 if (!selectedFile) return;
 
+                if (selectedFile.name.length > 60) {
+                    setStatus({
+                        type: "error",
+                        text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`,
+                        action: ""
+                    });
+                    return;
+                }
+
                 if (selectedFile.type !== "application/pdf") {
                     setStatus({ type: "error", text: "Please select a valid PDF file.", action: "" });
                     return;
@@ -593,10 +625,10 @@
 
             const fetchFiles = async () => {
                 try {
-                    const res = await fetch("http://127.0.0.1:8000/api/knowledge/files");
+                    const res = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/files${botQuery}`);
                     const data = await res.json();
 
-                    const activeRes = await fetch("http://127.0.0.1:8000/api/knowledge/active");
+                    const activeRes = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/active${botQuery}`);
                     const activeData = await activeRes.json();
 
                     if (data.status === "success") {
@@ -629,7 +661,7 @@
                 formData.append("pdf_file", file);
 
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/upload-pdf", {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/upload-pdf${botQuery}`, {
                         method: "POST",
                         body: formData,
                     });
@@ -652,7 +684,7 @@
 
             const handleSetActive = async (fileName) => {
                 try {
-                    const response = await fetch("http://127.0.0.1:8000/api/knowledge/set-active", {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/set-active${botQuery}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -683,7 +715,7 @@
                 setFileToDelete(null);
 
                 try {
-                    const response = await fetch(`http://127.0.0.1:8000/api/knowledge/files/${encodeURIComponent(fileName)}`, {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/files/${encodeURIComponent(fileName)}${botQuery}`, {
                         method: "DELETE",
                     });
 
@@ -701,6 +733,7 @@
             };
 
             useEffect(() => {
+                fetchBotInfo();
                 fetchFiles();
             }, []);
 
@@ -717,7 +750,7 @@
 
                     <main className="main-container">
                         <div className="header">
-                            <h1>Links & Documents</h1>
+                            <h1>Links & Documents ({botName || "Bot"})</h1>
                             <p>Manage the source material your AI chatbot uses for its knowledge base.</p>
                         </div>
 
@@ -745,7 +778,7 @@
                                     Please review Bot Configuration so the chatbot matches this uploaded document.
                                 </div>
                                 <a
-                                    href="new_prompt.html"
+                                    href={`new_prompt.html${pageQuery}`}
                                     style={{
                                         display: "inline-block",
                                         padding: "10px 16px",

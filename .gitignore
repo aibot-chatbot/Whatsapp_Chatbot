@@ -24,8 +24,6 @@ var/
 *.egg
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -76,7 +74,6 @@ target/
 # Jupyter NB Checkpoints
 .ipynb_checkpoints/
 
-
 # Mac OS-specific storage files
 .DS_Store
 
@@ -87,7 +84,7 @@ target/
 # Mypy cache
 .mypy_cache/
 
-# Exlcude the database file
+# Exclude database file
 .db
 
 # chatbot history/database files
@@ -101,3 +98,4 @@ processed_messages_db.*
 
 # virtual environment
 pwb/
+venv/

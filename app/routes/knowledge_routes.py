@@ -1,4 +1,5 @@
 from flask import Blueprint, jsonify, request
+from app.decorators.auth_decorator import token_required
 
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
@@ -11,9 +12,11 @@ knowledge_blueprint = Blueprint("knowledge", __name__)
 
 
 @knowledge_blueprint.route("/api/knowledge/files", methods=["GET"])
+@token_required
 def get_uploaded_pdfs():
     try:
-        files = list_uploaded_pdfs()
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        files = list_uploaded_pdfs(chatbot_id)
         return jsonify({
             "status": "success",
             "data": files
@@ -26,9 +29,11 @@ def get_uploaded_pdfs():
 
 
 @knowledge_blueprint.route("/api/knowledge/active", methods=["GET"])
+@token_required
 def get_current_active_pdf():
     try:
-        active_pdf = get_active_pdf()
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        active_pdf = get_active_pdf(chatbot_id)
         return jsonify({
             "status": "success",
             "data": active_pdf
@@ -41,6 +46,7 @@ def get_current_active_pdf():
 
 
 @knowledge_blueprint.route("/api/knowledge/set-active", methods=["POST"])
+@token_required
 def set_current_active_pdf():
     try:
         data = request.get_json()
@@ -51,7 +57,8 @@ def set_current_active_pdf():
                 "message": "file_name is required"
             }), 400
 
-        result = set_active_pdf(data["file_name"])
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        result = set_active_pdf(data["file_name"], chatbot_id)
 
         return jsonify({
             "status": "success",
@@ -71,9 +78,11 @@ def set_current_active_pdf():
 
 
 @knowledge_blueprint.route("/api/knowledge/files/<file_name>", methods=["DELETE"])
+@token_required
 def delete_uploaded_pdf(file_name):
     try:
-        result = delete_pdf_file(file_name)
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        result = delete_pdf_file(file_name, chatbot_id)
         return jsonify({
             "status": "success",
             "data": result
