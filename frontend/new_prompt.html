@@ -601,7 +601,8 @@
             };
 
             const urlParams = new URLSearchParams(window.location.search);
-            const selectedBotId = urlParams.get("bot_id") || 1;
+            const selectedBotId = urlParams.get("bot_id") || sessionStorage.getItem("selectedBotId") || 1;
+            sessionStorage.setItem("selectedBotId", selectedBotId);
             const botQuery = `?chatbot_id=${selectedBotId}`;
             const pageQuery = `?bot_id=${selectedBotId}`;
 

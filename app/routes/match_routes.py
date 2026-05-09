@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request
 from app.services.match_service import check_pdf_config_match
 from app.services.settings_service import update_chatbot_runtime
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import verify_chatbot_access
 
 match_blueprint = Blueprint("match", __name__)
 
@@ -14,6 +15,7 @@ def check_match():
         data = request.get_json() or {}
         profile_name = data.get("profile_name")
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
 
         result = check_pdf_config_match(profile_name=profile_name, chatbot_id=chatbot_id)
 
@@ -32,7 +34,11 @@ def check_match():
             "status": "error",
             "message": str(e)
         }), 400
-
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
     except Exception as e:
         return jsonify({
             "status": "error",

@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify, request
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import verify_chatbot_access
 
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
@@ -16,6 +17,7 @@ knowledge_blueprint = Blueprint("knowledge", __name__)
 def get_uploaded_pdfs():
     try:
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         files = list_uploaded_pdfs(chatbot_id)
         return jsonify({
             "status": "success",
@@ -33,6 +35,7 @@ def get_uploaded_pdfs():
 def get_current_active_pdf():
     try:
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         active_pdf = get_active_pdf(chatbot_id)
         return jsonify({
             "status": "success",
@@ -58,6 +61,7 @@ def set_current_active_pdf():
             }), 400
 
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         result = set_active_pdf(data["file_name"], chatbot_id)
 
         return jsonify({
@@ -70,6 +74,11 @@ def set_current_active_pdf():
             "status": "error",
             "message": str(e)
         }), 400
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -82,6 +91,7 @@ def set_current_active_pdf():
 def delete_uploaded_pdf(file_name):
     try:
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         result = delete_pdf_file(file_name, chatbot_id)
         return jsonify({
             "status": "success",
