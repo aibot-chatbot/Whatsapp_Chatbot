@@ -178,13 +178,21 @@ def delete_pdf_file(file_name, chatbot_id):
         raise ValueError("File not found")
 
     active = get_active_knowledge_file(chatbot_id=chatbot_id)
-
-    if active and safe_name == active.get("file_name"):
-        raise ValueError("Cannot delete the currently active PDF")
+    is_active_file = active and safe_name == active.get("file_name")
 
     os.remove(target_path)
 
     delete_knowledge_file_by_name(chatbot_id, safe_name)
+
+    if is_active_file:
+        update_chatbot_runtime({
+            "draft_pdf_file_name": "",
+            "draft_pdf_path": "",
+            "deployed_pdf_file_name": "",
+            "deployed_pdf_path": "",
+            "last_match_result": None,
+            "last_match_reason": "",
+        }, chatbot_id)
 
     return {
         "file_name": safe_name,

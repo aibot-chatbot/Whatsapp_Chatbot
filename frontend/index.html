@@ -360,12 +360,19 @@
                 const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
                 const result = await response.json();
 
-                if (result.status === "success") {
-                    document.getElementById("dashboard-title").innerText =
-                        `${result.data.bot_name} Dashboard`;
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    alert("You do not have access to this bot.");
+                    window.location.href = "bots.html";
+                    return;
                 }
+
+                document.getElementById("dashboard-title").innerText =
+                    `${result.data.bot_name} Dashboard`;
+
             } catch (err) {
                 console.error("Failed to fetch selected bot", err);
+                alert("Failed to load bot. Please select a bot again.");
+                window.location.href = "bots.html";
             }
         }
 
