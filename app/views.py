@@ -6,12 +6,14 @@ import os
 from werkzeug.utils import secure_filename
 
 from .decorators.security import signature_required
+from app.decorators.auth_decorator import token_required
 from .utils.whatsapp_utils import (
     process_whatsapp_message,
     is_valid_whatsapp_message,
 )
 from .services.gemini_service import reload_pdf, update_pdf_path
 from app.services.knowledge_service import save_uploaded_pdf
+from app.utils.access_control import verify_chatbot_access
 
 webhook_blueprint = Blueprint("webhook", __name__)
 
@@ -92,6 +94,7 @@ def webhook_post():
 
 
 @webhook_blueprint.route("/upload-pdf", methods=["POST"])
+@token_required
 def upload_pdf():
     try:
         if "pdf_file" not in request.files:
@@ -100,6 +103,7 @@ def upload_pdf():
         file = request.files["pdf_file"]
 
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         result = save_uploaded_pdf(file, chatbot_id)
 
         return jsonify({

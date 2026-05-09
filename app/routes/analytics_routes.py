@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request
 
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import verify_chatbot_access
 from app.database.analytics_repository import (
     get_total_users,
     get_total_user_messages,
@@ -10,14 +11,14 @@ from app.database.analytics_repository import (
 
 analytics_blueprint = Blueprint("analytics", __name__)
 
+
 @analytics_blueprint.route("/api/analytics", methods=["GET"])
 @token_required
 def get_analytics():
     try:
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
-        print("Dashboard analytics chatbot_id:", chatbot_id)
+        verify_chatbot_access(chatbot_id)
 
         total_users = get_total_users(chatbot_id)
         total_messages = get_total_user_messages(chatbot_id)
@@ -33,6 +34,18 @@ def get_analytics():
                 "chart": chart
             }
         }), 200
+
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 401
 
     except Exception as e:
         return jsonify({

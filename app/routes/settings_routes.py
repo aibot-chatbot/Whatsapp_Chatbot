@@ -8,6 +8,7 @@ from app.services.settings_service import (
     apply_profile_to_settings,
 )
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import verify_chatbot_access
 
 settings_blueprint = Blueprint("settings", __name__)
 
@@ -16,6 +17,7 @@ settings_blueprint = Blueprint("settings", __name__)
 def fetch_settings():
     try:
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         settings = get_deployed_settings_summary(chatbot_id)
         return jsonify({
             "status": "success",
@@ -67,6 +69,7 @@ def save_active_profile():
 
         active_profile = data.get("active_profile", "")
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         updated_settings = set_active_profile(active_profile, chatbot_id)
 
         return jsonify({
@@ -93,6 +96,7 @@ def apply_profile():
 
         profile_name = data.get("profile_name", "")
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         updated_settings = apply_profile_to_settings(profile_name, chatbot_id)
 
         return jsonify({
@@ -106,7 +110,11 @@ def apply_profile():
             "status": "error",
             "message": str(e)
         }), 400
-
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
     except Exception as e:
         return jsonify({
             "status": "error",
