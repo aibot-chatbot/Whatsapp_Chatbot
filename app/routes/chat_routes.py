@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from app.decorators.auth_decorator import token_required
 
 # import your existing chatbot function
-from app.services.gemini_service import generate_response
+from app.services.ai_router import generate_response
 
 # create blueprint
 chat_blueprint = Blueprint("chat", __name__)
