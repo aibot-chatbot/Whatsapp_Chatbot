@@ -261,6 +261,12 @@
                 const result = await response.json();
 
                 if (!response.ok) {
+                    if (result.status === "unverified") {
+                        sessionStorage.setItem("pending_verification_email", result.email || email);
+                        alert(result.message);
+                        window.location.href = "verify-email.html";
+                        return;
+                    }
                     alert(result.error || result.message || "Login failed");
                     loginBtn.classList.remove('loading');
                     return;
