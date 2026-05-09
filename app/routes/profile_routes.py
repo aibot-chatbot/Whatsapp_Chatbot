@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 
 from app.services.profile_service import get_profiles, save_profile, delete_profile
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import verify_chatbot_access
 
 profile_blueprint = Blueprint("profile", __name__)
 
@@ -10,6 +11,7 @@ profile_blueprint = Blueprint("profile", __name__)
 def fetch_profiles():
     try:
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         profiles = get_profiles(chatbot_id)
         return jsonify({
             "status": "success",
@@ -34,6 +36,7 @@ def create_profile():
             }), 400
 
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         saved_profile = save_profile(data, chatbot_id)
 
         return jsonify({
@@ -56,6 +59,7 @@ def create_profile():
 def remove_profile(profile_name):
     try:
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
         deleted_profile = delete_profile(profile_name, chatbot_id)
 
         return jsonify({
@@ -67,6 +71,11 @@ def remove_profile(profile_name):
             "status": "error",
             "message": str(e)
         }), 400
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
     except Exception as e:
         return jsonify({
             "status": "error",
