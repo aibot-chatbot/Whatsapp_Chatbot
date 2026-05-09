@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Provider Settings | AI Chatbot</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image: 
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 50px 60px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            padding: 40px;
+            border-radius: 32px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+        }
+
+        .form-group {
+            margin-bottom: 30px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 12px;
+            font-weight: 600;
+            color: var(--text-main);
+            font-size: 1.1rem;
+        }
+
+        .form-group p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 12px;
+        }
+
+        select, input[type="text"] {
+            width: 100%;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid var(--glass-border);
+            background: rgba(15, 23, 42, 0.8);
+            color: var(--text-main);
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        select:focus, input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 15px var(--primary-glow);
+        }
+
+        .slider-container {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        input[type="range"] {
+            flex-grow: 1;
+            accent-color: var(--primary);
+        }
+
+        .temp-value {
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: var(--accent);
+            min-width: 40px;
+        }
+
+        .save-btn {
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            border: none;
+            padding: 18px 40px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 10px 25px var(--primary-glow);
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .save-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px var(--primary-glow);
+        }
+
+        .save-btn:active {
+            transform: translateY(0);
+        }
+
+        .save-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status-msg {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 500;
+            display: none;
+        }
+
+        .status-success { color: var(--accent); }
+        .status-error { color: #ef4444; }
+
+    </style>
+</head>
+<body>
+    <script src="sidebar-component.js"></script>
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container">
+        <div class="header">
+            <h1>AI Provider Settings</h1>
+            <p>Configure the brain of your chatbot. Select the best model for your needs.</p>
+        </div>
+
+        <div class="glass-card">
+            <div class="form-group">
+                <label>AI Provider</label>
+                <p>Choose which AI engine will power your chatbot's responses.</p>
+                <select id="ai-provider" onchange="onProviderChange()">
+                    <option value="Gemini">Google Gemini</option>
+                    <option value="DeepSeek">DeepSeek AI</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Model Name</label>
+                <p>Specify the exact model version (e.g., <code>gemini-2.0-flash</code> or <code>deepseek-chat</code>).</p>
+                <input type="text" id="model-name" placeholder="Enter model name">
+            </div>
+
+            <div class="form-group">
+                <label>Temperature (<span id="temp-display">0.7</span>)</label>
+                <p>Controls randomness: 0 is precise/deterministic, 1 is creative/varied.</p>
+                <div class="slider-container">
+                    <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7" oninput="updateTempDisplay(this.value)">
+                    <span class="temp-value" id="temp-val-label">0.7</span>
+                </div>
+            </div>
+
+            <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Configuration</button>
+            <div id="status-msg" class="status-msg"></div>
+        </div>
+    </main>
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        requireLogin();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const botId = urlParams.get("bot_id") || 1;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            fetchSettings();
+        });
+
+        function updateTempDisplay(val) {
+            document.getElementById("temp-display").innerText = val;
+            document.getElementById("temp-val-label").innerText = val;
+        }
+
+        function onProviderChange() {
+            const provider = document.getElementById("ai-provider").value;
+            const modelInput = document.getElementById("model-name");
+            
+            if (provider === "Gemini") {
+                modelInput.placeholder = "e.g. gemini-2.0-flash";
+            } else {
+                modelInput.placeholder = "e.g. deepseek-chat";
+            }
+        }
+
+        async function fetchSettings() {
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`);
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    const bot = result.data;
+                    document.getElementById("ai-provider").value = bot.ai_provider || "Gemini";
+                    document.getElementById("model-name").value = bot.model_name || "";
+                    document.getElementById("temperature").value = bot.temperature !== undefined ? bot.temperature : 0.7;
+                    updateTempDisplay(document.getElementById("temperature").value);
+                    onProviderChange();
+                }
+            } catch (error) {
+                console.error("Failed to fetch settings", error);
+            }
+        }
+
+        async function saveSettings() {
+            const provider = document.getElementById("ai-provider").value;
+            const model = document.getElementById("model-name").value.trim();
+            const temp = parseFloat(document.getElementById("temperature").value);
+            const saveBtn = document.getElementById("save-btn");
+            const statusMsg = document.getElementById("status-msg");
+
+            saveBtn.disabled = true;
+            saveBtn.innerText = "Saving...";
+            statusMsg.style.display = "none";
+
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        ai_provider: provider,
+                        model_name: model,
+                        temperature: temp
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    statusMsg.innerText = "Settings saved successfully! ✨";
+                    statusMsg.className = "status-msg status-success";
+                } else {
+                    statusMsg.innerText = "Failed to save settings: " + result.message;
+                    statusMsg.className = "status-msg status-error";
+                }
+            } catch (error) {
+                statusMsg.innerText = "Error connecting to server.";
+                statusMsg.className = "status-msg status-error";
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerText = "Save Configuration";
+                statusMsg.style.display = "block";
+            }
+        }
+    </script>
+</body>
+</html>
