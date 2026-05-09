@@ -325,6 +325,25 @@ def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
         logging.error(f"Vector search failed: {e}")
         return []
 
+def build_rag_prompt(message, context_chunks):
+    """
+    Simplified prompt builder for external providers (DeepSeek, Groq, etc.)
+    """
+    context = "\n\n".join(context_chunks)
+    prompt = f"""
+Use the following context to answer the user's question. 
+If you don't know the answer based on the context, answer politely based on general knowledge but stay within the business domain.
+
+Context:
+{context}
+
+User Question:
+{message}
+
+Answer:
+"""
+    return prompt
+
 def build_prompt(history, message, context_chunks, chatbot_id=1):
     settings = get_deployed_settings(chatbot_id)
 

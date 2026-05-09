@@ -97,8 +97,54 @@
 
         .main-container { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; }
         .chat-interface { flex-grow: 1; display: flex; flex-direction: column; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(10px); margin: 30px; border-radius: 30px; border: 1px solid var(--glass-border); overflow: hidden; }
-        .chat-header { padding: 20px 30px; border-bottom: 1px solid var(--glass-border); display: flex; align-items: center; gap: 15px; }
+        .chat-header { padding: 20px 30px; border-bottom: 1px solid var(--glass-border); display: flex; align-items: center; justify-content: space-between; }
+        .header-left { display: flex; align-items: center; gap: 15px; }
         .chat-header .status-dot { width: 10px; height: 10px; background: #10b981; border-radius: 50%; box-shadow: 0 0 10px #10b981; }
+        
+        .ai-badge {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+            color: #60a5fa;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
+        }
+        
+        .badge-gemini { color: #60a5fa; border-color: #60a5fa; background: rgba(59, 130, 246, 0.1); }
+        .badge-deepseek { color: #a855f7; border-color: #a855f7; background: rgba(168, 85, 247, 0.1); }
+        .badge-groq { color: #10b981; border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
+        
+        .badge-grok { 
+            color: #f59e0b; 
+            border-color: #f59e0b; 
+            background: rgba(245, 158, 11, 0.15); 
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+            animation: grok-pulse 2s infinite;
+        }
+
+        @keyframes grok-pulse {
+            0% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+            50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.5); }
+            100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.2); }
+        }
+
+        .badge-cloudflare { color: #f97316; border-color: #f97316; background: rgba(249, 115, 22, 0.1); }
+
+        .ai-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: currentColor;
+            border-radius: 50%;
+            box-shadow: 0 0 8px currentColor;
+        }
         .messages-area { flex-grow: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
         .message { max-width: 80%; padding: 15px 20px; border-radius: 20px; font-size: 0.95rem; line-height: 1.5; }
         .bot { background: rgba(255, 255, 255, 0.05); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid var(--glass-border); }
@@ -115,8 +161,11 @@
     <main class="main-container">
         <div class="chat-interface">
             <div class="chat-header">
-                <div class="status-dot"></div>
-                <h3 style="font-weight: 600;">Ai Chatbot · Test Instance</h3>
+                <div class="header-left">
+                    <div class="status-dot"></div>
+                    <h3 id="bot-header-title" style="font-weight: 600;">Ai Chatbot · Test Instance</h3>
+                </div>
+                <div id="ai-provider-badge" class="ai-badge" style="display: none;">Gemini</div>
             </div>
             <div class="messages-area" id="chat-messages">
                 <div class="message bot">Loading test bot context...</div>
@@ -133,8 +182,23 @@
         requireLogin();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const selectedBotId = urlParams.get("bot_id") || sessionStorage.getItem("selectedBotId") || 1;
+        let selectedBotId = urlParams.get("bot_id");
+        
+        // If not in URL, check sessionStorage
+        if (!selectedBotId) {
+            selectedBotId = sessionStorage.getItem("selectedBotId");
+        }
+        
+        // Final fallback to 1, but log it
+        if (!selectedBotId) {
+            console.warn("No bot_id found in URL or session, defaulting to 1");
+            selectedBotId = 1;
+        }
+        
+        // Save back to session to keep it consistent
         sessionStorage.setItem("selectedBotId", selectedBotId);
+        console.log("Current Test Bot ID:", selectedBotId);
+
         const botQuery = `?chatbot_id=${selectedBotId}`;
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -143,7 +207,8 @@
             const sendBtn = document.getElementById('send-btn');
             const input = document.getElementById('message-input');
             const messages = document.getElementById('chat-messages');
-            const chatHeader = document.querySelector('.chat-header h3');
+            const chatHeader = document.getElementById('bot-header-title');
+            const providerBadge = document.getElementById('ai-provider-badge');
 
             function appendMessage(role, text, isHtml = false) {
                 const msg = document.createElement('div');
@@ -178,7 +243,24 @@
                             ? selectedBotData.data.bot_name
                             : "Selected Bot";
 
-                        chatHeader.textContent = `${botName} · ${selectedBotName}`;
+                        chatHeader.textContent = `${botName}`;
+                        if (selectedBotData.status === "success" && selectedBotData.data.ai_provider) {
+                            const provider = selectedBotData.data.ai_provider;
+                            providerBadge.textContent = `${provider} (${selectedBotData.data.model_name || 'default'})`;
+                            
+                            // Reset classes
+                            providerBadge.className = 'ai-badge';
+                            
+                            // Add provider-specific class
+                            const pLower = provider.toLowerCase();
+                            if (pLower.includes('gemini')) providerBadge.classList.add('badge-gemini');
+                            else if (pLower.includes('deepseek')) providerBadge.classList.add('badge-deepseek');
+                            else if (pLower.includes('groq')) providerBadge.classList.add('badge-groq');
+                            else if (pLower.includes('grok')) providerBadge.classList.add('badge-grok');
+                            else if (pLower.includes('cloudflare')) providerBadge.classList.add('badge-cloudflare');
+                            
+                            providerBadge.style.display = 'flex';
+                        }
 
                         appendMessage(
                             'bot',

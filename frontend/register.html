@@ -228,7 +228,13 @@
 
             <div class="input-group">
                 <label>Password</label>
-                <input type="password" id="password" placeholder="••••••••" required>
+                <input type="password" id="password" placeholder="••••••••" required oninput="checkPasswordStrength(this.value)">
+                <div id="password-strength-container" style="margin-top: 8px; display: none;">
+                    <div style="height: 4px; width: 100%; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                        <div id="strength-bar" style="height: 100%; width: 0%; transition: all 0.3s;"></div>
+                    </div>
+                    <p id="strength-text" style="font-size: 0.75rem; margin-top: 4px; color: var(--text-dim);"></p>
+                </div>
             </div>
 
             <div class="input-group">
@@ -252,6 +258,44 @@
     </div>
 
     <script>
+        function checkPasswordStrength(password) {
+            const container = document.getElementById('password-strength-container');
+            const bar = document.getElementById('strength-bar');
+            const text = document.getElementById('strength-text');
+            
+            if (!password) {
+                container.style.display = 'none';
+                return;
+            }
+            
+            container.style.display = 'block';
+            let strength = 0;
+            let feedback = "";
+            
+            if (password.length >= 8) strength += 25;
+            if (/[A-Z]/.test(password)) strength += 25;
+            if (/[0-9]/.test(password)) strength += 25;
+            if (/[!@#$%^&*()\-=_+[\]{}|;:,.<>?]/.test(password)) strength += 25;
+            
+            bar.style.width = strength + "%";
+            
+            if (strength <= 25) {
+                bar.style.background = "#ef4444";
+                feedback = "Weak (Need 8+ chars, caps, nums, symbols)";
+            } else if (strength <= 50) {
+                bar.style.background = "#f59e0b";
+                feedback = "Moderate";
+            } else if (strength <= 75) {
+                bar.style.background = "#3b82f6";
+                feedback = "Good";
+            } else {
+                bar.style.background = "#10b981";
+                feedback = "Strong Password ✨";
+            }
+            
+            text.innerText = feedback;
+        }
+
         const regForm = document.getElementById('register-form');
         const submitBtn = document.getElementById('submit-btn');
 
@@ -296,8 +340,11 @@
                     return;
                 }
 
-                alert("Account created successfully. Please login.");
-                window.location.href = "login.html";
+                // Store email in sessionStorage for the verification page
+                sessionStorage.setItem("pending_verification_email", email);
+                
+                alert(result.message);
+                window.location.href = "verify-email.html";
 
             } catch (error) {
                 console.error("Register error:", error);
