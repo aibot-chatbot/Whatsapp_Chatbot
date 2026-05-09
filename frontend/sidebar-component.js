@@ -12,26 +12,109 @@ class ChatbotSidebar extends HTMLElement {
         const isBotsPage = currentPath === "bots.html";
 
         this.innerHTML = `
-        <aside class="sidebar" style="width: 280px; background: var(--sidebar-bg); backdrop-filter: blur(20px); border-right: 1px solid var(--glass-border); height: 100vh; display: flex; flex-direction: column; padding: 40px 20px; position: sticky; top: 0; z-index: 100;">
-            <div class="logo" style="font-size: 1.5rem; font-weight: 700; margin-bottom: 50px; display: flex; align-items: center; gap: 12px; background: linear-gradient(to right, #60a5fa, #10b981); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;">
+        <style>
+            .sidebar {
+                width: 280px;
+                background: var(--sidebar-bg);
+                backdrop-filter: blur(20px);
+                border-right: 1px solid var(--glass-border);
+                height: 100vh;
+                display: flex;
+                flex-direction: column;
+                padding: 40px 20px;
+                position: sticky;
+                top: 0;
+                z-index: 100;
+            }
+            .logo {
+                font-size: 1.5rem;
+                font-weight: 700;
+                margin-bottom: 50px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                background: linear-gradient(to right, #60a5fa, #10b981);
+                -webkit-background-clip: text;
+                background-clip: text;
+                -webkit-text-fill-color: transparent;
+            }
+            .nav-list {
+                list-style: none;
+                flex-grow: 1;
+            }
+            .nav-item {
+                margin-bottom: 8px;
+            }
+            .nav-link {
+                text-decoration: none;
+                color: var(--text-dim);
+                padding: 12px 16px;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                transition: all 0.3s;
+                font-weight: 500;
+                cursor: pointer;
+            }
+            .nav-link:hover {
+                background: rgba(255, 255, 255, 0.05);
+                color: var(--text-main);
+            }
+            .dropdown-content {
+                max-height: 0;
+                overflow: hidden;
+                transition: all 0.3s ease-in-out;
+                padding-left: 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+            }
+            .dropdown-container.open .dropdown-content {
+                max-height: 500px;
+                margin-top: 8px;
+                padding-bottom: 8px;
+            }
+            .sub-link {
+                font-size: 0.9rem;
+                padding: 10px 16px;
+            }
+            .logout-btn {
+                margin-top: auto;
+                color: #ef4444;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px 16px;
+                text-decoration: none;
+                font-weight: 600;
+                border-radius: 12px;
+                transition: background 0.3s;
+            }
+            .logout-btn:hover {
+                background: rgba(239, 68, 68, 0.1);
+            }
+        </style>
+        <aside class="sidebar">
+            <div class="logo">
                 <span>AI CHATBOT</span>
             </div>
     
-            <nav class="nav-list" style="list-style: none; flex-grow: 1;">
-                <div class="nav-item" style="margin-bottom: 8px;">
+            <nav class="nav-list">
+                <div class="nav-item">
                     <a href="bots.html" class="nav-link">🤖 Bots</a>
                 </div>
     
                 ${!isBotsPage && botId ? `
-                    <div class="nav-item" style="margin-bottom: 8px;">
+                    <div class="nav-item">
                         <a href="index.html${botQuery}" class="nav-link">📊 Dashboard</a>
                     </div>
     
-                    <div class="dropdown-container" id="training-dropdown" style="margin-bottom: 8px;">
+                    <div class="dropdown-container" id="training-dropdown">
                         <div class="nav-item">
-                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')" style="width: 100%; justify-content: space-between; background: transparent; border: none; cursor: pointer; text-align: left; color: var(--text-dim); padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 12px; font-weight: 500; font-family: 'Outfit', sans-serif; font-size: 1rem;">
+                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')" style="width: 100%; justify-content: space-between; background: transparent; border: none; font-family: inherit; font-size: inherit;">
                                 <span>📁 Training Data</span>
-                                <span>⌄</span>
+                                <span class="chevron">⌄</span>
                             </button>
                         </div>
                         <div class="dropdown-content">
@@ -41,20 +124,20 @@ class ChatbotSidebar extends HTMLElement {
                         </div>
                     </div>
     
-                    <div class="dropdown-container" id="behaviour-dropdown" style="margin-bottom: 8px;">
+                    <div class="dropdown-container" id="behaviour-dropdown">
                         <div class="nav-item">
-                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('behaviour-dropdown')" style="width: 100%; justify-content: space-between; background: transparent; border: none; cursor: pointer; text-align: left; color: var(--text-dim); padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 12px; font-weight: 500; font-family: 'Outfit', sans-serif; font-size: 1rem;">
+                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('behaviour-dropdown')" style="width: 100%; justify-content: space-between; background: transparent; border: none; font-family: inherit; font-size: inherit;">
                                 <span>⚙️ Behaviour</span>
-                                <span>⌄</span>
+                                <span class="chevron">⌄</span>
                             </button>
                         </div>
                         <div class="dropdown-content">
-                            <a href="behaviour.html${botQuery}" class="nav-link sub-link">🤖 Tune AI</a>
+                            <a href="model_settings.html${botQuery}" class="nav-link sub-link">🤖 Tune AI</a>
                             <a href="testbot.html${botQuery}" class="nav-link sub-link">🧪 Test Your Bot</a>
                         </div>
                     </div>
     
-                    <div class="nav-item" style="margin-bottom: 8px;">
+                    <div class="nav-item">
                         <a href="integration.html${botQuery}" class="nav-link">🔌 Integration</a>
                     </div>
                 ` : ""}
@@ -74,6 +157,9 @@ class ChatbotSidebar extends HTMLElement {
         navLinks.forEach(link => {
             if (link.getAttribute('href') === currentPath) {
                 link.classList.add('active');
+                link.style.background = 'var(--primary)';
+                link.style.color = 'white';
+                link.style.boxShadow = '0 4px 20px var(--primary-glow)';
             }
         });
 
@@ -82,7 +168,7 @@ class ChatbotSidebar extends HTMLElement {
             const drop = this.querySelector('#training-dropdown');
             if (drop) drop.classList.add('open');
         }
-        if (['behaviour.html', 'testbot.html'].includes(currentPath)) {
+        if (['model_settings.html', 'testbot.html'].includes(currentPath)) {
             const drop = this.querySelector('#behaviour-dropdown');
             if (drop) drop.classList.add('open');
         }
