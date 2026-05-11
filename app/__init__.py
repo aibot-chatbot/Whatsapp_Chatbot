@@ -22,7 +22,7 @@ def create_app():
                 template_folder=os.path.join(root_dir, 'frontend'),
                 static_folder=os.path.join(root_dir, 'frontend', 'static')) # Added this!
 
-    CORS(app, resources={r"/api/*": {"origins": "*"}})
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     # Load configurations and logging settings
     load_configurations(app)
