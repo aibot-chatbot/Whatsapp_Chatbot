@@ -3,7 +3,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.database.user_repository import get_user_by_email, create_user
 from app.database.company_repository import create_company
-from app.database.bot_repository import create_bot
 from app.services.email_service import send_otp_email
 
 import jwt
@@ -213,16 +212,6 @@ def verify_otp():
 
         # Mark user as verified immediately
         supabase.table("users").update({"is_verified": True}).eq("id", user["id"]).execute()
-
-        create_bot({
-            "bot_name": f"{pending['company_name']} Assistant",
-            "bot_description": f"Default chatbot for {pending['company_name']}",
-            "language": "English",
-            "tone": "Friendly",
-            "welcome_message": f"Hi there! Welcome to {pending['company_name']}. How can I help you today?",
-            "fallback_message": "Sorry, I do not have that information yet.",
-            "is_active": True,
-        }, company_id=company["id"])
 
         # Clean up pending registration
         supabase.table("pending_registrations").delete().eq("email", email).execute()

@@ -43,14 +43,33 @@ def delete_chunks_by_file(file_id: int):
     return result.data
 
 # 5. SEARCH (Vector Similarity)
-def search_similar_chunks(chatbot_id: int, query_embedding: list, match_threshold: float = 0.5, match_count: int = 5):
-    result = supabase.rpc(
-        "match_knowledge_chunks",
-        {
-            "query_embedding": query_embedding,
-            "match_threshold": match_threshold,
-            "match_count": match_count,
-            "p_chatbot_id": chatbot_id
-        }
-    ).execute()
+def search_similar_chunks(
+    chatbot_id: int,
+    query_embedding: list,
+    match_threshold: float = 0.5,
+    match_count: int = 5,
+    file_id: int = None
+):
+    if file_id:
+        result = supabase.rpc(
+            "match_knowledge_chunks_by_file",
+            {
+                "query_embedding": query_embedding,
+                "match_threshold": match_threshold,
+                "match_count": match_count,
+                "p_chatbot_id": chatbot_id,
+                "p_file_id": file_id
+            }
+        ).execute()
+    else:
+        result = supabase.rpc(
+            "match_knowledge_chunks",
+            {
+                "query_embedding": query_embedding,
+                "match_threshold": match_threshold,
+                "match_count": match_count,
+                "p_chatbot_id": chatbot_id
+            }
+        ).execute()
+
     return result.data

@@ -256,8 +256,6 @@ def set_active_profile(profile_name, chatbot_id):
 
 
 def apply_profile_to_settings(profile_name, chatbot_id):
-    from app.services.gemini_service import update_pdf_path
-
     if not profile_name:
         raise ValueError("Profile name is required")
 
@@ -278,9 +276,6 @@ def apply_profile_to_settings(profile_name, chatbot_id):
         "last_match_result": draft_runtime.get("last_match_result"),
         "last_match_reason": draft_runtime.get("last_match_reason", ""),
     }, chatbot_id)
-
-    if deployed_pdf_path:
-        update_pdf_path(deployed_pdf_path)
 
     return {
         "active_profile": profile_name,

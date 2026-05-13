@@ -2,14 +2,8 @@ import logging
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
-from app.services.gemini_service import (
-    retrieve_relevant_chunks,
-    build_prompt,
-    detect_intent,
-    handle_greeting,
-    handle_code_input,
-    MAX_HISTORY
-)
+from app.services.chat_logic_service import detect_intent, handle_greeting, handle_out_of_scope, MAX_HISTORY
+from app.services.rag_service import retrieve_relevant_chunks, build_prompt
 from app.database.chat_history_repository import get_recent_chat_history
 from app.database.conversation_repository import get_or_create_conversation
 
@@ -35,6 +29,9 @@ def generate_response(message, wa_id, chatbot_id=1, model="deepseek-chat", tempe
 
         if intent == "greeting" or intent == "main_menu":
             return handle_greeting(chatbot_id)
+
+        if intent == "out_of_scope":
+            return handle_out_of_scope(chatbot_id)
 
         # RAG: Retrieve context
         context_chunks = retrieve_relevant_chunks(message, chatbot_id=chatbot_id)
