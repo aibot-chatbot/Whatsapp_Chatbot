@@ -11,7 +11,6 @@ from .utils.whatsapp_utils import (
     process_whatsapp_message,
     is_valid_whatsapp_message,
 )
-from .services.gemini_service import reload_pdf, update_pdf_path
 from app.services.knowledge_service import save_uploaded_pdf
 from app.utils.access_control import verify_chatbot_access
 

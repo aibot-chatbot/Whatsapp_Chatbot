@@ -4,7 +4,7 @@ import json
 import requests
 import re
 
-from app.services.gemini_service import generate_response
+from app.services.ai_router import generate_response
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
 from app.database.processed_message_repository import is_processed, save_processed

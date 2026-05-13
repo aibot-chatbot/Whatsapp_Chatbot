@@ -51,7 +51,7 @@ def save_uploaded_pdf(file, chatbot_id):
     try:
         import fitz
         import logging
-        from app.services.gemini_service import split_text_into_sections, generate_embedding
+        from app.services.rag_service import split_text_into_sections, generate_embedding
         from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
         doc = fitz.open(filepath)

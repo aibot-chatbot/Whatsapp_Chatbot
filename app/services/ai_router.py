@@ -34,7 +34,7 @@ def generate_response(message, wa_id, chatbot_id=1):
             )
         elif provider == "groq":
             # Use specific model if provided, else default to llama-3.1-70b-versatile
-            model = model_name if model_name else "llama-3.1-70b-versatile"
+            model = model_name if model_name else "llama-3.3-70b-versatile"
             return groq_service.generate_response(
                 message, wa_id, chatbot_id, 
                 model=model, 
@@ -57,12 +57,24 @@ def generate_response(message, wa_id, chatbot_id=1):
                 temperature=temperature
             )
         else:
-            # Default to Gemini
-            # Note: gemini_service doesn't currently take model/temp as arguments in generate_response, 
-            # but we can extend it later if needed.
-            return gemini_service.generate_response(message, wa_id, chatbot_id)
+            model = model_name if model_name else "gemini-2.5-flash"
+
+            if model == "gemini-2.0-flash":
+                model = "gemini-2.5-flash"
+
+            return gemini_service.generate_response(
+                message,
+                wa_id,
+                chatbot_id,
+                model=model,
+                temperature=temperature
+            )
 
     except Exception as e:
         logging.error(f"AI Router Error: {e}")
         # Fallback to Gemini if anything fails
-        return gemini_service.generate_response(message, wa_id, chatbot_id)
+        return gemini_service.generate_response(
+            message,
+            wa_id,
+            chatbot_id
+        )

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from app.services.gemini_service import generate_response
+from app.services.ai_router import generate_response
 from app.services.settings_service import get_deployed_runtime
 from app.services.profile_service import get_profile_by_name
 from app.decorators.auth_decorator import token_required
