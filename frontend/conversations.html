@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversations | AI Chatbot</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
+    <script src="sidebar-component.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.82);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --input-bg: rgba(15, 23, 42, 0.6);
+
+            /* Chat specific colors */
+            --bubble-user: var(--primary);
+            --bubble-bot: rgba(30, 41, 59, 0.9);
+            --bubble-user-text: #ffffff;
+            --bubble-bot-text: var(--text-main);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+            /* Prevent body scrolling, handle inside panes */
+        }
+
+        .main-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 30px;
+            gap: 20px;
+        }
+
+        .header {
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-dim);
+        }
+
+        .split-view {
+            display: flex;
+            flex-grow: 1;
+            gap: 20px;
+            min-height: 0;
+            /* Important for flex child scrolling */
+        }
+
+        /* Left Pane: Inbox List */
+        .inbox-pane {
+            width: 350px;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .inbox-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .search-box {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-box i,
+        .search-box svg {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-dim);
+            width: 18px;
+            height: 18px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px 16px 12px 40px;
+            color: white;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .conversation-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        /* Custom Scrollbar */
+        .conversation-list::-webkit-scrollbar,
+        .chat-transcript::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .conversation-list::-webkit-scrollbar-track,
+        .chat-transcript::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .conversation-list::-webkit-scrollbar-thumb,
+        .chat-transcript::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .conversation-list::-webkit-scrollbar-thumb:hover,
+        .chat-transcript::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .conversation-item {
+            padding: 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border: 1px solid transparent;
+        }
+
+        .conversation-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .conversation-item.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .convo-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .convo-phone {
+            font-weight: 600;
+            color: var(--text-main);
+            font-size: 1.05rem;
+        }
+
+        .convo-time {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .convo-preview {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Right Pane: Chat Transcript */
+        .chat-pane {
+            flex-grow: 1;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-header-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #10b981, #059669);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: white;
+            font-weight: bold;
+        }
+
+        .chat-header-info h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .chat-header-info p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .chat-transcript {
+            flex-grow: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .empty-state {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-state i {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .message-row {
+            display: flex;
+            width: 100%;
+        }
+
+        .message-row.user {
+            justify-content: flex-end;
+        }
+
+        .message-row.bot {
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message-row.user .message-bubble {
+            background: var(--bubble-user);
+            color: var(--bubble-user-text);
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+        }
+
+        .message-row.bot .message-bubble {
+            background: var(--bubble-bot);
+            color: var(--bubble-bot-text);
+            border: 1px solid var(--glass-border);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            margin-top: 6px;
+            opacity: 0.7;
+            text-align: right;
+        }
+
+        /* Responsive Layout */
+        @media (max-width: 1024px) {
+            .inbox-pane {
+                width: 280px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                overflow: auto;
+                /* allow page scroll */
+            }
+
+            .main-container {
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .split-view {
+                flex-direction: column;
+                height: 1000px;
+                /* fixed height for mobile stacking */
+            }
+
+            .inbox-pane {
+                width: 100%;
+                height: 400px;
+                flex-shrink: 0;
+            }
+
+            .chat-pane {
+                height: 600px;
+                flex-shrink: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container">
+        <div class="header">
+            <h1 id="page-title">Conversations History</h1>
+            <p>Review full chat histories between your users and the AI bot.</p>
+        </div>
+
+        <div class="split-view">
+            <!-- Left Pane: Inbox -->
+            <div class="inbox-pane">
+                <div class="inbox-header">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" class="search-input" id="search-input" placeholder="Search phone number..."
+                            onkeyup="filterConversations()">
+                    </div>
+                </div>
+                <div class="conversation-list" id="conversation-list">
+                    <!-- Conversations injected here -->
+                    <div class="empty-state" style="padding: 20px;">
+                        Loading conversations...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Pane: Chat Transcript -->
+            <div class="chat-pane" id="chat-pane">
+                <div class="empty-state">
+                    <i data-lucide="message-circle"></i>
+                    <h2>No conversation selected</h2>
+                    <p>Select a user from the list on the left to view their chat history.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const selectedBotId = urlParams.get("bot_id") || 1;
+        let allConversations = [];
+        let activeConversationId = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            fetchSelectedBot();
+            fetchConversations();
+        });
+
+        async function fetchSelectedBot() {
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    alert("You do not have access to this bot.");
+                    window.location.href = "bots.html";
+                    return;
+                }
+
+                document.getElementById("page-title").innerText =
+                    `${result.data.bot_name} Conversations`;
+
+            } catch (err) {
+                console.error("Failed to fetch selected bot", err);
+            }
+        }
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            const today = new Date();
+
+            // If today, show time. Else show date.
+            if (date.toDateString() === today.toDateString()) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else {
+                return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            }
+        }
+
+        async function fetchConversations() {
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/conversations?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    allConversations = result.data;
+                    renderConversationList(allConversations);
+                } else {
+                    console.error("Failed to fetch conversations:", result.message);
+                    document.getElementById('conversation-list').innerHTML = `
+                        <div class="empty-state" style="color: var(--error);">
+                            Failed to load conversations.
+                        </div>`;
+                }
+            } catch (err) {
+                console.error("Error fetching conversations:", err);
+                document.getElementById('conversation-list').innerHTML = `
+                    <div class="empty-state" style="color: var(--error); padding: 20px;">
+                        Network error. Did you restart the Python backend server?
+                        <br><br>
+                        (Press Ctrl+C in your terminal and run <b>python run.py</b> again)
+                    </div>`;
+            }
+        }
+
+        function renderConversationList(conversations) {
+            const listEl = document.getElementById('conversation-list');
+
+            if (!conversations || conversations.length === 0) {
+                listEl.innerHTML = `
+                    <div class="empty-state" style="padding: 20px;">
+                        No conversations found for this bot.
+                    </div>`;
+                return;
+            }
+
+            listEl.innerHTML = conversations.map(conv => `
+                <div class="conversation-item ${conv.id === activeConversationId ? 'active' : ''}" 
+                     onclick="loadMessages(${conv.id}, '${conv.customer_phone}', '${conv.customer_name || 'User'}')">
+                    <div class="convo-top">
+                        <span class="convo-phone">${conv.customer_phone}</span>
+                        <span class="convo-time">${formatTime(conv.updated_at)}</span>
+                    </div>
+                    <div class="convo-preview">
+                        ${conv.customer_name ? `Name: ${conv.customer_name}` : 'No name provided'}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterConversations() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const filtered = allConversations.filter(c =>
+                c.customer_phone.toLowerCase().includes(query) ||
+                (c.customer_name && c.customer_name.toLowerCase().includes(query))
+            );
+            renderConversationList(filtered);
+        }
+
+        async function loadMessages(conversationId, phone, name) {
+            activeConversationId = conversationId;
+            renderConversationList(allConversations); // re-render to update active state
+
+            const chatPane = document.getElementById('chat-pane');
+
+            // Show loading state in chat pane
+            chatPane.innerHTML = `
+                <div class="chat-header">
+                    <div class="chat-header-avatar">${name.charAt(0).toUpperCase()}</div>
+                    <div class="chat-header-info">
+                        <h3>${phone}</h3>
+                        <p>${name !== 'User' ? name : 'Loading...'}</p>
+                    </div>
+                </div>
+                <div class="chat-transcript">
+                    <div style="text-align:center; color: var(--text-dim); margin-top: 40px;">
+                        Loading messages...
+                    </div>
+                </div>
+            `;
+
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    renderMessages(result.data, phone, name);
+                } else {
+                    console.error("Failed to fetch messages:", result.message);
+                }
+            } catch (err) {
+                console.error("Error fetching messages:", err);
+            }
+        }
+
+        function renderMessages(messages, phone, name) {
+            const chatPane = document.getElementById('chat-pane');
+
+            let transcriptHtml = '';
+
+            if (!messages || messages.length === 0) {
+                transcriptHtml = `
+                    <div style="text-align:center; color: var(--text-dim); margin-top: 40px;">
+                        No messages recorded yet.
+                    </div>`;
+            } else {
+                transcriptHtml = messages.map(msg => {
+                    // Decide if it's user or bot based on ai_generated flag or sender_type
+                    // Typically: sender_type="customer" -> user. sender_type="bot" -> bot
+                    const isUser = msg.sender_type === "customer";
+                    const rowClass = isUser ? "user" : "bot";
+
+                    // Format message text, converting newlines to <br>
+                    const formattedText = msg.message_text ? msg.message_text.replace(/\n/g, '<br>') : '[Empty Message]';
+
+                    return `
+                        <div class="message-row ${rowClass}">
+                            <div class="message-bubble">
+                                ${formattedText}
+                                <div class="message-time">${formatTime(msg.created_at)}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            chatPane.innerHTML = `
+                <div class="chat-header">
+                    <div class="chat-header-avatar">${name.charAt(0).toUpperCase()}</div>
+                    <div class="chat-header-info">
+                        <h3>${phone}</h3>
+                        <p>${name !== 'User' ? name : 'Customer'}</p>
+                    </div>
+                </div>
+                <div class="chat-transcript" id="chat-transcript">
+                    ${transcriptHtml}
+                </div>
+            `;
+
+            // Auto scroll to bottom
+            const transcriptEl = document.getElementById('chat-transcript');
+            if (transcriptEl) {
+                transcriptEl.scrollTop = transcriptEl.scrollHeight;
+            }
+        }
+    </script>
+</body>
+
+</html>

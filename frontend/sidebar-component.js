@@ -15,139 +15,241 @@ class ChatbotSidebar extends HTMLElement {
         <style>
             .sidebar {
                 width: 280px;
-                background: var(--sidebar-bg);
+                background: var(--sidebar-bg, rgba(15, 23, 42, 0.85));
                 backdrop-filter: blur(20px);
-                border-right: 1px solid var(--glass-border);
+                -webkit-backdrop-filter: blur(20px);
+                border-right: 1px solid var(--glass-border, rgba(255,255,255,0.1));
                 height: 100vh;
                 display: flex;
                 flex-direction: column;
-                padding: 40px 20px;
+                padding: 40px 24px;
                 position: sticky;
                 top: 0;
                 z-index: 100;
+                font-family: 'Outfit', sans-serif;
             }
             .logo {
-                font-size: 1.5rem;
+                font-size: 1.6rem;
                 font-weight: 700;
-                margin-bottom: 50px;
+                margin-bottom: 40px;
                 display: flex;
                 align-items: center;
                 gap: 12px;
-                background: linear-gradient(to right, #60a5fa, #10b981);
+                background: linear-gradient(to right, #ffffff, #94a3b8);
                 -webkit-background-clip: text;
                 background-clip: text;
                 -webkit-text-fill-color: transparent;
+                padding: 0 10px;
             }
             .nav-list {
                 list-style: none;
                 flex-grow: 1;
-            }
-            .nav-item {
-                margin-bottom: 8px;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
             }
             .nav-link {
                 text-decoration: none;
-                color: var(--text-dim);
+                color: var(--text-dim, #94a3b8);
                 padding: 12px 16px;
-                border-radius: 12px;
+                border-radius: 14px;
                 display: flex;
                 align-items: center;
-                gap: 12px;
-                transition: all 0.3s;
+                gap: 14px;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 font-weight: 500;
+                font-size: 1rem;
                 cursor: pointer;
+                border: 1px solid transparent;
+            }
+            .nav-link i, .nav-link svg {
+                width: 20px;
+                height: 20px;
+                color: var(--text-dim, #94a3b8);
+                transition: color 0.3s;
             }
             .nav-link:hover {
-                background: rgba(255, 255, 255, 0.05);
-                color: var(--text-main);
+                background: rgba(255, 255, 255, 0.04);
+                color: var(--text-main, #f8fafc);
+                border-color: rgba(255, 255, 255, 0.05);
+                transform: translateX(4px);
+            }
+            .nav-link:hover i, .nav-link:hover svg {
+                color: var(--primary, #3b82f6);
+            }
+            .nav-link.active {
+                background: linear-gradient(135deg, var(--primary, #3b82f6), #2563eb);
+                color: white;
+                box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+                border-color: transparent;
+                transform: none;
+            }
+            .nav-link.active i, .nav-link.active svg {
+                color: white;
+            }
+            .dropdown-toggle {
+                width: 100%;
+                justify-content: space-between;
+                background: transparent;
+                border: none;
+                font-family: inherit;
             }
             .dropdown-content {
                 max-height: 0;
                 overflow: hidden;
-                transition: all 0.3s ease-in-out;
-                padding-left: 20px;
+                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 display: flex;
                 flex-direction: column;
                 gap: 4px;
+                padding-left: 10px;
             }
             .dropdown-container.open .dropdown-content {
                 max-height: 500px;
-                margin-top: 8px;
+                margin-top: 6px;
                 padding-bottom: 8px;
             }
+            .dropdown-container .chevron {
+                transition: transform 0.3s ease;
+                width: 18px;
+                height: 18px;
+            }
+            .dropdown-container.open .chevron {
+                transform: rotate(180deg);
+                color: var(--text-main, #f8fafc);
+            }
             .sub-link {
-                font-size: 0.9rem;
+                font-size: 0.95rem;
                 padding: 10px 16px;
+                gap: 12px;
+            }
+            .sub-link i, .sub-link svg {
+                width: 18px;
+                height: 18px;
             }
             .logout-btn {
                 margin-top: auto;
                 color: #ef4444;
                 display: flex;
                 align-items: center;
-                gap: 12px;
-                padding: 12px 16px;
+                gap: 14px;
+                padding: 14px 16px;
                 text-decoration: none;
                 font-weight: 600;
-                border-radius: 12px;
-                transition: background 0.3s;
+                border-radius: 14px;
+                transition: all 0.3s;
+                border: 1px solid transparent;
+            }
+            .logout-btn i, .logout-btn svg {
+                width: 20px;
+                height: 20px;
             }
             .logout-btn:hover {
-                background: rgba(239, 68, 68, 0.1);
+                background: rgba(239, 68, 68, 0.08);
+                border-color: rgba(239, 68, 68, 0.2);
+                transform: translateX(4px);
+            }
+            
+            .nav-link-content {
+                display: flex;
+                align-items: center;
+                gap: 14px;
             }
         </style>
         <aside class="sidebar">
             <div class="logo">
+                <i data-lucide="bot" style="color: var(--primary, #3b82f6); width: 28px; height: 28px;"></i>
                 <span>AI CHATBOT</span>
             </div>
     
             <nav class="nav-list">
-                <div class="nav-item">
-                    <a href="bots.html" class="nav-link">🤖 Bots</a>
-                </div>
+                <a href="bots.html" class="nav-link">
+                    <i data-lucide="home"></i>
+                    <span>My Bots</span>
+                </a>
     
                 ${!isBotsPage && botId ? `
-                    <div class="nav-item">
-                        <a href="index.html${botQuery}" class="nav-link">📊 Dashboard</a>
-                    </div>
+                    <div style="height: 1px; background: rgba(255,255,255,0.05); margin: 12px 0;"></div>
+                    
+                    <a href="index.html${botQuery}" class="nav-link">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>Dashboard</span>
+                    </a>
+                    
+                    <a href="conversations.html${botQuery}" class="nav-link">
+                        <i data-lucide="message-square"></i>
+                        <span>Conversations</span>
+                    </a>
     
                     <div class="dropdown-container" id="training-dropdown">
-                        <div class="nav-item">
-                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')" style="width: 100%; justify-content: space-between; background: transparent; border: none; font-family: inherit; font-size: inherit;">
-                                <span>📁 Training Data</span>
-                                <span class="chevron">⌄</span>
-                            </button>
-                        </div>
+                        <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')">
+                            <div class="nav-link-content">
+                                <i data-lucide="folder-open"></i>
+                                <span>Training Data</span>
+                            </div>
+                            <i data-lucide="chevron-down" class="chevron"></i>
+                        </button>
                         <div class="dropdown-content">
-                            <a href="new_linkdocs.html${botQuery}" class="nav-link sub-link">🔗 Links / Docs</a>
-                            <a href="new_prompt.html${botQuery}" class="nav-link sub-link">📋 Prompt</a>
-                            <a href="training.html${botQuery}" class="nav-link sub-link">📚 Help & Documentation</a>
+                            <a href="new_linkdocs.html${botQuery}" class="nav-link sub-link">
+                                <i data-lucide="file-text"></i>
+                                <span>Documents</span>
+                            </a>
+                            <a href="new_prompt.html${botQuery}" class="nav-link sub-link">
+                                <i data-lucide="terminal-square"></i>
+                                <span>Bot Config</span>
+                            </a>
                         </div>
                     </div>
     
                     <div class="dropdown-container" id="behaviour-dropdown">
-                        <div class="nav-item">
-                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('behaviour-dropdown')" style="width: 100%; justify-content: space-between; background: transparent; border: none; font-family: inherit; font-size: inherit;">
-                                <span>⚙️ Behaviour</span>
-                                <span class="chevron">⌄</span>
-                            </button>
-                        </div>
+                        <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('behaviour-dropdown')">
+                            <div class="nav-link-content">
+                                <i data-lucide="settings"></i>
+                                <span>Behaviour</span>
+                            </div>
+                            <i data-lucide="chevron-down" class="chevron"></i>
+                        </button>
                         <div class="dropdown-content">
-                            <a href="model_settings.html${botQuery}" class="nav-link sub-link">🤖 Tune AI</a>
-                            <a href="testbot.html${botQuery}" class="nav-link sub-link">🧪 Test Your Bot</a>
+                            <a href="model_settings.html${botQuery}" class="nav-link sub-link">
+                                <i data-lucide="sliders-horizontal"></i>
+                                <span>Tune AI</span>
+                            </a>
+                            <a href="testbot.html${botQuery}" class="nav-link sub-link">
+                                <i data-lucide="flask-conical"></i>
+                                <span>Test Bot</span>
+                            </a>
                         </div>
                     </div>
     
-                    <div class="nav-item">
-                        <a href="integration.html${botQuery}" class="nav-link">🔌 Integration</a>
-                    </div>
+                    <a href="integration.html${botQuery}" class="nav-link">
+                        <i data-lucide="plug"></i>
+                        <span>Integration</span>
+                    </a>
                 ` : ""}
             </nav>
     
-            <a href="login.html?logout=1" class="logout-btn">🚪 Logout</a>
+            <a href="login.html?logout=1" class="logout-btn">
+                <i data-lucide="log-out"></i>
+                <span>Logout</span>
+            </a>
         </aside>
         `;
 
         this.initSidebar();
+        
+        // Check if lucide is available globally
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons({ root: this });
+        } else {
+            // Load it dynamically if missing
+            const script = document.createElement('script');
+            script.src = 'https://unpkg.com/lucide@latest';
+            script.onload = () => {
+                window.lucide.createIcons({ root: this });
+            };
+            document.head.appendChild(script);
+        }
     }
 
     initSidebar() {
@@ -155,22 +257,28 @@ class ChatbotSidebar extends HTMLElement {
         const navLinks = this.querySelectorAll('.nav-link');
         
         navLinks.forEach(link => {
-            if (link.getAttribute('href') === currentPath) {
-                link.classList.add('active');
-                link.style.background = 'var(--primary)';
-                link.style.color = 'white';
-                link.style.boxShadow = '0 4px 20px var(--primary-glow)';
+            // Check if the href matches the exact path (removing queries)
+            const href = link.getAttribute('href');
+            if (href) {
+                const linkPath = href.split('?')[0];
+                if (linkPath === currentPath && !link.classList.contains('dropdown-toggle')) {
+                    link.classList.add('active');
+                }
             }
         });
 
         // Auto-expand dropdowns if child is active
         if (['new_linkdocs.html', 'new_prompt.html', 'training.html'].includes(currentPath)) {
             const drop = this.querySelector('#training-dropdown');
-            if (drop) drop.classList.add('open');
+            if (drop) {
+                drop.classList.add('open');
+            }
         }
         if (['model_settings.html', 'testbot.html'].includes(currentPath)) {
             const drop = this.querySelector('#behaviour-dropdown');
-            if (drop) drop.classList.add('open');
+            if (drop) {
+                drop.classList.add('open');
+            }
         }
     }
 }
@@ -178,15 +286,10 @@ class ChatbotSidebar extends HTMLElement {
 customElements.define('chatbot-sidebar', ChatbotSidebar);
 
 window.toggleSidebarDropdown = window.toggleSidebarDropdown || function(id) {
-    const el = document.getElementById(id);
-    if (!el) {
-        // If not found in document, look inside the sidebar tag
-        const sb = document.querySelector('chatbot-sidebar');
-        if (sb) {
-            const insideEl = sb.querySelector('#' + id);
-            if (insideEl) insideEl.classList.toggle('open');
-        }
-    } else {
-        el.classList.toggle('open');
+    // We must find the dropdown inside the chatbot-sidebar shadow DOM or element
+    const sb = document.querySelector('chatbot-sidebar');
+    if (sb) {
+        const insideEl = sb.querySelector('#' + id);
+        if (insideEl) insideEl.classList.toggle('open');
     }
 };
