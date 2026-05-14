@@ -45,3 +45,17 @@ def get_or_create_conversation(chatbot_id: int, customer_phone: str, customer_na
 
     result = supabase.table("conversations").insert(new_conversation).execute()
     return result.data[0]
+
+def get_conversations_by_bot(chatbot_id: int):
+    """
+    Fetches all conversations associated with a specific chatbot,
+    ordered by the most recently updated.
+    """
+    result = (
+        supabase.table("conversations")
+        .select("*")
+        .eq("chatbot_id", chatbot_id)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+    return result.data

@@ -12,6 +12,7 @@ from app.routes.testbot_routes import testbot_blueprint
 from app.routes.analytics_routes import analytics_blueprint
 from app.routes.auth_routes import auth_bp
 from app.routes.bot_routes import bot_blueprint
+from app.routes.conversation_routes import conversation_blueprint
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -39,5 +40,6 @@ def create_app():
     app.register_blueprint(analytics_blueprint)
     app.register_blueprint(auth_bp)
     app.register_blueprint(bot_blueprint)
+    app.register_blueprint(conversation_blueprint)
 
     return app

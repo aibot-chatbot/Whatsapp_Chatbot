@@ -22,3 +22,17 @@ def save_message(
 
     result = supabase.table("messages").insert(message_data).execute()
     return result.data[0]
+
+def get_messages_by_conversation(conversation_id: int):
+    """
+    Fetches all messages for a specific conversation,
+    ordered by creation time ascending (chronological).
+    """
+    result = (
+        supabase.table("messages")
+        .select("*")
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    return result.data
