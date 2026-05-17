@@ -68,3 +68,65 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User"):
     except Exception as e:
         logging.error(f"Failed to send OTP email to {recipient_email}: {e}")
         return False
+
+
+def send_reset_email(recipient_email, otp_code, recipient_name="User"):
+    """
+    Sends a Password Reset OTP code via Gmail SMTP.
+    """
+    sender_email = os.getenv("SMTP_SENDER_EMAIL")
+    sender_password = os.getenv("SMTP_APP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        logging.warning("SMTP credentials missing in .env. Reset email not sent.")
+        return False
+
+    subject = "Reset Your Password - AI CHATBOT"
+    
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
+        <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <div style="background-color: #ef4444; padding: 24px; text-align: center;">
+            <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT</h2>
+          </div>
+          <div style="padding: 32px;">
+            <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Password Reset Request</h3>
+            <p style="font-size: 16px; line-height: 1.5; color: #475569;">
+              Hi {recipient_name},<br><br>
+              We received a request to reset your account password. Please use the verification code below to complete the reset process:
+            </p>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #ef4444;">{otp_code}</span>
+            </div>
+            <p style="font-size: 14px; color: #64748b;">
+              This code will expire in 10 minutes. If you did not request a password reset, you can safely ignore this email and your password will remain unchanged.
+            </p>
+          </div>
+          <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} AI CHATBOT. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+
+    message = MIMEMultipart("alternative")
+    message["Subject"] = subject
+    message["From"] = f"AI CHATBOT <{sender_email}>"
+    message["To"] = recipient_email
+
+    part = MIMEText(html_content, "html")
+    message.attach(part)
+
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient_email, message.as_string())
+        server.quit()
+        logging.info(f"Reset email sent successfully to {recipient_email}")
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send reset email to {recipient_email}: {e}")
+        return False
