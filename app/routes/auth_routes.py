@@ -251,3 +251,120 @@ def resend_otp():
         print(f"DEBUG: Resend failed for {email}, OTP: {otp}")
 
     return jsonify({"status": "success", "message": "New verification code sent to your email"}), 200
+
+
+# In-memory store for password reset OTPS (expires in 10 minutes)
+PASSWORD_RESET_OTPS = {}
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    from app.services.email_service import send_reset_email
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+
+    if not email:
+        return jsonify({"status": "error", "message": "Email is required"}), 400
+
+    # Verify if user exists in the database
+    user = get_user_by_email(email)
+    if not user:
+        return jsonify({"status": "error", "message": "No account associated with this email address."}), 404
+
+    otp = generate_otp()
+    otp_expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
+
+    # Save to our in-memory store
+    PASSWORD_RESET_OTPS[email] = {
+        "otp": otp,
+        "expiry": otp_expiry,
+        "verified": False
+    }
+
+    # Extract name
+    full_name = user.get("full_name", "User")
+    first_name = full_name.split(" ")[0] if full_name else "User"
+
+    email_sent = send_reset_email(email, otp, recipient_name=first_name)
+    if not email_sent:
+        print(f"DEBUG Reset OTP for {email}: {otp}")
+
+    return jsonify({
+        "status": "success",
+        "message": "A secure password reset verification code has been sent to your email address."
+    }), 200
+
+
+@auth_bp.route("/verify-reset-otp", methods=["POST"])
+def verify_reset_otp():
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    otp = (data.get("otp") or "").strip()
+
+    if not email or not otp:
+        return jsonify({"status": "error", "message": "Email and OTP code are required"}), 400
+
+    otp_record = PASSWORD_RESET_OTPS.get(email)
+    if not otp_record:
+        return jsonify({"status": "error", "message": "No password reset request found or session expired."}), 400
+
+    if otp_record["otp"] != otp:
+        return jsonify({"status": "error", "message": "Invalid password reset verification code."}), 400
+
+    if datetime.datetime.now(datetime.timezone.utc) > otp_record["expiry"]:
+        PASSWORD_RESET_OTPS.pop(email, None)
+        return jsonify({"status": "error", "message": "Verification code has expired. Please request a new one."}), 400
+
+    # OTP is valid! Mark as verified
+    otp_record["verified"] = True
+    return jsonify({
+        "status": "success",
+        "message": "Verification code successfully verified."
+    }), 200
+
+
+@auth_bp.route("/reset-password", methods=["POST"])
+def reset_password():
+    from app.database.db import supabase
+    data = request.get_json() or {}
+    email = (data.get("email") or "").strip().lower()
+    otp = (data.get("otp") or "").strip()
+    new_password = data.get("password") or ""
+    confirm_password = data.get("confirm_password") or ""
+
+    if not email or not otp or not new_password:
+        return jsonify({"status": "error", "message": "All fields are required."}), 400
+
+    if new_password != confirm_password:
+        return jsonify({"status": "error", "message": "Passwords do not match."}), 400
+
+    # Validate password strength
+    is_strong, msg = validate_password_strength(new_password)
+    if not is_strong:
+        return jsonify({"status": "error", "message": msg}), 400
+
+    otp_record = PASSWORD_RESET_OTPS.get(email)
+    if not otp_record or not otp_record.get("verified") or otp_record["otp"] != otp:
+        return jsonify({"status": "error", "message": "Invalid or unverified password reset session."}), 400
+
+    if datetime.datetime.now(datetime.timezone.utc) > otp_record["expiry"]:
+        PASSWORD_RESET_OTPS.pop(email, None)
+        return jsonify({"status": "error", "message": "Session expired. Please request a new reset code."}), 400
+
+    try:
+        # Update user's password in Supabase
+        password_hash = generate_password_hash(new_password)
+        supabase.table("users").update({
+            "password_hash": password_hash,
+            "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+        }).eq("email", email).execute()
+
+        # Clean up OTP record
+        PASSWORD_RESET_OTPS.pop(email, None)
+
+        return jsonify({
+            "status": "success",
+            "message": "Your password has been reset successfully! You can now log in with your new password."
+        }), 200
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to reset password: {str(e)}"}), 500

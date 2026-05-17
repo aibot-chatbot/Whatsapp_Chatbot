@@ -187,12 +187,14 @@
                 <label>AI Provider</label>
                 <p>Choose which AI engine will power your chatbot's responses.</p>
                 <select id="ai-provider" onchange="onProviderChange()">
-                    <option value="Gemini">Google Gemini</option>
-                    <option value="DeepSeek">DeepSeek AI</option>
-                    <option value="Groq">Groq</option>
-                    <option value="Grok">Grok (xAI)</option>
-                    <option value="Cloudflare">Cloudflare AI</option>
+                    <option value="default">Default</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="deepseek">DeepSeek AI</option>
+                    <option value="groq">Groq</option>
+                    <option value="grok">Grok (xAI)</option>
+                    <option value="cloudflare">Cloudflare AI</option>
                 </select>
+
             </div>
 
             <div class="form-group">
@@ -238,41 +240,42 @@
         }
 
         const modelOptions = {
-            "Gemini": [
-                { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Recommended)" },
-                { value: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite (Speed)" },
+            "gemini": [
+                { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash (Fastest)" },
+                { value: "gemini-2.0-flash-lite-preview", label: "Gemini 2.0 Flash-Lite (Speed)" },
                 { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro (Smarter)" },
                 { value: "custom", label: "Other (Custom...)" }
-              ],
-            "DeepSeek": [
+            ],
+            "deepseek": [
                 { value: "deepseek-chat", label: "DeepSeek Chat (V3)" },
                 { value: "deepseek-reasoner", label: "DeepSeek Reasoner (R1)" },
                 { value: "custom", label: "Other (Custom...)" }
             ],
-            "Groq": [
-                { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B (Versatile)" },
+            "groq": [
+                { value: "llama-3.1-70b-versatile", label: "Llama 3.1 70B (Versatile)" },
                 { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B (Instant)" },
                 { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
                 { value: "custom", label: "Other (Custom...)" }
             ],
-            "Grok": [
+            "grok": [
                 { value: "grok-beta", label: "Grok Beta" },
                 { value: "custom", label: "Other (Custom...)" }
             ],
-            "Cloudflare": [
+            "cloudflare": [
                 { value: "@cf/meta/llama-3.1-8b-instruct", label: "Llama 3.1 8B (Cloudflare)" },
                 { value: "@cf/meta/llama-2-7b-chat-fp16", label: "Llama 2 7B (Cloudflare)" },
                 { value: "custom", label: "Other (Custom...)" }
             ]
         };
 
+
         function onProviderChange() {
             const provider = document.getElementById("ai-provider").value;
             const modelSelect = document.getElementById("model-select");
-            
+
             // Clear current options
             modelSelect.innerHTML = "";
-            
+
             // Populate new options
             const options = modelOptions[provider] || [];
             options.forEach(opt => {
@@ -288,7 +291,7 @@
         function onModelSelectChange() {
             const modelSelect = document.getElementById("model-select");
             const customContainer = document.getElementById("custom-model-container");
-            
+
             if (modelSelect.value === "custom") {
                 customContainer.style.display = "block";
             } else {
@@ -303,17 +306,17 @@
 
                 if (result.status === "success") {
                     const bot = result.data;
-                    
+
                     if (bot.ai_provider) {
                         document.getElementById("ai-provider").value = bot.ai_provider;
                     }
-                    
+
                     onProviderChange(); // Populate model list first
-                    
+
                     // Now try to select the saved model
                     const modelSelect = document.getElementById("model-select");
                     const savedModel = bot.model_name || "";
-                    
+
                     const existingOption = Array.from(modelSelect.options).find(o => o.value === savedModel);
                     if (existingOption) {
                         modelSelect.value = savedModel;
@@ -338,7 +341,7 @@
             const modelSelect = document.getElementById("model-select").value;
             const customModel = document.getElementById("custom-model-name").value.trim();
             const model_name = (modelSelect === "custom") ? customModel : modelSelect;
-            
+
             const temp = parseFloat(document.getElementById("temperature").value);
             const saveBtn = document.getElementById("save-btn");
             const statusMsg = document.getElementById("status-msg");
@@ -363,7 +366,11 @@
                 if (result.status === "success") {
                     statusMsg.innerText = "Settings saved successfully! ✨";
                     statusMsg.className = "status-msg status-success";
+
+                    // Trigger real-time sync for the Guidance Bot
+                    window.dispatchEvent(new CustomEvent('recheckBotStatus'));
                 } else {
+
                     statusMsg.innerText = "Failed to save settings: " + result.message;
                     statusMsg.className = "status-msg status-error";
                 }
