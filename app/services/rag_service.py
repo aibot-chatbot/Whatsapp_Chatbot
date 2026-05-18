@@ -168,7 +168,7 @@ def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
 
         if not active_file:
             logging.warning(f"No active knowledge file found for chatbot {chatbot_id}.")
-            return []
+            return ["No relevant knowledge found, but answer using your general domain knowledge in a helpful and friendly way."]
 
         active_file_id = active_file.get("id")
         logging.info(f"Using active knowledge file ID: {active_file_id}")
@@ -209,7 +209,7 @@ def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
 
         if not query_embedding:
             logging.warning("Could not generate embedding for query.")
-            return []
+            return ["No relevant knowledge found, but answer using your general domain knowledge in a helpful and friendly way."]
 
         results = search_similar_chunks(
             chatbot_id=chatbot_id,
@@ -221,7 +221,7 @@ def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
 
         if not results:
             logging.info("No strong chunk match found via active-file vector search.")
-            return []
+            return ["No relevant knowledge found, but answer using your general domain knowledge in a helpful and friendly way."]
 
         logging.info(f"Top chunk similarity: {results[0].get('similarity')}")
 
@@ -230,11 +230,10 @@ def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
             logging.info(f"Retrieved chunk {idx} content: {res.get('content')}")
 
         return [res.get("content") for res in results]
-
+    
     except Exception as e:
         logging.error(f"Retrieve relevant chunks failed: {e}")
-        return []
-
+        return ["No relevant knowledge found, but answer using your general domain knowledge in a helpful and friendly way."]
 
 def build_rag_prompt(message, context_chunks):
     """
@@ -257,6 +256,10 @@ Answer:
 
 
 def build_prompt(history, message, context_chunks, chatbot_id=1):
+    """
+    Optimized prompt builder for any LLM bot.
+    Uses retrieved chunks if any, or lets LLM answer using its own knowledge.
+    """
     settings = get_deployed_settings(chatbot_id)
 
     bot_name = settings.get("bot_name") or "AI Assistant"
@@ -266,17 +269,19 @@ def build_prompt(history, message, context_chunks, chatbot_id=1):
     additional_instructions = settings.get("additional_instructions") or ""
     fallback_message = generate_fallback(settings)
 
+    # Conversation history
     conversation = ""
-
     for item in history:
-        if item["role"] == "user":
-            conversation += f"User: {item['content']}\n"
-        else:
-            conversation += f"Assistant: {item['content']}\n"
+        role = "User" if item["role"] == "user" else "Assistant"
+        conversation += f"{role}: {item['content']}\n"
 
-    context = "\n\n".join(context_chunks)
+    # Structured context
+    structured_context = ""
+    for idx, chunk in enumerate(context_chunks, start=1):
+        structured_context += f"Context {idx}:\n{chunk}\n\n"
+
+    # Custom prompt if available
     prompt_template = settings.get("custom_prompt", "").strip()
-
     if prompt_template:
         return prompt_template.format(
             bot_name=bot_name,
@@ -285,11 +290,12 @@ def build_prompt(history, message, context_chunks, chatbot_id=1):
             tone=tone,
             additional_instructions=additional_instructions,
             fallback_message=fallback_message,
-            context=context,
+            context=structured_context,
             conversation=conversation,
             message=message
         )
 
+    # Default general prompt
     prompt = f"""
 You are {bot_name}, an AI assistant for {company_name}.
 
@@ -303,7 +309,7 @@ Additional company instructions:
 {additional_instructions if additional_instructions else "None"}
 
 Knowledge provided:
-{context if context else "No relevant knowledge was found."}
+{structured_context if structured_context else "No relevant knowledge found, answer using your general knowledge in a helpful, practical, and friendly way."}
 
 Recent conversation:
 {conversation if conversation else "No recent conversation."}
@@ -314,21 +320,25 @@ User question:
 Important rules:
 1. Answer using the provided Knowledge first.
 2. If the Knowledge contains the answer, answer directly.
-3. If the Knowledge contains relevant examples, scenarios, destinations, prices, schedules, or recommendations, use them to build a helpful answer even if the wording is not exactly the same as the user question.
-4. Do not invent exact company-specific facts, prices, policies, or guarantees that are not supported by the Knowledge.
-5. For general domain questions, give a practical and helpful answer instead of refusing too quickly.
+3. Use relevant examples, scenarios, recommendations, prices, schedules, or policies from the Knowledge.
+4. Do not invent company-specific facts not in the Knowledge.
+5. If Knowledge is missing or unrelated, respond politely and clearly using your own knowledge.
 6. Keep the reply short, clear, and useful.
-7. Do not mention internal words like "context", "chunks", "database", or "PDF".
+7. Avoid mentioning internal words like "context", "chunks", "database", or "PDF".
+8. If the user question is unclear or ambiguous, ask politely for clarification before providing an answer.
+9. Use friendly and professional language, showing empathy when the user expresses problems or frustration.
+10. Avoid repeating the same information from the conversation unless needed for clarity.
+11. When applicable, reference the source of the knowledge (e.g., document, policy, FAQ) to increase user trust.
+12. If the user asks for instructions or procedures, provide clear step-by-step guidance.
+13. When possible, illustrate answers with practical examples or scenarios from the provided knowledge.
+14. Ensure responses are concise, avoiding unnecessary filler words while still being informative.
+15. Tailor explanations to the user’s level; avoid overly technical language if not required.
+16. Maintain consistent terminology, spelling, and data across all responses.
+17. When answering questions that can lead to actions (booking, contacting support, using a feature), provide clear actionable steps.
 
 Fallback instruction:
-Only use this fallback message if the Knowledge is empty or completely unrelated to the user's question.
-
-If the Knowledge contains any related information, examples, scenarios, comparisons, travel advice, accommodation details, prices, schedules, services, policies, or recommendations, you MUST answer using the Knowledge.
-
-Do not copy fallback messages from the recent conversation.
-
-Fallback message:
-{fallback_message}
+If the Knowledge chunks do not contain information relevant to the user’s question, still answer fully using your own knowledge, examples, and advice.
+Do not say 'I don’t know' or 'I have no information'.
 
 Assistant:
 """
