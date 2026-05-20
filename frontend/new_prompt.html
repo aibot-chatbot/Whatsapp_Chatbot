@@ -631,12 +631,12 @@
             const [profileToDelete, setProfileToDelete] = useState(null);
             const [currentBotName, setCurrentBotName] = useState("");
 
-            const getApplyButtonHint = () => {
+            const getDeployButtonHint = () => {
                 if (!activePdf) return "Please select an active PDF first.";
                 if (!activeProfile) return "Please set an active profile first.";
-                if (!matchResult) return "Please check match first before applying to WhatsApp.";
-                if (!matchResult.match) return "Current profile and PDF do not match. Please fix them before applying.";
-                return "Apply the current matched profile to WhatsApp.";
+                if (!matchResult) return "Please check match first before deploying.";
+                if (!matchResult.match) return "Current profile and PDF do not match. Please fix them before deploying.";
+                return "Deploy the current matched profile and PDF to all connected channels.";
             };
 
             const fetchBotInfo = async () => {
@@ -975,13 +975,13 @@
                 }
 
                 if (matchResult.match) {
-                    return { className: "status-success", text: "Ready to Apply" };
+                    return { className: "status-success", text: "Ready to Deploy" };
                 }
 
                 return { className: "status-error", text: "Mismatch detected" };
             };
 
-            const handleApplyToWhatsApp = async () => {
+            const handleDeployToLiveBot = async () => {
                 if (!activePdf) {
                     setSessionStatus({ type: "error", text: "Please select an active PDF first." });
                     return;
@@ -993,12 +993,12 @@
                 }
 
                 if (!matchResult) {
-                    setSessionStatus({ type: "error", text: "Please check match first before applying to WhatsApp." });
+                    setSessionStatus({ type: "error", text: "Please check match first before deploying to live bot." });
                     return;
                 }
 
                 if (!matchResult.match) {
-                    setSessionStatus({ type: "error", text: "Current profile and PDF do not match. Please fix them before applying to WhatsApp." });
+                    setSessionStatus({ type: "error", text: "Current profile and PDF do not match. Please fix them before deploying." });
                     return;
                 }
 
@@ -1016,12 +1016,12 @@
                     const data = await response.json();
 
                     if (data.status === "success") {
-                        setSessionStatus({ type: "success", text: data.message || "Profile applied successfully. Navigating to Test Bot..." });
+                        setSessionStatus({ type: "success", text: data.message || "Bot deployed successfully. Connected channels will now use this profile and PDF." });
                         setTimeout(() => {
                             window.location.href = `testbot.html${pageQuery}`;
                         }, 1200);
                     } else {
-                        setSessionStatus({ type: "error", text: data.message || "Failed to apply profile to WhatsApp." });
+                        setSessionStatus({ type: "error", text: data.message || "Failed to deploy bot settings." });
                     }
                 } catch (error) {
                     setSessionStatus({ type: "error", text: "Failed to connect to backend." });
@@ -1045,7 +1045,7 @@
                         <div className="header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
                             <div>
                                 <h1>Bot Configuration ({currentBotName || "Bot"})</h1>
-                                <p>Manage your active PDF, saved profiles, and live WhatsApp setup in one place.</p>
+                                <p>Manage your active PDF, saved profiles, and live bot setup in one place.</p>
                             </div>
                             <button
                                 className="btn-primary"
@@ -1184,7 +1184,7 @@
                         <div className="section-card">
                             <div className="section-title">Live Bot Setup</div>
                             <div className="section-subtitle">
-                                Review the active PDF and profile before validating or applying them to WhatsApp.
+                                Review the active PDF and profile before validating or deploying them to your connected channels.
                             </div>
 
                             <div className="context-grid">
@@ -1220,11 +1220,11 @@
 
                                     <button
                                         className="btn-secondary"
-                                        onClick={handleApplyToWhatsApp}
-                                        title={getApplyButtonHint()}
+                                        onClick={handleDeployToLiveBot}
+                                        title={getDeployButtonHint()}
                                         style={{ width: "auto", minWidth: "200px" }}
                                     >
-                                        Apply to WhatsApp
+                                        Deploy to Live Bot
                                     </button>
                                 </div>
                             </div>

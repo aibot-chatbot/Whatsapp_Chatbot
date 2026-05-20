@@ -158,6 +158,100 @@
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
             font-weight: 800; font-size: 0.8rem;
         }
+        .status-panel {
+            background: var(--card-bg);
+            backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            padding: 26px;
+            margin-bottom: 34px;
+        }
+
+        .status-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .status-panel-header h2 {
+            font-size: 1.35rem;
+            margin-bottom: 6px;
+        }
+
+        .status-panel-header p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+        }
+
+        .refresh-btn {
+            padding: 10px 18px;
+            border-radius: 999px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.06);
+            color: var(--text-main);
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .refresh-btn:hover {
+            background: rgba(255,255,255,0.12);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
+        }
+
+        .channel-status-card {
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 18px;
+        }
+
+        .channel-status-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .status-pill {
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .status-connected {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-pending {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .status-disconnected {
+            background: rgba(148, 163, 184, 0.12);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+
+        .channel-status-detail {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            word-break: break-word;
+        }
     </style>
 </head>
 <body>
@@ -169,13 +263,56 @@
             <h1>Select Platform</h1>
             <p>Connect your chatbot to messaging platforms.</p>
         </div>
+        <div class="status-panel">
+            <div class="status-panel-header">
+                <div>
+                    <h2>Channel Status</h2>
+                    <p>Check which platforms are connected to this chatbot.</p>
+                </div>
+                <button class="refresh-btn" onclick="loadChannelStatus()">Refresh</button>
+            </div>
+
+            <div class="status-grid">
+                <div class="channel-status-card">
+                    <div class="channel-status-title">
+                        <span>💬 WhatsApp</span>
+                        <span id="whatsapp-status-pill" class="status-pill status-disconnected">Checking</span>
+                    </div>
+                    <div id="whatsapp-status-detail" class="channel-status-detail">
+                        Checking WhatsApp connection...
+                    </div>
+                </div>
+
+                <div class="channel-status-card">
+                    <div class="channel-status-title">
+                        <span>✈️ Telegram</span>
+                        <span id="telegram-status-pill" class="status-pill status-disconnected">Checking</span>
+                    </div>
+                    <div id="telegram-status-detail" class="channel-status-detail">
+                        Checking Telegram connection...
+                    </div>
+                </div>
+
+                <div class="channel-status-card">
+                    <div class="channel-status-title">
+                        <span>🌐 Web Widget</span>
+                        <span class="status-pill status-pending">Coming Soon</span>
+                    </div>
+                    <div class="channel-status-detail">
+                        Website chat widget is planned for future integration.
+                    </div>
+                </div>
+            </div>
+        </div>
         <div class="platforms-grid">
             <div class="glass-card" onclick="openSetup('whatsapp')">
                 <div class="platform-icon-container" style="background: rgba(37, 211, 102, 0.1); color: #25D366; border: 1px solid rgba(37, 211, 102, 0.2);">💬</div>
                 <h3 style="font-size: 1.5rem; color: #25D366;">WhatsApp</h3>
                 <p style="color: var(--text-dim); text-align: center;">Sync your AI bot with WhatsApp Business API to reach billions of users instantly.</p>
                 <div style="flex-grow: 1;"></div>
-                <button class="btn" style="background:#25D366; color:white; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);">Connect WhatsApp</button>
+                <button id="whatsapp-card-button" class="btn" style="background:#25D366; color:white; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);">
+                    Connect WhatsApp
+                </button>
             </div>
 
             <div class="glass-card" onclick="openSetup('telegram')">
@@ -183,7 +320,9 @@
                 <h3 style="font-size: 1.5rem; color: #26A5E4;">Telegram</h3>
                 <p style="color: var(--text-dim); text-align: center;">Deploy your bot on Telegram for a lightweight, secure, and fast messaging experience.</p>
                 <div style="flex-grow: 1;"></div>
-                <button class="btn" style="background:#26A5E4; color:white; box-shadow: 0 4px 15px rgba(38, 165, 228, 0.3);">Connect Telegram</button>
+                <button id="telegram-card-button" class="btn" style="background:#26A5E4; color:white; box-shadow: 0 4px 15px rgba(38, 165, 228, 0.3);">
+                    Connect Telegram
+                </button>
             </div>
             
             <div class="glass-card" style="opacity: 0.5; cursor: default;">
@@ -207,7 +346,35 @@
                 <!-- Steps injected by JS -->
             </div>
 
-            <div style="margin-top: 30px;">
+            <div id="telegram-token-area" style="display:none; margin-top: 24px;">
+                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
+                    Telegram Bot Token
+                </label>
+
+                <input
+                    type="password"
+                    id="telegram-bot-token"
+                    placeholder="Paste BotFather HTTP API token here"
+                    style="
+                        width:100%;
+                        padding:14px 16px;
+                        border-radius:14px;
+                        border:1px solid var(--glass-border);
+                        background:var(--input-bg);
+                        color:var(--text-main);
+                        outline:none;
+                        margin-bottom:12px;
+                    "
+                >
+
+                <div id="telegram-connect-message" style="font-size:0.9rem; color:var(--text-dim); margin-bottom:12px;"></div>
+
+                <button class="btn" onclick="connectTelegram()" style="background:#26A5E4; color:white;">
+                    Connect Telegram Bot
+                </button>
+            </div>
+
+            <div id="default-setup-button" style="margin-top: 30px;">
                 <button class="btn btn-primary" onclick="closeSetup()">I've Completed Setup</button>
             </div>
         </div>
@@ -219,6 +386,7 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initSidebar();
+            loadChannelStatus();
         });
 
         function toggleDropdown(id) {
@@ -249,6 +417,11 @@
             }
         }
 
+        let latestChannels = {
+            telegram: null,
+            whatsapp: null
+        };
+
         const platformData = {
             whatsapp: {
                 title: "WhatsApp API Setup",
@@ -270,12 +443,130 @@
             }
         };
 
-        function openSetup(platform) {
+        function isChannelConnected(channel) {
+            if (!channel) return false;
+
+            const status = channel.connection_status || (channel.is_active ? 'connected' : 'pending');
+
+            return status === 'connected' && channel.is_active;
+        }
+
+        function escapeHtml(value) {
+            if (value === null || value === undefined || value === "") return "-";
+
+            return String(value)
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function buildManageRow(label, value) {
+            return `
+                <div class="step-item">
+                    <div class="step-number">✓</div>
+                    <div>
+                        <div style="font-weight:700; color:var(--text-main); margin-bottom:4px;">
+                            ${escapeHtml(label)}
+                        </div>
+                        <div style="font-size:0.9rem; color:var(--text-dim); word-break:break-word;">
+                            ${escapeHtml(value)}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function openManageView(platform, channel) {
+            const container = document.getElementById('setup-steps');
+            const telegramTokenArea = document.getElementById('telegram-token-area');
+            const defaultSetupButton = document.getElementById('default-setup-button');
+
+            telegramTokenArea.style.display = 'none';
+            defaultSetupButton.style.display = 'block';
+            const channelStatus = channel.connection_status || (channel.is_active ? 'connected' : 'disconnected');
+            const connected = channelStatus === 'connected' && channel.is_active;
+
+            if (connected) {
+                defaultSetupButton.innerHTML = `
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <button class="btn" onclick="openSetup('${platform}', true)" style="background:var(--primary); color:white; flex:1;">
+                            View Setup Guide
+                        </button>
+
+                        <button class="btn" onclick="disconnectChannel('${platform}', ${channel.id})" style="background:#ef4444; color:white; flex:1;">
+                            Disconnect
+                        </button>
+
+                        <button class="btn" onclick="closeSetup()" style="background:rgba(255,255,255,0.1); color:white; flex:1;">
+                            Close
+                        </button>
+                    </div>
+
+                    <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
+                `;
+            } else {
+                defaultSetupButton.innerHTML = `
+                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                        <button class="btn" onclick="reconnectChannel('${platform}', ${channel.id})" style="background:#10b981; color:white; flex:1;">
+                            Reconnect
+                        </button>
+
+                        <button class="btn" onclick="openSetup('${platform}', true)" style="background:var(--primary); color:white; flex:1;">
+                            Replace Token
+                        </button>
+
+                        <button class="btn" onclick="closeSetup()" style="background:rgba(255,255,255,0.1); color:white; flex:1;">
+                            Close
+                        </button>
+                    </div>
+
+                    <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
+                `;
+            }
+
+            if (platform === 'telegram') {
+                document.getElementById('modal-title').innerText = 'Manage Telegram';
+
+                container.innerHTML = `
+                    ${buildManageRow('Bot Username', channel.bot_username ? '@' + channel.bot_username : '-')}
+                    ${buildManageRow('Telegram Bot ID', channel.telegram_bot_id)}
+                    ${buildManageRow('Connection Status', channel.connection_status || '-')}
+                    ${buildManageRow('Webhook URL', channel.webhook_url)}
+                    ${channel.last_error ? buildManageRow('Last Error', channel.last_error) : ''}
+                `;
+            }
+
+            if (platform === 'whatsapp') {
+                document.getElementById('modal-title').innerText = 'Manage WhatsApp';
+
+                container.innerHTML = `
+                    ${buildManageRow('Display Phone Number', channel.display_phone_number || channel.phone_number_id)}
+                    ${buildManageRow('Phone Number ID', channel.phone_number_id)}
+                    ${buildManageRow('WhatsApp Business Account ID', channel.whatsapp_business_account_id)}
+                    ${buildManageRow('Connection Status', channel.connection_status || (channel.is_active ? 'connected' : 'pending'))}
+                    ${channel.last_error ? buildManageRow('Last Error', channel.last_error) : ''}
+                `;
+            }
+
+            document.getElementById('setup-modal').style.display = 'flex';
+        }
+
+        function openSetup(platform, forceSetup = false) {
+            const existingChannel = latestChannels[platform];
+
+            if (!forceSetup && existingChannel) {
+                openManageView(platform, existingChannel);
+                return;
+            }
+
             const data = platformData[platform];
             document.getElementById('modal-title').innerText = data.title;
+
             const container = document.getElementById('setup-steps');
             container.innerHTML = '';
-            
+
             data.steps.forEach((step, index) => {
                 container.innerHTML += `
                     <div class="step-item">
@@ -284,12 +575,413 @@
                     </div>
                 `;
             });
-            
+
             document.getElementById('setup-modal').style.display = 'flex';
+
+            const telegramTokenArea = document.getElementById('telegram-token-area');
+            const defaultSetupButton = document.getElementById('default-setup-button');
+
+            defaultSetupButton.innerHTML = `
+                <button class="btn btn-primary" onclick="closeSetup()">I've Completed Setup</button>
+            `;
+
+            if (platform === 'telegram') {
+                telegramTokenArea.style.display = 'block';
+                defaultSetupButton.style.display = 'none';
+            } else {
+                telegramTokenArea.style.display = 'none';
+                defaultSetupButton.style.display = 'block';
+            }
         }
 
         function closeSetup() {
             document.getElementById('setup-modal').style.display = 'none';
+        }
+
+        function getSafeAuthHeaders() {
+            // Try your existing auth.js function first
+            if (typeof getAuthHeaders === 'function') {
+                return getAuthHeaders();
+            }
+
+            // Fallback: try common localStorage token names
+            const token =
+                localStorage.getItem('token') ||
+                localStorage.getItem('authToken') ||
+                localStorage.getItem('access_token') ||
+                localStorage.getItem('jwt') ||
+                sessionStorage.getItem('token') ||
+                sessionStorage.getItem('authToken') ||
+                sessionStorage.getItem('access_token') ||
+                sessionStorage.getItem('jwt');
+
+            if (!token) {
+                return {};
+            }
+
+            return {
+                'Authorization': `Bearer ${token}`,
+                'x-access-token': token
+            };
+        }
+
+        function getSelectedChatbotId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('bot_id') || sessionStorage.getItem('selectedBotId') || 1;
+        }
+
+        function setChannelStatus(platform, status, detail) {
+            const pill = document.getElementById(`${platform}-status-pill`);
+            const detailBox = document.getElementById(`${platform}-status-detail`);
+
+            if (!pill || !detailBox) return;
+
+            pill.classList.remove('status-connected', 'status-pending', 'status-disconnected');
+
+            if (status === 'connected') {
+                pill.classList.add('status-connected');
+                pill.innerText = 'Connected';
+            } else if (status === 'pending') {
+                pill.classList.add('status-pending');
+                pill.innerText = 'Pending';
+            } else {
+                pill.classList.add('status-disconnected');
+                pill.innerText = 'Not Connected';
+            }
+
+            detailBox.innerText = detail;
+        }
+
+        function getLatestChannel(channels) {
+            if (!Array.isArray(channels) || channels.length === 0) {
+                return null;
+            }
+
+            return channels[0];
+        }
+
+        function updatePlatformButton(platform, isConnected) {
+            const button = document.getElementById(`${platform}-card-button`);
+
+            if (!button) return;
+
+            if (platform === 'telegram') {
+                button.innerText = isConnected ? 'Manage Telegram' : 'Connect Telegram';
+            }
+
+            if (platform === 'whatsapp') {
+                button.innerText = isConnected ? 'Manage WhatsApp' : 'Connect WhatsApp';
+            }
+        }
+
+        async function loadTelegramStatus(chatbotId) {
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/telegram/channels?chatbot_id=${chatbotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    latestChannels.telegram = null;
+                    setChannelStatus('telegram', 'disconnected', result.message || 'Unable to load Telegram status.');
+                    updatePlatformButton('telegram', false);
+                    return;
+                }
+
+                const channel = getLatestChannel(result.data);
+                latestChannels.telegram = channel;
+
+                if (!channel) {
+                    setChannelStatus('telegram', 'disconnected', 'No Telegram bot connected yet.');
+                    updatePlatformButton('telegram', false);
+                    latestChannels.telegram = null;
+                    return;
+                }
+
+                const status = channel.connection_status || 'pending';
+                const username = channel.bot_username ? `@${channel.bot_username}` : 'Telegram bot';
+
+                if (status === 'connected' && channel.is_active) {
+                    setChannelStatus('telegram', 'connected', `${username} is connected and active.`);
+                    updatePlatformButton('telegram', true);
+                } else if (status === 'failed' || status === 'disconnected' || !channel.is_active) {
+                    setChannelStatus('telegram', 'disconnected', `${username} is disconnected.`);
+                    updatePlatformButton('telegram', true);
+                } else {
+                    setChannelStatus('telegram', 'pending', `${username} is saved but not fully connected yet.`);
+                    updatePlatformButton('telegram', false);
+                }
+
+            } catch (error) {
+                console.error('Telegram status error:', error);
+                latestChannels.telegram = null;
+                setChannelStatus('telegram', 'disconnected', 'Failed to load Telegram status.');
+                updatePlatformButton('telegram', false);
+            }
+        }
+
+        async function loadWhatsAppStatus(chatbotId) {
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/whatsapp/channels?chatbot_id=${chatbotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    latestChannels.whatsapp = null;
+                    setChannelStatus('whatsapp', 'disconnected', result.message || 'Unable to load WhatsApp status.');
+                    updatePlatformButton('whatsapp', false);
+                    return;
+                }
+
+                const channel = getLatestChannel(result.data);
+                latestChannels.whatsapp = channel;
+
+                if (!channel) {
+                    setChannelStatus('whatsapp', 'disconnected', 'No WhatsApp number connected yet.');
+                    updatePlatformButton('whatsapp', false);
+                    latestChannels.whatsapp = null;
+                    return;
+                }
+
+                const status = channel.connection_status || (channel.is_active ? 'connected' : 'pending');
+                const number = channel.display_phone_number || channel.phone_number_id || 'WhatsApp number';
+
+                if (status === 'connected' && channel.is_active) {
+                    setChannelStatus('whatsapp', 'connected', `${number} is connected and active.`);
+                    updatePlatformButton('whatsapp', true);
+                } else if (status === 'failed' || status === 'disconnected' || !channel.is_active) {
+                    setChannelStatus('whatsapp', 'disconnected', `${number} is disconnected.`);
+                    updatePlatformButton('whatsapp', false);
+                } else {
+                    setChannelStatus('whatsapp', 'pending', `${number} is saved but may still need setup.`);
+                    updatePlatformButton('whatsapp', false);
+                }
+
+            } catch (error) {
+                console.error('WhatsApp status error:', error);
+                latestChannels.whatsapp = null;
+                setChannelStatus('whatsapp', 'disconnected', 'Failed to load WhatsApp status.');
+                updatePlatformButton('whatsapp', false);
+            }
+        }
+
+        async function loadChannelStatus() {
+            const chatbotId = getSelectedChatbotId();
+
+            setChannelStatus('telegram', 'pending', 'Checking Telegram connection...');
+            setChannelStatus('whatsapp', 'pending', 'Checking WhatsApp connection...');
+
+            await Promise.all([
+                loadTelegramStatus(chatbotId),
+                loadWhatsAppStatus(chatbotId)
+            ]);
+        }
+
+        async function disconnectChannel(platform, channelId) {
+            const messageBox = document.getElementById('disconnect-message');
+            const chatbotId = getSelectedChatbotId();
+
+            if (!channelId) {
+                if (messageBox) {
+                    messageBox.style.color = '#ef4444';
+                    messageBox.innerText = 'Channel ID is missing.';
+                }
+                return;
+            }
+
+            const confirmText = platform === 'telegram'
+                ? 'Disconnect this Telegram bot? It will stop receiving new Telegram messages.'
+                : 'Disconnect this WhatsApp channel? It will stop mapping this number to the chatbot.';
+
+            if (!confirm(confirmText)) {
+                return;
+            }
+
+            const apiUrl = `http://127.0.0.1:8000/api/${platform}/channels/${channelId}/disconnect?chatbot_id=${chatbotId}`;
+
+            if (messageBox) {
+                messageBox.style.color = 'var(--text-dim)';
+                messageBox.innerText = `Disconnecting ${platform}...`;
+            }
+
+            try {
+                const response = await authenticatedFetch(apiUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    if (messageBox) {
+                        messageBox.style.color = '#ef4444';
+                        messageBox.innerText = result.message || `Failed to disconnect ${platform}.`;
+                    }
+                    return;
+                }
+
+                if (messageBox) {
+                    messageBox.style.color = '#10b981';
+                    messageBox.innerText = result.message || `${platform} disconnected successfully.`;
+                }
+
+                latestChannels[platform] = null;
+
+                await loadChannelStatus();
+
+                setTimeout(() => {
+                    closeSetup();
+                }, 800);
+
+            } catch (error) {
+                console.error(`${platform} disconnect error:`, error);
+
+                if (messageBox) {
+                    messageBox.style.color = '#ef4444';
+                    messageBox.innerText = `Disconnect failed: ${error.message}`;
+                }
+            }
+        }
+
+        async function reconnectChannel(platform, channelId) {
+            const messageBox = document.getElementById('disconnect-message');
+            const chatbotId = getSelectedChatbotId();
+
+            if (platform !== 'telegram') {
+                if (messageBox) {
+                    messageBox.style.color = '#ef4444';
+                    messageBox.innerText = 'Reconnect is currently available for Telegram only.';
+                }
+                return;
+            }
+
+            if (!channelId) {
+                if (messageBox) {
+                    messageBox.style.color = '#ef4444';
+                    messageBox.innerText = 'Channel ID is missing.';
+                }
+                return;
+            }
+
+            if (!confirm('Reconnect this Telegram bot using the saved token?')) {
+                return;
+            }
+
+            const apiUrl = `http://127.0.0.1:8000/api/telegram/channels/${channelId}/reconnect?chatbot_id=${chatbotId}`;
+
+            if (messageBox) {
+                messageBox.style.color = 'var(--text-dim)';
+                messageBox.innerText = 'Reconnecting Telegram...';
+            }
+
+            try {
+                const response = await authenticatedFetch(apiUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    if (messageBox) {
+                        messageBox.style.color = '#ef4444';
+                        messageBox.innerText = result.message || 'Failed to reconnect Telegram.';
+                    }
+                    return;
+                }
+
+                if (messageBox) {
+                    messageBox.style.color = '#10b981';
+                    messageBox.innerText = result.message || 'Telegram reconnected successfully.';
+                }
+
+                await loadChannelStatus();
+
+                setTimeout(() => {
+                    closeSetup();
+                }, 900);
+
+            } catch (error) {
+                console.error('Telegram reconnect error:', error);
+
+                if (messageBox) {
+                    messageBox.style.color = '#ef4444';
+                    messageBox.innerText = `Reconnect failed: ${error.message}`;
+                }
+            }
+        }
+
+        async function connectTelegram() {
+            console.log("connectTelegram clicked");
+
+            const tokenInput = document.getElementById('telegram-bot-token');
+            const messageBox = document.getElementById('telegram-connect-message');
+
+            if (!tokenInput) {
+                console.error("telegram-bot-token input not found");
+                alert("Telegram token input not found.");
+                return;
+            }
+
+            if (!messageBox) {
+                console.error("telegram-connect-message box not found");
+                alert("Telegram message box not found.");
+                return;
+            }
+
+            const botToken = tokenInput.value.trim();
+
+            if (!botToken) {
+                messageBox.style.color = '#ef4444';
+                messageBox.innerText = 'Please paste your Telegram bot token first.';
+                return;
+            }
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const chatbotId = urlParams.get('bot_id') || 1;
+
+            const apiUrl = `http://localhost:8000/api/telegram/connect?chatbot_id=${chatbotId}`;
+
+            console.log("Sending Telegram connect request to:", apiUrl);
+
+            messageBox.style.color = 'var(--text-dim)';
+            messageBox.innerText = 'Connecting Telegram bot...';
+
+            try {
+                const response = await authenticatedFetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getSafeAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        bot_token: botToken
+                    })
+                });
+
+                console.log("Telegram connect response status:", response.status);
+
+                const result = await response.json();
+                console.log("Telegram connect response body:", result);
+
+                if (!response.ok || result.status !== 'success') {
+                    messageBox.style.color = '#ef4444';
+                    messageBox.innerText = result.message || 'Failed to connect Telegram bot.';
+                    return;
+                }
+
+                messageBox.style.color = '#10b981';
+                messageBox.innerText = `Connected successfully: @${result.data.bot_username}`;
+
+                tokenInput.value = '';
+                loadChannelStatus();
+
+            } catch (error) {
+                console.error("Telegram connect error:", error);
+                messageBox.style.color = '#ef4444';
+                messageBox.innerText = `Connection failed: ${error.message}`;
+            }
         }
     </script>
 </body>

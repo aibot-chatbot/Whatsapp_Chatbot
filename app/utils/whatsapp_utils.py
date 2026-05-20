@@ -8,6 +8,7 @@ from app.services.ai_router import generate_response
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
 from app.database.processed_message_repository import is_processed, save_processed
+from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_phone_number_id
 
 
 def log_http_response(response):
@@ -64,25 +65,84 @@ def process_text_for_whatsapp(text):
 def process_whatsapp_message(body):
     value = body["entry"][0]["changes"][0]["value"]
 
+    # Get Meta phone number ID from webhook metadata
+    phone_number_id = value.get("metadata", {}).get("phone_number_id")
+
+    # Find which chatbot this WhatsApp number belongs to
+    channel = get_whatsapp_channel_by_phone_number_id(phone_number_id)
+
+    if not channel:
+        logging.error(f"No active WhatsApp channel found for phone_number_id: {phone_number_id}")
+        return
+
+    chatbot_id = channel["chatbot_id"]
+
     wa_id = value["contacts"][0]["wa_id"]
     customer_name = value["contacts"][0].get("profile", {}).get("name")
 
     message = value["messages"][0]
     message_id = message["id"]
-    message_body = message["text"]["body"]
-
-    # TEMP: use chatbot_id = 1 first
-    # Later we will detect which bot based on phone_number_id or channel
-    chatbot_id = 1
 
     if is_processed(chatbot_id, message_id):
         logging.info(f"Duplicate message ignored: {message_id}")
         return
 
+    # Step 5: Handle non-text messages safely
+    if message.get("type") != "text":
+        logging.info(f"Unsupported WhatsApp message type: {message.get('type')}")
+
+        conversation = get_or_create_conversation(
+            chatbot_id=chatbot_id,
+            customer_phone=wa_id,
+            customer_name=customer_name,
+            source_channel="whatsapp",
+        )
+
+        save_message(
+            conversation_id=conversation["id"],
+            sender_type="customer",
+            message_text=f"[Unsupported message type: {message.get('type')}]",
+            message_type=message.get("type", "unknown"),
+            platform_message_id=message_id,
+            delivery_status="received",
+            ai_generated=False,
+        )
+
+        message_type = message.get("type", "unknown")
+
+        if message_type == "image":
+            reply = (
+                "I received your image, but I can only read text messages for now. "
+                "Please type your question or copy the text from the image, and I’ll help you."
+            )
+        else:
+            reply = (
+                f"I received your {message_type}, but I can only reply to text messages for now. "
+                "Please type your question and I’ll help you."
+            )
+
+        save_message(
+            conversation_id=conversation["id"],
+            sender_type="bot",
+            message_text=reply,
+            message_type="text",
+            delivery_status="sent",
+            ai_generated=True,
+        )
+
+        data = get_text_message_input(wa_id, reply)
+        send_message(data)
+
+        save_processed(chatbot_id, message_id)
+        return
+
+    message_body = message["text"]["body"]
+
     conversation = get_or_create_conversation(
         chatbot_id=chatbot_id,
         customer_phone=wa_id,
         customer_name=customer_name,
+        source_channel="whatsapp",
     )
 
     save_message(
@@ -95,7 +155,12 @@ def process_whatsapp_message(body):
         ai_generated=False,
     )
 
-    response = generate_response(message_body, wa_id, chatbot_id)
+    response = generate_response(
+        message_body,
+        wa_id,
+        chatbot_id,
+        source_channel="whatsapp",
+    )
     response = process_text_for_whatsapp(response)
 
     save_message(

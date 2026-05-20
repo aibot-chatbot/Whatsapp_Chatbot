@@ -50,7 +50,12 @@ def chat_with_testbot():
 
         chatbot_id = request.args.get("chatbot_id", 1, type=int)
         verify_chatbot_access(chatbot_id)
-        reply = generate_response(user_message, TESTBOT_SESSION_ID, chatbot_id)
+        reply = generate_response(
+            user_message,
+            TESTBOT_SESSION_ID,
+            chatbot_id,
+            source_channel="web",
+        )
 
         return jsonify({
             "status": "success",

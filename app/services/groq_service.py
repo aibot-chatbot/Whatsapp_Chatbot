@@ -15,19 +15,26 @@ client = OpenAI(
     api_key=os.getenv("GROQ_API_KEY")
 )
 
-
-def generate_response(message, wa_id, chatbot_id=1, model="llama-3.3-70b-versatile", temperature=0.7):
+def generate_response(
+    message,
+    customer_id,
+    chatbot_id=1,
+    model="llama-3.3-70b-versatile",
+    temperature=0.7,
+    source_channel="whatsapp",
+):
     """
     Generates a response using Groq with the same chatbot flow as Gemini and DeepSeek.
     """
     try:
-        logging.info(f"[Groq] Generating response for {wa_id} using model {model}")
+        logging.info(f"[Groq] Generating response for {customer_id} using model {model}")
 
         # 1. Get or create conversation
         conversation = get_or_create_conversation(
             chatbot_id=chatbot_id,
-            customer_phone=wa_id,
+            customer_phone=customer_id,
             customer_name=None,
+            source_channel=source_channel,
         )
 
         # 2. Get recent chat history
