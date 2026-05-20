@@ -23,7 +23,12 @@ def test_chat():
         user_message = data["message"]
 
         # use a dummy user id for testing
-        reply = generate_response(user_message, "test_user")
+        reply = generate_response(
+            user_message,
+            "test_user",
+            chatbot_id=1,
+            source_channel="web",
+        )
 
         return jsonify({
             "status": "success",

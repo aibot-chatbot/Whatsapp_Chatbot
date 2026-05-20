@@ -66,47 +66,243 @@ def clean_query_words(text):
     ]
 
 
-def split_text_into_sections(text, max_chunk_length=900):
-    text = normalize_text(text)
+def clean_text_for_chunking(text):
+    """
+    Clean PDF text while keeping line breaks.
+    This is important because Q:, A:, headings, and sections often depend on line structure.
+    """
+    if not text:
+        return ""
+
+    text = text.replace("\u2019", "'").replace("\u2018", "'")
+    text = text.replace("\u201c", '"').replace("\u201d", '"')
+    text = text.replace("\u2013", "-").replace("\u2014", "-")
+
+    # Remove parsed page markers if they appear from any PDF parser/debug output
+    text = re.sub(r"<PARSED TEXT FOR PAGE:\s*\d+\s*/\s*\d+>", "\n", text)
+
+    text = re.sub(r"\r\n?", "\n", text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+
+    return text.strip()
+
+
+def is_probable_heading(line):
+    """
+    Generic heading detector.
+    Not travel-specific. Works for sections like:
+    1. PRODUCT FAQ
+    2. PRICING
+    COMPANY POLICY
+    A. RETURN POLICY
+    """
+    line = line.strip()
+
+    if not line or len(line) > 120:
+        return False
+
+    # Numbered uppercase headings, e.g. "3. ACCOMMODATION & BOOKING"
+    if re.match(r"^\d+(?:\.\d+)*\.?\s+[A-Z0-9][A-Z0-9 &,/+\-()]{4,}$", line):
+        return True
+
+    # Lettered / uppercase headings, e.g. "A. REFUND POLICY"
+    if re.match(r"^[A-Z](?:\d+(?:\.\d+)*)?[\).]\s+[A-Z0-9][A-Z0-9 &,/+\-()]{4,}$", line):
+        return True
+
+    # Plain uppercase heading, e.g. "PAYMENT METHODS"
+    letters = re.sub(r"[^A-Za-z]", "", line)
+    if len(letters) >= 5 and line.upper() == line:
+        if not line.startswith(("Q:", "A:")):
+            return True
+
+    return False
+
+
+def get_last_heading(before_text):
+    """
+    Finds the nearest heading before a Q&A section.
+    This lets the bot become category-aware based on the PDF content,
+    without hardcoding travel, hotel, booking, etc.
+    """
+    lines = [line.strip() for line in before_text.splitlines() if line.strip()]
+
+    for line in reversed(lines):
+        if is_probable_heading(line):
+            return re.sub(r"\s+", " ", line).strip()
+
+    return ""
+
+
+def split_long_text(text, max_chunk_length=1400, overlap=150):
+    """
+    Splits long chunks safely.
+    Uses sentences first. If a sentence is too long, splits by characters.
+    """
+    text = re.sub(r"\s+", " ", text).strip()
 
     if not text:
         return []
 
-    if re.search(r"\b\d+\s+Q:", text, re.IGNORECASE):
-        raw_sections = re.split(r"(?=\b\d+\s+Q:)", text)
+    if len(text) <= max_chunk_length:
+        return [text]
 
-    else:
-        raw_sections = re.split(r'(?=\b[A-E](?:\d+(?:\.\d+)*)?\b\s*[:.])', text)
+    sentences = re.split(r"(?<=[.!?])\s+", text)
 
     chunks = []
+    current_chunk = ""
 
-    for section in raw_sections:
-        section = section.strip()
-        if not section:
+    for sentence in sentences:
+        sentence = sentence.strip()
+
+        if not sentence:
             continue
 
-        if len(section) <= max_chunk_length:
-            chunks.append(section)
+        if len(current_chunk) + len(sentence) + 1 <= max_chunk_length:
+            current_chunk += (" " if current_chunk else "") + sentence
         else:
-            parts = re.split(r'(?<=[.!?])\s+', section)
-            current_chunk = ""
-
-            for part in parts:
-                part = part.strip()
-                if not part:
-                    continue
-
-                if len(current_chunk) + len(part) + 1 <= max_chunk_length:
-                    current_chunk += (" " if current_chunk else "") + part
-                else:
-                    if current_chunk:
-                        chunks.append(current_chunk.strip())
-                    current_chunk = part
-
             if current_chunk:
                 chunks.append(current_chunk.strip())
 
+            if len(sentence) > max_chunk_length:
+                step = max_chunk_length - overlap
+                for i in range(0, len(sentence), step):
+                    chunks.append(sentence[i:i + max_chunk_length].strip())
+                current_chunk = ""
+            else:
+                current_chunk = sentence
+
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+
     return chunks
+
+
+def clean_qa_section(raw_section):
+    """
+    Removes trailing headings that appear between one Q&A and the next Q&A.
+    Example:
+    Q: ...
+    A: ...
+    4. NEXT SECTION
+    """
+    lines = [line.strip() for line in raw_section.splitlines() if line.strip()]
+
+    while lines and is_probable_heading(lines[-1]):
+        lines.pop()
+
+    return " ".join(lines).strip()
+
+
+def split_general_sections(text, max_chunk_length=1400):
+    """
+    Fallback splitter for non-Q&A PDFs.
+    This keeps the system general for company profiles, policies, product docs,
+    restaurant menus, school guides, clinic FAQs, property brochures, etc.
+    """
+    text = clean_text_for_chunking(text)
+
+    if not text:
+        return []
+
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+
+    chunks = []
+    current_title = ""
+    current_lines = []
+
+    def flush_chunk():
+        nonlocal current_lines, current_title, chunks
+
+        if not current_lines:
+            return
+
+        body = " ".join(current_lines)
+        body = re.sub(r"\s+", " ", body).strip()
+
+        if current_title:
+            chunk = f"Section: {current_title}\n{body}"
+        else:
+            chunk = body
+
+        chunks.extend(split_long_text(chunk, max_chunk_length=max_chunk_length))
+        current_lines = []
+
+    for line in lines:
+        if is_probable_heading(line):
+            flush_chunk()
+            current_title = re.sub(r"\s+", " ", line).strip()
+        else:
+            current_lines.append(line)
+
+            current_length = sum(len(item) for item in current_lines)
+            if current_length >= max_chunk_length:
+                flush_chunk()
+
+    flush_chunk()
+
+    return [chunk for chunk in chunks if len(chunk) > 30]
+
+
+def split_text_into_sections(text, max_chunk_length=1400):
+    """
+    General PDF chunking strategy.
+
+    Priority 1:
+    If the PDF has Q&A structure, split each Q&A as one clean chunk.
+
+    Priority 2:
+    If the PDF is not Q&A, split by generic headings and section content.
+
+    This is NOT hardcoded for travel.
+    It works based on document structure.
+    """
+    cleaned_text = clean_text_for_chunking(text)
+
+    if not cleaned_text:
+        return []
+
+    question_pattern = re.compile(
+        r"(?im)^\s*(?:\d+[\).]\s*)?(?:Q|Question)\s*[:\-]\s*"
+    )
+
+    answer_pattern = re.compile(
+        r"(?im)^\s*(?:A|Answer)\s*[:\-]\s*"
+    )
+
+    question_matches = list(question_pattern.finditer(cleaned_text))
+
+    # Q&A mode
+    if len(question_matches) >= 2 and answer_pattern.search(cleaned_text):
+        chunks = []
+
+        for idx, match in enumerate(question_matches):
+            start = match.start()
+            end = (
+                question_matches[idx + 1].start()
+                if idx + 1 < len(question_matches)
+                else len(cleaned_text)
+            )
+
+            section_title = get_last_heading(cleaned_text[:start])
+            raw_section = cleaned_text[start:end].strip()
+            raw_section = clean_qa_section(raw_section)
+            raw_section = re.sub(r"\s+", " ", raw_section).strip()
+
+            if not raw_section:
+                continue
+
+            if section_title:
+                chunk = f"Section: {section_title}\n{raw_section}"
+            else:
+                chunk = raw_section
+
+            chunks.extend(split_long_text(chunk, max_chunk_length=max_chunk_length))
+
+        return [chunk for chunk in chunks if len(chunk) > 30]
+
+    # General document mode
+    return split_general_sections(cleaned_text, max_chunk_length=max_chunk_length)
 
 
 def score_chunk(query, query_words, chunk):

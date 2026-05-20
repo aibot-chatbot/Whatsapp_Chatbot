@@ -8,107 +8,14 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        .sidebar {
-            width: 280px;
-            background: var(--sidebar-bg);
-            backdrop-filter: blur(20px);
-            border-right: 1px solid var(--glass-border);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            padding: 40px 20px;
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 50px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .nav-list {
-            list-style: none;
-            flex-grow: 1;
-        }
-
-        .nav-item {
-            margin-bottom: 8px;
-        }
-
-        .nav-link {
-            text-decoration: none;
-            color: var(--text-dim);
-            padding: 12px 16px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.3s;
-            font-weight: 500;
-        }
-
-        .nav-link:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
-            transform: translateX(5px);
-        }
-
-        .nav-link.active {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 20px var(--primary-glow);
-        }
-
-        .dropdown-container {
-            margin-bottom: 8px;
-        }
-
-        .dropdown-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: all 0.3s ease-in-out;
-            padding-left: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .dropdown-container.open .dropdown-content {
-            max-height: 500px;
-            margin-top: 8px;
-            padding-bottom: 8px;
-        }
-
-        .sub-link {
-            font-size: 0.9rem;
-            padding: 10px 16px;
-        }
-
-        .logout-btn {
-            margin-top: auto;
-            color: #ef4444;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            text-decoration: none;
-            font-weight: 600;
-            border-radius: 12px;
-        }
-
         :root {
             --primary: #3b82f6;
             --primary-glow: rgba(59, 130, 246, 0.5);
             --bg: #050b18;
-            --sidebar-bg: rgba(15, 23, 42, 0.8);
             --card-bg: rgba(30, 41, 59, 0.6);
             --text-main: #f8fafc;
             --text-dim: #94a3b8;
@@ -126,8 +33,9 @@
         body {
             background-color: var(--bg);
             background-image:
-                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+            background-attachment: fixed;
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
@@ -136,132 +44,323 @@
 
         .main-container {
             flex-grow: 1;
-            padding: 50px 60px;
-            max-width: 1400px;
+            padding: 60px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
         }
 
         .header {
-            margin-bottom: 35px;
+            margin-bottom: 40px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
         .header h1 {
-            font-size: 2.2rem;
+            font-size: 2.5rem;
             font-weight: 700;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .header p {
             color: var(--text-dim);
             margin-top: 8px;
+            font-size: 1.1rem;
         }
 
         .create-btn {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary), #2563eb);
             color: white;
             border: none;
-            padding: 12px 20px;
+            padding: 12px 24px;
             border-radius: 14px;
             font-weight: 600;
             cursor: pointer;
             box-shadow: 0 4px 20px var(--primary-glow);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .create-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px var(--primary-glow);
+            background: linear-gradient(135deg, #4f8bf9, #3b82f6);
         }
 
         .bots-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 360px));
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 24px;
             align-items: start;
         }
 
         .glass-card {
             background: var(--card-bg);
+            backdrop-filter: blur(20px);
             border: 1px solid var(--glass-border);
             padding: 24px;
             border-radius: 24px;
-            transition: all 0.3s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             width: 100%;
             min-height: 260px;
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
         }
 
         .glass-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-6px);
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(59, 130, 246, 0.1);
         }
 
-        .bot-title {
-            font-size: 1.3rem;
-            font-weight: 700;
-            margin-bottom: 8px;
+        .glass-card:hover::before {
+            opacity: 1;
         }
 
-        .bot-desc {
-            color: var(--text-dim);
+        .bot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             margin-bottom: 20px;
-            line-height: 1.5;
         }
 
-        .bot-meta {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            margin-bottom: 8px;
+        .bot-icon {
+            background: rgba(59, 130, 246, 0.15);
+            padding: 10px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .badge {
             display: inline-block;
-            padding: 5px 12px;
+            padding: 6px 14px;
             border-radius: 20px;
             font-size: 0.75rem;
             font-weight: 600;
-            background: rgba(16, 185, 129, 0.2);
-            color: var(--accent);
-            margin-top: 10px;
         }
 
+        .active-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .inactive-badge {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--text-dim);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .bot-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .bot-desc {
+            color: var(--text-dim);
+            margin-bottom: auto;
+            line-height: 1.5;
+            font-size: 0.95rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .bot-meta-container {
+            display: flex;
+            gap: 16px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .bot-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 12px;
+            border-radius: 10px;
+        }
+
+        .bot-actions {
+            display: flex;
+            gap: 12px;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 16px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .action-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .edit-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+        }
+
+        .edit-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .delete-btn {
+            background: rgba(239, 68, 68, 0.05);
+            color: #ef4444;
+        }
+
+        .delete-btn:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        /* Empty State */
+        .empty-state {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            text-align: center;
+            background: var(--card-bg);
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+        }
+
+        .empty-icon {
+            background: rgba(59, 130, 246, 0.1);
+            padding: 24px;
+            border-radius: 50%;
+            margin-bottom: 24px;
+        }
+
+        .empty-state h2 {
+            font-size: 2rem;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+
+        .empty-state p {
+            color: var(--text-dim);
+            max-width: 450px;
+            margin-bottom: 32px;
+            line-height: 1.6;
+            font-size: 1.05rem;
+        }
+
+        /* Modals */
         .modal-overlay {
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.65);
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
             display: flex;
             align-items: center;
             justify-content: center;
             z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
         }
 
         .modal-card {
-            width: 420px;
-            background: var(--card-bg);
-            border: 1px solid var(--glass-border);
+            width: 440px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 24px;
-            padding: 28px;
+            padding: 32px;
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-overlay.show .modal-card {
+            transform: translateY(0) scale(1);
         }
 
         .modal-card h2 {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
+            font-size: 1.5rem;
         }
 
         .modal-card label {
             display: block;
-            margin-top: 14px;
-            margin-bottom: 6px;
+            margin-top: 16px;
+            margin-bottom: 8px;
             color: var(--text-dim);
             font-size: 0.9rem;
+            font-weight: 500;
         }
 
         .modal-card input,
         .modal-card textarea,
         .modal-card select {
             width: 100%;
-            padding: 12px;
+            padding: 14px;
             border-radius: 12px;
             border: 1px solid var(--glass-border);
-            background: rgba(15, 23, 42, 0.8);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-main);
+            transition: all 0.2s;
+        }
+
+        .modal-card input:focus,
+        .modal-card textarea:focus,
+        .modal-card select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            background: rgba(255, 255, 255, 0.08);
         }
 
         .modal-card textarea {
-            min-height: 90px;
+            min-height: 100px;
             resize: vertical;
         }
 
@@ -269,26 +368,50 @@
             display: flex;
             justify-content: flex-end;
             gap: 12px;
-            margin-top: 24px;
+            margin-top: 32px;
         }
 
         .cancel-btn {
-            background: rgba(148, 163, 184, 0.2);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-main);
-            border: none;
-            padding: 12px 20px;
+            border: 1px solid var(--glass-border);
+            padding: 12px 24px;
             border-radius: 14px;
             cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .cancel-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
         }
 
         .danger-btn {
             background: #ef4444;
             color: white;
             border: none;
-            padding: 12px 20px;
+            padding: 12px 24px;
             border-radius: 14px;
             font-weight: 600;
             cursor: pointer;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+            transition: all 0.2s;
+        }
+
+        .danger-btn:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        .loading-state {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: var(--text-dim);
+            font-size: 1.2rem;
         }
 
         /* --- Onboarding Tour Styles --- */
@@ -359,17 +482,13 @@
             font-weight: 600;
         }
     </style>
-
 </head>
 
 <body>
-    <script src="sidebar-component.js"></script>
-    <chatbot-sidebar></chatbot-sidebar>
-
     <main class="main-container">
         <div class="header">
             <div>
-                <h1>My Bots</h1>
+                <h1>Home Page - My Bots</h1>
                 <p>Manage all AI chatbots in your system.</p>
             </div>
             <div style="display: flex; gap: 12px;">
@@ -377,16 +496,21 @@
                     style="display: flex; align-items: center; gap: 8px;">
                     💡 Help?
                 </button>
-                <button class="create-btn" onclick="openCreateModal()">+ Create Bot</button>
+                <button class="create-btn" onclick="openCreateModal()">
+                    <i data-lucide="plus"></i> Create Bot
+                </button>
             </div>
 
         </div>
 
         <div id="bots-grid" class="bots-grid">
-            <div class="glass-card">Loading bots...</div>
+            <div class="loading-state">
+                <i data-lucide="loader-2" class="lucide-spin" style="margin-right: 12px;"></i> Loading bots...
+            </div>
         </div>
 
-        <div id="create-modal" class="modal-overlay" style="display:none;">
+        <!-- Create/Edit Modal -->
+        <div id="create-modal" class="modal-overlay">
             <div class="modal-card">
                 <h2>Create New Bot</h2>
 
@@ -408,12 +532,13 @@
 
                 <div class="modal-actions">
                     <button class="cancel-btn" onclick="closeCreateModal()">Cancel</button>
-                    <button class="create-btn" onclick="createBot()">Create</button>
+                    <button class="create-btn" onclick="createBot()" style="margin: 0;">Create</button>
                 </div>
             </div>
         </div>
 
-        <div id="delete-modal" class="modal-overlay" style="display:none;">
+        <!-- Delete Modal -->
+        <div id="delete-modal" class="modal-overlay">
             <div class="modal-card">
                 <h2>Delete Bot</h2>
                 <p style="color: var(--text-dim); line-height: 1.6;">
@@ -443,11 +568,41 @@
 
     <script src="assets/js/auth.js"></script>
     <script>
+        // Initialize lucide icons for the static parts
+        lucide.createIcons();
+
         requireLogin();
 
         document.addEventListener("DOMContentLoaded", () => {
             fetchBots();
+            setupGridDelegation();
         });
+
+        function setupGridDelegation() {
+            document.getElementById("bots-grid").addEventListener("click", (e) => {
+                const editBtn = e.target.closest(".edit-btn");
+                if (editBtn) {
+                    e.stopPropagation();
+                    const botId = editBtn.getAttribute("data-bot-id");
+                    openEditBot(botId);
+                    return;
+                }
+
+                const deleteBtn = e.target.closest(".delete-btn");
+                if (deleteBtn) {
+                    e.stopPropagation();
+                    const botId = deleteBtn.getAttribute("data-bot-id");
+                    deleteBot(botId);
+                    return;
+                }
+
+                const card = e.target.closest(".glass-card");
+                if (card) {
+                    const botId = card.getAttribute("data-bot-id");
+                    openBot(botId);
+                }
+            });
+        }
 
         async function fetchBots() {
             const grid = document.getElementById("bots-grid");
@@ -457,35 +612,65 @@
                 const result = await response.json();
 
                 if (result.status !== "success") {
-                    grid.innerHTML = `<div class="glass-card">Failed to load bots.</div>`;
+                    grid.innerHTML = `<div class="empty-state">Failed to load bots.</div>`;
                     return;
                 }
 
                 const bots = result.data;
 
                 if (!bots || bots.length === 0) {
-                    grid.innerHTML = `<div class="glass-card">No bots found. Create your first bot.</div>`;
+                    grid.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">
+                                <i data-lucide="bot" style="width: 48px; height: 48px; color: var(--primary);"></i>
+                            </div>
+                            <h2>No Bots Created Yet</h2>
+                            <p>Get started by creating your first AI Chatbot. You'll be able to upload knowledge files, define custom prompts, and integrate it with WhatsApp.</p>
+                            <button class="create-btn" onclick="openCreateModal()">
+                                <i data-lucide="plus"></i> Create Your First Bot
+                            </button>
+                        </div>
+                    `;
+                    lucide.createIcons();
                     return;
                 }
 
                 grid.innerHTML = bots.map(bot => `
-                    <div class="glass-card" onclick="openBot(${bot.id})" style="cursor:pointer;">
+                    <div class="glass-card" data-bot-id="${bot.id}">
+                        <div class="bot-header">
+                            <div class="bot-icon">
+                                <i data-lucide="cpu" style="width: 28px; height: 28px; color: var(--primary);"></i>
+                            </div>
+                            <span class="badge ${bot.is_active ? 'active-badge' : 'inactive-badge'}">${bot.is_active ? "Active" : "Inactive"}</span>
+                        </div>
                         <div class="bot-title">${bot.bot_name || "Unnamed Bot"}</div>
                         <div class="bot-desc">${bot.bot_description || "No description provided."}</div>
                         <div class="bot-meta">Tone: ${bot.tone || "Not set"}</div>
                         <div class="bot-meta">Language: ${bot.language || "Not set"}</div>
                         <span class="badge">${bot.is_active ? "Active" : "Inactive"}</span>
 
-                        <div style="margin-top: 15px; display:flex; gap:10px;">
-                            <button class="cancel-btn" onclick="event.stopPropagation(); openEditBot(${bot.id})">Edit</button>
-                            <button class="cancel-btn" onclick="event.stopPropagation(); deleteBot(${bot.id})">Delete</button>
+                        <div class="bot-meta-container">
+                            <div class="bot-meta"><i data-lucide="mic" style="width: 14px; height: 14px;"></i> ${bot.tone || "Not set"}</div>
+                            <div class="bot-meta"><i data-lucide="globe" style="width: 14px; height: 14px;"></i> ${bot.language || "Not set"}</div>
+                        </div>
+
+                        <div class="bot-actions">
+                            <button class="action-btn edit-btn" data-bot-id="${bot.id}">
+                                <i data-lucide="edit-2" style="width: 16px; height: 16px; pointer-events: none;"></i> Edit
+                            </button>
+                            <button class="action-btn delete-btn" data-bot-id="${bot.id}">
+                                <i data-lucide="trash-2" style="width: 16px; height: 16px; pointer-events: none;"></i> Delete
+                            </button>
                         </div>
                     </div>
                 `).join("");
 
+                // Re-initialize icons for the new dynamically added DOM elements
+                lucide.createIcons();
+
             } catch (error) {
                 console.error(error);
-                grid.innerHTML = `<div class="glass-card">Error loading bots.</div>`;
+                grid.innerHTML = `<div class="empty-state">Error loading bots.</div>`;
             }
         }
 
@@ -503,14 +688,14 @@
             document.querySelector("#create-modal h2").innerText = "Create New Bot";
 
             const createBtn = document.querySelector("#create-modal .create-btn");
-            createBtn.innerText = "Create";
+            createBtn.innerHTML = "Create"; // remove icon for modal
             createBtn.onclick = createBot;
 
-            document.getElementById("create-modal").style.display = "flex";
+            document.getElementById("create-modal").classList.add("show");
         }
 
         function closeCreateModal() {
-            document.getElementById("create-modal").style.display = "none";
+            document.getElementById("create-modal").classList.remove("show");
         }
 
         async function createBot() {
@@ -550,18 +735,18 @@
             }
         }
 
-        // ===== NEW PART =====
+        // ===== DELETE BOT =====
 
         let selectedDeleteBotId = null;
 
         function deleteBot(botId) {
             selectedDeleteBotId = botId;
-            document.getElementById("delete-modal").style.display = "flex";
+            document.getElementById("delete-modal").classList.add("show");
         }
 
         function closeDeleteModal() {
             selectedDeleteBotId = null;
-            document.getElementById("delete-modal").style.display = "none";
+            document.getElementById("delete-modal").classList.remove("show");
         }
 
         async function confirmDeleteBot() {
@@ -581,6 +766,8 @@
             }
         }
 
+        // ===== EDIT BOT =====
+
         async function openEditBot(botId) {
             const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`);
             const result = await response.json();
@@ -599,11 +786,11 @@
 
             document.querySelector("#create-modal h2").innerText = "Edit Bot";
 
-            document.getElementById("create-modal").style.display = "flex";
+            document.getElementById("create-modal").classList.add("show");
 
             // change create button to update
             const createBtn = document.querySelector("#create-modal .create-btn");
-            createBtn.innerText = "Update";
+            createBtn.innerHTML = "Update";
             createBtn.onclick = () => updateBot(botId);
         }
 
@@ -632,7 +819,7 @@
 
                 // reset button back to create
                 const createBtn = document.querySelector("#create-modal .create-btn");
-                createBtn.innerText = "Create";
+                createBtn.innerHTML = "Create";
                 createBtn.onclick = createBot;
             } else {
                 alert(result.message || "Failed to update bot");

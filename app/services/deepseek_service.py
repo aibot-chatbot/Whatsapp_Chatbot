@@ -15,12 +15,20 @@ client = OpenAI(
     base_url="https://api.deepseek.com"
 )
 
-def generate_response(message, wa_id, chatbot_id=1, model="deepseek-chat", temperature=0.7):
+def generate_response(
+    message,
+    customer_id,
+    chatbot_id=1,
+    model="deepseek-chat",
+    temperature=0.7,
+    source_channel="whatsapp",
+):
     try:
         conversation = get_or_create_conversation(
             chatbot_id=chatbot_id,
-            customer_phone=wa_id,
+            customer_phone=customer_id,
             customer_name=None,
+            source_channel=source_channel,
         )
         history = get_recent_chat_history(conversation["id"], limit=MAX_HISTORY)
 

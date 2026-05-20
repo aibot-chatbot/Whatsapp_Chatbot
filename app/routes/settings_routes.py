@@ -102,7 +102,7 @@ def apply_profile():
         return jsonify({
             "status": "success",
             "data": updated_settings,
-            "message": f'Profile "{profile_name}" has been applied to WhatsApp bot settings.'
+            "message": f'Profile "{profile_name}" has been deployed to the live bot. Connected channels will use the updated profile and knowledge.'
         }), 200
 
     except ValueError as e:

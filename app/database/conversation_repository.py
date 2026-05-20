@@ -2,7 +2,12 @@ from datetime import datetime, timezone
 from app.database.db import supabase
 
 
-def get_or_create_conversation(chatbot_id: int, customer_phone: str, customer_name: str = None):
+def get_or_create_conversation(
+    chatbot_id: int,
+    customer_phone: str,
+    customer_name: str = None,
+    source_channel: str = "whatsapp",
+):
     now = datetime.now(timezone.utc).isoformat()
 
     existing = (
@@ -10,6 +15,7 @@ def get_or_create_conversation(chatbot_id: int, customer_phone: str, customer_na
         .select("*")
         .eq("chatbot_id", chatbot_id)
         .eq("customer_phone", customer_phone)
+        .eq("source_channel", source_channel)
         .eq("conversation_status", "open")
         .limit(1)
         .execute()
@@ -38,7 +44,7 @@ def get_or_create_conversation(chatbot_id: int, customer_phone: str, customer_na
         "chatbot_id": chatbot_id,
         "customer_phone": customer_phone,
         "customer_name": customer_name,
-        "source_channel": "whatsapp",
+        "source_channel": source_channel,
         "conversation_status": "open",
         "updated_at": now,
     }
