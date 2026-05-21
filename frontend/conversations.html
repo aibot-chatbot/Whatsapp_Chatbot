@@ -362,6 +362,81 @@
                 flex-shrink: 0;
             }
         }
+
+        /* Platform filter pills bar */
+        .platform-filters {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .filter-pill {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--text-dim);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            text-align: center;
+        }
+
+        .filter-pill:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+        }
+
+        /* Active states for each platform badge */
+        .filter-pill.active[data-platform="all"] {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--primary);
+            color: var(--text-main);
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+        }
+
+        .filter-pill.active[data-platform="whatsapp"] {
+            background: rgba(37, 211, 102, 0.15);
+            border-color: #25D366;
+            color: #25D366;
+            box-shadow: 0 0 10px rgba(37, 211, 102, 0.2);
+        }
+
+        .filter-pill.active[data-platform="telegram"] {
+            background: rgba(0, 136, 204, 0.15);
+            border-color: #0088cc;
+            color: #0088cc;
+            box-shadow: 0 0 10px rgba(0, 136, 204, 0.2);
+        }
+
+        /* Convo list item badge */
+        .convo-phone-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .platform-badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .platform-badge.whatsapp {
+            background: rgba(37, 211, 102, 0.15);
+            color: #25D366;
+            border: 1px solid rgba(37, 211, 102, 0.3);
+        }
+
+        .platform-badge.telegram {
+            background: rgba(0, 136, 204, 0.15);
+            color: #0088cc;
+            border: 1px solid rgba(0, 136, 204, 0.3);
+        }
     </style>
 </head>
 
@@ -383,6 +458,12 @@
                         <i data-lucide="search"></i>
                         <input type="text" class="search-input" id="search-input" placeholder="Search phone number..."
                             onkeyup="filterConversations()">
+                    </div>
+                    <!-- Platform filter pills -->
+                    <div class="platform-filters">
+                        <button class="filter-pill active" data-platform="all" onclick="setPlatformFilter('all')">All</button>
+                        <button class="filter-pill" data-platform="whatsapp" onclick="setPlatformFilter('whatsapp')">WhatsApp</button>
+                        <button class="filter-pill" data-platform="telegram" onclick="setPlatformFilter('telegram')">Telegram</button>
                     </div>
                 </div>
                 <div class="conversation-list" id="conversation-list">
@@ -409,6 +490,7 @@
         const selectedBotId = urlParams.get("bot_id") || 1;
         let allConversations = [];
         let activeConversationId = null;
+        let currentPlatform = 'all';
 
         document.addEventListener('DOMContentLoaded', () => {
             lucide.createIcons();
@@ -484,32 +566,53 @@
                 return;
             }
 
-            listEl.innerHTML = conversations.map(conv => `
-                <div class="conversation-item ${conv.id === activeConversationId ? 'active' : ''}" 
-                     onclick="loadMessages(${conv.id}, '${conv.customer_phone}', '${conv.customer_name || 'User'}')">
-                    <div class="convo-top">
-                        <span class="convo-phone">${conv.customer_phone}</span>
-                        <span class="convo-time">${formatTime(conv.updated_at)}</span>
+            listEl.innerHTML = conversations.map(conv => {
+                const platform = (conv.source_channel || 'whatsapp').toLowerCase();
+                return `
+                    <div class="conversation-item ${conv.id === activeConversationId ? 'active' : ''}" 
+                         onclick="loadMessages(${conv.id}, '${conv.customer_phone}', '${conv.customer_name || 'User'}')">
+                        <div class="convo-top">
+                            <div class="convo-phone-container">
+                                <span class="convo-phone">${conv.customer_phone}</span>
+                                <span class="platform-badge ${platform}">${platform}</span>
+                            </div>
+                            <span class="convo-time">${formatTime(conv.updated_at)}</span>
+                        </div>
+                        <div class="convo-preview">
+                            ${conv.customer_name ? `Name: ${conv.customer_name}` : 'No name provided'}
+                        </div>
                     </div>
-                    <div class="convo-preview">
-                        ${conv.customer_name ? `Name: ${conv.customer_name}` : 'No name provided'}
-                    </div>
-                </div>
-            `).join('');
+                `;
+            }).join('');
         }
 
         function filterConversations() {
             const query = document.getElementById('search-input').value.toLowerCase();
-            const filtered = allConversations.filter(c =>
-                c.customer_phone.toLowerCase().includes(query) ||
-                (c.customer_name && c.customer_name.toLowerCase().includes(query))
-            );
+            const filtered = allConversations.filter(c => {
+                const matchesQuery = c.customer_phone.toLowerCase().includes(query) ||
+                    (c.customer_name && c.customer_name.toLowerCase().includes(query));
+                const platform = (c.source_channel || 'whatsapp').toLowerCase();
+                const matchesPlatform = currentPlatform === 'all' || platform === currentPlatform;
+                return matchesQuery && matchesPlatform;
+            });
             renderConversationList(filtered);
+        }
+
+        function setPlatformFilter(platform) {
+            currentPlatform = platform;
+            document.querySelectorAll('.filter-pill').forEach(btn => {
+                if (btn.getAttribute('data-platform') === platform) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            filterConversations();
         }
 
         async function loadMessages(conversationId, phone, name) {
             activeConversationId = conversationId;
-            renderConversationList(allConversations); // re-render to update active state
+            filterConversations(); // re-render using active filter to update active state
 
             const chatPane = document.getElementById('chat-pane');
 
