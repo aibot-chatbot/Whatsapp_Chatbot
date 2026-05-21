@@ -548,6 +548,54 @@
                 display: none;
             }
         }
+
+        .link-list-container {
+            max-height: 220px;
+            overflow-y: auto;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.4);
+            padding: 8px 12px;
+            margin-top: 10px;
+        }
+        .link-list-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        .link-list-container::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .link-list-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        .link-list-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .link-list-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.85rem;
+        }
+        .link-list-item:last-child {
+            border-bottom: none;
+        }
+        .link-list-item label {
+            margin: 0;
+            cursor: pointer;
+            display: block;
+            word-break: break-all;
+            flex: 1;
+            color: var(--text-main);
+        }
+        .link-list-item input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            accent-color: var(--primary);
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -566,6 +614,13 @@
             const [fileToDelete, setFileToDelete] = useState(null);
             const [activeTab, setActiveTab] = useState("file");
             const [linkUrl, setLinkUrl] = useState("");
+            
+            // Interactive Crawler State Variables
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [analyzedLinks, setAnalyzedLinks] = useState([]);
+            const [selectedLinks, setSelectedLinks] = useState({});
+            const [crawlStep, setCrawlStep] = useState("input"); // "input" or "select"
+
             const urlParams = new URLSearchParams(window.location.search);
             const selectedBotId = urlParams.get("bot_id") || sessionStorage.getItem("selectedBotId") || 1;
             sessionStorage.setItem("selectedBotId", selectedBotId);
@@ -592,14 +647,24 @@
                 setLinkUrl("");
                 setActiveTab("file");
                 setIsModalOpen(true);
+                // Reset crawler states
+                setIsAnalyzing(false);
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+                setCrawlStep("input");
             };
 
             const closeModal = () => {
-                if (isUploading) return;
+                if (isUploading || isAnalyzing) return;
                 setIsModalOpen(false);
                 setFile(null);
                 setLinkUrl("");
                 setActiveTab("file");
+                // Reset crawler states
+                setIsAnalyzing(false);
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+                setCrawlStep("input");
             };
 
             const handleFileSelect = (input) => {
@@ -644,9 +709,99 @@
                 }
             };
 
+            const handleAnalyze = async () => {
+                if (!linkUrl) {
+                    setStatus({ type: "error", text: "Please enter a website URL.", action: "" });
+                    return;
+                }
+                setIsAnalyzing(true);
+                setStatus({ type: "", text: "", action: "" });
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+
+                try {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/scrape-analyze${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ url: linkUrl }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        const links = data.data?.links || [];
+                        setAnalyzedLinks(links);
+                        
+                        // Select all by default
+                        const initialSelected = {};
+                        links.forEach(l => {
+                            initialSelected[l] = true;
+                        });
+                        setSelectedLinks(initialSelected);
+                        setCrawlStep("select");
+                    } else {
+                        setStatus({ type: "error", text: `Analysis failed: ${data.message || "Unknown error"}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsAnalyzing(false);
+                }
+            };
+
+            const handleToggleLink = (link) => {
+                setSelectedLinks(prev => ({
+                    ...prev,
+                    [link]: !prev[link]
+                }));
+            };
+
+            const handleToggleAllLinks = () => {
+                const allSelected = analyzedLinks.every(l => selectedLinks[l]);
+                const nextSelected = {};
+                analyzedLinks.forEach(l => {
+                    nextSelected[l] = !allSelected;
+                });
+                setSelectedLinks(nextSelected);
+            };
+
             const handleUpload = async () => {
                 if (activeTab === "link") {
-                    setStatus({ type: "error", text: "Website link training is not connected yet. Please use PDF upload for now.", action: "" });
+                    const selectedUrls = analyzedLinks.filter(l => selectedLinks[l]);
+                    if (selectedUrls.length === 0) {
+                        setStatus({ type: "error", text: "Please select at least one page to ingest.", action: "" });
+                        return;
+                    }
+                    
+                    setIsUploading(true);
+                    setStatus({ type: "", text: "", action: "" });
+
+                    try {
+                        const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/scrape-batch${botQuery}`, {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                            },
+                            body: JSON.stringify({ urls: selectedUrls }),
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            setStatus({ type: "success", text: "Website content scraped and saved successfully. Please set it active if needed.", action: "upload" });
+                            setLinkUrl("");
+                            setIsModalOpen(false);
+                            await fetchFiles();
+                        } else {
+                            setStatus({ type: "error", text: `Scraping failed: ${data.message || "Unknown error"}`, action: "" });
+                        }
+                    } catch (error) {
+                        setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                    } finally {
+                        setIsUploading(false);
+                    }
                     return;
                 }
 
@@ -915,6 +1070,7 @@
                                     className={`modal-tab ${activeTab === "link" ? "active" : ""}`}
                                     type="button"
                                     onClick={() => setActiveTab("link")}
+                                    disabled={isUploading || isAnalyzing}
                                 >
                                     Website Link
                                 </button>
@@ -922,25 +1078,85 @@
                                     className={`modal-tab ${activeTab === "file" ? "active" : ""}`}
                                     type="button"
                                     onClick={() => setActiveTab("file")}
+                                    disabled={isUploading || isAnalyzing}
                                 >
                                     Upload Document
                                 </button>
                             </div>
 
                             {activeTab === "link" ? (
-                                <div className="input-group">
-                                    <label>Website URL</label>
-                                    <input
-                                        type="text"
-                                        className="modal-input"
-                                        value={linkUrl}
-                                        onChange={(e) => setLinkUrl(e.target.value)}
-                                        placeholder="https://example.com/blog/article-1"
-                                    />
-                                    <div style={{ marginTop: "10px", color: "var(--text-dim)", fontSize: "0.85rem" }}>
-                                        Link training UI is ready, but backend is not connected yet.
+                                crawlStep === "input" ? (
+                                    <div className="input-group">
+                                        <label>Website URL</label>
+                                        <input
+                                            type="text"
+                                            className="modal-input"
+                                            value={linkUrl}
+                                            onChange={(e) => setLinkUrl(e.target.value)}
+                                            placeholder="https://example.com/blog/article-1"
+                                            disabled={isAnalyzing}
+                                        />
+                                        <div style={{ marginTop: "10px", color: "var(--text-dim)", fontSize: "0.85rem" }}>
+                                            Enter the website URL to scrape and discover internal subpages.
+                                        </div>
+                                        {isAnalyzing && (
+                                            <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px", color: "var(--primary)" }}>
+                                                <span className="spinner"></span>
+                                                <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Finding subpages... (discovered links will load shortly)</span>
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
+                                ) : (
+                                    <div className="input-group">
+                                        <label style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
+                                            Discovered {analyzedLinks.length} subpages
+                                        </label>
+                                        <div style={{ color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "15px" }}>
+                                            Select which pages from <strong>{linkUrl}</strong> you want to ingest as knowledge.
+                                        </div>
+
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                            <span style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                                Available Pages
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleToggleAllLinks}
+                                                style={{
+                                                    background: "transparent",
+                                                    border: "none",
+                                                    color: "var(--primary)",
+                                                    cursor: "pointer",
+                                                    fontSize: "0.85rem",
+                                                    fontWeight: "600",
+                                                    padding: "0"
+                                                }}
+                                            >
+                                                {analyzedLinks.length > 0 && analyzedLinks.every(l => selectedLinks[l]) ? "Deselect All" : "Select All"}
+                                            </button>
+                                        </div>
+
+                                        {analyzedLinks.length === 0 ? (
+                                            <div style={{ padding: "20px", textAlign: "center", color: "var(--text-dim)", fontSize: "0.9rem", border: "1px solid var(--glass-border)", borderRadius: "12px" }}>
+                                                No subpages found. You can still ingest the main page.
+                                            </div>
+                                        ) : (
+                                            <div className="link-list-container">
+                                                {analyzedLinks.map((link, idx) => (
+                                                    <div key={idx} className="link-list-item">
+                                                        <input
+                                                            type="checkbox"
+                                                            id={`link-chk-${idx}`}
+                                                            checked={!!selectedLinks[link]}
+                                                            onChange={() => handleToggleLink(link)}
+                                                        />
+                                                        <label htmlFor={`link-chk-${idx}`}>{link}</label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
                             ) : (
                                 <div>
                                     <div className="drop-zone" onClick={() => document.getElementById("file-input").click()}>
@@ -968,17 +1184,62 @@
                             )}
 
                             <div className="modal-footer">
-                                <button className="btn" type="button" onClick={closeModal}>
+                                {activeTab === "link" && crawlStep === "select" && (
+                                    <button
+                                        className="btn"
+                                        type="button"
+                                        onClick={() => setCrawlStep("input")}
+                                        disabled={isUploading}
+                                        style={{ marginRight: "auto" }}
+                                    >
+                                        Back
+                                    </button>
+                                )}
+                                <button className="btn" type="button" onClick={closeModal} disabled={isUploading || isAnalyzing}>
                                     Cancel
                                 </button>
-                                <button
-                                    className="btn btn-primary"
-                                    type="button"
-                                    onClick={handleUpload}
-                                    disabled={isUploading || (activeTab === "file" && !file)}
-                                >
-                                    {isUploading ? <span><span className="spinner"></span> Uploading...</span> : "Add Resource"}
-                                </button>
+                                {activeTab === "link" ? (
+                                    crawlStep === "input" ? (
+                                        <button
+                                            className="btn btn-primary"
+                                            type="button"
+                                            onClick={handleAnalyze}
+                                            disabled={isAnalyzing || !linkUrl.trim()}
+                                        >
+                                            {isAnalyzing ? (
+                                                <span>
+                                                    <span className="spinner"></span> Analyzing...
+                                                </span>
+                                            ) : "Analyze Website"}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            className="btn btn-primary"
+                                            type="button"
+                                            onClick={handleUpload}
+                                            disabled={isUploading || Object.values(selectedLinks).filter(Boolean).length === 0}
+                                        >
+                                            {isUploading ? (
+                                                <span>
+                                                    <span className="spinner"></span> Ingesting...
+                                                </span>
+                                            ) : `Ingest (${Object.values(selectedLinks).filter(Boolean).length} Selected)`}
+                                        </button>
+                                    )
+                                ) : (
+                                    <button
+                                        className="btn btn-primary"
+                                        type="button"
+                                        onClick={handleUpload}
+                                        disabled={isUploading || !file}
+                                    >
+                                        {isUploading ? (
+                                            <span>
+                                                <span className="spinner"></span> Uploading...
+                                            </span>
+                                        ) : "Add Resource"}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

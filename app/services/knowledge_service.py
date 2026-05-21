@@ -140,6 +140,24 @@ def set_active_pdf(file_name, chatbot_id):
     if not file_name:
         raise ValueError("File name is required")
 
+    # If it is a website URL (or starts with http/https), bypass local file check
+    if file_name.startswith("http://") or file_name.startswith("https://"):
+        set_active_knowledge_file(
+            chatbot_id=chatbot_id,
+            file_name=file_name
+        )
+        update_chatbot_runtime({
+            "draft_pdf_file_name": file_name,
+            "draft_pdf_path": file_name,
+            "last_match_result": None,
+            "last_match_reason": "",
+        }, chatbot_id)
+        return {
+            "file_name": file_name,
+            "file_path": file_name,
+            "message": f"Draft active website set to {file_name}"
+        }
+
     safe_name = secure_filename(file_name)
     target_path = os.path.join(DATA_FOLDER, safe_name)
 
@@ -174,15 +192,15 @@ def delete_pdf_file(file_name, chatbot_id):
     safe_name = secure_filename(file_name)
     target_path = os.path.join(DATA_FOLDER, safe_name)
 
-    if not os.path.exists(target_path):
-        raise ValueError("File not found")
+    if os.path.exists(target_path):
+        os.remove(target_path)
 
     active = get_active_knowledge_file(chatbot_id=chatbot_id)
-    is_active_file = active and safe_name == active.get("file_name")
+    is_active_file = active and (file_name == active.get("file_name") or safe_name == active.get("file_name"))
 
-    os.remove(target_path)
-
-    delete_knowledge_file_by_name(chatbot_id, safe_name)
+    delete_knowledge_file_by_name(chatbot_id, file_name)
+    if safe_name != file_name:
+        delete_knowledge_file_by_name(chatbot_id, safe_name)
 
     if is_active_file:
         update_chatbot_runtime({
@@ -195,6 +213,294 @@ def delete_pdf_file(file_name, chatbot_id):
         }, chatbot_id)
 
     return {
-        "file_name": safe_name,
-        "message": f"PDF {safe_name} deleted successfully"
+        "file_name": file_name,
+        "message": f"Resource {file_name} deleted successfully"
+    }
+
+
+from html.parser import HTMLParser
+import re
+
+class HTMLTextExtractor(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.result = []
+        self.ignore = False
+        self.ignore_tags = {'script', 'style', 'header', 'footer', 'nav', 'noscript', 'head', 'iframe'}
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.ignore_tags:
+            self.ignore = True
+
+    def handle_endtag(self, tag):
+        if tag in self.ignore_tags:
+            self.ignore = False
+
+    def handle_data(self, data):
+        if not self.ignore:
+            clean = data.strip()
+            if clean:
+                self.result.append(clean)
+
+    def get_text(self):
+        return "\n".join(self.result)
+
+
+def fetch_and_parse_url(url):
+    if not url:
+        raise ValueError("URL is required")
+
+    if not (url.startswith("http://") or url.startswith("https://")):
+        raise ValueError("Invalid URL protocol. URL must start with http:// or https://")
+
+    text_content = ""
+    used_fallback = False
+
+    # 1. Try Jina Reader API first (supports dynamic websites, returns clean markdown/text)
+    try:
+        import requests
+        import logging
+        reader_url = f"https://r.jina.ai/{url}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        logging.info(f"Attempting to scrape via Jina Reader: {reader_url}")
+        response = requests.get(reader_url, headers=headers, timeout=25)
+        response.raise_for_status()
+
+        scraped_text = response.text.strip()
+        if scraped_text and len(scraped_text) >= 50:
+            text_content = scraped_text
+            logging.info("Successfully scraped and parsed content using Jina Reader.")
+        else:
+            logging.warning("Jina Reader returned empty or too short content. Falling back to static scraping.")
+            used_fallback = True
+    except Exception as e:
+        import logging
+        logging.warning(f"Jina Reader scraping failed: {str(e)}. Falling back to static scraping.")
+        used_fallback = True
+
+    # 2. Fallback to static requests + HTMLTextExtractor if Jina failed
+    if used_fallback or not text_content:
+        try:
+            import requests
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            response = requests.get(url, headers=headers, timeout=15)
+            response.raise_for_status()
+            html_content = response.text
+
+            extractor = HTMLTextExtractor()
+            extractor.feed(html_content)
+            text_content = extractor.get_text()
+        except Exception as fallback_err:
+            raise ValueError(f"Failed to fetch and parse URL: {str(fallback_err)}")
+
+    # Remove excessive blank lines
+    text_content = re.sub(r'\n{3,}', '\n\n', text_content).strip()
+
+    if not text_content or len(text_content) < 50:
+        raise ValueError("The webpage does not contain enough extractable text.")
+
+    return text_content
+
+
+def scrape_website_url(url, chatbot_id):
+    text_content = fetch_and_parse_url(url)
+
+    # Save to knowledge_files table
+    file_size = len(text_content.encode('utf-8'))
+    
+    file_record = save_knowledge_file(
+        chatbot_id=chatbot_id,
+        file_name=url,
+        file_type="url",
+        file_size=file_size,
+        file_path=url,
+        upload_status="uploaded",
+        processing_status="completed",
+        match_status="unchecked"
+    )
+
+    file_id = file_record["id"]
+
+    # --- PROCESS AND CHUNK TEXT ---
+    try:
+        import logging
+        from app.services.rag_service import split_text_into_sections, generate_embedding
+        from app.database.knowledge_chunk_repository import save_knowledge_chunk
+
+        chunks = split_text_into_sections(text_content)
+        
+        logging.info(f"Processing {len(chunks)} chunks for database insertion...")
+        
+        for idx, chunk in enumerate(chunks):
+            embedding = generate_embedding(chunk)
+            if embedding:
+                save_knowledge_chunk(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    content=chunk,
+                    embedding=embedding,
+                    metadata={"chunk_index": idx}
+                )
+        logging.info("Successfully saved web chunks to Supabase.")
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to process web chunks: {e}")
+
+    # Set active
+    set_active_knowledge_file(
+        chatbot_id=chatbot_id,
+        file_name=url
+    )
+
+    update_chatbot_runtime({
+        "draft_pdf_file_name": url,
+        "draft_pdf_path": url,
+        "last_match_result": None,
+        "last_match_reason": "",
+    }, chatbot_id)
+
+    return {
+        "file_name": url,
+        "message": f"Website {url} scraped and set active"
+    }
+
+
+from urllib.parse import urlparse, urljoin
+
+def discover_website_links(url):
+    if not url:
+        raise ValueError("URL is required")
+
+    # Fetch raw HTML directly for link discovery to ensure navigation links (headers, menus, footers) are not stripped by Jina
+    try:
+        import requests
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        html_content = response.text
+    except Exception as e:
+        import logging
+        logging.warning(f"Static request for link discovery failed: {e}. Falling back to fetch_and_parse_url.")
+        html_content = fetch_and_parse_url(url)
+
+    parsed_base = urlparse(url)
+    base_domain = parsed_base.netloc
+
+    links = set()
+    cleaned_base_url = url.split('?')[0].split('#')[0].rstrip('/')
+    links.add(cleaned_base_url)
+
+    # Extract raw HTML links in case of raw HTML content
+    html_links = re.findall(r'href=["\'](https?://[^\s"\']+|/[^\s"\']*)["\']', html_content)
+    # Extract Markdown links [text](url) in case fallback fetch_and_parse_url was used and returned markdown
+    md_links = re.findall(r'\[.*?\]\(((?:https?://[^\s\)]+|/[^\s\)]+))\)', html_content)
+
+    all_extracted = html_links + md_links
+
+    for link in all_extracted:
+        full_link = urljoin(url, link)
+        # Clean query parameters and hash anchors
+        full_link = full_link.split('?')[0].split('#')[0].rstrip('/')
+        
+        parsed_link = urlparse(full_link)
+        if parsed_link.netloc == base_domain:
+            # Exclude obvious asset files
+            if not any(full_link.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.pdf', '.css', '.js', '.zip', '.tar']):
+                links.add(full_link)
+
+    # Return sorted list, capping at 20 pages
+    return sorted(list(links))[:20]
+
+
+def scrape_website_urls_batch(urls, chatbot_id):
+    if not urls:
+        raise ValueError("At least one URL must be selected.")
+
+    combined_content_list = []
+    failed_urls = []
+    primary_url = urls[0]
+
+    for url in urls:
+        try:
+            content = fetch_and_parse_url(url)
+            combined_content_list.append(f"Source URL: {url}\n====================\n\n{content}")
+        except Exception as e:
+            import logging
+            logging.error(f"Failed to scrape URL {url} in batch: {e}")
+            failed_urls.append(url)
+
+    if not combined_content_list:
+        raise ValueError(f"Failed to scrape any of the selected URLs. Errors: {failed_urls}")
+
+    combined_text = "\n\n\n\n".join(combined_content_list)
+    
+    file_name = primary_url
+    if len(urls) > 1:
+        file_name = f"{primary_url} (+{len(urls) - 1} pages)"
+
+    file_size = len(combined_text.encode('utf-8'))
+
+    file_record = save_knowledge_file(
+        chatbot_id=chatbot_id,
+        file_name=file_name,
+        file_type="url",
+        file_size=file_size,
+        file_path=primary_url,
+        upload_status="uploaded",
+        processing_status="completed",
+        match_status="unchecked"
+    )
+
+    file_id = file_record["id"]
+
+    try:
+        import logging
+        from app.services.rag_service import split_text_into_sections, generate_embedding
+        from app.database.knowledge_chunk_repository import save_knowledge_chunk
+
+        chunks = split_text_into_sections(combined_text)
+        
+        logging.info(f"Processing {len(chunks)} chunks for database insertion...")
+        
+        for idx, chunk in enumerate(chunks):
+            embedding = generate_embedding(chunk)
+            if embedding:
+                save_knowledge_chunk(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    content=chunk,
+                    embedding=embedding,
+                    metadata={"chunk_index": idx}
+                )
+        logging.info("Successfully saved batch web chunks to Supabase.")
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to process batch web chunks: {e}")
+
+    # Set active
+    set_active_knowledge_file(
+        chatbot_id=chatbot_id,
+        file_name=file_name
+    )
+
+    update_chatbot_runtime({
+        "draft_pdf_file_name": file_name,
+        "draft_pdf_path": primary_url,
+        "last_match_result": None,
+        "last_match_reason": "",
+    }, chatbot_id)
+
+    msg = f"Website {file_name} scraped successfully."
+    if failed_urls:
+        msg += f" (Note: Failed to scrape {len(failed_urls)} pages: {', '.join(failed_urls)})"
+
+    return {
+        "file_name": file_name,
+        "message": msg
     }
