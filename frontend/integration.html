@@ -135,14 +135,36 @@
         
         /* Modal Styles */
         .modal-backdrop {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(15px);
-            z-index: 1000; display: none; align-items: center; justify-content: center;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(15px);
+
+            z-index: 1000;
+            display: none;
+            align-items: flex-start;
+            justify-content: center;
+
+            padding: 40px 20px;
+            overflow-y: auto;
+
             animation: fadeIn 0.3s ease-out;
         }
         .modal-content {
-            background: var(--card-bg); border: 1px solid var(--glass-border);
-            border-radius: 32px; width: 100%; max-width: 550px; padding: 40px;
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 32px;
+
+            width: 100%;
+            max-width: 760px;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+
+            padding: 32px;
             box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5);
             animation: slideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1);
         }
@@ -150,13 +172,39 @@
         @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         
         .step-item {
-            display: flex; gap: 16px; margin-bottom: 20px;
-            background: rgba(255,255,255,0.03); padding: 16px; border-radius: 16px;
+            display: flex;
+            gap: 14px;
+            margin-bottom: 12px;
+            background: rgba(255,255,255,0.03);
+            padding: 12px 14px;
+            border-radius: 16px;
         }
         .step-number {
             min-width: 32px; height: 32px; background: var(--primary);
             border-radius: 50%; display: flex; align-items: center; justify-content: center;
             font-weight: 800; font-size: 0.8rem;
+        }
+        #setup-steps {
+            margin-bottom: 18px;
+        }
+
+        #wasender-connect-area label,
+        #telegram-token-area label {
+            margin-top: 10px;
+        }
+
+        #wasender-connect-area input,
+        #telegram-token-area input {
+            margin-bottom: 10px !important;
+        }
+
+        .modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb {
+            background: rgba(148, 163, 184, 0.35);
+            border-radius: 999px;
         }
         .status-panel {
             background: var(--card-bg);
@@ -285,6 +333,16 @@
 
                 <div class="channel-status-card">
                     <div class="channel-status-title">
+                        <span>📱 WasenderAPI</span>
+                        <span id="wasender-status-pill" class="status-pill status-disconnected">Checking</span>
+                    </div>
+                    <div id="wasender-status-detail" class="channel-status-detail">
+                        Checking WasenderAPI connection...
+                    </div>
+                </div>
+
+                <div class="channel-status-card">
+                    <div class="channel-status-title">
                         <span>✈️ Telegram</span>
                         <span id="telegram-status-pill" class="status-pill status-disconnected">Checking</span>
                     </div>
@@ -312,6 +370,18 @@
                 <div style="flex-grow: 1;"></div>
                 <button id="whatsapp-card-button" class="btn" style="background:#25D366; color:white; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);">
                     Connect WhatsApp
+                </button>
+            </div>
+
+            <div class="glass-card" onclick="openSetup('wasender')">
+                <div class="platform-icon-container" style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);">📱</div>
+                <h3 style="font-size: 1.5rem; color: #10b981;">WasenderAPI</h3>
+                <p style="color: var(--text-dim); text-align: center;">
+                    Connect a real WhatsApp Business number using WasenderAPI session and webhook.
+                </p>
+                <div style="flex-grow: 1;"></div>
+                <button id="wasender-card-button" class="btn" style="background:#10b981; color:white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                    Connect WasenderAPI
                 </button>
             </div>
 
@@ -374,6 +444,94 @@
                 </button>
             </div>
 
+            <div id="wasender-connect-area" style="display:none; margin-top: 24px;">
+                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
+                    WasenderAPI Key
+                </label>
+
+                <input
+                    type="password"
+                    id="wasender-api-key"
+                    placeholder="Paste WasenderAPI key here"
+                    style="
+                        width:100%;
+                        padding:14px 16px;
+                        border-radius:14px;
+                        border:1px solid var(--glass-border);
+                        background:var(--input-bg);
+                        color:var(--text-main);
+                        outline:none;
+                        margin-bottom:12px;
+                    "
+                >
+
+                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
+                    WhatsApp Phone Number
+                </label>
+
+                <input
+                    type="text"
+                    id="wasender-phone-number"
+                    placeholder="+60123456789"
+                    style="
+                        width:100%;
+                        padding:14px 16px;
+                        border-radius:14px;
+                        border:1px solid var(--glass-border);
+                        background:var(--input-bg);
+                        color:var(--text-main);
+                        outline:none;
+                        margin-bottom:12px;
+                    "
+                >
+
+                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
+                    Session Name Optional
+                </label>
+
+                <input
+                    type="text"
+                    id="wasender-session-name"
+                    placeholder="Example: Olympic Edu WhatsApp Bot"
+                    style="
+                        width:100%;
+                        padding:14px 16px;
+                        border-radius:14px;
+                        border:1px solid var(--glass-border);
+                        background:var(--input-bg);
+                        color:var(--text-main);
+                        outline:none;
+                        margin-bottom:12px;
+                    "
+                >
+
+                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
+                    Session ID Optional
+                </label>
+
+                <input
+                    type="text"
+                    id="wasender-session-id"
+                    placeholder="Paste session ID if available"
+                    style="
+                        width:100%;
+                        padding:14px 16px;
+                        border-radius:14px;
+                        border:1px solid var(--glass-border);
+                        background:var(--input-bg);
+                        color:var(--text-main);
+                        outline:none;
+                        margin-bottom:12px;
+                    "
+                >
+
+                <div id="wasender-connect-message" style="font-size:0.9rem; color:var(--text-dim); margin-bottom:12px;"></div>
+
+                <button class="btn" onclick="connectWasender()" style="background:#10b981; color:white;">
+                    Save WasenderAPI Connection
+                </button>
+            </div>
+
             <div id="default-setup-button" style="margin-top: 30px;">
                 <button class="btn btn-primary" onclick="closeSetup()">I've Completed Setup</button>
             </div>
@@ -419,7 +577,8 @@
 
         let latestChannels = {
             telegram: null,
-            whatsapp: null
+            whatsapp: null,
+            wasender: null
         };
 
         const platformData = {
@@ -439,6 +598,17 @@
                     "Use /newbot to create your agent.",
                     "Copy the HTTP API Token provided.",
                     "Paste the token in your AI CHATBOT integration settings."
+                ]
+            },
+            wasender: {
+                title: "WasenderAPI Setup",
+                steps: [
+                    "Create or login to your WasenderAPI account.",
+                    "Start a trial or subscribe to a plan.",
+                    "Register your phone number in WhatsApp Business App.",
+                    "Create a WhatsApp session in WasenderAPI and scan the QR code.",
+                    "Paste your WasenderAPI key and phone number here.",
+                    "Copy the generated webhook URL into your WasenderAPI session settings."
                 ]
             }
         };
@@ -481,9 +651,11 @@
         function openManageView(platform, channel) {
             const container = document.getElementById('setup-steps');
             const telegramTokenArea = document.getElementById('telegram-token-area');
+            const wasenderConnectArea = document.getElementById('wasender-connect-area');
             const defaultSetupButton = document.getElementById('default-setup-button');
 
             telegramTokenArea.style.display = 'none';
+            wasenderConnectArea.style.display = 'none';
             defaultSetupButton.style.display = 'block';
             const channelStatus = channel.connection_status || (channel.is_active ? 'connected' : 'disconnected');
             const connected = channelStatus === 'connected' && channel.is_active;
@@ -550,6 +722,19 @@
                 `;
             }
 
+            if (platform === 'wasender') {
+                document.getElementById('modal-title').innerText = 'Manage WasenderAPI';
+
+                container.innerHTML = `
+                    ${buildManageRow('Phone Number', channel.phone_number)}
+                    ${buildManageRow('Session Name', channel.session_name)}
+                    ${buildManageRow('Session ID', channel.session_id)}
+                    ${buildManageRow('Connection Status', channel.connection_status || (channel.is_active ? 'connected' : 'pending'))}
+                    ${buildManageRow('Webhook URL', channel.webhook_url)}
+                    ${channel.last_error ? buildManageRow('Last Error', channel.last_error) : ''}
+                `;
+            }
+
             document.getElementById('setup-modal').style.display = 'flex';
         }
 
@@ -579,6 +764,7 @@
             document.getElementById('setup-modal').style.display = 'flex';
 
             const telegramTokenArea = document.getElementById('telegram-token-area');
+            const wasenderConnectArea = document.getElementById('wasender-connect-area');
             const defaultSetupButton = document.getElementById('default-setup-button');
 
             defaultSetupButton.innerHTML = `
@@ -587,9 +773,15 @@
 
             if (platform === 'telegram') {
                 telegramTokenArea.style.display = 'block';
+                wasenderConnectArea.style.display = 'none';
+                defaultSetupButton.style.display = 'none';
+            } else if (platform === 'wasender') {
+                telegramTokenArea.style.display = 'none';
+                wasenderConnectArea.style.display = 'block';
                 defaultSetupButton.style.display = 'none';
             } else {
                 telegramTokenArea.style.display = 'none';
+                wasenderConnectArea.style.display = 'none';
                 defaultSetupButton.style.display = 'block';
             }
         }
@@ -671,6 +863,10 @@
 
             if (platform === 'whatsapp') {
                 button.innerText = isConnected ? 'Manage WhatsApp' : 'Connect WhatsApp';
+            }
+
+            if (platform === 'wasender') {
+                button.innerText = isConnected ? 'Manage WasenderAPI' : 'Connect WasenderAPI';
             }
         }
 
@@ -762,15 +958,61 @@
             }
         }
 
+        async function loadWasenderStatus(chatbotId) {
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/wasender/channels?chatbot_id=${chatbotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    latestChannels.wasender = null;
+                    setChannelStatus('wasender', 'disconnected', result.message || 'Unable to load WasenderAPI status.');
+                    updatePlatformButton('wasender', false);
+                    return;
+                }
+
+                const channel = getLatestChannel(result.data);
+                latestChannels.wasender = channel;
+
+                if (!channel) {
+                    setChannelStatus('wasender', 'disconnected', 'No WasenderAPI channel connected yet.');
+                    updatePlatformButton('wasender', false);
+                    latestChannels.wasender = null;
+                    return;
+                }
+
+                const status = channel.connection_status || (channel.is_active ? 'connected' : 'pending');
+                const number = channel.phone_number || channel.session_name || 'WasenderAPI channel';
+
+                if (status === 'connected' && channel.is_active) {
+                    setChannelStatus('wasender', 'connected', `${number} is connected and active.`);
+                    updatePlatformButton('wasender', true);
+                } else if (status === 'failed' || status === 'disconnected' || !channel.is_active) {
+                    setChannelStatus('wasender', 'disconnected', `${number} is disconnected.`);
+                    updatePlatformButton('wasender', true);
+                } else {
+                    setChannelStatus('wasender', 'pending', `${number} is saved but may still need setup.`);
+                    updatePlatformButton('wasender', false);
+                }
+
+            } catch (error) {
+                console.error('WasenderAPI status error:', error);
+                latestChannels.wasender = null;
+                setChannelStatus('wasender', 'disconnected', 'Failed to load WasenderAPI status.');
+                updatePlatformButton('wasender', false);
+            }
+        }
+
         async function loadChannelStatus() {
             const chatbotId = getSelectedChatbotId();
 
             setChannelStatus('telegram', 'pending', 'Checking Telegram connection...');
             setChannelStatus('whatsapp', 'pending', 'Checking WhatsApp connection...');
+            setChannelStatus('wasender', 'pending', 'Checking WasenderAPI connection...');
 
             await Promise.all([
                 loadTelegramStatus(chatbotId),
-                loadWhatsAppStatus(chatbotId)
+                loadWhatsAppStatus(chatbotId),
+                loadWasenderStatus(chatbotId)
             ]);
         }
 
@@ -979,6 +1221,93 @@
 
             } catch (error) {
                 console.error("Telegram connect error:", error);
+                messageBox.style.color = '#ef4444';
+                messageBox.innerText = `Connection failed: ${error.message}`;
+            }
+        }
+
+        async function connectWasender() {
+            console.log("connectWasender clicked");
+
+            const apiKeyInput = document.getElementById('wasender-api-key');
+            const phoneInput = document.getElementById('wasender-phone-number');
+            const sessionNameInput = document.getElementById('wasender-session-name');
+            const sessionIdInput = document.getElementById('wasender-session-id');
+            const messageBox = document.getElementById('wasender-connect-message');
+
+            if (!apiKeyInput || !phoneInput || !messageBox) {
+                alert("WasenderAPI form input not found.");
+                return;
+            }
+
+            const apiKey = apiKeyInput.value.trim();
+            const phoneNumber = phoneInput.value.trim();
+            const sessionName = sessionNameInput ? sessionNameInput.value.trim() : "";
+            const sessionId = sessionIdInput ? sessionIdInput.value.trim() : "";
+
+            if (!apiKey) {
+                messageBox.style.color = '#ef4444';
+                messageBox.innerText = 'Please paste your WasenderAPI key first.';
+                return;
+            }
+
+            if (!phoneNumber) {
+                messageBox.style.color = '#ef4444';
+                messageBox.innerText = 'Please enter the WhatsApp phone number.';
+                return;
+            }
+
+            if (!phoneNumber.startsWith('+')) {
+                messageBox.style.color = '#ef4444';
+                messageBox.innerText = 'Phone number must use international format, example: +60123456789';
+                return;
+            }
+
+            const chatbotId = getSelectedChatbotId();
+            const apiUrl = `http://127.0.0.1:8000/api/wasender/connect?chatbot_id=${chatbotId}`;
+
+            messageBox.style.color = 'var(--text-dim)';
+            messageBox.innerText = 'Saving WasenderAPI connection...';
+
+            try {
+                const response = await authenticatedFetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...getSafeAuthHeaders()
+                    },
+                    body: JSON.stringify({
+                        api_key: apiKey,
+                        phone_number: phoneNumber,
+                        session_name: sessionName,
+                        session_id: sessionId
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    messageBox.style.color = '#ef4444';
+                    messageBox.innerText = result.message || 'Failed to save WasenderAPI connection.';
+                    return;
+                }
+
+                messageBox.style.color = '#10b981';
+                messageBox.innerText = result.message || 'WasenderAPI connection saved successfully.';
+
+                apiKeyInput.value = '';
+                phoneInput.value = '';
+                if (sessionNameInput) sessionNameInput.value = '';
+                if (sessionIdInput) sessionIdInput.value = '';
+
+                await loadChannelStatus();
+
+                if (result.data && result.data.webhook_url) {
+                    messageBox.innerText = `Saved successfully. Copy this webhook URL into WasenderAPI: ${result.data.webhook_url}`;
+                }
+
+            } catch (error) {
+                console.error("WasenderAPI connect error:", error);
                 messageBox.style.color = '#ef4444';
                 messageBox.innerText = `Connection failed: ${error.message}`;
             }
