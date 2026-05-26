@@ -29,13 +29,24 @@ def get_text_message_input(recipient, text):
     )
 
 
-def send_message(data):
+def send_message(data, channel=None):
+    access_token = channel.get("access_token") if channel else None
+    phone_number_id = channel.get("phone_number_id") if channel else None
+
+    if not access_token or not phone_number_id:
+        logging.warning(
+            "Using global WhatsApp credentials as development fallback. "
+            "Connected SaaS channels should provide access_token and phone_number_id."
+        )
+        access_token = current_app.config["ACCESS_TOKEN"]
+        phone_number_id = current_app.config["PHONE_NUMBER_ID"]
+
     headers = {
         "Content-type": "application/json",
-        "Authorization": f"Bearer {current_app.config['ACCESS_TOKEN']}",
+        "Authorization": f"Bearer {access_token}",
     }
 
-    url = f"https://graph.facebook.com/{current_app.config['VERSION']}/{current_app.config['PHONE_NUMBER_ID']}/messages"
+    url = f"https://graph.facebook.com/{current_app.config['VERSION']}/{phone_number_id}/messages"
 
     try:
         response = requests.post(url, data=data, headers=headers, timeout=10)
@@ -131,7 +142,7 @@ def process_whatsapp_message(body):
         )
 
         data = get_text_message_input(wa_id, reply)
-        send_message(data)
+        send_message(data, channel)
 
         save_processed(chatbot_id, message_id)
         return
@@ -173,7 +184,7 @@ def process_whatsapp_message(body):
     )
 
     data = get_text_message_input(wa_id, response)
-    send_message(data)
+    send_message(data, channel)
 
     save_processed(chatbot_id, message_id)
 

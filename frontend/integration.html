@@ -532,6 +532,16 @@
                 </button>
             </div>
 
+            <div id="whatsapp-cloud-area" style="display:none; margin-top: 24px;">
+                <div id="whatsapp-cloud-message" style="font-size:0.9rem; color:var(--text-dim); margin-bottom:12px;">
+                    Checking WhatsApp Embedded Signup configuration...
+                </div>
+
+                <button id="whatsapp-cloud-connect-button" class="btn" onclick="connectWhatsAppCloud()" style="background:#25D366; color:white;">
+                    Connect with Meta
+                </button>
+            </div>
+
             <div id="default-setup-button" style="margin-top: 30px;">
                 <button class="btn btn-primary" onclick="closeSetup()">I've Completed Setup</button>
             </div>
@@ -580,15 +590,20 @@
             whatsapp: null,
             wasender: null
         };
+        let whatsAppEmbeddedSignupConfig = null;
+        let whatsAppSignupEventData = null;
+        let metaSdkLoadingPromise = null;
 
         const platformData = {
             whatsapp: {
-                title: "WhatsApp API Setup",
+                title: "WhatsApp Cloud API Setup",
                 steps: [
-                    "Go to Meta for Developers dashboard.",
-                    "Create a WhatsApp Business App.",
-                    "Generate a Permanent Access Token.",
-                    "Enter your Phone Number ID in the fields below."
+                    "Click Connect with Meta.",
+                    "Log in to your Meta Business account.",
+                    "Select or create your WhatsApp Business Account.",
+                    "Select or register a business phone number.",
+                    "Complete Meta verification and return to this system.",
+                    "The chatbot will connect automatically after successful signup."
                 ]
             },
             telegram: {
@@ -652,10 +667,12 @@
             const container = document.getElementById('setup-steps');
             const telegramTokenArea = document.getElementById('telegram-token-area');
             const wasenderConnectArea = document.getElementById('wasender-connect-area');
+            const whatsappCloudArea = document.getElementById('whatsapp-cloud-area');
             const defaultSetupButton = document.getElementById('default-setup-button');
 
             telegramTokenArea.style.display = 'none';
             wasenderConnectArea.style.display = 'none';
+            whatsappCloudArea.style.display = 'none';
             defaultSetupButton.style.display = 'block';
             const channelStatus = channel.connection_status || (channel.is_active ? 'connected' : 'disconnected');
             const connected = channelStatus === 'connected' && channel.is_active;
@@ -679,23 +696,39 @@
                     <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
                 `;
             } else {
-                defaultSetupButton.innerHTML = `
-                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                        <button class="btn" onclick="reconnectChannel('${platform}', ${channel.id})" style="background:#10b981; color:white; flex:1;">
-                            Reconnect
-                        </button>
+                if (platform === 'whatsapp') {
+                    defaultSetupButton.innerHTML = `
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button class="btn" onclick="openSetup('whatsapp', true)" style="background:#25D366; color:white; flex:1;">
+                                Complete Meta Signup
+                            </button>
 
-                        <button class="btn" onclick="openSetup('${platform}', true)" style="background:var(--primary); color:white; flex:1;">
-                            Replace Token
-                        </button>
+                            <button class="btn" onclick="closeSetup()" style="background:rgba(255,255,255,0.1); color:white; flex:1;">
+                                Close
+                            </button>
+                        </div>
 
-                        <button class="btn" onclick="closeSetup()" style="background:rgba(255,255,255,0.1); color:white; flex:1;">
-                            Close
-                        </button>
-                    </div>
+                        <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
+                    `;
+                } else {
+                    defaultSetupButton.innerHTML = `
+                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+                            <button class="btn" onclick="reconnectChannel('${platform}', ${channel.id})" style="background:#10b981; color:white; flex:1;">
+                                Reconnect
+                            </button>
 
-                    <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
-                `;
+                            <button class="btn" onclick="openSetup('${platform}', true)" style="background:var(--primary); color:white; flex:1;">
+                                Replace Token
+                            </button>
+
+                            <button class="btn" onclick="closeSetup()" style="background:rgba(255,255,255,0.1); color:white; flex:1;">
+                                Close
+                            </button>
+                        </div>
+
+                        <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
+                    `;
+                }
             }
 
             if (platform === 'telegram') {
@@ -765,6 +798,7 @@
 
             const telegramTokenArea = document.getElementById('telegram-token-area');
             const wasenderConnectArea = document.getElementById('wasender-connect-area');
+            const whatsappCloudArea = document.getElementById('whatsapp-cloud-area');
             const defaultSetupButton = document.getElementById('default-setup-button');
 
             defaultSetupButton.innerHTML = `
@@ -774,14 +808,23 @@
             if (platform === 'telegram') {
                 telegramTokenArea.style.display = 'block';
                 wasenderConnectArea.style.display = 'none';
+                whatsappCloudArea.style.display = 'none';
                 defaultSetupButton.style.display = 'none';
             } else if (platform === 'wasender') {
                 telegramTokenArea.style.display = 'none';
                 wasenderConnectArea.style.display = 'block';
+                whatsappCloudArea.style.display = 'none';
                 defaultSetupButton.style.display = 'none';
+            } else if (platform === 'whatsapp') {
+                telegramTokenArea.style.display = 'none';
+                wasenderConnectArea.style.display = 'none';
+                whatsappCloudArea.style.display = 'block';
+                defaultSetupButton.style.display = 'none';
+                prepareWhatsAppEmbeddedSignup();
             } else {
                 telegramTokenArea.style.display = 'none';
                 wasenderConnectArea.style.display = 'none';
+                whatsappCloudArea.style.display = 'none';
                 defaultSetupButton.style.display = 'block';
             }
         }
@@ -820,6 +863,349 @@
         function getSelectedChatbotId() {
             const urlParams = new URLSearchParams(window.location.search);
             return urlParams.get('bot_id') || sessionStorage.getItem('selectedBotId') || 1;
+        }
+
+        function setWhatsAppCloudState(state, message) {
+            const messageBox = document.getElementById('whatsapp-cloud-message');
+            const button = document.getElementById('whatsapp-cloud-connect-button');
+
+            if (messageBox) {
+                messageBox.innerText = message || '';
+                messageBox.style.color = state === 'error' || state === 'not-configured'
+                    ? '#ef4444'
+                    : state === 'connected'
+                        ? '#10b981'
+                        : 'var(--text-dim)';
+            }
+
+            if (button) {
+                const isReady = Boolean(whatsAppEmbeddedSignupConfig && window.FB);
+                button.disabled = state === 'connecting' || state === 'not-configured' || (state === 'preparing' && !isReady);
+                button.innerText = state === 'connecting' ? 'Connecting...' : 'Connect with Meta';
+                button.style.opacity = button.disabled ? '0.65' : '1';
+                button.style.cursor = button.disabled ? 'not-allowed' : 'pointer';
+            }
+        }
+
+        async function loadWhatsAppEmbeddedSignupConfig() {
+            setWhatsAppCloudState('preparing', 'Preparing Meta Embedded Signup...');
+
+            try {
+                const response = await authenticatedFetch('/api/whatsapp/embedded-signup/config');
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    whatsAppEmbeddedSignupConfig = null;
+                    setWhatsAppCloudState('not-configured', result.message || 'WhatsApp Embedded Signup is not configured.');
+                    return null;
+                }
+
+                whatsAppEmbeddedSignupConfig = result.data;
+                return result.data;
+
+            } catch (error) {
+                console.error('WhatsApp Embedded Signup config error:', error);
+                whatsAppEmbeddedSignupConfig = null;
+                setWhatsAppCloudState('error', `Failed to load WhatsApp configuration: ${error.message}`);
+                return null;
+            }
+        }
+
+        async function prepareWhatsAppEmbeddedSignup() {
+            setWhatsAppCloudState('preparing', 'Preparing Meta Embedded Signup...');
+
+            const config = await loadWhatsAppEmbeddedSignupConfig();
+
+            if (!config) {
+                return null;
+            }
+
+            try {
+                console.log('Preloading Meta SDK for WhatsApp Embedded Signup...');
+                await initializeMetaSdk(config);
+                console.log('Meta SDK preloaded for WhatsApp Embedded Signup.');
+                setWhatsAppCloudState('ready', 'Ready to connect your WhatsApp Business Account through Meta.');
+                return config;
+            } catch (error) {
+                console.error('Meta SDK preload error:', error);
+                setWhatsAppCloudState('error', `Failed to load Meta SDK: ${error.message}`);
+                return null;
+            }
+        }
+
+        function initializeMetaSdk(config) {
+            if (!config || !config.app_id) {
+                return Promise.reject(new Error('Meta app ID is missing.'));
+            }
+
+            const initSdk = () => {
+                if (!window.FB) {
+                    throw new Error('Meta SDK did not load.');
+                }
+
+                window.FB.init({
+                    appId: config.app_id,
+                    autoLogAppEvents: true,
+                    xfbml: false,
+                    version: config.graph_api_version || 'v22.0'
+                });
+
+                return window.FB;
+            };
+
+            if (window.FB) {
+                return Promise.resolve(initSdk());
+            }
+
+            if (!metaSdkLoadingPromise) {
+                metaSdkLoadingPromise = new Promise((resolve, reject) => {
+                    const existingScript = document.getElementById('facebook-jssdk');
+
+                    if (existingScript) {
+                        existingScript.addEventListener('load', () => {
+                            try {
+                                resolve(initSdk());
+                            } catch (error) {
+                                reject(error);
+                            }
+                        });
+                        existingScript.addEventListener('error', () => reject(new Error('Failed to load Meta SDK.')));
+                        return;
+                    }
+
+                    const script = document.createElement('script');
+                    script.id = 'facebook-jssdk';
+                    script.async = true;
+                    script.defer = true;
+                    script.crossOrigin = 'anonymous';
+                    script.src = 'https://connect.facebook.net/en_US/sdk.js';
+                    script.onload = () => {
+                        try {
+                            resolve(initSdk());
+                        } catch (error) {
+                            reject(error);
+                        }
+                    };
+                    script.onerror = () => reject(new Error('Failed to load Meta SDK.'));
+                    document.body.appendChild(script);
+                });
+            }
+
+            return metaSdkLoadingPromise;
+        }
+
+        function findNestedValue(source, keys) {
+            if (!source || typeof source !== 'object') return null;
+
+            for (const key of keys) {
+                if (source[key]) return source[key];
+            }
+
+            for (const value of Object.values(source)) {
+                const nestedValue = findNestedValue(value, keys);
+                if (nestedValue) return nestedValue;
+            }
+
+            return null;
+        }
+
+        function parseMetaPayloadData(data) {
+            if (typeof data !== 'string') {
+                return data;
+            }
+
+            try {
+                return JSON.parse(data);
+            } catch (error) {
+                const params = new URLSearchParams(data);
+                const parsed = {};
+
+                params.forEach((value, key) => {
+                    try {
+                        parsed[key] = JSON.parse(value);
+                    } catch (parseError) {
+                        parsed[key] = value;
+                    }
+                });
+
+                return Object.keys(parsed).length ? parsed : data;
+            }
+        }
+
+        function parseMetaSignupEvent(event) {
+            const allowedOrigins = [
+                'https://www.facebook.com',
+                'https://web.facebook.com',
+                'https://business.facebook.com'
+            ];
+
+            if (!allowedOrigins.includes(event.origin)) {
+                return;
+            }
+
+            const payload = parseMetaPayloadData(event.data);
+
+            console.log('WhatsApp Embedded Signup event origin:', event.origin);
+            console.log('WhatsApp Embedded Signup raw event data:', event.data);
+            console.log('WhatsApp Embedded Signup parsed payload:', payload);
+
+            const eventType = payload && (payload.type || payload.event);
+
+            if (
+                eventType && String(eventType).includes('WA_EMBEDDED_SIGNUP') ||
+                findNestedValue(payload, ['waba_id', 'whatsapp_business_account_id', 'phone_number_id', 'business_phone_number_id'])
+            ) {
+                whatsAppSignupEventData = payload;
+            }
+        }
+
+        window.addEventListener('message', parseMetaSignupEvent);
+
+        function extractWhatsAppSignupIds(source) {
+            return {
+                waba_id: findNestedValue(source, ['waba_id', 'whatsapp_business_account_id', 'whatsapp_business_id']),
+                phone_number_id: findNestedValue(source, ['phone_number_id', 'phoneNumberId', 'business_phone_number_id']),
+                business_id: findNestedValue(source, ['business_id', 'businessId'])
+            };
+        }
+
+        function waitForWhatsAppSignupEvent(timeoutMs = 2000) {
+            if (whatsAppSignupEventData) {
+                return Promise.resolve(whatsAppSignupEventData);
+            }
+
+            return new Promise((resolve) => {
+                const startedAt = Date.now();
+                const interval = setInterval(() => {
+                    if (whatsAppSignupEventData || Date.now() - startedAt >= timeoutMs) {
+                        clearInterval(interval);
+                        resolve(whatsAppSignupEventData);
+                    }
+                }, 100);
+            });
+        }
+
+        async function handleMetaEmbeddedSignupResponse(response) {
+            console.log('Meta Embedded Signup login response:', response);
+
+            const code = response?.authResponse?.code || response?.code;
+
+            if (!code) {
+                setWhatsAppCloudState('error', 'Meta signup did not return an authorization code.');
+                return;
+            }
+
+            let signupSource = {
+                response,
+                eventData: whatsAppSignupEventData
+            };
+
+            let signupIds = extractWhatsAppSignupIds(signupSource);
+
+            if (!signupIds.waba_id || !signupIds.phone_number_id) {
+                await waitForWhatsAppSignupEvent();
+                signupSource = {
+                    response,
+                    eventData: whatsAppSignupEventData
+                };
+                signupIds = extractWhatsAppSignupIds(signupSource);
+            }
+
+            const payload = { code, ...signupIds };
+
+            if (!payload.waba_id || !payload.phone_number_id) {
+                console.error('Missing WhatsApp signup IDs:', signupSource);
+                setWhatsAppCloudState('error', 'Meta signup completed, but WhatsApp account or phone number ID was missing.');
+                return;
+            }
+
+            await completeWhatsAppEmbeddedSignup(payload);
+        }
+
+        async function connectWhatsAppCloud() {
+            setWhatsAppCloudState('connecting', 'Opening Meta Embedded Signup...');
+
+            try {
+                const config = whatsAppEmbeddedSignupConfig;
+
+                if (!config || !window.FB) {
+                    console.warn('Meta SDK or Embedded Signup config is not ready yet.');
+                    setWhatsAppCloudState(
+                        'error',
+                        'Meta SDK is still preparing. Please wait a moment and try again.'
+                    );
+                    return;
+                }
+
+                let loginCallbackReceived = false;
+                const loginTimeout = setTimeout(() => {
+                    if (loginCallbackReceived) return;
+
+                    console.error('Meta Embedded Signup login callback timed out after 30 seconds.');
+                    setWhatsAppCloudState(
+                        'error',
+                        'Meta signup did not respond. Please allow popups and check your Meta app domain/configuration.'
+                    );
+                }, 30000);
+
+                console.log('Opening Meta Embedded Signup with FB.login...');
+                window.FB.login((response) => {
+                    loginCallbackReceived = true;
+                    clearTimeout(loginTimeout);
+                    handleMetaEmbeddedSignupResponse(response).catch((error) => {
+                        console.error('Meta Embedded Signup response handling error:', error);
+                        setWhatsAppCloudState('error', `Connection failed: ${error.message}`);
+                    });
+                }, {
+                    config_id: config.config_id,
+                    response_type: 'code',
+                    override_default_response_type: true,
+                    extras: {
+                        feature: 'whatsapp_embedded_signup',
+                        setup: {},
+                        sessionInfoVersion: '3'
+                    }
+                });
+
+            } catch (error) {
+                console.error('WhatsApp Cloud connect error:', error);
+                setWhatsAppCloudState('error', `Connection failed: ${error.message}`);
+            }
+        }
+
+        async function completeWhatsAppEmbeddedSignup(payload) {
+            const chatbotId = getSelectedChatbotId();
+            const apiUrl = `/api/whatsapp/embedded-signup/complete?chatbot_id=${chatbotId}`;
+
+            setWhatsAppCloudState('connecting', 'Completing WhatsApp connection...');
+
+            try {
+                const response = await authenticatedFetch(apiUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    setWhatsAppCloudState('error', result.message || 'Failed to complete WhatsApp connection.');
+                    return;
+                }
+
+                const channel = result.data || {};
+                const number = channel.display_phone_number || channel.phone_number_id || 'WhatsApp number';
+
+                setWhatsAppCloudState('connected', `${number} connected successfully.`);
+                latestChannels.whatsapp = channel;
+                await loadChannelStatus();
+
+            } catch (error) {
+                console.error('Complete WhatsApp Embedded Signup error:', error);
+                setWhatsAppCloudState('error', `Connection failed: ${error.message}`);
+            }
         }
 
         function setChannelStatus(platform, status, detail) {
@@ -872,7 +1258,7 @@
 
         async function loadTelegramStatus(chatbotId) {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/telegram/channels?chatbot_id=${chatbotId}`);
+                const response = await authenticatedFetch(`/api/telegram/channels?chatbot_id=${chatbotId}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== 'success') {
@@ -916,7 +1302,7 @@
 
         async function loadWhatsAppStatus(chatbotId) {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/whatsapp/channels?chatbot_id=${chatbotId}`);
+                const response = await authenticatedFetch(`/api/whatsapp/channels?chatbot_id=${chatbotId}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== 'success') {
@@ -960,7 +1346,7 @@
 
         async function loadWasenderStatus(chatbotId) {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/wasender/channels?chatbot_id=${chatbotId}`);
+                const response = await authenticatedFetch(`/api/wasender/channels?chatbot_id=${chatbotId}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== 'success') {
@@ -1009,11 +1395,9 @@
             setChannelStatus('whatsapp', 'pending', 'Checking WhatsApp connection...');
             setChannelStatus('wasender', 'pending', 'Checking WasenderAPI connection...');
 
-            await Promise.all([
-                loadTelegramStatus(chatbotId),
-                loadWhatsAppStatus(chatbotId),
-                loadWasenderStatus(chatbotId)
-            ]);
+            await loadTelegramStatus(chatbotId);
+            await loadWhatsAppStatus(chatbotId);
+            await loadWasenderStatus(chatbotId);
         }
 
         async function disconnectChannel(platform, channelId) {
@@ -1036,7 +1420,7 @@
                 return;
             }
 
-            const apiUrl = `http://127.0.0.1:8000/api/${platform}/channels/${channelId}/disconnect?chatbot_id=${chatbotId}`;
+            const apiUrl = `/api/${platform}/channels/${channelId}/disconnect?chatbot_id=${chatbotId}`;
 
             if (messageBox) {
                 messageBox.style.color = 'var(--text-dim)';
@@ -1108,7 +1492,7 @@
                 return;
             }
 
-            const apiUrl = `http://127.0.0.1:8000/api/telegram/channels/${channelId}/reconnect?chatbot_id=${chatbotId}`;
+            const apiUrl = `/api/telegram/channels/${channelId}/reconnect?chatbot_id=${chatbotId}`;
 
             if (messageBox) {
                 messageBox.style.color = 'var(--text-dim)';
@@ -1183,7 +1567,7 @@
             const urlParams = new URLSearchParams(window.location.search);
             const chatbotId = urlParams.get('bot_id') || 1;
 
-            const apiUrl = `http://localhost:8000/api/telegram/connect?chatbot_id=${chatbotId}`;
+            const apiUrl = `/api/telegram/connect?chatbot_id=${chatbotId}`;
 
             console.log("Sending Telegram connect request to:", apiUrl);
 
@@ -1264,7 +1648,7 @@
             }
 
             const chatbotId = getSelectedChatbotId();
-            const apiUrl = `http://127.0.0.1:8000/api/wasender/connect?chatbot_id=${chatbotId}`;
+            const apiUrl = `/api/wasender/connect?chatbot_id=${chatbotId}`;
 
             messageBox.style.color = 'var(--text-dim)';
             messageBox.innerText = 'Saving WasenderAPI connection...';
