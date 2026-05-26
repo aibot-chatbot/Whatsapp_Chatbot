@@ -2,64 +2,65 @@ import logging
 import os
 from openai import OpenAI
 from dotenv import load_dotenv
-from app.services.chat_logic_service import detect_intent, handle_greeting, handle_out_of_scope, MAX_HISTORY
-from app.services.rag_service import retrieve_relevant_chunks, build_prompt
-from app.database.chat_history_repository import get_recent_chat_history
-from app.database.conversation_repository import get_or_create_conversation
+
+from app.services.chat_pipeline_service import prepare_chat_prompt
 
 load_dotenv()
 
-# DeepSeek Client
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com"
 )
 
+
 def generate_response(
     message,
     customer_id,
     chatbot_id=1,
-    model="deepseek-chat",
+    model="deepseek-v4-flash",
     temperature=0.7,
     source_channel="whatsapp",
 ):
     try:
-        conversation = get_or_create_conversation(
+        pipeline = prepare_chat_prompt(
+            message=message,
+            customer_id=customer_id,
             chatbot_id=chatbot_id,
-            customer_phone=customer_id,
-            customer_name=None,
             source_channel=source_channel,
         )
-        history = get_recent_chat_history(conversation["id"], limit=MAX_HISTORY)
 
-        intent = detect_intent(message)
-        logging.info(f"[DeepSeek] Detected intent: {intent}")
+        if pipeline.get("direct_reply"):
+            return pipeline["direct_reply"]
 
-        if intent == "greeting" or intent == "main_menu":
-            return handle_greeting(chatbot_id)
+        prompt = pipeline.get("prompt")
 
-        if intent == "out_of_scope":
-            return handle_out_of_scope(chatbot_id)
+        if not prompt:
+            raise ValueError("Prompt could not be prepared for DeepSeek.")
 
-        # RAG: Retrieve context
-        context_chunks = retrieve_relevant_chunks(message, chatbot_id=chatbot_id)
-        
-        # Build prompt using the same logic as Gemini for consistency
-        prompt = build_prompt(history, message, context_chunks, chatbot_id=chatbot_id)
+        logging.info(f"[DeepSeek] Using model: {model}")
 
-        # DeepSeek API Call
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt},
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                },
             ],
             temperature=temperature,
             stream=False
         )
 
         reply = response.choices[0].message.content
-        return reply
+
+        if reply:
+            return reply.strip()
+
+        return "Sorry, I’m not sure how to answer that right now."
 
     except Exception as e:
         logging.error(f"DeepSeek Error: {e}")
