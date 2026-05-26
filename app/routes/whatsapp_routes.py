@@ -123,7 +123,13 @@ def build_safe_signup_payload(waba_id, phone_number_id, business_id, phone_metad
 @token_required
 def complete_embedded_signup():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         data = request.get_json() or {}
@@ -259,7 +265,13 @@ def get_embedded_signup_config():
 @token_required
 def list_whatsapp_channels():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         channels = get_whatsapp_channels_by_chatbot(chatbot_id)
@@ -286,7 +298,13 @@ def list_whatsapp_channels():
 @token_required
 def disconnect_whatsapp_channel(channel_id):
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         channel = get_whatsapp_channel_by_id(channel_id)

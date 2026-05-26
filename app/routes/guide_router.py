@@ -4,6 +4,9 @@ from openai import OpenAI
 from google import genai
 from supabase import create_client, Client
 
+from app.decorators.auth_decorator import token_required
+from app.utils.access_control import verify_chatbot_access
+
 # Initialize Supabase
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
 
@@ -35,16 +38,36 @@ TONE & STYLE:
 
 guide_blueprint = Blueprint('guide', __name__)
 
-@guide_blueprint.route('/api/guide/chat', methods=['POST'])
-def guide_chat():
-    data = request.json
-    user_message = data.get('message')
-    bot_id = data.get('bot_id')
-    
-    if not bot_id:
-        return jsonify({"reply": "⚠️ Please select a bot first so I can use your preferred settings!"})
+
+def get_requested_bot_id(data=None):
+    raw_bot_id = None
+
+    if data:
+        raw_bot_id = data.get('bot_id') or data.get('chatbot_id')
+
+    raw_bot_id = raw_bot_id or request.args.get('bot_id') or request.args.get('chatbot_id')
+
+    if not raw_bot_id:
+        return None
 
     try:
+        return int(raw_bot_id)
+    except (TypeError, ValueError):
+        return None
+
+
+@guide_blueprint.route('/api/guide/chat', methods=['POST'])
+@token_required
+def guide_chat():
+    data = request.json or {}
+    user_message = data.get('message')
+    bot_id = get_requested_bot_id(data)
+
+    if not bot_id:
+        return jsonify({"reply": "Please select a bot first so I can use your preferred settings!"}), 400
+    try:
+        verify_chatbot_access(bot_id)
+
         # 1. Fetch the real provider AND model name from your Supabase database
         response = supabase.table('chatbots').select('ai_provider, model_name').eq('id', bot_id).single().execute()
         db_bot = response.data
@@ -171,6 +194,9 @@ def guide_chat():
 
         return jsonify({"reply": ai_reply})
 
+    except PermissionError as e:
+        return jsonify({"reply": str(e)}), 403
+
     except Exception as e:
         error_msg = str(e)
         if "429" in error_msg or "quota" in error_msg.lower():
@@ -224,8 +250,27 @@ def guide_chat():
         }), 200
 
 @guide_blueprint.route('/api/guide/status', methods=['GET'])
+@token_required
 def guide_status():
-    bot_id = request.args.get('bot_id')
+    bot_id = get_requested_bot_id()
+
+    if not bot_id:
+        return jsonify({
+            "status": "error",
+            "message": "bot_id is required",
+            "active_provider": "None",
+            "available_providers": []
+        }), 400
+
+    try:
+        verify_chatbot_access(bot_id)
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+            "active_provider": "None",
+            "available_providers": []
+        }), 403
     
     # 1. Detect which providers have keys in .env
     available = []
