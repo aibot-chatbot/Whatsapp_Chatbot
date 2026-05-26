@@ -121,8 +121,24 @@ def get_settings():
     return _row_to_settings(active_row)
 
 
-def update_settings(new_data):
-    current_settings = get_settings()
+def update_settings(new_data, chatbot_id):
+    current_settings = DEFAULT_SETTINGS.copy()
+
+    existing_active_response = (
+        supabase
+        .table(TABLE_NAME)
+        .select("*")
+        .eq("chatbot_id", chatbot_id)
+        .eq("is_active", True)
+        .limit(1)
+        .execute()
+    )
+
+    existing_active_rows = existing_active_response.data or []
+
+    if existing_active_rows:
+        current_settings = _row_to_settings(existing_active_rows[0])
+
     current_settings.update(new_data)
 
     active_profile = current_settings.get("active_profile", "")
@@ -132,6 +148,7 @@ def update_settings(new_data):
         current_settings["active_profile"] = active_profile
 
     row_data = {
+        "chatbot_id": chatbot_id,
         "profile_name": active_profile,
         "bot_name": current_settings.get("bot_name", ""),
         "company_name": current_settings.get("company_name", ""),
@@ -150,6 +167,7 @@ def update_settings(new_data):
         supabase
         .table(TABLE_NAME)
         .select("id")
+        .eq("chatbot_id", chatbot_id)
         .eq("profile_name", active_profile)
         .limit(1)
         .execute()

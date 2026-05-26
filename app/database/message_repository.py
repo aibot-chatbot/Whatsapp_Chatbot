@@ -194,3 +194,24 @@ def get_messages_by_conversation(conversation_id: int):
         .execute()
     )
     return result.data
+
+
+def get_messages_by_conversation_and_chatbot(conversation_id: int, chatbot_id: int):
+    """
+    Fetch messages only when the conversation belongs to the requested chatbot.
+    Returns None when the conversation is missing or belongs to a different chatbot.
+    """
+    conversation_result = (
+        supabase
+        .table("conversations")
+        .select("id")
+        .eq("id", conversation_id)
+        .eq("chatbot_id", chatbot_id)
+        .limit(1)
+        .execute()
+    )
+
+    if not (conversation_result.data or []):
+        return None
+
+    return get_messages_by_conversation(conversation_id)

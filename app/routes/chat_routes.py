@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import verify_chatbot_access
 
 # import your existing chatbot function
 from app.services.ai_router import generate_response
@@ -21,12 +22,21 @@ def test_chat():
             }), 400
 
         user_message = data["message"]
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
 
         # use a dummy user id for testing
         reply = generate_response(
             user_message,
             "test_user",
-            chatbot_id=1,
+            chatbot_id=chatbot_id,
             source_channel="web",
         )
 

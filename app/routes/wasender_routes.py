@@ -66,7 +66,13 @@ def connect_wasender():
     }
     """
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         data = request.get_json() or {}
@@ -154,7 +160,13 @@ def connect_wasender():
 @token_required
 def list_wasender_channels():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         channels = get_wasender_channels_by_chatbot(chatbot_id)
@@ -178,7 +190,13 @@ def list_wasender_channels():
 @token_required
 def disconnect_wasender(channel_id):
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         channel = get_wasender_channel_by_id(channel_id)

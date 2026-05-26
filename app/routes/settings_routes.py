@@ -42,7 +42,16 @@ def save_settings():
                 "message": "No data provided"
             }), 400
 
-        updated_settings = update_settings(data)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        updated_settings = update_settings(data, chatbot_id)
 
         return jsonify({
             "status": "success",
