@@ -1,7 +1,7 @@
 import logging
 import json
 
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, abort, send_from_directory
 import os
 from werkzeug.utils import secure_filename
 
@@ -15,6 +15,27 @@ from app.services.knowledge_service import save_uploaded_pdf
 from app.utils.access_control import verify_chatbot_access
 
 webhook_blueprint = Blueprint("webhook", __name__)
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+
+
+@webhook_blueprint.route("/", methods=["GET"])
+def serve_frontend_root():
+    return send_from_directory(FRONTEND_DIR, "login.html")
+
+
+@webhook_blueprint.route("/<path:filename>", methods=["GET"])
+def serve_frontend_file(filename):
+    reserved_prefixes = (
+        "api/",
+        "webhook",
+        "telegram/webhook/",
+        "wasender/webhook/",
+    )
+
+    if filename == "webhook" or filename.startswith(reserved_prefixes):
+        abort(404)
+
+    return send_from_directory(FRONTEND_DIR, filename)
 
 
 def handle_message():
