@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -366,9 +367,17 @@
             animation: fadeIn 0.3s ease;
         }
 
-        .status-message.success { color: var(--accent); }
-        .status-message.error { color: var(--error); }
-        .status-message.deleted { color: var(--error); }
+        .status-message.success {
+            color: var(--accent);
+        }
+
+        .status-message.error {
+            color: var(--error);
+        }
+
+        .status-message.deleted {
+            color: var(--error);
+        }
 
         .name-cell {
             display: flex;
@@ -497,7 +506,7 @@
             display: inline-block;
             width: 18px;
             height: 18px;
-            border: 2px solid rgba(255,255,255,0.3);
+            border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 50%;
             border-top-color: white;
             animation: spin 1s ease-in-out infinite;
@@ -505,17 +514,33 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-5px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(-5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         @keyframes slideUp {
-            from { transform: translateY(30px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         @media (max-width: 1200px) {
@@ -528,12 +553,14 @@
             body {
                 flex-direction: column;
             }
+
             .sidebar {
                 width: 100%;
                 min-height: auto;
                 position: relative;
                 padding: 24px 20px;
             }
+
             .main-container {
                 padding: 28px 20px;
             }
@@ -543,8 +570,11 @@
             .stats-row {
                 grid-template-columns: 1fr;
             }
-            th:nth-child(2), td:nth-child(2),
-            th:nth-child(4), td:nth-child(4) {
+
+            th:nth-child(2),
+            td:nth-child(2),
+            th:nth-child(4),
+            td:nth-child(4) {
                 display: none;
             }
         }
@@ -558,19 +588,24 @@
             padding: 8px 12px;
             margin-top: 10px;
         }
+
         .link-list-container::-webkit-scrollbar {
             width: 6px;
         }
+
         .link-list-container::-webkit-scrollbar-track {
             background: transparent;
         }
+
         .link-list-container::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 3px;
         }
+
         .link-list-container::-webkit-scrollbar-thumb:hover {
             background: rgba(255, 255, 255, 0.2);
         }
+
         .link-list-item {
             display: flex;
             align-items: center;
@@ -579,9 +614,11 @@
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             font-size: 0.85rem;
         }
+
         .link-list-item:last-child {
             border-bottom: none;
         }
+
         .link-list-item label {
             margin: 0;
             cursor: pointer;
@@ -590,6 +627,7 @@
             flex: 1;
             color: var(--text-main);
         }
+
         .link-list-item input[type="checkbox"] {
             width: 16px;
             height: 16px;
@@ -598,6 +636,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="root"></div>
 
@@ -614,12 +653,15 @@
             const [fileToDelete, setFileToDelete] = useState(null);
             const [activeTab, setActiveTab] = useState("file");
             const [linkUrl, setLinkUrl] = useState("");
-            
+
             // Interactive Crawler State Variables
             const [isAnalyzing, setIsAnalyzing] = useState(false);
             const [analyzedLinks, setAnalyzedLinks] = useState([]);
             const [selectedLinks, setSelectedLinks] = useState({});
-            const [crawlStep, setCrawlStep] = useState("input"); // "input" or "select"
+            const [crawlStep, setCrawlStep] = useState("input"); // "input", "select", or "refine"
+            const [refinedText, setRefinedText] = useState("");
+            const [isExtracting, setIsExtracting] = useState(false);
+            const [extractedPrimaryUrl, setExtractedPrimaryUrl] = useState("");
 
             const urlParams = new URLSearchParams(window.location.search);
             const urlBotId = urlParams.get("bot_id");
@@ -665,10 +707,13 @@
                 setAnalyzedLinks([]);
                 setSelectedLinks({});
                 setCrawlStep("input");
+                setRefinedText("");
+                setIsExtracting(false);
+                setExtractedPrimaryUrl("");
             };
 
             const closeModal = () => {
-                if (isUploading || isAnalyzing) return;
+                if (isUploading || isAnalyzing || isExtracting) return;
                 setIsModalOpen(false);
                 setFile(null);
                 setLinkUrl("");
@@ -678,6 +723,9 @@
                 setAnalyzedLinks([]);
                 setSelectedLinks({});
                 setCrawlStep("input");
+                setRefinedText("");
+                setIsExtracting(false);
+                setExtractedPrimaryUrl("");
             };
 
             const handleFileSelect = (input) => {
@@ -746,7 +794,7 @@
                     if (response.ok) {
                         const links = data.data?.links || [];
                         setAnalyzedLinks(links);
-                        
+
                         // Select all by default
                         const initialSelected = {};
                         links.forEach(l => {
@@ -780,44 +828,81 @@
                 setSelectedLinks(nextSelected);
             };
 
-            const handleUpload = async () => {
-                if (activeTab === "link") {
-                    const selectedUrls = analyzedLinks.filter(l => selectedLinks[l]);
-                    if (selectedUrls.length === 0) {
-                        setStatus({ type: "error", text: "Please select at least one page to ingest.", action: "" });
-                        return;
-                    }
-                    
-                    setIsUploading(true);
-                    setStatus({ type: "", text: "", action: "" });
-
-                    try {
-                        const response = await authenticatedFetch(`/api/knowledge/scrape-batch${botQuery}`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({ urls: selectedUrls }),
-                        });
-
-                        const data = await response.json();
-
-                        if (response.ok) {
-                            setStatus({ type: "success", text: "Website content scraped and saved successfully. Please set it active if needed.", action: "upload" });
-                            setLinkUrl("");
-                            setIsModalOpen(false);
-                            await fetchFiles();
-                        } else {
-                            setStatus({ type: "error", text: `Scraping failed: ${data.message || "Unknown error"}`, action: "" });
-                        }
-                    } catch (error) {
-                        setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
-                    } finally {
-                        setIsUploading(false);
-                    }
+            const handleExtractContent = async () => {
+                const selectedUrls = analyzedLinks.filter(l => selectedLinks[l]);
+                if (selectedUrls.length === 0) {
+                    setStatus({ type: "error", text: "Please select at least one page to ingest.", action: "" });
                     return;
                 }
 
+                setIsExtracting(true);
+                setStatus({ type: "", text: "", action: "" });
+
+                try {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/scrape-extract${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ urls: selectedUrls }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setRefinedText(data.data?.extracted_text || "");
+                        setExtractedPrimaryUrl(data.data?.primary_url || selectedUrls[0]);
+                        setCrawlStep("refine");
+                    } else {
+                        setStatus({ type: "error", text: `Extraction failed: ${data.message || "Unknown error"}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsExtracting(false);
+                }
+            };
+
+            const handleConfirmIngest = async () => {
+                if (!refinedText.trim()) {
+                    setStatus({ type: "error", text: "Refined text cannot be empty.", action: "" });
+                    return;
+                }
+
+                setIsUploading(true);
+                setStatus({ type: "", text: "", action: "" });
+
+                try {
+                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/scrape-embed${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            text_content: refinedText,
+                            primary_url: extractedPrimaryUrl,
+                            file_name: extractedPrimaryUrl
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "success", text: "Website content scraped, refined, and saved successfully. Please set it active if needed.", action: "upload" });
+                        setLinkUrl("");
+                        setIsModalOpen(false);
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: `Ingestion failed: ${data.message || "Unknown error"}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsUploading(false);
+                }
+            };
+
+            const handleUpload = async () => {
                 if (!file) {
                     setStatus({ type: "error", text: "Please select a PDF file first.", action: "" });
                     return;
@@ -1119,7 +1204,7 @@
                                             </div>
                                         )}
                                     </div>
-                                ) : (
+                                ) : crawlStep === "select" ? (
                                     <div className="input-group">
                                         <label style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
                                             Discovered {analyzedLinks.length} subpages
@@ -1168,6 +1253,35 @@
                                                 ))}
                                             </div>
                                         )}
+                                        {isExtracting && (
+                                            <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px", color: "var(--primary)" }}>
+                                                <span className="spinner"></span>
+                                                <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Extracting business facts via Gemini... Please wait...</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="input-group">
+                                        <label style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
+                                            Review & Refine Extracted Knowledge
+                                        </label>
+                                        <div style={{ color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "15px" }}>
+                                            Verify and edit the AI-extracted knowledge details below to ensure absolute correctness.
+                                        </div>
+                                        <textarea
+                                            className="modal-input"
+                                            value={refinedText}
+                                            onChange={(e) => setRefinedText(e.target.value)}
+                                            style={{
+                                                width: "100%",
+                                                height: "220px",
+                                                fontFamily: "monospace",
+                                                fontSize: "0.85rem",
+                                                lineHeight: "1.5",
+                                                resize: "vertical"
+                                            }}
+                                            disabled={isUploading}
+                                        />
                                     </div>
                                 )
                             ) : (
@@ -1202,13 +1316,24 @@
                                         className="btn"
                                         type="button"
                                         onClick={() => setCrawlStep("input")}
+                                        disabled={isExtracting}
+                                        style={{ marginRight: "auto" }}
+                                    >
+                                        Back
+                                    </button>
+                                )}
+                                {activeTab === "link" && crawlStep === "refine" && (
+                                    <button
+                                        className="btn"
+                                        type="button"
+                                        onClick={() => setCrawlStep("select")}
                                         disabled={isUploading}
                                         style={{ marginRight: "auto" }}
                                     >
                                         Back
                                     </button>
                                 )}
-                                <button className="btn" type="button" onClick={closeModal} disabled={isUploading || isAnalyzing}>
+                                <button className="btn" type="button" onClick={closeModal} disabled={isUploading || isAnalyzing || isExtracting}>
                                     Cancel
                                 </button>
                                 {activeTab === "link" ? (
@@ -1225,18 +1350,31 @@
                                                 </span>
                                             ) : "Analyze Website"}
                                         </button>
+                                    ) : crawlStep === "select" ? (
+                                        <button
+                                            className="btn btn-primary"
+                                            type="button"
+                                            onClick={handleExtractContent}
+                                            disabled={isExtracting || Object.values(selectedLinks).filter(Boolean).length === 0}
+                                        >
+                                            {isExtracting ? (
+                                                <span>
+                                                    <span className="spinner"></span> Extracting...
+                                                </span>
+                                            ) : `Extract & Review (${Object.values(selectedLinks).filter(Boolean).length} Selected)`}
+                                        </button>
                                     ) : (
                                         <button
                                             className="btn btn-primary"
                                             type="button"
-                                            onClick={handleUpload}
-                                            disabled={isUploading || Object.values(selectedLinks).filter(Boolean).length === 0}
+                                            onClick={handleConfirmIngest}
+                                            disabled={isUploading || !refinedText.trim()}
                                         >
                                             {isUploading ? (
                                                 <span>
                                                     <span className="spinner"></span> Ingesting...
                                                 </span>
-                                            ) : `Ingest (${Object.values(selectedLinks).filter(Boolean).length} Selected)`}
+                                            ) : "Confirm & Ingest"}
                                         </button>
                                     )
                                 ) : (
@@ -1263,7 +1401,7 @@
                             <div style={{ fontSize: "48px", marginBottom: "20px" }}>🗑️</div>
                             <h2 style={{ marginBottom: "12px" }}>Delete Document?</h2>
                             <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "32px", lineHeight: "1.5" }}>
-                                Are you sure you want to delete <strong>{fileToDelete}</strong>?<br/>
+                                Are you sure you want to delete <strong>{fileToDelete}</strong>?<br />
                                 This action cannot be undone.
                             </p>
                             <div className="modal-footer" style={{ justifyContent: "center", gap: "16px" }}>
@@ -1284,4 +1422,5 @@
         root.render(<App />);
     </script>
 </body>
+
 </html>
