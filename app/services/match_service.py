@@ -4,6 +4,8 @@ import fitz  # PyMuPDF
 from app.services.settings_service import get_settings, get_draft_runtime
 from app.services.profile_service import get_profile_by_name
 from app.services.knowledge_service import get_active_pdf
+from app.database.knowledge_file_repository import get_active_knowledge_file
+from app.database.knowledge_chunk_repository import get_chunks_by_file
 from google import genai
 
 
@@ -53,18 +55,28 @@ Custom Instructions: {additional_instructions}
         active_pdf = get_active_pdf(chatbot_id)
         active_pdf_path = active_pdf.get("file_path", "")
 
-    pdf_preview = extract_pdf_preview(active_pdf_path)
+    # Query active knowledge file from DB and compile text preview from its chunks
+    pdf_preview = ""
+    active_file = get_active_knowledge_file(chatbot_id)
+    if active_file:
+        chunks = get_chunks_by_file(active_file.get("id"))
+        if chunks:
+            pdf_preview = "\n\n".join([c.get("content", "") for c in chunks])[:4000]
+
+    # Fallback to local PDF reading if database chunks were not found
+    if not pdf_preview:
+        pdf_preview = extract_pdf_preview(active_pdf_path)
 
     if not pdf_preview:
         return {
             "match": False,
-            "reason": "PDF content is missing, cannot determine alignment.",
+            "reason": "Knowledge base content is missing, cannot determine alignment.",
             "profile_name": profile_name or "Current Settings",
             "pdf_path": active_pdf_path
         }
 
     prompt = f"""
-You are checking whether a chatbot configuration matches the content of an uploaded PDF.
+You are checking whether a chatbot configuration matches the content of an uploaded knowledge source (PDF or Scraped Website).
 
 Bot Configuration:
 {config_summary}
@@ -72,14 +84,14 @@ Bot Configuration:
 Profile Name:
 {profile_name or "Current Settings"}
 
-Active PDF Path:
+Active Knowledge Path/URL:
 {active_pdf_path}
 
-PDF Content Preview:
+Knowledge Content Preview:
 {pdf_preview}
 
 Task:
-Decide whether the bot configuration is aligned with the PDF content.
+Decide whether the bot configuration is aligned with the knowledge content.
 
 Return ONLY valid JSON in this exact format:
 {{
@@ -88,7 +100,7 @@ Return ONLY valid JSON in this exact format:
 }}
 
 Rules:
-- "match" must be true if the configuration generally fits the PDF topic and purpose.
+- "match" must be true if the configuration generally fits the knowledge topic and purpose.
 - "match" must be false if the configuration clearly describes a different business/domain/topic.
 - Keep "reason" short and clear.
 - Do not return markdown.
@@ -126,8 +138,15 @@ Rules:
             "pdf_path": active_pdf_path
         }
 
+    # Clean up markdown code block fences if present
+    cleaned_text = raw_text.strip()
+    if cleaned_text.startswith("```"):
+        lines = cleaned_text.splitlines()
+        lines = [line for line in lines if not line.strip().startswith("```")]
+        cleaned_text = "\n".join(lines).strip()
+
     try:
-        result = json.loads(raw_text)
+        result = json.loads(cleaned_text)
         return {
             "match": bool(result.get("match", False)),
             "reason": result.get("reason", "No reason provided."),
