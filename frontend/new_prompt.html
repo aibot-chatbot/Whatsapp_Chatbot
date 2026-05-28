@@ -601,7 +601,20 @@
             };
 
             const urlParams = new URLSearchParams(window.location.search);
-            const selectedBotId = urlParams.get("bot_id") || sessionStorage.getItem("selectedBotId") || 1;
+            const urlBotId = urlParams.get("bot_id");
+            const storedBotId = sessionStorage.getItem("selectedBotId");
+
+            if (!urlBotId && storedBotId) {
+                window.location.href = `new_prompt.html?bot_id=${encodeURIComponent(storedBotId)}`;
+                return null;
+            }
+
+            if (!urlBotId) {
+                window.location.href = "bots.html";
+                return null;
+            }
+
+            const selectedBotId = urlBotId;
             sessionStorage.setItem("selectedBotId", selectedBotId);
             const botQuery = `?chatbot_id=${selectedBotId}`;
             const pageQuery = `?bot_id=${selectedBotId}`;
@@ -641,7 +654,7 @@
 
             const fetchBotInfo = async () => {
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                    const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -654,7 +667,7 @@
 
             const fetchActivePdf = async () => {
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/active${botQuery}`);
+                    const response = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -669,7 +682,7 @@
 
             const fetchProfiles = async () => {
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/profiles${botQuery}`);
+                    const response = await authenticatedFetch(`/api/profiles${botQuery}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -684,7 +697,7 @@
 
             const fetchActiveProfile = async () => {
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/settings?chatbot_id=${selectedBotId}`);
+                    const response = await authenticatedFetch(`/api/settings?chatbot_id=${selectedBotId}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -746,7 +759,7 @@
 
                 try {
                     const response = await authenticatedFetch(
-                        `http://127.0.0.1:8000/api/profiles/${encodeURIComponent(nameToDelete)}${botQuery}`,
+                        `/api/profiles/${encodeURIComponent(nameToDelete)}${botQuery}`,
                         { method: "DELETE" }
                     );
 
@@ -815,7 +828,7 @@
                     setPreviewProfile(profile);
                     setActiveProfile(profile.name || "");
 
-                    await authenticatedFetch(`http://127.0.0.1:8000/api/settings/active-profile?chatbot_id=${selectedBotId}`, {
+                    await authenticatedFetch(`/api/settings/active-profile?chatbot_id=${selectedBotId}`, {
                         method: "PUT",
                         headers: {
                             "Content-Type": "application/json",
@@ -874,7 +887,7 @@
                 setFormStatus({ type: "", text: "" });
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/profiles${botQuery}`, {
+                    const response = await authenticatedFetch(`/api/profiles${botQuery}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -941,7 +954,7 @@
                 setSessionStatus({ type: "", text: "" });
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/match/check?chatbot_id=${selectedBotId}`, {
+                    const response = await authenticatedFetch(`/api/match/check?chatbot_id=${selectedBotId}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -1003,7 +1016,7 @@
                 }
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/settings/apply-profile?chatbot_id=${selectedBotId}`, {
+                    const response = await authenticatedFetch(`/api/settings/apply-profile?chatbot_id=${selectedBotId}`, {
                         method: "PUT",
                         headers: {
                             "Content-Type": "application/json",

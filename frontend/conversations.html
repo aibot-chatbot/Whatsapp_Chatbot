@@ -535,12 +535,33 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const selectedBotId = urlParams.get("bot_id") || 1;
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `conversations.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            selectedBotId = storedBotId;
+        }
+
+        if (!selectedBotId) {
+            window.location.href = "bots.html";
+        }
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
+
         let allConversations = [];
         let activeConversationId = null;
         let currentPlatform = 'all';
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (!selectedBotId) {
+                return;
+            }
+
             lucide.createIcons();
             fetchSelectedBot();
             fetchConversations();
@@ -548,7 +569,7 @@
 
         async function fetchSelectedBot() {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== "success" || !result.data) {
@@ -579,7 +600,7 @@
 
         async function fetchConversations() {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/conversations?chatbot_id=${selectedBotId}`);
+                const response = await authenticatedFetch(`/api/conversations?chatbot_id=${selectedBotId}`);
                 const result = await response.json();
 
                 if (result.status === "success") {
@@ -681,7 +702,7 @@
             `;
 
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
+                const response = await authenticatedFetch(`/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
                 const result = await response.json();
 
                 if (result.status === "success") {

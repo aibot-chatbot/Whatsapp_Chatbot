@@ -213,27 +213,33 @@
         requireLogin();
 
         const urlParams = new URLSearchParams(window.location.search);
-        let selectedBotId = urlParams.get("bot_id");
-        
-        // If not in URL, check sessionStorage
-        if (!selectedBotId) {
-            selectedBotId = sessionStorage.getItem("selectedBotId");
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `testbot.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            selectedBotId = storedBotId;
         }
-        
-        // Final fallback to 1, but log it
+
         if (!selectedBotId) {
-            console.warn("No bot_id found in URL or session, defaulting to 1");
-            selectedBotId = 1;
+            window.location.href = "bots.html";
         }
-        
-        // Save back to session to keep it consistent
-        sessionStorage.setItem("selectedBotId", selectedBotId);
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
         console.log("Current Test Bot ID:", selectedBotId);
 
         const botQuery = `?chatbot_id=${selectedBotId}`;
         let aiModelCatalog = {};
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (!selectedBotId) {
+                return;
+            }
+
             initSidebar();
 
             const sendBtn = document.getElementById('send-btn');
@@ -258,7 +264,7 @@
 
             async function loadModelCatalog() {
                 try {
-                    const response = await authenticatedFetch("http://127.0.0.1:8000/api/ai-models");
+                    const response = await authenticatedFetch("/api/ai-models");
                     const result = await response.json();
 
                     if (result.status === "success") {
@@ -287,7 +293,7 @@
 
             async function loadContext() {
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/testbot/context${botQuery}`);
+                    const response = await authenticatedFetch(`/api/testbot/context${botQuery}`);
                     const data = await response.json();
 
                     messages.innerHTML = "";
@@ -298,7 +304,7 @@
                         const activeProfile = ctx.active_profile || 'No active profile';
                         const activePdf = ctx.active_pdf || 'No active PDF';
 
-                        const selectedBotRes = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                        const selectedBotRes = await authenticatedFetch(`/api/bots/${selectedBotId}`);
                         const selectedBotData = await selectedBotRes.json();
                         const selectedBotName = selectedBotData.status === "success"
                             ? selectedBotData.data.bot_name
@@ -360,7 +366,7 @@
                 messages.scrollTop = messages.scrollHeight;
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/testbot/chat${botQuery}`, {
+                    const response = await authenticatedFetch(`/api/testbot/chat${botQuery}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'

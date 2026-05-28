@@ -229,9 +229,29 @@
         requireLogin();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const botId = urlParams.get("bot_id") || 1;
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let botId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `model_settings.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            botId = storedBotId;
+        }
+
+        if (!botId) {
+            window.location.href = "bots.html";
+        }
+
+        if (botId) {
+            sessionStorage.setItem("selectedBotId", botId);
+        }
 
         document.addEventListener("DOMContentLoaded", async () => {
+            if (!botId) {
+                return;
+            }
+
             await fetchModelCatalog();
             await fetchSettings();
         });
@@ -279,7 +299,7 @@
 
         async function fetchModelCatalog() {
             try {
-                const response = await authenticatedFetch("http://127.0.0.1:8000/api/ai-models");
+                const response = await authenticatedFetch("/api/ai-models");
                 const result = await response.json();
 
                 if (result.status === "success") {
@@ -308,7 +328,7 @@
 
         async function fetchSettings() {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`);
+                const response = await authenticatedFetch(`/api/bots/${botId}`);
                 const result = await response.json();
 
                 if (result.status === "success") {
@@ -358,7 +378,7 @@
             statusMsg.style.display = "none";
 
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`, {
+                const response = await authenticatedFetch(`/api/bots/${botId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
