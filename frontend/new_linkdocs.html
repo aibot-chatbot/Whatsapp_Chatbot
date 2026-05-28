@@ -622,7 +622,20 @@
             const [crawlStep, setCrawlStep] = useState("input"); // "input" or "select"
 
             const urlParams = new URLSearchParams(window.location.search);
-            const selectedBotId = urlParams.get("bot_id") || sessionStorage.getItem("selectedBotId") || 1;
+            const urlBotId = urlParams.get("bot_id");
+            const storedBotId = sessionStorage.getItem("selectedBotId");
+
+            if (!urlBotId && storedBotId) {
+                window.location.href = `new_linkdocs.html?bot_id=${encodeURIComponent(storedBotId)}`;
+                return null;
+            }
+
+            if (!urlBotId) {
+                window.location.href = "bots.html";
+                return null;
+            }
+
+            const selectedBotId = urlBotId;
             sessionStorage.setItem("selectedBotId", selectedBotId);
             const botQuery = `?chatbot_id=${selectedBotId}`;
             const pageQuery = `?bot_id=${selectedBotId}`;
@@ -630,7 +643,7 @@
 
             const fetchBotInfo = async () => {
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                    const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
                     const data = await response.json();
 
                     if (data.status === "success") {
@@ -691,10 +704,10 @@
 
             const fetchFiles = async () => {
                 try {
-                    const res = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/files${botQuery}`);
+                    const res = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
                     const data = await res.json();
 
-                    const activeRes = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/active${botQuery}`);
+                    const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
                     const activeData = await activeRes.json();
 
                     if (data.status === "success") {
@@ -720,7 +733,7 @@
                 setSelectedLinks({});
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/scrape-analyze${botQuery}`, {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-analyze${botQuery}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -779,7 +792,7 @@
                     setStatus({ type: "", text: "", action: "" });
 
                     try {
-                        const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/scrape-batch${botQuery}`, {
+                        const response = await authenticatedFetch(`/api/knowledge/scrape-batch${botQuery}`, {
                             method: "POST",
                             headers: {
                                 "Content-Type": "application/json",
@@ -817,7 +830,7 @@
                 formData.append("pdf_file", file);
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/upload-pdf${botQuery}`, {
+                    const response = await authenticatedFetch(`/upload-pdf${botQuery}`, {
                         method: "POST",
                         body: formData,
                     });
@@ -840,7 +853,7 @@
 
             const handleSetActive = async (fileName) => {
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/set-active${botQuery}`, {
+                    const response = await authenticatedFetch(`/api/knowledge/set-active${botQuery}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -871,7 +884,7 @@
                 setFileToDelete(null);
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/files/${encodeURIComponent(fileName)}${botQuery}`, {
+                    const response = await authenticatedFetch(`/api/knowledge/files/${encodeURIComponent(fileName)}${botQuery}`, {
                         method: "DELETE",
                     });
 

@@ -249,9 +249,29 @@
         requireLogin();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const selectedBotId = urlParams.get("bot_id") || 1;
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `index.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            selectedBotId = storedBotId;
+        }
+
+        if (!selectedBotId) {
+            window.location.href = "bots.html";
+        }
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (!selectedBotId) {
+                return;
+            }
+
             updateDate();
             fetchSelectedBot();
             fetchDashboardData();
@@ -267,7 +287,7 @@
 
         async function fetchSelectedBot() {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== "success" || !result.data) {
@@ -289,7 +309,7 @@
         async function fetchDashboardData() {
             try {
                 // 1. Fetch Analytics
-                const analyticsRes = await authenticatedFetch(`http://127.0.0.1:8000/api/analytics?chatbot_id=${selectedBotId}`);
+                const analyticsRes = await authenticatedFetch(`/api/analytics?chatbot_id=${selectedBotId}`);
                 const analytics = await analyticsRes.json();
                 
                 if (analytics.status === "success") {
@@ -304,7 +324,7 @@
                 }
 
                 // 2. Fetch Settings
-                const settingsRes = await authenticatedFetch(`http://127.0.0.1:8000/api/settings?chatbot_id=${selectedBotId}`);
+                const settingsRes = await authenticatedFetch(`/api/settings?chatbot_id=${selectedBotId}`);
                 const settings = await settingsRes.json();
                 if (settings.status === "success") {
                     document.getElementById('stat-active-profile').innerText = settings.data.active_profile || "None";
@@ -315,7 +335,7 @@
                 }
 
                 // 3. Fetch Active Knowledge
-                const knowledgeRes = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/active?chatbot_id=${selectedBotId}`);
+                const knowledgeRes = await authenticatedFetch(`/api/knowledge/active?chatbot_id=${selectedBotId}`);
                 if (knowledgeRes.ok) {
                     const knowledge = await knowledgeRes.json();
                     document.getElementById('stat-active-pdf').innerText = knowledge.data?.file_name || "None";

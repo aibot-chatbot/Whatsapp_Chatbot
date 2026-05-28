@@ -608,7 +608,7 @@
             const grid = document.getElementById("bots-grid");
 
             try {
-                const response = await authenticatedFetch("http://127.0.0.1:8000/api/bots");
+                const response = await authenticatedFetch("/api/bots");
                 const result = await response.json();
 
                 if (result.status !== "success") {
@@ -709,7 +709,7 @@
                 return;
             }
 
-            const response = await authenticatedFetch("http://127.0.0.1:8000/api/bots", {
+            const response = await authenticatedFetch("/api/bots", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -752,7 +752,7 @@
         async function confirmDeleteBot() {
             if (!selectedDeleteBotId) return;
 
-            const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedDeleteBotId}`, {
+            const response = await authenticatedFetch(`/api/bots/${selectedDeleteBotId}`, {
                 method: "DELETE"
             });
 
@@ -769,7 +769,7 @@
         // ===== EDIT BOT =====
 
         async function openEditBot(botId) {
-            const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`);
+            const response = await authenticatedFetch(`/api/bots/${botId}`);
             const result = await response.json();
 
             if (result.status !== "success") {
@@ -800,7 +800,7 @@
             const botLanguage = document.getElementById("bot-language").value.trim();
             const botTone = document.getElementById("bot-tone").value;
 
-            const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`, {
+            const response = await authenticatedFetch(`/api/bots/${botId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

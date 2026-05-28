@@ -552,7 +552,32 @@
     <script>
         requireLogin();
 
+        function resolveSelectedChatbotId() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlBotId = urlParams.get('bot_id');
+            const storedBotId = sessionStorage.getItem('selectedBotId');
+
+            if (!urlBotId && storedBotId) {
+                window.location.href = `integration.html?bot_id=${encodeURIComponent(storedBotId)}`;
+                return null;
+            }
+
+            if (!urlBotId) {
+                window.location.href = 'bots.html';
+                return null;
+            }
+
+            sessionStorage.setItem('selectedBotId', urlBotId);
+            return urlBotId;
+        }
+
+        const selectedBotId = resolveSelectedChatbotId();
+
         document.addEventListener('DOMContentLoaded', () => {
+            if (!selectedBotId) {
+                return;
+            }
+
             initSidebar();
             loadChannelStatus();
         });
@@ -861,8 +886,7 @@
         }
 
         function getSelectedChatbotId() {
-            const urlParams = new URLSearchParams(window.location.search);
-            return urlParams.get('bot_id') || sessionStorage.getItem('selectedBotId') || 1;
+            return selectedBotId;
         }
 
         function setWhatsAppCloudState(state, message) {
@@ -1564,8 +1588,10 @@
                 return;
             }
 
-            const urlParams = new URLSearchParams(window.location.search);
-            const chatbotId = urlParams.get('bot_id') || 1;
+            const chatbotId = getSelectedChatbotId();
+            if (!chatbotId) {
+                return;
+            }
 
             const apiUrl = `/api/telegram/connect?chatbot_id=${chatbotId}`;
 
