@@ -16,7 +16,13 @@ analytics_blueprint = Blueprint("analytics", __name__)
 @token_required
 def get_analytics():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
 
         verify_chatbot_access(chatbot_id)
 

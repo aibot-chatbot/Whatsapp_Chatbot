@@ -122,7 +122,13 @@ def upload_pdf():
 
         file = request.files["pdf_file"]
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         result = save_uploaded_pdf(file, chatbot_id)
 
