@@ -10,7 +10,13 @@ profile_blueprint = Blueprint("profile", __name__)
 @token_required
 def fetch_profiles():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         profiles = get_profiles(chatbot_id)
         return jsonify({
@@ -35,7 +41,13 @@ def create_profile():
                 "message": "No data provided"
             }), 400
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         saved_profile = save_profile(data, chatbot_id)
 
@@ -58,7 +70,13 @@ def create_profile():
 @token_required
 def remove_profile(profile_name):
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         deleted_profile = delete_profile(profile_name, chatbot_id)
 

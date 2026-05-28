@@ -19,7 +19,13 @@ knowledge_blueprint = Blueprint("knowledge", __name__)
 @token_required
 def get_uploaded_pdfs():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         files = list_uploaded_pdfs(chatbot_id)
         return jsonify({
@@ -37,7 +43,13 @@ def get_uploaded_pdfs():
 @token_required
 def get_current_active_pdf():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         active_pdf = get_active_pdf(chatbot_id)
         return jsonify({
@@ -63,7 +75,13 @@ def set_current_active_pdf():
                 "message": "file_name is required"
             }), 400
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         result = set_active_pdf(data["file_name"], chatbot_id)
 
@@ -93,7 +111,13 @@ def set_current_active_pdf():
 @token_required
 def delete_uploaded_pdf(file_name):
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         
         # Normalize double slashes if Werkzeug collapsed them
@@ -130,7 +154,13 @@ def scrape_website_knowledge():
                 "message": "URL is required"
             }), 400
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         result = scrape_website_url(data["url"], chatbot_id)
         return jsonify({
@@ -160,7 +190,13 @@ def scrape_analyze_website():
                 "message": "URL is required"
             }), 400
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         links = discover_website_links(data["url"])
         return jsonify({
@@ -193,7 +229,13 @@ def scrape_batch_website():
                 "message": "List of URLs ('urls') is required"
             }), 400
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         result = scrape_website_urls_batch(data["urls"], chatbot_id)
         return jsonify({
