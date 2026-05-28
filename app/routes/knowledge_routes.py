@@ -10,6 +10,8 @@ from app.services.knowledge_service import (
     scrape_website_url,
     discover_website_links,
     scrape_website_urls_batch,
+    extract_business_knowledge,
+    save_refined_knowledge_chunks,
 )
 
 knowledge_blueprint = Blueprint("knowledge", __name__)
@@ -238,6 +240,110 @@ def scrape_batch_website():
 
         verify_chatbot_access(chatbot_id)
         result = scrape_website_urls_batch(data["urls"], chatbot_id)
+        return jsonify({
+            "status": "success",
+            "data": result
+        }), 200
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@knowledge_blueprint.route("/api/knowledge/scrape-extract", methods=["POST"])
+@token_required
+def scrape_extract_website():
+    try:
+        from app.services.knowledge_service import fetch_and_parse_url
+        data = request.get_json()
+        if not data or "urls" not in data or not isinstance(data["urls"], list):
+            return jsonify({
+                "status": "error",
+                "message": "List of URLs ('urls') is required"
+            }), 400
+
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
+
+        urls = data["urls"]
+        if not urls:
+            return jsonify({
+                "status": "error",
+                "message": "At least one URL must be selected."
+            }), 400
+
+        combined_content_list = []
+        failed_urls = []
+        primary_url = urls[0]
+
+        for url in urls:
+            try:
+                content = fetch_and_parse_url(url)
+                combined_content_list.append(content)
+            except Exception as e:
+                import logging
+                logging.error(f"Failed to scrape URL {url} for extraction: {e}")
+                failed_urls.append(url)
+
+        if not combined_content_list:
+            return jsonify({
+                "status": "error",
+                "message": f"Failed to scrape any of the selected URLs. Errors: {failed_urls}"
+            }), 400
+
+        combined_text = "\n\n".join(combined_content_list)
+        
+        # Call the LLM refiner
+        refined_text = extract_business_knowledge(combined_text)
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "extracted_text": refined_text,
+                "primary_url": primary_url,
+                "failed_urls": failed_urls
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@knowledge_blueprint.route("/api/knowledge/scrape-embed", methods=["POST"])
+@token_required
+def scrape_embed_website():
+    try:
+        data = request.get_json()
+        if not data or "text_content" not in data or "primary_url" not in data:
+            return jsonify({
+                "status": "error",
+                "message": "text_content and primary_url are required"
+            }), 400
+
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        verify_chatbot_access(chatbot_id)
+
+        text_content = data["text_content"]
+        primary_url = data["primary_url"]
+        
+        # Default file name is the primary URL or custom override
+        file_name = data.get("file_name", primary_url)
+
+        result = save_refined_knowledge_chunks(
+            text_content=text_content,
+            file_name=file_name,
+            primary_url=primary_url,
+            chatbot_id=chatbot_id
+        )
+
         return jsonify({
             "status": "success",
             "data": result
