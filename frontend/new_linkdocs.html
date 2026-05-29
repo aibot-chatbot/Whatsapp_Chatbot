@@ -839,7 +839,7 @@
                 setStatus({ type: "", text: "", action: "" });
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/scrape-extract${botQuery}`, {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-extract${botQuery}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
@@ -873,7 +873,7 @@
                 setStatus({ type: "", text: "", action: "" });
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/knowledge/scrape-embed${botQuery}`, {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-embed${botQuery}`, {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
