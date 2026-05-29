@@ -130,7 +130,7 @@ def complete_embedded_signup():
                 "message": "chatbot_id is required"
             }), 400
 
-        verify_chatbot_access(chatbot_id)
+        access = verify_chatbot_access(chatbot_id)
 
         data = request.get_json() or {}
         code = (data.get("code") or "").strip()
@@ -156,7 +156,7 @@ def complete_embedded_signup():
                 "message": "WhatsApp phone number ID is required."
             }), 400
 
-        bot = get_bot_by_id(chatbot_id)
+        bot = get_bot_by_id(chatbot_id, access["company_id"])
 
         if not bot:
             return jsonify({

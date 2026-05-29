@@ -73,7 +73,7 @@ def connect_wasender():
                 "message": "chatbot_id is required"
             }), 400
 
-        verify_chatbot_access(chatbot_id)
+        access = verify_chatbot_access(chatbot_id)
 
         data = request.get_json() or {}
 
@@ -94,7 +94,7 @@ def connect_wasender():
                 "message": "Phone number is required."
             }), 400
 
-        bot = get_bot_by_id(chatbot_id)
+        bot = get_bot_by_id(chatbot_id, access["company_id"])
 
         if not bot:
             return jsonify({

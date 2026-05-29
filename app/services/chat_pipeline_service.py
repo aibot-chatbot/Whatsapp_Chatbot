@@ -14,7 +14,7 @@ from app.services.rag_service import retrieve_relevant_chunks, build_prompt
 def prepare_chat_prompt(
     message,
     customer_id,
-    chatbot_id=1,
+    chatbot_id,
     source_channel="whatsapp",
 ):
     conversation = get_or_create_conversation(

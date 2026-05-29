@@ -1,7 +1,7 @@
 import json
 import fitz  # PyMuPDF
 
-from app.services.settings_service import get_settings, get_draft_runtime
+from app.services.settings_service import get_draft_runtime
 from app.services.profile_service import get_profile_by_name
 from app.services.knowledge_service import get_active_pdf
 from app.database.knowledge_file_repository import get_active_knowledge_file
@@ -25,14 +25,26 @@ def extract_pdf_preview(pdf_path, max_chars=4000):
         return ""
 
 
-def check_pdf_config_match(profile_name=None, chatbot_id=1):
+def check_pdf_config_match(chatbot_id, profile_name=None):
+    draft_runtime = get_draft_runtime(chatbot_id)
+
     if profile_name:
         settings = get_profile_by_name(profile_name, chatbot_id)
 
         if not settings:
             raise ValueError(f'Profile "{profile_name}" not found')
     else:
-        settings = get_settings()
+        draft_profile_name = draft_runtime.get("draft_profile_name", "")
+
+        if not draft_profile_name:
+            raise ValueError("Please select an active profile before checking match.")
+
+        settings = get_profile_by_name(draft_profile_name, chatbot_id)
+
+        if not settings:
+            raise ValueError("Selected profile was not found for this bot.")
+
+        profile_name = draft_profile_name
 
     bot_name = settings.get("bot_name", "")
     company_name = settings.get("company_name", "")
@@ -48,7 +60,6 @@ Tone: {tone}
 Custom Instructions: {additional_instructions}
 """.strip()
 
-    draft_runtime = get_draft_runtime(chatbot_id)
     active_pdf_path = draft_runtime.get("draft_pdf_path", "")
 
     if not active_pdf_path:
