@@ -268,7 +268,13 @@ def scrape_extract_website():
                 "message": "List of URLs ('urls') is required"
             }), 400
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         urls = data["urls"]
@@ -328,7 +334,13 @@ def scrape_embed_website():
                 "message": "text_content and primary_url are required"
             }), 400
 
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         text_content = data["text_content"]
