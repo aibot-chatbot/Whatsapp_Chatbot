@@ -132,7 +132,7 @@ def connect_telegram():
                 "message": "chatbot_id is required"
             }), 400
 
-        verify_chatbot_access(chatbot_id)
+        access = verify_chatbot_access(chatbot_id)
 
         data = request.get_json() or {}
         bot_token = (data.get("bot_token") or "").strip()
@@ -143,7 +143,7 @@ def connect_telegram():
                 "message": "Telegram bot token is required"
             }), 400
 
-        bot = get_bot_by_id(chatbot_id)
+        bot = get_bot_by_id(chatbot_id, access["company_id"])
 
         if not bot:
             return jsonify({

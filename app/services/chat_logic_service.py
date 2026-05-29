@@ -61,14 +61,14 @@ def detect_intent(message):
     return "general"
 
 
-def handle_greeting(chatbot_id=1):
+def handle_greeting(chatbot_id):
     settings = get_deployed_settings(chatbot_id)
     base_greeting = generate_greeting(settings)
 
     return base_greeting + "\n\nFeel free to ask me any questions based on our provided information."
 
 
-def handle_out_of_scope(chatbot_id=1):
+def handle_out_of_scope(chatbot_id):
     settings = get_deployed_settings(chatbot_id)
     fallback_message = generate_fallback(settings)
 

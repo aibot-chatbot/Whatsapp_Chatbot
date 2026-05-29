@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from google import genai
 
 from app.services.settings_service import (
-    get_settings,
+    DEFAULT_SETTINGS,
     generate_fallback,
     get_deployed_runtime,
 )
@@ -23,7 +23,7 @@ STOPWORDS = {
     "i", "you", "we", "it", "this", "that", "my", "your", "our", "please"
 }
 
-def get_deployed_settings(chatbot_id=1):
+def get_deployed_settings(chatbot_id):
     deployed = get_deployed_runtime(chatbot_id)
     deployed_profile_name = deployed.get("deployed_profile_name", "")
 
@@ -40,7 +40,7 @@ def get_deployed_settings(chatbot_id=1):
                 "active_profile": deployed_profile_name,
             }
 
-    return get_settings()
+    return DEFAULT_SETTINGS.copy()
 
 
 def normalize_text(text):
@@ -358,7 +358,7 @@ def generate_embedding(text):
         return []
 
 
-def retrieve_relevant_chunks(query, chatbot_id=1, top_k=3):
+def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
     try:
         active_file = get_active_knowledge_file(chatbot_id)
 
@@ -451,7 +451,7 @@ Answer:
     return prompt
 
 
-def build_prompt(history, message, context_chunks, chatbot_id=1):
+def build_prompt(history, message, context_chunks, chatbot_id):
     """
     Optimized prompt builder for any LLM bot.
     Uses retrieved chunks if any, or lets LLM answer using its own knowledge.
@@ -541,7 +541,7 @@ Assistant:
     return prompt
 
 
-def get_bot_identity(chatbot_id=1):
+def get_bot_identity(chatbot_id):
     settings = get_deployed_settings(chatbot_id)
     return {
         "bot_name": settings.get("bot_name") or "AI Assistant",

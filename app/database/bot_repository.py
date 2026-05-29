@@ -9,7 +9,7 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-def get_all_bots(company_id=1):
+def get_all_bots(company_id):
     response = (
         supabase
         .table(TABLE_NAME)
@@ -22,22 +22,24 @@ def get_all_bots(company_id=1):
     return response.data or []
 
 
-def get_bot_by_id(bot_id, company_id=1):
-    response = (
+def get_bot_by_id(bot_id, company_id=None):
+    query = (
         supabase
         .table(TABLE_NAME)
         .select("*")
         .eq("id", bot_id)
-        .eq("company_id", company_id)
-        .limit(1)
-        .execute()
     )
+
+    if company_id is not None:
+        query = query.eq("company_id", company_id)
+
+    response = query.limit(1).execute()
 
     rows = response.data or []
     return rows[0] if rows else None
 
 
-def create_bot(data, company_id=1):
+def create_bot(data, company_id):
     payload = {
         "company_id": company_id,
         "bot_name": data.get("bot_name"),
@@ -65,7 +67,7 @@ def create_bot(data, company_id=1):
     return rows[0] if rows else None
 
 
-def update_bot(bot_id, data, company_id=1):
+def update_bot(bot_id, data, company_id):
     payload = dict(data)
     payload["updated_at"] = _now_iso()
 
@@ -82,7 +84,7 @@ def update_bot(bot_id, data, company_id=1):
     return rows[0] if rows else None
 
 
-def delete_bot(bot_id, company_id=1):
+def delete_bot(bot_id, company_id):
     response = (
         supabase
         .table(TABLE_NAME)

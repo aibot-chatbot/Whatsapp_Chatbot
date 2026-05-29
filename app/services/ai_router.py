@@ -81,7 +81,7 @@ def call_provider(
     raise ValueError(f"Unsupported AI provider: {provider}")
 
 
-def generate_response(message, customer_id, chatbot_id=1, source_channel="whatsapp"):
+def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp"):
     try:
         bot = get_bot_by_id(chatbot_id)
 

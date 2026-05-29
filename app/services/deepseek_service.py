@@ -16,7 +16,7 @@ client = OpenAI(
 def generate_response(
     message,
     customer_id,
-    chatbot_id=1,
+    chatbot_id,
     model="deepseek-v4-flash",
     temperature=0.7,
     source_channel="whatsapp",

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from app.database.db import supabase
 
 
-def get_total_users(chatbot_id=1):
+def get_total_users(chatbot_id):
     response = (
         supabase
         .table("conversations")
@@ -22,7 +22,7 @@ def get_total_users(chatbot_id=1):
     return len(unique_phones)
 
 
-def get_total_user_messages(chatbot_id=1):
+def get_total_user_messages(chatbot_id):
     response = (
         supabase
         .table("messages")
@@ -34,7 +34,7 @@ def get_total_user_messages(chatbot_id=1):
     return response.count or 0
 
 
-def get_recent_history(chatbot_id=1, limit=4):
+def get_recent_history(chatbot_id, limit=4):
     convo_res = (
         supabase
         .table("conversations")
@@ -75,7 +75,7 @@ def get_recent_history(chatbot_id=1, limit=4):
     return results
 
 
-def get_message_chart_last_7_days(chatbot_id=1):
+def get_message_chart_last_7_days(chatbot_id):
     today = datetime.now().date()
     date_counts = {(today - timedelta(days=i)).isoformat(): 0 for i in range(6, -1, -1)}
 
