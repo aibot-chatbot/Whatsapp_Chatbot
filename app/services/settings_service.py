@@ -209,6 +209,9 @@ def generate_greeting(settings):
     company_name = settings.get("company_name", "our service")
     tone = settings.get("tone", "Friendly")
 
+    if tone.lower() not in ["professional", "formal"]:
+        return f"Hello! Welcome to {company_name}. How can I help you today?"
+
     if tone.lower() == "professional":
         return f"Hello! Welcome to {company_name}. How can I assist you today?"
     elif tone.lower() == "formal":
