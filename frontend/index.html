@@ -242,6 +242,32 @@
                 </table>
             </div>
         </div>
+
+        <!-- AI Insights Report Section -->
+        <div class="glass-card" style="margin-top: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                <h3 class="section-title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.4rem;">🤖</span> AI Chatbot Insights & Report
+                </h3>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <select id="report-days" style="background: var(--input-bg); color: var(--text-main); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: 12px; font-family: inherit; font-size: 0.9rem; outline: none; cursor: pointer;">
+                        <option value="7" selected>Last 7 Days</option>
+                        <option value="14">Last 14 Days</option>
+                        <option value="30">Last 30 Days</option>
+                        <option value="9999">All Time</option>
+                    </select>
+                    <button id="btn-generate-report" onclick="generateReport()" style="background: linear-gradient(135deg, var(--primary), #2563eb); color: white; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: inherit; font-size: 0.9rem; transition: all 0.3s; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);">
+                        <i data-lucide="sparkles" style="width: 16px; height: 16px;"></i> Generate AI Report
+                    </button>
+                </div>
+            </div>
+            
+            <div id="report-container" style="min-height: 120px; display: flex; flex-direction: column; justify-content: center; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--glass-border); border-radius: 16px; padding: 24px; color: var(--text-dim); line-height: 1.6;">
+                <div style="text-align: center; font-size: 0.95rem;">
+                    Select the report range above and click <strong>Generate AI Report</strong> to run log analysis.
+                </div>
+            </div>
+        </div>
     </main>
 
     <script src="assets/js/auth.js"></script>
@@ -402,6 +428,102 @@
             const el = document.getElementById(id);
             if (el) {
                 el.classList.toggle('open');
+            }
+        }
+
+        function parseMarkdown(text) {
+            if (!text) return "";
+            
+            // Escape HTML to prevent XSS
+            let html = text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+                
+            // Convert Bold markdown (**text**)
+            html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text-main); font-weight: 600;">$1</strong>');
+            
+            // Convert markdown headers like # or ## or ###
+            html = html.replace(/^(?:#{3,6})\s*(.*)$/gm, '<h4 style="color: var(--text-main); margin: 20px 0 10px 0; font-size: 1.1rem; font-weight: 600;">$1</h4>');
+            html = html.replace(/^##\s*(.*)$/gm, '<h3 style="color: var(--text-main); margin: 24px 0 12px 0; font-size: 1.25rem; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">$1</h3>');
+            html = html.replace(/^#\s*(.*)$/gm, '<h2 style="color: var(--text-main); margin: 28px 0 16px 0; font-size: 1.5rem; font-weight: 700; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">$1</h2>');
+            
+            // Bullet points
+            html = html.replace(/^(?:[-*•])\s*(.*)$/gm, '<li style="margin-left: 20px; margin-bottom: 6px; list-style-type: disc;">$1</li>');
+            
+            // Convert double returns to paragraphs
+            html = html.replace(/\n\n/g, '<br><br>');
+            
+            // Convert single line breaks to br
+            html = html.replace(/\n/g, '<br>');
+            
+            return `<div style="font-family: inherit; font-size: 0.95rem; text-align: left; color: #cbd5e1; max-width: 100%; overflow-x: auto;">${html}</div>`;
+        }
+
+        async function generateReport() {
+            const container = document.getElementById("report-container");
+            const btn = document.getElementById("btn-generate-report");
+            const daysSelect = document.getElementById("report-days");
+            const days = daysSelect.value;
+            
+            btn.disabled = true;
+            btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin" style="width: 16px; height: 16px;"></i> Generating...`;
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons({ root: btn });
+            }
+            
+            container.style.borderStyle = "solid";
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0;">
+                    <div style="width: 30px; height: 30px; border: 3px solid rgba(59, 130, 246, 0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <span style="font-size: 0.95rem;">Analyzing database logs and generating report... This may take up to 20 seconds.</span>
+                </div>
+            `;
+            
+            // CSS Animation rule check for spin if not already present
+            if (!document.getElementById("spin-style-override")) {
+                const style = document.createElement("style");
+                style.id = "spin-style-override";
+                style.innerHTML = `
+                    @keyframes spin {
+                        to { transform: rotate(360deg); }
+                    }
+                    .animate-spin {
+                        animation: spin 1s linear infinite;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            try {
+                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/analytics/report?chatbot_id=${selectedBotId}&days=${days}`);
+                const result = await response.json();
+                
+                if (response.ok && result.status === "success" && result.data?.report) {
+                    container.style.borderStyle = "solid";
+                    container.innerHTML = parseMarkdown(result.data.report);
+                } else {
+                    container.style.borderStyle = "dashed";
+                    container.innerHTML = `
+                        <div style="color: #f87171; text-align: center;">
+                            ❌ Failed to generate report: ${result.message || "Unknown error occurred"}
+                        </div>
+                    `;
+                }
+            } catch (err) {
+                console.error("Report generation failed", err);
+                container.style.borderStyle = "dashed";
+                container.innerHTML = `
+                    <div style="color: #f87171; text-align: center;">
+                        ❌ Network error or request failed while generating the report.
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i data-lucide="sparkles" style="width: 16px; height: 16px;"></i> Generate AI Report`;
+                if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                    window.lucide.createIcons({ root: btn });
+                }
             }
         }
     </script>
