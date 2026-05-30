@@ -52,3 +52,41 @@ def get_analytics():
             "status": "error",
             "message": str(e)
         }), 500
+
+
+@analytics_blueprint.route("/api/analytics/report", methods=["GET"])
+@token_required
+def get_ai_report():
+    try:
+        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        days = request.args.get("days", 7, type=int)
+
+        verify_chatbot_access(chatbot_id)
+
+        from app.services.report_service import generate_weekly_report
+        report = generate_weekly_report(chatbot_id=chatbot_id, days=days)
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "report": report
+            }
+        }), 200
+
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
