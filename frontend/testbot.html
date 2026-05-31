@@ -117,16 +117,47 @@
             box-shadow: 0 0 15px rgba(59, 130, 246, 0.2);
         }
         
-        .badge-gemini { color: #60a5fa; border-color: #60a5fa; background: rgba(59, 130, 246, 0.1); }
-        .badge-deepseek { color: #a855f7; border-color: #a855f7; background: rgba(168, 85, 247, 0.1); }
-        .badge-groq { color: #10b981; border-color: #10b981; background: rgba(16, 185, 129, 0.1); }
-        
-        .badge-grok { 
-            color: #f59e0b; 
-            border-color: #f59e0b; 
-            background: rgba(245, 158, 11, 0.15); 
+        .badge-deepseek {
+            color: #a855f7;
+            border-color: #a855f7;
+            background: rgba(168, 85, 247, 0.1);
+        }
+
+        .badge-openai {
+            color: #10b981;
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .badge-google {
+            color: #60a5fa;
+            border-color: #60a5fa;
+            background: rgba(96, 165, 250, 0.1);
+        }
+
+        .badge-anthropic {
+            color: #f97316;
+            border-color: #f97316;
+            background: rgba(249, 115, 22, 0.1);
+        }
+
+        .badge-xai {
+            color: #f59e0b;
+            border-color: #f59e0b;
+            background: rgba(245, 158, 11, 0.15);
             box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
-            animation: grok-pulse 2s infinite;
+        }
+
+        .badge-qwen {
+            color: #06b6d4;
+            border-color: #06b6d4;
+            background: rgba(6, 182, 212, 0.1);
+        }
+
+        .badge-mistral {
+            color: #ef4444;
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
         }
 
         @keyframes grok-pulse {
@@ -182,26 +213,33 @@
         requireLogin();
 
         const urlParams = new URLSearchParams(window.location.search);
-        let selectedBotId = urlParams.get("bot_id");
-        
-        // If not in URL, check sessionStorage
-        if (!selectedBotId) {
-            selectedBotId = sessionStorage.getItem("selectedBotId");
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `testbot.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            selectedBotId = storedBotId;
         }
-        
-        // Final fallback to 1, but log it
+
         if (!selectedBotId) {
-            console.warn("No bot_id found in URL or session, defaulting to 1");
-            selectedBotId = 1;
+            window.location.href = "bots.html";
         }
-        
-        // Save back to session to keep it consistent
-        sessionStorage.setItem("selectedBotId", selectedBotId);
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
         console.log("Current Test Bot ID:", selectedBotId);
 
         const botQuery = `?chatbot_id=${selectedBotId}`;
+        let aiModelCatalog = {};
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (!selectedBotId) {
+                return;
+            }
+
             initSidebar();
 
             const sendBtn = document.getElementById('send-btn');
@@ -224,9 +262,38 @@
                 messages.scrollTop = messages.scrollHeight;
             }
 
+            async function loadModelCatalog() {
+                try {
+                    const response = await authenticatedFetch("/api/ai-models");
+                    const result = await response.json();
+
+                    if (result.status === "success") {
+                        aiModelCatalog = result.data || {};
+                    }
+                } catch (error) {
+                    console.error("Failed to load AI model catalog:", error);
+                }
+            }
+
+            function getProviderLabel(providerKey) {
+                const provider = aiModelCatalog[providerKey];
+                return provider?.label || providerKey;
+            }
+
+            function getModelLabel(providerKey, modelValue) {
+                const provider = aiModelCatalog[providerKey];
+
+                if (!provider || !provider.models) {
+                    return modelValue || "default";
+                }
+
+                const model = provider.models.find(item => item.value === modelValue);
+                return model?.label || modelValue || "default";
+            }
+
             async function loadContext() {
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/testbot/context${botQuery}`);
+                    const response = await authenticatedFetch(`/api/testbot/context${botQuery}`);
                     const data = await response.json();
 
                     messages.innerHTML = "";
@@ -237,7 +304,7 @@
                         const activeProfile = ctx.active_profile || 'No active profile';
                         const activePdf = ctx.active_pdf || 'No active PDF';
 
-                        const selectedBotRes = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                        const selectedBotRes = await authenticatedFetch(`/api/bots/${selectedBotId}`);
                         const selectedBotData = await selectedBotRes.json();
                         const selectedBotName = selectedBotData.status === "success"
                             ? selectedBotData.data.bot_name
@@ -246,18 +313,25 @@
                         chatHeader.textContent = `${botName}`;
                         if (selectedBotData.status === "success" && selectedBotData.data.ai_provider) {
                             const provider = selectedBotData.data.ai_provider;
-                            providerBadge.textContent = `${provider} (${selectedBotData.data.model_name || 'default'})`;
+                            const modelName = selectedBotData.data.model_name;
+
+                            const providerLabel = getProviderLabel(provider);
+                            const modelLabel = getModelLabel(provider, modelName);
+
+                            providerBadge.textContent = `${providerLabel} · ${modelLabel}`;
                             
                             // Reset classes
                             providerBadge.className = 'ai-badge';
                             
                             // Add provider-specific class
                             const pLower = provider.toLowerCase();
-                            if (pLower.includes('gemini')) providerBadge.classList.add('badge-gemini');
-                            else if (pLower.includes('deepseek')) providerBadge.classList.add('badge-deepseek');
-                            else if (pLower.includes('groq')) providerBadge.classList.add('badge-groq');
-                            else if (pLower.includes('grok')) providerBadge.classList.add('badge-grok');
-                            else if (pLower.includes('cloudflare')) providerBadge.classList.add('badge-cloudflare');
+                            if (pLower === 'deepseek') providerBadge.classList.add('badge-deepseek');
+                            else if (pLower === 'openai') providerBadge.classList.add('badge-openai');
+                            else if (pLower === 'google') providerBadge.classList.add('badge-google');
+                            else if (pLower === 'anthropic') providerBadge.classList.add('badge-anthropic');
+                            else if (pLower === 'xai') providerBadge.classList.add('badge-xai');
+                            else if (pLower === 'qwen') providerBadge.classList.add('badge-qwen');
+                            else if (pLower === 'mistral') providerBadge.classList.add('badge-mistral');
                             
                             providerBadge.style.display = 'flex';
                         }
@@ -292,7 +366,7 @@
                 messages.scrollTop = messages.scrollHeight;
 
                 try {
-                    const response = await authenticatedFetch(`http://127.0.0.1:8000/api/testbot/chat${botQuery}`, {
+                    const response = await authenticatedFetch(`/api/testbot/chat${botQuery}`, {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -327,7 +401,9 @@
                 });
             }
 
-            loadContext();
+            loadModelCatalog().then(() => {
+                loadContext();
+            });
         });
 
         function toggleDropdown(id) {

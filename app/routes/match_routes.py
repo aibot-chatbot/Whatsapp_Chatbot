@@ -14,7 +14,13 @@ def check_match():
     try:
         data = request.get_json() or {}
         profile_name = data.get("profile_name")
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         result = check_pdf_config_match(profile_name=profile_name, chatbot_id=chatbot_id)

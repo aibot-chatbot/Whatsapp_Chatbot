@@ -327,6 +327,39 @@
             text-align: right;
         }
 
+        .message-delivery-status {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .message-delivery-status.failed {
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.28);
+            padding: 6px 10px;
+            border-radius: 999px;
+        }
+
+        .message-delivery-status.retried {
+            color: #34d399;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.28);
+            padding: 6px 10px;
+            border-radius: 999px;
+        }
+
+        .message-delivery-status.retrying {
+            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.28);
+            padding: 6px 10px;
+            border-radius: 999px;
+        }
+
         /* Responsive Layout */
         @media (max-width: 1024px) {
             .inbox-pane {
@@ -366,12 +399,13 @@
         /* Platform filter pills bar */
         .platform-filters {
             display: flex;
+            flex-wrap: wrap;
             gap: 8px;
             margin-top: 12px;
         }
 
         .filter-pill {
-            flex: 1;
+            flex: 1 1 calc(50% - 8px);
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--glass-border);
             color: var(--text-dim);
@@ -411,6 +445,13 @@
             box-shadow: 0 0 10px rgba(0, 136, 204, 0.2);
         }
 
+        .filter-pill.active[data-platform="wasender"] {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: #10b981;
+            color: #10b981;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
         /* Convo list item badge */
         .convo-phone-container {
             display: flex;
@@ -436,6 +477,12 @@
             background: rgba(0, 136, 204, 0.15);
             color: #0088cc;
             border: 1px solid rgba(0, 136, 204, 0.3);
+        }
+
+        .platform-badge.wasender {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
         }
     </style>
 </head>
@@ -463,6 +510,7 @@
                     <div class="platform-filters">
                         <button class="filter-pill active" data-platform="all" onclick="setPlatformFilter('all')">All</button>
                         <button class="filter-pill" data-platform="whatsapp" onclick="setPlatformFilter('whatsapp')">WhatsApp</button>
+                        <button class="filter-pill" data-platform="wasender" onclick="setPlatformFilter('wasender')">Wasender</button>
                         <button class="filter-pill" data-platform="telegram" onclick="setPlatformFilter('telegram')">Telegram</button>
                     </div>
                 </div>
@@ -487,12 +535,33 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const selectedBotId = urlParams.get("bot_id") || 1;
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `conversations.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            selectedBotId = storedBotId;
+        }
+
+        if (!selectedBotId) {
+            window.location.href = "bots.html";
+        }
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
+
         let allConversations = [];
         let activeConversationId = null;
         let currentPlatform = 'all';
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (!selectedBotId) {
+                return;
+            }
+
             lucide.createIcons();
             fetchSelectedBot();
             fetchConversations();
@@ -500,7 +569,7 @@
 
         async function fetchSelectedBot() {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${selectedBotId}`);
+                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== "success" || !result.data) {
@@ -531,7 +600,7 @@
 
         async function fetchConversations() {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/conversations?chatbot_id=${selectedBotId}`);
+                const response = await authenticatedFetch(`/api/conversations?chatbot_id=${selectedBotId}`);
                 const result = await response.json();
 
                 if (result.status === "success") {
@@ -633,7 +702,7 @@
             `;
 
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
+                const response = await authenticatedFetch(`/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
                 const result = await response.json();
 
                 if (result.status === "success") {
@@ -658,18 +727,39 @@
                     </div>`;
             } else {
                 transcriptHtml = messages.map(msg => {
-                    // Decide if it's user or bot based on ai_generated flag or sender_type
-                    // Typically: sender_type="customer" -> user. sender_type="bot" -> bot
                     const isUser = msg.sender_type === "customer";
                     const rowClass = isUser ? "user" : "bot";
 
-                    // Format message text, converting newlines to <br>
-                    const formattedText = msg.message_text ? msg.message_text.replace(/\n/g, '<br>') : '[Empty Message]';
+                    const formattedText = msg.message_text
+                        ? msg.message_text.replace(/\n/g, '<br>')
+                        : '[Empty Message]';
+
+                    const deliveryStatus = (msg.delivery_status || '').toLowerCase();
+                    const retryCount = Number(msg.retry_count || 0);
+
+                    let deliveryStatusHtml = '';
+
+                    if (!isUser && deliveryStatus === 'failed') {
+                        deliveryStatusHtml = `<div class="message-delivery-status failed">⚠ Failed to send · Auto retrying</div>`;
+                    }
+
+                    if (!isUser && deliveryStatus === 'retrying') {
+                        deliveryStatusHtml = `<div class="message-delivery-status retrying">↻ Retrying now...</div>`;
+                    }
+
+                    if (!isUser && deliveryStatus === 'sent' && retryCount > 0) {
+                        deliveryStatusHtml = `<div class="message-delivery-status retried">✓ Sent after retry</div>`;
+                    }
+
+                    if (!isUser && deliveryStatus === 'permanent_failed') {
+                        deliveryStatusHtml = `<div class="message-delivery-status failed">⚠ Failed permanently</div>`;
+                    }
 
                     return `
                         <div class="message-row ${rowClass}">
                             <div class="message-bubble">
                                 ${formattedText}
+                                ${deliveryStatusHtml}
                                 <div class="message-time">${formatTime(msg.created_at)}</div>
                             </div>
                         </div>

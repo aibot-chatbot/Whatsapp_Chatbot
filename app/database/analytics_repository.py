@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from app.database.db import supabase
 
 
-def get_total_users(chatbot_id=1):
+def get_total_users(chatbot_id):
     response = (
         supabase
         .table("conversations")
@@ -22,7 +22,7 @@ def get_total_users(chatbot_id=1):
     return len(unique_phones)
 
 
-def get_total_user_messages(chatbot_id=1):
+def get_total_user_messages(chatbot_id):
     response = (
         supabase
         .table("messages")
@@ -34,7 +34,7 @@ def get_total_user_messages(chatbot_id=1):
     return response.count or 0
 
 
-def get_recent_history(chatbot_id=1, limit=4):
+def get_recent_history(chatbot_id, limit=4):
     convo_res = (
         supabase
         .table("conversations")
@@ -75,7 +75,7 @@ def get_recent_history(chatbot_id=1, limit=4):
     return results
 
 
-def get_message_chart_last_7_days(chatbot_id=1):
+def get_message_chart_last_7_days(chatbot_id):
     today = datetime.now().date()
     date_counts = {(today - timedelta(days=i)).isoformat(): 0 for i in range(6, -1, -1)}
 
@@ -118,3 +118,49 @@ def get_message_chart_last_7_days(chatbot_id=1):
         "labels": chart_labels,
         "data": chart_data
     }
+
+
+def get_transcript_logs(chatbot_id=1, days=7):
+    """
+    Fetch all conversation messages for the given chatbot_id in the last X days,
+    sorted chronologically, and group them by customer conversation.
+    """
+    start_date = (datetime.now() - timedelta(days=days)).date().isoformat()
+    
+    response = (
+        supabase
+        .table("messages")
+        .select("sender_type,message_text,created_at,conversations!inner(chatbot_id,customer_phone)")
+        .eq("conversations.chatbot_id", chatbot_id)
+        .gte("created_at", f"{start_date}T00:00:00")
+        .order("created_at")
+        .execute()
+    )
+    
+    rows = response.data or []
+    
+    # Group by customer_phone
+    grouped = {}
+    for row in rows:
+        conv = row.get("conversations", {})
+        phone = conv.get("customer_phone")
+        if not phone:
+            continue
+            
+        if phone not in grouped:
+            grouped[phone] = []
+            
+        role = "Customer" if row.get("sender_type") == "customer" else "Bot"
+        text = row.get("message_text") or ""
+        created_at = row.get("created_at") or ""
+        grouped[phone].append(f"[{created_at}] {role}: {text}")
+        
+    results = []
+    for phone, lines in grouped.items():
+        results.append({
+            "phone": phone,
+            "chat": "\n".join(lines)
+        })
+        
+    return results
+
