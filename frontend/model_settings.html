@@ -317,6 +317,11 @@
             const providerSelect = document.getElementById("ai-provider");
             providerSelect.innerHTML = "";
 
+            const defaultOption = document.createElement("option");
+            defaultOption.value = "default";
+            defaultOption.textContent = "Select AI Provider (Default)";
+            providerSelect.appendChild(defaultOption);
+
             Object.entries(modelOptions).forEach(([providerKey, providerInfo]) => {
                 const option = document.createElement("option");
                 option.value = providerKey;

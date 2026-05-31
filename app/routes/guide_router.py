@@ -158,6 +158,24 @@ def guide_chat():
             else:
                 return jsonify({"reply": f"⚠️ **Cloudflare AI Error:** {result.get('errors')}"})
 
+        elif provider in ["openai", "anthropic", "qwen", "mistral"]:
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            base_url = "https://openrouter.ai/api/v1"
+            if not api_key:
+                if provider == "openai" and os.getenv("OPENAI_API_KEY"):
+                    api_key = os.getenv("OPENAI_API_KEY")
+                    base_url = "https://api.openai.com/v1"
+                else:
+                    return jsonify({"reply": f"⚠️ **OpenRouter API Key not found!** Please add `OPENROUTER_API_KEY` to your .env file to use {provider.capitalize()}."})
+            
+            client = OpenAI(base_url=base_url, api_key=api_key)
+            model = db_model or ("openai/gpt-4o" if provider == "openai" else f"{provider}/default")
+            response = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": combined_message}]
+            )
+            ai_reply = response.choices[0].message.content
+
         else:  # Gemini
             api_key = os.getenv("GEMINI_API_KEY")
             if not api_key:
@@ -279,6 +297,8 @@ def guide_status():
     if os.getenv("DEEPSEEK_API_KEY"): available.append("deepseek")
     if os.getenv("XAI_API_KEY"): available.append("grok")
     if os.getenv("CLOUDFLARE_API_TOKEN"): available.append("cloudflare")
+    if os.getenv("OPENROUTER_API_KEY"): available.extend(["openai", "anthropic", "qwen", "mistral"])
+    if os.getenv("OPENAI_API_KEY"): available.append("openai")
 
     # 2. Get the ACTUAL selected provider from the database for this bot
     active_provider_name = "None"
@@ -301,10 +321,14 @@ def guide_status():
                         "groq": "Groq",
                         "deepseek": "DeepSeek AI",
                         "grok": "Grok (xAI)",
-                        "cloudflare": "Cloudflare AI"
+                        "cloudflare": "Cloudflare AI",
+                        "openai": "ChatGPT / OpenAI",
+                        "anthropic": "Claude",
+                        "qwen": "Qwen",
+                        "mistral": "Mistral"
                     }
                     
-                    active_provider_name = display_names.get(db_provider, "Google Gemini")
+                    active_provider_name = display_names.get(db_provider, db_provider.capitalize())
                     
                     # Check if the selected provider actually has a key
                     if db_provider in available:

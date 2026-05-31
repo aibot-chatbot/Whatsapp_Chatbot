@@ -9,6 +9,7 @@ from app.services.chat_logic_service import (
     MAX_HISTORY,
 )
 from app.services.rag_service import retrieve_relevant_chunks, build_prompt
+from app.services.workflow_tracker import update_workflow_state
 
 
 def prepare_chat_prompt(
@@ -45,6 +46,8 @@ def prepare_chat_prompt(
             "prompt": None,
             "intent": intent,
         }
+
+    update_workflow_state(chatbot_id, "RAG_SEARCH", message, customer_id)
 
     context_chunks = retrieve_relevant_chunks(
         message,
