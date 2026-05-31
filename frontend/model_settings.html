@@ -187,12 +187,13 @@
                 <label>AI Provider</label>
                 <p>Choose which AI engine will power your chatbot's responses.</p>
                 <select id="ai-provider" onchange="onProviderChange()">
-                    <option value="default">Default</option>
-                    <option value="gemini">Google Gemini</option>
-                    <option value="deepseek">DeepSeek AI</option>
-                    <option value="groq">Groq</option>
-                    <option value="grok">Grok (xAI)</option>
-                    <option value="cloudflare">Cloudflare AI</option>
+                    <option value="deepseek">DeepSeek</option>
+                    <option value="openai">ChatGPT / OpenAI</option>
+                    <option value="google">Gemini</option>
+                    <option value="anthropic">Claude</option>
+                    <option value="xai">Grok</option>
+                    <option value="qwen">Qwen</option>
+                    <option value="mistral">Mistral</option>
                 </select>
 
             </div>
@@ -228,10 +229,31 @@
         requireLogin();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const botId = urlParams.get("bot_id") || 1;
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
 
-        document.addEventListener("DOMContentLoaded", () => {
-            fetchSettings();
+        let botId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `model_settings.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            botId = storedBotId;
+        }
+
+        if (!botId) {
+            window.location.href = "bots.html";
+        }
+
+        if (botId) {
+            sessionStorage.setItem("selectedBotId", botId);
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            if (!botId) {
+                return;
+            }
+
+            await fetchModelCatalog();
+            await fetchSettings();
         });
 
         function updateTempDisplay(val) {
@@ -239,34 +261,7 @@
             document.getElementById("temp-val-label").innerText = val;
         }
 
-        const modelOptions = {
-            "gemini": [
-                { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash (Fastest)" },
-                { value: "gemini-2.0-flash-lite-preview", label: "Gemini 2.0 Flash-Lite (Speed)" },
-                { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro (Smarter)" },
-                { value: "custom", label: "Other (Custom...)" }
-            ],
-            "deepseek": [
-                { value: "deepseek-chat", label: "DeepSeek Chat (V3)" },
-                { value: "deepseek-reasoner", label: "DeepSeek Reasoner (R1)" },
-                { value: "custom", label: "Other (Custom...)" }
-            ],
-            "groq": [
-                { value: "llama-3.1-70b-versatile", label: "Llama 3.1 70B (Versatile)" },
-                { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B (Instant)" },
-                { value: "mixtral-8x7b-32768", label: "Mixtral 8x7B" },
-                { value: "custom", label: "Other (Custom...)" }
-            ],
-            "grok": [
-                { value: "grok-beta", label: "Grok Beta" },
-                { value: "custom", label: "Other (Custom...)" }
-            ],
-            "cloudflare": [
-                { value: "@cf/meta/llama-3.1-8b-instruct", label: "Llama 3.1 8B (Cloudflare)" },
-                { value: "@cf/meta/llama-2-7b-chat-fp16", label: "Llama 2 7B (Cloudflare)" },
-                { value: "custom", label: "Other (Custom...)" }
-            ]
-        };
+        let modelOptions = {};
 
 
         function onProviderChange() {
@@ -277,7 +272,9 @@
             modelSelect.innerHTML = "";
 
             // Populate new options
-            const options = modelOptions[provider] || [];
+            const providerInfo = modelOptions[provider] || {};
+            const options = providerInfo.models || [];
+
             options.forEach(opt => {
                 const el = document.createElement("option");
                 el.value = opt.value;
@@ -299,16 +296,46 @@
             }
         }
 
+
+        async function fetchModelCatalog() {
+            try {
+                const response = await authenticatedFetch("/api/ai-models");
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    modelOptions = result.data || {};
+                    populateProviderDropdown();
+                } else {
+                    console.error("Failed to load AI model catalog:", result.message);
+                }
+            } catch (error) {
+                console.error("Error loading AI model catalog:", error);
+            }
+        }
+
+        function populateProviderDropdown() {
+            const providerSelect = document.getElementById("ai-provider");
+            providerSelect.innerHTML = "";
+
+            Object.entries(modelOptions).forEach(([providerKey, providerInfo]) => {
+                const option = document.createElement("option");
+                option.value = providerKey;
+                option.textContent = providerInfo.label || providerKey;
+                providerSelect.appendChild(option);
+            });
+        }
+
+
         async function fetchSettings() {
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`);
+                const response = await authenticatedFetch(`/api/bots/${botId}`);
                 const result = await response.json();
 
                 if (result.status === "success") {
                     const bot = result.data;
 
                     if (bot.ai_provider) {
-                        document.getElementById("ai-provider").value = bot.ai_provider;
+                        document.getElementById("ai-provider").value = bot.ai_provider.toLowerCase();
                     }
 
                     onProviderChange(); // Populate model list first
@@ -351,7 +378,7 @@
             statusMsg.style.display = "none";
 
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/bots/${botId}`, {
+                const response = await authenticatedFetch(`/api/bots/${botId}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

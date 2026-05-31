@@ -16,7 +16,14 @@ settings_blueprint = Blueprint("settings", __name__)
 @token_required
 def fetch_settings():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         settings = get_deployed_settings_summary(chatbot_id)
         return jsonify({
@@ -42,7 +49,16 @@ def save_settings():
                 "message": "No data provided"
             }), 400
 
-        updated_settings = update_settings(data)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        updated_settings = update_settings(data, chatbot_id)
 
         return jsonify({
             "status": "success",
@@ -68,7 +84,14 @@ def save_active_profile():
             }), 400
 
         active_profile = data.get("active_profile", "")
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         updated_settings = set_active_profile(active_profile, chatbot_id)
 
@@ -95,7 +118,14 @@ def apply_profile():
             }), 400
 
         profile_name = data.get("profile_name", "")
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
         updated_settings = apply_profile_to_settings(profile_name, chatbot_id)
 

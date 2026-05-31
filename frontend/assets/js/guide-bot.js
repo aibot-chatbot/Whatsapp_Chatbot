@@ -32,7 +32,7 @@ function initGuidanceBot() {
         const botId = urlParams.get("bot_id");
 
         try {
-            const response = await fetch(`http://127.0.0.1:8000/api/guide/status?bot_id=${botId}`);
+            const response = await fetch(`/api/guide/status?bot_id=${botId}`);
             const data = await response.json();
 
             if (data.status === 'online') {
@@ -98,7 +98,7 @@ function initGuidanceBot() {
         if (botInput) botInput.value = '';
 
         try {
-            const response = await fetch('http://127.0.0.1:8000/api/guide/chat', {
+            const response = await fetch('/api/guide/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

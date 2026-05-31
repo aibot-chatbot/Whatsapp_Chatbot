@@ -125,8 +125,14 @@ def connect_telegram():
     }
     """
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
-        verify_chatbot_access(chatbot_id)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        access = verify_chatbot_access(chatbot_id)
 
         data = request.get_json() or {}
         bot_token = (data.get("bot_token") or "").strip()
@@ -137,7 +143,7 @@ def connect_telegram():
                 "message": "Telegram bot token is required"
             }), 400
 
-        bot = get_bot_by_id(chatbot_id)
+        bot = get_bot_by_id(chatbot_id, access["company_id"])
 
         if not bot:
             return jsonify({
@@ -237,7 +243,13 @@ def connect_telegram():
 @token_required
 def list_telegram_channels():
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         channels = get_telegram_channels_by_chatbot(chatbot_id)
@@ -277,7 +289,13 @@ def list_telegram_channels():
 @token_required
 def disconnect_telegram_channel(channel_id):
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         channel = get_telegram_channel_by_id(channel_id)
@@ -336,7 +354,13 @@ def disconnect_telegram_channel(channel_id):
 @token_required
 def reconnect_telegram_channel(channel_id):
     try:
-        chatbot_id = request.args.get("chatbot_id", 1, type=int)
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
         verify_chatbot_access(chatbot_id)
 
         channel = get_telegram_channel_by_id(channel_id)

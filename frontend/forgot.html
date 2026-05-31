@@ -339,7 +339,7 @@
             step1Btn.classList.add('loading');
 
             try {
-                const response = await fetch("http://127.0.0.1:8000/api/auth/forgot-password", {
+                const response = await fetch("/api/auth/forgot-password", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email: email })
@@ -386,7 +386,7 @@
 
             try {
                 // First verify OTP
-                const verifyRes = await fetch("http://127.0.0.1:8000/api/auth/verify-reset-otp", {
+                const verifyRes = await fetch("/api/auth/verify-reset-otp", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email: userEmail, otp: otp })
@@ -401,7 +401,7 @@
                 }
 
                 // If OTP verified, perform actual password reset
-                const resetRes = await fetch("http://127.0.0.1:8000/api/auth/reset-password", {
+                const resetRes = await fetch("/api/auth/reset-password", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

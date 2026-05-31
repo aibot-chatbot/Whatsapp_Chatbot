@@ -1,9 +1,14 @@
 import logging
-from app.services import gemini_service
+
 from app.services import deepseek_service
-from app.services import groq_service
-from app.services import grok_service
-from app.services import cloudflare_service
+from app.services import openrouter_service
+from app.services.chat_pipeline_service import prepare_chat_prompt
+from app.services.model_catalog import (
+    OPENROUTER_PROVIDER_KEYS,
+    normalize_model_selection,
+    get_default_model,
+)
+from app.services.response_formatter import clean_ai_reply
 from app.database.bot_repository import get_bot_by_id
 
 
@@ -20,7 +25,6 @@ def is_error_reply(reply):
         return True
 
     reply_lower = reply.lower()
-
     return any(pattern in reply_lower for pattern in ERROR_REPLY_PATTERNS)
 
 
@@ -33,10 +37,38 @@ def call_provider(
     temperature=0.7,
     source_channel="whatsapp",
 ):
-    provider = provider.lower()
+    provider = provider.lower().strip()
+
+    if provider in OPENROUTER_PROVIDER_KEYS:
+        pipeline = prepare_chat_prompt(
+            message=message,
+            customer_id=customer_id,
+            chatbot_id=chatbot_id,
+            source_channel=source_channel,
+        )
+
+        if pipeline.get("direct_reply"):
+            return pipeline["direct_reply"]
+
+        prompt = pipeline.get("prompt")
+
+        if not prompt:
+            raise ValueError("Prompt could not be prepared for OpenRouter provider.")
+
+        model = model_name if model_name else get_default_model(provider)
+
+        if not model:
+            raise ValueError(f"No default model found for provider: {provider}")
+
+        return openrouter_service.generate_response(
+            prompt=prompt,
+            model=model,
+            temperature=temperature,
+        )
 
     if provider == "deepseek":
-        model = model_name if model_name else "deepseek-chat"
+        model = model_name if model_name else get_default_model("deepseek")
+
         return deepseek_service.generate_response(
             message,
             customer_id,
@@ -46,81 +78,41 @@ def call_provider(
             source_channel=source_channel,
         )
 
-    if provider == "groq":
-        model = model_name if model_name else "llama-3.3-70b-versatile"
-        return groq_service.generate_response(
-            message,
-            customer_id,
-            chatbot_id,
-            model=model,
-            temperature=temperature,
-            source_channel=source_channel,
-        )
-
-    if provider == "grok":
-        model = model_name if model_name else "grok-beta"
-        return grok_service.generate_response(
-            message,
-            customer_id,
-            chatbot_id,
-            model=model,
-            temperature=temperature,
-            source_channel=source_channel,
-        )
-
-    if provider == "cloudflare":
-        model = model_name if model_name else "@cf/meta/llama-3.1-8b-instruct"
-        return cloudflare_service.generate_response(
-            message,
-            customer_id,
-            chatbot_id,
-            model=model,
-            temperature=temperature,
-            source_channel=source_channel,
-        )
-
-    model = model_name if model_name else "gemini-2.5-flash"
-
-    if model == "gemini-2.0-flash":
-        model = "gemini-2.5-flash"
-
-    return gemini_service.generate_response(
-        message,
-        customer_id,
-        chatbot_id,
-        model=model,
-        temperature=temperature,
-        source_channel=source_channel,
-    )
+    raise ValueError(f"Unsupported AI provider: {provider}")
 
 
-def generate_response(message, customer_id, chatbot_id=1, source_channel="whatsapp"):
-    """
-    Routes the request to the selected AI provider.
-    If selected provider fails, fallback to another working provider.
-    """
+def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp"):
     try:
         bot = get_bot_by_id(chatbot_id)
 
         if not bot:
-            logging.warning(f"Bot {chatbot_id} not found. Using Gemini fallback.")
-            return call_provider(
-                "gemini",
+            logging.warning(f"Bot {chatbot_id} not found. Using DeepSeek fallback.")
+
+            reply = call_provider(
+                "deepseek",
                 message,
                 customer_id,
                 chatbot_id,
-                model_name=None,
+                model_name=get_default_model("deepseek"),
                 temperature=0.7,
                 source_channel=source_channel,
             )
 
-        selected_provider = bot.get("ai_provider", "Gemini").lower()
+            return clean_ai_reply(reply)
+
+        selected_provider = bot.get("ai_provider", "deepseek")
         model_name = bot.get("model_name")
         temperature = bot.get("temperature", 0.7)
 
-        logging.info(f"Routing request for Bot {chatbot_id} to provider: {selected_provider}")
+        selected_provider, model_name = normalize_model_selection(
+            selected_provider,
+            model_name,
+        )
 
-        # Try selected provider first
+        logging.info(
+            f"Routing request for Bot {chatbot_id} to provider: {selected_provider}, model: {model_name}"
+        )
+
         try:
             reply = call_provider(
                 selected_provider,
@@ -133,7 +125,7 @@ def generate_response(message, customer_id, chatbot_id=1, source_channel="whatsa
             )
 
             if not is_error_reply(reply):
-                return reply
+                return clean_ai_reply(reply)
 
             logging.warning(
                 f"Provider {selected_provider} returned an error reply. Trying fallback provider."
@@ -142,30 +134,35 @@ def generate_response(message, customer_id, chatbot_id=1, source_channel="whatsa
         except Exception as provider_error:
             logging.error(f"Provider {selected_provider} failed: {provider_error}")
 
-        # Fallback order
-        # Do not include Grok because it may require paid credit.
-        fallback_providers = ["gemini", "deepseek", "groq", "cloudflare"]
+        fallback_providers = ["deepseek", "google", "openai"]
 
         for fallback_provider in fallback_providers:
             if fallback_provider == selected_provider:
                 continue
 
             try:
-                logging.info(f"Trying fallback provider: {fallback_provider}")
+                fallback_provider, fallback_model = normalize_model_selection(
+                    fallback_provider,
+                    None,
+                )
+
+                logging.info(
+                    f"Trying fallback provider: {fallback_provider}, model: {fallback_model}"
+                )
 
                 fallback_reply = call_provider(
                     fallback_provider,
                     message,
                     customer_id,
                     chatbot_id,
-                    model_name=None,
+                    model_name=fallback_model,
                     temperature=temperature,
                     source_channel=source_channel,
                 )
 
                 if not is_error_reply(fallback_reply):
                     logging.info(f"Fallback provider {fallback_provider} succeeded.")
-                    return fallback_reply
+                    return clean_ai_reply(fallback_reply)
 
                 logging.warning(f"Fallback provider {fallback_provider} returned error reply.")
 

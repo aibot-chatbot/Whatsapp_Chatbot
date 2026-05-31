@@ -504,3 +504,100 @@ def scrape_website_urls_batch(urls, chatbot_id):
         "file_name": file_name,
         "message": msg
     }
+
+
+def extract_business_knowledge(raw_text):
+    if not raw_text:
+        return ""
+    try:
+        import os
+        from google import genai
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            import logging
+            logging.error("GEMINI_API_KEY not found in environment settings.")
+            return raw_text
+        client = genai.Client(api_key=api_key)
+        prompt = (
+            "You are an expert Business Analyst. Extract only the key business information, "
+            "services, packages, pricing, business hours, locations, policies, and FAQs from the "
+            "following raw scraped web text.\n\n"
+            "Rules:\n"
+            "1. Ignore cookie warnings, header menus, footer links, privacy policies, advertisements, and layout formatting.\n"
+            "2. Present the extracted information in clean, highly structured sections (e.g., SERVICES, PRICING, BUSINESS HOURS, FAQs).\n"
+            "3. Keep the factual details (like price numbers, contact info, names) 100% exact as in the source.\n"
+            "4. Respond with the clean facts only. Do not use Markdown heading tags (# or ##) to make the text clean for mobile messaging. Use bold capital letters instead.\n\n"
+            f"Source Text:\n{raw_text}"
+        )
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
+        return response.text.strip()
+    except Exception as e:
+        import logging
+        logging.error(f"Error in extract_business_knowledge: {e}")
+        return raw_text
+
+
+def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_id):
+    if not text_content:
+        raise ValueError("Text content cannot be empty.")
+
+    file_size = len(text_content.encode('utf-8'))
+
+    # Save to knowledge_files table
+    file_record = save_knowledge_file(
+        chatbot_id=chatbot_id,
+        file_name=file_name,
+        file_type="url",
+        file_size=file_size,
+        file_path=primary_url,
+        upload_status="uploaded",
+        processing_status="completed",
+        match_status="unchecked"
+    )
+
+    file_id = file_record["id"]
+
+    try:
+        import logging
+        from app.services.rag_service import split_text_into_sections, generate_embedding
+        from app.database.knowledge_chunk_repository import save_knowledge_chunk
+
+        chunks = split_text_into_sections(text_content)
+        
+        logging.info(f"[KnowledgeService] Processing {len(chunks)} chunks for database insertion...")
+        
+        for idx, chunk in enumerate(chunks):
+            embedding = generate_embedding(chunk)
+            if embedding:
+                save_knowledge_chunk(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    content=chunk,
+                    embedding=embedding,
+                    metadata={"chunk_index": idx}
+                )
+        logging.info("[KnowledgeService] Successfully saved refined web chunks to Supabase.")
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to process refined web chunks: {e}")
+
+    # Set active
+    set_active_knowledge_file(
+        chatbot_id=chatbot_id,
+        file_name=file_name
+    )
+
+    update_chatbot_runtime({
+        "draft_pdf_file_name": file_name,
+        "draft_pdf_path": primary_url,
+        "last_match_result": None,
+        "last_match_reason": "",
+    }, chatbot_id)
+
+    return {
+        "file_name": file_name,
+        "message": f"Website {file_name} scraped, refined, and set active successfully."
+    }

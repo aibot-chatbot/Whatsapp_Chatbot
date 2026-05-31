@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access
 from app.database.conversation_repository import get_conversations_by_bot
-from app.database.message_repository import get_messages_by_conversation
+from app.database.message_repository import get_messages_by_conversation_and_chatbot
 
 conversation_blueprint = Blueprint("conversations", __name__)
 
@@ -66,10 +66,15 @@ def get_conversation_messages(conversation_id):
             }), 400
 
         # Security check: Ensure the user has access to this bot
-        # Note: In a fully robust system, you'd also verify that this conversation belongs to this chatbot
         verify_chatbot_access(chatbot_id)
 
-        messages = get_messages_by_conversation(conversation_id)
+        messages = get_messages_by_conversation_and_chatbot(conversation_id, chatbot_id)
+
+        if messages is None:
+            return jsonify({
+                "status": "error",
+                "message": "Conversation not found"
+            }), 404
 
         return jsonify({
             "status": "success",
