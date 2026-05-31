@@ -9,6 +9,7 @@ from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
 from app.database.processed_message_repository import is_processed, save_processed
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_phone_number_id
+from app.services.workflow_tracker import update_workflow_state
 
 
 def log_http_response(response):
@@ -166,6 +167,9 @@ def process_whatsapp_message(body):
         ai_generated=False,
     )
 
+    update_workflow_state(chatbot_id, "RECEIVING", message_body, wa_id)
+    update_workflow_state(chatbot_id, "AI_GENERATING", message_body, wa_id)
+
     response = generate_response(
         message_body,
         wa_id,
@@ -183,10 +187,13 @@ def process_whatsapp_message(body):
         ai_generated=True,
     )
 
+    update_workflow_state(chatbot_id, "SENDING", response, wa_id)
+
     data = get_text_message_input(wa_id, response)
     send_message(data, channel)
 
     save_processed(chatbot_id, message_id)
+    update_workflow_state(chatbot_id, "COMPLETED", response, wa_id)
 
 
 def is_valid_whatsapp_message(body):

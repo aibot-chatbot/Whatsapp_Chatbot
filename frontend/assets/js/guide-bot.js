@@ -32,7 +32,12 @@ function initGuidanceBot() {
         const botId = urlParams.get("bot_id");
 
         try {
-            const response = await fetch(`/api/guide/status?bot_id=${botId}`);
+            const token = sessionStorage.getItem('token');
+            const response = await fetch(`/api/guide/status?bot_id=${botId}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
             const data = await response.json();
 
             if (data.status === 'online') {
@@ -97,10 +102,14 @@ function initGuidanceBot() {
         renderMessage("user", text);
         if (botInput) botInput.value = '';
 
+        const token = sessionStorage.getItem('token');
         try {
             const response = await fetch('/api/guide/chat', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     message: text,
                     bot_id: botId

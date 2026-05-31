@@ -147,6 +147,26 @@
             animation: float 6s ease-in-out infinite;
         }
 
+        /* Workflow Nodes */
+        .workflow-node.active .node-icon {
+            background: var(--primary) !important;
+            border-color: #60a5fa !important;
+            box-shadow: 0 0 15px var(--primary-glow);
+            transform: scale(1.15);
+            animation: pulse 1.5s infinite;
+        }
+
+        .workflow-node.completed .node-icon {
+            background: rgba(16, 185, 129, 0.2) !important;
+            border-color: var(--accent) !important;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+
         /* Responsive Media Queries */
         @media (max-width: 1200px) {
             .content-sections {
@@ -213,6 +233,58 @@
             <div class="glass-card">
                 <div class="stat-label">Active PDF</div>
                 <div class="stat-val" id="stat-active-pdf" style="font-size: 1.3rem; margin-top: 18px;">...</div>
+            </div>
+        </div>
+
+        <!-- Live AI Workflow Section -->
+        <div class="glass-card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 class="section-title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.4rem;">⚡</span> Live AI Workflow
+                </h3>
+                <div id="workflow-status-badge" class="badge" style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Idle</div>
+            </div>
+            
+            <!-- Live message info -->
+            <div id="workflow-message-display" style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--glass-border); border-radius: 12px; padding: 16px; margin-bottom: 20px; color: var(--text-dim); font-size: 0.95rem;">
+                <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: #60a5fa; min-width: 100px;">User Message:</span>
+                    <span id="workflow-user-text" style="color: var(--text-main); font-style: italic;"></span>
+                </div>
+                <div id="workflow-ai-response-container" style="display: none; gap: 10px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                    <span style="font-weight: 600; color: var(--accent); min-width: 100px;">AI Response:</span>
+                    <span id="workflow-ai-text" style="color: var(--text-main);"></span>
+                </div>
+            </div>
+
+            <!-- Flowchart Nodes -->
+            <div style="display: flex; justify-content: space-between; align-items: center; position: relative; padding: 20px 10px;">
+                <!-- connecting line -->
+                <div style="position: absolute; top: 50%; left: 40px; right: 40px; height: 2px; background: rgba(255,255,255,0.1); z-index: 1;"></div>
+                
+                <!-- Node 1: Received -->
+                <div id="node-RECEIVING" class="workflow-node" style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div class="node-icon" style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">📱</div>
+                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">Receiving<br>Message</div>
+                </div>
+
+                <!-- Node 2: RAG Search -->
+                <div id="node-RAG_SEARCH" class="workflow-node" style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div class="node-icon" style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">🔍</div>
+                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">Knowledge<br>Search</div>
+                </div>
+
+                <!-- Node 3: AI Generating -->
+                <div id="node-AI_GENERATING" class="workflow-node" style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div class="node-icon" style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">🧠</div>
+                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">AI<br>Generating</div>
+                </div>
+
+                <!-- Node 4: Sending -->
+                <div id="node-SENDING" class="workflow-node" style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div class="node-icon" style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">📤</div>
+                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">Sending<br>Response</div>
+                </div>
             </div>
         </div>
 
@@ -301,6 +373,9 @@
             updateDate();
             fetchSelectedBot();
             fetchDashboardData();
+            
+            // Start polling for live workflow updates
+            setInterval(fetchLiveWorkflow, 1500);
         });
 
         function updateDate() {
@@ -373,6 +448,90 @@
                 
             } catch (err) {
                 console.error("Dashboard failed to fetch data", err);
+            }
+        }
+
+        async function fetchLiveWorkflow() {
+            if (!selectedBotId) return;
+            try {
+                const response = await authenticatedFetch(`/api/dashboard/live-workflow?chatbot_id=${selectedBotId}`);
+                if (!response.ok) return;
+                const result = await response.json();
+                
+                if (result.status === "success") {
+                    updateWorkflowUI(result.data);
+                }
+            } catch (err) {
+                // Silently handle polling errors
+            }
+        }
+
+        function updateWorkflowUI(workflowData) {
+            const badge = document.getElementById('workflow-status-badge');
+            const msgDisplay = document.getElementById('workflow-message-display');
+            const userText = document.getElementById('workflow-user-text');
+            const aiContainer = document.getElementById('workflow-ai-response-container');
+            const aiText = document.getElementById('workflow-ai-text');
+            
+            const nodes = ['RECEIVING', 'RAG_SEARCH', 'AI_GENERATING', 'SENDING'];
+            
+            if (!workflowData || !workflowData.state) {
+                // Idle state
+                badge.innerText = "Idle";
+                badge.className = "badge";
+                badge.style.background = "rgba(148, 163, 184, 0.2)";
+                badge.style.color = "var(--text-dim)";
+                msgDisplay.style.display = "none";
+                
+                nodes.forEach(n => {
+                    document.getElementById(`node-${n}`).classList.remove('active', 'completed');
+                });
+                return;
+            }
+
+            // Active or completed state
+            msgDisplay.style.display = "block";
+            
+            if (workflowData.message) {
+                if (workflowData.state === "SENDING" || workflowData.state === "COMPLETED") {
+                    aiContainer.style.display = "flex";
+                    aiText.innerText = workflowData.message;
+                } else {
+                    userText.innerText = `"${workflowData.message}"`;
+                    aiContainer.style.display = "none";
+                }
+            }
+
+            if (workflowData.state === "COMPLETED") {
+                badge.innerText = "Completed";
+                badge.className = "badge badge-success";
+                badge.style.background = "";
+                badge.style.color = "";
+                
+                nodes.forEach(n => {
+                    document.getElementById(`node-${n}`).classList.remove('active');
+                    document.getElementById(`node-${n}`).classList.add('completed');
+                });
+                
+                // Keep completed state visible for 5 seconds, then the backend auto-clears (or we just let it clear eventually)
+            } else {
+                badge.innerText = "Processing...";
+                badge.className = "badge badge-info";
+                badge.style.background = "";
+                badge.style.color = "";
+                
+                // Update nodes
+                const currentIndex = nodes.indexOf(workflowData.state);
+                nodes.forEach((n, idx) => {
+                    const nodeEl = document.getElementById(`node-${n}`);
+                    nodeEl.classList.remove('active', 'completed');
+                    
+                    if (idx < currentIndex) {
+                        nodeEl.classList.add('completed');
+                    } else if (idx === currentIndex) {
+                        nodeEl.classList.add('active');
+                    }
+                });
             }
         }
         

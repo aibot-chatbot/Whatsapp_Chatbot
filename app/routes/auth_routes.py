@@ -37,6 +37,126 @@ def generate_otp():
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
+@auth_bp.route("/google", methods=["POST"])
+def google_auth():
+    """
+    Verify a Google ID token and log in or create the user.
+    If it's a new user and no company_name is provided, return a prompt signal.
+    """
+    import requests as http_requests
+
+    data = request.get_json() or {}
+    credential = (data.get("credential") or "").strip()
+    company_name = (data.get("company_name") or "").strip()
+
+    if not credential:
+        return jsonify({"status": "error", "message": "Google credential token is required"}), 400
+
+    # Verify the token with Google's tokeninfo endpoint
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}"
+    try:
+        google_resp = http_requests.get(verify_url, timeout=10)
+        token_info = google_resp.json()
+    except Exception as e:
+        return jsonify({"status": "error", "message": "Failed to contact Google servers"}), 502
+
+    if google_resp.status_code != 200 or token_info.get("error_description"):
+        return jsonify({"status": "error", "message": "Invalid Google token. Please try again."}), 401
+
+    # Validate audience (aud) matches our client ID — skip if not configured yet
+    if google_client_id and token_info.get("aud") != google_client_id:
+        return jsonify({"status": "error", "message": "Token audience mismatch"}), 401
+
+    email = (token_info.get("email") or "").strip().lower()
+    full_name = (token_info.get("name") or email.split("@")[0]).strip()
+    google_sub = token_info.get("sub", "")
+
+    if not email:
+        return jsonify({"status": "error", "message": "Google did not return an email address"}), 400
+
+    from app.database.db import supabase
+
+    # Check if user already exists
+    existing_user = get_user_by_email(email)
+
+    if existing_user:
+        # Existing user — log them in
+        token = jwt.encode({
+            "user_id": existing_user["id"],
+            "company_id": existing_user.get("company_id"),
+            "email": existing_user["email"],
+            "role": existing_user["role"],
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+        }, SECRET_KEY, algorithm="HS256")
+
+        return jsonify({
+            "status": "success",
+            "message": "Login successful",
+            "token": token,
+            "user": {
+                "id": existing_user["id"],
+                "company_id": existing_user.get("company_id"),
+                "full_name": existing_user.get("full_name"),
+                "email": existing_user["email"],
+                "role": existing_user["role"]
+            }
+        })
+
+    # New user — need company name
+    if not company_name:
+        return jsonify({
+            "status": "needs_company",
+            "message": "Please enter your company name to complete registration.",
+            "google_credential": credential  # pass back so the frontend can resend
+        }), 200
+
+    # Create company and user
+    try:
+        company = create_company(
+            company_name=company_name,
+            contact_email=email
+        )
+
+        user = create_user(
+            company_id=company["id"],
+            full_name=full_name,
+            email=email,
+            password_hash=None,  # Google users don't need a password
+            role="admin",
+            status="active"
+        )
+
+        # Mark as verified immediately (Google verified their email)
+        supabase.table("users").update({
+            "is_verified": True
+        }).eq("id", user["id"]).execute()
+
+        token = jwt.encode({
+            "user_id": user["id"],
+            "company_id": company["id"],
+            "email": email,
+            "role": "admin",
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+        }, SECRET_KEY, algorithm="HS256")
+
+        return jsonify({
+            "status": "success",
+            "message": "Account created successfully!",
+            "token": token,
+            "user": {
+                "id": user["id"],
+                "company_id": company["id"],
+                "full_name": full_name,
+                "email": email,
+                "role": "admin"
+            }
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to create account: {str(e)}"}), 500
+
+
 def is_password_valid(stored_password, input_password):
     if not stored_password or not input_password:
         return False
