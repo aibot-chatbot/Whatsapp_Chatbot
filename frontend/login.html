@@ -429,8 +429,8 @@
                 const result = await res.json();
 
                 if (result.status === 'needs_company') {
-                    // Store credential and show modal
-                    _pendingGoogleCredential = result.google_credential;
+                    // Keep the original Google credential in memory only while the modal is open.
+                    _pendingGoogleCredential = credential;
                     document.getElementById('company-modal').classList.add('open');
                     setTimeout(() => document.getElementById('modal-company-name').focus(), 100);
                     return;
