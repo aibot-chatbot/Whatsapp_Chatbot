@@ -655,7 +655,7 @@
             }
             
             try {
-                const response = await authenticatedFetch(`http://127.0.0.1:8000/api/analytics/report?chatbot_id=${selectedBotId}&days=${days}`);
+                const response = await authenticatedFetch(`/api/analytics/report?chatbot_id=${selectedBotId}&days=${days}`);
                 const result = await response.json();
                 
                 if (response.ok && result.status === "success" && result.data?.report) {
