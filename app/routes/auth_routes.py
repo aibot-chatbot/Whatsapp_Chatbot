@@ -107,8 +107,7 @@ def google_auth():
     if not company_name:
         return jsonify({
             "status": "needs_company",
-            "message": "Please enter your company name to complete registration.",
-            "google_credential": credential  # pass back so the frontend can resend
+            "message": "Please enter your company name to complete registration."
         }), 200
 
     # Create company and user

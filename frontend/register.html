@@ -485,7 +485,7 @@
                 const result = await res.json();
 
                 if (result.status === 'needs_company') {
-                    _pendingGoogleCredential = result.google_credential;
+                    _pendingGoogleCredential = credential;
                     document.getElementById('company-modal').classList.add('open');
                     setTimeout(() => document.getElementById('modal-company-name').focus(), 100);
                     return;
