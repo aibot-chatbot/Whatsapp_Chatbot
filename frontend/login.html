@@ -135,6 +135,36 @@
             box-shadow: 0 0 0 4px var(--primary-glow);
         }
 
+        .password-field {
+            position: relative;
+        }
+
+        .password-field input {
+            padding-right: 76px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-dim);
+            border-radius: 10px;
+            padding: 6px 10px;
+            font-family: inherit;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .password-toggle:hover {
+            color: white;
+            border-color: rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
         .btn-login {
             width: 100%;
             background: var(--primary);
@@ -301,7 +331,10 @@
 
             <div class="input-group">
                 <label>Password</label>
-                <input type="password" placeholder="••••••••" required autocomplete="new-password">
+                <div class="password-field">
+                    <input type="password" id="login-password" placeholder="••••••••" required autocomplete="new-password">
+                    <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('login-password', this)">Show</button>
+                </div>
             </div>
 
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; font-size: 0.85rem; padding: 0 4px;">
@@ -359,7 +392,7 @@
             e.preventDefault();
 
             const email = loginForm.querySelector('input[type="email"]').value;
-            const password = loginForm.querySelector('input[type="password"]').value;
+            const password = document.getElementById('login-password').value;
 
             loginBtn.classList.add('loading');
 
@@ -406,6 +439,14 @@
 
         // ---- Google OAuth Logic ----
         let _pendingGoogleCredential = null;
+
+        function togglePasswordVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            button.textContent = isHidden ? 'Hide' : 'Show';
+            button.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+        }
 
         function handleGoogleLogin() {
             if (typeof google === 'undefined' || !google.accounts) {

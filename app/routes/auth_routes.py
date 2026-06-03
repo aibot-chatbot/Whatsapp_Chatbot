@@ -3,14 +3,25 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.database.user_repository import get_user_by_email, create_user
 from app.database.company_repository import create_company
+from app.database.password_reset_repository import (
+    upsert_password_reset_otp,
+    get_password_reset_otp,
+    mark_password_reset_otp_verified,
+    delete_password_reset_otp,
+)
 from app.services.email_service import send_otp_email
+from app.utils.jwt_utils import get_jwt_secret
 
 import jwt
 import datetime
 import os
 
 
-SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-default-key-please-change")
+def auth_config_error_response():
+    return jsonify({
+        "status": "error",
+        "message": "Authentication is not configured properly."
+    }), 500
 
 def validate_password_strength(password):
     """
@@ -33,6 +44,23 @@ def validate_password_strength(password):
 def generate_otp():
     import random
     return str(random.randint(100000, 999999))
+
+
+def parse_otp_expiry(expiry_value):
+    if isinstance(expiry_value, datetime.datetime):
+        expiry = expiry_value
+
+    elif isinstance(expiry_value, str):
+        expiry = datetime.datetime.fromisoformat(expiry_value.replace("Z", "+00:00"))
+
+    else:
+        return None
+
+    if expiry.tzinfo is None:
+        return expiry.replace(tzinfo=datetime.timezone.utc)
+
+    return expiry
+
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
@@ -82,13 +110,16 @@ def google_auth():
 
     if existing_user:
         # Existing user — log them in
-        token = jwt.encode({
-            "user_id": existing_user["id"],
-            "company_id": existing_user.get("company_id"),
-            "email": existing_user["email"],
-            "role": existing_user["role"],
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-        }, SECRET_KEY, algorithm="HS256")
+        try:
+            token = jwt.encode({
+                "user_id": existing_user["id"],
+                "company_id": existing_user.get("company_id"),
+                "email": existing_user["email"],
+                "role": existing_user["role"],
+                "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+            }, get_jwt_secret(), algorithm="HS256")
+        except RuntimeError:
+            return auth_config_error_response()
 
         return jsonify({
             "status": "success",
@@ -131,13 +162,16 @@ def google_auth():
             "is_verified": True
         }).eq("id", user["id"]).execute()
 
-        token = jwt.encode({
-            "user_id": user["id"],
-            "company_id": company["id"],
-            "email": email,
-            "role": "admin",
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-        }, SECRET_KEY, algorithm="HS256")
+        try:
+            token = jwt.encode({
+                "user_id": user["id"],
+                "company_id": company["id"],
+                "email": email,
+                "role": "admin",
+                "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+            }, get_jwt_secret(), algorithm="HS256")
+        except RuntimeError:
+            return auth_config_error_response()
 
         return jsonify({
             "status": "success",
@@ -195,13 +229,16 @@ def login():
             "email": email
         }), 403
 
-    token = jwt.encode({
-        "user_id": user["id"],
-        "company_id": user.get("company_id"),
-        "email": user["email"],
-        "role": user["role"],
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
-    }, SECRET_KEY, algorithm="HS256")
+    try:
+        token = jwt.encode({
+            "user_id": user["id"],
+            "company_id": user.get("company_id"),
+            "email": user["email"],
+            "role": user["role"],
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+        }, get_jwt_secret(), algorithm="HS256")
+    except RuntimeError:
+        return auth_config_error_response()
 
     return jsonify({
         "status": "success",
@@ -372,9 +409,6 @@ def resend_otp():
     return jsonify({"status": "success", "message": "New verification code sent to your email"}), 200
 
 
-# In-memory store for password reset OTPS (expires in 10 minutes)
-PASSWORD_RESET_OTPS = {}
-
 @auth_bp.route("/forgot-password", methods=["POST"])
 def forgot_password():
     from app.services.email_service import send_reset_email
@@ -392,12 +426,11 @@ def forgot_password():
     otp = generate_otp()
     otp_expiry = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
 
-    # Save to our in-memory store
-    PASSWORD_RESET_OTPS[email] = {
-        "otp": otp,
-        "expiry": otp_expiry,
-        "verified": False
-    }
+    upsert_password_reset_otp(
+        email=email,
+        otp_code=otp,
+        otp_expiry=otp_expiry.isoformat(),
+    )
 
     # Extract name
     full_name = user.get("full_name", "User")
@@ -422,19 +455,20 @@ def verify_reset_otp():
     if not email or not otp:
         return jsonify({"status": "error", "message": "Email and OTP code are required"}), 400
 
-    otp_record = PASSWORD_RESET_OTPS.get(email)
+    otp_record = get_password_reset_otp(email)
     if not otp_record:
         return jsonify({"status": "error", "message": "No password reset request found or session expired."}), 400
 
-    if otp_record["otp"] != otp:
+    if otp_record.get("otp_code") != otp:
         return jsonify({"status": "error", "message": "Invalid password reset verification code."}), 400
 
-    if datetime.datetime.now(datetime.timezone.utc) > otp_record["expiry"]:
-        PASSWORD_RESET_OTPS.pop(email, None)
+    expiry = parse_otp_expiry(otp_record.get("otp_expiry"))
+    if not expiry or datetime.datetime.now(datetime.timezone.utc) > expiry:
+        delete_password_reset_otp(email)
         return jsonify({"status": "error", "message": "Verification code has expired. Please request a new one."}), 400
 
     # OTP is valid! Mark as verified
-    otp_record["verified"] = True
+    mark_password_reset_otp_verified(email)
     return jsonify({
         "status": "success",
         "message": "Verification code successfully verified."
@@ -461,12 +495,13 @@ def reset_password():
     if not is_strong:
         return jsonify({"status": "error", "message": msg}), 400
 
-    otp_record = PASSWORD_RESET_OTPS.get(email)
-    if not otp_record or not otp_record.get("verified") or otp_record["otp"] != otp:
+    otp_record = get_password_reset_otp(email)
+    if not otp_record or not otp_record.get("verified") or otp_record.get("otp_code") != otp:
         return jsonify({"status": "error", "message": "Invalid or unverified password reset session."}), 400
 
-    if datetime.datetime.now(datetime.timezone.utc) > otp_record["expiry"]:
-        PASSWORD_RESET_OTPS.pop(email, None)
+    expiry = parse_otp_expiry(otp_record.get("otp_expiry"))
+    if not expiry or datetime.datetime.now(datetime.timezone.utc) > expiry:
+        delete_password_reset_otp(email)
         return jsonify({"status": "error", "message": "Session expired. Please request a new reset code."}), 400
 
     try:
@@ -478,7 +513,7 @@ def reset_password():
         }).eq("email", email).execute()
 
         # Clean up OTP record
-        PASSWORD_RESET_OTPS.pop(email, None)
+        delete_password_reset_otp(email)
 
         return jsonify({
             "status": "success",

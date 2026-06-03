@@ -1,9 +1,8 @@
 from functools import wraps
 from flask import request, jsonify, g
 import jwt
-import os
 
-SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-default-key-please-change")
+from app.utils.jwt_utils import get_jwt_secret
 
 
 def token_required(f):
@@ -20,7 +19,7 @@ def token_required(f):
             return jsonify({"status": "error", "message": "Token is missing!"}), 401
 
         try:
-            data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+            data = jwt.decode(token, get_jwt_secret(), algorithms=["HS256"])
 
             # Store decoded token data for routes to use
             g.current_user = data
@@ -28,6 +27,11 @@ def token_required(f):
             g.user_id = data.get("user_id")
             g.role = data.get("role")
 
+        except RuntimeError:
+            return jsonify({
+                "status": "error",
+                "message": "Authentication is not configured properly."
+            }), 500
         except jwt.ExpiredSignatureError:
             return jsonify({"status": "error", "message": "Token has expired! Please log in again."}), 401
         except jwt.InvalidTokenError:

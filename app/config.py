@@ -6,6 +6,15 @@ import logging
 
 def load_configurations(app):
     load_dotenv()
+    cors_origins = os.getenv("CORS_ORIGINS", "")
+    app.config["CORS_ORIGINS"] = [
+        origin.strip()
+        for origin in cors_origins.split(",")
+        if origin.strip()
+    ] or [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ]
     app.config["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
     app.config["YOUR_PHONE_NUMBER"] = os.getenv("YOUR_PHONE_NUMBER")
     app.config["APP_ID"] = os.getenv("APP_ID")

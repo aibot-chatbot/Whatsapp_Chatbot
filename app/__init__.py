@@ -28,11 +28,11 @@ def create_app():
                 template_folder=os.path.join(root_dir, 'frontend'),
                 static_folder=os.path.join(root_dir, 'frontend', 'static')) # Added this!
 
-    CORS(app, resources={r"/*": {"origins": "*"}})
-
     # Load configurations and logging settings
     load_configurations(app)
     configure_logging()
+
+    CORS(app, resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}})
 
     # Register blueprints
     app.register_blueprint(webhook_blueprint)
