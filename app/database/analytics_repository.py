@@ -120,7 +120,7 @@ def get_message_chart_last_7_days(chatbot_id):
     }
 
 
-def get_transcript_logs(chatbot_id=1, days=7):
+def get_transcript_logs(chatbot_id, days=7):
     """
     Fetch all conversation messages for the given chatbot_id in the last X days,
     sorted chronologically, and group them by customer conversation.
