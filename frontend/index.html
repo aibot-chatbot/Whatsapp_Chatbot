@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -30,7 +31,7 @@
 
         body {
             background-color: var(--bg);
-            background-image: 
+            background-image:
                 radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
                 radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
             color: var(--text-main);
@@ -134,13 +135,28 @@
             font-weight: 600;
         }
 
-        .badge-success { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-        .badge-info { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .badge-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
 
         @keyframes float {
-            0% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
-            100% { transform: translateY(0px); }
+            0% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+
+            100% {
+                transform: translateY(0px);
+            }
         }
 
         .floating {
@@ -162,9 +178,17 @@
         }
 
         @keyframes pulse {
-            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+            0% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+            }
         }
 
         /* Responsive Media Queries */
@@ -172,6 +196,7 @@
             .content-sections {
                 grid-template-columns: 1fr;
             }
+
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
             }
@@ -181,24 +206,29 @@
             body {
                 flex-direction: column;
             }
+
             .main-container {
                 padding: 30px 20px;
             }
+
             .header {
                 flex-direction: column;
                 gap: 16px;
                 align-items: stretch;
             }
+
             .stats-grid {
                 grid-template-columns: 1fr;
             }
-            .activity-table th:nth-child(2), 
+
+            .activity-table th:nth-child(2),
             .activity-table td:nth-child(2) {
                 display: none;
             }
         }
     </style>
 </head>
+
 <body>
 
     <script src="sidebar-component.js"></script>
@@ -242,48 +272,70 @@
                 <h3 class="section-title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 1.4rem;">⚡</span> Live AI Workflow
                 </h3>
-                <div id="workflow-status-badge" class="badge" style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Idle</div>
+                <div id="workflow-status-badge" class="badge"
+                    style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Idle</div>
             </div>
-            
+
             <!-- Live message info -->
-            <div id="workflow-message-display" style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--glass-border); border-radius: 12px; padding: 16px; margin-bottom: 20px; color: var(--text-dim); font-size: 0.95rem;">
+            <div id="workflow-message-display"
+                style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--glass-border); border-radius: 12px; padding: 16px; margin-bottom: 20px; color: var(--text-dim); font-size: 0.95rem;">
                 <div style="display: flex; gap: 10px; margin-bottom: 8px;">
                     <span style="font-weight: 600; color: #60a5fa; min-width: 100px;">User Message:</span>
                     <span id="workflow-user-text" style="color: var(--text-main); font-style: italic;"></span>
                 </div>
-                <div id="workflow-ai-response-container" style="display: none; gap: 10px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                <div id="workflow-ai-response-container"
+                    style="display: none; gap: 10px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
                     <span style="font-weight: 600; color: var(--accent); min-width: 100px;">AI Response:</span>
                     <span id="workflow-ai-text" style="color: var(--text-main);"></span>
                 </div>
             </div>
 
             <!-- Flowchart Nodes -->
-            <div style="display: flex; justify-content: space-between; align-items: center; position: relative; padding: 20px 10px;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; position: relative; padding: 20px 10px;">
                 <!-- connecting line -->
-                <div style="position: absolute; top: 50%; left: 40px; right: 40px; height: 2px; background: rgba(255,255,255,0.1); z-index: 1;"></div>
-                
+                <div
+                    style="position: absolute; top: 50%; left: 40px; right: 40px; height: 2px; background: rgba(255,255,255,0.1); z-index: 1;">
+                </div>
+
                 <!-- Node 1: Received -->
-                <div id="node-RECEIVING" class="workflow-node" style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
-                    <div class="node-icon" style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">📱</div>
-                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">Receiving<br>Message</div>
+                <div id="node-RECEIVING" class="workflow-node"
+                    style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div class="node-icon"
+                        style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">
+                        📱</div>
+                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">
+                        Receiving<br>Message</div>
                 </div>
 
                 <!-- Node 2: RAG Search -->
-                <div id="node-RAG_SEARCH" class="workflow-node" style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
-                    <div class="node-icon" style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">🔍</div>
-                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">Knowledge<br>Search</div>
+                <div id="node-RAG_SEARCH" class="workflow-node"
+                    style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div class="node-icon"
+                        style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">
+                        🔍</div>
+                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">
+                        Knowledge<br>Search</div>
                 </div>
 
                 <!-- Node 3: AI Generating -->
-                <div id="node-AI_GENERATING" class="workflow-node" style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
-                    <div class="node-icon" style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">🧠</div>
-                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">AI<br>Generating</div>
+                <div id="node-AI_GENERATING" class="workflow-node"
+                    style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div class="node-icon"
+                        style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">
+                        🧠</div>
+                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">
+                        AI<br>Generating</div>
                 </div>
 
                 <!-- Node 4: Sending -->
-                <div id="node-SENDING" class="workflow-node" style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
-                    <div class="node-icon" style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">📤</div>
-                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">Sending<br>Response</div>
+                <div id="node-SENDING" class="workflow-node"
+                    style="position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+                    <div class="node-icon"
+                        style="width: 45px; height: 45px; border-radius: 50%; background: var(--input-bg); border: 2px solid var(--glass-border); display: flex; justify-content: center; align-items: center; transition: all 0.3s; font-size: 1.2rem;">
+                        📤</div>
+                    <div style="font-size: 0.85rem; color: var(--text-dim); font-weight: 600; text-align: center;">
+                        Sending<br>Response</div>
                 </div>
             </div>
         </div>
@@ -293,10 +345,14 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h3 class="section-title" style="margin: 0;">📉 Usage Analytics (Last 7 Days)</h3>
                 </div>
-                <div id="chart-container" style="height: 200px; display: flex; align-items: flex-end; gap: 10px; padding-top: 20px;">
-                    <div style="width: 100%; text-align: center; color: var(--text-dim); margin-bottom: auto; margin-top:auto;">Loading chart data...</div>
+                <div id="chart-container"
+                    style="height: 200px; display: flex; align-items: flex-end; gap: 10px; padding-top: 20px;">
+                    <div
+                        style="width: 100%; text-align: center; color: var(--text-dim); margin-bottom: auto; margin-top:auto;">
+                        Loading chart data...</div>
                 </div>
-                <div id="chart-labels" style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.8rem; color: var(--text-dim);">
+                <div id="chart-labels"
+                    style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.8rem; color: var(--text-dim);">
                 </div>
             </div>
             <div class="glass-card">
@@ -309,7 +365,9 @@
                         </tr>
                     </thead>
                     <tbody id="recent-history-body">
-                        <tr><td colspan="2" style="text-align: center; color: var(--text-dim);">Loading...</td></tr>
+                        <tr>
+                            <td colspan="2" style="text-align: center; color: var(--text-dim);">Loading...</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -317,24 +375,32 @@
 
         <!-- AI Insights Report Section -->
         <div class="glass-card" style="margin-top: 24px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
                 <h3 class="section-title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 1.4rem;">🤖</span> AI Chatbot Insights & Report
                 </h3>
                 <div style="display: flex; gap: 12px; align-items: center;">
-                    <select id="report-days" style="background: var(--input-bg); color: var(--text-main); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: 12px; font-family: inherit; font-size: 0.9rem; outline: none; cursor: pointer;">
+                    <select id="report-days"
+                        style="background: var(--input-bg); color: var(--text-main); border: 1px solid var(--glass-border); padding: 8px 16px; border-radius: 12px; font-family: inherit; font-size: 0.9rem; outline: none; cursor: pointer;">
                         <option value="7" selected>Last 7 Days</option>
                         <option value="14">Last 14 Days</option>
                         <option value="30">Last 30 Days</option>
                         <option value="9999">All Time</option>
                     </select>
-                    <button id="btn-generate-report" onclick="generateReport()" style="background: linear-gradient(135deg, var(--primary), #2563eb); color: white; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: inherit; font-size: 0.9rem; transition: all 0.3s; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);">
+                    <button id="btn-generate-report" onclick="generateReport()"
+                        style="background: linear-gradient(135deg, var(--primary), #2563eb); color: white; border: none; padding: 10px 20px; border-radius: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: inherit; font-size: 0.9rem; transition: all 0.3s; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);">
                         <i data-lucide="sparkles" style="width: 16px; height: 16px;"></i> Generate AI Report
+                    </button>
+                    <button id="btn-download-pdf" onclick="downloadReportPDF()"
+                        style="display: none; background: rgba(255,255,255,0.05); color: var(--text-main); border: 1px solid var(--glass-border); padding: 10px 20px; border-radius: 12px; font-weight: 600; cursor: pointer; align-items: center; gap: 8px; font-family: inherit; font-size: 0.9rem; transition: all 0.3s;">
+                        <i data-lucide="download" style="width: 16px; height: 16px;"></i> Download PDF
                     </button>
                 </div>
             </div>
-            
-            <div id="report-container" style="min-height: 120px; display: flex; flex-direction: column; justify-content: center; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--glass-border); border-radius: 16px; padding: 24px; color: var(--text-dim); line-height: 1.6;">
+
+            <div id="report-container"
+                style="min-height: 120px; display: flex; flex-direction: column; justify-content: center; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--glass-border); border-radius: 16px; padding: 24px; color: var(--text-dim); line-height: 1.6;">
                 <div style="text-align: center; font-size: 0.95rem;">
                     Select the report range above and click <strong>Generate AI Report</strong> to run log analysis.
                 </div>
@@ -373,7 +439,7 @@
             updateDate();
             fetchSelectedBot();
             fetchDashboardData();
-            
+
             // Start polling for live workflow updates
             setInterval(fetchLiveWorkflow, 1500);
         });
@@ -381,7 +447,7 @@
         function updateDate() {
             const dateEl = document.getElementById('date-display');
             if (dateEl) {
-                const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit' };
+                const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
                 dateEl.innerText = new Date().toLocaleDateString(undefined, options);
             }
         }
@@ -412,14 +478,14 @@
                 // 1. Fetch Analytics
                 const analyticsRes = await authenticatedFetch(`/api/analytics?chatbot_id=${selectedBotId}`);
                 const analytics = await analyticsRes.json();
-                
+
                 if (analytics.status === "success") {
                     document.getElementById('stat-total-users').innerText = analytics.data.total_users;
                     document.getElementById('stat-total-msgs').innerText = analytics.data.total_messages;
-                    
+
                     // Render Chart
                     renderChart(analytics.data.chart.labels, analytics.data.chart.data);
-                    
+
                     // Render Recent History
                     renderHistory(analytics.data.recent_history);
                 }
@@ -445,7 +511,7 @@
                     pdfEl.innerText = pdfName;
                     pdfEl.style.fontSize = pdfName.length > 20 ? "1.1rem" : "1.3rem";
                 }
-                
+
             } catch (err) {
                 console.error("Dashboard failed to fetch data", err);
             }
@@ -457,7 +523,7 @@
                 const response = await authenticatedFetch(`/api/dashboard/live-workflow?chatbot_id=${selectedBotId}`);
                 if (!response.ok) return;
                 const result = await response.json();
-                
+
                 if (result.status === "success") {
                     updateWorkflowUI(result.data);
                 }
@@ -472,9 +538,9 @@
             const userText = document.getElementById('workflow-user-text');
             const aiContainer = document.getElementById('workflow-ai-response-container');
             const aiText = document.getElementById('workflow-ai-text');
-            
+
             const nodes = ['RECEIVING', 'RAG_SEARCH', 'AI_GENERATING', 'SENDING'];
-            
+
             if (!workflowData || !workflowData.state) {
                 // Idle state
                 badge.innerText = "Idle";
@@ -482,7 +548,7 @@
                 badge.style.background = "rgba(148, 163, 184, 0.2)";
                 badge.style.color = "var(--text-dim)";
                 msgDisplay.style.display = "none";
-                
+
                 nodes.forEach(n => {
                     document.getElementById(`node-${n}`).classList.remove('active', 'completed');
                 });
@@ -491,7 +557,7 @@
 
             // Active or completed state
             msgDisplay.style.display = "block";
-            
+
             if (workflowData.message) {
                 if (workflowData.state === "SENDING" || workflowData.state === "COMPLETED") {
                     aiContainer.style.display = "flex";
@@ -507,25 +573,25 @@
                 badge.className = "badge badge-success";
                 badge.style.background = "";
                 badge.style.color = "";
-                
+
                 nodes.forEach(n => {
                     document.getElementById(`node-${n}`).classList.remove('active');
                     document.getElementById(`node-${n}`).classList.add('completed');
                 });
-                
+
                 // Keep completed state visible for 5 seconds, then the backend auto-clears (or we just let it clear eventually)
             } else {
                 badge.innerText = "Processing...";
                 badge.className = "badge badge-info";
                 badge.style.background = "";
                 badge.style.color = "";
-                
+
                 // Update nodes
                 const currentIndex = nodes.indexOf(workflowData.state);
                 nodes.forEach((n, idx) => {
                     const nodeEl = document.getElementById(`node-${n}`);
                     nodeEl.classList.remove('active', 'completed');
-                    
+
                     if (idx < currentIndex) {
                         nodeEl.classList.add('completed');
                     } else if (idx === currentIndex) {
@@ -534,16 +600,16 @@
                 });
             }
         }
-        
+
         function renderChart(labels, data) {
             const container = document.getElementById('chart-container');
             const labelsContainer = document.getElementById('chart-labels');
-            
+
             container.innerHTML = "";
             labelsContainer.innerHTML = "";
-            
+
             const maxVal = Math.max(...data, 10); // Minimum scale 10
-            
+
             data.forEach((val, i) => {
                 const percentage = (val / maxVal) * 100;
                 const bar = document.createElement('div');
@@ -554,7 +620,7 @@
                 bar.style.transition = "height 1s ease";
                 bar.title = `${val} messages`;
                 container.appendChild(bar);
-                
+
                 const label = document.createElement('div');
                 label.style.flex = "1";
                 label.style.textAlign = "center";
@@ -562,16 +628,16 @@
                 labelsContainer.appendChild(label);
             });
         }
-        
+
         function renderHistory(historyItems) {
             const tbody = document.getElementById('recent-history-body');
             tbody.innerHTML = "";
-            
+
             if (!historyItems || historyItems.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color: var(--text-dim);">No chats yet</td></tr>';
                 return;
             }
-            
+
             historyItems.forEach(item => {
                 const tr = document.createElement('tr');
                 const isRecent = new Date() - new Date(item.timestamp) < 86400000;
@@ -592,30 +658,146 @@
 
         function parseMarkdown(text) {
             if (!text) return "";
-            
-            // Escape HTML to prevent XSS
-            let html = text
+
+            // Escape HTML first to prevent XSS
+            let escapedText = text
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;");
-                
-            // Convert Bold markdown (**text**)
-            html = html.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text-main); font-weight: 600;">$1</strong>');
-            
-            // Convert markdown headers like # or ## or ###
-            html = html.replace(/^(?:#{3,6})\s*(.*)$/gm, '<h4 style="color: var(--text-main); margin: 20px 0 10px 0; font-size: 1.1rem; font-weight: 600;">$1</h4>');
-            html = html.replace(/^##\s*(.*)$/gm, '<h3 style="color: var(--text-main); margin: 24px 0 12px 0; font-size: 1.25rem; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px;">$1</h3>');
-            html = html.replace(/^#\s*(.*)$/gm, '<h2 style="color: var(--text-main); margin: 28px 0 16px 0; font-size: 1.5rem; font-weight: 700; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px;">$1</h2>');
-            
-            // Bullet points
-            html = html.replace(/^(?:[-*•])\s*(.*)$/gm, '<li style="margin-left: 20px; margin-bottom: 6px; list-style-type: disc;">$1</li>');
-            
-            // Convert double returns to paragraphs
-            html = html.replace(/\n\n/g, '<br><br>');
-            
-            // Convert single line breaks to br
-            html = html.replace(/\n/g, '<br>');
-            
+
+            // Split into lines to parse blocks like tables
+            let lines = escapedText.split('\n');
+            let processedLines = [];
+            let inTable = false;
+            let tableHeaders = [];
+            let tableRows = [];
+
+            function formatHTMLTable(headers, rows) {
+                let tableHTML = '<table style="width:100%; border-collapse:collapse; margin:20px 0; background:rgba(15,23,42,0.3); border:1px solid var(--glass-border); border-radius:12px; overflow:hidden; font-size:0.9rem;">';
+                tableHTML += '<thead style="background:rgba(59,130,246,0.15); border-bottom:1px solid var(--glass-border);"><tr>';
+                headers.forEach(h => {
+                    tableHTML += `<th style="padding:12px 16px; text-align:left; font-weight:600; color:var(--text-main);">${h}</th>`;
+                });
+                tableHTML += '</tr></thead><tbody>';
+
+                rows.forEach((row, idx) => {
+                    const rowBg = idx % 2 === 0 ? "transparent" : "rgba(255,255,255,0.02)";
+                    tableHTML += `<tr style="background:${rowBg}; border-bottom:1px solid rgba(255,255,255,0.05);">`;
+                    for (let i = 0; i < headers.length; i++) {
+                        let cellVal = row[i] || "";
+                        tableHTML += `<td style="padding:12px 16px; color:var(--text-dim); text-align:left; vertical-align:top;">${cellVal}</td>`;
+                    }
+                    tableHTML += '</tr>';
+                });
+
+                tableHTML += '</tbody></table>';
+                return tableHTML;
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i].trim();
+
+                if (line.startsWith('|') && line.endsWith('|')) {
+                    // Check if it's separator line (e.g. |---|---| or | :--- |)
+                    if (line.replace(/[\s|:\-]/g, '') === '') {
+                        continue;
+                    }
+
+                    let cells = line.split('|').map(c => c.trim());
+                    if (cells[0] === '') cells.shift();
+                    if (cells[cells.length - 1] === '') cells.pop();
+
+                    if (!inTable) {
+                        inTable = true;
+                        tableHeaders = cells;
+                    } else {
+                        tableRows.push(cells);
+                    }
+                } else {
+                    if (inTable) {
+                        processedLines.push(formatHTMLTable(tableHeaders, tableRows));
+                        inTable = false;
+                        tableHeaders = [];
+                        tableRows = [];
+                    }
+                    processedLines.push(lines[i]);
+                }
+            }
+
+            if (inTable) {
+                processedLines.push(formatHTMLTable(tableHeaders, tableRows));
+            }
+
+            let finalBlocks = [];
+            let currentParagraph = [];
+
+            function flushParagraph() {
+                if (currentParagraph.length > 0) {
+                    let paragraphText = currentParagraph.join(' ');
+                    paragraphText = formatInlineMarkdown(paragraphText);
+                    finalBlocks.push(`<p style="margin-bottom: 12px; page-break-inside: avoid; break-inside: avoid;">${paragraphText}</p>`);
+                    currentParagraph = [];
+                }
+            }
+
+            function formatInlineMarkdown(text) {
+                return text
+                    .replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text-main); font-weight: 600;">$1</strong>');
+            }
+
+            for (let i = 0; i < processedLines.length; i++) {
+                let rawLine = processedLines[i];
+                let line = rawLine.trim();
+
+                if (line === '') {
+                    flushParagraph();
+                    continue;
+                }
+
+                // If it's a table string (already parsed into HTML)
+                if (line.startsWith('<table')) {
+                    flushParagraph();
+                    finalBlocks.push(rawLine);
+                }
+                // Heading
+                else if (line.startsWith('#')) {
+                    flushParagraph();
+                    let match = line.match(/^(#{1,6})\s*(.*)$/);
+                    if (match) {
+                        let level = match[1].length;
+                        let text = formatInlineMarkdown(match[2]);
+                        if (level === 1) {
+                            finalBlocks.push(`<h2 style="color: var(--text-main); margin: 28px 0 16px 0; font-size: 1.5rem; font-weight: 700; border-bottom: 1px solid var(--glass-border); padding-bottom: 8px; page-break-after: avoid; break-after: avoid;">${text}</h2>`);
+                        } else if (level === 2) {
+                            finalBlocks.push(`<h3 style="color: var(--text-main); margin: 24px 0 12px 0; font-size: 1.25rem; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 6px; page-break-after: avoid; break-after: avoid;">${text}</h3>`);
+                        } else {
+                            finalBlocks.push(`<h4 style="color: var(--text-main); margin: 20px 0 10px 0; font-size: 1.1rem; font-weight: 600; page-break-after: avoid; break-after: avoid;">${text}</h4>`);
+                        }
+                    } else {
+                        finalBlocks.push(rawLine);
+                    }
+                }
+                // Horizontal Rule
+                else if (line === '---') {
+                    flushParagraph();
+                    finalBlocks.push('<hr style="border: none; border-top: 1px solid var(--glass-border); margin: 20px 0;">');
+                }
+                // Bullet list item
+                else if (line.startsWith('-') || line.startsWith('*') || line.startsWith('•')) {
+                    flushParagraph();
+                    let text = line.replace(/^(?:[-*•])\s*/, '');
+                    text = formatInlineMarkdown(text);
+                    finalBlocks.push(`<li style="margin-left: 20px; margin-bottom: 6px; list-style-type: disc; page-break-inside: avoid; break-inside: avoid;">${text}</li>`);
+                }
+                // Regular paragraph line
+                else {
+                    currentParagraph.push(rawLine);
+                }
+            }
+            flushParagraph();
+
+            let html = finalBlocks.join('\n');
+
             return `<div style="font-family: inherit; font-size: 0.95rem; text-align: left; color: #cbd5e1; max-width: 100%; overflow-x: auto;">${html}</div>`;
         }
 
@@ -624,13 +806,13 @@
             const btn = document.getElementById("btn-generate-report");
             const daysSelect = document.getElementById("report-days");
             const days = daysSelect.value;
-            
+
             btn.disabled = true;
             btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin" style="width: 16px; height: 16px;"></i> Generating...`;
             if (window.lucide && typeof window.lucide.createIcons === 'function') {
                 window.lucide.createIcons({ root: btn });
             }
-            
+
             container.style.borderStyle = "solid";
             container.innerHTML = `
                 <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0;">
@@ -638,7 +820,7 @@
                     <span style="font-size: 0.95rem;">Analyzing database logs and generating report... This may take up to 20 seconds.</span>
                 </div>
             `;
-            
+
             // CSS Animation rule check for spin if not already present
             if (!document.getElementById("spin-style-override")) {
                 const style = document.createElement("style");
@@ -653,14 +835,15 @@
                 `;
                 document.head.appendChild(style);
             }
-            
+
             try {
                 const response = await authenticatedFetch(`/api/analytics/report?chatbot_id=${selectedBotId}&days=${days}`);
                 const result = await response.json();
-                
+
                 if (response.ok && result.status === "success" && result.data?.report) {
                     container.style.borderStyle = "solid";
                     container.innerHTML = parseMarkdown(result.data.report);
+                    document.getElementById("btn-download-pdf").style.display = "flex";
                 } else {
                     container.style.borderStyle = "dashed";
                     container.innerHTML = `
@@ -668,6 +851,7 @@
                             ❌ Failed to generate report: ${result.message || "Unknown error occurred"}
                         </div>
                     `;
+                    document.getElementById("btn-download-pdf").style.display = "none";
                 }
             } catch (err) {
                 console.error("Report generation failed", err);
@@ -677,6 +861,7 @@
                         ❌ Network error or request failed while generating the report.
                     </div>
                 `;
+                document.getElementById("btn-download-pdf").style.display = "none";
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = `<i data-lucide="sparkles" style="width: 16px; height: 16px;"></i> Generate AI Report`;
@@ -685,6 +870,186 @@
                 }
             }
         }
+
+        async function downloadReportPDF() {
+            const container = document.getElementById("report-container");
+            if (!container || container.innerText.trim().includes("Select the report range")) {
+                alert("Please generate a report first.");
+                return;
+            }
+
+            const downloadBtn = document.getElementById("btn-download-pdf");
+            const originalHTML = downloadBtn.innerHTML;
+            downloadBtn.disabled = true;
+            downloadBtn.innerHTML = `<i data-lucide="loader-2" class="animate-spin" style="width: 16px; height: 16px;"></i> Preparing PDF...`;
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons({ root: downloadBtn });
+            }
+
+            try {
+                // Dynamically load html2pdf.js if not already loaded
+                if (typeof html2pdf === "undefined") {
+                    const script = document.createElement("script");
+                    script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js";
+                    document.head.appendChild(script);
+                    await new Promise((resolve) => {
+                        script.onload = resolve;
+                    });
+                }
+
+                const botTitle = document.getElementById("dashboard-title").innerText || "AI Chatbot";
+                const dateStr = document.getElementById("date-display").innerText || new Date().toLocaleDateString();
+
+                // Create a clean, beautifully styled print preview container
+                const printElement = document.createElement("div");
+                printElement.style.padding = "0px"; // Let the html2pdf margin handle page margins
+                printElement.style.width = "710px";          // <-- ADD THIS LINE
+                printElement.style.boxSizing = "border-box";  // <-- ADD THIS LINE
+                printElement.style.color = "#1e293b"; // Slate-800
+                printElement.style.backgroundColor = "#ffffff";
+                printElement.style.fontFamily = "'Outfit', 'Segoe UI', sans-serif";
+                printElement.style.lineHeight = "1.6";
+
+                // Add professional report header
+                printElement.innerHTML = `
+                    <div style="border-bottom: 2px solid #3b82f6; padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end;">
+                        <div>
+                            <h1 style="font-size: 1.8rem; font-weight: 700; color: #1e3a8a; margin: 0;">AI Chatbot Performance & Insights Report</h1>
+                            <p style="font-size: 0.95rem; color: #64748b; margin: 6px 0 0 0;">${botTitle}</p>
+                        </div>
+                        <div style="text-align: right; font-size: 0.85rem; color: #64748b;">
+                            <div>Date: ${dateStr}</div>
+                            <div style="font-weight: 600; color: #3b82f6; margin-top: 4px;">CONFIDENTIAL</div>
+                        </div>
+                    </div>
+                    <div class="report-content" style="font-size: 1rem;">
+                        ${container.innerHTML}
+                    </div>
+                    <div style="margin-top: 50px; border-top: 1px solid #e2e8f0; padding-top: 15px; text-align: center; font-size: 0.8rem; color: #94a3b8;">
+                        This analytics report was automatically compiled by the AI Chatbot System. All rights reserved.
+                    </div>
+                `;
+
+                // Customize elements inside the print document for clean light-mode printing
+                const contentDiv = printElement.querySelector(".report-content > div");
+                if (contentDiv) {
+                    contentDiv.style.color = "#334155"; // Slate-700
+                    contentDiv.style.width = "100%";
+                    contentDiv.style.overflowWrap = "break-word";
+                    contentDiv.style.wordBreak = "break-word";
+
+                    // Remove top margin from the first heading element inside the markdown container
+                    const firstChild = contentDiv.querySelector("*:first-child");
+                    if (firstChild) {
+                        firstChild.style.marginTop = "0px";
+                    }
+                }
+
+                // Format tables inside PDF to look black and white
+                const tables = printElement.querySelectorAll("table");
+                tables.forEach(table => {
+                    table.style.width = "100%";
+                    table.style.backgroundColor = "#ffffff";
+                    table.style.border = "1px solid #1e293b"; // Dark grey border
+                    table.style.borderRadius = "0px";
+                    table.style.margin = "20px 0";
+                    table.style.fontSize = "0.9rem";
+                });
+
+                const theads = printElement.querySelectorAll("thead");
+                theads.forEach(thead => {
+                    thead.style.backgroundColor = "#f1f5f9"; // Soft light grey header background
+                    thead.style.borderBottom = "2px solid #1e293b";
+                });
+
+                const ths = printElement.querySelectorAll("th");
+                ths.forEach(th => {
+                    th.style.padding = "10px 14px";
+                    th.style.color = "#0f172a"; // Dark text
+                    th.style.border = "1px solid #cbd5e1";
+                    th.style.fontWeight = "600";
+                    th.style.textAlign = "left";
+                });
+
+                const tds = printElement.querySelectorAll("td");
+                tds.forEach(td => {
+                    td.style.padding = "10px 14px";
+                    td.style.color = "#334155"; // Dark grey text
+                    td.style.border = "1px solid #cbd5e1"; // Light grey grid borders
+                    td.style.verticalAlign = "top";
+                    td.style.textAlign = "left";
+                    td.style.wordBreak = "break-word";
+                    td.style.overflowWrap = "break-word";
+                });
+
+                const trs = printElement.querySelectorAll("tr");
+                trs.forEach(tr => {
+                    tr.style.backgroundColor = "#ffffff";
+                    tr.style.pageBreakInside = "avoid";
+                    tr.style.breakInside = "avoid";
+                });
+
+                const headings = printElement.querySelectorAll("h1, h2, h3, h4, h5, h6, strong");
+                headings.forEach(el => {
+                    el.style.color = "#0f172a"; // Slate-900
+                });
+
+                const lists = printElement.querySelectorAll("li");
+                lists.forEach(el => {
+                    el.style.color = "#334155"; // Slate-700
+                    el.style.fontSize = "0.95rem";
+                    el.style.pageBreakInside = "avoid";
+                    el.style.breakInside = "avoid";
+                });
+
+                const paras = printElement.querySelectorAll("p");
+                paras.forEach(p => {
+                    p.style.pageBreakInside = "avoid";
+                    p.style.breakInside = "avoid";
+                });
+
+                const separators = printElement.querySelectorAll("hr");
+                separators.forEach(separator => {
+                    separator.style.border = "none";
+                    separator.style.borderTop = "1px solid #cbd5e1";
+                    separator.style.margin = "25px 0";
+                });
+
+                const italicMetadata = printElement.querySelector("em");
+                if (italicMetadata) {
+                    italicMetadata.style.color = "#64748b";
+                }
+
+                // Adjust options: reduce top margin to 5mm and set standard left/right/bottom margins
+                const opt = {
+                    margin: [5, 10, 5, 10], // top, right, bottom, left in mm
+                    filename: `AI_Chatbot_Insights_Report_${botTitle.replace(/\s+/g, '_')}.pdf`,
+                    image: { type: 'jpeg', quality: 0.98 },
+                    html2canvas: {
+                        scale: 2,
+                        useCORS: true,
+                        logging: false
+
+                    },
+                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+                };
+
+                // Generate and download the PDF
+                await html2pdf().from(printElement).set(opt).save();
+
+            } catch (err) {
+                console.error("PDF generation failed:", err);
+                alert("Failed to generate PDF. Please try again.");
+            } finally {
+                downloadBtn.disabled = false;
+                downloadBtn.innerHTML = originalHTML;
+                if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                    window.lucide.createIcons({ root: downloadBtn });
+                }
+            }
+        }
     </script>
 </body>
+
 </html>
