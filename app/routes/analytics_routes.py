@@ -144,3 +144,44 @@ def get_live_workflow():
             "status": "error",
             "message": str(e)
         }), 500
+
+
+@analytics_blueprint.route("/api/dashboard/health", methods=["GET"])
+@token_required
+def get_dashboard_health_summary():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        access = verify_chatbot_access(chatbot_id)
+
+        from app.services.dashboard_health_service import get_dashboard_health
+        health = get_dashboard_health(chatbot_id, access["company_id"])
+
+        return jsonify({
+            "status": "success",
+            "data": health
+        }), 200
+
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 401
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
