@@ -145,6 +145,86 @@
             color: #3b82f6;
         }
 
+        .bot-health {
+            margin-bottom: 24px;
+        }
+
+        .bot-health-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .bot-health-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .bot-health-title h3 {
+            margin: 0;
+            font-size: 1.15rem;
+        }
+
+        .bot-health-title p {
+            margin: 0;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+        }
+
+        .health-card {
+            background: rgba(15, 23, 42, 0.42);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 16px;
+            min-height: 112px;
+        }
+
+        .health-card-label {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
+        }
+
+        .health-card-value {
+            font-size: 1rem;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .health-card-meta {
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            margin-top: 8px;
+            overflow-wrap: anywhere;
+        }
+
+        .health-warnings {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .health-warning {
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.12);
+            border: 1px solid rgba(251, 191, 36, 0.25);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
         @keyframes float {
             0% {
                 transform: translateY(0px);
@@ -221,6 +301,11 @@
                 grid-template-columns: 1fr;
             }
 
+            .bot-health-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
             .activity-table th:nth-child(2),
             .activity-table td:nth-child(2) {
                 display: none;
@@ -243,6 +328,47 @@
             <div class="glass-card" style="padding: 10px 20px; color: var(--accent); font-weight: 600;">
                 <span id="date-display">--</span>
             </div>
+        </div>
+
+        <div class="glass-card bot-health">
+            <div class="bot-health-header">
+                <div class="bot-health-title">
+                    <h3>Bot Health</h3>
+                    <p id="bot-health-summary">Checking bot health...</p>
+                </div>
+                <span id="bot-health-status" class="badge"
+                    style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Checking</span>
+            </div>
+
+            <div class="health-grid">
+                <div class="health-card">
+                    <div class="health-card-label">AI Profile</div>
+                    <div class="health-card-value" id="health-profile-name">Checking...</div>
+                    <div class="health-card-meta" id="health-profile-meta">-</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-label">Knowledge File</div>
+                    <div class="health-card-value" id="health-knowledge-name">Checking...</div>
+                    <div class="health-card-meta" id="health-knowledge-meta">-</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-label">Channels</div>
+                    <div class="health-card-value" id="health-channels-count">Checking...</div>
+                    <div class="health-card-meta" id="health-channels-meta">-</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-label">Delivery</div>
+                    <div class="health-card-value" id="health-delivery-status">Checking...</div>
+                    <div class="health-card-meta" id="health-delivery-meta">-</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-label">Last Activity</div>
+                    <div class="health-card-value" id="health-last-activity">Checking...</div>
+                    <div class="health-card-meta" id="health-last-success">-</div>
+                </div>
+            </div>
+
+            <div class="health-warnings" id="bot-health-warnings"></div>
         </div>
 
         <div class="stats-grid">
@@ -438,6 +564,7 @@
 
             updateDate();
             fetchSelectedBot();
+            fetchBotHealth();
             fetchDashboardData();
 
             // Start polling for live workflow updates
@@ -523,6 +650,150 @@
                 console.error("Dashboard failed to fetch data", err);
                 showDashboardError("Unable to load dashboard data.");
             }
+        }
+
+        async function fetchBotHealth() {
+            showBotHealthLoading();
+
+            try {
+                const response = await authenticatedFetch(`/api/dashboard/health?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    showBotHealthError();
+                    return;
+                }
+
+                renderBotHealth(result.data);
+            } catch (err) {
+                console.error("Bot health failed to fetch", err);
+                showBotHealthError();
+            }
+        }
+
+        function setHealthText(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = value || "-";
+            }
+        }
+
+        function setHealthBadge(ready, label) {
+            const badge = document.getElementById("bot-health-status");
+            badge.textContent = label || (ready ? "Ready" : "Needs Setup");
+            badge.className = ready ? "badge badge-success" : "badge";
+            badge.style.background = ready ? "" : "rgba(251, 191, 36, 0.16)";
+            badge.style.color = ready ? "" : "#fbbf24";
+        }
+
+        function formatHealthDate(value) {
+            if (!value) {
+                return "No activity yet";
+            }
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return "Unknown";
+            }
+
+            return date.toLocaleString();
+        }
+
+        function showBotHealthLoading() {
+            setHealthBadge(false, "Checking");
+            setHealthText("bot-health-summary", "Checking bot health...");
+            setHealthText("health-profile-name", "Checking...");
+            setHealthText("health-profile-meta", "-");
+            setHealthText("health-knowledge-name", "Checking...");
+            setHealthText("health-knowledge-meta", "-");
+            setHealthText("health-channels-count", "Checking...");
+            setHealthText("health-channels-meta", "-");
+            setHealthText("health-delivery-status", "Checking...");
+            setHealthText("health-delivery-meta", "-");
+            setHealthText("health-last-activity", "Checking...");
+            setHealthText("health-last-success", "-");
+            document.getElementById("bot-health-warnings").replaceChildren();
+        }
+
+        function showBotHealthError() {
+            setHealthBadge(false, "Unavailable");
+            setHealthText("bot-health-summary", "Unable to load bot health.");
+            setHealthText("health-profile-name", "Unavailable");
+            setHealthText("health-profile-meta", "-");
+            setHealthText("health-knowledge-name", "Unavailable");
+            setHealthText("health-knowledge-meta", "-");
+            setHealthText("health-channels-count", "Unavailable");
+            setHealthText("health-channels-meta", "-");
+            setHealthText("health-delivery-status", "Unavailable");
+            setHealthText("health-delivery-meta", "-");
+            setHealthText("health-last-activity", "Unavailable");
+            setHealthText("health-last-success", "-");
+
+            const warningsEl = document.getElementById("bot-health-warnings");
+            warningsEl.replaceChildren();
+            const warning = document.createElement("span");
+            warning.className = "health-warning";
+            warning.textContent = "Unable to load bot health.";
+            warningsEl.appendChild(warning);
+        }
+
+        function renderBotHealth(data) {
+            const profile = data.profile || {};
+            const knowledge = data.knowledge || {};
+            const channels = data.channels || {};
+            const delivery = data.delivery || {};
+            const activity = data.activity || {};
+            const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+
+            setHealthBadge(Boolean(data.ready), data.ready ? "Ready" : "Needs Setup");
+            setHealthText(
+                "bot-health-summary",
+                data.ready ? "This bot is ready to serve customers." : "This bot needs setup before serving customers."
+            );
+
+            setHealthText("health-profile-name", profile.active ? (profile.name || "Active") : "Not active");
+            setHealthText(
+                "health-profile-meta",
+                [profile.ai_provider, profile.model_name].filter(Boolean).join(" / ") || "No model selected"
+            );
+
+            setHealthText("health-knowledge-name", knowledge.active ? (knowledge.file_name || "Active") : "No active file");
+            setHealthText(
+                "health-knowledge-meta",
+                [knowledge.processing_status, knowledge.match_status].filter(Boolean).join(" / ") || "Optional"
+            );
+
+            const channelItems = Array.isArray(channels.items) ? channels.items : [];
+            const connectedLabels = channelItems
+                .filter(item => item.connected)
+                .map(item => item.label || item.type)
+                .filter(Boolean);
+            setHealthText("health-channels-count", `${channels.connected_count || 0} connected`);
+            setHealthText("health-channels-meta", connectedLabels.length ? connectedLabels.join(", ") : "No connected channels");
+
+            const failed = Number(delivery.failed || 0);
+            const retrying = Number(delivery.retrying || 0);
+            const permanentFailed = Number(delivery.permanent_failed || 0);
+            setHealthText("health-delivery-status", permanentFailed > 0 ? "Needs attention" : "OK");
+            setHealthText(
+                "health-delivery-meta",
+                `Failed ${failed} / Retrying ${retrying} / Permanent ${permanentFailed}`
+            );
+
+            setHealthText("health-last-activity", formatHealthDate(activity.last_message_at));
+            setHealthText(
+                "health-last-success",
+                delivery.last_success_at ? `Last sent: ${formatHealthDate(delivery.last_success_at)}` : "No sent bot messages yet"
+            );
+
+            const warningsEl = document.getElementById("bot-health-warnings");
+            warningsEl.replaceChildren();
+            warnings.forEach(message => {
+                const warning = document.createElement("span");
+                warning.className = "health-warning";
+                warning.textContent = message;
+                warningsEl.appendChild(warning);
+            });
         }
 
         function showDashboardError(message) {

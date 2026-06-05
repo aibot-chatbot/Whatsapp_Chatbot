@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone, timedelta
 from app.database.db import supabase
 
@@ -231,3 +232,112 @@ def get_messages_by_conversation_and_chatbot(conversation_id: int, chatbot_id: i
         return None
 
     return []
+
+
+def get_message_health_by_chatbot(chatbot_id: int):
+    """
+    Summarize delivery health for dashboard readiness.
+    All queries are scoped through the parent conversation's chatbot_id.
+    """
+    statuses = ["failed", "retrying", "permanent_failed"]
+    counts = {}
+
+    for status in statuses:
+        try:
+            result = (
+                supabase
+                .table("messages")
+                .select("id,conversations!inner(chatbot_id)", count="exact")
+                .eq("sender_type", "bot")
+                .eq("delivery_status", status)
+                .eq("conversations.chatbot_id", chatbot_id)
+                .execute()
+            )
+            counts[status] = result.count if result.count is not None else len(result.data or [])
+        except Exception as e:
+            logging.error(
+                "Failed to count %s messages for chatbot_id=%s: %s",
+                status,
+                chatbot_id,
+                e,
+            )
+            counts[status] = 0
+
+    last_error_rows = []
+    for status in statuses:
+        try:
+            result = (
+                supabase
+                .table("messages")
+                .select("last_error,created_at,conversations!inner(chatbot_id)")
+                .eq("sender_type", "bot")
+                .eq("delivery_status", status)
+                .eq("conversations.chatbot_id", chatbot_id)
+                .order("created_at", desc=True)
+                .limit(5)
+                .execute()
+            )
+            last_error_rows.extend(result.data or [])
+        except Exception as e:
+            logging.error(
+                "Failed to load %s message errors for chatbot_id=%s: %s",
+                status,
+                chatbot_id,
+                e,
+            )
+    last_error_rows.sort(key=lambda row: row.get("created_at") or "", reverse=True)
+    last_error = next(
+        (row.get("last_error") for row in last_error_rows if row.get("last_error")),
+        None,
+    )
+
+    try:
+        last_success_result = (
+            supabase
+            .table("messages")
+            .select("created_at,conversations!inner(chatbot_id)")
+            .eq("sender_type", "bot")
+            .eq("delivery_status", "sent")
+            .eq("conversations.chatbot_id", chatbot_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        last_success_rows = last_success_result.data or []
+    except Exception as e:
+        logging.error(
+            "Failed to load last successful bot message for chatbot_id=%s: %s",
+            chatbot_id,
+            e,
+        )
+        last_success_rows = []
+    last_success_at = last_success_rows[0].get("created_at") if last_success_rows else None
+
+    try:
+        last_message_result = (
+            supabase
+            .table("messages")
+            .select("created_at,conversations!inner(chatbot_id)")
+            .eq("conversations.chatbot_id", chatbot_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        last_message_rows = last_message_result.data or []
+    except Exception as e:
+        logging.error(
+            "Failed to load last message activity for chatbot_id=%s: %s",
+            chatbot_id,
+            e,
+        )
+        last_message_rows = []
+    last_message_at = last_message_rows[0].get("created_at") if last_message_rows else None
+
+    return {
+        "failed": counts["failed"],
+        "retrying": counts["retrying"],
+        "permanent_failed": counts["permanent_failed"],
+        "last_error": last_error,
+        "last_success_at": last_success_at,
+        "last_message_at": last_message_at,
+    }

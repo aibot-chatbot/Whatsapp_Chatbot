@@ -1,3 +1,5 @@
+import logging
+
 from app.database.db import supabase
 
 
@@ -95,13 +97,21 @@ def get_knowledge_files(chatbot_id: int):
     return result.data
 
 def get_active_knowledge_file(chatbot_id: int):
-    result = (
-        supabase.table("knowledge_files")
-        .select("*")
-        .eq("chatbot_id", chatbot_id)
-        .eq("is_active", True)
-        .limit(1)
-        .execute()
-    )
+    try:
+        result = (
+            supabase.table("knowledge_files")
+            .select("*")
+            .eq("chatbot_id", chatbot_id)
+            .eq("is_active", True)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        logging.error(
+            "Failed to load active knowledge file for chatbot_id=%s: %s",
+            chatbot_id,
+            e,
+        )
+        return None
 
     return result.data[0] if result.data else None
