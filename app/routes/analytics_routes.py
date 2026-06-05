@@ -127,6 +127,18 @@ def get_live_workflow():
             "data": state
         }), 200
 
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 401
+
     except Exception as e:
         return jsonify({
             "status": "error",
