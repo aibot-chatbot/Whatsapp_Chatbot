@@ -479,16 +479,19 @@
                 const analyticsRes = await authenticatedFetch(`/api/analytics?chatbot_id=${selectedBotId}`);
                 const analytics = await analyticsRes.json();
 
-                if (analytics.status === "success") {
-                    document.getElementById('stat-total-users').innerText = analytics.data.total_users;
-                    document.getElementById('stat-total-msgs').innerText = analytics.data.total_messages;
-
-                    // Render Chart
-                    renderChart(analytics.data.chart.labels, analytics.data.chart.data);
-
-                    // Render Recent History
-                    renderHistory(analytics.data.recent_history);
+                if (!analyticsRes.ok || analytics.status !== "success") {
+                    showDashboardError("Unable to load dashboard data.");
+                    return;
                 }
+
+                document.getElementById('stat-total-users').innerText = analytics.data.total_users;
+                document.getElementById('stat-total-msgs').innerText = analytics.data.total_messages;
+                
+                // Render Chart
+                renderChart(analytics.data.chart.labels, analytics.data.chart.data);
+                
+                // Render Recent History
+                renderHistory(analytics.data.recent_history);
 
                 // 2. Fetch Settings
                 const settingsRes = await authenticatedFetch(`/api/settings?chatbot_id=${selectedBotId}`);
@@ -499,6 +502,8 @@
                     const profileName = settings.data.active_profile || "None";
                     profileEl.innerText = profileName;
                     profileEl.style.fontSize = profileName.length > 20 ? "1.1rem" : "1.3rem";
+                } else {
+                    document.getElementById('stat-active-profile').innerText = "Unavailable";
                 }
 
                 // 3. Fetch Active Knowledge
@@ -510,11 +515,26 @@
                     const pdfName = knowledge.data?.file_name || "None";
                     pdfEl.innerText = pdfName;
                     pdfEl.style.fontSize = pdfName.length > 20 ? "1.1rem" : "1.3rem";
+                } else {
+                    document.getElementById('stat-active-pdf').innerText = "Unavailable";
                 }
 
             } catch (err) {
                 console.error("Dashboard failed to fetch data", err);
+                showDashboardError("Unable to load dashboard data.");
             }
+        }
+
+        function showDashboardError(message) {
+            document.getElementById('stat-total-users').innerText = "-";
+            document.getElementById('stat-total-msgs').innerText = "-";
+            document.getElementById('stat-active-profile').innerText = "Unavailable";
+            document.getElementById('stat-active-pdf').innerText = "Unavailable";
+            document.getElementById('chart-container').innerHTML =
+                `<div style="width: 100%; text-align: center; color: var(--text-dim); margin: auto;">${message}</div>`;
+            document.getElementById('chart-labels').innerHTML = "";
+            document.getElementById('recent-history-body').innerHTML =
+                `<tr><td colspan="2" style="text-align: center; color: var(--text-dim);">${message}</td></tr>`;
         }
 
         async function fetchLiveWorkflow() {
@@ -641,10 +661,19 @@
             historyItems.forEach(item => {
                 const tr = document.createElement('tr');
                 const isRecent = new Date() - new Date(item.timestamp) < 86400000;
-                tr.innerHTML = `
-                    <td title="${item.last_content}">***${item.user}</td>
-                    <td><span class="badge ${isRecent ? 'badge-info' : 'badge-success'}">${isRecent ? 'Recent' : 'Offline'}</span></td>
-                `;
+
+                const userCell = document.createElement('td');
+                userCell.textContent = `***${item.user || ""}`;
+                userCell.setAttribute("title", item.last_content || "");
+
+                const statusCell = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = `badge ${isRecent ? 'badge-info' : 'badge-success'}`;
+                badge.textContent = isRecent ? 'Recent' : 'Offline';
+
+                statusCell.appendChild(badge);
+                tr.appendChild(userCell);
+                tr.appendChild(statusCell);
                 tbody.appendChild(tr);
             });
         }
@@ -846,11 +875,12 @@
                     document.getElementById("btn-download-pdf").style.display = "flex";
                 } else {
                     container.style.borderStyle = "dashed";
-                    container.innerHTML = `
-                        <div style="color: #f87171; text-align: center;">
-                            ❌ Failed to generate report: ${result.message || "Unknown error occurred"}
-                        </div>
-                    `;
+                    container.innerHTML = "";
+                    const errorEl = document.createElement("div");
+                    errorEl.style.color = "#f87171";
+                    errorEl.style.textAlign = "center";
+                    errorEl.textContent = `❌ Failed to generate report: ${result.message || "Unknown error occurred"}`;
+                    container.appendChild(errorEl);
                     document.getElementById("btn-download-pdf").style.display = "none";
                 }
             } catch (err) {
