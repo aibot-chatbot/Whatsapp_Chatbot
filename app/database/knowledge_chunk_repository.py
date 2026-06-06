@@ -42,6 +42,29 @@ def delete_chunks_by_file(file_id: int):
     )
     return result.data
 
+
+def delete_chunks_by_file_for_chatbot(chatbot_id: int, file_id: int):
+    result = (
+        supabase.table("knowledge_chunks")
+        .delete()
+        .eq("chatbot_id", chatbot_id)
+        .eq("file_id", file_id)
+        .execute()
+    )
+    return result.data
+
+
+def get_chunks_by_file_for_chatbot(chatbot_id: int, file_id: int):
+    result = (
+        supabase.table("knowledge_chunks")
+        .select("*")
+        .eq("chatbot_id", chatbot_id)
+        .eq("file_id", file_id)
+        .execute()
+    )
+    return result.data or []
+
+
 # 5. SEARCH (Vector Similarity)
 def search_similar_chunks(
     chatbot_id: int,

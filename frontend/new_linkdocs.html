@@ -696,6 +696,17 @@
                 }
             };
 
+            const getKnowledgeType = (item) => {
+                const explicitType = (item?.file_type || "").toLowerCase();
+                if (explicitType) return explicitType;
+
+                const name = item?.file_name || item?.name || "";
+                return name.startsWith("http://") || name.startsWith("https://") ? "url" : "pdf";
+            };
+
+            const isWebsiteKnowledge = (item) => getKnowledgeType(item) === "url";
+            const isSourceEnabled = (item) => item?.is_enabled !== false;
+
             const openModal = () => {
                 setStatus({ type: "", text: "", action: "" });
                 setFile(null);
@@ -888,7 +899,7 @@
                     const data = await response.json();
 
                     if (response.ok) {
-                        setStatus({ type: "success", text: "Website content scraped, refined, and saved successfully. Please set it active if needed.", action: "upload" });
+                        setStatus({ type: "success", text: data.data?.message || "Website saved as supporting knowledge.", action: "upload" });
                         setLinkUrl("");
                         setIsModalOpen(false);
                         await fetchFiles();
@@ -921,7 +932,7 @@
                     });
 
                     if (response.ok) {
-                        setStatus({ type: "success", text: "PDF uploaded successfully. Please set it active if needed.", action: "upload" });
+                        setStatus({ type: "success", text: "PDF uploaded and set as primary knowledge.", action: "upload" });
                         setFile(null);
                         setIsModalOpen(false);
                         await fetchFiles();
@@ -949,10 +960,40 @@
                     const data = await response.json();
 
                     if (response.ok) {
-                        setStatus({ type: "success", text: data.data?.message || `${fileName} is now active.`, action: "setActive" });
+                        setStatus({ type: "success", text: data.data?.message || `${fileName} is now the active primary knowledge.`, action: "setActive" });
                         await fetchFiles();
                     } else {
-                        setStatus({ type: "error", text: data.message || "Failed to set active PDF.", action: "" });
+                        setStatus({ type: "error", text: data.message || "Failed to set primary knowledge.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
+                }
+            };
+
+            const handleToggleSupport = async (fileName, nextEnabled) => {
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/toggle-support${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            file_name: fileName,
+                            is_enabled: nextEnabled,
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({
+                            type: "success",
+                            text: data.data?.message || (nextEnabled ? "Supporting website enabled." : "Supporting website disabled."),
+                            action: "toggleSupport"
+                        });
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to update supporting website.", action: "" });
                     }
                 } catch (error) {
                     setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
@@ -979,7 +1020,7 @@
                         setStatus({ type: "deleted", text: data.data?.message || `${fileName} deleted successfully.`, action: "delete" });
                         await fetchFiles();
                     } else {
-                        setStatus({ type: "error", text: data.message || "Failed to delete PDF.", action: "" });
+                        setStatus({ type: "error", text: data.message || "Failed to delete knowledge source.", action: "" });
                     }
                 } catch (error) {
                     setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
@@ -1004,8 +1045,8 @@
 
                     <main className="main-container">
                         <div className="header">
-                            <h1>Links & Documents ({botName || "Bot"})</h1>
-                            <p>Manage the source material your AI chatbot uses for its knowledge base.</p>
+                            <h1>Knowledge Sources ({botName || "Bot"})</h1>
+                            <p>Manage the primary PDF and supporting website sources your AI chatbot uses.</p>
                         </div>
 
                         {status.text && (
@@ -1029,7 +1070,7 @@
                                     Next step
                                 </div>
                                 <div style={{ fontSize: "15px", color: "var(--text-dim)", marginBottom: "14px", lineHeight: "1.5" }}>
-                                    Please review Bot Configuration so the chatbot matches this uploaded document.
+                                    Please review Bot Configuration so the chatbot matches this primary knowledge source.
                                 </div>
                                 <a
                                     href={`new_prompt.html${pageQuery}`}
@@ -1073,18 +1114,18 @@
                         </div>
 
                         <div className="tabs-nav">
-                            <div className="tab-item">Links / Docs</div>
+                            <div className="tab-item">Primary PDF / Supporting Websites</div>
                         </div>
 
                         <div className="action-bar">
                             <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
                                 <span style={{ fontWeight: 500, fontSize: "0.95rem", marginRight: "12px" }}>
-                                    Total items: {totalItems}
+                                    Total sources: {totalItems}
                                 </span>
                             </div>
 
                             <button className="btn btn-primary" type="button" onClick={openModal}>
-                                ➕ Add Links / Upload Docs
+                                ➕ Add Knowledge Source
                             </button>
                         </div>
 
@@ -1102,50 +1143,72 @@
                                     {files.length === 0 ? (
                                         <tr>
                                             <td colSpan="4" style={{ color: "var(--text-dim)" }}>
-                                                No files uploaded yet.
+                                                No knowledge sources added yet.
                                             </td>
                                         </tr>
                                     ) : (
-                                        files.map((f, index) => (
-                                            <tr key={index}>
-                                                <td>
-                                                    <div className="name-cell">
-                                                        <span>📄</span>
-                                                        <span>{f.file_name}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="char-count">
-                                                    {f.size ? `${(Number(f.size) / 1024).toFixed(1)} KB` : "-"}
-                                                </td>
-                                                <td>
-                                                    <span className={`status-badge ${f.file_name === activeFile ? "" : "inactive"}`}>
-                                                        {f.file_name === activeFile ? "ACTIVE" : "AVAILABLE"}
-                                                    </span>
-                                                </td>
-                                                <td>
-                                                    <div className="table-actions">
-                                                        <button
-                                                            className="btn btn-primary"
-                                                            type="button"
-                                                            onClick={() => handleSetActive(f.file_name)}
-                                                            disabled={f.file_name === activeFile}
-                                                            title={f.file_name === activeFile ? "This file is already active." : "Set this file as active"}
-                                                        >
-                                                            Set Active
-                                                        </button>
+                                        files.map((f, index) => {
+                                            const websiteSource = isWebsiteKnowledge(f);
+                                            const sourceEnabled = isSourceEnabled(f);
+                                            const isPrimary = !websiteSource && f.file_name === activeFile;
 
-                                                        <button
-                                                            className="btn btn-danger"
-                                                            type="button"
-                                                            onClick={() => triggerDeleteFile(f.file_name)}
-                                                            title={f.file_name === activeFile ? "Active file cannot be deleted." : "Delete this file"}
+                                            return (
+                                                <tr key={index}>
+                                                    <td>
+                                                        <div className="name-cell">
+                                                            <span>{websiteSource ? "🔗" : "📄"}</span>
+                                                            <span>{f.file_name}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="char-count">
+                                                        {f.size ? `${(Number(f.size) / 1024).toFixed(1)} KB` : "-"}
+                                                    </td>
+                                                    <td>
+                                                        <span
+                                                            className={`status-badge ${isPrimary || (websiteSource && sourceEnabled) ? "" : "inactive"}`}
+                                                            title={websiteSource ? "Websites are supporting knowledge and cannot be set as primary." : ""}
                                                         >
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ))
+                                                            {websiteSource ? `SUPPORTING ${sourceEnabled ? "ENABLED" : "DISABLED"}` : isPrimary ? "ACTIVE PRIMARY" : "AVAILABLE"}
+                                                        </span>
+                                                    </td>
+                                                    <td>
+                                                        <div className="table-actions">
+                                                            {!websiteSource && (
+                                                                <button
+                                                                    className="btn btn-primary"
+                                                                    type="button"
+                                                                    onClick={() => handleSetActive(f.file_name)}
+                                                                    disabled={isPrimary}
+                                                                    title={isPrimary ? "This PDF is already the active primary knowledge." : "Set this PDF as primary knowledge"}
+                                                                >
+                                                                    {isPrimary ? "Active Primary" : "Set as Primary"}
+                                                                </button>
+                                                            )}
+
+                                                            {websiteSource && (
+                                                                <button
+                                                                    className="btn"
+                                                                    type="button"
+                                                                    onClick={() => handleToggleSupport(f.file_name, !sourceEnabled)}
+                                                                    title={sourceEnabled ? "Temporarily disable this supporting website in AI answers" : "Enable this supporting website for AI answers"}
+                                                                >
+                                                                    {sourceEnabled ? "Disable" : "Enable"}
+                                                                </button>
+                                                            )}
+
+                                                            <button
+                                                                className="btn btn-danger"
+                                                                type="button"
+                                                                onClick={() => triggerDeleteFile(f.file_name)}
+                                                                title={websiteSource ? "Delete this supporting website source" : "Delete this PDF"}
+                                                            >
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
@@ -1158,9 +1221,9 @@
 
                     <div className={`modal-backdrop ${isModalOpen ? "open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
                         <div className="modal-content">
-                            <h2 style={{ marginBottom: "8px" }}>Add New Resource</h2>
+                            <h2 style={{ marginBottom: "8px" }}>Add Knowledge Source</h2>
                             <p style={{ color: "var(--text-dim)", fontSize: "0.9rem", marginBottom: "24px" }}>
-                                Expand your chatbot's knowledge base.
+                                Add a primary PDF or supporting website source.
                             </p>
 
                             <div className="modal-tabs">
@@ -1170,7 +1233,7 @@
                                     onClick={() => setActiveTab("link")}
                                     disabled={isUploading || isAnalyzing}
                                 >
-                                    Website Link
+                                    Supporting Website
                                 </button>
                                 <button
                                     className={`modal-tab ${activeTab === "file" ? "active" : ""}`}
@@ -1178,7 +1241,7 @@
                                     onClick={() => setActiveTab("file")}
                                     disabled={isUploading || isAnalyzing}
                                 >
-                                    Upload Document
+                                    Primary PDF
                                 </button>
                             </div>
 
@@ -1195,7 +1258,7 @@
                                             disabled={isAnalyzing}
                                         />
                                         <div style={{ marginTop: "10px", color: "var(--text-dim)", fontSize: "0.85rem" }}>
-                                            Enter the website URL to scrape and discover internal subpages.
+                                            Enter a website URL to save as supporting knowledge.
                                         </div>
                                         {isAnalyzing && (
                                             <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px", color: "var(--primary)" }}>
@@ -1210,7 +1273,7 @@
                                             Discovered {analyzedLinks.length} subpages
                                         </label>
                                         <div style={{ color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "15px" }}>
-                                            Select which pages from <strong>{linkUrl}</strong> you want to ingest as knowledge.
+                                            Select which pages from <strong>{linkUrl}</strong> you want to save as supporting knowledge.
                                         </div>
 
                                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
@@ -1266,7 +1329,7 @@
                                             Review & Refine Extracted Knowledge
                                         </label>
                                         <div style={{ color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "15px" }}>
-                                            Verify and edit the AI-extracted knowledge details below to ensure absolute correctness.
+                                            Verify and edit the AI-extracted supporting knowledge details below to ensure absolute correctness.
                                         </div>
                                         <textarea
                                             className="modal-input"

@@ -347,7 +347,7 @@
                     <div class="health-card-meta" id="health-profile-meta">-</div>
                 </div>
                 <div class="health-card">
-                    <div class="health-card-label">Knowledge File</div>
+                    <div class="health-card-label">Primary Knowledge</div>
                     <div class="health-card-value" id="health-knowledge-name">Checking...</div>
                     <div class="health-card-meta" id="health-knowledge-meta">-</div>
                 </div>
@@ -387,7 +387,7 @@
                 <div class="stat-val" id="stat-active-profile" style="font-size: 1.3rem; margin-top: 18px;">...</div>
             </div>
             <div class="glass-card">
-                <div class="stat-label">Active PDF</div>
+                <div class="stat-label">Active Primary Knowledge</div>
                 <div class="stat-val" id="stat-active-pdf" style="font-size: 1.3rem; margin-top: 18px;">...</div>
             </div>
         </div>
@@ -633,7 +633,7 @@
                     document.getElementById('stat-active-profile').innerText = "Unavailable";
                 }
 
-                // 3. Fetch Active Knowledge
+                // 3. Fetch active primary knowledge
                 const knowledgeRes = await authenticatedFetch(`/api/knowledge/active?chatbot_id=${selectedBotId}`);
                 if (knowledgeRes.ok) {
                     const knowledge = await knowledgeRes.json();
@@ -757,7 +757,7 @@
                 [profile.ai_provider, profile.model_name].filter(Boolean).join(" / ") || "No model selected"
             );
 
-            setHealthText("health-knowledge-name", knowledge.active ? (knowledge.file_name || "Active") : "No active file");
+            setHealthText("health-knowledge-name", knowledge.active ? (knowledge.file_name || "Active primary") : "No active primary PDF");
             setHealthText(
                 "health-knowledge-meta",
                 [knowledge.processing_status, knowledge.match_status].filter(Boolean).join(" / ") || "Optional"
