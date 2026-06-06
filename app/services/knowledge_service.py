@@ -1,12 +1,17 @@
 import os
+import logging
 from werkzeug.utils import secure_filename
 
 from app.services.settings_service import update_chatbot_runtime
 from app.database.knowledge_file_repository import save_knowledge_file
-from app.database.knowledge_file_repository import delete_knowledge_file_by_name
-from app.database.knowledge_file_repository import set_active_knowledge_file
+from app.database.knowledge_file_repository import delete_knowledge_file_by_id
+from app.database.knowledge_file_repository import get_knowledge_file_by_name_or_id
+from app.database.knowledge_file_repository import set_active_pdf_knowledge_file
 from app.database.knowledge_file_repository import get_knowledge_files
-from app.database.knowledge_file_repository import get_active_knowledge_file
+from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+from app.database.knowledge_file_repository import update_supporting_knowledge_enabled
+from app.database.knowledge_chunk_repository import delete_chunks_by_file_for_chatbot
+from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
 
 DATA_FOLDER = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "data")
@@ -69,9 +74,9 @@ def save_uploaded_pdf(file, chatbot_id):
         pdf_text = "\n".join(lines)
 
         chunks = split_text_into_sections(pdf_text)
-        
+
         logging.info(f"Processing {len(chunks)} chunks for database insertion...")
-        
+
         for idx, chunk in enumerate(chunks):
             embedding = generate_embedding(chunk)
             if embedding:
@@ -88,7 +93,7 @@ def save_uploaded_pdf(file, chatbot_id):
         logging.error(f"Failed to process PDF chunks: {e}")
     # -----------------------------
 
-    set_active_knowledge_file(
+    set_active_pdf_knowledge_file(
         chatbot_id=chatbot_id,
         file_name=safe_name
     )
@@ -103,7 +108,7 @@ def save_uploaded_pdf(file, chatbot_id):
     return {
         "file_name": safe_name,
         "file_path": filepath,
-        "message": f"PDF {safe_name} uploaded and set as draft active"
+        "message": "PDF uploaded and set as primary knowledge."
     }
 
 
@@ -115,6 +120,9 @@ def list_uploaded_pdfs(chatbot_id):
             "file_name": file["file_name"],
             "name": file["file_name"],  # keep both for safety
             "size": file.get("file_size"),
+            "file_type": file.get("file_type") or "pdf",
+            "is_enabled": file.get("is_enabled", True) is not False,
+            "is_active": bool(file.get("is_active")),
             "status": "active" if file.get("is_active") else "available",
         }
         for file in files
@@ -122,7 +130,7 @@ def list_uploaded_pdfs(chatbot_id):
 
 
 def get_active_pdf(chatbot_id):
-    active = get_active_knowledge_file(chatbot_id=chatbot_id)
+    active = get_active_pdf_knowledge_file(chatbot_id=chatbot_id)
 
     if not active:
         return {
@@ -140,48 +148,100 @@ def set_active_pdf(file_name, chatbot_id):
     if not file_name:
         raise ValueError("File name is required")
 
-    # If it is a website URL (or starts with http/https), bypass local file check
-    if file_name.startswith("http://") or file_name.startswith("https://"):
-        set_active_knowledge_file(
-            chatbot_id=chatbot_id,
-            file_name=file_name
-        )
-        update_chatbot_runtime({
-            "draft_pdf_file_name": file_name,
-            "draft_pdf_path": file_name,
-            "last_match_result": None,
-            "last_match_reason": "",
-        }, chatbot_id)
-        return {
-            "file_name": file_name,
-            "file_path": file_name,
-            "message": f"Draft active website set to {file_name}"
-        }
-
     safe_name = secure_filename(file_name)
-    target_path = os.path.join(DATA_FOLDER, safe_name)
-
-    if not os.path.exists(target_path):
-        raise ValueError("File not found")
-
-    relative_pdf_path = os.path.join("data", safe_name)
-
-    set_active_knowledge_file(
-        chatbot_id=chatbot_id,
-        file_name=safe_name
+    knowledge_file = (
+        get_knowledge_file_by_name_or_id(chatbot_id, file_name)
+        or get_knowledge_file_by_name_or_id(chatbot_id, safe_name)
     )
 
+    if not knowledge_file:
+        raise ValueError("Knowledge file not found")
+
+    file_id = knowledge_file.get("id")
+    selected_name = knowledge_file.get("file_name") or file_name
+    selected_path = knowledge_file.get("file_path") or ""
+    file_type = (knowledge_file.get("file_type") or "").lower()
+
+    if file_type == "url":
+        raise ValueError("Website sources are supporting knowledge and cannot be set as the active PDF.")
+
+    if file_type and file_type != "pdf":
+        raise ValueError("Only PDF knowledge sources can be set as the active PDF.")
+
+    chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id) if file_id else []
+
+    if not chunks:
+        logging.warning(
+            "Setting active knowledge file with no chunks for chatbot_id=%s, file_id=%s",
+            chatbot_id,
+            file_id,
+        )
+
+    target_path = selected_path
+    if not target_path or not os.path.isabs(target_path):
+        target_path = os.path.join(DATA_FOLDER, secure_filename(selected_name))
+
+    if not os.path.exists(target_path):
+        logging.warning(
+            "Local knowledge file missing while setting active: chatbot_id=%s, file_id=%s",
+            chatbot_id,
+            file_id,
+        )
+
+    set_active_pdf_knowledge_file(
+        chatbot_id=chatbot_id,
+        file_name=selected_name
+    )
+
+    relative_pdf_path = selected_path or os.path.join("data", secure_filename(selected_name))
+
     update_chatbot_runtime({
-        "draft_pdf_file_name": safe_name,
+        "draft_pdf_file_name": selected_name,
         "draft_pdf_path": relative_pdf_path,
         "last_match_result": None,
         "last_match_reason": "",
     }, chatbot_id)
 
     return {
-        "file_name": safe_name,
+        "file_name": selected_name,
         "file_path": relative_pdf_path,
-        "message": f"Draft active PDF set to {safe_name}"
+        "message": f"Active primary knowledge set to {selected_name}"
+    }
+
+
+def toggle_supporting_knowledge(file_name, is_enabled, chatbot_id):
+    if not file_name:
+        raise ValueError("file_name is required")
+
+    if not isinstance(is_enabled, bool):
+        raise ValueError("is_enabled must be true or false")
+
+    safe_name = secure_filename(file_name)
+    knowledge_file = (
+        get_knowledge_file_by_name_or_id(chatbot_id, file_name)
+        or get_knowledge_file_by_name_or_id(chatbot_id, safe_name)
+    )
+
+    if not knowledge_file:
+        raise ValueError("Knowledge source not found")
+
+    file_type = (knowledge_file.get("file_type") or "").lower()
+    if file_type != "url":
+        raise ValueError("Only supporting website sources can be enabled or disabled.")
+
+    updated = update_supporting_knowledge_enabled(
+        chatbot_id=chatbot_id,
+        file_id=knowledge_file.get("id"),
+        is_enabled=is_enabled,
+    )
+
+    if not updated:
+        raise ValueError("Supporting website source was not updated.")
+
+    return {
+        "file_name": updated.get("file_name") or file_name,
+        "is_enabled": updated.get("is_enabled", is_enabled) is not False,
+        "message": "Supporting website enabled." if is_enabled else "Supporting website disabled."
     }
 
 
@@ -190,17 +250,54 @@ def delete_pdf_file(file_name, chatbot_id):
         raise ValueError("File name is required")
 
     safe_name = secure_filename(file_name)
-    target_path = os.path.join(DATA_FOLDER, safe_name)
+    knowledge_file = (
+        get_knowledge_file_by_name_or_id(chatbot_id, file_name)
+        or get_knowledge_file_by_name_or_id(chatbot_id, safe_name)
+    )
 
-    if os.path.exists(target_path):
-        os.remove(target_path)
+    if not knowledge_file:
+        raise ValueError("Knowledge file not found")
 
-    active = get_active_knowledge_file(chatbot_id=chatbot_id)
-    is_active_file = active and (file_name == active.get("file_name") or safe_name == active.get("file_name"))
+    file_id = knowledge_file.get("id")
+    stored_name = knowledge_file.get("file_name") or file_name
+    stored_path = knowledge_file.get("file_path") or ""
+    active = get_active_pdf_knowledge_file(chatbot_id=chatbot_id)
+    is_active_file = active and active.get("id") == file_id
 
-    delete_knowledge_file_by_name(chatbot_id, file_name)
-    if safe_name != file_name:
-        delete_knowledge_file_by_name(chatbot_id, safe_name)
+    if not file_id:
+        raise ValueError("Knowledge file id is missing")
+
+    delete_chunks_by_file_for_chatbot(chatbot_id, file_id)
+    delete_knowledge_file_by_id(chatbot_id, file_id)
+
+    target_paths = []
+    if stored_path and not stored_path.startswith("http://") and not stored_path.startswith("https://"):
+        target_paths.append(stored_path)
+    target_paths.append(os.path.join(DATA_FOLDER, secure_filename(stored_name)))
+
+    for target_path in dict.fromkeys(target_paths):
+        if not target_path:
+            continue
+
+        if not os.path.isabs(target_path):
+            target_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", target_path))
+
+        try:
+            if os.path.exists(target_path):
+                os.remove(target_path)
+            else:
+                logging.info(
+                    "Local knowledge file already missing for chatbot_id=%s, file_id=%s",
+                    chatbot_id,
+                    file_id,
+                )
+        except Exception as e:
+            logging.error(
+                "Failed to remove local knowledge file for chatbot_id=%s, file_id=%s: %s",
+                chatbot_id,
+                file_id,
+                e,
+            )
 
     if is_active_file:
         update_chatbot_runtime({
@@ -213,8 +310,8 @@ def delete_pdf_file(file_name, chatbot_id):
         }, chatbot_id)
 
     return {
-        "file_name": file_name,
-        "message": f"Resource {file_name} deleted successfully"
+        "file_name": stored_name,
+        "message": f"Resource {stored_name} deleted successfully"
     }
 
 
@@ -311,7 +408,7 @@ def scrape_website_url(url, chatbot_id):
 
     # Save to knowledge_files table
     file_size = len(text_content.encode('utf-8'))
-    
+
     file_record = save_knowledge_file(
         chatbot_id=chatbot_id,
         file_name=url,
@@ -332,9 +429,9 @@ def scrape_website_url(url, chatbot_id):
         from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
         chunks = split_text_into_sections(text_content)
-        
+
         logging.info(f"Processing {len(chunks)} chunks for database insertion...")
-        
+
         for idx, chunk in enumerate(chunks):
             embedding = generate_embedding(chunk)
             if embedding:
@@ -350,22 +447,9 @@ def scrape_website_url(url, chatbot_id):
         import logging
         logging.error(f"Failed to process web chunks: {e}")
 
-    # Set active
-    set_active_knowledge_file(
-        chatbot_id=chatbot_id,
-        file_name=url
-    )
-
-    update_chatbot_runtime({
-        "draft_pdf_file_name": url,
-        "draft_pdf_path": url,
-        "last_match_result": None,
-        "last_match_reason": "",
-    }, chatbot_id)
-
     return {
         "file_name": url,
-        "message": f"Website {url} scraped and set active"
+        "message": "Website saved as supporting knowledge."
     }
 
 
@@ -407,7 +491,7 @@ def discover_website_links(url):
         full_link = urljoin(url, link)
         # Clean query parameters and hash anchors
         full_link = full_link.split('?')[0].split('#')[0].rstrip('/')
-        
+
         parsed_link = urlparse(full_link)
         if parsed_link.netloc == base_domain:
             # Exclude obvious asset files
@@ -439,7 +523,7 @@ def scrape_website_urls_batch(urls, chatbot_id):
         raise ValueError(f"Failed to scrape any of the selected URLs. Errors: {failed_urls}")
 
     combined_text = "\n\n\n\n".join(combined_content_list)
-    
+
     file_name = primary_url
     if len(urls) > 1:
         file_name = f"{primary_url} (+{len(urls) - 1} pages)"
@@ -465,9 +549,9 @@ def scrape_website_urls_batch(urls, chatbot_id):
         from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
         chunks = split_text_into_sections(combined_text)
-        
+
         logging.info(f"Processing {len(chunks)} chunks for database insertion...")
-        
+
         for idx, chunk in enumerate(chunks):
             embedding = generate_embedding(chunk)
             if embedding:
@@ -483,22 +567,9 @@ def scrape_website_urls_batch(urls, chatbot_id):
         import logging
         logging.error(f"Failed to process batch web chunks: {e}")
 
-    # Set active
-    set_active_knowledge_file(
-        chatbot_id=chatbot_id,
-        file_name=file_name
-    )
-
-    update_chatbot_runtime({
-        "draft_pdf_file_name": file_name,
-        "draft_pdf_path": primary_url,
-        "last_match_result": None,
-        "last_match_reason": "",
-    }, chatbot_id)
-
-    msg = f"Website {file_name} scraped successfully."
+    msg = "Website saved as supporting knowledge."
     if failed_urls:
-        msg += f" (Note: Failed to scrape {len(failed_urls)} pages: {', '.join(failed_urls)})"
+        msg += f" Note: Failed to scrape {len(failed_urls)} pages: {', '.join(failed_urls)}"
 
     return {
         "file_name": file_name,
@@ -566,9 +637,9 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
         from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
         chunks = split_text_into_sections(text_content)
-        
+
         logging.info(f"[KnowledgeService] Processing {len(chunks)} chunks for database insertion...")
-        
+
         for idx, chunk in enumerate(chunks):
             embedding = generate_embedding(chunk)
             if embedding:
@@ -584,20 +655,7 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
         import logging
         logging.error(f"Failed to process refined web chunks: {e}")
 
-    # Set active
-    set_active_knowledge_file(
-        chatbot_id=chatbot_id,
-        file_name=file_name
-    )
-
-    update_chatbot_runtime({
-        "draft_pdf_file_name": file_name,
-        "draft_pdf_path": primary_url,
-        "last_match_result": None,
-        "last_match_reason": "",
-    }, chatbot_id)
-
     return {
         "file_name": file_name,
-        "message": f"Website {file_name} scraped, refined, and set active successfully."
-    }
+        "message": "Website saved as supporting knowledge."
+    }

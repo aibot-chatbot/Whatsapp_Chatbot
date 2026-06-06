@@ -10,8 +10,8 @@ from app.services.settings_service import (
     get_deployed_runtime,
 )
 from app.services.profile_service import get_profile_by_name
-from app.database.knowledge_chunk_repository import search_similar_chunks, get_chunks_by_file
-from app.database.knowledge_file_repository import get_active_knowledge_file
+from app.database.knowledge_chunk_repository import search_similar_chunks, get_chunks_by_file_for_chatbot
+from app.database.knowledge_file_repository import get_active_pdf_knowledge_file, get_supporting_knowledge_files
 
 load_dotenv()
 
@@ -358,75 +358,128 @@ def generate_embedding(text):
         return []
 
 
+def _keyword_matches_for_file(query, file_chunks, query_words, limit):
+    scored_chunks = []
+
+    for chunk in file_chunks or []:
+        content = chunk.get("content", "")
+        score = score_chunk(query, query_words, content)
+
+        if score > 0:
+            scored_chunks.append({
+                "content": content,
+                "score": score,
+            })
+
+    scored_chunks = sorted(
+        scored_chunks,
+        key=lambda item: item["score"],
+        reverse=True,
+    )
+
+    return scored_chunks[:limit]
+
+
+def _vector_matches_for_file(chatbot_id, file_id, query_embedding, limit):
+    if not query_embedding or limit <= 0:
+        return []
+
+    results = search_similar_chunks(
+        chatbot_id=chatbot_id,
+        query_embedding=query_embedding,
+        match_threshold=0.45,
+        match_count=limit,
+        file_id=file_id,
+    )
+
+    return results or []
+
+
+def _format_knowledge_chunk(source_label, content):
+    return f"{source_label}:\n{content}"
+
+
 def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
     try:
-        active_file = get_active_knowledge_file(chatbot_id)
-
-        if not active_file:
-            logging.warning(f"No active knowledge file found for chatbot {chatbot_id}.")
-            return []
-
-        active_file_id = active_file.get("id")
-        logging.info(f"Using active knowledge file ID: {active_file_id}")
-
-        # 1. First try keyword/FAQ matching inside active file only
-        file_chunks = get_chunks_by_file(active_file_id)
         query_words = clean_query_words(query)
-
-        scored_chunks = []
-
-        for chunk in file_chunks:
-            content = chunk.get("content", "")
-            score = score_chunk(query, query_words, content)
-
-            if score > 0:
-                scored_chunks.append({
-                    "content": content,
-                    "score": score
-                })
-
-        scored_chunks = sorted(
-            scored_chunks,
-            key=lambda item: item["score"],
-            reverse=True
-        )
-
-        if scored_chunks and scored_chunks[0]["score"] >= 8:
-            logging.info(f"Keyword match found in active file. Top score: {scored_chunks[0]['score']}")
-
-            for idx, item in enumerate(scored_chunks[:top_k], start=1):
-                logging.info(f"Keyword chunk {idx} score: {item['score']}")
-                logging.info(f"Keyword chunk {idx} content: {item['content']}")
-
-            return [item["content"] for item in scored_chunks[:top_k]]
-
-        # 2. If keyword match is not strong, use vector search inside active file only
         query_embedding = generate_embedding(query)
+        context_chunks = []
+        seen_content = set()
 
-        if not query_embedding:
-            logging.warning("Could not generate embedding for query.")
-            return []
+        def add_context(source_label, content):
+            if not content or content in seen_content:
+                return
+            seen_content.add(content)
+            context_chunks.append(_format_knowledge_chunk(source_label, content))
 
-        results = search_similar_chunks(
-            chatbot_id=chatbot_id,
-            query_embedding=query_embedding,
-            match_threshold=0.45,
-            match_count=top_k,
-            file_id=active_file_id
-        )
+        active_pdf = get_active_pdf_knowledge_file(chatbot_id)
 
-        if not results:
-            logging.info("No strong chunk match found via active-file vector search.")
-            return []
+        if active_pdf:
+            active_pdf_id = active_pdf.get("id")
+            logging.info(f"Using active primary PDF knowledge file ID: {active_pdf_id}")
+            pdf_chunks = get_chunks_by_file_for_chatbot(chatbot_id, active_pdf_id)
 
-        logging.info(f"Top chunk similarity: {results[0].get('similarity')}")
+            pdf_keyword_matches = _keyword_matches_for_file(query, pdf_chunks, query_words, top_k)
+            pdf_vector_matches = []
 
-        for idx, res in enumerate(results, start=1):
-            logging.info(f"Retrieved chunk {idx} similarity: {res.get('similarity')}")
-            logging.info(f"Retrieved chunk {idx} content: {res.get('content')}")
+            if len(pdf_keyword_matches) < top_k:
+                pdf_vector_matches = _vector_matches_for_file(
+                    chatbot_id,
+                    active_pdf_id,
+                    query_embedding,
+                    top_k - len(pdf_keyword_matches),
+                )
 
-        return [res.get("content") for res in results]
-    
+            for item in pdf_keyword_matches:
+                add_context("Primary PDF knowledge", item.get("content"))
+
+            for item in pdf_vector_matches:
+                add_context("Primary PDF knowledge", item.get("content"))
+
+            if not context_chunks and pdf_chunks:
+                pdf_fallback_limit = max(1, top_k - 1)
+                for chunk in pdf_chunks[:pdf_fallback_limit]:
+                    add_context("Primary PDF knowledge", chunk.get("content"))
+        else:
+            logging.warning(f"No active primary PDF knowledge file found for chatbot {chatbot_id}.")
+
+        if len(context_chunks) < top_k:
+            supporting_files = get_supporting_knowledge_files(chatbot_id)
+            remaining = top_k - len(context_chunks)
+
+            for supporting_file in supporting_files:
+                if remaining <= 0:
+                    break
+
+                file_id = supporting_file.get("id")
+                if not file_id:
+                    continue
+
+                url_chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+                url_keyword_matches = _keyword_matches_for_file(query, url_chunks, query_words, remaining)
+                url_vector_matches = []
+
+                if len(url_keyword_matches) < remaining:
+                    url_vector_matches = _vector_matches_for_file(
+                        chatbot_id,
+                        file_id,
+                        query_embedding,
+                        remaining - len(url_keyword_matches),
+                    )
+
+                for item in url_keyword_matches:
+                    add_context("Supporting website knowledge", item.get("content"))
+
+                for item in url_vector_matches:
+                    add_context("Supporting website knowledge", item.get("content"))
+
+                remaining = top_k - len(context_chunks)
+
+        if not context_chunks:
+            logging.info("No relevant PDF or supporting website chunks found.")
+
+        return context_chunks[:top_k]
+
     except Exception as e:
         logging.error(f"Retrieve relevant chunks failed: {e}")
         return []
@@ -482,7 +535,7 @@ def build_prompt(history, message, context_chunks, chatbot_id):
     safety_rules = f"""
 Non-negotiable customer service rules:
 1. Act as a professional business customer service assistant for {company_name}.
-2. Use the provided knowledge as the main source for company-specific facts.
+2. Use Primary PDF knowledge as the main source for company-specific facts. Use Supporting website knowledge only when the PDF is missing, outdated, incomplete, or not detailed enough.
 3. Do not invent prices, dates, contacts, policies, registration steps, guarantees, availability, or company facts.
 4. If the answer is not found in the provided knowledge, say politely: "I don’t have that information in the provided company materials. Please contact the team for confirmation."
 5. You may give general helpful answers only for harmless broad questions, not for company-specific facts.
@@ -517,6 +570,7 @@ Customer-configured instructions:
 {custom_prompt}
 
 Provided knowledge:
+Primary PDF knowledge is the main source. Supporting website knowledge may add newer or more detailed context when the PDF does not contain enough information.
 {knowledge_text}
 
 Recent conversation:
@@ -545,6 +599,7 @@ Additional company instructions:
 {additional_instructions if additional_instructions else "None"}
 
 Knowledge provided:
+Primary PDF knowledge is the main source. Supporting website knowledge may add newer or more detailed context when the PDF does not contain enough information.
 {knowledge_text}
 
 Recent conversation:
@@ -556,9 +611,9 @@ User question:
 {safety_rules}
 
 Additional response rules:
-1. Answer using the provided Knowledge first.
+1. Answer using Primary PDF knowledge first.
 2. If the Knowledge contains the answer, answer directly.
-3. Use relevant examples, scenarios, recommendations, prices, schedules, or policies from the Knowledge.
+3. Use Supporting website knowledge only when the PDF does not contain enough detail or appears incomplete.
 4. Do not invent company-specific facts not in the Knowledge.
 5. If the answer is not found in the provided knowledge, use the exact polite unavailable-information response from the non-negotiable rules.
 6. Keep the reply short, clear, and useful.

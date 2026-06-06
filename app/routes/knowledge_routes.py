@@ -7,6 +7,7 @@ from app.services.knowledge_service import (
     delete_pdf_file,
     get_active_pdf,
     set_active_pdf,
+    toggle_supporting_knowledge,
     scrape_website_url,
     discover_website_links,
     scrape_website_urls_batch,
@@ -86,6 +87,60 @@ def set_current_active_pdf():
 
         verify_chatbot_access(chatbot_id)
         result = set_active_pdf(data["file_name"], chatbot_id)
+
+        return jsonify({
+            "status": "success",
+            "data": result
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@knowledge_blueprint.route("/api/knowledge/toggle-support", methods=["POST"])
+@token_required
+def toggle_supporting_knowledge_source():
+    try:
+        data = request.get_json() or {}
+
+        if "file_name" not in data:
+            return jsonify({
+                "status": "error",
+                "message": "file_name is required"
+            }), 400
+
+        if "is_enabled" not in data:
+            return jsonify({
+                "status": "error",
+                "message": "is_enabled is required"
+            }), 400
+
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        result = toggle_supporting_knowledge(
+            file_name=data["file_name"],
+            is_enabled=data["is_enabled"],
+            chatbot_id=chatbot_id,
+        )
 
         return jsonify({
             "status": "success",

@@ -1,5 +1,5 @@
 from app.database.bot_repository import get_bot_by_id
-from app.database.knowledge_file_repository import get_active_knowledge_file
+from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
 from app.database.message_repository import get_message_health_by_chatbot
 from app.database.telegram_channel_repository import get_telegram_channels_by_chatbot
 from app.database.wasender_channel_repository import get_wasender_channels_by_chatbot
@@ -84,7 +84,7 @@ def get_dashboard_health(chatbot_id, company_id):
         active_profile_name and active_profile_name.lower() != "none"
     )
 
-    active_knowledge = get_active_knowledge_file(chatbot_id) or {}
+    active_knowledge = get_active_pdf_knowledge_file(chatbot_id) or {}
     active_knowledge_name = active_knowledge.get("file_name") or ""
     has_active_knowledge = bool(active_knowledge_name)
 

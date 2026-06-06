@@ -631,6 +631,7 @@
             const [customPrompt, setCustomPrompt] = useState("");
 
             const [activePdf, setActivePdf] = useState("");
+            const [supportingWebsites, setSupportingWebsites] = useState([]);
             const [profiles, setProfiles] = useState([]);
             const [profileName, setProfileName] = useState("");
             const [selectedProfile, setSelectedProfile] = useState("");
@@ -645,11 +646,11 @@
             const [currentBotName, setCurrentBotName] = useState("");
 
             const getDeployButtonHint = () => {
-                if (!activePdf) return "Please select an active PDF first.";
+                if (!activePdf) return "Please select active primary knowledge first.";
                 if (!activeProfile) return "Please set an active profile first.";
                 if (!matchResult) return "Please check match first before deploying.";
-                if (!matchResult.match) return "Current profile and PDF do not match. Please fix them before deploying.";
-                return "Deploy the current matched profile and PDF to all connected channels.";
+                if (!matchResult.match) return "Current profile and primary knowledge do not match. Please fix them before deploying.";
+                return "Deploy the current matched profile and primary knowledge to all connected channels.";
             };
 
             const fetchBotInfo = async () => {
@@ -677,6 +678,30 @@
                     }
                 } catch (error) {
                     setActivePdf("");
+                }
+            };
+
+            const getKnowledgeType = (item) => {
+                const explicitType = (item?.file_type || "").toLowerCase();
+                if (explicitType) return explicitType;
+
+                const name = item?.file_name || item?.name || "";
+                return name.startsWith("http://") || name.startsWith("https://") ? "url" : "pdf";
+            };
+
+            const fetchSupportingWebsites = async () => {
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        const websites = (data.data || []).filter((item) => getKnowledgeType(item) === "url");
+                        setSupportingWebsites(websites);
+                    } else {
+                        setSupportingWebsites([]);
+                    }
+                } catch (error) {
+                    setSupportingWebsites([]);
                 }
             };
 
@@ -940,7 +965,7 @@
 
             const handleCheckMatch = async () => {
                 if (!activePdf) {
-                    setSessionStatus({ type: "error", text: "No active PDF selected." });
+                    setSessionStatus({ type: "error", text: "No active primary knowledge selected." });
                     return;
                 }
 
@@ -996,7 +1021,7 @@
 
             const handleDeployToLiveBot = async () => {
                 if (!activePdf) {
-                    setSessionStatus({ type: "error", text: "Please select an active PDF first." });
+                    setSessionStatus({ type: "error", text: "Please select active primary knowledge first." });
                     return;
                 }
 
@@ -1011,7 +1036,7 @@
                 }
 
                 if (!matchResult.match) {
-                    setSessionStatus({ type: "error", text: "Current profile and PDF do not match. Please fix them before deploying." });
+                    setSessionStatus({ type: "error", text: "Current profile and primary knowledge do not match. Please fix them before deploying." });
                     return;
                 }
 
@@ -1029,7 +1054,7 @@
                     const data = await response.json();
 
                     if (data.status === "success") {
-                        setSessionStatus({ type: "success", text: data.message || "Bot deployed successfully. Connected channels will now use this profile and PDF." });
+                        setSessionStatus({ type: "success", text: data.message || "Bot deployed successfully. Connected channels will now use this profile and primary knowledge." });
                         setTimeout(() => {
                             window.location.href = `testbot.html${pageQuery}`;
                         }, 1200);
@@ -1045,10 +1070,13 @@
                 fetchBotInfo();
                 fetchProfiles();
                 fetchActivePdf();
+                fetchSupportingWebsites();
                 fetchActiveProfile();
             }, []);
 
             const matchStatus = getMatchStatusMeta();
+            const enabledSupportingWebsites = supportingWebsites.filter((item) => item.is_enabled !== false);
+            const disabledSupportingWebsites = supportingWebsites.filter((item) => item.is_enabled === false);
 
             return (
                 <>
@@ -1058,7 +1086,7 @@
                         <div className="header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
                             <div>
                                 <h1>Bot Configuration ({currentBotName || "Bot"})</h1>
-                                <p>Manage your active PDF, saved profiles, and live bot setup in one place.</p>
+                                <p>Manage your primary knowledge, supporting websites, saved profiles, and live bot setup in one place.</p>
                             </div>
                             <button
                                 className="btn-primary"
@@ -1197,14 +1225,14 @@
                         <div className="section-card">
                             <div className="section-title">Live Bot Setup</div>
                             <div className="section-subtitle">
-                                Review the active PDF\Knowledge and profile before validating or deploying them to your connected channels.
+                                Review the active primary knowledge, supporting websites, and profile before validating or deploying them to your connected channels.
                             </div>
 
                             <div className="context-grid">
                                 <div className="context-item">
-                                    <div className="context-label">Active Knowledge</div>
+                                    <div className="context-label">Active Primary Knowledge</div>
                                     <div className="context-value" style={{ fontSize: activePdf.length > 25 ? '0.82rem' : '0.98rem' }}>
-                                        {activePdf || "No active Knowledge selected"}
+                                        {activePdf || "No active primary knowledge selected"}
                                     </div>
                                 </div>
 
@@ -1212,6 +1240,30 @@
                                     <div className="context-label">Active Profile</div>
                                     <div className="context-value">
                                         {activeProfile || "No active profile selected"}
+                                    </div>
+                                </div>
+
+                                <div className="context-item" style={{ gridColumn: "1 / -1" }}>
+                                    <div className="context-label">Supporting Websites</div>
+                                    <div className="context-value">
+                                        {enabledSupportingWebsites.length} enabled
+                                        {disabledSupportingWebsites.length > 0 ? ` / ${disabledSupportingWebsites.length} disabled` : ""}
+                                    </div>
+                                    <div style={{ marginTop: "10px", color: "var(--text-dim)", fontSize: "0.86rem", lineHeight: "1.5" }}>
+                                        {enabledSupportingWebsites.length === 0 ? (
+                                            <span>No supporting websites enabled</span>
+                                        ) : (
+                                            <div style={{ display: "grid", gap: "6px" }}>
+                                                {enabledSupportingWebsites.slice(0, 5).map((site, index) => (
+                                                    <div key={index} style={{ wordBreak: "break-all", overflowWrap: "anywhere" }}>
+                                                        {site.file_name || site.name || "Supporting website"}
+                                                    </div>
+                                                ))}
+                                                {enabledSupportingWebsites.length > 5 && (
+                                                    <div>+{enabledSupportingWebsites.length - 5} more supporting websites</div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1228,7 +1280,7 @@
                                         disabled={isCheckingMatch}
                                         style={{ width: "auto", minWidth: "230px" }}
                                     >
-                                        {isCheckingMatch ? "Checking Match..." : "Validate PDF & Profile"}
+                                        {isCheckingMatch ? "Checking Match..." : "Validate Primary Knowledge & Profile"}
                                     </button>
 
                                     <button
