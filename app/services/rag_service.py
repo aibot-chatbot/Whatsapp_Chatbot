@@ -405,47 +405,66 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
         query_embedding = generate_embedding(query)
         context_chunks = []
         seen_content = set()
-
-        def add_context(source_label, content):
-            if not content or content in seen_content:
-                return
-            seen_content.add(content)
-            context_chunks.append(_format_knowledge_chunk(source_label, content))
+        source_counts = {
+            "pdf": 0,
+            "website": 0,
+        }
 
         active_pdf = get_active_pdf_knowledge_file(chatbot_id)
+        supporting_files = get_supporting_knowledge_files(chatbot_id)
+        has_supporting_websites = bool(supporting_files)
+        pdf_limit = max(1, top_k - 1) if has_supporting_websites else top_k
+
+        logging.info(
+            "[RAG] Enabled supporting websites count for chatbot_id=%s: %s",
+            chatbot_id,
+            len(supporting_files),
+        )
+
+        def add_context(source_key, source_label, content):
+            if not content or content in seen_content:
+                return False
+            seen_content.add(content)
+            context_chunks.append(_format_knowledge_chunk(source_label, content))
+            source_counts[source_key] += 1
+            return True
 
         if active_pdf:
             active_pdf_id = active_pdf.get("id")
-            logging.info(f"Using active primary PDF knowledge file ID: {active_pdf_id}")
+            logging.info("[RAG] Active primary PDF file_id=%s", active_pdf_id)
             pdf_chunks = get_chunks_by_file_for_chatbot(chatbot_id, active_pdf_id)
+            logging.info("[RAG] PDF chunks loaded=%s", len(pdf_chunks))
 
-            pdf_keyword_matches = _keyword_matches_for_file(query, pdf_chunks, query_words, top_k)
+            pdf_keyword_matches = _keyword_matches_for_file(query, pdf_chunks, query_words, pdf_limit)
             pdf_vector_matches = []
 
-            if len(pdf_keyword_matches) < top_k:
+            if len(pdf_keyword_matches) < pdf_limit:
                 pdf_vector_matches = _vector_matches_for_file(
                     chatbot_id,
                     active_pdf_id,
                     query_embedding,
-                    top_k - len(pdf_keyword_matches),
+                    pdf_limit - len(pdf_keyword_matches),
                 )
 
             for item in pdf_keyword_matches:
-                add_context("Primary PDF knowledge", item.get("content"))
+                add_context("pdf", "Primary PDF knowledge", item.get("content"))
 
             for item in pdf_vector_matches:
-                add_context("Primary PDF knowledge", item.get("content"))
+                add_context("pdf", "Primary PDF knowledge", item.get("content"))
 
             if not context_chunks and pdf_chunks:
-                pdf_fallback_limit = max(1, top_k - 1)
+                pdf_fallback_limit = pdf_limit
                 for chunk in pdf_chunks[:pdf_fallback_limit]:
-                    add_context("Primary PDF knowledge", chunk.get("content"))
+                    add_context("pdf", "Primary PDF knowledge", chunk.get("content"))
+
+            logging.info("[RAG] PDF selected count=%s", source_counts["pdf"])
         else:
             logging.warning(f"No active primary PDF knowledge file found for chatbot {chatbot_id}.")
 
-        if len(context_chunks) < top_k:
-            supporting_files = get_supporting_knowledge_files(chatbot_id)
+        if has_supporting_websites:
             remaining = top_k - len(context_chunks)
+            if source_counts["pdf"] == 0:
+                remaining = top_k
 
             for supporting_file in supporting_files:
                 if remaining <= 0:
@@ -456,6 +475,11 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
                     continue
 
                 url_chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+                logging.info(
+                    "[RAG] Supporting website file_id=%s chunks loaded=%s",
+                    file_id,
+                    len(url_chunks),
+                )
                 url_keyword_matches = _keyword_matches_for_file(query, url_chunks, query_words, remaining)
                 url_vector_matches = []
 
@@ -468,15 +492,24 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
                     )
 
                 for item in url_keyword_matches:
-                    add_context("Supporting website knowledge", item.get("content"))
+                    add_context("website", "Supporting website knowledge", item.get("content"))
 
                 for item in url_vector_matches:
-                    add_context("Supporting website knowledge", item.get("content"))
+                    add_context("website", "Supporting website knowledge", item.get("content"))
 
                 remaining = top_k - len(context_chunks)
 
+            logging.info("[RAG] Website selected count=%s", source_counts["website"])
+
         if not context_chunks:
             logging.info("No relevant PDF or supporting website chunks found.")
+
+        logging.info(
+            "[RAG] Final context source mix: pdf=%s website=%s total=%s",
+            source_counts["pdf"],
+            source_counts["website"],
+            len(context_chunks[:top_k]),
+        )
 
         return context_chunks[:top_k]
 

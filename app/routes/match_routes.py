@@ -21,12 +21,21 @@ def check_match():
                 "message": "chatbot_id is required"
             }), 400
 
-        verify_chatbot_access(chatbot_id)
+        access = verify_chatbot_access(chatbot_id)
 
-        result = check_pdf_config_match(profile_name=profile_name, chatbot_id=chatbot_id)
+        result = check_pdf_config_match(
+            profile_name=profile_name,
+            chatbot_id=chatbot_id,
+            company_id=access["company_id"],
+        )
+
+        if result.get("validation_status") == "completed":
+            last_match_result = bool(result.get("match", False))
+        else:
+            last_match_result = None
 
         update_chatbot_runtime({
-            "last_match_result": bool(result.get("match", False)),
+            "last_match_result": last_match_result,
             "last_match_reason": result.get("reason", ""),
         }, chatbot_id)
 

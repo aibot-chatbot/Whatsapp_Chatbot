@@ -313,6 +313,12 @@
             color: #fca5a5;
         }
 
+        .match-result-box.warning {
+            background: rgba(245, 158, 11, 0.08);
+            border-color: rgba(245, 158, 11, 0.35);
+            color: #fcd34d;
+        }
+
         .match-result-title {
             font-size: 13px;
             font-weight: 700;
@@ -649,6 +655,7 @@
                 if (!activePdf) return "Please select active primary knowledge first.";
                 if (!activeProfile) return "Please set an active profile first.";
                 if (!matchResult) return "Please check match first before deploying.";
+                if (matchResult.validation_status === "unavailable" || matchResult.match === null) return "Validation is temporarily unavailable. Please try again before deploying.";
                 if (!matchResult.match) return "Current profile and primary knowledge do not match. Please fix them before deploying.";
                 return "Deploy the current matched profile and primary knowledge to all connected channels.";
             };
@@ -1016,6 +1023,10 @@
                     return { className: "status-success", text: "Ready to Deploy" };
                 }
 
+                if (matchResult.validation_status === "unavailable" || matchResult.match === null) {
+                    return { className: "status-warning", text: "Validation unavailable" };
+                }
+
                 return { className: "status-error", text: "Mismatch detected" };
             };
 
@@ -1032,6 +1043,11 @@
 
                 if (!matchResult) {
                     setSessionStatus({ type: "error", text: "Please check match first before deploying to live bot." });
+                    return;
+                }
+
+                if (matchResult.validation_status === "unavailable" || matchResult.match === null) {
+                    setSessionStatus({ type: "error", text: "Validation is temporarily unavailable. Please try again before deploying." });
                     return;
                 }
 
@@ -1295,7 +1311,7 @@
                             </div>
 
                             {matchResult && (
-                                <div className={`match-result-box ${matchResult.match ? "success" : "error"}`}>
+                                <div className={`match-result-box ${matchResult.match ? "success" : ((matchResult.validation_status === "unavailable" || matchResult.match === null) ? "warning" : "error")}`}>
                                     <div className="match-result-title">
                                         {matchResult.match ? "✅ Validation Result" : "⚠️ Validation Result"}
                                     </div>
