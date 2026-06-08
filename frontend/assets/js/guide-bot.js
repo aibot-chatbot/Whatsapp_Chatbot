@@ -5,6 +5,7 @@ function initGuidanceBot() {
     const botInput = document.getElementById('bot-input');
     const sendBtn = document.getElementById('send-bot-msg');
     const messageArea = document.getElementById('bot-messages');
+    const currentPage = window.location.pathname.split('/').pop() || 'index.html';
 
     if (!botWindow) {
         // If sidebar hasn't rendered yet, try again in 500ms
@@ -12,21 +13,70 @@ function initGuidanceBot() {
         return;
     }
 
+    if (currentPage === 'testbot.html') {
+        document.body.classList.add('guide-offset-chat-input');
+    }
+
+    botWindow.classList.remove('active');
+    botWindow.style.display = 'none';
+    botWindow.setAttribute('aria-hidden', 'true');
+    sessionStorage.removeItem('guidance_bot_open');
+    localStorage.removeItem('guidance_bot_open');
+
+    function isPanelOpen() {
+        return botWindow.classList.contains('active');
+    }
+
+    function ensureInitialGreeting() {
+        if (!messageArea || messageArea.children.length > 0) {
+            return;
+        }
+
+        renderMessage("bot", "Hi! I'm your setup assistant. How can I help you today?");
+    }
+
     // Global Toggle Function
     window.toggleGuidanceBot = () => {
-        botWindow.classList.toggle('active');
-        if (botWindow.classList.contains('active')) {
+        const shouldOpen = !isPanelOpen();
+
+        if (shouldOpen) {
+            botWindow.style.display = 'flex';
+            botWindow.setAttribute('aria-hidden', 'false');
+
+            requestAnimationFrame(() => {
+                botWindow.classList.add('active');
+            });
+
+            ensureInitialGreeting();
             botInput?.focus();
+            return;
         }
+
+        botWindow.classList.remove('active');
+        botWindow.setAttribute('aria-hidden', 'true');
+        setTimeout(() => {
+            if (!isPanelOpen()) {
+                botWindow.style.display = 'none';
+            }
+        }, 400);
     };
 
     botTrigger?.addEventListener('click', window.toggleGuidanceBot);
-    closeBot?.addEventListener('click', () => botWindow.classList.remove('active'));
+    closeBot?.addEventListener('click', () => {
+        botWindow.classList.remove('active');
+        botWindow.setAttribute('aria-hidden', 'true');
+        setTimeout(() => {
+            if (!isPanelOpen()) {
+                botWindow.style.display = 'none';
+            }
+        }, 400);
+    });
 
     // Real-time synchronization event listener
     window.addEventListener('recheckBotStatus', async () => {
         console.log("Rechecking bot status...");
-        if (messageArea) messageArea.classList.add('sync-pulse');
+        const shouldRenderStatus = isPanelOpen();
+        if (shouldRenderStatus && messageArea) messageArea.classList.add('sync-pulse');
 
         const urlParams = new URLSearchParams(window.location.search);
         const botId = urlParams.get("bot_id");
@@ -39,6 +89,11 @@ function initGuidanceBot() {
                 }
             });
             const data = await response.json();
+
+            if (!shouldRenderStatus) {
+                window.guidanceBotStatus = data;
+                return;
+            }
 
             if (data.status === 'online') {
                 renderMessage("bot", `
@@ -86,7 +141,7 @@ function initGuidanceBot() {
         } catch (error) {
             console.error("Sync failed:", error);
         } finally {
-            if (messageArea) messageArea.classList.remove('sync-pulse');
+            if (shouldRenderStatus && messageArea) messageArea.classList.remove('sync-pulse');
         }
     });
 
@@ -238,18 +293,9 @@ function initGuidanceBot() {
         if (e.key === 'Enter') sendMessage();
     });
 
-    // Initial greeting and proactive status check (ONLY if no history)
-    if (!hasHistory && messageArea && messageArea.children.length === 0) {
-        setTimeout(() => {
-            renderMessage("bot", "Hi! I'm your setup assistant. How can I help you today?");
-
-            // Check status immediately to show verification
-            window.dispatchEvent(new CustomEvent('recheckBotStatus'));
-        }, 1000);
-    } else if (hasHistory) {
-        // If we have history, still trigger status check but silently to update UI warnings if needed
-        window.dispatchEvent(new CustomEvent('recheckBotStatus'));
-    }
+    botWindow.classList.remove('active');
+    botWindow.setAttribute('aria-hidden', 'true');
+    botWindow.style.display = 'none';
 }
 
 // Start looking for the bot elements
