@@ -8,8 +8,44 @@ from app.database.analytics_repository import (
     get_recent_history,
     get_message_chart_last_7_days,
 )
+from app.database.agent_action_repository import get_agent_insights_by_chatbot
 
 analytics_blueprint = Blueprint("analytics", __name__)
+
+INSIGHT_SUMMARY_KEYS = {
+    "lead_interest": "follow_up_opportunities",
+    "handoff_request": "needs_staff_attention",
+    "complaint": "negative_feedback",
+    "knowledge_gap": "missing_answers",
+}
+
+INSIGHT_LABELS = {
+    "lead_interest": "Follow-up opportunity detected",
+    "handoff_request": "Customer may need staff attention",
+    "complaint": "Negative feedback detected",
+    "knowledge_gap": "Missing answer detected",
+}
+
+ACTION_NEXT_STEPS = {
+    "answer": "Review if further assistance is needed",
+    "ask_follow_up": "Ask one helpful follow-up question",
+    "create_lead": "Review for business follow-up",
+    "request_handoff": "Team member should follow up",
+    "log_knowledge_gap": "Update PDF or website knowledge",
+    "none": "Review when convenient",
+}
+
+
+def _format_agent_insight_row(row):
+    intent = row.get("intent") or "unknown"
+    action_type = row.get("action_type") or "none"
+
+    return {
+        "label": INSIGHT_LABELS.get(intent, "Follow-up signal detected"),
+        "suggested_next_step": ACTION_NEXT_STEPS.get(action_type, ACTION_NEXT_STEPS["none"]),
+        "confidence": row.get("confidence"),
+        "created_at": row.get("created_at"),
+    }
 
 
 @analytics_blueprint.route("/api/analytics", methods=["GET"])
@@ -166,6 +202,60 @@ def get_dashboard_health_summary():
         return jsonify({
             "status": "success",
             "data": health
+        }), 200
+
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 401
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+@analytics_blueprint.route("/api/agent/insights", methods=["GET"])
+@token_required
+def get_agent_insights():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+
+        insights = get_agent_insights_by_chatbot(chatbot_id, limit=10)
+        raw_summary = insights.get("summary") or {}
+
+        summary = {
+            frontend_key: raw_summary.get(intent, 0)
+            for intent, frontend_key in INSIGHT_SUMMARY_KEYS.items()
+        }
+
+        recent = [
+            _format_agent_insight_row(row)
+            for row in insights.get("recent") or []
+        ]
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "summary": summary,
+                "recent": recent,
+            }
         }), 200
 
     except PermissionError as e:

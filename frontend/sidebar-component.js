@@ -181,6 +181,16 @@ class ChatbotSidebar extends HTMLElement {
                         <i data-lucide="message-square"></i>
                         <span>Conversations</span>
                     </a>
+
+                    <a href="customer_insights.html${botQuery}" class="nav-link">
+                        <i data-lucide="target"></i>
+                        <span>Customer Insights</span>
+                    </a>
+
+                    <a href="reports.html${botQuery}" class="nav-link">
+                        <i data-lucide="bar-chart-3"></i>
+                        <span>Reports</span>
+                    </a>
                     
                     <div class="dropdown-container" id="training-dropdown">
                         <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')">
@@ -242,7 +252,7 @@ class ChatbotSidebar extends HTMLElement {
                 <span>💬</span>
             </div>
 
-            <div id="guide-bot-window" class="guide-bot-window">
+            <div id="guide-bot-window" class="guide-bot-window" style="display: none;" aria-hidden="true">
                 <div class="bot-header">
                     <h3>System Guide</h3>
                     <button id="close-bot" style="background:none; border:none; color:white; cursor:pointer;">✕</button>

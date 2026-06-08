@@ -4,7 +4,7 @@ from app.database.message_repository import get_message_health_by_chatbot
 from app.database.telegram_channel_repository import get_telegram_channels_by_chatbot
 from app.database.wasender_channel_repository import get_wasender_channels_by_chatbot
 from app.database.whatsapp_channel_repository import get_whatsapp_channels_by_chatbot
-from app.services.settings_service import get_deployed_settings_summary
+from app.services.settings_service import get_deployed_settings_summary, get_draft_runtime
 
 
 def _sanitize_error(error):
@@ -76,9 +76,37 @@ def _get_channel_health(chatbot_id):
     }
 
 
+def _format_processing_status(status):
+    status = str(status or "").lower()
+
+    if status == "completed":
+        return "Processed"
+    if status == "processing":
+        return "Processing"
+    if status == "failed":
+        return "Processing failed"
+    if status == "pending":
+        return "Processing pending"
+
+    return status.replace("_", " ").title() if status else ""
+
+
+def _format_validation_status(last_match_result, last_match_reason=""):
+    if last_match_result is True:
+        return "Profile validated"
+    if last_match_result is False:
+        return "Profile mismatch"
+
+    if last_match_reason:
+        return "Validation unavailable"
+
+    return "Validation not checked"
+
+
 def get_dashboard_health(chatbot_id, company_id):
     bot = get_bot_by_id(chatbot_id, company_id) or {}
     settings = get_deployed_settings_summary(chatbot_id)
+    runtime = get_draft_runtime(chatbot_id)
     active_profile_name = settings.get("active_profile") or ""
     has_active_profile = bool(
         active_profile_name and active_profile_name.lower() != "none"
@@ -87,6 +115,12 @@ def get_dashboard_health(chatbot_id, company_id):
     active_knowledge = get_active_pdf_knowledge_file(chatbot_id) or {}
     active_knowledge_name = active_knowledge.get("file_name") or ""
     has_active_knowledge = bool(active_knowledge_name)
+    processing_status = active_knowledge.get("processing_status") or ""
+    processing_label = _format_processing_status(processing_status)
+    validation_label = _format_validation_status(
+        runtime.get("last_match_result"),
+        runtime.get("last_match_reason"),
+    )
 
     channels = _get_channel_health(chatbot_id)
     delivery_health = get_message_health_by_chatbot(chatbot_id)
@@ -119,8 +153,11 @@ def get_dashboard_health(chatbot_id, company_id):
         "knowledge": {
             "active": has_active_knowledge,
             "file_name": active_knowledge_name,
-            "processing_status": active_knowledge.get("processing_status") or "",
+            "processing_status": processing_status,
+            "processing_label": processing_label,
             "match_status": active_knowledge.get("match_status") or "",
+            "validation_status": validation_label,
+            "match_result": runtime.get("last_match_result"),
         },
         "channels": channels,
         "delivery": {
