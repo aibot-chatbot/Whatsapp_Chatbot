@@ -1,114 +1,300 @@
-# Web Scraping Pipeline Overview & Progress Report
+# Website Supporting Knowledge Pipeline Report
 
-This document provides a comprehensive overview of the **Web Ingestion and Scraping Pipeline** implemented in the WhatsApp Chatbot project. It details the existing architecture, directory layout, route mappings, current features, and potential areas of development to continue today.
+This document describes the current website ingestion pipeline in the Flask + Supabase AI chatbot platform.
+
+The knowledge system now separates primary and supporting sources:
+
+- PDF is the primary/main chatbot knowledge source.
+- Website/URL sources are supporting knowledge only.
+- Website sources do not replace the active PDF.
+- Website sources do not update `draft_pdf_file_name` or `draft_pdf_path`.
+- Supporting website sources can be enabled or disabled with `knowledge_files.is_enabled`.
+- RAG searches the active primary PDF first, then uses enabled supporting website chunks when PDF context is missing, incomplete, or not detailed enough.
+- Disabled website sources remain stored but are ignored by RAG.
 
 ---
 
-## 1. Technical Architecture & Data Flow
-
-The scraping pipeline enables administrators to ingest external website pages into the chatbot's knowledge base. Below is the system flow showing how content is discovered, parsed, chunked, embedded, and stored:
+## 1. Current Data Flow
 
 ```mermaid
 graph TD
     A[Frontend: Website URL Input] -->|1. Analyze Request| B(Backend: /api/knowledge/scrape-analyze)
-    B -->|2. HTTP Request / regex| C[Link Discovery: Up to 20 subpages]
-    C -->|3. Subpages list| A
-    A -->|4. Selected URL Batch| D(Backend: /api/knowledge/scrape-batch)
-    D -->|5. Try Jina Reader API| E[jina.ai Scraper]
-    D -->|6. Fallback| F[Static Request + HTML Parser]
-    E -->|Text Content| G[Combine & Clean Content]
-    F -->|Clean Content| G
-    G -->|7. Split Text| H[RAG Chunking Engine]
-    H -->|8. Generate Embeddings| I[Gemini Embedding Model]
-    I -->|9. Insert Chunks| J[(Supabase: knowledge_chunks)]
-    G -->|10. Insert Record| K[(Supabase: knowledge_files)]
-    K -->|11. Set Active| L[Update Chatbot Runtime settings]
+    B -->|2. Fetch HTML and discover links| C[Link Discovery: Up to 20 internal pages]
+    C -->|3. Subpage list| A
+    A -->|4. Selected pages and refined text| D(Backend: /api/knowledge/scrape-extract and /api/knowledge/scrape-embed)
+    D -->|5. Fetch content via Jina Reader or fallback parser| E[Extracted Website Text]
+    E -->|6. Optional AI refinement| F[Refined Business Knowledge Text]
+    F -->|7. Split text into chunks| G[RAG Chunking Engine]
+    G -->|8. Generate embeddings| H[Gemini Embedding Model]
+    H -->|9. Insert chunks| I[(Supabase: knowledge_chunks)]
+    F -->|10. Insert metadata| J[(Supabase: knowledge_files)]
+    J -->|11. file_type=url and is_enabled=true| K[Supporting Website Source]
 ```
 
+Important: website ingestion saves supporting knowledge. It does not call PDF activation logic and does not overwrite chatbot runtime PDF fields.
+
 ---
 
-## 2. Directory Layout & File Mappings
+## 2. File and Module Mapping
 
-All features related to the web scraping and knowledge ingestion pipeline are contained within the following files:
-
-| Layer | File / Path | Key Functions / Responsibilities |
+| Layer | File / Path | Current Responsibility |
 | :--- | :--- | :--- |
-| **Frontend UI** | [new_linkdocs.html](file:///c:/Users/User/Desktop/Part_Time/Whatsapp_Chatbot/frontend/new_linkdocs.html) | Interactive web scraping modals, tab management, check-box based crawler page selection, and ingestion state updates. |
-| **API Routing** | [knowledge_routes.py](file:///c:/Users/User/Desktop/Part_Time/Whatsapp_Chatbot/app/routes/knowledge_routes.py) | Exposes endpoints for listing, adding, setting active, deleting, analyzing, and batch scraping URLs. |
-| **Core Logic** | [knowledge_service.py](file:///c:/Users/User/Desktop/Part_Time/Whatsapp_Chatbot/app/services/knowledge_service.py) | High-level orchestration of crawling, parsing, fallback mechanisms, batching, and chunking integration. |
-| **Chunking & NLP** | [rag_service.py](file:///c:/Users/User/Desktop/Part_Time/Whatsapp_Chatbot/app/services/rag_service.py) | Splits raw text into cohesive Q&A sections or generic text blocks; calls Gemini model `gemini-embedding-2` for 768-dimensional embeddings. |
-| **Database (Files)** | [knowledge_file_repository.py](file:///c:/Users/User/Desktop/Part_Time/Whatsapp_Chatbot/app/database/knowledge_file_repository.py) | Manages rows in `knowledge_files` table (inserting, deleting, setting `is_active` status). |
-| **Database (Chunks)** | [knowledge_chunk_repository.py](file:///c:/Users/User/Desktop/Part_Time/Whatsapp_Chatbot/app/database/knowledge_chunk_repository.py) | Manages vectors/chunks in `knowledge_chunks` table (inserting, deleting, querying vector similarity RPCs). |
+| Frontend UI | `frontend/new_linkdocs.html` | Lets users add a primary PDF, add supporting websites, enable/disable supporting websites, and delete knowledge sources. |
+| Bot Config UI | `frontend/new_prompt.html` | Shows active primary knowledge plus supporting website counts and enabled website names. |
+| Dashboard UI | `frontend/index.html` | Shows active primary knowledge in dashboard and Bot Health. |
+| API Routing | `app/routes/knowledge_routes.py` | Exposes knowledge file listing, active primary PDF, set primary PDF, delete source, website scrape/extract/embed, and supporting website toggle routes. |
+| Core Logic | `app/services/knowledge_service.py` | Handles PDF upload/set-primary/delete and website ingestion/toggle behavior. |
+| RAG Logic | `app/services/rag_service.py` | Retrieves active PDF chunks first, then enabled supporting website chunks. |
+| Database: Files | `app/database/knowledge_file_repository.py` | Manages `knowledge_files`, active PDF helpers, supporting website helpers, and `is_enabled` updates. |
+| Database: Chunks | `app/database/knowledge_chunk_repository.py` | Manages `knowledge_chunks`, including chatbot-scoped chunk fetch/delete helpers. |
 
 ---
 
-## 3. Implemented Features & Endpoints
+## 3. Knowledge Source Rules
 
-### A. Web API Endpoints
+### Primary PDF
 
-1. **`POST /api/knowledge/scrape-analyze`**:
-   - **Purpose**: Discovers subpages from a primary domain.
-   - **Method**: Fetches raw HTML of the base URL, parses links sharing the same base domain, ignores asset file patterns (e.g., images, CSS, zip), and returns up to 20 sorted internal subpages.
+PDF rows use:
 
-2. **`POST /api/knowledge/scrape-batch`**:
-   - **Purpose**: Scrapes content from multiple URLs, combines them, chunks them, and runs embedding creation.
-   - **Method**:
-     - Loops through URLs, fetching content for each.
-     - Saves records under `knowledge_files` (stores name as `primary_url (+N pages)`).
-     - Splitting content using `split_text_into_sections()`.
-     - Generates vector embeddings via Gemini APIs.
-     - Saves chunks in `knowledge_chunks` linked to the file record.
-     - Automatically designates the newly scraped URL bundle as the **active** source material for RAG.
+- `knowledge_files.file_type = "pdf"`
+- `knowledge_files.is_active = true` for the active primary PDF
 
-3. **`POST /api/knowledge/scrape`**:
-   - **Purpose**: A simpler, single-URL version of batch scraping.
+The active primary PDF is selected with PDF-specific repository helpers. Setting a PDF as primary deactivates only other PDF rows for the same chatbot.
 
-4. **`GET /api/knowledge/files`**, **`POST /api/knowledge/set-active`**, **`DELETE /api/knowledge/files/<path:file_name>`**:
-   - **Purpose**: Standard file management endpoints that handle both static local PDFs and scraped URLs.
+### Supporting Websites
 
----
+Website rows use:
 
-### B. Dual-Scraping Engine
+- `knowledge_files.file_type = "url"`
+- `knowledge_files.is_enabled = true/false`
 
-The backend implements a highly resilient dual-mode strategy in `fetch_and_parse_url()`:
+Website rows are supporting knowledge only. They are not active primary knowledge and should not use `is_active` for RAG participation.
 
-> [!NOTE]
-> **Priority 1: Jina Reader API (`https://r.jina.ai/{url}`)**
-> - Used first because it evaluates JavaScript and returns clean, stripped markdown suitable for LLMs.
-> - Configured with a 25-second timeout.
->
-> **Priority 2: Native HTML Extractor**
-> - Invoked as a fallback if the Jina API errors out, times out, or returns less than 50 characters.
-> - Fetches static HTML via the `requests` library and uses python's built-in `html.parser.HTMLParser` (`HTMLTextExtractor`) to extract visible text.
-> - Excludes irrelevant page components (e.g., `<script>`, `<style>`, `<header>`, `<footer>`, `<nav>`, `<noscript>`, `<head>`, `<iframe>`).
+Website rows can be:
+
+- enabled, so RAG can use their chunks after PDF context
+- disabled, so they remain stored but are ignored by RAG
+- deleted, which removes their metadata and chunks
 
 ---
 
-### C. UI & UX (Frontend)
+## 4. Current API Endpoints
 
-- **Website Link Tab**: The Add Resource modal includes a "Website Link" tab.
-- **Visual Analyzing Indicator**: Disables inputs and shows a "Finding subpages..." spinner while `/scrape-analyze` processes.
-- **Selective Page Picker**: Lists found subpages with individual checkboxes. Features a "Select All" / "Deselect All" control.
-- **Combined Ingestion Progress**: Submits the batch list to `/scrape-batch` and updates the active file lists on completion.
+### `POST /api/knowledge/scrape-analyze`
+
+Discovers internal pages from a submitted website URL.
+
+Current behavior:
+
+- Fetches raw HTML.
+- Extracts same-domain links.
+- Excludes obvious asset file links.
+- Returns up to 20 discovered pages.
+
+### `POST /api/knowledge/scrape-extract`
+
+Fetches selected pages and extracts/refines business knowledge text.
+
+Current behavior:
+
+- Requires explicit `chatbot_id`.
+- Verifies chatbot access.
+- Parses selected URLs.
+- Returns extracted/refined text for user review.
+
+### `POST /api/knowledge/scrape-embed`
+
+Saves reviewed website knowledge as a supporting source.
+
+Current behavior:
+
+- Saves a `knowledge_files` row with `file_type = "url"`.
+- Saves chunks in `knowledge_chunks`.
+- Sets `is_enabled = true` when the database column exists.
+- Does not set `is_active`.
+- Does not update `draft_pdf_file_name`.
+- Does not update `draft_pdf_path`.
+- Returns a supporting-knowledge message.
+
+### `GET /api/knowledge/files`
+
+Lists knowledge sources for the selected chatbot.
+
+Current behavior:
+
+- Returns PDF and website rows.
+- Includes `file_type`.
+- Includes `is_enabled`.
+- Includes `is_active`.
+
+The frontend uses these fields to show:
+
+- PDF rows as `ACTIVE PRIMARY` or `AVAILABLE`
+- website rows as `SUPPORTING ENABLED` or `SUPPORTING DISABLED`
+
+### `POST /api/knowledge/set-active`
+
+Sets a PDF as the active primary knowledge source.
+
+Current behavior:
+
+- Only allows PDF rows.
+- Rejects website rows.
+- Updates `draft_pdf_file_name` and `draft_pdf_path` only for PDF rows.
+
+### `POST /api/knowledge/toggle-support`
+
+Enables or disables a supporting website source.
+
+Request body:
+
+```json
+{
+  "file_name": "https://example.com",
+  "is_enabled": false
+}
+```
+
+Current behavior:
+
+- Requires explicit `chatbot_id`.
+- Verifies chatbot access.
+- Only allows `file_type = "url"`.
+- Updates `is_enabled`.
+- Does not touch `is_active`.
+
+### `DELETE /api/knowledge/files/<file_name>`
+
+Deletes a PDF or website knowledge source.
+
+Current behavior:
+
+- Resolves the knowledge file by chatbot and name/id.
+- Deletes related chunks by `chatbot_id` and `file_id`.
+- Deletes the `knowledge_files` row.
+- Removes a local file only when a local file path exists.
+- Does not fail the entire delete when the local file is already missing.
 
 ---
 
-## 4. Current Progress & Next Steps (What to Continue Today)
+## 5. Scraping and Extraction
 
-The core ingestion infrastructure is complete and clean. If you want to continue building on this pipeline today, here are several recommended options/improvements:
+The backend uses a two-step extraction strategy in `fetch_and_parse_url()`:
 
-### Option 1: Asynchronous Scraping / Task Queue (Highly Recommended)
-Currently, Flask executes scraping synchronously. If a user tries to scrape 15-20 large web pages, Jina API and fallback requests run sequentially inside the Flask thread. This can exceed Flask's gateway timeouts or lock up the main application.
-* **Proposed Enhancement**: Move `scrape_website_urls_batch` to a background worker or process. Update the UI to poll a status endpoint (`/api/knowledge/scrape/status/<task_id>`) for real-time progress.
+1. Jina Reader API: `https://r.jina.ai/{url}`
+2. Fallback static request + `HTMLTextExtractor`
 
-### Option 2: Add Site Map (.xml) Ingestion Support
-Many enterprise websites have site maps listing all active pages.
-* **Proposed Enhancement**: In `discover_website_links()`, first check if `/sitemap.xml` exists. If yes, parse it to extract high-accuracy urls instantly rather than parsing link tags from the homepage HTML.
+The fallback parser removes common non-content areas such as:
 
-### Option 3: RAG Retrieval Tuning & Vector Threshold settings
-Currently, vector search is capped at a threshold of `0.45` and `top_k=3` in `retrieve_relevant_chunks()`.
-* **Proposed Enhancement**: Provide an admin panel setting or runtime configuration to adjust chunk size (`max_chunk_length`), overlap, similarity threshold, and `top_k` retrieved contexts to test chatbot answer accuracy.
+- script
+- style
+- header
+- footer
+- nav
+- noscript
+- head
+- iframe
 
-### Option 4: Scraped Content Preview & Edit Modal
-Users may want to see exactly what text content was extracted from their pages and manually prune garbage text, cookie banners, or unrelated sidebars.
-* **Proposed Enhancement**: Add a "View Content" modal in [new_linkdocs.html](file:///c:/Users/User/Desktop/Part_Time/Whatsapp_Chatbot/frontend/new_linkdocs.html) that fetches the compiled text for active URLs from the backend database and lets the user edit it.
+The extracted text must contain enough useful content before it can be saved.
+
+---
+
+## 6. RAG Retrieval Behavior
+
+RAG retrieval is handled in `app/services/rag_service.py`.
+
+Current behavior:
+
+1. Load the active primary PDF using `get_active_pdf_knowledge_file(chatbot_id)`.
+2. Retrieve relevant chunks from the active PDF first.
+3. If PDF context is missing or fewer than the requested top-k context slots, load supporting website files using `get_supporting_knowledge_files(chatbot_id)`.
+4. `get_supporting_knowledge_files(chatbot_id)` returns only URL rows where `is_enabled = true`.
+5. Retrieve chunks from enabled supporting website sources.
+6. Disabled supporting websites are ignored.
+
+The prompt labels context as:
+
+- Primary PDF knowledge
+- Supporting website knowledge
+
+This helps the model treat PDF content as the main source and website content as supplemental/latest detail.
+
+---
+
+## 7. Frontend Behavior
+
+### Links / Documents Page
+
+`frontend/new_linkdocs.html` now separates PDF and website behavior:
+
+- PDF rows show `ACTIVE PRIMARY` or `AVAILABLE`.
+- PDF rows can be set as primary.
+- Website rows show `SUPPORTING ENABLED` or `SUPPORTING DISABLED`.
+- Website rows can be enabled or disabled.
+- Website rows can be deleted.
+- Website rows do not show `Set as Primary`.
+
+### Bot Configuration Page
+
+`frontend/new_prompt.html` shows:
+
+- Active Primary Knowledge
+- Active Profile
+- Supporting Websites count
+- Enabled supporting website list
+- Disabled supporting website count when applicable
+
+### Dashboard
+
+`frontend/index.html` shows primary knowledge wording in Bot Health and dashboard cards.
+
+---
+
+## 8. Current Limitations and Future Improvements
+
+### Synchronous Website Processing
+
+Website extraction still runs during the request flow. Large websites or many selected pages may take too long.
+
+Future improvement:
+
+- Move website processing to a background worker.
+- Add a task status table.
+- Let the frontend poll processing status.
+
+### Storage
+
+PDF upload still uses the local `data/` folder for current processing.
+
+Future improvement:
+
+- Move original PDF files to Supabase Storage or S3.
+- Keep Supabase tables as the source of metadata and chunks.
+
+### Content Preview and Editing
+
+The frontend already supports reviewing refined website text before saving. A future enhancement could add a saved-source preview/edit feature for already-ingested website sources.
+
+### Retrieval Tuning
+
+Current RAG retrieval uses fixed chunk and similarity behavior in code.
+
+Future improvement:
+
+- Add admin tuning for `top_k`, similarity threshold, and chunking strategy.
+
+---
+
+## 9. Summary
+
+The website ingestion pipeline is now a supporting-knowledge system. It adds supplemental website knowledge without replacing the active primary PDF.
+
+The current design supports:
+
+- one active primary PDF per chatbot
+- multiple supporting website sources
+- enable/disable control for supporting websites
+- RAG retrieval that prefers PDF knowledge first
+- safe deletion of metadata and chunks
+
+This matches the current product rule for PDF-primary and website-supporting chatbot knowledge.
