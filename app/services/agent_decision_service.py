@@ -56,7 +56,18 @@ def _extract_fields(message):
         flags=re.IGNORECASE,
     )
     if name_match:
-        name = name_match.group(1).strip(" .")
+        possible_name = name_match.group(1).strip(" .")
+        non_name_starters = {
+            "unhappy",
+            "not happy",
+            "dissatisfied",
+            "not satisfied",
+            "angry",
+            "upset",
+            "disappointed",
+        }
+        if not any(possible_name.lower().startswith(term) for term in non_name_starters):
+            name = possible_name
 
     email_match = re.search(
         r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
@@ -174,11 +185,21 @@ def analyze_agent_intent(
         "call me",
     ]
     complaint_terms = [
+        "unhappy",
+        "not happy",
+        "dissatisfied",
+        "not satisfied",
+        "bad service",
+        "poor service",
+        "terrible",
+        "disappointed",
+        "complain",
         "complaint",
         "angry",
         "upset",
-        "disappointed",
-        "bad service",
+        "no one replied",
+        "nobody replied",
+        "service issue",
         "not working",
         "failed",
         "refund",
@@ -228,8 +249,8 @@ def analyze_agent_intent(
         return _decision(
             "complaint",
             "request_handoff",
-            0.78,
-            "Customer message appears to describe a complaint or service issue.",
+            0.8,
+            "Customer message may contain dissatisfaction or service issues.",
             extracted_fields,
         )
 
