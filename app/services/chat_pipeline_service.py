@@ -15,6 +15,7 @@ from app.services.agent_decision_service import (
     analyze_agent_intent,
     build_safe_agent_action_payload,
 )
+from app.services.crm_lead_service import create_crm_lead_from_agent_signal
 
 
 def prepare_chat_prompt(
@@ -62,6 +63,23 @@ def prepare_chat_prompt(
             logging.warning(
                 "[AgentDecision] save failed for chatbot_id=%s: %s",
                 chatbot_id,
+                e,
+            )
+
+        try:
+            create_crm_lead_from_agent_signal(
+                company_id=conversation.get("company_id"),
+                chatbot_id=chatbot_id,
+                conversation=conversation,
+                intent=agent_decision.get("intent", "unknown"),
+                suggested_action=agent_decision.get("suggested_action", "none"),
+                reason=agent_decision.get("reason", ""),
+            )
+        except Exception as e:
+            logging.warning(
+                "[CRM] lead creation failed for chatbot_id=%s conversation_id=%s: %s",
+                chatbot_id,
+                conversation.get("id"),
                 e,
             )
     except Exception as e:

@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM / Leads | AI Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 50px 60px;
+            max-width: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .header {
+            margin-bottom: 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            padding: 24px;
+            border-radius: 24px;
+            transition: all 0.3s;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .status-pill {
+            color: var(--accent);
+            font-weight: 600;
+            padding: 10px 20px;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        .summary-card {
+            background: rgba(15, 23, 42, 0.42);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 18px;
+            min-height: 118px;
+        }
+
+        .summary-label {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+        }
+
+        .summary-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .section-header {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-bottom: 18px;
+        }
+
+        .section-header h2 {
+            font-size: 1.2rem;
+            margin: 0;
+        }
+
+        .section-header p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        .table-wrap {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 920px;
+        }
+
+        th,
+        td {
+            text-align: left;
+            padding: 14px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            vertical-align: top;
+        }
+
+        th {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            font-weight: 600;
+        }
+
+        td {
+            color: var(--text-main);
+            font-size: 0.94rem;
+        }
+
+        .muted {
+            color: var(--text-dim);
+            font-size: 0.86rem;
+            margin-top: 4px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 28px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            background: rgba(59, 130, 246, 0.16);
+            color: #bfdbfe;
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            font-size: 0.82rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .badge.priority-high {
+            background: rgba(239, 68, 68, 0.16);
+            color: #fecaca;
+            border-color: rgba(239, 68, 68, 0.28);
+        }
+
+        .badge.priority-medium {
+            background: rgba(245, 158, 11, 0.16);
+            color: #fde68a;
+            border-color: rgba(245, 158, 11, 0.28);
+        }
+
+        .badge.priority-low {
+            background: rgba(16, 185, 129, 0.14);
+            color: #bbf7d0;
+            border-color: rgba(16, 185, 129, 0.24);
+        }
+
+        .empty-state {
+            color: var(--text-dim);
+            text-align: center;
+            padding: 34px 20px;
+        }
+
+        .empty-state strong {
+            color: var(--text-main);
+            display: block;
+            margin-bottom: 8px;
+            font-size: 1rem;
+        }
+
+        .crm-select,
+        .crm-notes {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.72);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 9px 10px;
+            font: inherit;
+            outline: none;
+        }
+
+        .crm-notes {
+            min-width: 220px;
+            min-height: 74px;
+            resize: vertical;
+        }
+
+        .crm-select:focus,
+        .crm-notes:focus {
+            border-color: rgba(59, 130, 246, 0.65);
+        }
+
+        .save-btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 9px 14px;
+            font-weight: 700;
+            cursor: pointer;
+            min-width: 82px;
+        }
+
+        .view-link {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            text-decoration: none;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 10px;
+            padding: 9px 14px;
+            font-weight: 700;
+            margin-top: 8px;
+            min-width: 140px;
+        }
+
+        .action-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .save-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.68;
+        }
+
+        .save-feedback {
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            margin-top: 8px;
+            min-height: 18px;
+        }
+
+        .save-feedback.success {
+            color: var(--accent);
+        }
+
+        .save-feedback.error {
+            color: var(--danger);
+        }
+
+        .crm-filters {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+            gap: 12px;
+            margin-bottom: 18px;
+            align-items: center;
+        }
+
+        .crm-search {
+            min-width: 240px;
+        }
+
+        .clear-filters-btn {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 10px;
+            padding: 9px 14px;
+            font: inherit;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .main-container {
+                padding: 30px 20px;
+            }
+
+            .header {
+                flex-direction: column;
+            }
+
+            .crm-filters {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <script src="sidebar-component.js"></script>
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container">
+        <div class="header">
+            <div>
+                <h1 id="page-title">CRM / Leads</h1>
+                <p>Manage customer follow-up records detected from chatbot conversations.</p>
+            </div>
+            <div class="glass-card status-pill">
+                <span id="bot-name">Loading bot...</span>
+            </div>
+        </div>
+
+        <div class="summary-grid">
+            <div class="glass-card summary-card">
+                <div class="summary-label">New</div>
+                <div class="summary-value" id="crm-new-count">...</div>
+            </div>
+            <div class="glass-card summary-card">
+                <div class="summary-label">In Progress</div>
+                <div class="summary-value" id="crm-in-progress-count">...</div>
+            </div>
+            <div class="glass-card summary-card">
+                <div class="summary-label">Contacted</div>
+                <div class="summary-value" id="crm-contacted-count">...</div>
+            </div>
+            <div class="glass-card summary-card">
+                <div class="summary-label">Closed</div>
+                <div class="summary-value" id="crm-closed-count">...</div>
+            </div>
+        </div>
+
+        <div class="glass-card">
+            <div class="section-header">
+                <h2>Leads</h2>
+                <p>Customer follow-up records scoped to the selected chatbot.</p>
+            </div>
+            <div class="crm-filters">
+                <select class="crm-select" id="crm-status-filter" aria-label="Filter by status">
+                    <option value="">All Statuses</option>
+                    <option value="new">New</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="closed">Closed</option>
+                </select>
+                <select class="crm-select" id="crm-priority-filter" aria-label="Filter by priority">
+                    <option value="">All Priorities</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+                <select class="crm-select" id="crm-type-filter" aria-label="Filter by type">
+                    <option value="">All Types</option>
+                    <option value="follow_up">Follow-up</option>
+                    <option value="staff_attention">Staff Attention</option>
+                    <option value="negative_feedback">Negative Feedback</option>
+                </select>
+                <input
+                    class="crm-select crm-search"
+                    id="crm-search-input"
+                    type="search"
+                    placeholder="Search customer, reason, notes, or source..."
+                    aria-label="Search CRM leads"
+                >
+                <button type="button" class="clear-filters-btn" id="crm-clear-filters">Clear Filters</button>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Customer</th>
+                            <th>Source</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Created At</th>
+                            <th>Notes</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="crm-leads-body">
+                        <tr>
+                            <td colspan="8">
+                                <div class="empty-state">
+                                    <strong>Loading CRM leads...</strong>
+                                    <span>Checking customer follow-up records.</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        requireLogin();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `crm.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            selectedBotId = storedBotId;
+        }
+
+        if (!selectedBotId) {
+            window.location.href = "bots.html";
+        }
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
+
+        let currentCrmLeads = [];
+
+        document.addEventListener("DOMContentLoaded", () => {
+            if (!selectedBotId) {
+                return;
+            }
+
+            fetchSelectedBot();
+            fetchCrmLeads();
+            setupCrmFilters();
+        });
+
+        function setText(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = String(value ?? "-");
+            }
+        }
+
+        async function fetchSelectedBot() {
+            try {
+                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    alert("You do not have access to this bot.");
+                    window.location.href = "bots.html";
+                    return;
+                }
+
+                const botName = result.data.bot_name || "Selected Bot";
+                document.getElementById("page-title").textContent = `${botName} CRM / Leads`;
+                document.getElementById("bot-name").textContent = botName;
+            } catch (err) {
+                console.error("Failed to fetch selected bot", err);
+                alert("Failed to load bot. Please select a bot again.");
+                window.location.href = "bots.html";
+            }
+        }
+
+        function normalizeStatus(status) {
+            return String(status || "").toLowerCase().replace(/\s+/g, "_");
+        }
+
+        function formatLabel(value) {
+            const text = String(value || "").replace(/_/g, " ").trim();
+
+            if (!text) {
+                return "-";
+            }
+
+            return text.replace(/\b\w/g, ch => ch.toUpperCase());
+        }
+
+        function formatDate(value) {
+            if (!value) {
+                return "-";
+            }
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return "-";
+            }
+
+            return date.toLocaleString();
+        }
+
+        function setCrmLoading() {
+            setText("crm-new-count", "...");
+            setText("crm-in-progress-count", "...");
+            setText("crm-contacted-count", "...");
+            setText("crm-closed-count", "...");
+            renderTableMessage("Loading CRM leads...", "Checking customer follow-up records.");
+        }
+
+        function showCrmError() {
+            setText("crm-new-count", "-");
+            setText("crm-in-progress-count", "-");
+            setText("crm-contacted-count", "-");
+            setText("crm-closed-count", "-");
+            renderTableMessage("Unable to load CRM leads.", "Please try refreshing this page.");
+        }
+
+        function renderTableMessage(title, detail) {
+            const body = document.getElementById("crm-leads-body");
+            body.replaceChildren();
+
+            const row = document.createElement("tr");
+            const cell = document.createElement("td");
+            cell.colSpan = 8;
+
+            const empty = document.createElement("div");
+            empty.className = "empty-state";
+
+            const titleEl = document.createElement("strong");
+            titleEl.textContent = title;
+
+            const detailEl = document.createElement("span");
+            detailEl.textContent = detail || "";
+
+            empty.appendChild(titleEl);
+            empty.appendChild(detailEl);
+            cell.appendChild(empty);
+            row.appendChild(cell);
+            body.appendChild(row);
+        }
+
+        async function fetchCrmLeads() {
+            setCrmLoading();
+
+            try {
+                const response = await authenticatedFetch(`/api/crm/leads?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    showCrmError();
+                    return;
+                }
+
+                const leads = Array.isArray(result.data.leads) ? result.data.leads : [];
+                renderCrmLeads(leads);
+            } catch (err) {
+                console.error("CRM leads failed to fetch", err);
+                showCrmError();
+            }
+        }
+
+        function renderCrmSummary(leads) {
+            const counts = {
+                new: 0,
+                in_progress: 0,
+                contacted: 0,
+                closed: 0,
+            };
+
+            leads.forEach(lead => {
+                const status = normalizeStatus(lead.status);
+                if (Object.prototype.hasOwnProperty.call(counts, status)) {
+                    counts[status] += 1;
+                }
+            });
+
+            setText("crm-new-count", counts.new);
+            setText("crm-in-progress-count", counts.in_progress);
+            setText("crm-contacted-count", counts.contacted);
+            setText("crm-closed-count", counts.closed);
+        }
+
+        function appendTextCell(row, value, className) {
+            const cell = document.createElement("td");
+            if (className) {
+                cell.className = className;
+            }
+            cell.textContent = value || "-";
+            row.appendChild(cell);
+            return cell;
+        }
+
+        function appendBadgeCell(row, value, priorityClass) {
+            const cell = document.createElement("td");
+            const badge = document.createElement("span");
+            badge.className = priorityClass ? `badge ${priorityClass}` : "badge";
+            badge.textContent = formatLabel(value);
+            cell.appendChild(badge);
+            row.appendChild(cell);
+        }
+
+        function setupCrmFilters() {
+            [
+                "crm-status-filter",
+                "crm-priority-filter",
+                "crm-type-filter",
+                "crm-search-input",
+            ].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.addEventListener("input", applyCrmFilters);
+                    el.addEventListener("change", applyCrmFilters);
+                }
+            });
+
+            const clearBtn = document.getElementById("crm-clear-filters");
+            if (clearBtn) {
+                clearBtn.addEventListener("click", clearCrmFilters);
+            }
+        }
+
+        function getFilterValue(id) {
+            const el = document.getElementById(id);
+            return el ? el.value : "";
+        }
+
+        function leadMatchesSearch(lead, query) {
+            if (!query) {
+                return true;
+            }
+
+            const haystack = [
+                lead.customer_name,
+                lead.customer_phone,
+                lead.source_channel,
+                lead.lead_type,
+                lead.summary,
+                lead.notes,
+                lead.status,
+                lead.priority,
+            ].map(value => String(value || "").toLowerCase()).join(" ");
+
+            return haystack.includes(query);
+        }
+
+        function getFilteredCrmLeads() {
+            const statusFilter = getFilterValue("crm-status-filter");
+            const priorityFilter = getFilterValue("crm-priority-filter");
+            const typeFilter = getFilterValue("crm-type-filter");
+            const searchQuery = getFilterValue("crm-search-input").trim().toLowerCase();
+
+            return currentCrmLeads.filter(lead => {
+                const status = normalizeStatus(lead.status);
+                const priority = normalizeStatus(lead.priority);
+                const type = normalizeStatus(lead.lead_type);
+
+                return (
+                    (!statusFilter || status === statusFilter)
+                    && (!priorityFilter || priority === priorityFilter)
+                    && (!typeFilter || type === typeFilter)
+                    && leadMatchesSearch(lead, searchQuery)
+                );
+            });
+        }
+
+        function applyCrmFilters() {
+            renderCrmTable(getFilteredCrmLeads(), true);
+        }
+
+        function clearCrmFilters() {
+            [
+                "crm-status-filter",
+                "crm-priority-filter",
+                "crm-type-filter",
+                "crm-search-input",
+            ].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.value = "";
+                }
+            });
+            renderCrmTable(currentCrmLeads, false);
+        }
+
+        function createStatusSelect(currentStatus) {
+            const select = document.createElement("select");
+            select.className = "crm-select";
+
+            [
+                ["new", "New"],
+                ["in_progress", "In Progress"],
+                ["contacted", "Contacted"],
+                ["closed", "Closed"],
+            ].forEach(([value, label]) => {
+                const option = document.createElement("option");
+                option.value = value;
+                option.textContent = label;
+                if (normalizeStatus(currentStatus) === value) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            });
+
+            return select;
+        }
+
+        function createNotesTextarea(notes) {
+            const textarea = document.createElement("textarea");
+            textarea.className = "crm-notes";
+            textarea.maxLength = 1000;
+            textarea.value = notes || "";
+            return textarea;
+        }
+
+        async function saveCrmLead(leadId, statusSelect, notesInput, button, feedback) {
+            button.disabled = true;
+            button.textContent = "Saving...";
+            feedback.className = "save-feedback";
+            feedback.textContent = "";
+
+            try {
+                const response = await authenticatedFetch(`/api/crm/leads/${leadId}`, {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        chatbot_id: Number(selectedBotId),
+                        status: statusSelect.value,
+                        notes: notesInput.value,
+                    }),
+                });
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success") {
+                    throw new Error(result.message || "Failed to save CRM lead");
+                }
+
+                const updatedLead = result.data && result.data.lead;
+                if (updatedLead) {
+                    currentCrmLeads = currentCrmLeads.map(lead =>
+                        lead.id === updatedLead.id ? updatedLead : lead
+                    );
+                    renderCrmSummary(currentCrmLeads);
+                }
+
+                button.textContent = "Saved";
+                feedback.className = "save-feedback success";
+                feedback.textContent = "Saved";
+                button.disabled = false;
+
+                window.setTimeout(() => {
+                    button.textContent = "Save";
+                    applyCrmFilters();
+                }, 1500);
+            } catch (err) {
+                console.error("CRM lead save failed", err);
+                button.disabled = false;
+                button.textContent = "Save";
+                feedback.className = "save-feedback error";
+                feedback.textContent = "Failed to save";
+            }
+        }
+
+        function renderCrmLeads(leads) {
+            currentCrmLeads = leads;
+            renderCrmSummary(leads);
+            renderCrmTable(leads, false);
+        }
+
+        function renderCrmTable(leads, isFiltered) {
+            const body = document.getElementById("crm-leads-body");
+            body.replaceChildren();
+
+            if (!leads.length) {
+                if (isFiltered && currentCrmLeads.length) {
+                    renderTableMessage(
+                        "No leads match your filters.",
+                        "Try changing the status, priority, type, or search keyword."
+                    );
+                } else {
+                    renderTableMessage(
+                        "No CRM leads yet.",
+                        "Customer follow-up records will appear here when important chatbot signals are converted into leads."
+                    );
+                }
+                return;
+            }
+
+            leads.forEach(lead => {
+                const row = document.createElement("tr");
+
+                const customerCell = document.createElement("td");
+                const customerName = document.createElement("div");
+                customerName.textContent = lead.customer_name || lead.customer_phone || "Unknown customer";
+                customerCell.appendChild(customerName);
+
+                if (lead.customer_name && lead.customer_phone) {
+                    const customerPhone = document.createElement("div");
+                    customerPhone.className = "muted";
+                    customerPhone.textContent = lead.customer_phone;
+                    customerCell.appendChild(customerPhone);
+                }
+
+                row.appendChild(customerCell);
+                appendTextCell(row, formatLabel(lead.source_channel));
+                appendTextCell(row, lead.summary || formatLabel(lead.lead_type));
+
+                const statusCell = document.createElement("td");
+                const statusSelect = createStatusSelect(lead.status);
+                statusCell.appendChild(statusSelect);
+                row.appendChild(statusCell);
+
+                const priority = normalizeStatus(lead.priority);
+                const priorityClass = priority ? `priority-${priority}` : "";
+                appendBadgeCell(row, lead.priority, priorityClass);
+
+                appendTextCell(row, formatDate(lead.created_at));
+
+                const notesCell = document.createElement("td");
+                const notesInput = createNotesTextarea(lead.notes);
+                notesCell.appendChild(notesInput);
+                row.appendChild(notesCell);
+
+                const actionCell = document.createElement("td");
+                const actionStack = document.createElement("div");
+                actionStack.className = "action-stack";
+
+                const saveButton = document.createElement("button");
+                saveButton.type = "button";
+                saveButton.className = "save-btn";
+                saveButton.textContent = "Save";
+
+                const feedback = document.createElement("div");
+                feedback.className = "save-feedback";
+
+                saveButton.addEventListener("click", () => {
+                    saveCrmLead(lead.id, statusSelect, notesInput, saveButton, feedback);
+                });
+
+                actionStack.appendChild(saveButton);
+                actionStack.appendChild(feedback);
+
+                const viewLink = document.createElement("a");
+                viewLink.className = "view-link";
+                viewLink.textContent = "View Conversation";
+                viewLink.href = `conversations.html?bot_id=${encodeURIComponent(selectedBotId)}`;
+
+                if (lead.conversation_id) {
+                    viewLink.title = "Open Conversations and find this related conversation.";
+                } else {
+                    viewLink.title = "No related conversation is linked to this CRM lead yet.";
+                }
+
+                actionStack.appendChild(viewLink);
+                actionCell.appendChild(actionStack);
+                row.appendChild(actionCell);
+
+                body.appendChild(row);
+            });
+        }
+    </script>
+</body>
+
+</html>
