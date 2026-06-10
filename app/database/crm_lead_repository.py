@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timezone
 
 from app.database.db import supabase
@@ -5,7 +6,8 @@ from app.database.db import supabase
 
 SAFE_CRM_LEAD_FIELDS = (
     "id,conversation_id,customer_phone,customer_name,source_channel,"
-    "lead_type,status,priority,summary,notes,created_at,updated_at"
+    "lead_type,status,priority,summary,notes,assigned_to,follow_up_date,"
+    "created_at,updated_at"
 )
 
 OPEN_CRM_LEAD_STATUSES = ["new", "in_progress", "contacted"]
@@ -20,6 +22,7 @@ SIGNAL_SEVERITY_RANK = {
     "staff_attention": 2,
     "negative_feedback": 3,
 }
+_MISSING = object()
 
 
 def _mask_phone(phone):
@@ -47,9 +50,27 @@ def _sanitize_crm_lead(row):
         "priority": row.get("priority") or "",
         "summary": row.get("summary") or "",
         "notes": row.get("notes") or "",
+        "assigned_to": row.get("assigned_to") or "",
+        "follow_up_date": row.get("follow_up_date"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
     }
+
+
+def _normalize_follow_up_date(value):
+    if value is None or value == "":
+        return None
+
+    text = str(value).strip()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        raise ValueError("Invalid follow_up_date format. Use YYYY-MM-DD.")
+
+    try:
+        datetime.strptime(text, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError("Invalid follow_up_date format. Use YYYY-MM-DD.")
+
+    return text
 
 
 def _priority_rank(priority):
@@ -209,7 +230,14 @@ def create_or_update_crm_lead_from_signal(
     )
 
 
-def update_crm_lead_status_notes(chatbot_id, lead_id, status=None, notes=None):
+def update_crm_lead_status_notes(
+    chatbot_id,
+    lead_id,
+    status=None,
+    notes=None,
+    assigned_to=None,
+    follow_up_date=_MISSING,
+):
     update_data = {
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
@@ -222,6 +250,12 @@ def update_crm_lead_status_notes(chatbot_id, lead_id, status=None, notes=None):
 
     if notes is not None:
         update_data["notes"] = str(notes).strip()[:1000]
+
+    if assigned_to is not None:
+        update_data["assigned_to"] = str(assigned_to).strip()[:100]
+
+    if follow_up_date is not _MISSING:
+        update_data["follow_up_date"] = _normalize_follow_up_date(follow_up_date)
 
     result = (
         supabase.table("crm_leads")

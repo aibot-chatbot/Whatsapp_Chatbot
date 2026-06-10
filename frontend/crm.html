@@ -140,7 +140,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            min-width: 920px;
+            min-width: 900px;
         }
 
         th,
@@ -217,6 +217,7 @@
         }
 
         .crm-select,
+        .crm-input,
         .crm-notes {
             width: 100%;
             background: rgba(15, 23, 42, 0.72);
@@ -228,6 +229,10 @@
             outline: none;
         }
 
+        .crm-input {
+            min-width: 150px;
+        }
+
         .crm-notes {
             min-width: 220px;
             min-height: 74px;
@@ -235,6 +240,7 @@
         }
 
         .crm-select:focus,
+        .crm-input:focus,
         .crm-notes:focus {
             border-color: rgba(59, 130, 246, 0.65);
         }
@@ -265,6 +271,18 @@
             min-width: 140px;
         }
 
+        .details-btn {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 10px;
+            padding: 9px 14px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 8px;
+            min-width: 82px;
+        }
+
         .action-stack {
             display: flex;
             flex-direction: column;
@@ -292,15 +310,29 @@
         }
 
         .crm-filters {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(150px, 1fr)) auto;
+            display: flex;
+            flex-direction: column;
             gap: 12px;
             margin-bottom: 18px;
+        }
+
+        .crm-filter-row {
+            display: grid;
+            gap: 12px;
             align-items: center;
         }
 
+        .crm-filter-selects {
+            grid-template-columns: repeat(4, minmax(150px, 1fr));
+        }
+
+        .crm-filter-search-row {
+            grid-template-columns: minmax(0, 1fr) auto;
+        }
+
         .crm-search {
-            min-width: 240px;
+            width: 100%;
+            min-width: 0;
         }
 
         .clear-filters-btn {
@@ -313,6 +345,97 @@
             font-weight: 700;
             cursor: pointer;
             white-space: nowrap;
+        }
+
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.72);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 1000;
+        }
+
+        .modal-backdrop.open {
+            display: flex;
+        }
+
+        .lead-modal {
+            width: min(760px, 100%);
+            max-height: 88vh;
+            overflow-y: auto;
+            background: rgba(15, 23, 42, 0.96);
+            border: 1px solid var(--glass-border);
+            border-radius: 22px;
+            padding: 24px;
+            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.35);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            font-size: 1.35rem;
+            margin-bottom: 4px;
+        }
+
+        .modal-header p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .modal-close {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .lead-detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+
+        .lead-detail-item {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 12px;
+        }
+
+        .lead-detail-label {
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            margin-bottom: 6px;
+        }
+
+        .lead-detail-value {
+            color: var(--text-main);
+            font-size: 0.95rem;
+            word-break: break-word;
+        }
+
+        .modal-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-top: 14px;
         }
 
         @media (max-width: 768px) {
@@ -329,6 +452,15 @@
             }
 
             .crm-filters {
+                gap: 10px;
+            }
+
+            .crm-filter-selects,
+            .crm-filter-search-row {
+                grid-template-columns: 1fr;
+            }
+
+            .lead-detail-grid {
                 grid-template-columns: 1fr;
             }
         }
@@ -375,51 +507,61 @@
                 <p>Customer follow-up records scoped to the selected chatbot.</p>
             </div>
             <div class="crm-filters">
-                <select class="crm-select" id="crm-status-filter" aria-label="Filter by status">
-                    <option value="">All Statuses</option>
-                    <option value="new">New</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="contacted">Contacted</option>
-                    <option value="closed">Closed</option>
-                </select>
-                <select class="crm-select" id="crm-priority-filter" aria-label="Filter by priority">
-                    <option value="">All Priorities</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                </select>
-                <select class="crm-select" id="crm-type-filter" aria-label="Filter by type">
-                    <option value="">All Types</option>
-                    <option value="follow_up">Follow-up</option>
-                    <option value="staff_attention">Staff Attention</option>
-                    <option value="negative_feedback">Negative Feedback</option>
-                </select>
-                <input
-                    class="crm-select crm-search"
-                    id="crm-search-input"
-                    type="search"
-                    placeholder="Search customer, reason, notes, or source..."
-                    aria-label="Search CRM leads"
-                >
-                <button type="button" class="clear-filters-btn" id="crm-clear-filters">Clear Filters</button>
+                <div class="crm-filter-row crm-filter-selects">
+                    <select class="crm-select" id="crm-status-filter" aria-label="Filter by status">
+                        <option value="">All Statuses</option>
+                        <option value="new">New</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <select class="crm-select" id="crm-priority-filter" aria-label="Filter by priority">
+                        <option value="">All Priorities</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <select class="crm-select" id="crm-type-filter" aria-label="Filter by type">
+                        <option value="">All Types</option>
+                        <option value="follow_up">Follow-up</option>
+                        <option value="staff_attention">Staff Attention</option>
+                        <option value="negative_feedback">Negative Feedback</option>
+                    </select>
+                    <select class="crm-select" id="crm-follow-up-filter" aria-label="Filter by follow-up date">
+                        <option value="">All Follow-ups</option>
+                        <option value="today">Due Today</option>
+                        <option value="overdue">Overdue</option>
+                        <option value="upcoming">Upcoming</option>
+                        <option value="none">No Follow-up Date</option>
+                    </select>
+                </div>
+                <div class="crm-filter-row crm-filter-search-row">
+                    <input
+                        class="crm-select crm-search"
+                        id="crm-search-input"
+                        type="search"
+                        placeholder="Search customer, reason, notes, or source..."
+                        aria-label="Search CRM leads"
+                    >
+                    <button type="button" class="clear-filters-btn" id="crm-clear-filters">Clear Filters</button>
+                </div>
             </div>
             <div class="table-wrap">
                 <table>
                     <thead>
                         <tr>
                             <th>Customer</th>
-                            <th>Source</th>
                             <th>Reason</th>
                             <th>Status</th>
                             <th>Priority</th>
-                            <th>Created At</th>
-                            <th>Notes</th>
+                            <th>Assigned To</th>
+                            <th>Follow-up Date</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody id="crm-leads-body">
                         <tr>
-                            <td colspan="8">
+                            <td colspan="7">
                                 <div class="empty-state">
                                     <strong>Loading CRM leads...</strong>
                                     <span>Checking customer follow-up records.</span>
@@ -431,6 +573,26 @@
             </div>
         </div>
     </main>
+
+    <div class="modal-backdrop" id="lead-details-modal" aria-hidden="true">
+        <div class="lead-modal" role="dialog" aria-modal="true" aria-labelledby="lead-modal-title">
+            <div class="modal-header">
+                <div>
+                    <h2 id="lead-modal-title">Lead Details</h2>
+                    <p id="lead-modal-subtitle">Review CRM lead information and notes.</p>
+                </div>
+                <button type="button" class="modal-close" id="lead-modal-close">Close</button>
+            </div>
+            <div class="lead-detail-grid" id="lead-detail-grid"></div>
+            <label class="lead-detail-label" for="lead-modal-notes">Notes</label>
+            <textarea class="crm-notes" id="lead-modal-notes" maxlength="1000"></textarea>
+            <div class="modal-actions">
+                <button type="button" class="save-btn" id="lead-modal-save">Save Notes</button>
+                <a class="view-link" id="lead-modal-view-conversation" href="conversations.html">View Conversation</a>
+                <span class="save-feedback" id="lead-modal-feedback"></span>
+            </div>
+        </div>
+    </div>
 
     <script src="assets/js/auth.js"></script>
     <script>
@@ -456,6 +618,7 @@
         }
 
         let currentCrmLeads = [];
+        let selectedLeadForDetails = null;
 
         document.addEventListener("DOMContentLoaded", () => {
             if (!selectedBotId) {
@@ -465,6 +628,7 @@
             fetchSelectedBot();
             fetchCrmLeads();
             setupCrmFilters();
+            setupLeadDetailsModal();
         });
 
         function setText(id, value) {
@@ -544,7 +708,7 @@
 
             const row = document.createElement("tr");
             const cell = document.createElement("td");
-            cell.colSpan = 8;
+            cell.colSpan = 7;
 
             const empty = document.createElement("div");
             empty.className = "empty-state";
@@ -627,6 +791,7 @@
                 "crm-status-filter",
                 "crm-priority-filter",
                 "crm-type-filter",
+                "crm-follow-up-filter",
                 "crm-search-input",
             ].forEach(id => {
                 const el = document.getElementById(id);
@@ -659,6 +824,8 @@
                 lead.lead_type,
                 lead.summary,
                 lead.notes,
+                lead.assigned_to,
+                lead.follow_up_date,
                 lead.status,
                 lead.priority,
             ].map(value => String(value || "").toLowerCase()).join(" ");
@@ -670,6 +837,7 @@
             const statusFilter = getFilterValue("crm-status-filter");
             const priorityFilter = getFilterValue("crm-priority-filter");
             const typeFilter = getFilterValue("crm-type-filter");
+            const followUpFilter = getFilterValue("crm-follow-up-filter");
             const searchQuery = getFilterValue("crm-search-input").trim().toLowerCase();
 
             return currentCrmLeads.filter(lead => {
@@ -681,6 +849,7 @@
                     (!statusFilter || status === statusFilter)
                     && (!priorityFilter || priority === priorityFilter)
                     && (!typeFilter || type === typeFilter)
+                    && matchesFollowUpFilter(lead.follow_up_date, followUpFilter)
                     && leadMatchesSearch(lead, searchQuery)
                 );
             });
@@ -695,6 +864,7 @@
                 "crm-status-filter",
                 "crm-priority-filter",
                 "crm-type-filter",
+                "crm-follow-up-filter",
                 "crm-search-input",
             ].forEach(id => {
                 const el = document.getElementById(id);
@@ -727,45 +897,113 @@
             return select;
         }
 
-        function createNotesTextarea(notes) {
-            const textarea = document.createElement("textarea");
-            textarea.className = "crm-notes";
-            textarea.maxLength = 1000;
-            textarea.value = notes || "";
-            return textarea;
+        function createAssignedToInput(assignedTo) {
+            const input = document.createElement("input");
+            input.className = "crm-input";
+            input.type = "text";
+            input.maxLength = 100;
+            input.value = assignedTo || "";
+            input.placeholder = "Staff name";
+            return input;
         }
 
-        async function saveCrmLead(leadId, statusSelect, notesInput, button, feedback) {
+        function createFollowUpDateInput(followUpDate) {
+            const input = document.createElement("input");
+            input.className = "crm-input";
+            input.type = "date";
+            input.value = followUpDate || "";
+            return input;
+        }
+
+        function getTodayDateString() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, "0");
+            const day = String(today.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        }
+
+        function matchesFollowUpFilter(followUpDate, filter) {
+            if (!filter) {
+                return true;
+            }
+
+            if (!followUpDate) {
+                return filter === "none";
+            }
+
+            const today = getTodayDateString();
+
+            if (filter === "today") {
+                return followUpDate === today;
+            }
+
+            if (filter === "overdue") {
+                return followUpDate < today;
+            }
+
+            if (filter === "upcoming") {
+                return followUpDate > today;
+            }
+
+            return true;
+        }
+
+        function createConversationHref(lead) {
+            if (lead && lead.conversation_id) {
+                return `conversations.html?bot_id=${encodeURIComponent(selectedBotId)}&conversation_id=${encodeURIComponent(lead.conversation_id)}`;
+            }
+
+            return `conversations.html?bot_id=${encodeURIComponent(selectedBotId)}`;
+        }
+
+        async function patchCrmLead(leadId, payload) {
+            const response = await authenticatedFetch(`/api/crm/leads/${leadId}`, {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+            });
+            const result = await response.json();
+
+            if (!response.ok || result.status !== "success") {
+                throw new Error(result.message || "Failed to save CRM lead");
+            }
+
+            return result.data && result.data.lead;
+        }
+
+        function replaceStoredLead(updatedLead) {
+            if (!updatedLead) {
+                return;
+            }
+
+            currentCrmLeads = currentCrmLeads.map(lead =>
+                lead.id === updatedLead.id ? updatedLead : lead
+            );
+            renderCrmSummary(currentCrmLeads);
+
+            if (selectedLeadForDetails && selectedLeadForDetails.id === updatedLead.id) {
+                selectedLeadForDetails = updatedLead;
+            }
+        }
+
+        async function saveCrmLead(lead, statusSelect, assignedToInput, followUpDateInput, button, feedback) {
             button.disabled = true;
             button.textContent = "Saving...";
             feedback.className = "save-feedback";
             feedback.textContent = "";
 
             try {
-                const response = await authenticatedFetch(`/api/crm/leads/${leadId}`, {
-                    method: "PATCH",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
-                    body: JSON.stringify({
-                        chatbot_id: Number(selectedBotId),
-                        status: statusSelect.value,
-                        notes: notesInput.value,
-                    }),
+                const updatedLead = await patchCrmLead(lead.id, {
+                    chatbot_id: Number(selectedBotId),
+                    status: statusSelect.value,
+                    notes: lead.notes || "",
+                    assigned_to: assignedToInput.value,
+                    follow_up_date: followUpDateInput.value || null,
                 });
-                const result = await response.json();
-
-                if (!response.ok || result.status !== "success") {
-                    throw new Error(result.message || "Failed to save CRM lead");
-                }
-
-                const updatedLead = result.data && result.data.lead;
-                if (updatedLead) {
-                    currentCrmLeads = currentCrmLeads.map(lead =>
-                        lead.id === updatedLead.id ? updatedLead : lead
-                    );
-                    renderCrmSummary(currentCrmLeads);
-                }
+                replaceStoredLead(updatedLead);
 
                 button.textContent = "Saved";
                 feedback.className = "save-feedback success";
@@ -799,7 +1037,7 @@
                 if (isFiltered && currentCrmLeads.length) {
                     renderTableMessage(
                         "No leads match your filters.",
-                        "Try changing the status, priority, type, or search keyword."
+                        "Try changing the status, priority, type, follow-up date, or search keyword."
                     );
                 } else {
                     renderTableMessage(
@@ -826,7 +1064,6 @@
                 }
 
                 row.appendChild(customerCell);
-                appendTextCell(row, formatLabel(lead.source_channel));
                 appendTextCell(row, lead.summary || formatLabel(lead.lead_type));
 
                 const statusCell = document.createElement("td");
@@ -838,12 +1075,15 @@
                 const priorityClass = priority ? `priority-${priority}` : "";
                 appendBadgeCell(row, lead.priority, priorityClass);
 
-                appendTextCell(row, formatDate(lead.created_at));
+                const assignedToCell = document.createElement("td");
+                const assignedToInput = createAssignedToInput(lead.assigned_to);
+                assignedToCell.appendChild(assignedToInput);
+                row.appendChild(assignedToCell);
 
-                const notesCell = document.createElement("td");
-                const notesInput = createNotesTextarea(lead.notes);
-                notesCell.appendChild(notesInput);
-                row.appendChild(notesCell);
+                const followUpCell = document.createElement("td");
+                const followUpDateInput = createFollowUpDateInput(lead.follow_up_date);
+                followUpCell.appendChild(followUpDateInput);
+                row.appendChild(followUpCell);
 
                 const actionCell = document.createElement("td");
                 const actionStack = document.createElement("div");
@@ -858,22 +1098,35 @@
                 feedback.className = "save-feedback";
 
                 saveButton.addEventListener("click", () => {
-                    saveCrmLead(lead.id, statusSelect, notesInput, saveButton, feedback);
+                    saveCrmLead(
+                        lead,
+                        statusSelect,
+                        assignedToInput,
+                        followUpDateInput,
+                        saveButton,
+                        feedback
+                    );
                 });
 
                 actionStack.appendChild(saveButton);
                 actionStack.appendChild(feedback);
 
+                const detailsButton = document.createElement("button");
+                detailsButton.type = "button";
+                detailsButton.className = "details-btn";
+                detailsButton.textContent = "Details";
+                detailsButton.addEventListener("click", () => {
+                    openLeadDetailsModal(lead);
+                });
+                actionStack.appendChild(detailsButton);
+
                 const viewLink = document.createElement("a");
                 viewLink.className = "view-link";
                 viewLink.textContent = "View Conversation";
-                viewLink.href = `conversations.html?bot_id=${encodeURIComponent(selectedBotId)}`;
-
-                if (lead.conversation_id) {
-                    viewLink.title = "Open Conversations and find this related conversation.";
-                } else {
-                    viewLink.title = "No related conversation is linked to this CRM lead yet.";
-                }
+                viewLink.href = createConversationHref(lead);
+                viewLink.title = lead.conversation_id
+                    ? "Open this related conversation."
+                    : "No related conversation is linked to this CRM lead yet.";
 
                 actionStack.appendChild(viewLink);
                 actionCell.appendChild(actionStack);
@@ -881,6 +1134,126 @@
 
                 body.appendChild(row);
             });
+        }
+
+        function setupLeadDetailsModal() {
+            const closeBtn = document.getElementById("lead-modal-close");
+            const modal = document.getElementById("lead-details-modal");
+            const saveBtn = document.getElementById("lead-modal-save");
+
+            if (closeBtn) {
+                closeBtn.addEventListener("click", closeLeadDetailsModal);
+            }
+
+            if (modal) {
+                modal.addEventListener("click", event => {
+                    if (event.target === modal) {
+                        closeLeadDetailsModal();
+                    }
+                });
+            }
+
+            if (saveBtn) {
+                saveBtn.addEventListener("click", saveLeadDetailsNotes);
+            }
+        }
+
+        function appendLeadDetail(label, value) {
+            const grid = document.getElementById("lead-detail-grid");
+            const item = document.createElement("div");
+            item.className = "lead-detail-item";
+
+            const labelEl = document.createElement("div");
+            labelEl.className = "lead-detail-label";
+            labelEl.textContent = label;
+
+            const valueEl = document.createElement("div");
+            valueEl.className = "lead-detail-value";
+            valueEl.textContent = value || "-";
+
+            item.appendChild(labelEl);
+            item.appendChild(valueEl);
+            grid.appendChild(item);
+        }
+
+        function openLeadDetailsModal(lead) {
+            selectedLeadForDetails = lead;
+
+            const modal = document.getElementById("lead-details-modal");
+            const grid = document.getElementById("lead-detail-grid");
+            const notes = document.getElementById("lead-modal-notes");
+            const feedback = document.getElementById("lead-modal-feedback");
+            const viewLink = document.getElementById("lead-modal-view-conversation");
+
+            grid.replaceChildren();
+            feedback.textContent = "";
+            feedback.className = "save-feedback";
+
+            appendLeadDetail("Customer", lead.customer_name || lead.customer_phone || "Unknown customer");
+            appendLeadDetail("Source", formatLabel(lead.source_channel));
+            appendLeadDetail("Reason", lead.summary || formatLabel(lead.lead_type));
+            appendLeadDetail("Lead Type", formatLabel(lead.lead_type));
+            appendLeadDetail("Status", formatLabel(lead.status));
+            appendLeadDetail("Priority", formatLabel(lead.priority));
+            appendLeadDetail("Assigned To", lead.assigned_to || "-");
+            appendLeadDetail("Follow-up Date", lead.follow_up_date || "-");
+            appendLeadDetail("Created At", formatDate(lead.created_at));
+            appendLeadDetail("Updated At", formatDate(lead.updated_at));
+
+            notes.value = lead.notes || "";
+            viewLink.href = createConversationHref(lead);
+            viewLink.title = lead.conversation_id
+                ? "Open this related conversation."
+                : "No related conversation is linked to this CRM lead yet.";
+
+            modal.classList.add("open");
+            modal.setAttribute("aria-hidden", "false");
+        }
+
+        function closeLeadDetailsModal() {
+            const modal = document.getElementById("lead-details-modal");
+            modal.classList.remove("open");
+            modal.setAttribute("aria-hidden", "true");
+            selectedLeadForDetails = null;
+        }
+
+        async function saveLeadDetailsNotes() {
+            if (!selectedLeadForDetails) {
+                return;
+            }
+
+            const saveBtn = document.getElementById("lead-modal-save");
+            const feedback = document.getElementById("lead-modal-feedback");
+            const notes = document.getElementById("lead-modal-notes");
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = "Saving...";
+            feedback.className = "save-feedback";
+            feedback.textContent = "";
+
+            try {
+                const updatedLead = await patchCrmLead(selectedLeadForDetails.id, {
+                    chatbot_id: Number(selectedBotId),
+                    status: selectedLeadForDetails.status,
+                    notes: notes.value,
+                    assigned_to: selectedLeadForDetails.assigned_to || "",
+                    follow_up_date: selectedLeadForDetails.follow_up_date || null,
+                });
+
+                replaceStoredLead(updatedLead);
+                applyCrmFilters();
+
+                saveBtn.textContent = "Save Notes";
+                feedback.className = "save-feedback success";
+                feedback.textContent = "Saved";
+                saveBtn.disabled = false;
+            } catch (err) {
+                console.error("CRM lead notes save failed", err);
+                saveBtn.textContent = "Save Notes";
+                feedback.className = "save-feedback error";
+                feedback.textContent = "Failed to save";
+                saveBtn.disabled = false;
+            }
         }
     </script>
 </body>

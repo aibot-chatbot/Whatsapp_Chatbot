@@ -536,12 +536,14 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const urlBotId = urlParams.get("bot_id");
+        const urlConversationId = urlParams.get("conversation_id");
         const storedBotId = sessionStorage.getItem("selectedBotId");
 
         let selectedBotId = urlBotId;
 
         if (!urlBotId && storedBotId) {
-            window.location.href = `conversations.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            const conversationQuery = urlConversationId ? `&conversation_id=${encodeURIComponent(urlConversationId)}` : "";
+            window.location.href = `conversations.html?bot_id=${encodeURIComponent(storedBotId)}${conversationQuery}`;
             selectedBotId = storedBotId;
         }
 
@@ -578,7 +580,7 @@
                     return;
                 }
 
-                document.getElementById("page-title").innerText =
+                document.getElementById("page-title").textContent =
                     `${result.data.bot_name} Conversations`;
 
             } catch (err) {
@@ -588,6 +590,9 @@
 
         function formatTime(isoString) {
             const date = new Date(isoString);
+            if (Number.isNaN(date.getTime())) {
+                return "";
+            }
             const today = new Date();
 
             // If today, show time. Else show date.
@@ -606,61 +611,176 @@
                 if (result.status === "success") {
                     allConversations = result.data;
                     renderConversationList(allConversations);
+                    openLinkedConversationIfPresent();
                 } else {
                     console.error("Failed to fetch conversations:", result.message);
-                    document.getElementById('conversation-list').innerHTML = `
-                        <div class="empty-state" style="color: var(--error);">
-                            Failed to load conversations.
-                        </div>`;
+                    renderConversationListMessage("Failed to load conversations.", true);
                 }
             } catch (err) {
                 console.error("Error fetching conversations:", err);
-                document.getElementById('conversation-list').innerHTML = `
-                    <div class="empty-state" style="color: var(--error); padding: 20px;">
-                        Network error. Did you restart the Python backend server?
-                        <br><br>
-                        (Press Ctrl+C in your terminal and run <b>python run.py</b> again)
-                    </div>`;
+                renderConversationListMessage(
+                    "Network error. Did you restart the Python backend server? Restart it and try again.",
+                    true
+                );
             }
+        }
+
+        function normalizeText(value, fallback = "") {
+            if (value === null || value === undefined) {
+                return fallback;
+            }
+
+            const text = String(value).trim();
+            return text || fallback;
+        }
+
+        function normalizePlatform(value) {
+            return normalizeText(value, "whatsapp").toLowerCase();
+        }
+
+        function getPlatformClass(platform) {
+            return ["whatsapp", "telegram", "wasender"].includes(platform) ? platform : "whatsapp";
+        }
+
+        function getAvatarInitial(name) {
+            return normalizeText(name, "User").charAt(0).toUpperCase() || "U";
+        }
+
+        function renderConversationListMessage(message, isError = false) {
+            const listEl = document.getElementById('conversation-list');
+            listEl.replaceChildren();
+
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+            emptyState.style.padding = '20px';
+            if (isError) {
+                emptyState.style.color = 'var(--error)';
+            }
+            emptyState.textContent = message;
+
+            listEl.appendChild(emptyState);
         }
 
         function renderConversationList(conversations) {
             const listEl = document.getElementById('conversation-list');
+            listEl.replaceChildren();
 
             if (!conversations || conversations.length === 0) {
-                listEl.innerHTML = `
-                    <div class="empty-state" style="padding: 20px;">
-                        No conversations found for this bot.
-                    </div>`;
+                renderConversationListMessage("No conversations found for this bot.");
                 return;
             }
 
-            listEl.innerHTML = conversations.map(conv => {
-                const platform = (conv.source_channel || 'whatsapp').toLowerCase();
-                return `
-                    <div class="conversation-item ${conv.id === activeConversationId ? 'active' : ''}" 
-                         onclick="loadMessages(${conv.id}, '${conv.customer_phone}', '${conv.customer_name || 'User'}')">
-                        <div class="convo-top">
-                            <div class="convo-phone-container">
-                                <span class="convo-phone">${conv.customer_phone}</span>
-                                <span class="platform-badge ${platform}">${platform}</span>
-                            </div>
-                            <span class="convo-time">${formatTime(conv.updated_at)}</span>
-                        </div>
-                        <div class="convo-preview">
-                            ${conv.customer_name ? `Name: ${conv.customer_name}` : 'No name provided'}
-                        </div>
-                    </div>
-                `;
-            }).join('');
+            conversations.forEach(conv => {
+                const phone = normalizeText(conv.customer_phone, "Unknown customer");
+                const name = normalizeText(conv.customer_name, "User");
+                const platform = normalizePlatform(conv.source_channel);
+
+                const item = document.createElement('div');
+                item.className = 'conversation-item';
+                if (conv.id === activeConversationId) {
+                    item.classList.add('active');
+                }
+                item.addEventListener('click', () => loadMessages(conv.id, phone, name));
+
+                const top = document.createElement('div');
+                top.className = 'convo-top';
+
+                const phoneContainer = document.createElement('div');
+                phoneContainer.className = 'convo-phone-container';
+
+                const phoneEl = document.createElement('span');
+                phoneEl.className = 'convo-phone';
+                phoneEl.textContent = phone;
+
+                const badge = document.createElement('span');
+                badge.className = `platform-badge ${getPlatformClass(platform)}`;
+                badge.textContent = platform;
+
+                phoneContainer.appendChild(phoneEl);
+                phoneContainer.appendChild(badge);
+
+                const time = document.createElement('span');
+                time.className = 'convo-time';
+                time.textContent = formatTime(conv.updated_at);
+
+                top.appendChild(phoneContainer);
+                top.appendChild(time);
+
+                const preview = document.createElement('div');
+                preview.className = 'convo-preview';
+                preview.textContent = conv.customer_name ? `Name: ${name}` : 'No name provided';
+
+                item.appendChild(top);
+                item.appendChild(preview);
+                listEl.appendChild(item);
+            });
+        }
+
+        function openLinkedConversationIfPresent() {
+            if (!urlConversationId) {
+                return;
+            }
+
+            const linkedConversationId = Number(urlConversationId);
+            if (!Number.isFinite(linkedConversationId)) {
+                showConversationNotice("Related conversation was not found.");
+                return;
+            }
+
+            const conversation = allConversations.find(conv => Number(conv.id) === linkedConversationId);
+
+            if (!conversation) {
+                showConversationNotice("Related conversation was not found.");
+                return;
+            }
+
+            loadMessages(
+                conversation.id,
+                conversation.customer_phone || "",
+                conversation.customer_name || "User"
+            );
+        }
+
+        function showConversationNotice(message) {
+            const chatPane = document.getElementById('chat-pane');
+            chatPane.replaceChildren();
+
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+
+            const icon = document.createElement('i');
+            icon.setAttribute('data-lucide', 'message-circle');
+
+            const heading = document.createElement('h2');
+            heading.textContent = message;
+
+            const body = document.createElement('p');
+            body.textContent = 'Select a conversation from the list to view its chat history.';
+
+            emptyState.appendChild(icon);
+            emptyState.appendChild(heading);
+            emptyState.appendChild(body);
+            chatPane.appendChild(emptyState);
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+        }
+
+        function scrollActiveConversationIntoView() {
+            const activeItem = document.querySelector('.conversation-item.active');
+            if (activeItem && typeof activeItem.scrollIntoView === 'function') {
+                activeItem.scrollIntoView({ block: 'nearest' });
+            }
         }
 
         function filterConversations() {
             const query = document.getElementById('search-input').value.toLowerCase();
             const filtered = allConversations.filter(c => {
-                const matchesQuery = c.customer_phone.toLowerCase().includes(query) ||
-                    (c.customer_name && c.customer_name.toLowerCase().includes(query));
-                const platform = (c.source_channel || 'whatsapp').toLowerCase();
+                const phone = normalizeText(c.customer_phone).toLowerCase();
+                const name = normalizeText(c.customer_name).toLowerCase();
+                const matchesQuery = phone.includes(query) || name.includes(query);
+                const platform = normalizePlatform(c.source_channel);
                 const matchesPlatform = currentPlatform === 'all' || platform === currentPlatform;
                 return matchesQuery && matchesPlatform;
             });
@@ -682,24 +802,9 @@
         async function loadMessages(conversationId, phone, name) {
             activeConversationId = conversationId;
             filterConversations(); // re-render using active filter to update active state
+            scrollActiveConversationIntoView();
 
-            const chatPane = document.getElementById('chat-pane');
-
-            // Show loading state in chat pane
-            chatPane.innerHTML = `
-                <div class="chat-header">
-                    <div class="chat-header-avatar">${name.charAt(0).toUpperCase()}</div>
-                    <div class="chat-header-info">
-                        <h3>${phone}</h3>
-                        <p>${name !== 'User' ? name : 'Loading...'}</p>
-                    </div>
-                </div>
-                <div class="chat-transcript">
-                    <div style="text-align:center; color: var(--text-dim); margin-top: 40px;">
-                        Loading messages...
-                    </div>
-                </div>
-            `;
+            renderChatLoading(phone, name);
 
             try {
                 const response = await authenticatedFetch(`/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
@@ -715,77 +820,144 @@
             }
         }
 
-        function renderMessages(messages, phone, name) {
+        function createChatHeader(phone, name, loading = false) {
+            const header = document.createElement('div');
+            header.className = 'chat-header';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'chat-header-avatar';
+            avatar.textContent = getAvatarInitial(name);
+
+            const info = document.createElement('div');
+            info.className = 'chat-header-info';
+
+            const title = document.createElement('h3');
+            title.textContent = normalizeText(phone, "Unknown customer");
+
+            const subtitle = document.createElement('p');
+            subtitle.textContent = name !== 'User'
+                ? normalizeText(name, "Customer")
+                : (loading ? 'Loading...' : 'Customer');
+
+            info.appendChild(title);
+            info.appendChild(subtitle);
+            header.appendChild(avatar);
+            header.appendChild(info);
+
+            return header;
+        }
+
+        function createTranscriptMessage(message) {
+            const container = document.createElement('div');
+            container.style.textAlign = 'center';
+            container.style.color = 'var(--text-dim)';
+            container.style.marginTop = '40px';
+            container.textContent = message;
+            return container;
+        }
+
+        function renderChatLoading(phone, name) {
             const chatPane = document.getElementById('chat-pane');
+            chatPane.replaceChildren();
 
-            let transcriptHtml = '';
+            const transcript = document.createElement('div');
+            transcript.className = 'chat-transcript';
+            transcript.appendChild(createTranscriptMessage('Loading messages...'));
 
-            if (!messages || messages.length === 0) {
-                transcriptHtml = `
-                    <div style="text-align:center; color: var(--text-dim); margin-top: 40px;">
-                        No messages recorded yet.
-                    </div>`;
-            } else {
-                transcriptHtml = messages.map(msg => {
-                    const isUser = msg.sender_type === "customer";
-                    const rowClass = isUser ? "user" : "bot";
+            chatPane.appendChild(createChatHeader(phone, name, true));
+            chatPane.appendChild(transcript);
+        }
 
-                    const formattedText = msg.message_text
-                        ? msg.message_text.replace(/\n/g, '<br>')
-                        : '[Empty Message]';
+        function appendTextWithLineBreaks(parent, text) {
+            const lines = normalizeText(text, "[Empty Message]").split(/\r?\n/);
+            lines.forEach((line, index) => {
+                if (index > 0) {
+                    parent.appendChild(document.createElement('br'));
+                }
+                parent.appendChild(document.createTextNode(line));
+            });
+        }
 
-                    const deliveryStatus = (msg.delivery_status || '').toLowerCase();
-                    const retryCount = Number(msg.retry_count || 0);
-
-                    let deliveryStatusHtml = '';
-
-                    if (!isUser && deliveryStatus === 'failed') {
-                        deliveryStatusHtml = `<div class="message-delivery-status failed">⚠ Failed to send · Auto retrying</div>`;
-                    }
-
-                    if (!isUser && deliveryStatus === 'retrying') {
-                        deliveryStatusHtml = `<div class="message-delivery-status retrying">↻ Retrying now...</div>`;
-                    }
-
-                    if (!isUser && deliveryStatus === 'sent' && retryCount > 0) {
-                        deliveryStatusHtml = `<div class="message-delivery-status retried">✓ Sent after retry</div>`;
-                    }
-
-                    if (!isUser && deliveryStatus === 'permanent_failed') {
-                        deliveryStatusHtml = `<div class="message-delivery-status failed">⚠ Failed permanently</div>`;
-                    }
-
-                    return `
-                        <div class="message-row ${rowClass}">
-                            <div class="message-bubble">
-                                ${formattedText}
-                                ${deliveryStatusHtml}
-                                <div class="message-time">${formatTime(msg.created_at)}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
+        function createDeliveryStatus(msg, isUser) {
+            if (isUser) {
+                return null;
             }
 
-            chatPane.innerHTML = `
-                <div class="chat-header">
-                    <div class="chat-header-avatar">${name.charAt(0).toUpperCase()}</div>
-                    <div class="chat-header-info">
-                        <h3>${phone}</h3>
-                        <p>${name !== 'User' ? name : 'Customer'}</p>
-                    </div>
-                </div>
-                <div class="chat-transcript" id="chat-transcript">
-                    ${transcriptHtml}
-                </div>
-            `;
+            const deliveryStatus = normalizeText(msg.delivery_status).toLowerCase();
+            const retryCount = Number(msg.retry_count || 0);
+            const status = document.createElement('div');
 
-            // Auto scroll to bottom
+            if (deliveryStatus === 'failed') {
+                status.className = 'message-delivery-status failed';
+                status.textContent = 'Failed to send - Auto retrying';
+                return status;
+            }
+
+            if (deliveryStatus === 'retrying') {
+                status.className = 'message-delivery-status retrying';
+                status.textContent = 'Retrying now...';
+                return status;
+            }
+
+            if (deliveryStatus === 'sent' && retryCount > 0) {
+                status.className = 'message-delivery-status retried';
+                status.textContent = 'Sent after retry';
+                return status;
+            }
+
+            if (deliveryStatus === 'permanent_failed') {
+                status.className = 'message-delivery-status failed';
+                status.textContent = 'Failed permanently';
+                return status;
+            }
+
+            return null;
+        }
+
+        function renderMessages(messages, phone, name) {
+            const chatPane = document.getElementById('chat-pane');
+            chatPane.replaceChildren();
+
+            const transcript = document.createElement('div');
+            transcript.className = 'chat-transcript';
+            transcript.id = 'chat-transcript';
+
+            if (!messages || messages.length === 0) {
+                transcript.appendChild(createTranscriptMessage('No messages recorded yet.'));
+            } else {
+                messages.forEach(msg => {
+                    const isUser = msg.sender_type === "customer";
+                    const row = document.createElement('div');
+                    row.className = `message-row ${isUser ? "user" : "bot"}`;
+
+                    const bubble = document.createElement('div');
+                    bubble.className = 'message-bubble';
+                    appendTextWithLineBreaks(bubble, msg.message_text);
+
+                    const deliveryStatus = createDeliveryStatus(msg, isUser);
+                    if (deliveryStatus) {
+                        bubble.appendChild(deliveryStatus);
+                    }
+
+                    const time = document.createElement('div');
+                    time.className = 'message-time';
+                    time.textContent = formatTime(msg.created_at);
+                    bubble.appendChild(time);
+
+                    row.appendChild(bubble);
+                    transcript.appendChild(row);
+                });
+            }
+
+            chatPane.appendChild(createChatHeader(phone, name));
+            chatPane.appendChild(transcript);
+
             const transcriptEl = document.getElementById('chat-transcript');
             if (transcriptEl) {
                 transcriptEl.scrollTop = transcriptEl.scrollHeight;
             }
         }
+
     </script>
 </body>
 
