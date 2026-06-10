@@ -102,6 +102,22 @@
             min-height: 118px;
         }
 
+        .summary-card.filter-card {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .summary-card.filter-card:focus-visible,
+        .follow-up-chip.filter-chip:focus-visible {
+            outline: 2px solid rgba(59, 130, 246, 0.85);
+            outline-offset: 3px;
+        }
+
+        .summary-card.filter-card.active-filter {
+            border-color: rgba(59, 130, 246, 0.72);
+            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.22), 0 12px 32px rgba(59, 130, 246, 0.12);
+        }
+
         .summary-label {
             color: var(--text-dim);
             font-size: 0.8rem;
@@ -201,6 +217,104 @@
             background: rgba(16, 185, 129, 0.14);
             color: #bbf7d0;
             border-color: rgba(16, 185, 129, 0.24);
+        }
+
+        .follow-up-alerts {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+            margin: -4px 0 18px;
+        }
+
+        .follow-up-alert-label {
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+        }
+
+        .follow-up-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 30px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            color: #cbd5e1;
+            background: rgba(148, 163, 184, 0.1);
+        }
+
+        .follow-up-chip.filter-chip {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .follow-up-chip.filter-chip.active-filter {
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.16);
+            filter: brightness(1.18);
+        }
+
+        .follow-up-chip.danger {
+            color: #fecaca;
+            background: rgba(239, 68, 68, 0.14);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .follow-up-chip.warning {
+            color: #fde68a;
+            background: rgba(245, 158, 11, 0.14);
+            border-color: rgba(245, 158, 11, 0.3);
+        }
+
+        .follow-up-chip.neutral {
+            color: #bfdbfe;
+            background: rgba(59, 130, 246, 0.13);
+            border-color: rgba(59, 130, 246, 0.26);
+        }
+
+        .follow-up-chip.muted {
+            color: #cbd5e1;
+            background: rgba(148, 163, 184, 0.1);
+            border-color: rgba(148, 163, 184, 0.24);
+        }
+
+        .badge.follow-up-overdue {
+            background: rgba(239, 68, 68, 0.16);
+            color: #fecaca;
+            border-color: rgba(239, 68, 68, 0.3);
+            margin-top: 8px;
+        }
+
+        .badge.follow-up-today {
+            background: rgba(245, 158, 11, 0.16);
+            color: #fde68a;
+            border-color: rgba(245, 158, 11, 0.3);
+            margin-top: 8px;
+        }
+
+        .badge.follow-up-upcoming {
+            background: rgba(59, 130, 246, 0.15);
+            color: #bfdbfe;
+            border-color: rgba(59, 130, 246, 0.26);
+            margin-top: 8px;
+        }
+
+        .badge.follow-up-none {
+            background: rgba(148, 163, 184, 0.12);
+            color: #cbd5e1;
+            border-color: rgba(148, 163, 184, 0.24);
+            margin-top: 8px;
+        }
+
+        .follow-up-cell-stack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
         }
 
         .empty-state {
@@ -323,11 +437,11 @@
         }
 
         .crm-filter-selects {
-            grid-template-columns: repeat(4, minmax(150px, 1fr));
+            grid-template-columns: repeat(5, minmax(140px, 1fr));
         }
 
         .crm-filter-search-row {
-            grid-template-columns: minmax(0, 1fr) auto;
+            grid-template-columns: minmax(0, 1fr) minmax(170px, auto) auto;
         }
 
         .crm-search {
@@ -483,19 +597,19 @@
         </div>
 
         <div class="summary-grid">
-            <div class="glass-card summary-card">
+            <div class="glass-card summary-card filter-card" data-status-card="new" role="button" tabindex="0" aria-pressed="false">
                 <div class="summary-label">New</div>
                 <div class="summary-value" id="crm-new-count">...</div>
             </div>
-            <div class="glass-card summary-card">
+            <div class="glass-card summary-card filter-card" data-status-card="in_progress" role="button" tabindex="0" aria-pressed="false">
                 <div class="summary-label">In Progress</div>
                 <div class="summary-value" id="crm-in-progress-count">...</div>
             </div>
-            <div class="glass-card summary-card">
+            <div class="glass-card summary-card filter-card" data-status-card="contacted" role="button" tabindex="0" aria-pressed="false">
                 <div class="summary-label">Contacted</div>
                 <div class="summary-value" id="crm-contacted-count">...</div>
             </div>
-            <div class="glass-card summary-card">
+            <div class="glass-card summary-card filter-card" data-status-card="closed" role="button" tabindex="0" aria-pressed="false">
                 <div class="summary-label">Closed</div>
                 <div class="summary-value" id="crm-closed-count">...</div>
             </div>
@@ -505,6 +619,13 @@
             <div class="section-header">
                 <h2>Leads</h2>
                 <p>Customer follow-up records scoped to the selected chatbot.</p>
+            </div>
+            <div class="follow-up-alerts" aria-label="Follow-up alerts">
+                <span class="follow-up-alert-label">Follow-up alerts:</span>
+                <span class="follow-up-chip filter-chip danger" data-follow-up-chip="overdue" role="button" tabindex="0" aria-pressed="false">Overdue: <span id="crm-overdue-count">...</span></span>
+                <span class="follow-up-chip filter-chip warning" data-follow-up-chip="today" role="button" tabindex="0" aria-pressed="false">Due Today: <span id="crm-due-today-count">...</span></span>
+                <span class="follow-up-chip filter-chip neutral" data-follow-up-chip="upcoming" role="button" tabindex="0" aria-pressed="false">Upcoming: <span id="crm-upcoming-count">...</span></span>
+                <span class="follow-up-chip filter-chip muted" data-assignment-chip="unassigned" role="button" tabindex="0" aria-pressed="false">Unassigned: <span id="crm-unassigned-count">...</span></span>
             </div>
             <div class="crm-filters">
                 <div class="crm-filter-row crm-filter-selects">
@@ -533,6 +654,11 @@
                         <option value="overdue">Overdue</option>
                         <option value="upcoming">Upcoming</option>
                         <option value="none">No Follow-up Date</option>
+                    </select>
+                    <select class="crm-select" id="crm-assignment-filter" aria-label="Filter by assignment">
+                        <option value="">All Assignment</option>
+                        <option value="assigned">Assigned</option>
+                        <option value="unassigned">Unassigned</option>
                     </select>
                 </div>
                 <div class="crm-filter-row crm-filter-search-row">
@@ -628,6 +754,7 @@
             fetchSelectedBot();
             fetchCrmLeads();
             setupCrmFilters();
+            setupCrmQuickFilters();
             setupLeadDetailsModal();
         });
 
@@ -691,6 +818,10 @@
             setText("crm-in-progress-count", "...");
             setText("crm-contacted-count", "...");
             setText("crm-closed-count", "...");
+            setText("crm-overdue-count", "...");
+            setText("crm-due-today-count", "...");
+            setText("crm-upcoming-count", "...");
+            setText("crm-unassigned-count", "...");
             renderTableMessage("Loading CRM leads...", "Checking customer follow-up records.");
         }
 
@@ -699,6 +830,10 @@
             setText("crm-in-progress-count", "-");
             setText("crm-contacted-count", "-");
             setText("crm-closed-count", "-");
+            setText("crm-overdue-count", "-");
+            setText("crm-due-today-count", "-");
+            setText("crm-upcoming-count", "-");
+            setText("crm-unassigned-count", "-");
             renderTableMessage("Unable to load CRM leads.", "Please try refreshing this page.");
         }
 
@@ -753,11 +888,31 @@
                 contacted: 0,
                 closed: 0,
             };
+            const followUpCounts = {
+                overdue: 0,
+                today: 0,
+                upcoming: 0,
+                unassigned: 0,
+            };
 
             leads.forEach(lead => {
                 const status = normalizeStatus(lead.status);
                 if (Object.prototype.hasOwnProperty.call(counts, status)) {
                     counts[status] += 1;
+                }
+
+                const followUpState = getFollowUpState(lead);
+                if (followUpState === "overdue") {
+                    followUpCounts.overdue += 1;
+                }
+                if (followUpState === "today") {
+                    followUpCounts.today += 1;
+                }
+                if (followUpState === "upcoming") {
+                    followUpCounts.upcoming += 1;
+                }
+                if (status !== "closed" && !String(lead.assigned_to || "").trim()) {
+                    followUpCounts.unassigned += 1;
                 }
             });
 
@@ -765,6 +920,10 @@
             setText("crm-in-progress-count", counts.in_progress);
             setText("crm-contacted-count", counts.contacted);
             setText("crm-closed-count", counts.closed);
+            setText("crm-overdue-count", followUpCounts.overdue);
+            setText("crm-due-today-count", followUpCounts.today);
+            setText("crm-upcoming-count", followUpCounts.upcoming);
+            setText("crm-unassigned-count", followUpCounts.unassigned);
         }
 
         function appendTextCell(row, value, className) {
@@ -792,6 +951,7 @@
                 "crm-priority-filter",
                 "crm-type-filter",
                 "crm-follow-up-filter",
+                "crm-assignment-filter",
                 "crm-search-input",
             ].forEach(id => {
                 const el = document.getElementById(id);
@@ -805,6 +965,75 @@
             if (clearBtn) {
                 clearBtn.addEventListener("click", clearCrmFilters);
             }
+        }
+
+        function setFilterValue(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.value = value;
+            }
+        }
+
+        function activateQuickFilter(element, handler) {
+            element.addEventListener("click", handler);
+            element.addEventListener("keydown", event => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handler();
+                }
+            });
+        }
+
+        function setupCrmQuickFilters() {
+            document.querySelectorAll("[data-status-card]").forEach(card => {
+                activateQuickFilter(card, () => {
+                    const value = card.getAttribute("data-status-card");
+                    const current = getFilterValue("crm-status-filter");
+                    setFilterValue("crm-status-filter", current === value ? "" : value);
+                    applyCrmFilters();
+                });
+            });
+
+            document.querySelectorAll("[data-follow-up-chip]").forEach(chip => {
+                activateQuickFilter(chip, () => {
+                    const value = chip.getAttribute("data-follow-up-chip");
+                    const current = getFilterValue("crm-follow-up-filter");
+                    setFilterValue("crm-follow-up-filter", current === value ? "" : value);
+                    applyCrmFilters();
+                });
+            });
+
+            document.querySelectorAll("[data-assignment-chip]").forEach(chip => {
+                activateQuickFilter(chip, () => {
+                    const value = chip.getAttribute("data-assignment-chip");
+                    const current = getFilterValue("crm-assignment-filter");
+                    setFilterValue("crm-assignment-filter", current === value ? "" : value);
+                    applyCrmFilters();
+                });
+            });
+        }
+
+        function updateFilterActiveStates() {
+            const statusFilter = getFilterValue("crm-status-filter");
+            document.querySelectorAll("[data-status-card]").forEach(card => {
+                const isActive = card.getAttribute("data-status-card") === statusFilter;
+                card.classList.toggle("active-filter", isActive);
+                card.setAttribute("aria-pressed", String(isActive));
+            });
+
+            const followUpFilter = getFilterValue("crm-follow-up-filter");
+            document.querySelectorAll("[data-follow-up-chip]").forEach(chip => {
+                const isActive = chip.getAttribute("data-follow-up-chip") === followUpFilter;
+                chip.classList.toggle("active-filter", isActive);
+                chip.setAttribute("aria-pressed", String(isActive));
+            });
+
+            const assignmentFilter = getFilterValue("crm-assignment-filter");
+            document.querySelectorAll("[data-assignment-chip]").forEach(chip => {
+                const isActive = chip.getAttribute("data-assignment-chip") === assignmentFilter;
+                chip.classList.toggle("active-filter", isActive);
+                chip.setAttribute("aria-pressed", String(isActive));
+            });
         }
 
         function getFilterValue(id) {
@@ -838,6 +1067,7 @@
             const priorityFilter = getFilterValue("crm-priority-filter");
             const typeFilter = getFilterValue("crm-type-filter");
             const followUpFilter = getFilterValue("crm-follow-up-filter");
+            const assignmentFilter = getFilterValue("crm-assignment-filter");
             const searchQuery = getFilterValue("crm-search-input").trim().toLowerCase();
 
             return currentCrmLeads.filter(lead => {
@@ -849,7 +1079,8 @@
                     (!statusFilter || status === statusFilter)
                     && (!priorityFilter || priority === priorityFilter)
                     && (!typeFilter || type === typeFilter)
-                    && matchesFollowUpFilter(lead.follow_up_date, followUpFilter)
+                    && matchesFollowUpFilter(lead, followUpFilter)
+                    && matchesAssignmentFilter(lead, assignmentFilter)
                     && leadMatchesSearch(lead, searchQuery)
                 );
             });
@@ -857,6 +1088,7 @@
 
         function applyCrmFilters() {
             renderCrmTable(getFilteredCrmLeads(), true);
+            updateFilterActiveStates();
         }
 
         function clearCrmFilters() {
@@ -865,6 +1097,7 @@
                 "crm-priority-filter",
                 "crm-type-filter",
                 "crm-follow-up-filter",
+                "crm-assignment-filter",
                 "crm-search-input",
             ].forEach(id => {
                 const el = document.getElementById(id);
@@ -873,6 +1106,7 @@
                 }
             });
             renderCrmTable(currentCrmLeads, false);
+            updateFilterActiveStates();
         }
 
         function createStatusSelect(currentStatus) {
@@ -911,7 +1145,7 @@
             const input = document.createElement("input");
             input.className = "crm-input";
             input.type = "date";
-            input.value = followUpDate || "";
+            input.value = normalizeDateValue(followUpDate);
             return input;
         }
 
@@ -923,27 +1157,95 @@
             return `${year}-${month}-${day}`;
         }
 
-        function matchesFollowUpFilter(followUpDate, filter) {
+        function normalizeDateValue(value) {
+            return String(value || "").slice(0, 10);
+        }
+
+        function getFollowUpState(lead) {
+            if (normalizeStatus(lead.status) === "closed") {
+                return "closed";
+            }
+
+            const followUpDate = normalizeDateValue(lead.follow_up_date);
+            if (!followUpDate) {
+                return "none";
+            }
+
+            const today = getTodayDateString();
+            if (followUpDate < today) {
+                return "overdue";
+            }
+            if (followUpDate === today) {
+                return "today";
+            }
+            return "upcoming";
+        }
+
+        function createFollowUpBadge(lead) {
+            const state = getFollowUpState(lead);
+            if (state === "closed") {
+                return null;
+            }
+
+            const badge = document.createElement("span");
+            const badgeConfig = {
+                overdue: ["Overdue", "follow-up-overdue"],
+                today: ["Due Today", "follow-up-today"],
+                upcoming: ["Upcoming", "follow-up-upcoming"],
+                none: ["No Date", "follow-up-none"],
+            };
+            const [label, className] = badgeConfig[state] || badgeConfig.none;
+
+            badge.className = `badge ${className}`;
+            badge.textContent = label;
+            return badge;
+        }
+
+        function matchesFollowUpFilter(lead, filter) {
             if (!filter) {
                 return true;
             }
 
-            if (!followUpDate) {
+            if (normalizeStatus(lead.status) === "closed") {
+                return false;
+            }
+
+            const normalizedFollowUpDate = normalizeDateValue(lead.follow_up_date);
+
+            if (!normalizedFollowUpDate) {
                 return filter === "none";
             }
 
             const today = getTodayDateString();
 
             if (filter === "today") {
-                return followUpDate === today;
+                return normalizedFollowUpDate === today;
             }
 
             if (filter === "overdue") {
-                return followUpDate < today;
+                return normalizedFollowUpDate < today;
             }
 
             if (filter === "upcoming") {
-                return followUpDate > today;
+                return normalizedFollowUpDate > today;
+            }
+
+            return true;
+        }
+
+        function matchesAssignmentFilter(lead, filter) {
+            if (!filter) {
+                return true;
+            }
+
+            const hasAssignee = Boolean(String(lead.assigned_to || "").trim());
+
+            if (filter === "assigned") {
+                return hasAssignee;
+            }
+
+            if (filter === "unassigned") {
+                return !hasAssignee && normalizeStatus(lead.status) !== "closed";
             }
 
             return true;
@@ -1027,6 +1329,7 @@
             currentCrmLeads = leads;
             renderCrmSummary(leads);
             renderCrmTable(leads, false);
+            updateFilterActiveStates();
         }
 
         function renderCrmTable(leads, isFiltered) {
@@ -1081,8 +1384,17 @@
                 row.appendChild(assignedToCell);
 
                 const followUpCell = document.createElement("td");
+                const followUpStack = document.createElement("div");
+                followUpStack.className = "follow-up-cell-stack";
                 const followUpDateInput = createFollowUpDateInput(lead.follow_up_date);
-                followUpCell.appendChild(followUpDateInput);
+                followUpStack.appendChild(followUpDateInput);
+
+                const followUpBadge = createFollowUpBadge(lead);
+                if (followUpBadge) {
+                    followUpStack.appendChild(followUpBadge);
+                }
+
+                followUpCell.appendChild(followUpStack);
                 row.appendChild(followUpCell);
 
                 const actionCell = document.createElement("td");

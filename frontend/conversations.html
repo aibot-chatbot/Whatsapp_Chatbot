@@ -256,6 +256,131 @@
             color: var(--text-dim);
         }
 
+        .chat-header {
+            justify-content: space-between;
+        }
+
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        .chat-header-info {
+            min-width: 0;
+        }
+
+        .chat-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .transcript-btn {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .transcript-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .transcript-feedback {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            min-width: 72px;
+        }
+
+        .transcript-feedback.success {
+            color: var(--accent);
+        }
+
+        .transcript-feedback.error {
+            color: #f87171;
+        }
+
+        .message-search-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding-left: 4px;
+        }
+
+        .message-search-input {
+            width: 180px;
+            background: var(--input-bg);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            outline: none;
+        }
+
+        .message-search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+        }
+
+        .message-search-count {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            min-width: 58px;
+        }
+
+        .message-search-btn {
+            min-width: 42px;
+            padding: 8px 10px;
+        }
+
+        .message-search-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        .message-search-highlight {
+            background: rgba(245, 158, 11, 0.34);
+            color: #fff7ed;
+            border-radius: 4px;
+            padding: 0 2px;
+        }
+
+        .message-row.search-active .message-bubble {
+            outline: 2px solid rgba(245, 158, 11, 0.7);
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
+        }
+
+        @media (max-width: 768px) {
+            .chat-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .chat-header-actions {
+                justify-content: flex-start;
+            }
+
+            .message-search-controls {
+                width: 100%;
+            }
+
+            .message-search-input {
+                width: 100%;
+                flex: 1 1 100%;
+            }
+        }
+
         .chat-transcript {
             flex-grow: 1;
             padding: 24px;
@@ -559,6 +684,15 @@
         let activeConversationId = null;
         let currentPlatform = 'all';
 
+        let currentConversationId = null;
+        let currentConversationPhone = "";
+        let currentConversationName = "";
+        let currentConversationMessages = [];
+        let transcriptFeedbackTimer = null;
+        let currentMessageSearchQuery = "";
+        let currentMessageSearchMatches = [];
+        let currentMessageSearchIndex = -1;
+
         document.addEventListener('DOMContentLoaded', () => {
             if (!selectedBotId) {
                 return;
@@ -799,9 +933,30 @@
             filterConversations();
         }
 
+        function updateConversationUrl(conversationId) {
+            if (!conversationId || !selectedBotId) {
+                return;
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            params.set("bot_id", selectedBotId);
+            params.set("conversation_id", conversationId);
+
+            const newUrl = `${window.location.pathname}?${params.toString()}`;
+            window.history.replaceState({}, "", newUrl);
+        }
+
         async function loadMessages(conversationId, phone, name) {
             activeConversationId = conversationId;
-            filterConversations(); // re-render using active filter to update active state
+            currentConversationId = conversationId;
+            currentConversationPhone = phone || "";
+            currentConversationName = name || "User";
+            currentConversationMessages = [];
+            resetMessageSearchState();
+
+            updateConversationUrl(conversationId);
+
+            filterConversations();
             scrollActiveConversationIntoView();
 
             renderChatLoading(phone, name);
@@ -811,7 +966,8 @@
                 const result = await response.json();
 
                 if (result.status === "success") {
-                    renderMessages(result.data, phone, name);
+                    currentConversationMessages = Array.isArray(result.data) ? result.data : [];
+                    renderMessages(currentConversationMessages, phone, name);
                 } else {
                     console.error("Failed to fetch messages:", result.message);
                 }
@@ -823,6 +979,9 @@
         function createChatHeader(phone, name, loading = false) {
             const header = document.createElement('div');
             header.className = 'chat-header';
+
+            const left = document.createElement('div');
+            left.className = 'chat-header-left';
 
             const avatar = document.createElement('div');
             avatar.className = 'chat-header-avatar';
@@ -841,8 +1000,43 @@
 
             info.appendChild(title);
             info.appendChild(subtitle);
-            header.appendChild(avatar);
-            header.appendChild(info);
+            left.appendChild(avatar);
+            left.appendChild(info);
+            header.appendChild(left);
+
+            if (!loading && currentConversationId) {
+                const actions = document.createElement('div');
+                actions.className = 'chat-header-actions';
+
+                const copyLinkButton = document.createElement('button');
+                copyLinkButton.type = 'button';
+                copyLinkButton.className = 'transcript-btn';
+                copyLinkButton.textContent = 'Copy Link';
+                copyLinkButton.addEventListener('click', copyConversationLinkToClipboard);
+
+                const copyButton = document.createElement('button');
+                copyButton.type = 'button';
+                copyButton.className = 'transcript-btn';
+                copyButton.textContent = 'Copy Transcript';
+                copyButton.addEventListener('click', copyTranscriptToClipboard);
+
+                const downloadButton = document.createElement('button');
+                downloadButton.type = 'button';
+                downloadButton.className = 'transcript-btn';
+                downloadButton.textContent = 'Download .txt';
+                downloadButton.addEventListener('click', downloadTranscriptFile);
+
+                const feedback = document.createElement('span');
+                feedback.className = 'transcript-feedback';
+                feedback.id = 'transcript-feedback';
+
+                actions.appendChild(copyLinkButton);
+                actions.appendChild(copyButton);
+                actions.appendChild(downloadButton);
+                actions.appendChild(feedback);
+                actions.appendChild(createMessageSearchControls());
+                header.appendChild(actions);
+            }
 
             return header;
         }
@@ -854,6 +1048,58 @@
             container.style.marginTop = '40px';
             container.textContent = message;
             return container;
+        }
+
+        function createMessageSearchControls() {
+            const controls = document.createElement('div');
+            controls.className = 'message-search-controls';
+
+            const input = document.createElement('input');
+            input.type = 'search';
+            input.className = 'message-search-input';
+            input.id = 'message-search-input';
+            input.placeholder = 'Search messages...';
+            input.value = currentMessageSearchQuery;
+            input.addEventListener('input', event => {
+                currentMessageSearchQuery = event.target.value.trim();
+                currentMessageSearchIndex = currentMessageSearchQuery ? 0 : -1;
+                renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
+                focusMessageSearchInput();
+            });
+
+            const count = document.createElement('span');
+            count.className = 'message-search-count';
+            count.id = 'message-search-count';
+            count.textContent = '0 results';
+
+            const prevButton = document.createElement('button');
+            prevButton.type = 'button';
+            prevButton.className = 'transcript-btn message-search-btn';
+            prevButton.id = 'message-search-prev';
+            prevButton.textContent = 'Previous';
+            prevButton.addEventListener('click', () => navigateMessageSearch(-1));
+
+            const nextButton = document.createElement('button');
+            nextButton.type = 'button';
+            nextButton.className = 'transcript-btn message-search-btn';
+            nextButton.id = 'message-search-next';
+            nextButton.textContent = 'Next';
+            nextButton.addEventListener('click', () => navigateMessageSearch(1));
+
+            const clearButton = document.createElement('button');
+            clearButton.type = 'button';
+            clearButton.className = 'transcript-btn message-search-btn';
+            clearButton.id = 'message-search-clear';
+            clearButton.textContent = 'Clear';
+            clearButton.addEventListener('click', clearMessageSearch);
+
+            controls.appendChild(input);
+            controls.appendChild(count);
+            controls.appendChild(prevButton);
+            controls.appendChild(nextButton);
+            controls.appendChild(clearButton);
+
+            return controls;
         }
 
         function renderChatLoading(phone, name) {
@@ -876,6 +1122,143 @@
                 }
                 parent.appendChild(document.createTextNode(line));
             });
+        }
+
+        function appendHighlightedLine(parent, line, query) {
+            if (!query) {
+                parent.appendChild(document.createTextNode(line));
+                return;
+            }
+
+            const lowerLine = line.toLowerCase();
+            const lowerQuery = query.toLowerCase();
+            let cursor = 0;
+
+            while (cursor < line.length) {
+                const matchIndex = lowerLine.indexOf(lowerQuery, cursor);
+                if (matchIndex === -1) {
+                    parent.appendChild(document.createTextNode(line.slice(cursor)));
+                    break;
+                }
+
+                if (matchIndex > cursor) {
+                    parent.appendChild(document.createTextNode(line.slice(cursor, matchIndex)));
+                }
+
+                const highlight = document.createElement('span');
+                highlight.className = 'message-search-highlight';
+                highlight.textContent = line.slice(matchIndex, matchIndex + query.length);
+                parent.appendChild(highlight);
+
+                cursor = matchIndex + query.length;
+            }
+        }
+
+        function appendSearchableMessageText(parent, text, query) {
+            const messageText = normalizeText(text, "[Empty Message]");
+            const lines = messageText.split(/\r?\n/);
+
+            lines.forEach((line, index) => {
+                if (index > 0) {
+                    parent.appendChild(document.createElement('br'));
+                }
+                appendHighlightedLine(parent, line, query);
+            });
+        }
+
+        function messageMatchesSearch(msg, query) {
+            if (!query) {
+                return false;
+            }
+
+            return normalizeText(msg.message_text).toLowerCase().includes(query.toLowerCase());
+        }
+
+        function resetMessageSearchState() {
+            currentMessageSearchQuery = "";
+            currentMessageSearchMatches = [];
+            currentMessageSearchIndex = -1;
+        }
+
+        function normalizeMessageSearchIndex() {
+            if (!currentMessageSearchQuery || currentMessageSearchMatches.length === 0) {
+                currentMessageSearchIndex = -1;
+                return;
+            }
+
+            if (currentMessageSearchIndex < 0 || currentMessageSearchIndex >= currentMessageSearchMatches.length) {
+                currentMessageSearchIndex = 0;
+            }
+        }
+
+        function updateActiveMessageMatch() {
+            currentMessageSearchMatches.forEach((row, index) => {
+                row.classList.toggle('search-active', index === currentMessageSearchIndex);
+            });
+        }
+
+        function updateMessageSearchControls() {
+            const count = document.getElementById('message-search-count');
+            const prevButton = document.getElementById('message-search-prev');
+            const nextButton = document.getElementById('message-search-next');
+            const clearButton = document.getElementById('message-search-clear');
+            const resultCount = currentMessageSearchMatches.length;
+            const hasSearch = Boolean(currentMessageSearchQuery);
+            const hasResults = resultCount > 0;
+
+            if (count) {
+                count.textContent = `${resultCount} ${resultCount === 1 ? 'result' : 'results'}`;
+            }
+
+            if (prevButton) {
+                prevButton.disabled = !hasResults;
+            }
+            if (nextButton) {
+                nextButton.disabled = !hasResults;
+            }
+            if (clearButton) {
+                clearButton.disabled = !hasSearch;
+            }
+        }
+
+        function scrollToActiveMessageMatch() {
+            const activeRow = currentMessageSearchMatches[currentMessageSearchIndex];
+            if (activeRow && typeof activeRow.scrollIntoView === 'function') {
+                activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function navigateMessageSearch(direction) {
+            if (!currentMessageSearchMatches.length) {
+                return;
+            }
+
+            currentMessageSearchIndex = (
+                currentMessageSearchIndex + direction + currentMessageSearchMatches.length
+            ) % currentMessageSearchMatches.length;
+
+            updateActiveMessageMatch();
+            updateMessageSearchControls();
+            scrollToActiveMessageMatch();
+        }
+
+        function clearMessageSearch() {
+            resetMessageSearchState();
+            renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
+            focusMessageSearchInput();
+        }
+
+        function focusMessageSearchInput() {
+            const input = document.getElementById('message-search-input');
+            if (!input) {
+                return;
+            }
+
+            input.focus();
+            const valueLength = input.value.length;
+            if (typeof input.setSelectionRange === 'function') {
+                input.setSelectionRange(valueLength, valueLength);
+            }
         }
 
         function createDeliveryStatus(msg, isUser) {
@@ -914,25 +1297,221 @@
             return null;
         }
 
+        function formatTranscriptDateTime(value) {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return "-";
+            }
+            return date.toLocaleString();
+        }
+
+        function getDeliveryStatusText(msg, isUser) {
+            if (isUser) {
+                return "";
+            }
+
+            const deliveryStatus = normalizeText(msg.delivery_status).toLowerCase();
+            const retryCount = Number(msg.retry_count || 0);
+
+            if (deliveryStatus === 'failed') {
+                return 'Failed to send - Auto retrying';
+            }
+
+            if (deliveryStatus === 'retrying') {
+                return 'Retrying now...';
+            }
+
+            if (deliveryStatus === 'sent' && retryCount > 0) {
+                return 'Sent after retry';
+            }
+
+            if (deliveryStatus === 'permanent_failed') {
+                return 'Failed permanently';
+            }
+
+            return "";
+        }
+
+        function buildConversationTranscript() {
+            const lines = [];
+            const exportedAt = new Date().toLocaleString();
+
+            lines.push("Conversation Transcript");
+            lines.push(`Customer: ${normalizeText(currentConversationPhone, "Unknown customer")}`);
+            lines.push(`Name: ${normalizeText(currentConversationName, "Customer")}`);
+            lines.push(`Conversation ID: ${currentConversationId || "-"}`);
+            lines.push(`Exported At: ${exportedAt}`);
+            lines.push("");
+
+            if (!currentConversationMessages.length) {
+                lines.push("No messages recorded.");
+                return lines.join("\n");
+            }
+
+            currentConversationMessages.forEach(msg => {
+                const isUser = msg.sender_type === "customer";
+                const sender = isUser ? "Customer" : "Bot";
+                const messageText = normalizeText(msg.message_text, "[Empty Message]");
+                const statusText = getDeliveryStatusText(msg, isUser);
+
+                lines.push(`[${sender}] ${formatTranscriptDateTime(msg.created_at)}`);
+                lines.push(messageText);
+
+                if (statusText) {
+                    lines.push(`Delivery Status: ${statusText}`);
+                }
+
+                lines.push("");
+            });
+
+            return lines.join("\n");
+        }
+
+        function showTranscriptFeedback(message, type) {
+            const feedback = document.getElementById('transcript-feedback');
+            if (!feedback) {
+                return;
+            }
+
+            feedback.textContent = message;
+            feedback.className = `transcript-feedback ${type || ""}`.trim();
+
+            if (transcriptFeedbackTimer) {
+                window.clearTimeout(transcriptFeedbackTimer);
+            }
+
+            transcriptFeedbackTimer = window.setTimeout(() => {
+                feedback.textContent = "";
+                feedback.className = "transcript-feedback";
+            }, 2200);
+        }
+
+        function fallbackCopyText(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+
+            document.body.appendChild(textarea);
+            textarea.select();
+
+            try {
+                const copied = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                return copied;
+            } catch (err) {
+                document.body.removeChild(textarea);
+                return false;
+            }
+        }
+
+        async function copyTranscriptToClipboard() {
+            const transcript = buildConversationTranscript();
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(transcript);
+                    showTranscriptFeedback("Copied", "success");
+                    return;
+                }
+
+                const copied = fallbackCopyText(transcript);
+                showTranscriptFeedback(copied ? "Copied" : "Copy failed", copied ? "success" : "error");
+            } catch (err) {
+                console.error("Copy transcript failed", err);
+                const copied = fallbackCopyText(transcript);
+                showTranscriptFeedback(copied ? "Copied" : "Copy failed", copied ? "success" : "error");
+            }
+        }
+
+        function buildConversationLink() {
+            if (!currentConversationId || !selectedBotId) {
+                return "";
+            }
+
+            updateConversationUrl(currentConversationId);
+
+            const url = new URL(window.location.href);
+            url.searchParams.set("bot_id", selectedBotId);
+            url.searchParams.set("conversation_id", currentConversationId);
+            return url.toString();
+        }
+
+        async function copyConversationLinkToClipboard() {
+            const conversationLink = buildConversationLink();
+            if (!conversationLink) {
+                showTranscriptFeedback("Copy failed", "error");
+                return;
+            }
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(conversationLink);
+                    showTranscriptFeedback("Link copied", "success");
+                    return;
+                }
+
+                const copied = fallbackCopyText(conversationLink);
+                showTranscriptFeedback(copied ? "Link copied" : "Copy failed", copied ? "success" : "error");
+            } catch (err) {
+                console.error("Copy conversation link failed", err);
+                const copied = fallbackCopyText(conversationLink);
+                showTranscriptFeedback(copied ? "Link copied" : "Copy failed", copied ? "success" : "error");
+            }
+        }
+
+        function getDownloadDateString() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, "0");
+            const day = String(today.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        }
+
+        function downloadTranscriptFile() {
+            const transcript = buildConversationTranscript();
+            const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `conversation_${currentConversationId || "unknown"}_${getDownloadDateString()}.txt`;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            URL.revokeObjectURL(url);
+            showTranscriptFeedback("Downloaded", "success");
+        }
+
         function renderMessages(messages, phone, name) {
             const chatPane = document.getElementById('chat-pane');
             chatPane.replaceChildren();
+            currentMessageSearchMatches = [];
 
             const transcript = document.createElement('div');
             transcript.className = 'chat-transcript';
             transcript.id = 'chat-transcript';
+            const searchQuery = currentMessageSearchQuery.trim();
 
             if (!messages || messages.length === 0) {
                 transcript.appendChild(createTranscriptMessage('No messages recorded yet.'));
             } else {
                 messages.forEach(msg => {
                     const isUser = msg.sender_type === "customer";
+                    const isMatch = messageMatchesSearch(msg, searchQuery);
                     const row = document.createElement('div');
                     row.className = `message-row ${isUser ? "user" : "bot"}`;
 
                     const bubble = document.createElement('div');
                     bubble.className = 'message-bubble';
-                    appendTextWithLineBreaks(bubble, msg.message_text);
+                    appendSearchableMessageText(bubble, msg.message_text, searchQuery);
+
+                    if (isMatch) {
+                        currentMessageSearchMatches.push(row);
+                    }
 
                     const deliveryStatus = createDeliveryStatus(msg, isUser);
                     if (deliveryStatus) {
@@ -951,9 +1530,14 @@
 
             chatPane.appendChild(createChatHeader(phone, name));
             chatPane.appendChild(transcript);
+            normalizeMessageSearchIndex();
+            updateActiveMessageMatch();
+            updateMessageSearchControls();
 
             const transcriptEl = document.getElementById('chat-transcript');
-            if (transcriptEl) {
+            if (currentMessageSearchQuery && currentMessageSearchMatches.length) {
+                scrollToActiveMessageMatch();
+            } else if (transcriptEl) {
                 transcriptEl.scrollTop = transcriptEl.scrollHeight;
             }
         }
