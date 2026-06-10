@@ -72,6 +72,7 @@ def update_crm_lead(lead_id):
         chatbot_id = int(chatbot_id)
         status = data.get("status")
         notes = data.get("notes")
+        assigned_to = data.get("assigned_to")
 
         if status is not None and str(status).strip().lower() not in ALLOWED_CRM_LEAD_STATUSES:
             return jsonify({
@@ -80,12 +81,18 @@ def update_crm_lead(lead_id):
             }), 400
 
         verify_chatbot_access(chatbot_id)
-        lead = update_crm_lead_status_notes(
-            chatbot_id=chatbot_id,
-            lead_id=lead_id,
-            status=status,
-            notes=notes,
-        )
+        update_kwargs = {
+            "chatbot_id": chatbot_id,
+            "lead_id": lead_id,
+            "status": status,
+            "notes": notes,
+            "assigned_to": assigned_to,
+        }
+
+        if "follow_up_date" in data:
+            update_kwargs["follow_up_date"] = data.get("follow_up_date")
+
+        lead = update_crm_lead_status_notes(**update_kwargs)
 
         if not lead:
             return jsonify({
