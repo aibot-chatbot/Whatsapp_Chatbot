@@ -780,6 +780,36 @@
             return normalizeText(name, "User").charAt(0).toUpperCase() || "U";
         }
 
+        function getConversationUsername(conversation) {
+            return normalizeText(conversation && conversation.username);
+        }
+
+        function getConversationPlatformUserId(conversation) {
+            return normalizeText(conversation && conversation.platform_user_id);
+        }
+
+        function getConversationRealPhone(conversation) {
+            return normalizeText(conversation && conversation.customer_phone);
+        }
+
+        function getConversationDisplayIdentity(conversation) {
+            return (
+                getConversationRealPhone(conversation)
+                || normalizeText(conversation && conversation.customer_name)
+                || getConversationUsername(conversation)
+                || getConversationPlatformUserId(conversation)
+                || "Unknown customer"
+            );
+        }
+
+        function getConversationDisplaySubtitle(conversation) {
+            return (
+                normalizeText(conversation && conversation.customer_name)
+                || getConversationUsername(conversation)
+                || (getConversationPlatformUserId(conversation) ? "Telegram user" : "No name provided")
+            );
+        }
+
         function renderConversationListMessage(message, isError = false) {
             const listEl = document.getElementById('conversation-list');
             listEl.replaceChildren();
@@ -805,7 +835,8 @@
             }
 
             conversations.forEach(conv => {
-                const phone = normalizeText(conv.customer_phone, "Unknown customer");
+                const displayIdentity = getConversationDisplayIdentity(conv);
+                const realPhone = getConversationRealPhone(conv);
                 const name = normalizeText(conv.customer_name, "User");
                 const platform = normalizePlatform(conv.source_channel);
 
@@ -814,7 +845,7 @@
                 if (conv.id === activeConversationId) {
                     item.classList.add('active');
                 }
-                item.addEventListener('click', () => loadMessages(conv.id, phone, name));
+                item.addEventListener('click', () => loadMessages(conv.id, displayIdentity, name));
 
                 const top = document.createElement('div');
                 top.className = 'convo-top';
@@ -824,7 +855,7 @@
 
                 const phoneEl = document.createElement('span');
                 phoneEl.className = 'convo-phone';
-                phoneEl.textContent = phone;
+                phoneEl.textContent = displayIdentity;
 
                 const badge = document.createElement('span');
                 badge.className = `platform-badge ${getPlatformClass(platform)}`;
@@ -842,7 +873,9 @@
 
                 const preview = document.createElement('div');
                 preview.className = 'convo-preview';
-                preview.textContent = conv.customer_name ? `Name: ${name}` : 'No name provided';
+                preview.textContent = realPhone
+                    ? `Phone: ${realPhone}`
+                    : getConversationDisplaySubtitle(conv);
 
                 item.appendChild(top);
                 item.appendChild(preview);
@@ -870,7 +903,7 @@
 
             loadMessages(
                 conversation.id,
-                conversation.customer_phone || "",
+                getConversationDisplayIdentity(conversation),
                 conversation.customer_name || "User"
             );
         }
@@ -911,9 +944,13 @@
         function filterConversations() {
             const query = document.getElementById('search-input').value.toLowerCase();
             const filtered = allConversations.filter(c => {
-                const phone = normalizeText(c.customer_phone).toLowerCase();
-                const name = normalizeText(c.customer_name).toLowerCase();
-                const matchesQuery = phone.includes(query) || name.includes(query);
+                const searchText = [
+                    getConversationRealPhone(c),
+                    normalizeText(c.customer_name),
+                    getConversationUsername(c),
+                    getConversationPlatformUserId(c),
+                ].join(" ").toLowerCase();
+                const matchesQuery = searchText.includes(query);
                 const platform = normalizePlatform(c.source_channel);
                 const matchesPlatform = currentPlatform === 'all' || platform === currentPlatform;
                 return matchesQuery && matchesPlatform;

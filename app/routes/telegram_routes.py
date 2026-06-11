@@ -478,9 +478,21 @@ def telegram_webhook_health(webhook_secret):
 def telegram_webhook_post(webhook_secret):
     try:
         update = request.get_json(silent=True) or {}
+        message = update.get("message") or {}
+        chat = message.get("chat") or {}
+        from_user = message.get("from") or {}
 
         logging.info(f"Telegram webhook received for secret: {webhook_secret}")
-        logging.info(f"Telegram update: {update}")
+        logging.info(
+            "Telegram update summary: update_id=%s message_id=%s chat_id=%s "
+            "from_user_id=%s has_contact=%s has_text=%s",
+            update.get("update_id"),
+            message.get("message_id"),
+            chat.get("id"),
+            from_user.get("id"),
+            bool(message.get("contact")),
+            bool(message.get("text")),
+        )
 
         process_telegram_update(update, webhook_secret)
 
