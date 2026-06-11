@@ -12,6 +12,7 @@ SAFE_CRM_LEAD_FIELDS = (
 
 OPEN_CRM_LEAD_STATUSES = ["new", "in_progress", "contacted"]
 ALLOWED_CRM_LEAD_STATUSES = ["new", "in_progress", "contacted", "closed"]
+ALLOWED_CRM_LEAD_PRIORITIES = ["low", "medium", "high"]
 PRIORITY_RANK = {
     "low": 1,
     "medium": 2,
@@ -81,7 +82,7 @@ def _signal_severity_rank(lead_type):
     return SIGNAL_SEVERITY_RANK.get((lead_type or "").lower(), 0)
 
 
-def get_crm_leads_by_chatbot(chatbot_id, status=None, limit=50):
+def get_crm_leads_by_chatbot(chatbot_id, status=None, limit=50, conversation_id=None):
     safe_limit = min(max(int(limit or 50), 1), 100)
 
     query = (
@@ -92,6 +93,9 @@ def get_crm_leads_by_chatbot(chatbot_id, status=None, limit=50):
 
     if status:
         query = query.eq("status", status)
+
+    if conversation_id:
+        query = query.eq("conversation_id", conversation_id)
 
     result = (
         query
@@ -120,6 +124,24 @@ def get_open_crm_lead_by_conversation(chatbot_id, conversation_id):
 
     rows = result.data or []
     return rows[0] if rows else None
+
+
+def get_crm_lead_by_conversation(chatbot_id, conversation_id):
+    if not conversation_id:
+        return None
+
+    result = (
+        supabase.table("crm_leads")
+        .select(SAFE_CRM_LEAD_FIELDS)
+        .eq("chatbot_id", chatbot_id)
+        .eq("conversation_id", conversation_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+    rows = result.data or []
+    return _sanitize_crm_lead(rows[0]) if rows else None
 
 
 def create_crm_lead(
@@ -267,3 +289,86 @@ def update_crm_lead_status_notes(
 
     rows = result.data or []
     return _sanitize_crm_lead(rows[0]) if rows else None
+
+
+def upsert_crm_lead_by_conversation(
+    company_id,
+    chatbot_id,
+    conversation_id,
+    customer_phone=None,
+    customer_name=None,
+    source_channel=None,
+    status="new",
+    priority="medium",
+    assigned_to=None,
+    follow_up_date=_MISSING,
+    notes=None,
+    lead_type="follow_up",
+    summary="Customer conversation added to CRM for follow-up.",
+):
+    if not conversation_id:
+        raise ValueError("conversation_id is required")
+
+    normalized_status = str(status or "new").strip().lower()
+    if normalized_status not in ALLOWED_CRM_LEAD_STATUSES:
+        raise ValueError("Invalid CRM lead status.")
+
+    normalized_priority = str(priority or "medium").strip().lower()
+    if normalized_priority not in ALLOWED_CRM_LEAD_PRIORITIES:
+        raise ValueError("Invalid CRM lead priority.")
+
+    existing = get_crm_lead_by_conversation(chatbot_id, conversation_id)
+
+    if existing:
+        update_data = {
+            "customer_name": customer_name or "",
+            "source_channel": source_channel or "",
+            "status": normalized_status,
+            "priority": normalized_priority,
+            "assigned_to": str(assigned_to or "").strip()[:100],
+            "notes": str(notes or "").strip()[:1000],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if follow_up_date is not _MISSING:
+            update_data["follow_up_date"] = _normalize_follow_up_date(follow_up_date)
+
+        if customer_phone:
+            update_data["customer_phone"] = customer_phone
+
+        result = (
+            supabase.table("crm_leads")
+            .update(update_data)
+            .eq("id", existing["id"])
+            .eq("chatbot_id", chatbot_id)
+            .execute()
+        )
+
+        rows = result.data or []
+        return _sanitize_crm_lead(rows[0]) if rows else existing
+
+    lead = create_crm_lead(
+        company_id=company_id,
+        chatbot_id=chatbot_id,
+        conversation_id=conversation_id,
+        customer_phone=customer_phone,
+        customer_name=customer_name,
+        source_channel=source_channel,
+        lead_type=lead_type,
+        status=normalized_status,
+        priority=normalized_priority,
+        summary=summary,
+        notes=str(notes or "").strip()[:1000],
+    )
+
+    if not lead:
+        return None
+
+    return update_crm_lead_status_notes(
+        chatbot_id=chatbot_id,
+        lead_id=lead["id"],
+        status=normalized_status,
+        notes=notes,
+        assigned_to=assigned_to,
+        follow_up_date=follow_up_date,
+    )

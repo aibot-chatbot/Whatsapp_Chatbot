@@ -349,6 +349,155 @@
             opacity: 0.45;
         }
 
+        .crm-conversation-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.74);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 1100;
+        }
+
+        .crm-conversation-modal-backdrop.open {
+            display: flex;
+        }
+
+        .crm-conversation-modal {
+            width: min(760px, 100%);
+            max-height: 88vh;
+            overflow-y: auto;
+            background: rgba(15, 23, 42, 0.96);
+            border: 1px solid var(--glass-border);
+            border-radius: 22px;
+            padding: 24px;
+            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.35);
+        }
+
+        .crm-modal-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .crm-modal-header h2 {
+            font-size: 1.25rem;
+            margin-bottom: 4px;
+        }
+
+        .crm-modal-header p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .crm-modal-close {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .crm-modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .crm-modal-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .crm-modal-field.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .crm-modal-label {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .crm-modal-value,
+        .crm-modal-input,
+        .crm-modal-select,
+        .crm-modal-notes {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.72);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font: inherit;
+            outline: none;
+        }
+
+        .crm-modal-value {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+
+        .crm-modal-notes {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .crm-modal-input:focus,
+        .crm-modal-select:focus,
+        .crm-modal-notes:focus {
+            border-color: rgba(59, 130, 246, 0.65);
+        }
+
+        .crm-modal-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .crm-modal-save {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-weight: 700;
+            cursor: pointer;
+            min-width: 120px;
+        }
+
+        .crm-modal-save:disabled {
+            cursor: not-allowed;
+            opacity: 0.68;
+        }
+
+        .crm-modal-feedback {
+            color: var(--text-dim);
+            font-size: 0.84rem;
+            min-height: 20px;
+        }
+
+        .crm-modal-feedback.success {
+            color: var(--accent);
+        }
+
+        .crm-modal-feedback.error {
+            color: #f87171;
+        }
+
         .message-search-highlight {
             background: rgba(245, 158, 11, 0.34);
             color: #fff7ed;
@@ -378,6 +527,10 @@
             .message-search-input {
                 width: 100%;
                 flex: 1 1 100%;
+            }
+
+            .crm-modal-grid {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -628,7 +781,7 @@
                 <div class="inbox-header">
                     <div class="search-box">
                         <i data-lucide="search"></i>
-                        <input type="text" class="search-input" id="search-input" placeholder="Search phone number..."
+                        <input type="text" class="search-input" id="search-input" placeholder="Search customer, phone, or ID..."
                             onkeyup="filterConversations()">
                     </div>
                     <!-- Platform filter pills -->
@@ -657,6 +810,61 @@
             </div>
         </div>
     </main>
+
+    <div class="crm-conversation-modal-backdrop" id="crm-conversation-modal" aria-hidden="true">
+        <div class="crm-conversation-modal" role="dialog" aria-modal="true" aria-labelledby="crm-conversation-modal-title">
+            <div class="crm-modal-header">
+                <div>
+                    <h2 id="crm-conversation-modal-title">Add to CRM</h2>
+                    <p>Create or update a CRM lead for the selected conversation.</p>
+                </div>
+                <button type="button" class="crm-modal-close" id="crm-conversation-modal-close">Close</button>
+            </div>
+            <div class="crm-modal-grid">
+                <div class="crm-modal-field">
+                    <div class="crm-modal-label">Customer</div>
+                    <div class="crm-modal-value" id="crm-conversation-customer">-</div>
+                </div>
+                <div class="crm-modal-field">
+                    <div class="crm-modal-label">Source</div>
+                    <div class="crm-modal-value" id="crm-conversation-source">-</div>
+                </div>
+                <div class="crm-modal-field">
+                    <label class="crm-modal-label" for="crm-conversation-status">Lead Status</label>
+                    <select class="crm-modal-select" id="crm-conversation-status">
+                        <option value="new">New</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </div>
+                <div class="crm-modal-field">
+                    <label class="crm-modal-label" for="crm-conversation-priority">Priority</label>
+                    <select class="crm-modal-select" id="crm-conversation-priority">
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="crm-modal-field">
+                    <label class="crm-modal-label" for="crm-conversation-assigned-to">Assigned Staff</label>
+                    <input class="crm-modal-input" id="crm-conversation-assigned-to" type="text" maxlength="100" placeholder="Staff name">
+                </div>
+                <div class="crm-modal-field">
+                    <label class="crm-modal-label" for="crm-conversation-follow-up-date">Follow-up Date</label>
+                    <input class="crm-modal-input" id="crm-conversation-follow-up-date" type="date">
+                </div>
+                <div class="crm-modal-field full-width">
+                    <label class="crm-modal-label" for="crm-conversation-notes">Notes</label>
+                    <textarea class="crm-modal-notes" id="crm-conversation-notes" placeholder="Add context for staff follow-up."></textarea>
+                </div>
+            </div>
+            <div class="crm-modal-actions">
+                <button type="button" class="crm-modal-save" id="crm-conversation-save">Save CRM Lead</button>
+                <div class="crm-modal-feedback" id="crm-conversation-feedback"></div>
+            </div>
+        </div>
+    </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
@@ -688,6 +896,8 @@
         let currentConversationPhone = "";
         let currentConversationName = "";
         let currentConversationMessages = [];
+        let currentConversationData = null;
+        let currentConversationCrmLead = null;
         let transcriptFeedbackTimer = null;
         let currentMessageSearchQuery = "";
         let currentMessageSearchMatches = [];
@@ -699,6 +909,7 @@
             }
 
             lucide.createIcons();
+            setupConversationCrmModal();
             fetchSelectedBot();
             fetchConversations();
         });
@@ -989,6 +1200,8 @@
             currentConversationPhone = phone || "";
             currentConversationName = name || "User";
             currentConversationMessages = [];
+            currentConversationData = allConversations.find(conv => Number(conv.id) === Number(conversationId)) || null;
+            currentConversationCrmLead = null;
             resetMessageSearchState();
 
             updateConversationUrl(conversationId);
@@ -1063,10 +1276,17 @@
                 downloadButton.textContent = 'Download .txt';
                 downloadButton.addEventListener('click', downloadTranscriptFile);
 
+                const crmButton = document.createElement('button');
+                crmButton.type = 'button';
+                crmButton.className = 'transcript-btn';
+                crmButton.textContent = 'CRM Lead';
+                crmButton.addEventListener('click', openConversationCrmModal);
+
                 const feedback = document.createElement('span');
                 feedback.className = 'transcript-feedback';
                 feedback.id = 'transcript-feedback';
 
+                actions.appendChild(crmButton);
                 actions.appendChild(copyLinkButton);
                 actions.appendChild(copyButton);
                 actions.appendChild(downloadButton);
@@ -1473,6 +1693,162 @@
             url.searchParams.set("bot_id", selectedBotId);
             url.searchParams.set("conversation_id", currentConversationId);
             return url.toString();
+        }
+
+        function normalizeCrmDateValue(value) {
+            return String(value || "").slice(0, 10);
+        }
+
+        function formatSourceLabel(source) {
+            const platform = normalizePlatform(source);
+            return platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "-";
+        }
+
+        async function fetchConversationCrmLead(conversationId) {
+            const response = await authenticatedFetch(
+                `/api/crm/leads?chatbot_id=${selectedBotId}&conversation_id=${conversationId}&limit=1`
+            );
+            const result = await response.json();
+
+            if (!response.ok || result.status !== "success") {
+                throw new Error(result.message || "Failed to load CRM lead");
+            }
+
+            const leads = result.data && Array.isArray(result.data.leads) ? result.data.leads : [];
+            return leads[0] || null;
+        }
+
+        async function upsertConversationCrmLead(payload) {
+            const response = await authenticatedFetch('/api/crm/leads/upsert', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            const result = await response.json();
+
+            if (!response.ok || result.status !== 'success') {
+                throw new Error(result.message || 'Failed to save CRM lead');
+            }
+
+            return result.data && result.data.lead;
+        }
+
+        function populateConversationCrmModal(lead) {
+            const conversation = currentConversationData || {};
+            document.getElementById('crm-conversation-customer').textContent = getConversationDisplayIdentity(conversation);
+            document.getElementById('crm-conversation-source').textContent = formatSourceLabel(conversation.source_channel);
+            document.getElementById('crm-conversation-status').value = lead && lead.status ? lead.status : 'new';
+            document.getElementById('crm-conversation-priority').value = lead && lead.priority ? lead.priority : 'medium';
+            document.getElementById('crm-conversation-assigned-to').value = lead && lead.assigned_to ? lead.assigned_to : '';
+            document.getElementById('crm-conversation-follow-up-date').value = normalizeCrmDateValue(lead && lead.follow_up_date);
+            document.getElementById('crm-conversation-notes').value = lead && lead.notes ? lead.notes : '';
+        }
+
+        async function openConversationCrmModal() {
+            if (!currentConversationId || !currentConversationData) {
+                return;
+            }
+
+            const modal = document.getElementById('crm-conversation-modal');
+            const feedback = document.getElementById('crm-conversation-feedback');
+            const saveButton = document.getElementById('crm-conversation-save');
+
+            currentConversationCrmLead = null;
+            populateConversationCrmModal(null);
+            feedback.className = 'crm-modal-feedback';
+            feedback.textContent = 'Loading CRM lead...';
+            saveButton.disabled = true;
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
+
+            try {
+                currentConversationCrmLead = await fetchConversationCrmLead(currentConversationId);
+                populateConversationCrmModal(currentConversationCrmLead);
+                feedback.textContent = currentConversationCrmLead
+                    ? 'Existing CRM lead loaded.'
+                    : 'Ready to create a CRM lead for this conversation.';
+                saveButton.disabled = false;
+            } catch (err) {
+                console.error('Failed to load CRM lead for conversation', err);
+                feedback.className = 'crm-modal-feedback error';
+                feedback.textContent = 'Unable to load CRM lead.';
+                saveButton.disabled = true;
+            }
+        }
+
+        function closeConversationCrmModal() {
+            const modal = document.getElementById('crm-conversation-modal');
+            modal.classList.remove('open');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        async function saveConversationCrmLead() {
+            if (!currentConversationId || !currentConversationData) {
+                return;
+            }
+
+            const saveButton = document.getElementById('crm-conversation-save');
+            const feedback = document.getElementById('crm-conversation-feedback');
+
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+            feedback.className = 'crm-modal-feedback';
+            feedback.textContent = '';
+
+            try {
+                currentConversationCrmLead = await upsertConversationCrmLead({
+                    chatbot_id: Number(selectedBotId),
+                    conversation_id: Number(currentConversationId),
+                    customer_name: currentConversationData.customer_name || '',
+                    customer_phone: currentConversationData.customer_phone || '',
+                    source_channel: currentConversationData.source_channel || '',
+                    status: document.getElementById('crm-conversation-status').value,
+                    priority: document.getElementById('crm-conversation-priority').value,
+                    assigned_to: document.getElementById('crm-conversation-assigned-to').value,
+                    follow_up_date: document.getElementById('crm-conversation-follow-up-date').value || null,
+                    notes: document.getElementById('crm-conversation-notes').value,
+                });
+
+                populateConversationCrmModal(currentConversationCrmLead);
+                feedback.className = 'crm-modal-feedback success';
+                feedback.textContent = 'CRM lead saved.';
+                saveButton.textContent = 'Saved';
+                saveButton.disabled = false;
+
+                window.setTimeout(() => {
+                    saveButton.textContent = 'Save CRM Lead';
+                }, 1600);
+            } catch (err) {
+                console.error('Failed to save CRM lead from conversation', err);
+                feedback.className = 'crm-modal-feedback error';
+                feedback.textContent = 'Failed to save CRM lead.';
+                saveButton.textContent = 'Save CRM Lead';
+                saveButton.disabled = false;
+            }
+        }
+
+        function setupConversationCrmModal() {
+            const modal = document.getElementById('crm-conversation-modal');
+            const closeButton = document.getElementById('crm-conversation-modal-close');
+            const saveButton = document.getElementById('crm-conversation-save');
+
+            if (closeButton) {
+                closeButton.addEventListener('click', closeConversationCrmModal);
+            }
+
+            if (saveButton) {
+                saveButton.addEventListener('click', saveConversationCrmLead);
+            }
+
+            if (modal) {
+                modal.addEventListener('click', event => {
+                    if (event.target === modal) {
+                        closeConversationCrmModal();
+                    }
+                });
+            }
         }
 
         async function copyConversationLinkToClipboard() {
