@@ -10,6 +10,15 @@ def get_or_create_conversation(
 ):
     now = datetime.now(timezone.utc).isoformat()
 
+    if source_channel == "telegram":
+        return get_or_create_platform_conversation(
+            chatbot_id=chatbot_id,
+            platform_user_id=str(customer_phone),
+            customer_name=customer_name,
+            source_channel=source_channel,
+            customer_phone=None,
+        )
+
     def fetch_existing_open_conversation():
         existing_result = (
             supabase.table("conversations")
@@ -67,6 +76,141 @@ def get_or_create_conversation(
             return existing_after_conflict
 
         raise
+
+
+def get_or_create_platform_conversation(
+    chatbot_id: int,
+    platform_user_id: str,
+    customer_name: str = None,
+    source_channel: str = "telegram",
+    customer_phone: str = None,
+):
+    """
+    Get or create conversation using platform user ID.
+
+    For Telegram:
+    - platform_user_id = Telegram chat/user ID
+    - customer_phone = real phone number only after user shares contact
+    """
+    now = datetime.now(timezone.utc).isoformat()
+
+    def fetch_existing_by_platform_id():
+        existing_result = (
+            supabase.table("conversations")
+            .select("*")
+            .eq("chatbot_id", chatbot_id)
+            .eq("platform_user_id", platform_user_id)
+            .eq("source_channel", source_channel)
+            .eq("conversation_status", "open")
+            .limit(1)
+            .execute()
+        )
+
+        rows = existing_result.data or []
+        return rows[0] if rows else None
+
+    def fetch_legacy_telegram_conversation():
+        """
+        Old Telegram records saved Telegram ID inside customer_phone.
+        This prevents duplicate conversations after we add platform_user_id.
+        """
+        legacy_result = (
+            supabase.table("conversations")
+            .select("*")
+            .eq("chatbot_id", chatbot_id)
+            .eq("customer_phone", platform_user_id)
+            .eq("source_channel", source_channel)
+            .eq("conversation_status", "open")
+            .limit(1)
+            .execute()
+        )
+
+        rows = legacy_result.data or []
+        return rows[0] if rows else None
+
+    existing = fetch_existing_by_platform_id() or fetch_legacy_telegram_conversation()
+
+    if existing:
+        update_data = {
+            "platform_user_id": platform_user_id,
+            "updated_at": now,
+        }
+
+        if customer_name:
+            update_data["customer_name"] = customer_name
+
+        if customer_phone:
+            update_data["customer_phone"] = customer_phone
+        elif existing.get("customer_phone") == platform_user_id:
+            # Clear old wrong Telegram ID from customer_phone
+            update_data["customer_phone"] = None
+
+        updated = (
+            supabase.table("conversations")
+            .update(update_data)
+            .eq("id", existing["id"])
+            .execute()
+        )
+
+        return updated.data[0] if updated.data else existing
+
+    new_conversation = {
+        "chatbot_id": chatbot_id,
+        "platform_user_id": platform_user_id,
+        "customer_phone": customer_phone,
+        "customer_name": customer_name,
+        "source_channel": source_channel,
+        "conversation_status": "open",
+        "updated_at": now,
+    }
+
+    result = supabase.table("conversations").insert(new_conversation).execute()
+    return result.data[0]
+
+
+def update_conversation_phone_by_platform(
+    chatbot_id: int,
+    platform_user_id: str,
+    customer_phone: str,
+    customer_name: str = None,
+    source_channel: str = "telegram",
+):
+    """
+    Save real phone number after Telegram user clicks Share Phone Number.
+    """
+    now = datetime.now(timezone.utc).isoformat()
+
+    update_data = {
+        "customer_phone": customer_phone,
+        "platform_user_id": platform_user_id,
+        "updated_at": now,
+    }
+
+    if customer_name:
+        update_data["customer_name"] = customer_name
+
+    result = (
+        supabase.table("conversations")
+        .update(update_data)
+        .eq("chatbot_id", chatbot_id)
+        .eq("platform_user_id", platform_user_id)
+        .eq("source_channel", source_channel)
+        .eq("conversation_status", "open")
+        .execute()
+    )
+
+    rows = result.data or []
+
+    if rows:
+        return rows[0]
+
+    return get_or_create_platform_conversation(
+        chatbot_id=chatbot_id,
+        platform_user_id=platform_user_id,
+        customer_name=customer_name,
+        source_channel=source_channel,
+        customer_phone=customer_phone,
+    )
 
 
 def get_conversations_by_bot(chatbot_id: int):
