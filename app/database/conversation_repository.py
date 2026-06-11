@@ -226,3 +226,17 @@ def get_conversations_by_bot(chatbot_id: int):
         .execute()
     )
     return result.data
+
+
+def get_conversation_by_id_and_chatbot(conversation_id: int, chatbot_id: int):
+    result = (
+        supabase.table("conversations")
+        .select("*")
+        .eq("id", conversation_id)
+        .eq("chatbot_id", chatbot_id)
+        .limit(1)
+        .execute()
+    )
+
+    rows = result.data or []
+    return rows[0] if rows else None
