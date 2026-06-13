@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -11,6 +11,8 @@
     <style>
         :root {
             --primary: #3b82f6;
+            --primary-rgb: 59, 130, 246;
+            --primary-glow: rgba(59, 130, 246, 0.5);
             --bg: #050b18;
             --sidebar-bg: rgba(15, 23, 42, 0.8);
             --card-bg: rgba(30, 41, 59, 0.6);
@@ -18,8 +20,15 @@
             --text-dim: #94a3b8;
             --glass-border: rgba(255, 255, 255, 0.1);
             --accent: #10b981;
+            --accent-glow: rgba(16, 185, 129, 0.15);
             --warning: #f59e0b;
+            --warning-glow: rgba(245, 158, 11, 0.15);
             --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.15);
+            --accent-rgb: 16, 185, 129;
+            --warning-rgb: 245, 158, 11;
+            --danger-rgb: 239, 68, 68;
+            --input-bg: rgba(15, 23, 42, 0.6);
         }
 
         * {
@@ -42,7 +51,7 @@
 
         .main-container {
             flex-grow: 1;
-            padding: 50px 60px;
+            padding: 40px 50px;
             max-width: 100%;
             display: flex;
             flex-direction: column;
@@ -50,372 +59,578 @@
         }
 
         .header {
-            margin-bottom: 32px;
+            margin-bottom: 28px;
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             gap: 20px;
         }
 
         .header h1 {
-            font-size: 2.2rem;
+            font-size: 2rem;
             font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
         }
 
         .header p {
             color: var(--text-dim);
-            margin-top: 8px;
+            margin-top: 6px;
+            font-size: 0.9rem;
         }
 
         .glass-card {
             background: var(--card-bg);
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid var(--glass-border);
             padding: 24px;
-            border-radius: 24px;
-            transition: all 0.3s;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .glass-card:hover {
-            transform: translateY(-5px);
-            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.15);
+            box-shadow: 0 12px 36px -8px rgba(59, 130, 246, 0.12);
         }
 
         .status-pill {
             color: var(--accent);
             font-weight: 600;
-            padding: 10px 20px;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            padding: 8px 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
-        .summary-grid {
+        /* ===== Business Snapshot Bar ===== */
+        .snapshot-bar {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-            gap: 18px;
-            margin-bottom: 24px;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
         }
 
-        .summary-card {
+        .snapshot-item {
             background: rgba(15, 23, 42, 0.42);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid var(--glass-border);
             border-radius: 16px;
-            padding: 18px;
-            min-height: 118px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .summary-card.filter-card {
-            cursor: pointer;
-            user-select: none;
+        .snapshot-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.03), transparent);
+            pointer-events: none;
         }
 
-        .summary-card.filter-card:focus-visible,
-        .follow-up-chip.filter-chip:focus-visible {
-            outline: 2px solid rgba(59, 130, 246, 0.85);
-            outline-offset: 3px;
+        .snapshot-item:hover {
+            transform: translateY(-3px);
+            border-color: rgba(255, 255, 255, 0.16);
+            box-shadow: 0 12px 30px -10px rgba(0,0,0,0.4);
         }
 
-        .summary-card.filter-card.active-filter {
-            border-color: rgba(59, 130, 246, 0.72);
-            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.22), 0 12px 32px rgba(59, 130, 246, 0.12);
+        .snapshot-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2px;
         }
 
-        .summary-label {
+        .snapshot-label {
             color: var(--text-dim);
-            font-size: 0.8rem;
+            font-size: 0.72rem;
             text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 8px;
+            letter-spacing: 1px;
+            font-weight: 600;
         }
 
-        .summary-value {
-            font-size: 2rem;
+        .snapshot-icon {
+            width: 18px;
+            height: 18px;
+            color: var(--text-dim);
+            opacity: 0.6;
+            transition: transform 0.25s ease;
+        }
+
+        .snapshot-item:hover .snapshot-icon {
+            transform: scale(1.1);
+            opacity: 0.9;
+        }
+
+        .snapshot-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1.1;
+            letter-spacing: -0.5px;
+        }
+
+        .snapshot-trend {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+            opacity: 0.85;
+        }
+
+        .snapshot-highlight {
+            border-left: 3px solid var(--primary);
+        }
+        .snapshot-highlight .snapshot-value {
+            color: #60a5fa;
+            text-shadow: 0 0 10px rgba(96, 165, 250, 0.15);
+        }
+        .snapshot-highlight .snapshot-icon { color: #60a5fa; }
+
+        .snapshot-success {
+            border-left: 3px solid var(--accent);
+        }
+        .snapshot-success .snapshot-value {
+            color: #34d399;
+            text-shadow: 0 0 10px rgba(52, 211, 153, 0.15);
+        }
+        .snapshot-success .snapshot-icon { color: #34d399; }
+
+        .snapshot-warning {
+            border-left: 3px solid var(--warning);
+        }
+        .snapshot-warning .snapshot-value {
+            color: #fbbf24;
+            text-shadow: 0 0 10px rgba(251, 191, 36, 0.15);
+        }
+        .snapshot-warning .snapshot-icon { color: #fbbf24; }
+
+        .snapshot-danger {
+            border-left: 3px solid var(--danger);
+        }
+        .snapshot-danger .snapshot-value {
+            color: #f87171;
+            text-shadow: 0 0 10px rgba(248, 113, 113, 0.15);
+        }
+        .snapshot-danger .snapshot-icon { color: #f87171; }
+
+        .snapshot-neutral {
+            border-left: 3px solid #cbd5e1;
+        }
+        .snapshot-neutral .snapshot-value {
+            color: #cbd5e1;
+        }
+
+        /* ===== Mid Section Grid (Split Layout) ===== */
+        .crm-mid-section {
+            display: grid;
+            grid-template-columns: 1fr 1.6fr;
+            gap: 24px;
+            margin-bottom: 28px;
+            align-items: stretch;
+        }
+        @media (max-width: 992px) {
+            .crm-mid-section {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .mid-section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 0;
+            color: var(--text-main);
+        }
+
+        .mid-section-title i, .mid-section-title svg {
+            width: 20px;
+            height: 20px;
+            color: var(--primary);
+        }
+
+        /* ===== Pipeline Vertical Timeline (Left Column) ===== */
+        .pipeline-timeline-container {
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+        }
+
+        .timeline-wrapper {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            padding-left: 20px;
+            margin-left: 10px;
+            margin-top: 20px;
+            flex-grow: 1;
+        }
+
+        .timeline-line {
+            position: absolute;
+            left: 0;
+            top: 12px;
+            bottom: 12px;
+            width: 2px;
+            background: rgba(255, 255, 255, 0.08);
+            z-index: 1;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+            padding: 12px 16px;
+            border-radius: 14px;
+            border: 1px solid transparent;
+            background: rgba(255, 255, 255, 0.01);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+            z-index: 2;
+        }
+
+        .timeline-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(255, 255, 255, 0.08);
+            transform: translateX(4px);
+        }
+
+        .timeline-item.active-filter {
+            background: rgba(59, 130, 246, 0.08);
+            border-color: var(--primary);
+            box-shadow: 0 0 15px -3px rgba(59, 130, 246, 0.2);
+        }
+
+        .timeline-node {
+            position: absolute;
+            left: -29px;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--bg);
+            border: 2px solid rgba(255, 255, 255, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: var(--text-dim);
+            transition: all 0.25s ease;
+        }
+
+        .timeline-item:hover .timeline-node {
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.1);
+        }
+
+        .timeline-item.active-filter .timeline-node {
+            border-color: var(--primary);
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 0 10px var(--primary-glow);
+        }
+
+        .timeline-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .timeline-label {
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            transition: color 0.2s;
+        }
+
+        .timeline-item:hover .timeline-label,
+        .timeline-item.active-filter .timeline-label {
+            color: var(--text-main);
+        }
+
+        .timeline-value {
+            font-size: 1.25rem;
             font-weight: 700;
         }
 
-        .section-header {
+        /* Color branding for timeline items */
+        .pipeline-stage-new .timeline-value { color: #60a5fa; }
+        .pipeline-stage-new.active-filter .timeline-node { border-color: #60a5fa; background: #60a5fa; color: white; }
+        .pipeline-stage-progress .timeline-value { color: #fbbf24; }
+        .pipeline-stage-progress.active-filter .timeline-node { border-color: #fbbf24; background: #fbbf24; color: white; }
+        .pipeline-stage-contacted .timeline-value { color: #34d399; }
+        .pipeline-stage-contacted.active-filter .timeline-node { border-color: #34d399; background: #34d399; color: white; }
+        .pipeline-stage-closed .timeline-value { color: #94a3b8; }
+        .pipeline-stage-closed.active-filter .timeline-node { border-color: #cbd5e1; background: #cbd5e1; color: var(--bg); }
+
+        /* ===== Tabbed Action Board (Right Column) ===== */
+        .action-tabs-container {
             display: flex;
             flex-direction: column;
+            padding: 24px;
+        }
+
+        .tabs-header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding-bottom: 14px;
+        }
+
+        .action-tabs-nav {
+            display: flex;
             gap: 4px;
-            margin-bottom: 18px;
+            background: rgba(15, 23, 42, 0.4);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        .section-header h2 {
-            font-size: 1.2rem;
-            margin: 0;
-        }
-
-        .section-header p {
+        .tab-btn {
+            background: transparent;
             color: var(--text-dim);
-            font-size: 0.9rem;
-            margin: 0;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            outline: none;
+            border-left: 2px solid transparent;
         }
 
-        .table-wrap {
-            overflow-x: auto;
+        .tab-btn i, .tab-btn svg {
+            width: 15px;
+            height: 15px;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 900px;
+        .tab-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.03);
         }
 
-        th,
-        td {
-            text-align: left;
-            padding: 14px 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            vertical-align: top;
+        .tab-btn.active {
+            color: white;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
 
-        th {
+        .tab-btn.active[data-tab-trigger="overdue"] {
+            border-left-color: #ef4444;
+            color: #f87171;
+        }
+        .tab-btn.active[data-tab-trigger="today"] {
+            border-left-color: #f59e0b;
+            color: #fbbf24;
+        }
+        .tab-btn.active[data-tab-trigger="upcoming"] {
+            border-left-color: #3b82f6;
+            color: #60a5fa;
+        }
+
+        .tab-badge {
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 1px 6px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-dim);
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .tab-btn.active[data-tab-trigger="overdue"] .tab-badge { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+        .tab-btn.active[data-tab-trigger="today"] .tab-badge { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+        .tab-btn.active[data-tab-trigger="upcoming"] .tab-badge { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+
+        .action-tabs-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 200px;
+        }
+
+        .tab-panel {
+            display: none;
+            flex-grow: 1;
+            flex-direction: column;
+        }
+
+        .tab-panel.active {
+            display: flex;
+        }
+
+        .action-col-items {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 250px;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+
+        .action-col-items::-webkit-scrollbar {
+            width: 4px;
+        }
+        .action-col-items::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 99px;
+        }
+
+        .action-item {
+            padding: 12px;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.88rem;
+            line-height: 1.35;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+        }
+
+        .action-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.1);
+            transform: translateX(3px);
+        }
+
+        .tab-panel[id="action-overdue-panel"] .action-item { border-left: 3px solid #ef4444; }
+        .tab-panel[id="action-today-panel"] .action-item { border-left: 3px solid #f59e0b; }
+        .tab-panel[id="action-upcoming-panel"] .action-item { border-left: 3px solid #3b82f6; }
+
+        .action-item-name {
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 2px;
+        }
+
+        .action-item-reason {
             color: var(--text-dim);
             font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            font-weight: 600;
-        }
-
-        td {
-            color: var(--text-main);
-            font-size: 0.94rem;
-        }
-
-        .muted {
-            color: var(--text-dim);
-            font-size: 0.86rem;
-            margin-top: 4px;
-        }
-
-        .badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 28px;
-            padding: 5px 10px;
-            border-radius: 999px;
-            background: rgba(59, 130, 246, 0.16);
-            color: #bfdbfe;
-            border: 1px solid rgba(59, 130, 246, 0.25);
-            font-size: 0.82rem;
-            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .badge.priority-high {
-            background: rgba(239, 68, 68, 0.16);
-            color: #fecaca;
-            border-color: rgba(239, 68, 68, 0.28);
-        }
-
-        .badge.priority-medium {
-            background: rgba(245, 158, 11, 0.16);
-            color: #fde68a;
-            border-color: rgba(245, 158, 11, 0.28);
-        }
-
-        .badge.priority-low {
-            background: rgba(16, 185, 129, 0.14);
-            color: #bbf7d0;
-            border-color: rgba(16, 185, 129, 0.24);
-        }
-
-        .follow-up-alerts {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 10px;
-            margin: -4px 0 18px;
-        }
-
-        .follow-up-alert-label {
+        .action-empty {
             color: var(--text-dim);
             font-size: 0.82rem;
+            text-align: center;
+            padding: 24px 0;
+            opacity: 0.65;
+            font-style: italic;
+        }
+
+        /* ===== AI Insight Box ===== */
+        .insight-box {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(16, 185, 129, 0.05));
+            border: 1px solid rgba(59, 130, 246, 0.18);
+            border-radius: 18px;
+            padding: 18px 24px;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .insight-icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.35rem;
+            flex-shrink: 0;
+            animation: pulse 3s infinite ease-in-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 rgba(59, 130, 246, 0); }
+            50% { transform: scale(1.05); box-shadow: 0 0 10px rgba(59, 130, 246, 0.15); }
+        }
+
+        .insight-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .insight-title {
+            font-size: 0.72rem;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.7px;
+            letter-spacing: 1.2px;
+            color: #60a5fa;
+            margin-bottom: 4px;
         }
 
-        .follow-up-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            min-height: 30px;
-            padding: 6px 10px;
-            border-radius: 999px;
-            font-size: 0.82rem;
+        .insight-text {
+            font-size: 0.92rem;
+            color: var(--text-main);
+            line-height: 1.5;
+        }
+
+        /* ===== CRM Leads Section ===== */
+        .crm-leads-section {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 22px;
+            padding: 24px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+
+        .crm-section-header {
+            margin-bottom: 20px;
+        }
+
+        .crm-section-header h2 {
+            font-size: 1.35rem;
             font-weight: 700;
-            border: 1px solid rgba(148, 163, 184, 0.24);
-            color: #cbd5e1;
-            background: rgba(148, 163, 184, 0.1);
         }
 
-        .follow-up-chip.filter-chip {
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .follow-up-chip.filter-chip.active-filter {
-            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.16);
-            filter: brightness(1.18);
-        }
-
-        .follow-up-chip.danger {
-            color: #fecaca;
-            background: rgba(239, 68, 68, 0.14);
-            border-color: rgba(239, 68, 68, 0.3);
-        }
-
-        .follow-up-chip.warning {
-            color: #fde68a;
-            background: rgba(245, 158, 11, 0.14);
-            border-color: rgba(245, 158, 11, 0.3);
-        }
-
-        .follow-up-chip.neutral {
-            color: #bfdbfe;
-            background: rgba(59, 130, 246, 0.13);
-            border-color: rgba(59, 130, 246, 0.26);
-        }
-
-        .follow-up-chip.muted {
-            color: #cbd5e1;
-            background: rgba(148, 163, 184, 0.1);
-            border-color: rgba(148, 163, 184, 0.24);
-        }
-
-        .badge.follow-up-overdue {
-            background: rgba(239, 68, 68, 0.16);
-            color: #fecaca;
-            border-color: rgba(239, 68, 68, 0.3);
-            margin-top: 8px;
-        }
-
-        .badge.follow-up-today {
-            background: rgba(245, 158, 11, 0.16);
-            color: #fde68a;
-            border-color: rgba(245, 158, 11, 0.3);
-            margin-top: 8px;
-        }
-
-        .badge.follow-up-upcoming {
-            background: rgba(59, 130, 246, 0.15);
-            color: #bfdbfe;
-            border-color: rgba(59, 130, 246, 0.26);
-            margin-top: 8px;
-        }
-
-        .badge.follow-up-none {
-            background: rgba(148, 163, 184, 0.12);
-            color: #cbd5e1;
-            border-color: rgba(148, 163, 184, 0.24);
-            margin-top: 8px;
-        }
-
-        .follow-up-cell-stack {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        .empty-state {
+        .crm-section-header p {
             color: var(--text-dim);
-            text-align: center;
-            padding: 34px 20px;
-        }
-
-        .empty-state strong {
-            color: var(--text-main);
-            display: block;
-            margin-bottom: 8px;
-            font-size: 1rem;
-        }
-
-        .crm-select,
-        .crm-input,
-        .crm-notes {
-            width: 100%;
-            background: rgba(15, 23, 42, 0.72);
-            color: var(--text-main);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 10px;
-            padding: 9px 10px;
-            font: inherit;
-            outline: none;
-        }
-
-        .crm-input {
-            min-width: 150px;
-        }
-
-        .crm-notes {
-            min-width: 220px;
-            min-height: 74px;
-            resize: vertical;
-        }
-
-        .crm-select:focus,
-        .crm-input:focus,
-        .crm-notes:focus {
-            border-color: rgba(59, 130, 246, 0.65);
-        }
-
-        .save-btn {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            padding: 9px 14px;
-            font-weight: 700;
-            cursor: pointer;
-            min-width: 82px;
-        }
-
-        .view-link { display: inline-flex; align-items: center; justify-content: center; gap: 4px; text-decoration: none; background: rgba(255,255,255,0.06); color: var(--text-dim); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; transition: all 0.2s; }
-        .view-link:hover { background: rgba(255,255,255,0.12); color: var(--text-main); border-color: rgba(255,255,255,0.2); }
-
-        .details-btn {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-main);
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 10px;
-            padding: 9px 14px;
-            font-weight: 700;
-            cursor: pointer;
-            margin-top: 8px;
-            min-width: 82px;
-        }
-
-        .action-stack {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        .save-btn:disabled {
-            cursor: not-allowed;
-            opacity: 0.68;
-        }
-
-        .save-feedback {
-            color: var(--text-dim);
-            font-size: 0.82rem;
-            margin-top: 8px;
-            min-height: 18px;
-        }
-
-        .save-feedback.success {
-            color: var(--accent);
-        }
-
-        .save-feedback.error {
-            color: var(--danger);
+            font-size: 0.88rem;
+            margin-top: 4px;
         }
 
         .crm-filters {
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            margin-bottom: 18px;
+            gap: 14px;
+            margin-bottom: 20px;
         }
 
         .crm-filter-row {
@@ -425,40 +640,320 @@
         }
 
         .crm-filter-selects {
-            grid-template-columns: repeat(5, minmax(140px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         }
 
         .crm-filter-search-row {
-            grid-template-columns: minmax(0, 1fr) minmax(170px, auto) auto;
+            grid-template-columns: minmax(0, 1fr) auto;
         }
 
+        .crm-select,
+        .crm-input,
+        .crm-notes,
         .crm-search {
-            width: 100%;
-            min-width: 0;
+            background: var(--input-bg);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 10px 14px;
+            font: inherit;
+            font-size: 0.88rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .crm-select {
+            cursor: pointer;
+        }
+
+        .crm-select:hover,
+        .crm-input:hover,
+        .crm-notes:hover,
+        .crm-search:hover {
+            border-color: rgba(255, 255, 255, 0.16);
+            background: rgba(15, 23, 42, 0.8);
+        }
+
+        .crm-select:focus,
+        .crm-input:focus,
+        .crm-notes:focus,
+        .crm-search:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 10px -2px rgba(59, 130, 246, 0.25);
+            background: rgba(15, 23, 42, 0.9);
         }
 
         .clear-filters-btn {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-main);
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 10px;
-            padding: 9px 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 10px 18px;
             font: inherit;
-            font-weight: 700;
+            font-size: 0.88rem;
+            font-weight: 600;
             cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .clear-filters-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+
+        /* ===== Enhanced Table ===== */
+        .table-wrap {
+            overflow-x: auto;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .enhanced-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            min-width: 900px;
+        }
+
+        .enhanced-table th {
+            text-align: left;
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.3);
+            color: var(--text-dim);
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
             white-space: nowrap;
         }
 
+        .enhanced-table td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.9rem;
+            vertical-align: middle;
+            transition: background 0.15s;
+        }
+
+        .enhanced-table tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .enhanced-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* ===== Badges & Custom Fields ===== */
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 26px;
+            padding: 4px 12px;
+            border-radius: 99px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            white-space: nowrap;
+            letter-spacing: 0.3px;
+        }
+
+        .badge.priority-high {
+            background: rgba(239, 68, 68, 0.12);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.25);
+        }
+
+        .badge.priority-medium {
+            background: rgba(245, 158, 11, 0.12);
+            color: #fcd34d;
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+
+        .badge.priority-low {
+            background: rgba(16, 185, 129, 0.12);
+            color: #6ee7b7;
+            border: 1px solid rgba(16, 185, 129, 0.22);
+        }
+
+        .badge.follow-up-overdue {
+            background: rgba(239, 68, 68, 0.12);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+
+        .badge.follow-up-today {
+            background: rgba(245, 158, 11, 0.12);
+            color: #f59e0b;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+
+        .badge.follow-up-upcoming {
+            background: rgba(59, 130, 246, 0.1);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .badge.follow-up-none {
+            background: rgba(255, 255, 255, 0.03);
+            color: var(--text-dim);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .follow-up-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .follow-up-cell input[type="date"] {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 6px 10px;
+            color: var(--text-main);
+            font-size: 0.82rem;
+            font-family: inherit;
+            outline: none;
+            width: 135px;
+            transition: all 0.2s;
+        }
+
+        .follow-up-cell input[type="date"]:focus {
+            border-color: var(--primary);
+        }
+
+        .inline-select,
+        .inline-input {
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 6px 10px;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-family: inherit;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .inline-select:focus,
+        .inline-input:focus {
+            border-color: var(--primary);
+        }
+
+        .inline-input {
+            width: 120px;
+        }
+
+        .row-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        /* ===== Premium Buttons & Links ===== */
+        .icon-btn {
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-main);
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            padding: 8px 12px;
+            border-radius: 10px;
+            white-space: nowrap;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .icon-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.16);
+            transform: translateY(-1px);
+        }
+
+        .icon-btn.primary-btn {
+            background: var(--primary);
+            border-color: rgba(59, 130, 246, 0.3);
+            color: white;
+        }
+
+        .icon-btn.primary-btn:hover {
+            background: #2563eb;
+            box-shadow: 0 0 12px -3px rgba(59, 130, 246, 0.4);
+        }
+
+        .view-link {
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text-dim);
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .view-link:hover {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-main);
+            border-color: rgba(255, 255, 255, 0.14);
+            transform: translateY(-1px);
+        }
+
+        .save-feedback-inline {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            min-height: 16px;
+        }
+        .save-feedback-inline.success { color: var(--accent); }
+        .save-feedback-inline.error { color: var(--danger); }
+
+        .empty-state {
+            color: var(--text-dim);
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .empty-state strong {
+            color: var(--text-main);
+            display: block;
+            margin-bottom: 6px;
+            font-size: 1.05rem;
+        }
+
+        .empty-state span {
+            font-size: 0.88rem;
+            opacity: 0.85;
+        }
+
+        /* ===== Modal Styling ===== */
         .modal-backdrop {
             position: fixed;
             inset: 0;
-            background: rgba(2, 6, 23, 0.72);
-            backdrop-filter: blur(8px);
+            background: rgba(5, 11, 24, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             display: none;
             align-items: center;
             justify-content: center;
             padding: 24px;
             z-index: 1000;
+            transition: all 0.3s;
         }
 
         .modal-backdrop.open {
@@ -466,14 +961,17 @@
         }
 
         .lead-modal {
-            width: min(760px, 100%);
-            max-height: 88vh;
+            width: min(720px, 100%);
+            max-height: 90vh;
             overflow-y: auto;
-            background: rgba(15, 23, 42, 0.96);
-            border: 1px solid var(--glass-border);
-            border-radius: 22px;
-            padding: 24px;
-            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.35);
+            background: rgba(30, 41, 59, 0.98);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
         }
 
         .modal-header {
@@ -481,242 +979,109 @@
             justify-content: space-between;
             gap: 16px;
             align-items: flex-start;
-            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding-bottom: 14px;
         }
 
         .modal-header h2 {
-            font-size: 1.35rem;
-            margin-bottom: 4px;
+            font-size: 1.4rem;
+            font-weight: 700;
         }
 
         .modal-header p {
             color: var(--text-dim);
-            font-size: 0.9rem;
+            font-size: 0.88rem;
+            margin-top: 4px;
         }
 
         .modal-close {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-main);
-            border: 1px solid rgba(255, 255, 255, 0.14);
+            border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 10px;
-            padding: 8px 12px;
+            padding: 8px 14px;
             cursor: pointer;
-            font-weight: 700;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.10);
+            border-color: rgba(255, 255, 255, 0.16);
         }
 
         .lead-detail-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 12px;
-            margin-bottom: 18px;
         }
 
         .lead-detail-item {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
             border-radius: 12px;
             padding: 12px;
         }
 
         .lead-detail-label {
             color: var(--text-dim);
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             text-transform: uppercase;
-            letter-spacing: 0.6px;
-            margin-bottom: 6px;
+            letter-spacing: 0.8px;
+            font-weight: 600;
+            margin-bottom: 4px;
         }
 
         .lead-detail-value {
             color: var(--text-main);
-            font-size: 0.95rem;
+            font-size: 0.92rem;
+            font-weight: 500;
             word-break: break-word;
+        }
+
+        .crm-notes {
+            min-height: 110px;
+            resize: vertical;
         }
 
         .modal-actions {
             display: flex;
             flex-wrap: wrap;
-            gap: 10px;
+            gap: 12px;
             align-items: center;
-            margin-top: 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+            padding-top: 16px;
         }
 
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-
-            .main-container {
-                padding: 30px 20px;
-            }
-
-            .header {
-                flex-direction: column;
-            }
-
-            .crm-filters {
-                gap: 10px;
-            }
-
-            .crm-filter-selects,
-            .crm-filter-search-row {
-                grid-template-columns: 1fr;
-            }
-
-            .lead-detail-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    
-        .work-panel-section {
-            margin-bottom: 24px;
-        }
-        .work-panel-label {
-            color: var(--text-dim);
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-        .work-panel-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 18px;
-        }
-        .work-card {
-            background: rgba(15, 23, 42, 0.42);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 18px;
-            min-height: 118px;
+        .save-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 20px;
+            font-weight: 700;
             cursor: pointer;
-            user-select: none;
-            transition: all 0.25s ease;
-        }
-        .work-card:hover {
-            transform: translateY(-3px);
-            border-color: rgba(255, 255, 255, 0.2);
-        }
-        .work-card:focus-visible {
-            outline: 2px solid rgba(59, 130, 246, 0.85);
-            outline-offset: 3px;
-        }
-        .work-card.active-filter {
-            box-shadow: 0 0 0 1px currentColor, 0 12px 32px rgba(0,0,0,0.2);
-        }
-        .work-card-overdue {
-            border-color: rgba(239, 68, 68, 0.3);
-        }
-        .work-card-overdue .summary-value {
-            color: var(--danger, #ef4444);
-        }
-        .work-card-overdue.active-filter {
-            border-color: rgba(239, 68, 68, 0.7);
-            box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.35), 0 12px 32px rgba(239, 68, 68, 0.12);
-        }
-        .work-card-today {
-            border-color: rgba(245, 158, 11, 0.3);
-        }
-        .work-card-today .summary-value {
-            color: var(--warning, #f59e0b);
-        }
-        .work-card-today.active-filter {
-            border-color: rgba(245, 158, 11, 0.7);
-            box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.35), 0 12px 32px rgba(245, 158, 11, 0.12);
-        }
-        .work-card-upcoming {
-            border-color: rgba(59, 130, 246, 0.25);
-        }
-        .work-card-upcoming .summary-value {
-            color: #93c5fd;
-        }
-        .work-card-upcoming.active-filter {
-            border-color: rgba(59, 130, 246, 0.7);
-            box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35), 0 12px 32px rgba(59, 130, 246, 0.12);
-        }
-        @media (max-width: 768px) {
-            .work-panel-grid {
-                grid-template-columns: 1fr;
-            }
+            transition: all 0.2s;
         }
 
-        /* ===== Business Snapshot Bar ===== */
-        .snapshot-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
-        .snapshot-item { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 2px; transition: all 0.25s ease; }
-        .snapshot-item:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.2); }
-        .snapshot-label { color: var(--text-dim); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; }
-        .snapshot-value { font-size: 1.6rem; font-weight: 700; line-height: 1.2; }
-        .snapshot-trend { font-size: 0.72rem; color: var(--text-dim); margin-top: 2px; }
-        .snapshot-highlight { border-color: rgba(59,130,246,0.3); background: rgba(59,130,246,0.07); } .snapshot-highlight .snapshot-value { color: #93c5fd; }
-        .snapshot-warning { border-color: rgba(245,158,11,0.28); background: rgba(245,158,11,0.06); } .snapshot-warning .snapshot-value { color: #fbbf24; }
-        .snapshot-danger { border-color: rgba(239,68,68,0.25); background: rgba(239,68,68,0.06); } .snapshot-danger .snapshot-value { color: #f87171; }
-        .snapshot-success { border-color: rgba(16,185,129,0.25); background: rgba(16,185,129,0.06); } .snapshot-success .snapshot-value { color: #34d399; }
+        .save-btn:hover {
+            background: #2563eb;
+            box-shadow: 0 0 15px -3px rgba(59, 130, 246, 0.4);
+        }
 
-        /* ===== Action Board ===== */
-        .action-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
-        @media (max-width: 900px) { .action-board { grid-template-columns: 1fr; } }
-        .action-column { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 10px; transition: all 0.25s ease; cursor: pointer; }
-        .action-column:hover { transform: translateY(-2px); }
-        .action-column:focus-visible { outline: 2px solid rgba(59,130,246,0.85); outline-offset: 2px; }
-        .action-column.active-filter { box-shadow: 0 0 0 1px currentColor; }
-        .action-column-overdue { border-color: rgba(239,68,68,0.2); } .action-column-overdue:hover, .action-column-overdue.active-filter { border-color: rgba(239,68,68,0.55); }
-        .action-column-today { border-color: rgba(245,158,11,0.2); } .action-column-today:hover, .action-column-today.active-filter { border-color: rgba(245,158,11,0.55); }
-        .action-column-upcoming { border-color: rgba(59,130,246,0.2); } .action-column-upcoming:hover, .action-column-upcoming.active-filter { border-color: rgba(59,130,246,0.55); }
-        .action-col-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .action-col-title { font-size: 0.88rem; font-weight: 700; }
-        .action-col-count { font-size: 1.1rem; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); min-width: 28px; text-align: center; }
-        .action-col-overdue .action-col-title { color: #f87171; } .action-col-overdue .action-col-count { color: #f87171; background: rgba(239,68,68,0.12); }
-        .action-col-today .action-col-title { color: #fbbf24; } .action-col-today .action-col-count { color: #fbbf24; background: rgba(245,158,11,0.12); }
-        .action-col-upcoming .action-col-title { color: #93c5fd; } .action-col-upcoming .action-col-count { color: #93c5fd; background: rgba(59,130,246,0.12); }
-        .action-item { padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; line-height: 1.3; cursor: pointer; transition: background 0.2s; }
-        .action-item:hover { background: rgba(255,255,255,0.07); }
-        .action-item-name { font-weight: 600; color: var(--text-main); }
-        .action-item-reason { color: var(--text-dim); font-size: 0.78rem; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .action-empty { color: var(--text-dim); font-size: 0.82rem; text-align: center; padding: 16px 0; }
+        .save-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
 
-        /* ===== Pipeline ===== */
-        .pipeline-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 24px; }
-        @media (max-width: 768px) { .pipeline-bar { grid-template-columns: repeat(2, 1fr); } }
-        .pipeline-stage { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: 12px; padding: 12px 14px; text-align: center; transition: all 0.25s ease; cursor: pointer; position: relative; }
-        .pipeline-stage:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.2); }
-        .pipeline-stage:focus-visible { outline: 2px solid rgba(59,130,246,0.85); outline-offset: 2px; }
-        .pipeline-stage.active-filter { border-color: rgba(59,130,246,0.6); box-shadow: 0 0 0 1px rgba(59,130,246,0.2); }
-        .pipeline-stage + .pipeline-stage::before { content: "\2192"; position: absolute; left: -10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); font-size: 1rem; }
-        @media (max-width: 768px) { .pipeline-stage:nth-child(2)::before { display: none; } }
-        .pipeline-stage-label { color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
-        .pipeline-stage-value { font-size: 1.3rem; font-weight: 700; margin-top: 4px; }
-        .pipeline-stage-new .pipeline-stage-value { color: #93c5fd; }
-        .pipeline-stage-progress .pipeline-stage-value { color: #fbbf24; }
-        .pipeline-stage-contacted .pipeline-stage-value { color: #34d399; }
-        .pipeline-stage-closed .pipeline-stage-value { color: var(--text-dim); }
-
-        /* ===== AI Insight Box ===== */
-        .insight-box { background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(16,185,129,0.06)); border: 1px solid rgba(59,130,246,0.2); border-radius: 14px; padding: 16px 20px; margin-bottom: 24px; display: flex; align-items: flex-start; gap: 14px; }
-        .insight-icon { width: 36px; height: 36px; border-radius: 10px; background: rgba(59,130,246,0.12); display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0; }
-        .insight-content { flex: 1; min-width: 0; }
-        .insight-title { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 4px; }
-        .insight-text { font-size: 0.9rem; color: var(--text-main); line-height: 1.5; }
-
-        /* ===== Enhanced Table ===== */
-        .crm-leads-section { background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: 18px; padding: 20px 24px; }
-        .enhanced-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 800px; }
-        .enhanced-table th { text-align: left; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.06); color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.6px; font-weight: 600; white-space: nowrap; }
-        .enhanced-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.88rem; vertical-align: middle; transition: background 0.15s; }
-        .enhanced-table tr:hover td { background: rgba(255,255,255,0.02); }
-        .enhanced-table tr:last-child td { border-bottom: none; }
-        .icon-btn { border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: var(--text-dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.78rem; font-weight: 600; transition: all 0.2s; padding: 6px 10px; border-radius: 8px; white-space: nowrap; width: auto; height: auto; }
-        .icon-btn:hover { background: rgba(255,255,255,0.1); color: var(--text-main); border-color: rgba(255,255,255,0.2); }
-        .follow-up-cell { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .follow-up-cell input[type="date"] { background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 4px 8px; color: var(--text-main); font-size: 0.82rem; font-family: inherit; outline: none; width: 130px; }
-        .follow-up-cell input[type="date"]:focus { border-color: rgba(59,130,246,0.5); }
-        .inline-select { background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 4px 8px; color: var(--text-main); font-size: 0.82rem; font-family: inherit; outline: none; cursor: pointer; }
-        .inline-select:focus { border-color: rgba(59,130,246,0.5); }
-        .inline-input { background: rgba(15,23,42,0.5); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px; padding: 4px 8px; color: var(--text-main); font-size: 0.82rem; font-family: inherit; outline: none; width: 100px; }
-        .inline-input:focus { border-color: rgba(59,130,246,0.5); }
-        .row-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; min-width: 120px; }
-        .save-feedback-inline { font-size: 0.72rem; min-width: 40px; color: var(--text-dim); }
-        .save-feedback-inline.success { color: var(--accent); }
-        .save-feedback-inline.error { color: var(--danger); }</style>
+        .save-feedback {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .save-feedback.success { color: var(--accent); }
+        .save-feedback.error { color: var(--danger); }
+    </style>
 </head>
 
 <body>
@@ -735,46 +1100,131 @@
         </div>
 
         <div class="snapshot-bar">
-            <div class="snapshot-item snapshot-highlight"><div class="snapshot-label">Total Leads</div><div class="snapshot-value" id="crm-total-count">...</div><div class="snapshot-trend">All time</div></div>
-            <div class="snapshot-item snapshot-success"><div class="snapshot-label">Active Leads</div><div class="snapshot-value" id="crm-active-count">...</div><div class="snapshot-trend">New + In Progress</div></div>
-            <div class="snapshot-item snapshot-warning"><div class="snapshot-label">Follow-ups Today</div><div class="snapshot-value" id="crm-today-snapshot-count">...</div><div class="snapshot-trend">Needs attention</div></div>
-            <div class="snapshot-item snapshot-danger"><div class="snapshot-label">Overdue</div><div class="snapshot-value" id="crm-overdue-snapshot-count">...</div><div class="snapshot-trend">Past follow-up date</div></div>
-            <div class="snapshot-item"><div class="snapshot-label">Closed</div><div class="snapshot-value" id="crm-closed-snapshot-count">...</div><div class="snapshot-trend">Resolved</div></div>
+            <div class="snapshot-item snapshot-highlight">
+                <div class="snapshot-header-row">
+                    <div class="snapshot-label">Total Leads</div>
+                    <i data-lucide="users" class="snapshot-icon"></i>
+                </div>
+                <div class="snapshot-value" id="crm-total-count">...</div>
+                <div class="snapshot-trend">All time</div>
+            </div>
+            <div class="snapshot-item snapshot-success">
+                <div class="snapshot-header-row">
+                    <div class="snapshot-label">Active Leads</div>
+                    <i data-lucide="activity" class="snapshot-icon"></i>
+                </div>
+                <div class="snapshot-value" id="crm-active-count">...</div>
+                <div class="snapshot-trend">New + In Progress</div>
+            </div>
+            <div class="snapshot-item snapshot-warning">
+                <div class="snapshot-header-row">
+                    <div class="snapshot-label">Follow-ups Today</div>
+                    <i data-lucide="calendar" class="snapshot-icon"></i>
+                </div>
+                <div class="snapshot-value" id="crm-today-snapshot-count">...</div>
+                <div class="snapshot-trend">Needs attention</div>
+            </div>
+            <div class="snapshot-item snapshot-danger">
+                <div class="snapshot-header-row">
+                    <div class="snapshot-label">Overdue</div>
+                    <i data-lucide="clock" class="snapshot-icon"></i>
+                </div>
+                <div class="snapshot-value" id="crm-overdue-snapshot-count">...</div>
+                <div class="snapshot-trend">Past follow-up date</div>
+            </div>
+            <div class="snapshot-item snapshot-neutral">
+                <div class="snapshot-header-row">
+                    <div class="snapshot-label">Closed</div>
+                    <i data-lucide="check-circle-2" class="snapshot-icon"></i>
+                </div>
+                <div class="snapshot-value" id="crm-closed-snapshot-count">...</div>
+                <div class="snapshot-trend">Resolved</div>
+            </div>
         </div>
 
-        <div class="action-board">
-            <div class="action-column action-column-overdue" data-work-panel="overdue" role="button" tabindex="0" aria-pressed="false" aria-label="Overdue leads">
-                <div class="action-col-header">
-                    <div class="action-col-title action-col-overdue" style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#ef4444;"></span> Overdue</div>
-                    <span class="action-col-count action-col-overdue" id="work-overdue-count">...</span>
+        <div class="crm-mid-section">
+            <!-- Left Column: Pipeline Stages Vertical Timeline -->
+            <div class="pipeline-timeline-container glass-card">
+                <h3 class="mid-section-title"><i data-lucide="git-branch"></i> Pipeline Stages</h3>
+                <div class="timeline-wrapper">
+                    <div class="timeline-line"></div>
+                    
+                    <div class="timeline-item pipeline-stage-new" data-status-card="new" role="button" tabindex="0">
+                        <div class="timeline-node">1</div>
+                        <div class="timeline-content">
+                            <div class="timeline-label">New</div>
+                            <div class="timeline-value" id="crm-new-count">...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item pipeline-stage-progress" data-status-card="in_progress" role="button" tabindex="0">
+                        <div class="timeline-node">2</div>
+                        <div class="timeline-content">
+                            <div class="timeline-label">In Progress</div>
+                            <div class="timeline-value" id="crm-in-progress-count">...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item pipeline-stage-contacted" data-status-card="contacted" role="button" tabindex="0">
+                        <div class="timeline-node">3</div>
+                        <div class="timeline-content">
+                            <div class="timeline-label">Contacted</div>
+                            <div class="timeline-value" id="crm-contacted-count">...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item pipeline-stage-closed" data-status-card="closed" role="button" tabindex="0">
+                        <div class="timeline-node">4</div>
+                        <div class="timeline-content">
+                            <div class="timeline-label">Closed</div>
+                            <div class="timeline-value" id="crm-closed-count">...</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="action-col-items" id="action-overdue-items"><div class="action-empty">No overdue leads</div></div>
             </div>
-            <div class="action-column action-column-today" data-work-panel="today" role="button" tabindex="0" aria-pressed="false" aria-label="Follow-ups due today">
-                <div class="action-col-header">
-                    <div class="action-col-title action-col-today" style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#f59e0b;"></span> Due Today</div>
-                    <span class="action-col-count action-col-today" id="work-today-count">...</span>
-                </div>
-                <div class="action-col-items" id="action-today-items"><div class="action-empty">No follow-ups due today</div></div>
-            </div>
-            <div class="action-column action-column-upcoming" data-work-panel="upcoming" role="button" tabindex="0" aria-pressed="false" aria-label="Upcoming follow-ups">
-                <div class="action-col-header">
-                    <div class="action-col-title action-col-upcoming" style="display:flex;align-items:center;gap:6px;"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#3b82f6;"></span> Upcoming</div>
-                    <span class="action-col-count action-col-upcoming" id="work-upcoming-count">...</span>
-                </div>
-                <div class="action-col-items" id="action-upcoming-items"><div class="action-empty">No upcoming follow-ups</div></div>
-            </div>
-        </div>
 
-        <div class="pipeline-bar">
-            <div class="pipeline-stage pipeline-stage-new" data-status-card="new" role="button" tabindex="0" aria-pressed="false"><div class="pipeline-stage-label">New</div><div class="pipeline-stage-value" id="crm-new-count">...</div></div>
-            <div class="pipeline-stage pipeline-stage-progress" data-status-card="in_progress" role="button" tabindex="0" aria-pressed="false"><div class="pipeline-stage-label">In Progress</div><div class="pipeline-stage-value" id="crm-in-progress-count">...</div></div>
-            <div class="pipeline-stage pipeline-stage-contacted" data-status-card="contacted" role="button" tabindex="0" aria-pressed="false"><div class="pipeline-stage-label">Contacted</div><div class="pipeline-stage-value" id="crm-contacted-count">...</div></div>
-            <div class="pipeline-stage pipeline-stage-closed" data-status-card="closed" role="button" tabindex="0" aria-pressed="false"><div class="pipeline-stage-label">Closed</div><div class="pipeline-stage-value" id="crm-closed-count">...</div></div>
+            <!-- Right Column: Tabbed Action Board -->
+            <div class="action-tabs-container glass-card">
+                <div class="tabs-header-row">
+                    <h3 class="mid-section-title"><i data-lucide="check-square"></i> Action Board</h3>
+                    <div class="action-tabs-nav" role="tablist">
+                        <button class="tab-btn active" data-tab-trigger="overdue" role="tab" aria-selected="true" aria-controls="action-overdue-panel">
+                            <i data-lucide="alert-triangle"></i> Overdue
+                            <span class="tab-badge" id="work-overdue-count">...</span>
+                        </button>
+                        <button class="tab-btn" data-tab-trigger="today" role="tab" aria-selected="false" aria-controls="action-today-panel">
+                            <i data-lucide="calendar-days"></i> Due Today
+                            <span class="tab-badge" id="work-today-count">...</span>
+                        </button>
+                        <button class="tab-btn" data-tab-trigger="upcoming" role="tab" aria-selected="false" aria-controls="action-upcoming-panel">
+                            <i data-lucide="calendar-range"></i> Upcoming
+                            <span class="tab-badge" id="work-upcoming-count">...</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="action-tabs-content">
+                    <div class="tab-panel active" id="action-overdue-panel" role="tabpanel">
+                        <div class="action-col-items" id="action-overdue-items">
+                            <div class="action-empty">No overdue leads</div>
+                        </div>
+                    </div>
+                    <div class="tab-panel" id="action-today-panel" role="tabpanel">
+                        <div class="action-col-items" id="action-today-items">
+                            <div class="action-empty">No follow-ups due today</div>
+                        </div>
+                    </div>
+                    <div class="tab-panel" id="action-upcoming-panel" role="tabpanel">
+                        <div class="action-col-items" id="action-upcoming-items">
+                            <div class="action-empty">No upcoming follow-ups</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <div class="insight-box" id="insight-box">
-            <div class="insight-icon">&#x1F9E0;</div>
+            <div class="insight-icon"><i data-lucide="brain"></i></div>
             <div class="insight-content"><div class="insight-title">AI Insight</div><div class="insight-text" id="insight-text">Loading lead insights...</div></div>
         </div>
 
@@ -815,8 +1265,8 @@
             <label class="lead-detail-label" for="lead-modal-notes">Notes</label>
             <textarea class="crm-notes" id="lead-modal-notes" maxlength="1000"></textarea>
             <div class="modal-actions">
-                <button type="button" class="save-btn" id="lead-modal-save">Save Notes</button>
-                <a class="view-link" id="lead-modal-view-conversation" href="conversations.html">View Conversation</a>
+                <button type="button" class="save-btn" id="lead-modal-save" style="display:inline-flex;align-items:center;gap:8px;"><i data-lucide="save" style="width:16px;height:16px;"></i> Save Notes</button>
+                <a class="view-link" id="lead-modal-view-conversation" href="conversations.html" style="display:inline-flex;align-items:center;gap:8px;"><i data-lucide="message-square" style="width:16px;height:16px;"></i> View Conversation</a>
                 <span class="save-feedback" id="lead-modal-feedback"></span>
             </div>
         </div>
@@ -857,7 +1307,12 @@
             fetchCrmLeads();
             setupCrmFilters();
             setupCrmQuickFilters();
+            setupActionTabs();
             setupLeadDetailsModal();
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
         });
 
         function setText(id, value) {
@@ -917,34 +1372,38 @@
         }
 
         function setCrmLoading() {
-            setText("crm-new-count", "...");
             setText("crm-total-count", "...");
+            setText("crm-active-count", "...");
+            setText("crm-today-snapshot-count", "...");
+            setText("crm-overdue-snapshot-count", "...");
+            setText("crm-closed-snapshot-count", "...");
+
             setText("work-overdue-count", "...");
             setText("work-today-count", "...");
             setText("work-upcoming-count", "...");
+
+            setText("crm-new-count", "...");
             setText("crm-in-progress-count", "...");
             setText("crm-contacted-count", "...");
             setText("crm-closed-count", "...");
-            setText("crm-overdue-count", "...");
-            setText("crm-due-today-count", "...");
-            setText("crm-upcoming-count", "...");
-            setText("crm-unassigned-count", "...");
             renderTableMessage("Loading CRM leads...", "Checking customer follow-up records.");
         }
 
         function showCrmError() {
-            setText("crm-new-count", "-");
             setText("crm-total-count", "-");
+            setText("crm-active-count", "-");
+            setText("crm-today-snapshot-count", "-");
+            setText("crm-overdue-snapshot-count", "-");
+            setText("crm-closed-snapshot-count", "-");
+
             setText("work-overdue-count", "-");
             setText("work-today-count", "-");
             setText("work-upcoming-count", "-");
+
+            setText("crm-new-count", "-");
             setText("crm-in-progress-count", "-");
             setText("crm-contacted-count", "-");
             setText("crm-closed-count", "-");
-            setText("crm-overdue-count", "-");
-            setText("crm-due-today-count", "-");
-            setText("crm-upcoming-count", "-");
-            setText("crm-unassigned-count", "-");
             renderTableMessage("Unable to load CRM leads.", "Please try refreshing this page.");
         }
 
@@ -994,7 +1453,6 @@
 
         function renderCrmSummary(leads) {
             const totalLeads = leads.length;
-            setText("crm-total-count", totalLeads);
             const counts = {
                 new: 0,
                 in_progress: 0,
@@ -1029,17 +1487,28 @@
                 }
             });
 
+            const activeLeads = counts.new + counts.in_progress;
+
+            // Set snapshot card values
+            setText("crm-total-count", totalLeads);
+            setText("crm-active-count", activeLeads);
+            setText("crm-today-snapshot-count", followUpCounts.today);
+            setText("crm-overdue-snapshot-count", followUpCounts.overdue);
+            setText("crm-closed-snapshot-count", counts.closed);
+
+            // Set action board header counts
+            setText("work-overdue-count", followUpCounts.overdue);
+            setText("work-today-count", followUpCounts.today);
+            setText("work-upcoming-count", followUpCounts.upcoming);
+
+            // Set pipeline stages counts
             setText("crm-new-count", counts.new);
             setText("crm-in-progress-count", counts.in_progress);
             setText("crm-contacted-count", counts.contacted);
             setText("crm-closed-count", counts.closed);
-            setText("crm-overdue-count", followUpCounts.overdue);
-            setText("crm-due-today-count", followUpCounts.today);
-            setText("crm-upcoming-count", followUpCounts.upcoming);
-            setText("crm-unassigned-count", followUpCounts.unassigned);
-            setText("work-upcoming-count", followUpCounts.upcoming);
-            setText("work-today-count", followUpCounts.today);
-            setText("work-overdue-count", followUpCounts.overdue);
+
+            // Render AI Insights
+            renderAiInsight(leads, counts, followUpCounts);
         }
 
         
@@ -1199,15 +1668,16 @@
                     applyCrmFilters();
                 });
             });
-            document.querySelectorAll("[data-work-panel]").forEach(card => {
-                activateQuickFilter(card, () => {
-                    const value = card.getAttribute("data-work-panel");
-                    const current = getFilterValue("crm-follow-up-filter");
-                    setFilterValue("crm-follow-up-filter", current === value ? "" : value);
+        }
+
+        function setupActionTabs() {
+            document.querySelectorAll("[data-tab-trigger]").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    const value = btn.getAttribute("data-tab-trigger");
+                    setFilterValue("crm-follow-up-filter", value);
                     applyCrmFilters();
                 });
             });
-
         }
 
         function updateFilterActiveStates() {
@@ -1231,13 +1701,21 @@
                 chip.classList.toggle("active-filter", isActive);
                 chip.setAttribute("aria-pressed", String(isActive));
             });
-            const workPanelFilter = getFilterValue("crm-follow-up-filter");
-            document.querySelectorAll("[data-work-panel]").forEach(card => {
-                const isActive = card.getAttribute("data-work-panel") === workPanelFilter;
-                card.classList.toggle("active-filter", isActive);
-                card.setAttribute("aria-pressed", String(isActive));
-            });
 
+            // Action board tabs and panels synchronization
+            const activeTab = ["overdue", "today", "upcoming"].includes(followUpFilter) ? followUpFilter : "overdue";
+            
+            document.querySelectorAll("[data-tab-trigger]").forEach(btn => {
+                const val = btn.getAttribute("data-tab-trigger");
+                const isActive = val === activeTab;
+                btn.classList.toggle("active", isActive);
+                btn.setAttribute("aria-selected", String(isActive));
+                
+                const panel = document.getElementById("action-" + val + "-panel");
+                if (panel) {
+                    panel.classList.toggle("active", isActive);
+                }
+            });
         }
 
         function getFilterValue(id) {
@@ -1497,7 +1975,10 @@
 
         async function saveCrmLead(lead, statusSelect, assignedToInput, followUpDateInput, button, feedback) {
             button.disabled = true;
-            button.textContent = "Saving...";
+            button.innerHTML = '<i data-lucide="loader" style="width: 14px; height: 14px;"></i> Saving...';
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons({ root: button });
+            }
             feedback.className = "save-feedback-inline";
             feedback.textContent = "";
 
@@ -1511,19 +1992,28 @@
                 });
                 replaceStoredLead(updatedLead);
 
-                button.textContent = "Saved";
+                button.innerHTML = '<i data-lucide="check" style="width: 14px; height: 14px;"></i> Saved';
+                if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                    window.lucide.createIcons({ root: button });
+                }
                 feedback.className = "save-feedback success";
                 feedback.textContent = "Saved";
                 button.disabled = false;
 
                 window.setTimeout(() => {
-                    button.textContent = "Save";
+                    button.innerHTML = '<i data-lucide="save" style="width: 14px; height: 14px;"></i> Save';
+                    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                        window.lucide.createIcons({ root: button });
+                    }
                     applyCrmFilters();
                 }, 1500);
             } catch (err) {
                 console.error("CRM lead save failed", err);
                 button.disabled = false;
-                button.textContent = "Save";
+                button.innerHTML = '<i data-lucide="save" style="width: 14px; height: 14px;"></i> Save';
+                if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                    window.lucide.createIcons({ root: button });
+                }
                 feedback.className = "save-feedback error";
                 feedback.textContent = "Failed to save";
             }
@@ -1532,6 +2022,7 @@
         function renderCrmLeads(leads) {
             currentCrmLeads = leads;
             renderCrmSummary(leads);
+            renderActionBoardItems(leads);
             renderCrmTable(leads, false);
             updateFilterActiveStates();
         }
@@ -1607,8 +2098,8 @@
 
                 const saveButton = document.createElement("button");
                 saveButton.type = "button";
-                saveButton.className = "icon-btn";
-                saveButton.textContent = "Save";
+                saveButton.className = "icon-btn primary-btn";
+                saveButton.innerHTML = `<i data-lucide="save" style="width: 14px; height: 14px;"></i> Save`;
 
                 const feedback = document.createElement("div");
                 feedback.className = "save-feedback-inline";
@@ -1630,7 +2121,7 @@
                 const detailsButton = document.createElement("button");
                 detailsButton.type = "button";
                 detailsButton.className = "icon-btn";
-                detailsButton.textContent = "Details";
+                detailsButton.innerHTML = `<i data-lucide="info" style="width: 14px; height: 14px;"></i> Details`;
                 detailsButton.addEventListener("click", () => {
                     openLeadDetailsModal(lead);
                 });
@@ -1638,7 +2129,7 @@
 
                 const viewLink = document.createElement("a");
                 viewLink.className = "view-link";
-                viewLink.textContent = "View Conversation";
+                viewLink.innerHTML = `<i data-lucide="message-square" style="width: 14px; height: 14px;"></i> View`;
                 viewLink.href = createConversationHref(lead);
                 viewLink.title = lead.conversation_id
                     ? "Open this related conversation."
@@ -1650,6 +2141,10 @@
 
                 body.appendChild(row);
             });
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons({ root: body });
+            }
         }
 
         function setupLeadDetailsModal() {
