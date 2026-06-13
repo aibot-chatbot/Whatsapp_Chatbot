@@ -183,6 +183,23 @@
         .input-area { padding: 30px; border-top: 1px solid var(--glass-border); display: flex; gap: 15px; }
         .chat-input { flex-grow: 1; background: var(--input-bg); border: 1px solid var(--glass-border); border-radius: 15px; padding: 15px 25px; color: white; outline: none; }
         .send-btn { background: var(--primary); color: white; border: none; padding: 0 25px; border-radius: 15px; cursor: pointer; font-weight: 700; transition: all 0.3s; }
+        
+        .sim-button {
+            background: white;
+            color: var(--accent);
+            border: 1px solid var(--glass-border);
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.2s;
+            width: 100%;
+        }
+        .sim-button:hover {
+            background: #f8fafc;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -248,14 +265,46 @@
             const chatHeader = document.getElementById('bot-header-title');
             const providerBadge = document.getElementById('ai-provider-badge');
 
+            window.simulateButtonClick = function(btnText) {
+                const inputField = document.getElementById('message-input');
+                const sendButton = document.getElementById('send-btn');
+                inputField.value = btnText;
+                sendButton.click();
+            };
+
             function appendMessage(role, text, isHtml = false) {
                 const msg = document.createElement('div');
                 msg.className = `message ${role}`;
 
+                let htmlContent = text;
+
+                // Parse [BUTTON: X] for bot messages
+                if (role === 'bot' && !isHtml && text) {
+                    const buttonRegex = /\[BUTTON:\s*(.*?)\]/g;
+                    let buttons = [];
+                    let match;
+                    while ((match = buttonRegex.exec(text)) !== null) {
+                        buttons.push(match[1].trim());
+                    }
+                    
+                    htmlContent = text.replace(buttonRegex, '').trim();
+                    htmlContent = htmlContent.replace(/\n/g, '<br>');
+
+                    if (buttons.length > 0) {
+                        htmlContent += '<div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px;">';
+                        buttons.forEach(btn => {
+                            const safeBtn = btn.replace(/'/g, "\\'");
+                            htmlContent += `<button class="sim-button" onclick="window.simulateButtonClick('${safeBtn}')">${btn}</button>`;
+                        });
+                        htmlContent += '</div>';
+                    }
+                    isHtml = true;
+                }
+
                 if (isHtml) {
-                    msg.innerHTML = text;
+                    msg.innerHTML = htmlContent;
                 } else {
-                    msg.innerText = text;
+                    msg.innerText = htmlContent;
                 }
 
                 messages.appendChild(msg);
@@ -341,6 +390,13 @@
                             `<strong>Active Profile:</strong> ${activeProfile}<br><strong>Active PDF:</strong> ${activePdf}`,
                             true
                         );
+
+                        // Auto-load welcome message
+                        if (selectedBotData.status === "success" && selectedBotData.data.welcome_message) {
+                            setTimeout(() => {
+                                appendMessage('bot', selectedBotData.data.welcome_message, false);
+                            }, 500);
+                        }
                     } else {
                         appendMessage('bot', data.message || 'Failed to load bot context.');
                     }

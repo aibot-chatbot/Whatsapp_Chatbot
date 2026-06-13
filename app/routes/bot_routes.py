@@ -151,3 +151,36 @@ def delete_existing_bot(bot_id):
             "status": "error",
             "message": str(e)
         }), 500
+
+
+@bot_blueprint.route("/api/bots/<int:bot_id>/auto-generate-menu", methods=["POST"])
+@token_required
+def auto_generate_menu(bot_id):
+    try:
+        # Validate company ownership first (security)
+        company_id = get_current_company_id()
+        bot = get_bot(bot_id, company_id)
+        if not bot:
+            return jsonify({"status": "error", "message": "Bot not found"}), 404
+
+        from app.services.flow_builder_service import auto_generate_welcome_menu
+        
+        result = auto_generate_welcome_menu(bot_id)
+
+        return jsonify({
+            "status": "success",
+            "data": result,
+            "message": "Menu generated successfully"
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500

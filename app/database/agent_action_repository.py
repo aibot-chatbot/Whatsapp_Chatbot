@@ -64,3 +64,51 @@ def get_agent_insights_by_chatbot(chatbot_id, limit=10):
         "summary": summary,
         "recent": recent_result.data or [],
     }
+
+def get_pending_escalations(chatbot_id, limit=50):
+    # Fetch escalations
+    action_result = (
+        supabase
+        .table("agent_actions")
+        .select("*")
+        .eq("chatbot_id", chatbot_id)
+        .eq("status", "detected")
+        .in_("intent", ["handoff_request", "complaint", "knowledge_gap"])
+        .order("created_at", desc=False)
+        .limit(limit)
+        .execute()
+    )
+    actions = action_result.data or []
+    
+    if not actions:
+        return []
+        
+    # Fetch corresponding conversations manually to be safe
+    conv_ids = [a["conversation_id"] for a in actions if a.get("conversation_id")]
+    if not conv_ids:
+        return actions
+        
+    conv_result = (
+        supabase
+        .table("conversations")
+        .select("*")
+        .in_("id", conv_ids)
+        .execute()
+    )
+    convs = {c["id"]: c for c in (conv_result.data or [])}
+    
+    for action in actions:
+        action["conversation"] = convs.get(action.get("conversation_id"))
+        
+    return actions
+
+def resolve_escalation(action_id, chatbot_id):
+    result = (
+        supabase
+        .table("agent_actions")
+        .update({"status": "resolved"})
+        .eq("id", action_id)
+        .eq("chatbot_id", chatbot_id)
+        .execute()
+    )
+    return result.data[0] if result.data else None
