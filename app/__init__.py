@@ -19,6 +19,7 @@ from app.routes.whatsapp_routes import whatsapp_blueprint
 from app.routes.wasender_routes import wasender_blueprint
 from app.routes.ai_model_routes import ai_model_blueprint
 from app.routes.crm_routes import crm_blueprint
+from app.routes.agent_routes import agent_blueprint
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -53,5 +54,6 @@ def create_app():
     app.register_blueprint(wasender_blueprint)
     app.register_blueprint(ai_model_blueprint)
     app.register_blueprint(crm_blueprint)
+    app.register_blueprint(agent_blueprint)
 
     return app

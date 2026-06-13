@@ -1,0 +1,5 @@
+User@User-PC MINGW64 ~/Desktop/tt/Whatsapp_Chatbot (deeying)
+$ source pwb/Scripts/activate
+(pwb) 
+User@User-PC MINGW64 ~/Desktop/tt/Whatsapp_Chatbot (deeying)
+$pwb/Scripts/python.exe run.py

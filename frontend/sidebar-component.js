@@ -292,6 +292,16 @@ class ChatbotSidebar extends HTMLElement {
                         <span>Conversations</span>
                     </a>
 
+                    <a href="inbox.html${botQuery}" class="nav-link" title="Inbox & Escalations">
+                        <i data-lucide="inbox"></i>
+                        <span>Inbox & Escalations</span>
+                    </a>
+                    
+                    <a href="flows.html${botQuery}" class="nav-link" title="Flow Builder">
+                        <i data-lucide="workflow"></i>
+                        <span>Flow Builder</span>
+                    </a>
+
                     <a href="customer_insights.html${botQuery}" class="nav-link" title="Customer Insights">
                         <i data-lucide="target"></i>
                         <span>Customer Insights</span>

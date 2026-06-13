@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flow Builder | AI Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="assets/js/auth.js"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.82);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --input-bg: rgba(15, 23, 42, 0.6);
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --bg-dark: #050b18;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --surface-light: rgba(30, 41, 59, 0.6);
+            --primary-color: #3b82f6;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body {
+            background-color: var(--bg);
+            background-image: radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                              radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main); min-height: 100vh; display: flex; overflow: hidden;
+        }
+
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; height: 100vh; padding: 30px; gap: 20px; }
+        
+        .split-layout {
+            display: flex;
+            height: calc(100vh - 80px);
+            gap: 20px;
+            padding: 20px;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .spinner { animation: spin 1s linear infinite; }
+
+        .editor-pane {
+            flex: 1;
+            background: var(--surface-light);
+            border-radius: 12px;
+            padding: 24px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+        }
+
+        .preview-pane {
+            flex: 1;
+            background: var(--surface-light);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .phone-mockup {
+            width: 320px;
+            height: 600px;
+            background: #E5DDD5;
+            border-radius: 30px;
+            border: 10px solid #111;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .phone-header {
+            background: #075E54;
+            color: white;
+            padding: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .phone-body {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+            background-size: cover;
+        }
+
+        .chat-bubble {
+            background: white;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border-top-left-radius: 0;
+            font-size: 14px;
+            color: #111;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+            max-width: 85%;
+            white-space: pre-wrap;
+        }
+
+        .wa-button {
+            background: white;
+            color: #00A884;
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+            margin-top: -5px;
+            max-width: 85%;
+            cursor: pointer;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-group textarea {
+            width: 100%;
+            height: 120px;
+            padding: 12px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 8px;
+            resize: vertical;
+        }
+
+        .btn-input-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .btn-input-row input {
+            flex: 1;
+            padding: 10px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            border-radius: 6px;
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: none;
+            padding: 10px;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .btn-add {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+            border: 1px dashed #3b82f6;
+            padding: 10px;
+            width: 100%;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            margin-top: 10px;
+        }
+
+        .btn-add:hover {
+            background: rgba(59, 130, 246, 0.2);
+        }
+
+        .btn-save {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-save:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-content">
+        <header class="top-header">
+            <div>
+                <h1 style="font-size: 24px; font-weight: 600;">Visual Flow Builder</h1>
+                <p style="color: var(--text-secondary); margin-top: 4px;">Design your bot's Welcome Menu and interactive buttons.</p>
+            </div>
+        </header>
+
+        <div class="split-layout">
+            <!-- Editor Pane -->
+            <div class="editor-pane">
+                <div class="form-group">
+                    <label>Welcome Message</label>
+                    <textarea id="welcome-text" placeholder="Hello! How can I help you today?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Interactive Buttons (Max 3)</label>
+                    <div id="buttons-container"></div>
+                    <button class="btn-add" id="add-btn-trigger" onclick="addButton()">+ Add Button</button>
+                </div>
+
+                <div style="display: flex; gap: 15px; margin-top: 20px;">
+                    <button class="btn-save" onclick="saveFlow()" style="flex: 1;">Save Flow</button>
+                    <button class="btn-save" onclick="autoGenerate()" id="btn-auto-gen" style="flex: 1; background: var(--accent);">
+                        <i data-lucide="sparkles" style="width: 18px; margin-right: 8px;"></i> Auto-Generate
+                    </button>
+                </div>
+                
+                <div style="margin-top: 20px; padding: 12px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; font-size: 0.85rem; color: var(--text-dim); display: flex; gap: 10px; align-items: flex-start;">
+                    <i data-lucide="info" style="width: 16px; height: 16px; color: var(--primary); flex-shrink: 0; margin-top: 2px;"></i>
+                    <p style="line-height: 1.4;"><strong>Tip:</strong> After saving, you can try out your new interactive Welcome Menu by going to <strong>Behaviour > Test Bot</strong> in the left menu.</p>
+                </div>
+            </div>
+
+            <!-- Preview Pane -->
+            <div class="preview-pane">
+                <div class="phone-mockup">
+                    <div class="phone-header">
+                        <i data-lucide="bot" style="width: 20px;"></i> AI Assistant
+                    </div>
+                    <div class="phone-body" id="phone-body">
+                        <!-- Preview renders here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="sidebar-component.js"></script>
+    <script>
+        let botData = null;
+        let welcomeText = "";
+        let buttons = [];
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `flows.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            selectedBotId = storedBotId;
+        }
+        if (!selectedBotId) {
+            window.location.href = "bots.html";
+        }
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+            if (selectedBotId) {
+                loadBotData();
+            }
+
+            document.getElementById('welcome-text').addEventListener('input', (e) => {
+                welcomeText = e.target.value;
+                renderPreview();
+            });
+        });
+
+        async function loadBotData() {
+            try {
+                const res = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+                const json = await res.json();
+                if (json.status === 'success') {
+                    botData = json.data;
+                    parseWelcomeMessage(botData.welcome_message || "");
+                    renderEditor();
+                    renderPreview();
+                }
+            } catch (err) {
+                console.error("Failed to load bot data", err);
+            }
+        }
+
+        function parseWelcomeMessage(rawText) {
+            // Extract buttons: [BUTTON: Name]
+            const regex = /\[BUTTON:\s*(.*?)\]/gi;
+            let match;
+            buttons = [];
+            while ((match = regex.exec(rawText)) !== null) {
+                buttons.push(match[1].trim());
+            }
+            
+            // Remove buttons from text
+            welcomeText = rawText.replace(/\[BUTTON:\s*(.*?)\]/gi, "").trim();
+        }
+
+        function renderEditor() {
+            document.getElementById('welcome-text').value = welcomeText;
+            
+            const container = document.getElementById('buttons-container');
+            container.innerHTML = '';
+
+            buttons.forEach((btn, index) => {
+                const row = document.createElement('div');
+                row.className = 'btn-input-row';
+                row.innerHTML = `
+                    <input type="text" value="${btn}" placeholder="Button Name" oninput="updateButton(${index}, this.value)">
+                    <button class="btn-danger" onclick="removeButton(${index})"><i data-lucide="trash-2" style="width:18px;"></i></button>
+                `;
+                container.appendChild(row);
+            });
+
+            if (window.lucide) lucide.createIcons();
+
+            document.getElementById('add-btn-trigger').style.display = buttons.length >= 3 ? 'none' : 'block';
+        }
+
+        function renderPreview() {
+            const body = document.getElementById('phone-body');
+            body.innerHTML = '';
+
+            if (welcomeText) {
+                body.innerHTML += `<div class="chat-bubble">${welcomeText || '...'}</div>`;
+            }
+
+            buttons.forEach(btn => {
+                if (btn.trim()) {
+                    body.innerHTML += `<div class="wa-button">${btn.trim()}</div>`;
+                }
+            });
+        }
+
+        function addButton() {
+            if (buttons.length < 3) {
+                buttons.push("");
+                renderEditor();
+                renderPreview();
+            }
+        }
+
+        function removeButton(index) {
+            buttons.splice(index, 1);
+            renderEditor();
+            renderPreview();
+        }
+
+        function updateButton(index, val) {
+            buttons[index] = val;
+            renderPreview();
+        }
+
+        async function saveFlow() {
+            if (!botData) return;
+            const btnsave = document.querySelector('.btn-save');
+            btnsave.innerText = "Saving...";
+
+            let finalMessage = welcomeText.trim();
+            buttons.forEach(btn => {
+                if (btn.trim()) {
+                    finalMessage += `\n[BUTTON: ${btn.trim()}]`;
+                }
+            });
+
+            botData.welcome_message = finalMessage;
+
+            try {
+                const res = await authenticatedFetch(`/api/bots/${selectedBotId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(botData)
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    btnsave.innerText = "Saved!";
+                    setTimeout(() => btnsave.innerText = "Save Flow", 2000);
+                } else {
+                    alert("Error saving: " + json.message);
+                    btnsave.innerText = "Save Flow";
+                }
+            } catch (err) {
+                alert("Failed to save.");
+                btnsave.innerText = "Save Flow";
+            }
+        }
+
+        async function autoGenerate() {
+            if (!selectedBotId) return;
+            const btn = document.getElementById('btn-auto-gen');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i data-lucide="loader" class="spinner" style="width: 18px; margin-right: 8px;"></i> Scanning PDF...`;
+            btn.disabled = true;
+            if (window.lucide) lucide.createIcons();
+
+            try {
+                const res = await authenticatedFetch(`/api/bots/${selectedBotId}/auto-generate-menu`, {
+                    method: 'POST'
+                });
+                const json = await res.json();
+                
+                if (json.status === 'success') {
+                    welcomeText = json.data.welcome_text;
+                    buttons = json.data.buttons || [];
+                    renderEditor();
+                    renderPreview();
+                } else {
+                    alert("Error: " + json.message);
+                }
+            } catch (err) {
+                alert("Failed to connect to the server.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+    </script>
+</body>
+</html>
