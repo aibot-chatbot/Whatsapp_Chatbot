@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -13,6 +13,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
     <script>requireLogin();</script>
     <script src="sidebar-component.js"></script>
@@ -209,16 +211,7 @@
             margin-bottom: 30px;
         }
 
-        .glass-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border);
-            padding: 20px;
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
+        /* ===== Glass Cards (from shared-glass.css) ===== */
 
         .stat-label {
             font-size: 0.8rem;
@@ -1487,3 +1480,4 @@
 </body>
 
 </html>
+
