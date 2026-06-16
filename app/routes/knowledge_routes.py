@@ -1,6 +1,6 @@
-from flask import Blueprint, jsonify, request
+﻿from flask import Blueprint, jsonify, request
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import verify_chatbot_access
+from app.utils.access_control import verify_chatbot_access, role_required
 
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
@@ -17,9 +17,9 @@ from app.services.knowledge_service import (
 
 knowledge_blueprint = Blueprint("knowledge", __name__)
 
-
 @knowledge_blueprint.route("/api/knowledge/files", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def get_uploaded_pdfs():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -68,6 +68,7 @@ def get_current_active_pdf():
 
 @knowledge_blueprint.route("/api/knowledge/set-active", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def set_current_active_pdf():
     try:
         data = request.get_json()
@@ -112,6 +113,7 @@ def set_current_active_pdf():
 
 @knowledge_blueprint.route("/api/knowledge/toggle-support", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def toggle_supporting_knowledge_source():
     try:
         data = request.get_json() or {}
@@ -166,6 +168,7 @@ def toggle_supporting_knowledge_source():
 
 @knowledge_blueprint.route("/api/knowledge/files/<path:file_name>", methods=["DELETE"])
 @token_required
+@role_required("admin", "owner")
 def delete_uploaded_pdf(file_name):
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -202,6 +205,7 @@ def delete_uploaded_pdf(file_name):
 
 @knowledge_blueprint.route("/api/knowledge/scrape", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def scrape_website_knowledge():
     try:
         data = request.get_json()
@@ -238,6 +242,7 @@ def scrape_website_knowledge():
 
 @knowledge_blueprint.route("/api/knowledge/scrape-analyze", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def scrape_analyze_website():
     try:
         data = request.get_json()
@@ -277,6 +282,7 @@ def scrape_analyze_website():
 
 @knowledge_blueprint.route("/api/knowledge/scrape-batch", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def scrape_batch_website():
     try:
         data = request.get_json()
@@ -313,6 +319,7 @@ def scrape_batch_website():
 
 @knowledge_blueprint.route("/api/knowledge/scrape-extract", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def scrape_extract_website():
     try:
         from app.services.knowledge_service import fetch_and_parse_url
@@ -380,6 +387,7 @@ def scrape_extract_website():
 
 @knowledge_blueprint.route("/api/knowledge/scrape-embed", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def scrape_embed_website():
     try:
         data = request.get_json()

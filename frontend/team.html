@@ -203,6 +203,242 @@
             color: var(--text-dim);
         }
 
+        /* ===== Header Row with Add Button ===== */
+        .header-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .header-row .header-text h1 {
+            font-size: 1.9rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-row .header-text h1 i, .header-row .header-text h1 svg {
+            -webkit-text-fill-color: initial;
+            color: var(--primary);
+        }
+        .header-row .header-text p {
+            color: var(--text-dim);
+            margin-top: 4px;
+            font-size: 0.95rem;
+        }
+
+        .btn-add-member {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: none;
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .btn-add-member:hover {
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+            transform: translateY(-1px);
+        }
+
+        /* ===== Modal ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--card-bg, rgba(30, 41, 59, 0.95));
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 28px 32px;
+            width: 100%;
+            max-width: 480px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 22px;
+        }
+        .modal-header h2 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .modal-header h2 i, .modal-header h2 svg {
+            color: var(--primary);
+        }
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.04);
+            color: var(--text-dim);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .modal-close:hover {
+            background: rgba(255,255,255,0.08);
+            color: var(--text-main);
+        }
+
+        .modal-body .form-row {
+            margin-bottom: 16px;
+        }
+        .modal-body .form-row label {
+            display: block;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        .modal-body .form-row input,
+        .modal-body .form-row select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--input-bg, rgba(15, 23, 42, 0.6));
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: var(--text-main);
+            font-size: 0.92rem;
+            font-family: 'Outfit', sans-serif;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .modal-body .form-row input:focus,
+        .modal-body .form-row select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .modal-body .form-row select option {
+            background: #1e293b;
+            color: var(--text-main);
+        }
+        .modal-body .form-row .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .modal-body .form-row .input-wrapper input {
+            padding-right: 36px;
+        }
+        .pwd-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+        .pwd-toggle:hover { color: var(--text-main); }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 22px;
+            padding-top: 18px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .btn-cancel {
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: transparent;
+            color: var(--text-dim);
+            font-weight: 600;
+            font-size: 0.9rem;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-cancel:hover {
+            background: rgba(255,255,255,0.04);
+            color: var(--text-main);
+        }
+
+        .btn-submit {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .btn-submit:hover {
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+        }
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
+        .field-error {
+            color: var(--danger);
+            font-size: 0.78rem;
+            margin-top: 3px;
+        }
+        .hidden {
+            display: none;
+        }
         @media (max-width: 768px) {
             .main-container { padding: 24px 20px; }
             .team-table th, .team-table td { padding: 10px 12px; }
@@ -217,22 +453,27 @@
     <script src="assets/js/auth.js"></script>
 
     <div class="main-container">
-        <div class="header">
-            <h1>
-                <i data-lucide="users" style="width:30px;height:30px;"></i>
-                Team Members
-            </h1>
-            <p>View all users in your company workspace.</p>
+        <div class="header-row">
+            <div class="header-text">
+                <h1>
+                    <i data-lucide="users" style="width:30px;height:30px;"></i>
+                    Team Members
+                </h1>
+                <p>View all users in your company workspace.</p>
+            </div>
+                <button class="btn-add-member" id="btn-add-member" onclick="openAddMemberModal()" title="Add a new team member" style="display:none;">
+                <i data-lucide="user-plus" style="width:18px;height:18px;"></i>
+                Add Member
+            </button>
         </div>
-
         <div class="info-banner">
             <i data-lucide="info" style="width:18px;height:18px;"></i>
-            <span>Team management is currently read-only. Invite and role management will be added later.</span>
+            <span>Admins can add new team members. Only admins and owners can manage the team.</span>
         </div>
 
         <div class="glass-card" id="team-card">
             <div class="loading-state" id="loading-state">
-                <i data-lucide="loader-2" style="width:32px;height:32px;" class="spin"></i>
+                <i data-lucide="loader-2" style="width:32px;height:32px;" class="spinner"></i>
                 <p>Loading team members...</p>
             </div>
             <div class="empty-state" id="empty-state" style="display:none;">
@@ -257,7 +498,54 @@
                 <tbody id="team-tbody"></tbody>
             </table>
         </div>
-    </div>
+    <!-- Add Member Modal -->
+    <div class="modal-overlay" id="add-member-modal">
+        <div class="modal-content glass-card">
+            <div class="modal-header">
+                <h2><i data-lucide="user-plus" style="width:22px;height:22px;"></i> Add Team Member</h2>
+                <button class="modal-close" onclick="closeAddMemberModal()" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <label for="member-name">Full Name</label>
+                    <input type="text" id="member-name" placeholder="Enter full name" autocomplete="off">
+                </div>
+                <div class="form-row">
+                    <label for="member-email">Email</label>
+                    <input type="email" id="member-email" placeholder="Enter email address" autocomplete="off">
+                </div>
+                <div class="form-row">
+                    <label for="member-role">Role</label>
+                    <select id="member-role">
+                        <option value="member">Member</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label for="member-password">Temporary Password</label>
+                    <div class="input-wrapper">
+                        <input type="password" id="member-password" placeholder="At least 8 characters" autocomplete="new-password">
+                        <button type="button" class="pwd-toggle" onclick="toggleMemberPwd('member-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <label for="member-confirm-password">Confirm Temporary Password</label>
+                    <div class="input-wrapper">
+                        <input type="password" id="member-confirm-password" placeholder="Re-enter password" autocomplete="new-password">
+                        <button type="button" class="pwd-toggle" onclick="toggleMemberPwd('member-confirm-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button>
+                    </div>
+                </div>
+                <div id="member-form-error" class="field-error hidden"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeAddMemberModal()">Cancel</button>
+                <button class="btn-submit" id="btn-submit-member" onclick="submitAddMember()">
+                    <i data-lucide="user-plus" style="width:16px;height:16px;"></i>
+                    Add Member
+                </button>
+            </div>
+        </div>
+    </div>    </div>
 
     <script>
         requireLogin();
@@ -342,6 +630,163 @@
             return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
         }
 
+        /* ===== Add Member Modal ===== */
+        var currentUserRole = null;
+
+        function openAddMemberModal() {
+            document.getElementById("add-member-modal").classList.add("open");
+            document.getElementById("member-form-error").classList.add("hidden");
+            document.getElementById("member-form-error").textContent = "";
+            refreshIcons();
+        }
+
+        function closeAddMemberModal() {
+            document.getElementById("add-member-modal").classList.remove("open");
+            // Clear form
+            document.getElementById("member-name").value = "";
+            document.getElementById("member-email").value = "";
+            document.getElementById("member-role").value = "member";
+            document.getElementById("member-password").value = "";
+            document.getElementById("member-confirm-password").value = "";
+            // Reset password fields back to hidden type
+            document.getElementById("member-password").type = "password";
+            document.getElementById("member-confirm-password").type = "password";
+            document.getElementById("member-form-error").classList.add("hidden");
+            document.getElementById("member-form-error").textContent = "";
+            // Reset eye icons
+            var toggles = document.querySelectorAll("#add-member-modal .pwd-toggle i, #add-member-modal .pwd-toggle svg");
+            toggles.forEach(function(el) { el.setAttribute("data-lucide", "eye"); });
+            refreshIcons();
+        }
+
+        function showMemberFormError(msg) {
+            var el = document.getElementById("member-form-error");
+            el.textContent = msg;
+            el.classList.remove("hidden");
+        }
+
+        function toggleMemberPwd(inputId, btn) {
+            var inp = document.getElementById(inputId);
+            if (!inp) return;
+            var isPwd = inp.type === "password";
+            inp.type = isPwd ? "text" : "password";
+            var icon = btn.querySelector("i, svg");
+            if (icon) {
+                icon.setAttribute("data-lucide", isPwd ? "eye-off" : "eye");
+            }
+            refreshIcons(btn);
+        }
+
+        async function submitAddMember() {
+            var fullName = document.getElementById("member-name").value.trim();
+            var email = document.getElementById("member-email").value.trim();
+            var role = document.getElementById("member-role").value;
+            var password = document.getElementById("member-password").value;
+            var confirmPassword = document.getElementById("member-confirm-password").value;
+
+            // Validation
+            if (!fullName) { showMemberFormError("Full name is required."); return; }
+            if (!email) { showMemberFormError("Email is required."); return; }
+            if (!role) { showMemberFormError("Role is required."); return; }
+            if (!password || !confirmPassword) { showMemberFormError("Password and confirm password are required."); return; }
+            if (password !== confirmPassword) { showMemberFormError("Passwords do not match."); return; }
+            if (password.length < 8) { showMemberFormError("Password must be at least 8 characters."); return; }
+            if (!/[A-Z]/.test(password)) { showMemberFormError("Password must contain at least 1 uppercase letter."); return; }
+            if (!/[0-9]/.test(password)) { showMemberFormError("Password must contain at least 1 number."); return; }
+            if (!/[^A-Za-z0-9]/.test(password)) { showMemberFormError("Password must contain at least 1 special character."); return; }
+
+            var btn = document.getElementById("btn-submit-member");
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" style="width:16px;height:16px;" class="spinner"></i> Adding...';
+            refreshIcons();
+
+            try {
+                var res = await authenticatedFetch("/api/users", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        full_name: fullName,
+                        email: email,
+                        role: role,
+                        password: password,
+                        confirm_password: confirmPassword
+                    })
+                });
+
+                var json = await res.json();
+
+                if (json.status === "success") {
+                    closeAddMemberModal();
+                    showMessage("Member added successfully.", "success");
+                    loadTeam();
+                } else {
+                    showMemberFormError(json.message || "Failed to add member.");
+                }
+            } catch (err) {
+                showMemberFormError("Could not connect to server.");
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Add Member';
+            refreshIcons();
+        }
+
+        // Override showMessage to create a toast-like message
+        function showMessage(text, type) {
+            // Remove existing toast
+            var old = document.getElementById("team-toast");
+            if (old) old.remove();
+
+            var toast = document.createElement("div");
+            toast.id = "team-toast";
+            toast.style.cssText = "position:fixed;bottom:30px;right:30px;padding:14px 22px;border-radius:12px;font-size:0.92rem;font-weight:600;z-index:2000;transition:opacity 0.3s;max-width:400px;";
+            if (type === "success") {
+                toast.style.background = "rgba(16,185,129,0.15)";
+                toast.style.border = "1px solid rgba(16,185,129,0.3)";
+                toast.style.color = "#10b981";
+            } else {
+                toast.style.background = "rgba(239,68,68,0.15)";
+                toast.style.border = "1px solid rgba(239,68,68,0.3)";
+                toast.style.color = "#ef4444";
+            }
+            toast.textContent = text;
+            document.body.appendChild(toast);
+
+            setTimeout(function() {
+                toast.style.opacity = "0";
+                setTimeout(function() { toast.remove(); }, 300);
+            }, 4000);
+        }
+
+        // Update loadTeam to capture current user role and control Add Member button visibility
+        var originalLoadTeam = loadTeam;
+        loadTeam = async function() {
+            // First try to get current user role
+            try {
+                var userRes = await authenticatedFetch("/api/user");
+                var userJson = await userRes.json();
+                if (userJson.status === "success" && userJson.data) {
+                    currentUserRole = (userJson.data.role || "").toLowerCase();
+                    var btn = document.getElementById("btn-add-member");
+                    if (btn) {
+                        if (currentUserRole === "admin" || currentUserRole === "owner") {
+                            btn.style.display = "inline-flex";
+                        } else {
+                            btn.style.display = "none";
+                        }
+                    }
+                }
+            } catch (_) {}
+
+            // Then load the team
+            await originalLoadTeam();
+        };
+
+        // Hide add button initially until role is known
+        document.addEventListener("DOMContentLoaded", function() {
+            var btn = document.getElementById("btn-add-member");
+            if (btn) btn.style.display = "none";
+        });
         loadTeam();
     </script>
 </body>

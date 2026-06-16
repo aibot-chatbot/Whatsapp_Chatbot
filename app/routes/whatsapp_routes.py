@@ -6,7 +6,7 @@ import requests
 from flask import Blueprint, request, jsonify
 
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import verify_chatbot_access
+from app.utils.access_control import verify_chatbot_access, role_required
 from app.database.bot_repository import get_bot_by_id
 from app.database.whatsapp_channel_repository import (
     disconnect_whatsapp_channel as disconnect_whatsapp_channel_record,
@@ -121,6 +121,7 @@ def build_safe_signup_payload(waba_id, phone_number_id, business_id, phone_metad
 
 @whatsapp_blueprint.route("/api/whatsapp/embedded-signup/complete", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def complete_embedded_signup():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -241,6 +242,7 @@ def complete_embedded_signup():
 
 @whatsapp_blueprint.route("/api/whatsapp/embedded-signup/config", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def get_embedded_signup_config():
     app_id = os.getenv("WHATSAPP_META_APP_ID")
     config_id = os.getenv("WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID")
@@ -263,6 +265,7 @@ def get_embedded_signup_config():
 
 @whatsapp_blueprint.route("/api/whatsapp/channels", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def list_whatsapp_channels():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -296,6 +299,7 @@ def list_whatsapp_channels():
 
 @whatsapp_blueprint.route("/api/whatsapp/channels/<int:channel_id>/disconnect", methods=["PUT"])
 @token_required
+@role_required("admin", "owner")
 def disconnect_whatsapp_channel(channel_id):
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)

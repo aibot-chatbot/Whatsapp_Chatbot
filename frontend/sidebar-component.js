@@ -12,6 +12,11 @@
         const isCollapsed = localStorage.getItem("sidebarCollapsed") === "true" && !isMobileViewport;
 
         const isBotsPage = currentPath === "bots.html";
+        // Determine user role from sessionStorage
+        var storedUser = null;
+        try { storedUser = JSON.parse(sessionStorage.getItem("user") || "null"); } catch(_) {}
+        var userRole = (storedUser && storedUser.role || "").toLowerCase();
+        var isAdmin = userRole === "admin" || userRole === "owner";
 
         this.innerHTML = `
         <style>
@@ -376,6 +381,17 @@
                         <span>Inbox & Escalations</span>
                     </a>
                     
+                    <a href="crm.html${botQuery}" class="nav-link" title="CRM / Leads">
+                        <i data-lucide="users"></i>
+                        <span>CRM / Leads</span>
+                    </a>
+
+                    <a href="reports.html${botQuery}" class="nav-link" title="Reports">
+                        <i data-lucide="bar-chart-3"></i>
+                        <span>Reports</span>
+                    </a>
+                    
+                    ${isAdmin ? `
                     <a href="flows.html${botQuery}" class="nav-link" title="Flow Builder">
                         <i data-lucide="workflow"></i>
                         <span>Flow Builder</span>
@@ -386,15 +402,6 @@
                         <span>Customer Insights</span>
                     </a>
 
-                    <a href="crm.html${botQuery}" class="nav-link" title="CRM / Leads">
-                        <i data-lucide="users"></i>
-                        <span>CRM / Leads</span>
-                    </a>
-
-                    <a href="reports.html${botQuery}" class="nav-link" title="Reports">
-                        <i data-lucide="bar-chart-3"></i>
-                        <span>Reports</span>
-                    </a>
                     
                     <div class="dropdown-container" id="training-dropdown">
                         <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')" title="Training Data">
@@ -440,17 +447,20 @@
                         <i data-lucide="plug"></i>
                         <span>Integration</span>
                     </a>
+                    ` : ""}
                 ` : ""}
             </nav>
 
             <!-- Bottom section: Profile + Logout -->
             <div class="sidebar-bottom-section">
+                ${isAdmin ? `
                 <a href="team.html${botQuery}" class="profile-link" title="Team Members">
                     <div class="profile-link-content">
                         <i data-lucide="users"></i>
                         <span>Team Members</span>
                     </div>
                 </a>
+                ` : ""}
                 <a href="profile.html${botQuery}" class="profile-link" title="Profile">
                     <div class="profile-link-content">
                         <i data-lucide="user-circle"></i>

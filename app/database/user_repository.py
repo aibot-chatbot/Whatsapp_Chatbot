@@ -27,7 +27,7 @@ def get_user_by_email(email):
     return data[0]
 
 
-def create_user(company_id, full_name, email, password_hash, role="admin", status="active"):
+def create_user(company_id, full_name, email, password_hash, role="admin", status="active", is_verified=False):
     if not company_id:
         raise ValueError("Company ID is required")
 
@@ -42,6 +42,7 @@ def create_user(company_id, full_name, email, password_hash, role="admin", statu
         "full_name": full_name.strip(),
         "email": email.strip().lower(),
         "password_hash": password_hash,
+        "is_verified": is_verified,
         "role": role,
         "status": status,
         "created_at": _now_iso(),
