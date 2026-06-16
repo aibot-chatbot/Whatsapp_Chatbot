@@ -1,8 +1,9 @@
 ﻿from flask import Blueprint, jsonify, request, g
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.database.user_repository import get_user_by_id, update_user, get_users_by_company
+from app.database.user_repository import get_user_by_id, get_user_by_email, create_user, update_user, get_users_by_company
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import role_required
 from app.routes.auth_routes import validate_password_strength
 
 user_bp = Blueprint("user", __name__, url_prefix="/api/user")
@@ -171,9 +172,98 @@ def change_password():
 # ===== Team users blueprint (separate prefix) =====
 team_bp = Blueprint("team", __name__, url_prefix="/api/users")
 
+@team_bp.route("", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+def create_company_member():
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "status": "error",
+                "message": "No data provided."
+            }), 400
+
+        full_name = (data.get("full_name") or "").strip()
+        email = (data.get("email") or "").strip().lower()
+        role = (data.get("role") or "").strip().lower()
+        password = data.get("password") or ""
+        confirm_password = data.get("confirm_password") or ""
+
+        # Validate required fields
+        if not full_name:
+            return jsonify({"status": "error", "message": "Full name is required."}), 400
+
+        if not email:
+            return jsonify({"status": "error", "message": "Email is required."}), 400
+
+        if not role:
+            return jsonify({"status": "error", "message": "Role is required."}), 400
+
+        if role not in ("admin", "member"):
+            return jsonify({"status": "error", "message": "Allowed roles: admin, member."}), 400
+
+        if not password or not confirm_password:
+            return jsonify({"status": "error", "message": "Password and confirm password are required."}), 400
+
+        if password != confirm_password:
+            return jsonify({"status": "error", "message": "Passwords do not match."}), 400
+
+        # Password strength
+        is_strong, msg = validate_password_strength(password)
+        if not is_strong:
+            return jsonify({"status": "error", "message": msg}), 400
+
+        # Email uniqueness
+        existing = get_user_by_email(email)
+        if existing:
+            return jsonify({"status": "error", "message": "Email already registered."}), 409
+
+        # Create user under current company
+        company_id = g.company_id
+        password_hash = generate_password_hash(password)
+
+        user = create_user(
+            company_id=company_id,
+            full_name=full_name,
+            email=email,
+            password_hash=password_hash,
+            role=role,
+            status="active",
+            is_verified=True
+        )
+
+        return jsonify({
+            "status": "success",
+            "message": "Member account created successfully.",
+            "data": {
+                "id": user["id"],
+                "company_id": user.get("company_id"),
+                "full_name": user.get("full_name"),
+                "email": user.get("email"),
+                "role": user.get("role"),
+                "status": user.get("status"),
+                "is_verified": user.get("is_verified")
+            }
+        }), 201
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
 
 @team_bp.route("", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def list_company_users():
     try:
         company_id = g.company_id

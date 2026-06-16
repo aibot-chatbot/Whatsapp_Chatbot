@@ -12,7 +12,7 @@ from .utils.whatsapp_utils import (
     is_valid_whatsapp_message,
 )
 from app.services.knowledge_service import save_uploaded_pdf
-from app.utils.access_control import verify_chatbot_access
+from app.utils.access_control import verify_chatbot_access, role_required
 
 webhook_blueprint = Blueprint("webhook", __name__)
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
@@ -115,6 +115,7 @@ def webhook_post():
 
 @webhook_blueprint.route("/upload-pdf", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def upload_pdf():
     try:
         if "pdf_file" not in request.files:

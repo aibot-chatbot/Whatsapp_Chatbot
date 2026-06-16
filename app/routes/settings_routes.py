@@ -8,12 +8,13 @@ from app.services.settings_service import (
     apply_profile_to_settings,
 )
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import verify_chatbot_access
+from app.utils.access_control import verify_chatbot_access, role_required
 
 settings_blueprint = Blueprint("settings", __name__)
 
 @settings_blueprint.route("/api/settings", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def fetch_settings():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -39,6 +40,7 @@ def fetch_settings():
 
 @settings_blueprint.route("/api/settings", methods=["PUT"])
 @token_required
+@role_required("admin", "owner")
 def save_settings():
     try:
         data = request.get_json()
@@ -73,6 +75,7 @@ def save_settings():
 
 @settings_blueprint.route("/api/settings/active-profile", methods=["PUT"])
 @token_required
+@role_required("admin", "owner")
 def save_active_profile():
     try:
         data = request.get_json()
@@ -107,6 +110,7 @@ def save_active_profile():
 
 @settings_blueprint.route("/api/settings/apply-profile", methods=["PUT"])
 @token_required
+@role_required("admin", "owner")
 def apply_profile():
     try:
         data = request.get_json()

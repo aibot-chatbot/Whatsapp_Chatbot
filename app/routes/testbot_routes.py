@@ -4,13 +4,14 @@ from app.services.ai_router import generate_response
 from app.services.settings_service import get_deployed_runtime
 from app.services.profile_service import get_profile_by_name
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import verify_chatbot_access
+from app.utils.access_control import verify_chatbot_access, role_required
 
 testbot_blueprint = Blueprint("testbot", __name__)
 TESTBOT_SESSION_ID = "web_testbot_session"
 
 @testbot_blueprint.route("/api/testbot/context", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def get_testbot_context():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -43,6 +44,7 @@ def get_testbot_context():
 
 @testbot_blueprint.route("/api/testbot/chat", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def chat_with_testbot():
     try:
         data = request.get_json() or {}

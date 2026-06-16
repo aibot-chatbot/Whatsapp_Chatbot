@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify, request, g
 
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import role_required
 from app.services.bot_service import (
     list_bots,
     get_bot,
@@ -73,6 +74,7 @@ def fetch_bot(bot_id):
 
 @bot_blueprint.route("/api/bots", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def create_new_bot():
     try:
         data = request.get_json() or {}
@@ -101,6 +103,7 @@ def create_new_bot():
 
 @bot_blueprint.route("/api/bots/<int:bot_id>", methods=["PUT"])
 @token_required
+@role_required("admin", "owner")
 def update_existing_bot(bot_id):
     try:
         data = request.get_json() or {}
@@ -129,6 +132,7 @@ def update_existing_bot(bot_id):
 
 @bot_blueprint.route("/api/bots/<int:bot_id>", methods=["DELETE"])
 @token_required
+@role_required("admin", "owner")
 def delete_existing_bot(bot_id):
     try:
         company_id = get_current_company_id()
@@ -155,6 +159,7 @@ def delete_existing_bot(bot_id):
 
 @bot_blueprint.route("/api/bots/<int:bot_id>/auto-generate-menu", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def auto_generate_menu(bot_id):
     try:
         # Validate company ownership first (security)
