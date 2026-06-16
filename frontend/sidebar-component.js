@@ -1,4 +1,4 @@
-class ChatbotSidebar extends HTMLElement {
+﻿class ChatbotSidebar extends HTMLElement {
     constructor() {
         super();
     }
@@ -160,28 +160,100 @@ class ChatbotSidebar extends HTMLElement {
                 width: 18px;
                 height: 18px;
             }
-            .logout-btn {
+
+            /* ===== Bottom section: Profile + Logout ===== */
+            .sidebar-bottom-section {
                 margin-top: auto;
-                color: #ef4444;
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                padding-top: 8px;
+                border-top: 1px solid rgba(255, 255, 255, 0.04);
+            }
+
+            .profile-link {
+                text-decoration: none;
+                color: var(--text-dim, #94a3b8);
+                padding: 10px 16px;
+                border-radius: 12px;
                 display: flex;
                 align-items: center;
                 gap: 14px;
-                padding: 14px 16px;
-                text-decoration: none;
-                font-weight: 600;
-                border-radius: 14px;
-                transition: all 0.3s;
-                border: 1px solid transparent;
+                transition: all 0.25s ease;
+                font-weight: 500;
+                font-size: 1rem;
                 white-space: nowrap;
+                cursor: pointer;
             }
-            .logout-btn i, .logout-btn svg {
+            .profile-link i, .profile-link svg {
                 width: 20px;
                 height: 20px;
+                color: var(--text-dim, #94a3b8);
+                flex-shrink: 0;
+                transition: color 0.25s;
             }
-            .logout-btn:hover {
+            .profile-link:hover {
+                color: var(--text-main, #f8fafc);
+                background: rgba(255, 255, 255, 0.04);
+            }
+            .profile-link:hover i, .profile-link:hover svg {
+                color: var(--primary, #3b82f6);
+            }
+            .profile-link.active {
+                background: linear-gradient(135deg, var(--primary, #3b82f6), #2563eb);
+                color: white;
+                box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+            }
+            .profile-link.active i, .profile-link.active svg {
+                color: white;
+            }
+
+            .profile-link-content {
+                display: flex;
+                align-items: center;
+                gap: 14px;
+            }
+
+            .logout-link {
+                text-decoration: none;
+                color: #ef4444;
+                padding: 10px 16px;
+                border-radius: 12px;
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                transition: all 0.25s ease;
+                font-weight: 600;
+                font-size: 1rem;
+                white-space: nowrap;
+            }
+            .logout-link i, .logout-link svg {
+                width: 20px;
+                height: 20px;
+                color: #ef4444;
+                flex-shrink: 0;
+            }
+            .logout-link:hover {
                 background: rgba(239, 68, 68, 0.08);
-                border-color: rgba(239, 68, 68, 0.2);
-                transform: translateX(4px);
+                color: #f87171;
+            }
+            .logout-link:hover i, .logout-link:hover svg {
+                color: #f87171;
+            }
+
+            .sidebar.collapsed .sidebar-bottom-section {
+                align-items: center;
+            }
+            .sidebar.collapsed .profile-link {
+                justify-content: center;
+                padding: 10px 12px;
+            }
+            .sidebar.collapsed .profile-link-content {
+                gap: 0;
+            }
+            .sidebar.collapsed .profile-link span,
+            .sidebar.collapsed .logout-link span {
+                display: none;
             }
             
             .nav-link-content {
@@ -205,20 +277,13 @@ class ChatbotSidebar extends HTMLElement {
                 height: 44px;
             }
             .sidebar.collapsed .nav-link,
-            .sidebar.collapsed .logout-btn {
+            .sidebar.collapsed .logout-link {
                 justify-content: center;
                 padding: 12px;
                 gap: 0;
             }
-            .sidebar.collapsed .nav-link-content {
-                justify-content: center;
-                gap: 0;
-            }
             .sidebar.collapsed .nav-link span,
-            .sidebar.collapsed .logout-btn span,
-            .sidebar.collapsed .chevron {
-                display: none;
-            }
+            .sidebar.collapsed .logout-link span,
             .sidebar.collapsed .dropdown-content {
                 padding-left: 0;
             }
@@ -226,7 +291,8 @@ class ChatbotSidebar extends HTMLElement {
                 margin-top: 6px;
             }
             .sidebar.collapsed .nav-link:hover,
-            .sidebar.collapsed .logout-btn:hover {
+            .sidebar.collapsed .profile-link:hover,
+            .sidebar.collapsed .logout-link:hover {
                 transform: none;
             }
             @media (max-width: 768px) {
@@ -246,19 +312,19 @@ class ChatbotSidebar extends HTMLElement {
                     display: flex;
                 }
                 .sidebar.collapsed .nav-link,
-                .sidebar.collapsed .logout-btn {
-                    justify-content: flex-start;
-                    padding: 12px 16px;
-                    gap: 14px;
-                }
                 .sidebar.collapsed .nav-link-content {
                     justify-content: flex-start;
                     gap: 14px;
                 }
+                .sidebar.collapsed .logout-link {
+                    justify-content: flex-start;
+                    padding: 12px 16px;
+                    gap: 14px;
+                }
                 .sidebar.collapsed .nav-link span,
-                .sidebar.collapsed .logout-btn span,
+                .sidebar.collapsed .logout-link span,
                 .sidebar.collapsed .chevron {
-                    display: inline;
+                    display: none;
                 }
             }
         </style>
@@ -364,10 +430,20 @@ class ChatbotSidebar extends HTMLElement {
                 ` : ""}
             </nav>
 
-            <a href="login.html?logout=1" class="logout-btn" title="Logout">
-                <i data-lucide="log-out"></i>
-                <span>Logout</span>
-            </a>
+            <!-- Bottom section: Profile + Logout -->
+            <div class="sidebar-bottom-section">
+                <a href="profile.html${botQuery}" class="profile-link" title="Profile">
+                    <div class="profile-link-content">
+                        <i data-lucide="user-circle"></i>
+                        <span>Profile</span>
+                    </div>
+                </a>
+                <a href="login.html?logout=1" class="logout-link" title="Logout">
+                    <i data-lucide="log-out"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+
         </aside>
         
 
@@ -434,16 +510,28 @@ class ChatbotSidebar extends HTMLElement {
 
 
     initSidebar() {
-        const currentPath = window.location.pathname.split('/').pop() || 'index.html';
-        const navLinks = this.querySelectorAll('.nav-link');
+        const currentPath = window.location.pathname.split("/").pop() || "index.html";
+        const navLinks = this.querySelectorAll(".nav-link");
+        const profileLink = this.querySelector(".profile-link");
+
+        // Mark profile link active when on profile.html
+        if (profileLink) {
+            const href = profileLink.getAttribute("href");
+            if (href) {
+                const linkPath = href.split("?")[0];
+                if (linkPath === currentPath) {
+                    profileLink.classList.add("active");
+                }
+            }
+        }
 
         navLinks.forEach(link => {
             // Check if the href matches the exact path (removing queries)
-            const href = link.getAttribute('href');
+            const href = link.getAttribute("href");
             if (href) {
-                const linkPath = href.split('?')[0];
-                if (linkPath === currentPath && !link.classList.contains('dropdown-toggle')) {
-                    link.classList.add('active');
+                const linkPath = href.split("?")[0];
+                if (linkPath === currentPath && !link.classList.contains("dropdown-toggle")) {
+                    link.classList.add("active");
                 }
             }
         });

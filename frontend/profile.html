@@ -1,0 +1,688 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile | AI Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-rgb: 59, 130, 246;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --input-bg: rgba(15, 23, 42, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 40px 48px;
+            max-width: 1280px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            margin-bottom: 28px;
+        }
+
+        .header h1 {
+            font-size: 1.9rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 i,
+        .header h1 svg {
+            -webkit-text-fill-color: initial;
+            color: var(--primary);
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 4px;
+            font-size: 0.95rem;
+        }
+
+        /* ===== Profile Message Banner ===== */
+        .profile-message {
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .profile-message.success {
+            display: block;
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: var(--accent);
+        }
+        .profile-message.error {
+            display: block;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        /* ===== Two-Column Panel Layout ===== */
+        .profile-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 22px;
+            align-items: start;
+        }
+
+        .profile-section {
+            margin-bottom: 0;
+        }
+        .profile-section:only-child,
+        .profile-section.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .profile-section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .profile-section-header i,
+        .profile-section-header svg {
+            color: var(--primary);
+        }
+
+        /* ===== Form Fields ===== */
+        .form-row {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin-bottom: 14px;
+        }
+
+        .form-row label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-row input {
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-family: 'Outfit', sans-serif;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-row input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+
+        .form-row input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .form-row .field-note {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        .action-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 10px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        /* ===== Preferences ===== */
+        .pref-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pref-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        .pref-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .pref-label {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .pref-label span:first-child {
+            font-weight: 600;
+            font-size: 0.92rem;
+        }
+        .pref-label span:last-child {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            width: 46px;
+            height: 24px;
+            flex-shrink: 0;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 24px;
+            transition: 0.3s;
+        }
+        .toggle-slider::before {
+            content: "";
+            position: absolute;
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.3s;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--primary);
+        }
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(22px);
+        }
+
+        /* ===== Avatar Area (compact inline) ===== */
+        .avatar-area {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .avatar-circle {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            flex-shrink: 0;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+        }
+
+        .avatar-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .avatar-info .name {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        .avatar-info .role-badge {
+            font-size: 0.75rem;
+            color: var(--primary);
+            background: rgba(59, 130, 246, 0.1);
+            padding: 2px 10px;
+            border-radius: 20px;
+            display: inline-block;
+            width: fit-content;
+            text-transform: capitalize;
+        }
+        .avatar-info .email-line {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+        }
+
+        /* ===== Password Strength Bar ===== */
+        .password-strength {
+            height: 4px;
+            border-radius: 4px;
+            margin-top: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            overflow: hidden;
+            transition: 0.3s;
+        }
+        .password-strength .bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 4px;
+            transition: width 0.3s, background 0.3s;
+        }
+
+        /* ===== Responsive ===== */
+        @media (max-width: 900px) {
+            .profile-grid {
+                grid-template-columns: 1fr;
+            }
+            .main-container {
+                padding: 24px 20px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .avatar-area {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <chatbot-sidebar></chatbot-sidebar>
+    <script src="sidebar-component.js"></script>
+    <script src="assets/js/auth.js"></script>
+
+    <div class="main-container">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <i data-lucide="user-circle" style="width:30px;height:30px;"></i>
+                Profile
+            </h1>
+            <p>Manage your account details, security, and preferences.</p>
+        </div>
+
+        <!-- Toast Message -->
+        <div id="profile-message" class="profile-message" role="alert" aria-live="polite"></div>
+
+        <!-- Two-Column Grid -->
+        <div class="profile-grid">
+
+            <!-- Left Column: Basic Info + Password -->
+            <div class="profile-section glass-card">
+                <div class="profile-section-header">
+                    <i data-lucide="info" style="width:17px;height:17px;"></i>
+                    Basic Information
+                </div>
+
+                <div class="avatar-area" id="avatar-area">
+                    <div class="avatar-circle" id="avatar-initials">U</div>
+                    <div class="avatar-info">
+                        <span class="name" id="avatar-name">Loading...</span>
+                        <span class="role-badge" id="avatar-role">...</span>
+                        <span class="email-line" id="avatar-email">...</span>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label for="profile-full-name">Full Name</label>
+                    <input type="text" id="profile-full-name" placeholder="Your full name" autocomplete="name">
+                </div>
+
+                <div class="form-row">
+                    <label for="profile-email">Email Address</label>
+                    <input type="email" id="profile-email" placeholder="your@email.com" autocomplete="email">
+                    <div class="field-note">Changing email requires re-verification on next login.</div>
+                </div>
+
+                <div class="action-row">
+                    <button class="action-btn primary" id="btn-save-profile" onclick="saveProfile()">
+                        <i data-lucide="save" style="width:15px;height:15px;"></i>
+                        Save Changes
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Column Top: Change Password -->
+            <div class="profile-section glass-card">
+                <div class="profile-section-header">
+                    <i data-lucide="lock" style="width:17px;height:17px;"></i>
+                    Change Password
+                </div>
+
+                <div class="form-row">
+                    <label for="profile-current-password">Current Password</label>
+                    <input type="password" id="profile-current-password" placeholder="Enter current password" autocomplete="current-password">
+                </div>
+
+                <div class="form-row">
+                    <label for="profile-new-password">New Password</label>
+                    <input type="password" id="profile-new-password" placeholder="At least 8 characters" autocomplete="new-password" oninput="updatePasswordStrength(this.value)">
+                    <div class="password-strength"><div class="bar" id="pwd-strength-bar"></div></div>
+                    <div class="field-note">Min 8 chars, 1 uppercase, 1 number, 1 special character.</div>
+                </div>
+
+                <div class="form-row">
+                    <label for="profile-confirm-password">Confirm New Password</label>
+                    <input type="password" id="profile-confirm-password" placeholder="Re-enter new password" autocomplete="new-password">
+                </div>
+
+                <div class="action-row">
+                    <button class="action-btn primary" id="btn-change-password" onclick="changePassword()">
+                        <i data-lucide="key" style="width:15px;height:15px;"></i>
+                        Update Password
+                    </button>
+                </div>
+            </div>
+
+            <!-- Full Width Bottom: Preferences -->
+            <div class="profile-section glass-card full-width">
+                <div class="profile-section-header">
+                    <i data-lucide="settings" style="width:17px;height:17px;"></i>
+                    Preferences
+                </div>
+
+                <div class="pref-list">
+                    <div class="pref-row">
+                        <div class="pref-label">
+                            <span>Dark Theme</span>
+                            <span>Toggle between dark and light appearance.</span>
+                        </div>
+                        <label class="toggle-switch" aria-label="Toggle dark theme">
+                            <input type="checkbox" id="pref-theme" checked onchange="toggleTheme()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+
+                    <div class="pref-row">
+                        <div class="pref-label">
+                            <span>Notifications</span>
+                            <span>Receive browser notifications for new messages and follow-ups.</span>
+                        </div>
+                        <label class="toggle-switch" aria-label="Toggle notifications">
+                            <input type="checkbox" id="pref-notifications" checked onchange="saveNotificationPref()">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /profile-grid -->
+    </div><!-- /main-container -->
+
+    <script>
+        /* ===== Init ===== */
+        requireLogin();
+        refreshIcons();
+
+        var currentUser = null;
+
+        function showMessage(text, type) {
+            var el = document.getElementById("profile-message");
+            el.textContent = text;
+            el.className = "profile-message " + type;
+            el.style.display = "block";
+            setTimeout(function () {
+                el.style.display = "none";
+            }, 5000);
+        }
+
+        /* ===== Load Profile ===== */
+        async function loadProfile() {
+            try {
+                var res = await authenticatedFetch("/api/user");
+                var json = await res.json();
+
+                if (json.status === "success" && json.data) {
+                    currentUser = json.data;
+                    var name = currentUser.full_name || "User";
+                    var email = currentUser.email || "";
+                    var role = currentUser.role || "";
+
+                    document.getElementById("profile-full-name").value = name;
+                    document.getElementById("profile-email").value = email;
+
+                    // Avatar area
+                    var initial = name.charAt(0).toUpperCase();
+                    document.getElementById("avatar-initials").textContent = initial;
+                    document.getElementById("avatar-name").textContent = name;
+                    document.getElementById("avatar-email").textContent = email;
+                    document.getElementById("avatar-role").textContent = role;
+
+                    refreshIcons();
+                } else {
+                    showMessage("Failed to load profile: " + (json.message || "Unknown error"), "error");
+                }
+            } catch (err) {
+                showMessage("Could not connect to server to load profile.", "error");
+            }
+        }
+
+        /* ===== Save Profile ===== */
+        async function saveProfile() {
+            var btn = document.getElementById("btn-save-profile");
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" style="width:15px;height:15px;" class="spin"></i> Saving...';
+            refreshIcons();
+
+            try {
+                var fullName = document.getElementById("profile-full-name").value.trim();
+                var email = document.getElementById("profile-email").value.trim();
+
+                var payload = {};
+                if (fullName && fullName !== currentUser.full_name) {
+                    payload.full_name = fullName;
+                }
+                if (email && email !== currentUser.email) {
+                    payload.email = email;
+                }
+
+                if (Object.keys(payload).length === 0) {
+                    showMessage("No changes to save.", "error");
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Save Changes';
+                    refreshIcons();
+                    return;
+                }
+
+                var res = await authenticatedFetch("/api/user", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                var json = await res.json();
+
+                if (json.status === "success") {
+                    showMessage(json.message || "Profile updated successfully.", "success");
+                    currentUser = json.data;
+
+                    // Update session storage
+                    try {
+                        var stored = JSON.parse(sessionStorage.getItem("user") || "{}");
+                        if (json.data.full_name) stored.full_name = json.data.full_name;
+                        if (json.data.email) stored.email = json.data.email;
+                        sessionStorage.setItem("user", JSON.stringify(stored));
+                    } catch (_) {}
+
+                    // Refresh avatar area
+                    loadProfile();
+                } else {
+                    showMessage(json.message || "Failed to save profile.", "error");
+                }
+            } catch (err) {
+                showMessage("Could not connect to server.", "error");
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Save Changes';
+            refreshIcons();
+        }
+
+        /* ===== Change Password ===== */
+        async function changePassword() {
+            var currentPassword = document.getElementById("profile-current-password").value;
+            var newPassword = document.getElementById("profile-new-password").value;
+            var confirmPassword = document.getElementById("profile-confirm-password").value;
+
+            if (!currentPassword || !newPassword || !confirmPassword) {
+                showMessage("All password fields are required.", "error");
+                return;
+            }
+
+            if (newPassword !== confirmPassword) {
+                showMessage("New passwords do not match.", "error");
+                return;
+            }
+
+            var btn = document.getElementById("btn-change-password");
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" style="width:15px;height:15px;" class="spin"></i> Updating...';
+            refreshIcons();
+
+            try {
+                var res = await authenticatedFetch("/api/user/password", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        current_password: currentPassword,
+                        new_password: newPassword,
+                        confirm_password: confirmPassword
+                    })
+                });
+
+                var json = await res.json();
+
+                if (json.status === "success") {
+                    showMessage(json.message || "Password changed successfully.", "success");
+                    document.getElementById("profile-current-password").value = "";
+                    document.getElementById("profile-new-password").value = "";
+                    document.getElementById("profile-confirm-password").value = "";
+                    document.getElementById("pwd-strength-bar").style.width = "0%";
+                } else {
+                    showMessage(json.message || "Failed to change password.", "error");
+                }
+            } catch (err) {
+                showMessage("Could not connect to server.", "error");
+            }
+
+            btn.disabled = false;
+            btn.innerHTML = '<i data-lucide="key" style="width:15px;height:15px;"></i> Update Password';
+            refreshIcons();
+        }
+
+        /* ===== Password Strength ===== */
+        function updatePasswordStrength(val) {
+            var bar = document.getElementById("pwd-strength-bar");
+            if (!val) {
+                bar.style.width = "0%";
+                return;
+            }
+            var score = 0;
+            if (val.length >= 8) score += 25;
+            if (/[A-Z]/.test(val)) score += 25;
+            if (/[0-9]/.test(val)) score += 25;
+            if (/[^A-Za-z0-9]/.test(val)) score += 25;
+
+            bar.style.width = score + "%";
+            if (score < 50) {
+                bar.style.background = "#ef4444";
+            } else if (score < 75) {
+                bar.style.background = "#f59e0b";
+            } else {
+                bar.style.background = "#10b981";
+            }
+        }
+
+        /* ===== Preferences ===== */
+        function toggleTheme() {
+            var enabled = document.getElementById("pref-theme").checked;
+            localStorage.setItem("theme", enabled ? "dark" : "light");
+            document.documentElement.setAttribute("data-theme", enabled ? "dark" : "light");
+            showMessage(enabled ? "Dark theme enabled." : "Light theme enabled.", "success");
+        }
+
+        function saveNotificationPref() {
+            var enabled = document.getElementById("pref-notifications").checked;
+            localStorage.setItem("notifications_enabled", enabled ? "true" : "false");
+        }
+
+        function restorePreferences() {
+            var themePref = localStorage.getItem("theme");
+            if (themePref === "light") {
+                document.getElementById("pref-theme").checked = false;
+                document.documentElement.setAttribute("data-theme", "light");
+            }
+            var notifPref = localStorage.getItem("notifications_enabled");
+            if (notifPref === "false") {
+                document.getElementById("pref-notifications").checked = false;
+            }
+        }
+
+        // Init
+        restorePreferences();
+        loadProfile();
+    </script>
+</body>
+
+</html>

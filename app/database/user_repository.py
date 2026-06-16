@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 
 from app.database.db import supabase
 
@@ -53,5 +53,42 @@ def create_user(company_id, full_name, email, password_hash, role="admin", statu
 
     if not rows:
         raise ValueError("Failed to create user")
+
+    return rows[0]
+
+def get_user_by_id(user_id):
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("*")
+        .eq("id", user_id)
+        .limit(1)
+        .execute()
+    )
+
+    data = response.data
+
+    if not data:
+        return None
+
+    return data[0]
+
+
+def update_user(user_id, payload):
+    if not user_id:
+        raise ValueError("User ID is required")
+
+    payload["updated_at"] = _now_iso()
+
+    response = (
+        supabase.table(TABLE_NAME)
+        .update(payload)
+        .eq("id", user_id)
+        .execute()
+    )
+
+    rows = response.data or []
+
+    if not rows:
+        raise ValueError("Failed to update user")
 
     return rows[0]
