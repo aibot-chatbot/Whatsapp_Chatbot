@@ -92,3 +92,18 @@ def update_user(user_id, payload):
         raise ValueError("Failed to update user")
 
     return rows[0]
+
+
+def get_users_by_company(company_id):
+    if not company_id:
+        raise ValueError("Company ID is required")
+
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("id, company_id, full_name, email, role, status, is_verified, created_at, updated_at")
+        .eq("company_id", company_id)
+        .order("created_at")
+        .execute()
+    )
+
+    return response.data or []

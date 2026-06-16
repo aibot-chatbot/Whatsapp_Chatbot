@@ -1,0 +1,349 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Team Members | AI Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-rgb: 59, 130, 246;
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 50px 60px;
+            max-width: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            margin-bottom: 28px;
+        }
+
+        .header h1 {
+            font-size: 1.9rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header h1 i, .header h1 svg {
+            -webkit-text-fill-color: initial;
+            color: var(--primary);
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 4px;
+            font-size: 0.95rem;
+        }
+
+        .info-banner {
+            padding: 10px 16px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            margin-bottom: 24px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .info-banner i, .info-banner svg {
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .loading-state, .empty-state, .error-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-dim);
+        }
+
+        .loading-state i, .loading-state svg {
+            margin-bottom: 12px;
+            color: var(--primary);
+        }
+
+        .empty-state i, .empty-state svg {
+            margin-bottom: 12px;
+            color: var(--text-dim);
+        }
+
+        .error-state {
+            color: var(--danger);
+        }
+
+        /* ===== Team Table ===== */
+        .team-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .team-table th {
+            text-align: left;
+            padding: 12px 16px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .team-table td {
+            padding: 14px 16px;
+            font-size: 0.92rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: middle;
+        }
+
+        .team-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .team-table tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .member-name {
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .member-email {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        .role-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .role-badge.admin {
+            background: rgba(59, 130, 246, 0.12);
+            color: var(--primary);
+        }
+
+        .role-badge.member {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent);
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .status-dot.active { background: var(--accent); }
+        .status-dot.inactive { background: var(--text-dim); }
+
+        .verified-yes {
+            color: var(--accent);
+        }
+
+        .verified-no {
+            color: var(--text-dim);
+        }
+
+        @media (max-width: 768px) {
+            .main-container { padding: 24px 20px; }
+            .team-table th, .team-table td { padding: 10px 12px; }
+            .member-email { display: none; }
+        }
+    </style>
+</head>
+
+<body>
+    <chatbot-sidebar></chatbot-sidebar>
+    <script src="sidebar-component.js"></script>
+    <script src="assets/js/auth.js"></script>
+
+    <div class="main-container">
+        <div class="header">
+            <h1>
+                <i data-lucide="users" style="width:30px;height:30px;"></i>
+                Team Members
+            </h1>
+            <p>View all users in your company workspace.</p>
+        </div>
+
+        <div class="info-banner">
+            <i data-lucide="info" style="width:18px;height:18px;"></i>
+            <span>Team management is currently read-only. Invite and role management will be added later.</span>
+        </div>
+
+        <div class="glass-card" id="team-card">
+            <div class="loading-state" id="loading-state">
+                <i data-lucide="loader-2" style="width:32px;height:32px;" class="spin"></i>
+                <p>Loading team members...</p>
+            </div>
+            <div class="empty-state" id="empty-state" style="display:none;">
+                <i data-lucide="users" style="width:40px;height:40px;"></i>
+                <p>No team members found.</p>
+            </div>
+            <div class="error-state" id="error-state" style="display:none;">
+                <i data-lucide="alert-circle" style="width:32px;height:32px;"></i>
+                <p id="error-text">Failed to load team members.</p>
+            </div>
+            <table class="team-table" id="team-table" style="display:none;">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Status</th>
+                        <th>Verified</th>
+                        <th>Joined</th>
+                    </tr>
+                </thead>
+                <tbody id="team-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        requireLogin();
+        refreshIcons();
+
+        function formatDate(dateStr) {
+            if (!dateStr) return "-";
+            try {
+                var d = new Date(dateStr);
+                if (isNaN(d.getTime())) return "-";
+                return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+            } catch (_) { return "-"; }
+        }
+
+        function capitalize(str) {
+            if (!str) return "";
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+
+        async function loadTeam() {
+            var loadingEl = document.getElementById("loading-state");
+            var emptyEl = document.getElementById("empty-state");
+            var errorEl = document.getElementById("error-state");
+            var errorText = document.getElementById("error-text");
+            var tableEl = document.getElementById("team-table");
+            var tbody = document.getElementById("team-tbody");
+
+            loadingEl.style.display = "block";
+            emptyEl.style.display = "none";
+            errorEl.style.display = "none";
+            tableEl.style.display = "none";
+
+            try {
+                var res = await authenticatedFetch("/api/users");
+                var json = await res.json();
+
+                loadingEl.style.display = "none";
+
+                if (json.status !== "success") {
+                    errorText.textContent = json.message || "Failed to load team members.";
+                    errorEl.style.display = "block";
+                    return;
+                }
+
+                var users = json.data || [];
+
+                if (users.length === 0) {
+                    emptyEl.style.display = "block";
+                    return;
+                }
+
+                var rows = users.map(function(u) {
+                    var roleClass = u.role === "admin" ? "admin" : "member";
+                    var statusClass = u.status === "active" ? "active" : "inactive";
+                    var verifiedHtml = u.is_verified
+                        ? '<span class="verified-yes"><i data-lucide="badge-check" style="width:16px;height:16px;"></i> Verified</span>'
+                        : '<span class="verified-no"><i data-lucide="x-circle" style="width:16px;height:16px;"></i> Not Verified</span>';
+
+                    return '<tr>' +
+                        '<td><div class="member-name">' + escapeHtml(u.full_name || "Unknown") + '</div></td>' +
+                        '<td><div class="member-email">' + escapeHtml(u.email || "-") + '</div></td>' +
+                        '<td><span class="role-badge ' + roleClass + '">' + capitalize(u.role || "") + '</span></td>' +
+                        '<td><span class="status-indicator"><span class="status-dot ' + statusClass + '"></span>' + capitalize(u.status || "unknown") + '</span></td>' +
+                        '<td>' + verifiedHtml + '</td>' +
+                        '<td style="color:var(--text-dim);font-size:0.85rem;">' + formatDate(u.created_at) + '</td>' +
+                        '</tr>';
+                }).join("");
+
+                tbody.innerHTML = rows;
+                tableEl.style.display = "table";
+                refreshIcons();
+
+            } catch (err) {
+                loadingEl.style.display = "none";
+                errorText.textContent = "Could not connect to server.";
+                errorEl.style.display = "block";
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return "";
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        loadTeam();
+    </script>
+</body>
+
+</html>

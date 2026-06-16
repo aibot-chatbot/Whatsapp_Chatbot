@@ -31,6 +31,9 @@
                 font-family: 'Outfit', sans-serif;
                 transition: width 0.28s ease, padding 0.28s ease;
             }
+            .sidebar, .sidebar * {
+                font-family: 'Outfit', sans-serif;
+            }
             .sidebar-top {
                 display: flex;
                 align-items: center;
@@ -248,9 +251,6 @@
                 justify-content: center;
                 padding: 10px 12px;
             }
-            .sidebar.collapsed .profile-link-content {
-                gap: 0;
-            }
             .sidebar.collapsed .profile-link span,
             .sidebar.collapsed .logout-link span {
                 display: none;
@@ -283,17 +283,30 @@
                 gap: 0;
             }
             .sidebar.collapsed .nav-link span,
-            .sidebar.collapsed .logout-link span,
+            .sidebar.collapsed .logout-link span {
+                display: none;
+            }
+            .sidebar.collapsed .nav-link-content {
+                gap: 0;
+                justify-content: center;
+            }
             .sidebar.collapsed .dropdown-content {
-                padding-left: 0;
+                display: none;
+            }
+            .sidebar.collapsed .chevron {
+                display: none;
             }
             .sidebar.collapsed .dropdown-container.open .dropdown-content {
-                margin-top: 6px;
+                display: none;
             }
             .sidebar.collapsed .nav-link:hover,
             .sidebar.collapsed .profile-link:hover,
             .sidebar.collapsed .logout-link:hover {
                 transform: none;
+            }
+            .sidebar.collapsed .profile-link-content {
+                gap: 0;
+                justify-content: center;
             }
             @media (max-width: 768px) {
                 .sidebar,
@@ -432,6 +445,12 @@
 
             <!-- Bottom section: Profile + Logout -->
             <div class="sidebar-bottom-section">
+                <a href="team.html${botQuery}" class="profile-link" title="Team Members">
+                    <div class="profile-link-content">
+                        <i data-lucide="users"></i>
+                        <span>Team Members</span>
+                    </div>
+                </a>
                 <a href="profile.html${botQuery}" class="profile-link" title="Profile">
                     <div class="profile-link-content">
                         <i data-lucide="user-circle"></i>
@@ -512,18 +531,16 @@
     initSidebar() {
         const currentPath = window.location.pathname.split("/").pop() || "index.html";
         const navLinks = this.querySelectorAll(".nav-link");
-        const profileLink = this.querySelector(".profile-link");
+        var profileLinks = this.querySelectorAll(".profile-link");
 
-        // Mark profile link active when on profile.html
-        if (profileLink) {
-            const href = profileLink.getAttribute("href");
-            if (href) {
-                const linkPath = href.split("?")[0];
-                if (linkPath === currentPath) {
-                    profileLink.classList.add("active");
-                }
+        // Mark profile/team links active based on current page
+        profileLinks.forEach(function(pl) {
+            var h = pl.getAttribute("href");
+            if (h) {
+                var p = h.split("?")[0];
+                if (p === currentPath) { pl.classList.add("active"); }
             }
-        }
+        });
 
         navLinks.forEach(link => {
             // Check if the href matches the exact path (removing queries)

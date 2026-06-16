@@ -1,7 +1,7 @@
-from flask import Blueprint, jsonify, request, g
+﻿from flask import Blueprint, jsonify, request, g
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.database.user_repository import get_user_by_id, update_user
+from app.database.user_repository import get_user_by_id, update_user, get_users_by_company
 from app.decorators.auth_decorator import token_required
 from app.routes.auth_routes import validate_password_strength
 
@@ -161,6 +161,34 @@ def change_password():
             "message": "Password changed successfully"
         }), 200
 
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+
+# ===== Team users blueprint (separate prefix) =====
+team_bp = Blueprint("team", __name__, url_prefix="/api/users")
+
+
+@team_bp.route("", methods=["GET"])
+@token_required
+def list_company_users():
+    try:
+        company_id = g.company_id
+        users = get_users_by_company(company_id)
+
+        return jsonify({
+            "status": "success",
+            "data": users
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
     except Exception as e:
         return jsonify({
             "status": "error",
