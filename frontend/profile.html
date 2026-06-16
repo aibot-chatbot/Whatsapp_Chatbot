@@ -48,12 +48,13 @@
 
         .main-container {
             flex-grow: 1;
-            padding: 40px 48px;
-            max-width: 1280px;
+            padding: 50px 60px;
+            max-width: 100%;
             width: 100%;
             margin: 0 auto;
             display: flex;
             flex-direction: column;
+            padding-bottom: 90px;
         }
 
         /* ===== Header ===== */
@@ -327,6 +328,27 @@
             border-radius: 4px;
             transition: width 0.3s, background 0.3s;
         }
+        .pwd-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+        .pwd-toggle:hover { color: var(--text-main); }
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
 
         /* ===== Responsive ===== */
         @media (max-width: 900px) {
@@ -391,8 +413,8 @@
 
                 <div class="form-row">
                     <label for="profile-email">Email Address</label>
-                    <input type="email" id="profile-email" placeholder="your@email.com" autocomplete="email">
-                    <div class="field-note">Changing email requires re-verification on next login.</div>
+                    <input type="email" id="profile-email" placeholder="your@email.com" autocomplete="email" disabled readonly>
+                    <div class="field-note">Email is used for login and cannot be changed here.</div>
                 </div>
 
                 <div class="action-row">
@@ -412,19 +434,19 @@
 
                 <div class="form-row">
                     <label for="profile-current-password">Current Password</label>
-                    <input type="password" id="profile-current-password" placeholder="Enter current password" autocomplete="current-password">
+                    <div class="input-wrapper"><input type="password" id="profile-current-password" placeholder="Enter current password" autocomplete="current-password" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-current-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
                 </div>
 
                 <div class="form-row">
                     <label for="profile-new-password">New Password</label>
-                    <input type="password" id="profile-new-password" placeholder="At least 8 characters" autocomplete="new-password" oninput="updatePasswordStrength(this.value)">
+                    <div class="input-wrapper"><input type="password" id="profile-new-password" placeholder="At least 8 characters" autocomplete="new-password" oninput="updatePasswordStrength(this.value)" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-new-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
                     <div class="password-strength"><div class="bar" id="pwd-strength-bar"></div></div>
                     <div class="field-note">Min 8 chars, 1 uppercase, 1 number, 1 special character.</div>
                 </div>
 
                 <div class="form-row">
                     <label for="profile-confirm-password">Confirm New Password</label>
-                    <input type="password" id="profile-confirm-password" placeholder="Re-enter new password" autocomplete="new-password">
+                    <div class="input-wrapper"><input type="password" id="profile-confirm-password" placeholder="Re-enter new password" autocomplete="new-password" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-confirm-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
                 </div>
 
                 <div class="action-row">
@@ -527,18 +549,22 @@
 
             try {
                 var fullName = document.getElementById("profile-full-name").value.trim();
-                var email = document.getElementById("profile-email").value.trim();
+
+                if (!fullName) {
+                    showMessage("Full name is required.", "error");
+                    btn.disabled = false;
+                    btn.innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Save Changes';
+                    refreshIcons();
+                    return;
+                }
 
                 var payload = {};
                 if (fullName && fullName !== currentUser.full_name) {
                     payload.full_name = fullName;
                 }
-                if (email && email !== currentUser.email) {
-                    payload.email = email;
-                }
 
                 if (Object.keys(payload).length === 0) {
-                    showMessage("No changes to save.", "error");
+                    showMessage("No changes to save.", "success");
                     btn.disabled = false;
                     btn.innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Save Changes';
                     refreshIcons();
@@ -595,6 +621,26 @@
                 return;
             }
 
+            if (newPassword.length < 8) {
+                showMessage("Password must be at least 8 characters.", "error");
+                return;
+            }
+
+            if (!/[A-Z]/.test(newPassword)) {
+                showMessage("Password must contain at least 1 uppercase letter.", "error");
+                return;
+            }
+
+            if (!/[0-9]/.test(newPassword)) {
+                showMessage("Password must contain at least 1 number.", "error");
+                return;
+            }
+
+            if (!/[^A-Za-z0-9]/.test(newPassword)) {
+                showMessage("Password must contain at least 1 special character.", "error");
+                return;
+            }
+
             var btn = document.getElementById("btn-change-password");
             btn.disabled = true;
             btn.innerHTML = '<i data-lucide="loader-2" style="width:15px;height:15px;" class="spin"></i> Updating...';
@@ -619,6 +665,16 @@
                     document.getElementById("profile-new-password").value = "";
                     document.getElementById("profile-confirm-password").value = "";
                     document.getElementById("pwd-strength-bar").style.width = "0%";
+                    // Reset all password fields back to hidden type
+                    document.getElementById("profile-current-password").type = "password";
+                    document.getElementById("profile-new-password").type = "password";
+                    document.getElementById("profile-confirm-password").type = "password";
+                    // Reset eye icons back to "eye"
+                    var toggles = document.querySelectorAll(".pwd-toggle i, .pwd-toggle svg");
+                    toggles.forEach(function(el) {
+                        el.setAttribute("data-lucide", "eye");
+                    });
+                    refreshIcons();
                 } else {
                     showMessage(json.message || "Failed to change password.", "error");
                 }
@@ -632,6 +688,20 @@
         }
 
         /* ===== Password Strength ===== */
+        
+        /* ===== Password Show/Hide Toggle ===== */
+        function togglePwd(inputId, btn) {
+            var inp = document.getElementById(inputId);
+            if (!inp) return;
+            var isPwd = inp.type === "password";
+            inp.type = isPwd ? "text" : "password";
+            var icon = btn.querySelector("i, svg");
+            if (icon) {
+                icon.setAttribute("data-lucide", isPwd ? "eye-off" : "eye");
+            }
+            refreshIcons(btn);
+        }
+
         function updatePasswordStrength(val) {
             var bar = document.getElementById("pwd-strength-bar");
             if (!val) {
@@ -686,3 +756,4 @@
 </body>
 
 </html>
+
