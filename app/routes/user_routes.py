@@ -1,7 +1,7 @@
-﻿from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, jsonify, request, g
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.database.user_repository import get_user_by_id, get_user_by_email, create_user, update_user, get_users_by_company
+from app.database.user_repository import get_user_by_id, get_user_by_email, create_user, update_user, get_users_by_company, count_active_admins_by_company
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
 from app.routes.auth_routes import validate_password_strength
@@ -284,3 +284,111 @@ def list_company_users():
             "status": "error",
             "message": str(e)
         }), 500
+
+
+@team_bp.route("/<int:user_id>/role", methods=["PUT"])
+@token_required
+@role_required("admin", "owner")
+def update_member_role(user_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"status": "error", "message": "No data provided."}), 400
+
+        new_role = (data.get("role") or "").strip().lower()
+        if new_role not in ("admin", "member"):
+            return jsonify({"status": "error", "message": "Role must be 'admin' or 'member'."}), 400
+
+        company_id = g.company_id
+        current_user_id = g.user_id
+
+        # Cannot change own role
+        if user_id == current_user_id:
+            return jsonify({"status": "error", "message": "You cannot change your own role."}), 403
+
+        # Load target user
+        target = get_user_by_id(user_id)
+        if not target:
+            return jsonify({"status": "error", "message": "User not found."}), 404
+        if target.get("company_id") != company_id:
+            return jsonify({"status": "error", "message": "User does not belong to your company."}), 403
+
+        # If demoting an admin/owner, ensure at least one other active admin remains
+        if target.get("role") in ("admin", "owner") and new_role != target.get("role"):
+            admin_count = count_active_admins_by_company(company_id)
+            if admin_count <= 1:
+                return jsonify({"status": "error", "message": "Cannot demote the last active admin in the company."}), 403
+
+        updated = update_user(user_id, {"role": new_role})
+
+        return jsonify({
+            "status": "success",
+            "message": "Role updated successfully.",
+            "data": {
+                "id": updated["id"],
+                "full_name": updated.get("full_name"),
+                "email": updated.get("email"),
+                "role": updated.get("role"),
+                "status": updated.get("status"),
+                "is_verified": updated.get("is_verified")
+            }
+        }), 200
+
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@team_bp.route("/<int:user_id>/status", methods=["PUT"])
+@token_required
+@role_required("admin", "owner")
+def update_member_status(user_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"status": "error", "message": "No data provided."}), 400
+
+        new_status = (data.get("status") or "").strip().lower()
+        if new_status not in ("active", "inactive"):
+            return jsonify({"status": "error", "message": "Status must be 'active' or 'inactive'."}), 400
+
+        company_id = g.company_id
+        current_user_id = g.user_id
+
+        # Cannot deactivate self
+        if user_id == current_user_id:
+            return jsonify({"status": "error", "message": "You cannot deactivate your own account."}), 403
+
+        # Load target user
+        target = get_user_by_id(user_id)
+        if not target:
+            return jsonify({"status": "error", "message": "User not found."}), 404
+        if target.get("company_id") != company_id:
+            return jsonify({"status": "error", "message": "User does not belong to your company."}), 403
+
+        # If deactivating an admin/owner, ensure at least one other active admin remains
+        if new_status == "inactive" and target.get("role") in ("admin", "owner"):
+            admin_count = count_active_admins_by_company(company_id)
+            if admin_count <= 1:
+                return jsonify({"status": "error", "message": "Cannot deactivate the last active admin in the company."}), 403
+
+        updated = update_user(user_id, {"status": new_status})
+
+        return jsonify({
+            "status": "success",
+            "message": "Status updated successfully.",
+            "data": {
+                "id": updated["id"],
+                "full_name": updated.get("full_name"),
+                "email": updated.get("email"),
+                "role": updated.get("role"),
+                "status": updated.get("status"),
+                "is_verified": updated.get("is_verified")
+            }
+        }), 200
+
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
