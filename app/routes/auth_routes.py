@@ -109,6 +109,13 @@ def google_auth():
     existing_user = get_user_by_email(email)
 
     if existing_user:
+        # Check if user is deactivated
+        if existing_user.get("status") != "active":
+            return jsonify({
+                "status": "error",
+                "message": "Your account has been deactivated. Please contact your administrator."
+            }), 403
+
         # Existing user — log them in
         try:
             token = jwt.encode({
@@ -221,6 +228,14 @@ def login():
 
     if not is_password_valid(user.get("password_hash"), password):
         return jsonify({"error": "Invalid password"}), 401
+
+
+    # Check if user is deactivated
+    if user.get("status") != "active":
+        return jsonify({
+            "status": "error",
+            "message": "Your account has been deactivated. Please contact your administrator."
+        }), 403
 
     if not user.get("is_verified", False):
         return jsonify({

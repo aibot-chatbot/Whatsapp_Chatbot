@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -194,6 +194,79 @@
 
         .status-dot.active { background: var(--accent); }
         .status-dot.inactive { background: var(--text-dim); }
+
+        /* ===== Action Buttons ===== */
+        .team-action-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 5px 11px;
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.03);
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            font-weight: 600;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+            line-height: 1;
+        }
+        .team-action-btn:hover {
+            background: rgba(255,255,255,0.07);
+            color: var(--text-main);
+        }
+        .team-action-btn.danger:hover {
+            color: var(--danger);
+            border-color: rgba(239,68,68,0.3);
+            background: rgba(239,68,68,0.08);
+        }
+        .team-action-btn.success:hover {
+            color: var(--accent);
+            border-color: rgba(16,185,129,0.3);
+            background: rgba(16,185,129,0.08);
+        }
+        .team-action-btn.primary:hover {
+            color: var(--primary);
+            border-color: rgba(59,130,246,0.3);
+            background: rgba(59,130,246,0.08);
+        }
+        .team-action-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .team-action-btn i, .team-action-btn svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+        .team-actions-wrap {
+            display: flex;
+        .team-role-select {
+            background: rgba(15,23,42,0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            color: var(--text-main);
+            padding: 4px 8px;
+            font-size: 0.78rem;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .team-role-select:focus {
+            border-color: var(--primary);
+        }
+        .team-role-select option {
+            background: #1e293b;
+            color: var(--text-main);
+        }
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
 
         .verified-yes {
             color: var(--accent);
@@ -493,7 +566,8 @@
                         <th>Status</th>
                         <th>Verified</th>
                         <th>Joined</th>
-                    </tr>
+                        <th>Joined</th>
+                        <th>Actions</th>
                 </thead>
                 <tbody id="team-tbody"></tbody>
             </table>
@@ -604,6 +678,23 @@
                         ? '<span class="verified-yes"><i data-lucide="badge-check" style="width:16px;height:16px;"></i> Verified</span>'
                         : '<span class="verified-no"><i data-lucide="x-circle" style="width:16px;height:16px;"></i> Not Verified</span>';
 
+                    var isCurrentUser = currentUserId && u.id === currentUserId;
+                    var isAdminView = currentUserRole === "admin" || currentUserRole === "owner";
+                    var actionsHtml = "";
+                    if (isAdminView && !isCurrentUser) {
+                        var roleOpts = "<select class=\"team-role-select\" onchange=\"changeUserRole(" + u.id + ", this.value)\" aria-label=\"Change role\">" +
+                            "<option value=\"member\"" + (u.role === "member" ? " selected" : "") + ">Member</option>" +
+                            "<option value=\"admin\"" + (u.role === "admin" ? " selected" : "") + ">Admin</option>" +
+                            "</select>";
+                        var statusBtn = "";
+                        if (u.status === "active") {
+                            statusBtn = '<button class="team-action-btn danger" onclick="changeUserStatus(' + u.id + ', &#39;inactive&#39;)" aria-label="Deactivate user"><i data-lucide="user-x" style="width:14px;height:14px;"></i> Deactivate</button>';
+                        } else {
+                            statusBtn = '<button class="team-action-btn success" onclick="changeUserStatus(' + u.id + ', &#39;active&#39;)" aria-label="Reactivate user"><i data-lucide="user-check" style="width:14px;height:14px;"></i> Reactivate</button>';
+                        }
+                        actionsHtml = '<div class="team-actions-wrap">' + roleOpts + statusBtn + '</div>';
+                    }
+
                     return '<tr>' +
                         '<td><div class="member-name">' + escapeHtml(u.full_name || "Unknown") + '</div></td>' +
                         '<td><div class="member-email">' + escapeHtml(u.email || "-") + '</div></td>' +
@@ -611,6 +702,7 @@
                         '<td><span class="status-indicator"><span class="status-dot ' + statusClass + '"></span>' + capitalize(u.status || "unknown") + '</span></td>' +
                         '<td>' + verifiedHtml + '</td>' +
                         '<td style="color:var(--text-dim);font-size:0.85rem;">' + formatDate(u.created_at) + '</td>' +
+                        '<td>' + actionsHtml + '</td>' +
                         '</tr>';
                 }).join("");
 
@@ -632,6 +724,48 @@
 
         /* ===== Add Member Modal ===== */
         var currentUserRole = null;
+        var currentUserId = null;
+
+        async function changeUserRole(userId, newRole) {
+            if (!confirm("Change this user role to " + capitalize(newRole) + "?")) return;
+            try {
+                var res = await authenticatedFetch("/api/users/" + userId + "/role", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ role: newRole })
+                });
+                var json = await res.json();
+                if (json.status === "success") {
+                    showMessage("Role updated to " + capitalize(newRole) + ".", "success");
+                    loadTeam();
+                } else {
+                    showMessage(json.message || "Failed to update role.", "error");
+                }
+            } catch (err) {
+                showMessage("Could not connect to server.", "error");
+            }
+        }
+
+        async function changeUserStatus(userId, newStatus) {
+            var label = newStatus === "active" ? "reactivate" : "deactivate";
+            if (!confirm("Are you sure you want to " + label + " this user?")) return;
+            try {
+                var res = await authenticatedFetch("/api/users/" + userId + "/status", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                var json = await res.json();
+                if (json.status === "success") {
+                    showMessage("User " + label + "d successfully.", "success");
+                    loadTeam();
+                } else {
+                    showMessage(json.message || "Failed to update status.", "error");
+                }
+            } catch (err) {
+                showMessage("Could not connect to server.", "error");
+            }
+        }
 
         function openAddMemberModal() {
             document.getElementById("add-member-modal").classList.add("open");
@@ -767,6 +901,7 @@
                 var userJson = await userRes.json();
                 if (userJson.status === "success" && userJson.data) {
                     currentUserRole = (userJson.data.role || "").toLowerCase();
+                    currentUserId = userJson.data.id;
                     var btn = document.getElementById("btn-add-member");
                     if (btn) {
                         if (currentUserRole === "admin" || currentUserRole === "owner") {

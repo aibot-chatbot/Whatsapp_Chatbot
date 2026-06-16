@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 
 from app.database.db import supabase
 
@@ -108,3 +108,15 @@ def get_users_by_company(company_id):
     )
 
     return response.data or []
+
+def count_active_admins_by_company(company_id):
+    """Count active admin/owner users in a company."""
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("id", count="exact")
+        .eq("company_id", company_id)
+        .in_("role", ["admin", "owner"])
+        .eq("status", "active")
+        .execute()
+    )
+    return response.count or 0
