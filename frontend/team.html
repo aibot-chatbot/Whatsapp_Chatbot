@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -497,6 +497,69 @@
             cursor: not-allowed;
         }
 
+        .btn-danger {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, var(--danger), #dc2626);
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .btn-danger:hover {
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
+        }
+        .btn-success {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            border-radius: 10px;
+            border: none;
+            background: linear-gradient(135deg, var(--accent), #059669);
+            color: white;
+            font-weight: 600;
+            font-size: 0.9rem;
+            font-family: 'Outfit', sans-serif;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        .btn-success:hover {
+            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        /* ===== Confirm Modal ===== */
+        .confirm-modal-body {
+            text-align: center;
+            padding: 8px 0;
+        }
+        .confirm-modal-body .confirm-icon {
+            margin-bottom: 12px;
+        }
+        .confirm-modal-body .confirm-message {
+            font-size: 1rem;
+            color: var(--text-main);
+            line-height: 1.5;
+        }
+        .confirm-modal-body .confirm-sub {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 6px;
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            100% { transform: rotate(360deg); }
+        }
+
         .spinner {
             animation: spin 1s linear infinite;
         }
@@ -566,7 +629,6 @@
                         <th>Status</th>
                         <th>Verified</th>
                         <th>Joined</th>
-                        <th>Joined</th>
                         <th>Actions</th>
                 </thead>
                 <tbody id="team-tbody"></tbody>
@@ -621,8 +683,27 @@
         </div>
     </div>    </div>
 
+
+    <!-- Confirm Action Modal -->
+    <div class="modal-overlay" id="confirm-modal">
+        <div class="modal-content glass-card" style="max-width:400px;text-align:center;">
+            <div class="confirm-modal-body">
+                <div class="confirm-icon" id="confirm-icon">
+                    <i data-lucide="alert-triangle" style="width:40px;height:40px;color:var(--warning);"></i>
+                </div>
+                <div class="confirm-message" id="confirm-message"></div>
+                <div class="confirm-sub" id="confirm-sub"></div>
+            </div>
+            <div class="modal-footer" style="justify-content:center;">
+                <button class="btn-cancel" id="btn-confirm-cancel" onclick="closeConfirmModal(false)">Cancel</button>
+                <button class="btn-submit" id="btn-confirm-ok" onclick="closeConfirmModal(true)">Confirm</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         requireLogin();
+        requireAdminOrOwner();
         refreshIcons();
 
         function formatDate(dateStr) {
@@ -682,15 +763,15 @@
                     var isAdminView = currentUserRole === "admin" || currentUserRole === "owner";
                     var actionsHtml = "";
                     if (isAdminView && !isCurrentUser) {
-                        var roleOpts = "<select class=\"team-role-select\" onchange=\"changeUserRole(" + u.id + ", this.value)\" aria-label=\"Change role\">" +
+                        var roleOpts = '<select class=\"team-role-select\" data-user-name=\"' + escapeHtml(u.full_name || 'User') + '\" onchange=\"changeUserRole(' + u.id + ', this)\" aria-label=\"Change role\">' +
                             "<option value=\"member\"" + (u.role === "member" ? " selected" : "") + ">Member</option>" +
                             "<option value=\"admin\"" + (u.role === "admin" ? " selected" : "") + ">Admin</option>" +
                             "</select>";
                         var statusBtn = "";
                         if (u.status === "active") {
-                            statusBtn = '<button class="team-action-btn danger" onclick="changeUserStatus(' + u.id + ', &#39;inactive&#39;)" aria-label="Deactivate user"><i data-lucide="user-x" style="width:14px;height:14px;"></i> Deactivate</button>';
+                            statusBtn = '<button class="team-action-btn danger" data-user-name="' + escapeHtml(u.full_name || 'User') + '" onclick="changeUserStatus(' + u.id + ', &#39;inactive&#39;, this)" aria-label="Deactivate user"><i data-lucide="user-x" style="width:14px;height:14px;"></i> Deactivate</button>';
                         } else {
-                            statusBtn = '<button class="team-action-btn success" onclick="changeUserStatus(' + u.id + ', &#39;active&#39;)" aria-label="Reactivate user"><i data-lucide="user-check" style="width:14px;height:14px;"></i> Reactivate</button>';
+                            statusBtn = '<button class="team-action-btn success" data-user-name="' + escapeHtml(u.full_name || 'User') + '" onclick="changeUserStatus(' + u.id + ', &#39;active&#39;, this)" aria-label="Reactivate user"><i data-lucide="user-check" style="width:14px;height:14px;"></i> Reactivate</button>';
                         }
                         actionsHtml = '<div class="team-actions-wrap">' + roleOpts + statusBtn + '</div>';
                     }
@@ -726,8 +807,13 @@
         var currentUserRole = null;
         var currentUserId = null;
 
-        async function changeUserRole(userId, newRole) {
-            if (!confirm("Change this user role to " + capitalize(newRole) + "?")) return;
+        async function changeUserRole(userId, selectEl) {
+            var newRole = selectEl.value;
+            var userName = selectEl.getAttribute("data-user-name") || "User";
+            if (!await showConfirmModal({ message: "Change " + userName + "'s role to " + capitalize(newRole) + "?", confirmText: "Change Role", confirmType: "primary" })) {
+                loadTeam();
+                return;
+            }
             try {
                 var res = await authenticatedFetch("/api/users/" + userId + "/role", {
                     method: "PUT",
@@ -746,9 +832,12 @@
             }
         }
 
-        async function changeUserStatus(userId, newStatus) {
+        async function changeUserStatus(userId, newStatus, btnEl) {
+            var userName = btnEl.getAttribute("data-user-name") || "User";
             var label = newStatus === "active" ? "reactivate" : "deactivate";
-            if (!confirm("Are you sure you want to " + label + " this user?")) return;
+            var msg = newStatus === "active" ? "Reactivate " + userName + "? This user will be able to log in again." : "Deactivate " + userName + "? This user will not be able to log in.";
+            var confirmType = newStatus === "active" ? "success" : "danger";
+            if (!await showConfirmModal({ message: msg, confirmText: capitalize(label), confirmType: confirmType })) return;
             try {
                 var res = await authenticatedFetch("/api/users/" + userId + "/status", {
                     method: "PUT",
@@ -791,6 +880,31 @@
             var toggles = document.querySelectorAll("#add-member-modal .pwd-toggle i, #add-member-modal .pwd-toggle svg");
             toggles.forEach(function(el) { el.setAttribute("data-lucide", "eye"); });
             refreshIcons();
+        }
+
+        /* ===== Confirm Modal ===== */
+        var _confirmResolve = null;
+        function closeConfirmModal(result) {
+            document.getElementById("confirm-modal").classList.remove("open");
+            if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
+        }
+
+        function showConfirmModal(opts) {
+            return new Promise(function(resolve) {
+                _confirmResolve = resolve;
+                document.getElementById("confirm-message").textContent = opts.message || "Are you sure?";
+                document.getElementById("confirm-sub").textContent = opts.sub || "";
+                var btnOk = document.getElementById("btn-confirm-ok");
+                btnOk.textContent = opts.confirmText || "Confirm";
+                var btnClass = 'btn-submit';
+                if (opts.confirmType === 'danger') btnClass = 'btn-danger';
+                else if (opts.confirmType === 'success') btnClass = 'btn-success';
+                btnOk.className = btnClass;
+                var icon = document.getElementById("confirm-icon").querySelector("i, svg");
+                if (icon) icon.setAttribute("data-lucide", opts.icon || "alert-triangle");
+                refreshIcons();
+                document.getElementById("confirm-modal").classList.add("open");
+            });
         }
 
         function showMemberFormError(msg) {

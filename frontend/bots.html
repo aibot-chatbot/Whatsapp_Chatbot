@@ -469,10 +469,37 @@
             cursor: pointer;
             font-weight: 600;
         }
+        .redirect-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.3);
+            color: #f87171;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+            max-width: 90vw;
+            text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+        }
+        .redirect-toast.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
     </style>
 </head>
 
 <body>
+    <div id="redirect-toast" class="redirect-toast" role="alert"></div>
     <main class="main-container">
         <div class="header">
             <div>
@@ -560,6 +587,20 @@
         lucide.createIcons();
 
         requireLogin();
+        // Show redirect permission message as toast
+        (function() {
+            var msg = sessionStorage.getItem("redirect_message");
+            if (msg) {
+                sessionStorage.removeItem("redirect_message");
+                var toast = document.getElementById("redirect-toast");
+                if (toast) {
+                    toast.textContent = msg;
+                    toast.classList.add("show");
+                    setTimeout(function() { toast.classList.remove("show"); }, 4000);
+                    toast.addEventListener("click", function() { toast.classList.remove("show"); });
+                }
+            }
+        })();
 
         document.addEventListener("DOMContentLoaded", () => {
             fetchBots();

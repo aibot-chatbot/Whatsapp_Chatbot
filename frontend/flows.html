@@ -267,6 +267,9 @@
 
     <script src="sidebar-component.js"></script>
     <script>
+        requireLogin();
+        requireAdminOrOwner();
+
         let botData = null;
         let welcomeText = "";
         let buttons = [];
