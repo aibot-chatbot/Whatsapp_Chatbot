@@ -1,0 +1,678 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accept Invite | AI CHATBOT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --bg: #030816;
+            --card-bg: rgba(15, 23, 42, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.3);
+            --success: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Ambient Background Elements */
+        .blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            filter: blur(80px);
+            z-index: -1;
+            animation: float 20s infinite alternate cubic-bezier(0.45, 0, 0.55, 1);
+        }
+
+        .blob-1 { top: -10%; left: -10%; }
+        .blob-2 { bottom: -10%; right: -10%; background: radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, transparent 70%); }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(100px, 50px) scale(1.1); }
+        }
+
+        .invite-container {
+            width: 100%;
+            max-width: 440px;
+            padding: 40px;
+            background: var(--card-bg);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            animation: fadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-area {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--primary), #10b981);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            box-shadow: 0 10px 30px var(--primary-glow);
+        }
+
+        .logo-text {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            background: linear-gradient(to bottom, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .heading {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .heading h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .heading p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .heading p .email-highlight {
+            color: var(--primary);
+            font-weight: 600;
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+            margin-left: 4px;
+        }
+
+        input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 14px 20px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            background: rgba(15, 23, 42, 0.4);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+        }
+
+        .password-field {
+            position: relative;
+        }
+
+        .password-field input {
+            padding-right: 76px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-dim);
+            border-radius: 10px;
+            padding: 6px 10px;
+            font-family: inherit;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .password-toggle:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: var(--text-main);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 16px;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            box-shadow: 0 8px 24px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px var(--primary-glow);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-loader {
+            display: none;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .btn.loading .btn-text { visibility: hidden; }
+        .btn.loading .btn-loader { display: block; }
+
+        .message-box {
+            padding: 14px 16px;
+            border-radius: 16px;
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .message-box.error {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+            display: block;
+        }
+
+        .message-box.success {
+            background: rgba(16, 185, 129, 0.15);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #6ee7b7;
+            display: block;
+        }
+
+        .message-box.info {
+            background: rgba(59, 130, 246, 0.15);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #93c5fd;
+            display: block;
+        }
+
+        .loading-state {
+            text-align: center;
+            padding: 40px 0;
+        }
+
+        .loading-state .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        .loading-state p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+        }
+
+        .form-section { display: none; }
+
+        .info-card {
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .info-card .info-icon {
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            background: rgba(59, 130, 246, 0.15);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+        }
+
+        .info-card .info-text {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        .info-card .info-text strong {
+            color: var(--text-main);
+        }
+
+        .footer-text {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .footer-text a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .footer-text a:hover {
+            text-decoration: underline;
+        }
+
+        .invalid-state {
+            text-align: center;
+            padding: 20px 0;
+            display: none;
+        }
+
+        .invalid-state .invalid-icon {
+            width: 72px;
+            height: 72px;
+            margin: 0 auto 20px;
+            background: rgba(239, 68, 68, 0.15);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+
+        .invalid-state h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .invalid-state p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .invalid-state .btn {
+            width: auto;
+            display: inline-block;
+            padding: 12px 32px;
+        }
+
+        .password-hint {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-top: 6px;
+            margin-left: 4px;
+        }
+
+        @media (max-width: 480px) {
+            .invite-container {
+                max-width: calc(100% - 32px);
+                padding: 32px 24px;
+            }
+            .heading h2 { font-size: 1.3rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="invite-container">
+        <!-- Logo Area -->
+        <div class="logo-area">
+            <div class="logo-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+            </div>
+            <div class="logo-text">AI CHATBOT</div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="loading-state">
+            <div class="spinner"></div>
+            <p>Checking your invitation...</p>
+        </div>
+
+        <!-- Invalid / Expired State -->
+        <div id="invalidState" class="invalid-state">
+            <div class="invalid-icon">⚠</div>
+            <h3 id="invalidTitle">Invalid Invitation</h3>
+            <p id="invalidMessage">This invite link is invalid or has expired.</p>
+            <a href="login.html" class="btn btn-primary">Go to Login</a>
+        </div>
+
+        <!-- Accept Form -->
+        <div id="formSection" class="form-section">
+            <div class="heading">
+                <h2>Accept Invitation</h2>
+                <p>You've been invited to join <span id="companyDisplay" class="email-highlight">the team</span>.</p>
+            </div>
+
+            <!-- Invite Info Card -->
+            <div class="info-card">
+                <div class="info-icon">✉</div>
+                <div class="info-text">
+                    Invited as <strong id="invitedRole">Member</strong> &middot;
+                    <span id="invitedEmail">user@example.com</span>
+                </div>
+            </div>
+
+            <!-- Message area -->
+            <div id="inviteMessage" class="message-box"></div>
+
+            <form id="acceptForm" onsubmit="return handleSubmit(event)">
+                <div class="input-group">
+                    <label for="fullName">Full Name</label>
+                    <input type="text" id="fullName" placeholder="Enter your full name" autocomplete="name" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <div class="password-field">
+                        <input type="password" id="password" placeholder="Create a strong password" autocomplete="new-password" required>
+                        <button type="button" class="password-toggle" onclick="togglePwd('password', this)" aria-label="Show password">Show</button>
+                    </div>
+                    <div class="password-hint">Min 8 chars, 1 uppercase, 1 number, 1 special character</div>
+                </div>
+
+                <div class="input-group">
+                    <label for="confirmPassword">Confirm Password</label>
+                    <div class="password-field">
+                        <input type="password" id="confirmPassword" placeholder="Confirm your password" autocomplete="new-password" required>
+                        <button type="button" class="password-toggle" onclick="togglePwd('confirmPassword', this)" aria-label="Show password">Show</button>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn btn-primary">
+                    <span class="btn-text">Create Account</span>
+                    <span class="btn-loader"></span>
+                </button>
+            </form>
+
+            <div class="footer-text">
+                Already have an account? <a href="login.html">Sign in</a>
+            </div>
+        </div>
+
+        <!-- Success State (initially hidden) -->
+        <div id="successState" class="invalid-state" style="display:none;">
+            <div class="invalid-icon" style="background:rgba(16,185,129,0.15);">✓</div>
+            <h3 style="color:#6ee7b7;">Account Created!</h3>
+            <p>Your account has been created successfully. Redirecting to login...</p>
+            <a href="login.html" class="btn btn-primary">Go to Login</a>
+        </div>
+    </div>
+
+    <script>
+        // ── Helper: toggle password visibility ──
+        function togglePwd(inputId, btn) {
+            var input = document.getElementById(inputId);
+            var hidden = input.type === 'password';
+            input.type = hidden ? 'text' : 'password';
+            btn.textContent = hidden ? 'Hide' : 'Show';
+            btn.setAttribute('aria-label', hidden ? 'Hide password' : 'Show password');
+        }
+
+        // ── Helper: show message in inviteMessage box ──
+        function showMessage(type, text) {
+            var el = document.getElementById('inviteMessage');
+            el.className = 'message-box ' + type;
+            el.textContent = text;
+            el.style.display = 'block';
+        }
+
+        function hideMessage() {
+            var el = document.getElementById('inviteMessage');
+            el.style.display = 'none';
+            el.className = 'message-box';
+        }
+
+        // ── Helper: show/hide UI sections ──
+        function showLoading() {
+            document.getElementById('loadingState').style.display = 'block';
+            document.getElementById('invalidState').style.display = 'none';
+            document.getElementById('formSection').style.display = 'none';
+            document.getElementById('successState').style.display = 'none';
+        }
+
+        function showForm(data) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('invalidState').style.display = 'none';
+            document.getElementById('formSection').style.display = 'block';
+            document.getElementById('successState').style.display = 'none';
+            // Fill in invite details
+            if (data.email) {
+                document.getElementById('invitedEmail').textContent = data.email;
+            }
+            if (data.role) {
+                var roleLabel = data.role === 'admin' ? 'Admin' : 'Member';
+                document.getElementById('invitedRole').textContent = roleLabel;
+            }
+            if (data.company_id) {
+                document.getElementById('companyDisplay').textContent = 'your organization';
+            }
+        }
+
+        function showInvalid(title, message) {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('invalidState').style.display = 'block';
+            document.getElementById('formSection').style.display = 'none';
+            document.getElementById('successState').style.display = 'none';
+            document.getElementById('invalidTitle').textContent = title || 'Invalid Invitation';
+            document.getElementById('invalidMessage').textContent = message || 'This invite link is invalid or has expired.';
+        }
+
+        function showSuccess() {
+            document.getElementById('loadingState').style.display = 'none';
+            document.getElementById('invalidState').style.display = 'none';
+            document.getElementById('formSection').style.display = 'none';
+            document.getElementById('successState').style.display = 'block';
+        }
+
+        // ── Password strength validation ──
+        function validatePassword(pwd) {
+            if (pwd.length < 8) return 'Password must be at least 8 characters.';
+            if (!/[A-Z]/.test(pwd)) return 'Password must contain at least 1 uppercase letter.';
+            if (!/[0-9]/.test(pwd)) return 'Password must contain at least 1 number.';
+            if (!/[!@#$%^&*()\-_=+\[\]{}|;:,.<>?]/.test(pwd)) return 'Password must contain at least 1 special character.';
+            return null;
+        }
+
+        // ── Form submit ──
+        async function handleSubmit(e) {
+            e.preventDefault();
+            hideMessage();
+
+            var fullName = document.getElementById('fullName').value.trim();
+            var password = document.getElementById('password').value;
+            var confirmPassword = document.getElementById('confirmPassword').value;
+
+            if (!fullName) {
+                showMessage('error', 'Full name is required.');
+                return false;
+            }
+            if (!password) {
+                showMessage('error', 'Password is required.');
+                return false;
+            }
+            if (!confirmPassword) {
+                showMessage('error', 'Please confirm your password.');
+                return false;
+            }
+            if (password !== confirmPassword) {
+                showMessage('error', 'Passwords do not match.');
+                return false;
+            }
+
+            var pwdErr = validatePassword(password);
+            if (pwdErr) {
+                showMessage('error', pwdErr);
+                return false;
+            }
+
+            var token = getTokenFromUrl();
+            if (!token) {
+                showMessage('error', 'Invalid invite link. Missing token.');
+                return false;
+            }
+
+            // Show loading on button
+            var btn = document.getElementById('submitBtn');
+            btn.classList.add('loading');
+            btn.disabled = true;
+
+            try {
+                var res = await fetch('/api/invites/accept', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: token,
+                        full_name: fullName,
+                        password: password
+                    })
+                });
+
+                var result = await res.json();
+
+                if (result.status === 'success') {
+                    showSuccess();
+                    // Redirect to login after 2.5 seconds
+                    setTimeout(function() {
+                        window.location.href = 'login.html';
+                    }, 2500);
+                } else {
+                    showMessage('error', result.message || 'Failed to create account. Please try again.');
+                }
+            } catch (err) {
+                console.error('Accept invite error:', err);
+                showMessage('error', 'Cannot connect to server. Please try again.');
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+
+            return false;
+        }
+
+        // ── Extract token from URL ──
+        function getTokenFromUrl() {
+            var params = new URLSearchParams(window.location.search);
+            return params.get('token') || '';
+        }
+
+        // ── On page load: validate invite ──
+        (async function() {
+            var token = getTokenFromUrl();
+
+            if (!token) {
+                showInvalid('Invalid Link', 'No invitation token found in the URL.');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                var res = await fetch('/api/invites/validate?token=' + encodeURIComponent(token));
+                var result = await res.json();
+
+                if (result.status === 'success' && result.valid) {
+                    showForm(result);
+                } else {
+                    var msg = result.message || 'This invite link is invalid or has expired.';
+                    if (res.status === 410) {
+                        showInvalid('Invitation Expired', msg);
+                    } else {
+                        showInvalid('Invalid Invitation', msg);
+                    }
+                }
+            } catch (err) {
+                console.error('Validate invite error:', err);
+                showInvalid('Connection Error', 'Cannot connect to server. Please try again later.');
+            }
+        })();
+    </script>
+</body>
+</html>
