@@ -507,6 +507,7 @@
     <script src="assets/js/auth.js"></script>
     <script>
         requireLogin();
+        requireAdminOrOwner();
 
         function resolveSelectedChatbotId() {
             const urlParams = new URLSearchParams(window.location.search);

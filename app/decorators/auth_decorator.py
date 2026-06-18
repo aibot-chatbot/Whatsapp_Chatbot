@@ -37,6 +37,16 @@ def token_required(f):
         except jwt.InvalidTokenError:
             return jsonify({"status": "error", "message": "Invalid token!"}), 401
 
+
+        # Check if user account is still active
+        from app.database.user_repository import get_user_by_id
+        current_user = get_user_by_id(g.user_id)
+        if not current_user or current_user.get("status") != "active":
+            return jsonify({
+                "status": "error",
+                "message": "Your account has been deactivated. Please contact your administrator."
+            }), 403
+
         return f(*args, **kwargs)
 
     return decorated

@@ -204,6 +204,7 @@
     <script src="assets/js/auth.js"></script>
     <script>
         requireLogin();
+        requireAdminOrOwner();
 
         const urlParams = new URLSearchParams(window.location.search);
         const urlBotId = urlParams.get("bot_id");
