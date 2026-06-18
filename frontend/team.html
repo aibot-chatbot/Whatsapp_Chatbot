@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -195,6 +195,129 @@
         .status-dot.active { background: var(--accent); }
         .status-dot.inactive { background: var(--text-dim); }
 
+        /* ===== Invitations Section ===== */
+        .invitations-section {
+            margin-top: 36px;
+        }
+
+        .invitations-section .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .invitations-section .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .invitations-section .section-title svg {
+            color: var(--primary);
+        }
+
+        .invitations-section .loading-state,
+        .invitations-section .empty-state {
+            padding: 32px 20px;
+        }
+
+        .invitations-section .empty-state p {
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        .invite-row {
+            display: flex;
+            align-items: center;
+            padding: 14px 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            gap: 16px;
+        }
+
+        .invite-row:last-child {
+            border-bottom: none;
+        }
+
+        .invite-row:hover {
+            background: rgba(255,255,255,0.02);
+            border-radius: 0;
+        }
+
+        .invite-email {
+            flex: 2;
+            min-width: 0;
+        }
+
+        .invite-email .email-text {
+            font-weight: 600;
+            color: var(--text-main);
+            font-size: 0.92rem;
+        }
+
+        .invite-role {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .invite-status {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .invite-date {
+            flex: 1.5;
+            min-width: 0;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        .invite-actions {
+            flex: 1.5;
+            min-width: 0;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+            font-weight: 600;
+        }
+
+        .status-badge.pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .status-badge.expired {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+        }
+
+        .invite-header-row {
+            display: flex;
+            align-items: center;
+            padding: 12px 20px;
+            gap: 16px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+
+        .invite-header-row .invite-email { flex: 2; }
+        .invite-header-row .invite-role { flex: 1; }
+        .invite-header-row .invite-status { flex: 1; }
+        .invite-header-row .invite-date { flex: 1.5; }
+        .invite-header-row .invite-actions { flex: 1.5; }
         /* ===== Action Buttons ===== */
         .team-action-btn {
             display: inline-flex;
@@ -597,14 +720,13 @@
                 </h1>
                 <p>View all users in your company workspace.</p>
             </div>
-                <button class="btn-add-member" id="btn-add-member" onclick="openAddMemberModal()" title="Add a new team member" style="display:none;">
-                <i data-lucide="user-plus" style="width:18px;height:18px;"></i>
-                Add Member
+                <button class="btn-add-member" id="btn-add-member" onclick="openAddMemberModal()" title="Send an invitation" style="display:none;">
+                <i data-lucide="mail-plus" style="width:18px;height:18px;"></i> Send Invite
             </button>
         </div>
         <div class="info-banner">
             <i data-lucide="info" style="width:18px;height:18px;"></i>
-            <span>Admins can add new team members. Only admins and owners can manage the team.</span>
+            <span>Admins can send invitations to new team members. Only admins and owners can manage the team.</span>
         </div>
 
         <div class="glass-card" id="team-card">
@@ -634,18 +756,41 @@
                 <tbody id="team-tbody"></tbody>
             </table>
         </div>
+        <!-- Pending Invitations Section -->
+        <div class="glass-card invitations-section" id="invites-section">
+            <div class="section-header">
+                <div class="section-title">
+                    <i data-lucide="mail" style="width:20px;height:20px;"></i> Pending Invitations
+                </div>
+            </div>
+            <div class="loading-state" id="invites-loading" style="display:block;">
+                <i data-lucide="loader-2" style="width:28px;height:28px;" class="spinner"></i>
+                <p>Loading pending invitations...</p>
+            </div>
+            <div class="empty-state" id="invites-empty" style="display:none;">
+                <i data-lucide="send" style="width:36px;height:36px;"></i>
+                <p>No pending invitations.</p>
+            </div>
+            <div id="invites-list" style="display:none;">
+                <div class="invite-header-row">
+                    <div class="invite-email">Email</div>
+                    <div class="invite-role">Role</div>
+                    <div class="invite-status">Status</div>
+                    <div class="invite-date">Sent</div>
+                    <div class="invite-date">Expires</div>
+                    <div class="invite-actions">Actions</div>
+                </div>
+                <div id="invites-tbody"></div>
+            </div>
+        </div>
     <!-- Add Member Modal -->
     <div class="modal-overlay" id="add-member-modal">
         <div class="modal-content glass-card">
             <div class="modal-header">
-                <h2><i data-lucide="user-plus" style="width:22px;height:22px;"></i> Add Team Member</h2>
+                <h2><i data-lucide="mail-plus" style="width:22px;height:22px;"></i> Send Invitation</h2>
                 <button class="modal-close" onclick="closeAddMemberModal()" aria-label="Close modal">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="form-row">
-                    <label for="member-name">Full Name</label>
-                    <input type="text" id="member-name" placeholder="Enter full name" autocomplete="off">
-                </div>
                 <div class="form-row">
                     <label for="member-email">Email</label>
                     <input type="email" id="member-email" placeholder="Enter email address" autocomplete="off">
@@ -657,27 +802,12 @@
                         <option value="admin">Admin</option>
                     </select>
                 </div>
-                <div class="form-row">
-                    <label for="member-password">Temporary Password</label>
-                    <div class="input-wrapper">
-                        <input type="password" id="member-password" placeholder="At least 8 characters" autocomplete="new-password">
-                        <button type="button" class="pwd-toggle" onclick="toggleMemberPwd('member-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <label for="member-confirm-password">Confirm Temporary Password</label>
-                    <div class="input-wrapper">
-                        <input type="password" id="member-confirm-password" placeholder="Re-enter password" autocomplete="new-password">
-                        <button type="button" class="pwd-toggle" onclick="toggleMemberPwd('member-confirm-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button>
-                    </div>
-                </div>
                 <div id="member-form-error" class="field-error hidden"></div>
             </div>
             <div class="modal-footer">
                 <button class="btn-cancel" onclick="closeAddMemberModal()">Cancel</button>
                 <button class="btn-submit" id="btn-submit-member" onclick="submitAddMember()">
-                    <i data-lucide="user-plus" style="width:16px;height:16px;"></i>
-                    Add Member
+                    <i data-lucide="mail-plus" style="width:16px;height:16px;"></i> Send Invite
                 </button>
             </div>
         </div>
@@ -862,24 +992,13 @@
             document.getElementById("member-form-error").textContent = "";
             refreshIcons();
         }
-
         function closeAddMemberModal() {
             document.getElementById("add-member-modal").classList.remove("open");
             // Clear form
-            document.getElementById("member-name").value = "";
             document.getElementById("member-email").value = "";
             document.getElementById("member-role").value = "member";
-            document.getElementById("member-password").value = "";
-            document.getElementById("member-confirm-password").value = "";
-            // Reset password fields back to hidden type
-            document.getElementById("member-password").type = "password";
-            document.getElementById("member-confirm-password").type = "password";
             document.getElementById("member-form-error").classList.add("hidden");
             document.getElementById("member-form-error").textContent = "";
-            // Reset eye icons
-            var toggles = document.querySelectorAll("#add-member-modal .pwd-toggle i, #add-member-modal .pwd-toggle svg");
-            toggles.forEach(function(el) { el.setAttribute("data-lucide", "eye"); });
-            refreshIcons();
         }
 
         /* ===== Confirm Modal ===== */
@@ -913,51 +1032,29 @@
             el.classList.remove("hidden");
         }
 
-        function toggleMemberPwd(inputId, btn) {
-            var inp = document.getElementById(inputId);
-            if (!inp) return;
-            var isPwd = inp.type === "password";
-            inp.type = isPwd ? "text" : "password";
-            var icon = btn.querySelector("i, svg");
-            if (icon) {
-                icon.setAttribute("data-lucide", isPwd ? "eye-off" : "eye");
-            }
-            refreshIcons(btn);
-        }
-
+        
         async function submitAddMember() {
-            var fullName = document.getElementById("member-name").value.trim();
             var email = document.getElementById("member-email").value.trim();
             var role = document.getElementById("member-role").value;
-            var password = document.getElementById("member-password").value;
-            var confirmPassword = document.getElementById("member-confirm-password").value;
 
             // Validation
-            if (!fullName) { showMemberFormError("Full name is required."); return; }
             if (!email) { showMemberFormError("Email is required."); return; }
+            var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(email)) { showMemberFormError("Please enter a valid email address."); return; }
             if (!role) { showMemberFormError("Role is required."); return; }
-            if (!password || !confirmPassword) { showMemberFormError("Password and confirm password are required."); return; }
-            if (password !== confirmPassword) { showMemberFormError("Passwords do not match."); return; }
-            if (password.length < 8) { showMemberFormError("Password must be at least 8 characters."); return; }
-            if (!/[A-Z]/.test(password)) { showMemberFormError("Password must contain at least 1 uppercase letter."); return; }
-            if (!/[0-9]/.test(password)) { showMemberFormError("Password must contain at least 1 number."); return; }
-            if (!/[^A-Za-z0-9]/.test(password)) { showMemberFormError("Password must contain at least 1 special character."); return; }
 
             var btn = document.getElementById("btn-submit-member");
             btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader-2" style="width:16px;height:16px;" class="spinner"></i> Adding...';
+            btn.innerHTML = '<i data-lucide="loader-2" style="width:16px;height:16px;" class="spinner"></i> Sending...';
             refreshIcons();
 
             try {
-                var res = await authenticatedFetch("/api/users", {
+                var res = await authenticatedFetch("/api/invites", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        full_name: fullName,
                         email: email,
-                        role: role,
-                        password: password,
-                        confirm_password: confirmPassword
+                        role: role
                     })
                 });
 
@@ -965,17 +1062,17 @@
 
                 if (json.status === "success") {
                     closeAddMemberModal();
-                    showMessage("Member added successfully.", "success");
+                    showMessage("Invitation sent successfully.", "success");
                     loadTeam();
                 } else {
-                    showMemberFormError(json.message || "Failed to add member.");
+                    showMemberFormError(json.message || "Failed to send invitation.");
                 }
             } catch (err) {
                 showMemberFormError("Could not connect to server.");
             }
 
             btn.disabled = false;
-            btn.innerHTML = '<i data-lucide="user-plus" style="width:16px;height:16px;"></i> Add Member';
+            btn.innerHTML = '<i data-lucide="mail-plus" style="width:16px;height:16px;"></i> Send Invite';
             refreshIcons();
         }
 
@@ -987,7 +1084,7 @@
 
             var toast = document.createElement("div");
             toast.id = "team-toast";
-            toast.style.cssText = "position:fixed;bottom:30px;right:30px;padding:14px 22px;border-radius:12px;font-size:0.92rem;font-weight:600;z-index:2000;transition:opacity 0.3s;max-width:400px;";
+            toast.style.cssText = "position:fixed;top:24px;left:50%;transform:translateX(-50%);padding:14px 22px;border-radius:12px;font-size:0.92rem;font-weight:600;z-index:9999;max-width:400px;white-space:nowrap;opacity:0;transition:opacity 0.25s ease, transform 0.25s ease;";
             if (type === "success") {
                 toast.style.background = "rgba(16,185,129,0.15)";
                 toast.style.border = "1px solid rgba(16,185,129,0.3)";
@@ -999,6 +1096,9 @@
             }
             toast.textContent = text;
             document.body.appendChild(toast);
+            requestAnimationFrame(function() {
+                toast.style.opacity = "1";
+            });
 
             setTimeout(function() {
                 toast.style.opacity = "0";
@@ -1006,9 +1106,143 @@
             }, 4000);
         }
 
+                async function loadInvites() {
+            console.log("loadInvites: function called");
+            var loadingEl = document.getElementById("invites-loading");
+            var emptyEl = document.getElementById("invites-empty");
+            var listEl = document.getElementById("invites-list");
+            var tbody = document.getElementById("invites-tbody");
+
+            if (!loadingEl || !emptyEl || !listEl || !tbody) {
+                console.error("loadInvites: DOM elements missing", {loadingEl, emptyEl, listEl, tbody});
+                return;
+            }
+
+            loadingEl.style.display = "block";
+            emptyEl.style.display = "none";
+            listEl.style.display = "none";
+
+            try {
+                console.log("loadInvites: fetching /api/invites?status=pending");
+                var res = await authenticatedFetch("/api/invites?status=pending");
+                console.log("loadInvites: status:", res.status);
+                
+                var json = await res.json();
+                console.log("loadInvites: full response:", JSON.stringify(json));
+
+                loadingEl.style.display = "none";
+
+                if (json.status !== "success") {
+                    console.warn("loadInvites: API returned status=", json.status, "msg=", json.message);
+                    emptyEl.style.display = "block";
+                    emptyEl.innerHTML = "<i data-lucide=\"alert-circle\" style=\"width:36px;height:36px;color:var(--danger);\"></i><p style=\"color:var(--danger);\">" + escapeHtml(json.message || "Failed to load invitations.") + "</p>";
+                    refreshIcons();
+                    return;
+                }
+
+                var invites = json.data || [];
+                console.log("loadInvites: data array length:", invites.length);
+                if (invites.length > 0) {
+                    console.log("loadInvites: first invite:", JSON.stringify(invites[0]));
+                }
+
+                if (invites.length === 0) {
+                    console.log("loadInvites: no invites, showing empty state");
+                    emptyEl.style.display = "block";
+                    return;
+                }
+
+                // Build rows
+                var html = "";
+                for (var i = 0; i < invites.length; i++) {
+                    var inv = invites[i];
+                    var roleLabel = inv.role === "admin" ? "Admin" : "Member";
+
+                    var isExpired = false;
+                    if (inv.expires_at) {
+                        try { isExpired = new Date(inv.expires_at) < new Date(); } catch(_) {}
+                    }
+                    var statusBadge = isExpired
+                        ? "<span class=\"status-badge expired\">Expired</span>"
+                        : "<span class=\"status-badge pending\">Pending</span>";
+
+                    var createdDate = inv.created_at ? formatDate(inv.created_at) : "-";
+                    var expiresDate = inv.expires_at ? formatDate(inv.expires_at) : "-";
+                    var escapedEmail = escapeHtml(inv.email || "");
+
+                    var actionsHtml = "";
+                    if (currentUserRole === "admin" || currentUserRole === "owner") {
+                        actionsHtml = "<button class=\"team-action-btn\" onclick=\"resendInvite('" + escapedEmail + "')\" title=\"Resend\"><i data-lucide=\"repeat\" style=\"width:13px;height:13px;\"></i> Resend</button>" +
+                            "<button class=\"team-action-btn danger\" onclick=\"cancelInvite(" + inv.id + ")\" title=\"Cancel\"><i data-lucide=\"x-circle\" style=\"width:13px;height:13px;\"></i> Cancel</button>";
+                    }
+
+                    html += "<div class=\"invite-row\">" +
+                        "<div class=\"invite-email\"><span class=\"email-text\">" + escapedEmail + "</span></div>" +
+                        "<div class=\"invite-role\"><span class=\"role-badge " + inv.role + "\">" + roleLabel + "</span></div>" +
+                        "<div class=\"invite-status\">" + statusBadge + "</div>" +
+                        "<div class=\"invite-date\">" + createdDate + "</div>" +
+                        "<div class=\"invite-date\">" + expiresDate + "</div>" +
+                        "<div class=\"invite-actions\">" + actionsHtml + "</div>" +
+                        "</div>";
+                }
+
+                console.log("loadInvites: rendering", invites.length, "rows");
+                tbody.innerHTML = html;
+                listEl.style.display = "block";
+                refreshIcons();
+            } catch (err) {
+                console.error("loadInvites ERROR:", err, err.stack);
+                loadingEl.style.display = "none";
+                emptyEl.style.display = "block";
+            }
+        }
+
+async function resendInvite(email) {
+            try {
+                var res = await authenticatedFetch("/api/invites/resend", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: email })
+                });
+                var json = await res.json();
+                if (json.status === "success") {
+                    showMessage("Invitation resent successfully.", "success");
+                } else {
+                    showMessage(json.message || "Failed to resend invitation.", "error");
+                }
+            } catch (err) {
+                showMessage("Could not connect to server.", "error");
+            }
+        }
+
+        async function cancelInvite(inviteId) {
+            var confirmed = await showConfirmModal({
+                message: "Cancel this invitation?",
+                confirmText: "Cancel Invite",
+                confirmType: "danger"
+            });
+            if (!confirmed) return;
+
+            try {
+                var res = await authenticatedFetch("/api/invites/" + inviteId, {
+                    method: "DELETE"
+                });
+                var json = await res.json();
+                if (json.status === "success") {
+                    showMessage("Invitation cancelled successfully.", "success");
+                    loadInvites();
+                } else {
+                    showMessage(json.message || "Failed to cancel invitation.", "error");
+                }
+            } catch (err) {
+                showMessage("Could not connect to server.", "error");
+            }
+        }
+
         // Update loadTeam to capture current user role and control Add Member button visibility
         var originalLoadTeam = loadTeam;
         loadTeam = async function() {
+            console.log("loadTeam (overridden): starting");
             // First try to get current user role
             try {
                 var userRes = await authenticatedFetch("/api/user");
@@ -1029,6 +1263,11 @@
 
             // Then load the team
             await originalLoadTeam();
+
+            console.log("loadTeam: about to call loadInvites");
+            // Also load pending invitations
+            await loadInvites();
+            console.log("loadTeam: loadInvites completed");
         };
 
         // Hide add button initially until role is known
@@ -1041,3 +1280,9 @@
 </body>
 
 </html>
+
+
+
+
+
+

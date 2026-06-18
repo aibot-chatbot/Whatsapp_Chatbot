@@ -41,9 +41,9 @@ def get_uploaded_pdfs():
             "message": str(e)
         }), 500
 
-
 @knowledge_blueprint.route("/api/knowledge/active", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def get_current_active_pdf():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)

@@ -21,6 +21,7 @@ from app.routes.ai_model_routes import ai_model_blueprint
 from app.routes.crm_routes import crm_blueprint
 from app.routes.agent_routes import agent_blueprint
 from app.routes.user_routes import user_bp, team_bp
+from app.routes.invite_routes import invite_bp
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -58,5 +59,6 @@ def create_app():
     app.register_blueprint(agent_blueprint)
     app.register_blueprint(user_bp)
     app.register_blueprint(team_bp)
+    app.register_blueprint(invite_bp)
 
     return app
