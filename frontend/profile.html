@@ -366,6 +366,68 @@
                 align-items: flex-start;
             }
         }
+            /* ===== Team / Workspace Info ===== */
+        .invite-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .invite-row input {
+            flex: 1;
+        }
+        .copy-btn {
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            color: var(--primary);
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        .copy-btn:hover {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: var(--primary);
+        }
+        .copy-btn.copied {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.3);
+            color: var(--accent);
+        }
+        .team-members-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .team-members-row .members-avatars {
+            display: flex;
+        }
+        .team-members-row .member-avatar-mini {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 700;
+            color: #fff;
+            border: 2px solid var(--card-bg);
+            margin-right: -8px;
+        }
+        .team-members-row .member-avatar-mini:nth-child(2) {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+        .team-members-row .member-avatar-mini:nth-child(3) {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+        }
     </style>
 </head>
 
@@ -457,6 +519,54 @@
                 </div>
             </div>
 
+            <!-- Full Width: Team / Workspace Info -->
+            <div class="profile-section glass-card full-width">
+                <div class="profile-section-header">
+                    <i data-lucide="users" style="width:17px;height:17px;"></i>
+                    Team / Workspace Info
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                    <div class="form-row" style="margin-bottom:0;">
+                        <label>Current Team Name</label>
+                        <input type="text" id="team-name" value="AI Chatbot Team" readonly disabled>
+                    </div>
+                    <div class="form-row" style="margin-bottom:0;">
+                        <label>Your Role</label>
+                        <input type="text" id="team-role" value="Admin" readonly disabled>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label>Members Count</label>
+                    <div class="team-members-row">
+                        <div class="members-avatars">
+                            <div class="member-avatar-mini">A</div>
+                            <div class="member-avatar-mini">J</div>
+                            <div class="member-avatar-mini">M</div>
+                        </div>
+                        <span id="team-member-count" style="color:var(--text-main);font-weight:600;">3 Members</span>
+                    </div>
+                </div>
+
+                <div class="form-row" style="margin-bottom:0;">
+                    <label>Invite Link</label>
+                    <div class="invite-row">
+                        <input type="text" id="team-invite-link" value="https://your-app.com/invite/ABC123" readonly>
+                        <button class="copy-btn" id="btn-copy-invite" onclick="copyInviteLink()">
+                            <i data-lucide="copy" style="width:15px;height:15px;"></i>
+                            Copy
+                        </button>
+                    </div>
+                </div>
+                <div class="action-row">
+                    <a href="team.html" class="action-btn primary" style="text-decoration:none;">
+                        <i data-lucide="users" style="width:15px;height:15px;"></i>
+                        Manage Team Members
+                    </a>
+                </div>
+            </div>
+
             <!-- Full Width Bottom: Preferences -->
             <div class="profile-section glass-card full-width">
                 <div class="profile-section-header">
@@ -537,6 +647,31 @@
                 }
             } catch (err) {
                 showMessage("Could not connect to server to load profile.", "error");
+            }
+        }
+
+        /* ===== Load Team Info ===== */
+        async function loadTeamInfo() {
+            try {
+                var res = await authenticatedFetch("/api/team/current");
+                var json = await res.json();
+
+                if (json.status === "success" && json.data) {
+                    var data = json.data;
+                    var nameInput = document.getElementById("team-name");
+                    var roleInput = document.getElementById("team-role");
+                    var memberCount = document.getElementById("team-member-count");
+                    var inviteInput = document.getElementById("team-invite-link");
+
+                    if (nameInput && data.team_name) nameInput.value = data.team_name;
+                    if (roleInput && data.role) roleInput.value = data.role;
+                    if (memberCount && data.member_count != null) {
+                        memberCount.textContent = data.member_count + " Member" + (data.member_count === 1 ? "" : "s");
+                    }
+                    if (inviteInput && data.invite_link) inviteInput.value = data.invite_link;
+                }
+            } catch (err) {
+                // Silently fall back to static placeholders
             }
         }
 
@@ -749,9 +884,38 @@
             }
         }
 
+        /* ===== Copy Invite Link ===== */
+        function copyInviteLink() {
+            var input = document.getElementById("team-invite-link");
+            if (!input) return;
+            var val = input.value || "";
+            input.select();
+            input.setSelectionRange(0, 99999);
+            try {
+                navigator.clipboard.writeText(val);
+            } catch (e) {
+                // Fallback: execCommand requires the text to be selected
+                input.select();
+                input.setSelectionRange(0, 99999);
+                document.execCommand("copy");
+            }
+            var btn = document.getElementById("btn-copy-invite");
+            if (btn) {
+                btn.classList.add("copied");
+                btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Copied!';
+                refreshIcons();
+                setTimeout(function() {
+                    btn.classList.remove("copied");
+                    btn.innerHTML = '<i data-lucide="copy" style="width:15px;height:15px;"></i> Copy';
+                    refreshIcons();
+                }, 2000);
+            }
+        }
+
         // Init
         restorePreferences();
         loadProfile();
+        loadTeamInfo();
     </script>
 </body>
 
