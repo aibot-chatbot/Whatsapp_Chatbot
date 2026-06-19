@@ -710,6 +710,14 @@
     <chatbot-sidebar></chatbot-sidebar>
     <script src="sidebar-component.js"></script>
     <script src="assets/js/auth.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            var sidebar = document.querySelector("chatbot-sidebar");
+            if (sidebar && typeof sidebar.initSidebar === "function") {
+                sidebar.initSidebar();
+            }
+        });
+    </script>
 
     <div class="main-container">
         <div class="header-row">
@@ -1275,7 +1283,11 @@ async function resendInvite(email) {
             var btn = document.getElementById("btn-add-member");
             if (btn) btn.style.display = "none";
         });
-        loadTeam();
+        try {
+            loadTeam();
+        } catch (e) {
+            console.warn("team.html: loadTeam error (page continues safely):", e);
+        }
     </script>
 </body>
 
