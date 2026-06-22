@@ -6,9 +6,11 @@ from dateutil.relativedelta import relativedelta
 from app.database.subscription_plan_repository import (
     get_active_plans as _get_active_plans,
     get_plan_by_id,
+    get_plan_by_code,
 )
 from app.database.company_subscription_repository import (
     get_company_subscription as _get_company_subscription,
+    create_company_subscription as _create_company_subscription,
 )
 from app.database.billing_usage_repository import (
     count_company_chatbots,
@@ -243,3 +245,82 @@ def get_company_usage(company_id):
             },
         },
     }
+
+
+def ensure_default_company_subscription(company_id):
+    """Assign the Free subscription plan to a company if none exists.
+
+    This is intended to be called during company registration, after the
+    company and its first admin user have been created successfully.
+
+    Behaviour:
+        1. Validates that company_id exists.
+        2. Checks whether the company already has a current subscription
+           (trialing, active, or past-due).
+        3. If a current subscription exists, returns it without changes.
+        4. Looks up the Free plan by code "free".
+        5. Raises a controlled error if the Free plan is missing.
+        6. Creates an active Free subscription when none exists:
+           - status = "active"
+           - starts_at = now (UTC)
+           - current_period_start = now (UTC)
+           - current_period_end = one calendar month from now (UTC)
+        7. External payment fields are not set.
+        8. Re-reads and returns the current subscription after creation.
+
+    Returns:
+        dict: The current subscription record including plan details.
+
+    Raises:
+        ValueError: If company_id is missing.
+        RuntimeError: If no Free plan is configured in the database.
+    """
+    if not company_id:
+        raise ValueError("Company ID is required")
+
+    # 1. Check whether the company already has a current subscription
+    existing = _get_company_subscription(company_id)
+    if existing:
+        # Enriched response matching get_current_subscription format
+        return get_current_subscription(company_id)
+
+    # 2. Look up the Free plan
+    free_plan = get_plan_by_code("free")
+
+    if not free_plan:
+        raise RuntimeError(
+            "Free subscription plan is not configured. "
+            "Please run the seed SQL to create subscription plans."
+        )
+
+    plan_id = free_plan["id"]
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    period_end = now + relativedelta(months=1)
+    period_end_iso = period_end.isoformat()
+
+    subscription_data = {
+        "company_id": company_id,
+        "plan_id": plan_id,
+        "status": "active",
+        "starts_at": now_iso,
+        "current_period_start": now_iso,
+        "current_period_end": period_end_iso,
+    }
+
+    try:
+        created = _create_company_subscription(subscription_data)
+    except Exception as exc:
+        # The database has a unique partial index on company_id where
+        # status IN ('trialing', 'active', 'past_due'). If creation
+        # failed because another concurrent request created a current
+        # subscription between our check and insert, re-read and return
+        # the existing current subscription.
+        retried = _get_company_subscription(company_id)
+        if retried:
+            return get_current_subscription(company_id)
+        # Re-raise the original error — it was not a duplicate violation
+        raise
+
+    # Re-read and return the enriched subscription
+    return get_current_subscription(company_id)
