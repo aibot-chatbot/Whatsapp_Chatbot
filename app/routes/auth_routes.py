@@ -11,6 +11,8 @@ from app.database.password_reset_repository import (
 )
 from app.services.email_service import send_otp_email
 from app.utils.jwt_utils import get_jwt_secret
+import logging
+from app.services.billing_service import ensure_default_company_subscription
 
 import jwt
 import datetime
@@ -169,6 +171,17 @@ def google_auth():
             "is_verified": True
         }).eq("id", user["id"]).execute()
 
+        # Assign the Free subscription plan to the new company.
+        # This runs after the company and verified user exist. If subscription
+        # assignment fails, the account is still created successfully -- billing
+        # failure should not block the user from logging in.
+        try:
+            ensure_default_company_subscription(company["id"])
+        except Exception:
+            logging.exception(
+                "Failed to assign Free subscription for company %s after Google registration",
+                company["id"],
+            )
         try:
             token = jwt.encode({
                 "user_id": user["id"],
@@ -384,9 +397,21 @@ def verify_otp():
         # Mark user as verified immediately
         supabase.table("users").update({"is_verified": True}).eq("id", user["id"]).execute()
 
+        # Assign the Free subscription plan to the new company.
+        # This runs after the company and verified user exist but before the
+        # pending registration is cleaned up. If subscription assignment fails,
+        # the account is still created successfully -- billing failure should not
+        # block the user from logging in.
+        try:
+            ensure_default_company_subscription(company["id"])
+        except Exception:
+            logging.exception(
+                "Failed to assign Free subscription for company %s after email verification",
+                company["id"],
+            )
+
         # Clean up pending registration
         supabase.table("pending_registrations").delete().eq("email", email).execute()
-
         return jsonify({"status": "success", "message": "Email verified! Your account is ready. Please login."}), 200
 
     except Exception as e:
