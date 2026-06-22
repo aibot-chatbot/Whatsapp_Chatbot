@@ -1,4 +1,7 @@
 import logging
+from datetime import datetime, timezone
+
+from dateutil.relativedelta import relativedelta
 
 from app.database.subscription_plan_repository import (
     get_active_plans as _get_active_plans,
@@ -6,6 +9,14 @@ from app.database.subscription_plan_repository import (
 )
 from app.database.company_subscription_repository import (
     get_company_subscription as _get_company_subscription,
+)
+from app.database.billing_usage_repository import (
+    count_company_chatbots,
+    count_active_company_members,
+    count_company_channels,
+    count_company_knowledge_files,
+    sum_company_knowledge_storage,
+    count_company_ai_messages,
 )
 
 
@@ -86,3 +97,149 @@ def get_current_subscription(company_id):
         }
 
     return result
+
+
+def _parse_utc_datetime(raw_value):
+    """Parse a raw value (string or datetime) into a timezone-aware UTC datetime.
+
+    Returns None if the value is empty or cannot be parsed.
+    """
+    if not raw_value:
+        return None
+
+    if isinstance(raw_value, datetime):
+        dt = raw_value
+    else:
+        dt = datetime.fromisoformat(str(raw_value).replace("Z", "+00:00"))
+
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+
+    return dt
+
+
+def _resolve_billing_period(subscription, plan):
+    """Determine the billing period start and end from a subscription record.
+
+    Uses the plan's billing_interval to calculate the end when
+    current_period_end is not stored.
+
+    Returns (period_start, period_end, end_source) where:
+      - period_start is always current_period_start (or now as fallback)
+      - period_end is current_period_end when stored, or calculated
+        using calendar-aware math from the start date
+      - end_source is 'stored' or 'calculated'
+
+    All values are timezone-aware UTC datetimes.
+    Raises ValueError for unsupported billing_intervals.
+    """
+    billing_interval = (plan or {}).get("billing_interval", "monthly")
+
+    raw_start = subscription.get("current_period_start")
+    raw_end = subscription.get("current_period_end")
+
+    period_start = _parse_utc_datetime(raw_start)
+
+    if period_start is None:
+        period_start = datetime.now(timezone.utc)
+
+    if raw_end:
+        period_end = _parse_utc_datetime(raw_end)
+
+        if period_end is not None:
+            return period_start, period_end, "stored"
+
+    # current_period_end is missing — calculate from start using the plan interval
+    if billing_interval == "monthly":
+        period_end = period_start + relativedelta(months=1)
+    elif billing_interval == "yearly":
+        period_end = period_start + relativedelta(years=1)
+    else:
+        raise ValueError(
+            f"Unsupported billing_interval: {billing_interval}"
+        )
+
+    return period_start, period_end, "calculated"
+
+
+def _limit_value(plan, field):
+    """Return the limit value, preserving None as unlimited."""
+    return plan.get(field) if plan else None
+
+
+def get_company_usage(company_id):
+    """Return current usage statistics for a company against its plan limits.
+
+    Returns None when the company has no current subscription.
+
+    The returned structure includes:
+      - period: billing period with start, end, and end_source
+      - plan: basic plan info
+      - usage: per-metric used/limit pairs (limit is None for unlimited)
+    """
+    if not company_id:
+        raise ValueError("Company ID is required")
+
+    subscription = _get_company_subscription(company_id)
+
+    if not subscription:
+        return None
+
+    plan = get_plan_by_id(subscription.get("plan_id"))
+
+    if not plan:
+        return None
+
+    period_start, period_end, end_source = _resolve_billing_period(
+        subscription, plan
+    )
+
+    # Calculate all usage metrics
+    chatbot_used = count_company_chatbots(company_id)
+    member_used = count_active_company_members(company_id)
+    channel_used = count_company_channels(company_id)
+    file_used = count_company_knowledge_files(company_id)
+    storage_used = sum_company_knowledge_storage(company_id)
+    ai_message_used = count_company_ai_messages(
+        company_id, period_start, period_end
+    )
+
+    return {
+        "period": {
+            "start": period_start.isoformat(),
+            "end": period_end.isoformat(),
+            "end_source": end_source,
+        },
+        "plan": {
+            "id": plan.get("id"),
+            "name": plan.get("name"),
+            "code": plan.get("code"),
+            "billing_interval": plan.get("billing_interval"),
+        },
+        "usage": {
+            "chatbots": {
+                "used": chatbot_used,
+                "limit": _limit_value(plan, "chatbot_limit"),
+            },
+            "team_members": {
+                "used": member_used,
+                "limit": _limit_value(plan, "team_member_limit"),
+            },
+            "ai_messages": {
+                "used": ai_message_used,
+                "limit": _limit_value(plan, "monthly_ai_message_limit"),
+            },
+            "knowledge_files": {
+                "used": file_used,
+                "limit": _limit_value(plan, "knowledge_file_limit"),
+            },
+            "knowledge_storage_bytes": {
+                "used": storage_used,
+                "limit": _limit_value(plan, "knowledge_storage_limit_bytes"),
+            },
+            "channels": {
+                "used": channel_used,
+                "limit": _limit_value(plan, "channel_limit"),
+            },
+        },
+    }
