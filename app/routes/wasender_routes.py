@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
+from app.services.billing_guard import can_connect_channel, BillingLimitError
 from app.database.bot_repository import get_bot_by_id
 from app.database.wasender_channel_repository import (
     create_wasender_channel,
@@ -120,6 +121,9 @@ def connect_wasender():
         webhook_secret = secrets.token_urlsafe(32)
         webhook_url = f"{public_base_url}/wasender/webhook/{webhook_secret}"
 
+        # Check subscription limit before creating channel
+        can_connect_channel(company_id)
+
         channel = create_wasender_channel(
             company_id=company_id,
             chatbot_id=chatbot_id,
@@ -148,6 +152,13 @@ def connect_wasender():
             "message": "WasenderAPI channel saved successfully. Copy the webhook URL into your WasenderAPI session settings.",
             "data": safe_wasender_channel(updated_channel or channel)
         }), 200
+
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
 
     except Exception as e:
         logging.error(f"Connect Wasender error: {e}")

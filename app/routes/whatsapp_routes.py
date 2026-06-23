@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
+from app.services.billing_guard import can_connect_channel, BillingLimitError
 from app.database.bot_repository import get_bot_by_id
 from app.database.whatsapp_channel_repository import (
     disconnect_whatsapp_channel as disconnect_whatsapp_channel_record,
@@ -185,6 +186,8 @@ def complete_embedded_signup():
                 "message": metadata_error
             }), 400
 
+        # Check subscription limit before connecting channel
+        can_connect_channel(bot.get("company_id"))
         channel = upsert_whatsapp_channel_by_phone_number_id(
             phone_number_id,
             {
@@ -232,6 +235,13 @@ def complete_embedded_signup():
             "status": "error",
             "message": "Unable to connect to Meta Graph API."
         }), 502
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
+
     except Exception as e:
         logging.error(f"Complete WhatsApp Embedded Signup error: {e}")
         return jsonify({
