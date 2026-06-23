@@ -6,6 +6,7 @@ import requests
 from flask import Blueprint, request, jsonify
 
 from app.decorators.auth_decorator import token_required
+from app.services.billing_guard import can_connect_channel, BillingLimitError
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.database.bot_repository import get_bot_by_id
 from app.database.telegram_channel_repository import (
@@ -182,6 +183,9 @@ def connect_telegram():
         webhook_secret = secrets.token_urlsafe(32)
         webhook_url = f"{public_base_url}/telegram/webhook/{webhook_secret}"
 
+        # Check subscription limit before creating channel
+        can_connect_channel(company_id)
+
         # Save channel first as pending
         channel = create_telegram_channel(
             company_id=company_id,
@@ -231,6 +235,13 @@ def connect_telegram():
                 "is_active": updated_channel.get("is_active"),
             }
         }), 200
+
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
 
     except Exception as e:
         logging.error(f"Connect Telegram error: {e}")
