@@ -99,3 +99,7 @@ processed_messages_db.*
 # virtual environment
 pwb/
 venv/
+
+node_modules/
+pnpm-lock.yaml
+npm-debug.log

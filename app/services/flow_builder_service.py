@@ -1,24 +1,17 @@
-import os
-import json
+﻿import json
 import logging
-from openai import OpenAI
-from dotenv import load_dotenv
 
 from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
 from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
 from app.database.bot_repository import get_bot_by_id
+from app.services.ai_router import generate_system_response
 
-load_dotenv()
-
-client = OpenAI(
-    api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
-)
 
 def auto_generate_welcome_menu(chatbot_id):
     """
-    Scans the active PDF for the chatbot, extracts the text, and asks DeepSeek
+    Scans the active PDF for the chatbot, extracts the text, and asks the AI
     to generate a welcome message and up to 3 interactive button options.
+    All AI calls go through ai_router.generate_system_response for billing enforcement.
     """
     bot = get_bot_by_id(chatbot_id)
     if not bot:
@@ -59,17 +52,16 @@ def auto_generate_welcome_menu(chatbot_id):
     {pdf_text}
     """
     
-    logging.info(f"[AutoGenerate] Querying DeepSeek for chatbot {chatbot_id}")
+    logging.info(f"[AutoGenerate] Querying AI for chatbot {chatbot_id}")
 
     try:
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.3
+        reply = generate_system_response(
+            prompt=prompt,
+            chatbot_id=chatbot_id,
+            temperature=0.3,
+            json_response=True,
         )
         
-        reply = response.choices[0].message.content
         data = json.loads(reply)
         
         # Ensure it meets WhatsApp limits
@@ -82,5 +74,5 @@ def auto_generate_welcome_menu(chatbot_id):
         }
 
     except Exception as e:
-        logging.error(f"[AutoGenerate] DeepSeek Error: {e}")
+        logging.error(f"[AutoGenerate] AI Error: {e}")
         raise ValueError("Failed to generate menu using AI. The service might be temporarily unavailable.")
