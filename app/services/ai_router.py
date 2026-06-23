@@ -10,6 +10,7 @@ from app.services.model_catalog import (
 )
 from app.services.response_formatter import clean_ai_reply
 from app.database.bot_repository import get_bot_by_id
+from app.services.billing_guard import can_send_ai_message, BillingLimitError
 
 
 ERROR_REPLY_PATTERNS = [
@@ -84,6 +85,19 @@ def call_provider(
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp"):
     try:
         bot = get_bot_by_id(chatbot_id)
+
+        # Check subscription limit before LLM call
+        if bot:
+            company_id = bot.get("company_id")
+            if company_id:
+                try:
+                    can_send_ai_message(company_id)
+                except BillingLimitError as e:
+                    logging.warning(
+                        "AI message limit reached for company %s (chatbot %s): %s",
+                        company_id, chatbot_id, e,
+                    )
+                    return "Your account has reached its monthly AI message limit. Please upgrade your plan to continue."
 
         if not bot:
             logging.warning(f"Bot {chatbot_id} not found. Using DeepSeek fallback.")
