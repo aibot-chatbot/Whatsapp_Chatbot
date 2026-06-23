@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request, g
 
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
+from app.services.billing_guard import can_create_chatbot, BillingLimitError
 from app.services.bot_service import (
     list_bots,
     get_bot,
@@ -79,6 +80,8 @@ def create_new_bot():
     try:
         data = request.get_json() or {}
         company_id = get_current_company_id()
+        # Check subscription limit before creating
+        can_create_chatbot(company_id)
 
         bot = add_bot(data, company_id)
 
@@ -93,6 +96,12 @@ def create_new_bot():
             "status": "error",
             "message": str(e)
         }), 400
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
 
     except Exception as e:
         return jsonify({
