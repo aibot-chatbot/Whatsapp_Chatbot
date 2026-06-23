@@ -1,6 +1,7 @@
-﻿from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
+from app.services.billing_guard import can_upload_knowledge_file, BillingLimitError
 
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
@@ -223,6 +224,8 @@ def scrape_website_knowledge():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        # Check subscription limit before knowledge file creation
+        can_upload_knowledge_file(g.company_id)
         result = scrape_website_url(data["url"], chatbot_id)
         return jsonify({
             "status": "success",
@@ -233,6 +236,13 @@ def scrape_website_knowledge():
             "status": "error",
             "message": str(e)
         }), 400
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
+
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -300,6 +310,8 @@ def scrape_batch_website():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        # Check subscription limit before knowledge file creation
+        can_upload_knowledge_file(g.company_id)
         result = scrape_website_urls_batch(data["urls"], chatbot_id)
         return jsonify({
             "status": "success",
@@ -310,6 +322,13 @@ def scrape_batch_website():
             "status": "error",
             "message": str(e)
         }), 400
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
+
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -406,6 +425,9 @@ def scrape_embed_website():
 
         verify_chatbot_access(chatbot_id)
 
+        # Check subscription limit before knowledge file creation
+        can_upload_knowledge_file(g.company_id)
+
         text_content = data["text_content"]
         primary_url = data["primary_url"]
         
@@ -428,6 +450,13 @@ def scrape_embed_website():
             "status": "error",
             "message": str(e)
         }), 400
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
+
     except Exception as e:
         return jsonify({
             "status": "error",
