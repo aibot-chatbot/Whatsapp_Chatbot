@@ -1,4 +1,4 @@
-import os
+﻿import os
 import logging
 from werkzeug.utils import secure_filename
 
@@ -577,10 +577,36 @@ def scrape_website_urls_batch(urls, chatbot_id):
     }
 
 
-def extract_business_knowledge(raw_text):
+def extract_business_knowledge(raw_text, chatbot_id=None):
+    """Extract key business info from raw scraped text using AI.
+    
+    When chatbot_id is provided, routes through ai_router for billing enforcement.
+    Otherwise falls back to direct Gemini call (legacy path).
+    """
     if not raw_text:
         return ""
     try:
+        if chatbot_id:
+            from app.services.ai_router import generate_system_response
+            prompt = (
+                "You are an expert Business Analyst. Extract only the key business information, "
+                "services, packages, pricing, business hours, locations, policies, and FAQs from the "
+                "following raw scraped web text.\n\n"
+                "Rules:\n"
+                "1. Ignore cookie warnings, header menus, footer links, privacy policies, advertisements, and layout formatting.\n"
+                "2. Present the extracted information in clean, highly structured sections (e.g., SERVICES, PRICING, BUSINESS HOURS, FAQs).\n"
+                "3. Keep the factual details (like price numbers, contact info, names) 100% exact as in the source.\n"
+                "4. Respond with the clean facts only. Do not use Markdown heading tags (# or ##) to make the text clean for mobile messaging. Use bold capital letters instead.\n\n"
+                f"Source Text:\n{raw_text}"
+            )
+            return generate_system_response(
+                prompt=prompt,
+                chatbot_id=chatbot_id,
+                provider="google",
+                model="gemini-2.5-flash",
+                temperature=0.3,
+            )
+        
         import os
         from google import genai
         api_key = os.getenv("GEMINI_API_KEY")
@@ -609,6 +635,7 @@ def extract_business_knowledge(raw_text):
         import logging
         logging.error(f"Error in extract_business_knowledge: {e}")
         return raw_text
+
 
 
 def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_id):
@@ -659,3 +686,4 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
         "file_name": file_name,
         "message": "Website saved as supporting knowledge."
     }
+

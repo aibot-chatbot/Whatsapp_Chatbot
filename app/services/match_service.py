@@ -1,17 +1,12 @@
-import json
+﻿import json
 import fitz  # PyMuPDF
 import logging
 import os
-import requests
 
 from app.services.settings_service import get_draft_runtime
 from app.services.profile_service import get_profile_by_name
 from app.services.knowledge_service import get_active_pdf
-from app.services.model_catalog import (
-    OPENROUTER_PROVIDER_KEYS,
-    get_default_model,
-    normalize_model_selection,
-)
+from app.services.ai_router import generate_system_response
 from app.database.bot_repository import get_bot_by_id
 from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
 from app.database.knowledge_chunk_repository import get_chunks_by_file
@@ -41,136 +36,6 @@ def _validation_unavailable(profile_name, active_pdf_path, reason=None):
         "profile_name": profile_name or "Current Settings",
         "pdf_path": active_pdf_path,
     }
-
-
-def _call_openrouter_validation(prompt, provider, model, temperature):
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENROUTER_API_KEY environment variable is missing.")
-
-    response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:8000",
-            "X-OpenRouter-Title": "AI Chatbot System",
-        },
-        json={
-            "model": model,
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You validate chatbot profile and knowledge alignment. Return only valid JSON.",
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
-            "temperature": temperature,
-        },
-        timeout=60,
-    )
-    response.raise_for_status()
-    data = response.json()
-    return data["choices"][0]["message"]["content"].strip()
-
-
-def _call_deepseek_validation(prompt, model, temperature):
-    api_key = os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
-        raise RuntimeError("DEEPSEEK_API_KEY environment variable is missing.")
-
-    from openai import OpenAI
-
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.deepseek.com",
-    )
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": "You validate chatbot profile and knowledge alignment. Return only valid JSON.",
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-        temperature=temperature,
-        stream=False,
-    )
-
-    reply = response.choices[0].message.content
-    if not reply:
-        raise RuntimeError("Selected provider returned an empty validation response.")
-
-    return reply.strip()
-
-
-def _call_selected_validation_provider(prompt, chatbot_id, company_id=None):
-    bot = get_bot_by_id(chatbot_id, company_id)
-    provider = bot.get("ai_provider") if bot else None
-    model = bot.get("model_name") if bot else None
-    temperature = bot.get("temperature") if bot else None
-    if temperature is None:
-        temperature = 0.3
-
-    provider, model = normalize_model_selection(provider, model)
-
-    if provider == "default":
-        provider = "deepseek"
-        model = get_default_model(provider)
-
-    provider_candidates = [provider]
-    for fallback_provider in ["deepseek", "google", "openai"]:
-        if fallback_provider not in provider_candidates:
-            provider_candidates.append(fallback_provider)
-
-    errors = []
-    for candidate_provider in provider_candidates:
-        candidate_provider, candidate_model = normalize_model_selection(
-            candidate_provider,
-            model if candidate_provider == provider else None,
-        )
-
-        try:
-            logging.info(
-                "Running match validation using provider=%s model=%s",
-                candidate_provider,
-                candidate_model,
-            )
-
-            if candidate_provider == "deepseek":
-                return _call_deepseek_validation(
-                    prompt,
-                    candidate_model,
-                    temperature,
-                )
-
-            if candidate_provider in OPENROUTER_PROVIDER_KEYS:
-                return _call_openrouter_validation(
-                    prompt,
-                    candidate_provider,
-                    candidate_model,
-                    temperature,
-                )
-
-            errors.append(f"Unsupported validation provider: {candidate_provider}")
-
-        except Exception as e:
-            logging.warning(
-                "Match validation provider failed: provider=%s model=%s error=%s",
-                candidate_provider,
-                candidate_model,
-                e,
-            )
-            errors.append(f"{candidate_provider}: {e}")
-
-    raise RuntimeError("; ".join(errors) or "No validation provider succeeded.")
 
 
 def check_pdf_config_match(chatbot_id, profile_name=None, company_id=None):
@@ -267,10 +132,10 @@ Rules:
 """
 
     try:
-        raw_text = _call_selected_validation_provider(
-            prompt,
+        raw_text = generate_system_response(
+            prompt=prompt,
             chatbot_id=chatbot_id,
-            company_id=company_id,
+            temperature=0.3,
         )
 
     except Exception as e:
@@ -279,9 +144,9 @@ Rules:
 
     # Clean up markdown code block fences if present
     cleaned_text = raw_text.strip()
-    if cleaned_text.startswith("```"):
+    if cleaned_text.startswith("`"):
         lines = cleaned_text.splitlines()
-        lines = [line for line in lines if not line.strip().startswith("```")]
+        lines = [line for line in lines if not line.strip().startswith("`")]
         cleaned_text = "\n".join(lines).strip()
 
     try:

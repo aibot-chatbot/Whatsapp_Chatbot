@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 
 from app.services import deepseek_service
 from app.services import openrouter_service
@@ -82,22 +82,32 @@ def call_provider(
     raise ValueError(f"Unsupported AI provider: {provider}")
 
 
+def _check_billing_for_bot(chatbot_id):
+    """Check billing limit for a given chatbot_id. Returns company_id or None."""
+    bot = get_bot_by_id(chatbot_id)
+    if bot:
+        company_id = bot.get("company_id")
+        if company_id:
+            try:
+                can_send_ai_message(company_id)
+                return company_id
+            except BillingLimitError as e:
+                logging.warning(
+                    "AI message limit reached for company %s (chatbot %s): %s",
+                    company_id, chatbot_id, e,
+                )
+                raise
+    return None
+
+
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp"):
     try:
-        bot = get_bot_by_id(chatbot_id)
+        try:
+            _check_billing_for_bot(chatbot_id)
+        except BillingLimitError:
+            return "Your account has reached its monthly AI message limit. Please upgrade your plan to continue."
 
-        # Check subscription limit before LLM call
-        if bot:
-            company_id = bot.get("company_id")
-            if company_id:
-                try:
-                    can_send_ai_message(company_id)
-                except BillingLimitError as e:
-                    logging.warning(
-                        "AI message limit reached for company %s (chatbot %s): %s",
-                        company_id, chatbot_id, e,
-                    )
-                    return "Your account has reached its monthly AI message limit. Please upgrade your plan to continue."
+        bot = get_bot_by_id(chatbot_id)
 
         if not bot:
             logging.warning(f"Bot {chatbot_id} not found. Using DeepSeek fallback.")
@@ -183,8 +193,137 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
             except Exception as fallback_error:
                 logging.error(f"Fallback provider {fallback_provider} failed: {fallback_error}")
 
-        return "Sorry, I’m having trouble replying right now. Please try again later."
+        return "Sorry, I'm having trouble replying right now. Please try again later."
 
     except Exception as e:
         logging.error(f"AI Router Error: {e}")
-        return "Sorry, I’m having trouble replying right now. Please try again later."
+        return "Sorry, I'm having trouble replying right now. Please try again later."
+
+
+def _call_deepseek_direct(prompt, model, temperature, json_response=False):
+    """Call DeepSeek directly with a plain prompt (no chat pipeline)."""
+    from openai import OpenAI
+    import os
+
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise RuntimeError("DEEPSEEK_API_KEY environment variable is missing.")
+
+    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+
+    kwargs = {
+        "model": model or "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": temperature,
+        "stream": False,
+    }
+    if json_response:
+        kwargs["response_format"] = {"type": "json_object"}
+
+    response = client.chat.completions.create(**kwargs)
+    reply = response.choices[0].message.content
+    if reply:
+        return reply.strip()
+    raise RuntimeError("DeepSeek returned an empty response.")
+
+
+def _call_gemini_direct(prompt, model, temperature):
+    """Call Google Gemini directly with a plain prompt."""
+    from google import genai
+    import os
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("GEMINI_API_KEY environment variable is missing.")
+
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=model or "gemini-2.5-flash",
+        contents=prompt,
+    )
+    return response.text.strip()
+
+
+def _call_openrouter_direct(prompt, model, temperature):
+    """Call OpenRouter directly with a plain prompt (no chat pipeline)."""
+    import os
+    import requests
+
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENROUTER_API_KEY environment variable is missing.")
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "http://localhost:8000",
+        "X-OpenRouter-Title": "AI Chatbot System",
+    }
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": temperature,
+    }
+    response = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        headers=headers,
+        json=payload,
+        timeout=90,
+    )
+    response.raise_for_status()
+    data = response.json()
+    return data["choices"][0]["message"]["content"].strip()
+
+
+def generate_system_response(prompt, chatbot_id, provider=None, model=None, temperature=None, json_response=False):
+    """Generate an AI response for system/background tasks (non-chat).
+
+    This is the ONLY authorized function for system AI calls. It enforces
+    billing limits centrally.
+
+    Args:
+        prompt: The prompt string to send to the LLM
+        chatbot_id: The chatbot ID (for billing check and provider lookup)
+        provider: Optional provider override (defaults to bot's provider)
+        model: Optional model override (defaults to bot's model)
+        temperature: Optional temperature override (defaults to 0.3 for system)
+        json_response: Whether to request JSON mode (DeepSeek supports this natively)
+
+    Returns:
+        The LLM response text, or raises RuntimeError on failure
+    """
+    try:
+        _check_billing_for_bot(chatbot_id)
+    except BillingLimitError:
+        raise  # Let caller handle billing limit errors
+
+    bot = get_bot_by_id(chatbot_id)
+
+    selected_provider = provider or (bot.get("ai_provider", "deepseek") if bot else "deepseek")
+    selected_model = model or (bot.get("model_name") if bot else None)
+    selected_temperature = temperature if temperature is not None else (bot.get("temperature", 0.3) if bot else 0.3)
+
+    selected_provider, selected_model = normalize_model_selection(
+        selected_provider,
+        selected_model,
+    )
+
+    if not selected_model:
+        selected_model = get_default_model(selected_provider)
+
+    logging.info(
+        "System AI call for chatbot %s -> provider: %s, model: %s",
+        chatbot_id, selected_provider, selected_model,
+    )
+
+    if selected_provider == "deepseek":
+        return _call_deepseek_direct(prompt, selected_model, selected_temperature, json_response)
+
+    if selected_provider in OPENROUTER_PROVIDER_KEYS:
+        return _call_openrouter_direct(prompt, selected_model, selected_temperature)
+
+    if selected_provider == "google":
+        return _call_gemini_direct(prompt, selected_model, selected_temperature)
+
+    logging.warning("Unsupported system AI provider: %s, falling back to deepseek", selected_provider)
+    return _call_deepseek_direct(prompt, get_default_model("deepseek"), selected_temperature, json_response)

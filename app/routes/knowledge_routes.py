@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, g
+﻿from flask import Blueprint, jsonify, request, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, BillingLimitError
@@ -387,7 +387,7 @@ def scrape_extract_website():
         combined_text = "\n\n".join(combined_content_list)
         
         # Call the LLM refiner
-        refined_text = extract_business_knowledge(combined_text)
+        refined_text = extract_business_knowledge(combined_text, chatbot_id=chatbot_id)
 
         return jsonify({
             "status": "success",
@@ -462,3 +462,4 @@ def scrape_embed_website():
             "status": "error",
             "message": str(e)
         }), 500
+

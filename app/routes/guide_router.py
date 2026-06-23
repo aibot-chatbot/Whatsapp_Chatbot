@@ -1,11 +1,10 @@
-from flask import Blueprint, request, jsonify
+﻿from flask import Blueprint, request, jsonify
 import os
-from openai import OpenAI
-from google import genai
 from supabase import create_client, Client
 
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access
+from app.services.ai_router import generate_system_response
 
 # Initialize Supabase
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
@@ -96,98 +95,53 @@ def guide_chat():
 
         # FORCE the AI to see the map by prepending it to the message
         instructions = PROJECT_MAP.format(bot_id=bot_id)
-        combined_message = f"{instructions}\n\nUser Question: {user_message}"
+        combined_prompt = f"{instructions}\n\nUser Question: {user_message}"
 
-        ai_reply = ""
-
-        if provider == "groq":
-            api_key = os.getenv("GROQ_API_KEY")
-            if not api_key:
-                return jsonify({"reply": f"⚠️ **Groq API Key not found!** Please add it to your .env file."})
-            
-            client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=api_key)
-            model = db_model or "llama-3.1-70b-versatile"
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": combined_message}]
+        # Use the system AI gateway — billing is enforced inside generate_system_response
+        try:
+            ai_reply = generate_system_response(
+                combined_prompt,
+                chatbot_id=bot_id,
+                provider=provider,
+                model=db_model,
+                temperature=0.7,
             )
-            ai_reply = response.choices[0].message.content
+        except RuntimeError as e:
+            error_msg = str(e)
+            if "API_KEY" in error_msg or "environment variable is missing" in error_msg:
+                return jsonify({
+                    "reply": f"""
+<div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px; margin: 5px 0; font-family: 'Outfit', sans-serif;">
+    <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #ef4444; font-size: 0.95rem; margin-bottom: 6px;">
+        <span style="font-size: 1.1rem;">⚠️</span> Connection Failed
+    </div>
+    <div style="color: #e2e8f0; font-size: 0.9rem; line-height: 1.4; margin-bottom: 12px;">
+        I'm having trouble connecting to your current AI provider. Please verify your API Key and settings.
+    </div>
+    <a href="model_settings.html?bot_id={bot_id}" style="display: inline-flex; align-items: center; justify-content: center; background: #ef4444; color: white; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: background 0.2s ease;">
+        Verify API Key ⚙️
+    </a>
+</div>
+"""
+                })
 
-        elif provider == "deepseek":
-            api_key = os.getenv("DEEPSEEK_API_KEY")
-            if not api_key:
-                return jsonify({"reply": f"⚠️ **DeepSeek API Key not found!** Please add it to your .env file."})
-            
-            client = OpenAI(base_url="https://api.deepseek.com", api_key=api_key)
-            model = db_model or "deepseek-chat"
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": combined_message}]
-            )
-            ai_reply = response.choices[0].message.content
-
-        elif provider == "grok":
-            api_key = os.getenv("XAI_API_KEY")
-            if not api_key:
-                return jsonify({"reply": f"⚠️ **Grok (xAI) API Key not found!** Please add `XAI_API_KEY` to your .env file."})
-            
-            client = OpenAI(base_url="https://api.x.ai/v1", api_key=api_key)
-            model = db_model or "grok-beta"
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": combined_message}]
-            )
-            ai_reply = response.choices[0].message.content
-
-        elif provider == "cloudflare":
-            api_token = os.getenv("CLOUDFLARE_API_TOKEN")
-            account_id = os.getenv("CLOUDFLARE_ACCOUNT_ID")
-            if not api_token or not account_id:
-                return jsonify({"reply": f"⚠️ **Cloudflare Settings missing!** Please add both `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to your .env file."})
-            
-            import requests
-            model = db_model or "@cf/meta/llama-3.1-8b-instruct"
-            url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}"
-            headers = {"Authorization": f"Bearer {api_token}"}
-            payload = {"messages": [{"role": "user", "content": combined_message}]}
-            
-            response = requests.post(url, headers=headers, json=payload)
-            result = response.json()
-            if result.get("success"):
-                ai_reply = result["result"]["response"]
-            else:
-                return jsonify({"reply": f"⚠️ **Cloudflare AI Error:** {result.get('errors')}"})
-
-        elif provider in ["openai", "anthropic", "qwen", "mistral"]:
-            api_key = os.getenv("OPENROUTER_API_KEY")
-            base_url = "https://openrouter.ai/api/v1"
-            if not api_key:
-                if provider == "openai" and os.getenv("OPENAI_API_KEY"):
-                    api_key = os.getenv("OPENAI_API_KEY")
-                    base_url = "https://api.openai.com/v1"
-                else:
-                    return jsonify({"reply": f"⚠️ **OpenRouter API Key not found!** Please add `OPENROUTER_API_KEY` to your .env file to use {provider.capitalize()}."})
-            
-            client = OpenAI(base_url=base_url, api_key=api_key)
-            model = db_model or ("openai/gpt-4o" if provider == "openai" else f"{provider}/default")
-            response = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": combined_message}]
-            )
-            ai_reply = response.choices[0].message.content
-
-        else:  # Gemini
-            api_key = os.getenv("GEMINI_API_KEY")
-            if not api_key:
-                return jsonify({"reply": f"⚠️ **Gemini API Key not found!** Please go to the <a href='model_settings.html?bot_id={bot_id}'>Tune AI</a> page to check your settings."})
-            
-            client = genai.Client(api_key=api_key)
-            model_id = db_model or 'gemini-2.0-flash'
-            response = client.models.generate_content(
-                model=model_id,
-                contents=combined_message,
-            )
-            ai_reply = response.text
+            import logging
+            logging.error(f"System AI error in guide_chat: {e}")
+            return jsonify({
+                "reply": f"""
+<div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px; margin: 5px 0; font-family: 'Outfit', sans-serif;">
+    <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #ef4444; font-size: 0.95rem; margin-bottom: 6px;">
+        <span style="font-size: 1.1rem;">⚠️</span> Connection Error
+    </div>
+    <div style="color: #e2e8f0; font-size: 0.9rem; line-height: 1.4; margin-bottom: 12px;">
+        An unexpected connection issue occurred. Please check your internet connection or server logs.
+    </div>
+    <a href="model_settings.html?bot_id={bot_id}" style="display: inline-flex; align-items: center; justify-content: center; background: #ef4444; color: white; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: background 0.2s ease;">
+        Check Settings ⚙️
+    </a>
+</div>
+"""
+            })
 
         # --- SAFETY FALLBACK: If AI forgot the link, we inject it manually! ---
         links_to_check = {
@@ -216,41 +170,6 @@ def guide_chat():
         return jsonify({"reply": str(e)}), 403
 
     except Exception as e:
-        error_msg = str(e)
-        if "429" in error_msg or "quota" in error_msg.lower():
-            return jsonify({
-                "reply": f"""
-<div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px; margin: 5px 0; font-family: 'Outfit', sans-serif;">
-    <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #ef4444; font-size: 0.95rem; margin-bottom: 6px;">
-        <span style="font-size: 1.1rem;">⚠️</span> Quota Exceeded
-    </div>
-    <div style="color: #e2e8f0; font-size: 0.9rem; line-height: 1.4; margin-bottom: 12px;">
-        Your selected AI model has run out of messages or exceeded its limits. Please select a different provider to continue.
-    </div>
-    <a href="model_settings.html?bot_id={bot_id}" style="display: inline-flex; align-items: center; justify-content: center; background: #ef4444; color: white; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: background 0.2s ease;">
-        Switch Provider ⚙️
-    </a>
-</div>
-"""
-            })
-        
-        if "API_KEY" in error_msg or "not found" in error_msg or "invalid" in error_msg.lower():
-            return jsonify({
-                "reply": f"""
-<div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px; margin: 5px 0; font-family: 'Outfit', sans-serif;">
-    <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; color: #ef4444; font-size: 0.95rem; margin-bottom: 6px;">
-        <span style="font-size: 1.1rem;">⚠️</span> Connection Failed
-    </div>
-    <div style="color: #e2e8f0; font-size: 0.9rem; line-height: 1.4; margin-bottom: 12px;">
-        I'm having trouble connecting to your current AI provider. Please verify your API Key and settings.
-    </div>
-    <a href="model_settings.html?bot_id={bot_id}" style="display: inline-flex; align-items: center; justify-content: center; background: #ef4444; color: white; padding: 8px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: background 0.2s ease;">
-        Verify API Key ⚙️
-    </a>
-</div>
-"""
-            })
-            
         return jsonify({
             "reply": f"""
 <div style="background: rgba(239, 68, 68, 0.1); border-left: 4px solid #ef4444; padding: 12px 16px; border-radius: 8px; margin: 5px 0; font-family: 'Outfit', sans-serif;">
@@ -266,6 +185,7 @@ def guide_chat():
 </div>
 """
         }), 200
+
 
 @guide_blueprint.route('/api/guide/status', methods=['GET'])
 @token_required

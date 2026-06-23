@@ -8,8 +8,7 @@
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -600,849 +599,924 @@
 <body>
     <div id="root"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect } = React;
-
-        function App() {
-            const [file, setFile] = useState(null);
-            const [status, setStatus] = useState({ type: "", text: "", action: "" });
-            const [isUploading, setIsUploading] = useState(false);
-            const [files, setFiles] = useState([]);
-            const [activeFile, setActiveFile] = useState("");
-            const [isModalOpen, setIsModalOpen] = useState(false);
-            const [fileToDelete, setFileToDelete] = useState(null);
-            const [activeTab, setActiveTab] = useState("file");
-            const [linkUrl, setLinkUrl] = useState("");
-
-            // Interactive Crawler State Variables
-            const [isAnalyzing, setIsAnalyzing] = useState(false);
-            const [analyzedLinks, setAnalyzedLinks] = useState([]);
-            const [selectedLinks, setSelectedLinks] = useState({});
-            const [crawlStep, setCrawlStep] = useState("input"); // "input", "select", or "refine"
-            const [refinedText, setRefinedText] = useState("");
-            const [isExtracting, setIsExtracting] = useState(false);
-            const [extractedPrimaryUrl, setExtractedPrimaryUrl] = useState("");
-
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlBotId = urlParams.get("bot_id");
-            const storedBotId = sessionStorage.getItem("selectedBotId");
-
-            if (!urlBotId && storedBotId) {
-                window.location.href = `new_linkdocs.html?bot_id=${encodeURIComponent(storedBotId)}`;
-                return null;
-            }
-
-            if (!urlBotId) {
-                window.location.href = "bots.html";
-                return null;
-            }
-
-            const selectedBotId = urlBotId;
-            sessionStorage.setItem("selectedBotId", selectedBotId);
-            const botQuery = `?chatbot_id=${selectedBotId}`;
-            const pageQuery = `?bot_id=${selectedBotId}`;
-            const [botName, setBotName] = useState("");
-
-            const fetchBotInfo = async () => {
-                try {
-                    const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
-                    const data = await response.json();
-
-                    if (data.status === "success") {
-                        setBotName(data.data.bot_name || "Bot");
-                    }
-                } catch (error) {
-                    setBotName("Bot");
-                }
-            };
-
-            const getKnowledgeType = (item) => {
-                const explicitType = (item?.file_type || "").toLowerCase();
-                if (explicitType) return explicitType;
-
-                const name = item?.file_name || item?.name || "";
-                return name.startsWith("http://") || name.startsWith("https://") ? "url" : "pdf";
-            };
-
-            const isWebsiteKnowledge = (item) => getKnowledgeType(item) === "url";
-            const isSourceEnabled = (item) => item?.is_enabled !== false;
-
-            const openModal = () => {
-                setStatus({ type: "", text: "", action: "" });
-                setFile(null);
-                setLinkUrl("");
-                setActiveTab("file");
-                setIsModalOpen(true);
-                // Reset crawler states
-                setIsAnalyzing(false);
-                setAnalyzedLinks([]);
-                setSelectedLinks({});
-                setCrawlStep("input");
-                setRefinedText("");
-                setIsExtracting(false);
-                setExtractedPrimaryUrl("");
-            };
-
-            const closeModal = () => {
-                if (isUploading || isAnalyzing || isExtracting) return;
-                setIsModalOpen(false);
-                setFile(null);
-                setLinkUrl("");
-                setActiveTab("file");
-                // Reset crawler states
-                setIsAnalyzing(false);
-                setAnalyzedLinks([]);
-                setSelectedLinks({});
-                setCrawlStep("input");
-                setRefinedText("");
-                setIsExtracting(false);
-                setExtractedPrimaryUrl("");
-            };
-
-            const handleFileSelect = (input) => {
-                const selectedFile = input?.files?.[0];
-                if (!selectedFile) return;
-
-                if (selectedFile.name.length > 60) {
-                    setStatus({
-                        type: "error",
-                        text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`,
-                        action: ""
-                    });
-                    return;
-                }
-
-                if (selectedFile.type !== "application/pdf") {
-                    setStatus({ type: "error", text: "Please select a valid PDF file.", action: "" });
-                    return;
-                }
-
-                setFile(selectedFile);
-                setStatus({ type: "", text: "", action: "" });
-            };
-
-            const fetchFiles = async () => {
-                try {
-                    const res = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
-                    const data = await res.json();
-
-                    const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
-                    const activeData = await activeRes.json();
-
-                    if (data.status === "success") {
-                        setFiles(data.data || []);
-                    }
-
-                    if (activeData.status === "success") {
-                        setActiveFile(activeData.data?.file_name || "");
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Failed to load files from backend.", action: "" });
-                }
-            };
-
-            const handleAnalyze = async () => {
-                if (!linkUrl) {
-                    setStatus({ type: "error", text: "Please enter a website URL.", action: "" });
-                    return;
-                }
-                setIsAnalyzing(true);
-                setStatus({ type: "", text: "", action: "" });
-                setAnalyzedLinks([]);
-                setSelectedLinks({});
-
-                try {
-                    const response = await authenticatedFetch(`/api/knowledge/scrape-analyze${botQuery}`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ url: linkUrl }),
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        const links = data.data?.links || [];
-                        setAnalyzedLinks(links);
-
-                        // Select all by default
-                        const initialSelected = {};
-                        links.forEach(l => {
-                            initialSelected[l] = true;
-                        });
-                        setSelectedLinks(initialSelected);
-                        setCrawlStep("select");
-                    } else {
-                        setStatus({ type: "error", text: `Analysis failed: ${data.message || "Unknown error"}`, action: "" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
-                } finally {
-                    setIsAnalyzing(false);
-                }
-            };
-
-            const handleToggleLink = (link) => {
-                setSelectedLinks(prev => ({
-                    ...prev,
-                    [link]: !prev[link]
-                }));
-            };
-
-            const handleToggleAllLinks = () => {
-                const allSelected = analyzedLinks.every(l => selectedLinks[l]);
-                const nextSelected = {};
-                analyzedLinks.forEach(l => {
-                    nextSelected[l] = !allSelected;
-                });
-                setSelectedLinks(nextSelected);
-            };
-
-            const handleExtractContent = async () => {
-                const selectedUrls = analyzedLinks.filter(l => selectedLinks[l]);
-                if (selectedUrls.length === 0) {
-                    setStatus({ type: "error", text: "Please select at least one page to ingest.", action: "" });
-                    return;
-                }
-
-                setIsExtracting(true);
-                setStatus({ type: "", text: "", action: "" });
-
-                try {
-                    const response = await authenticatedFetch(`/api/knowledge/scrape-extract${botQuery}`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ urls: selectedUrls }),
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        setRefinedText(data.data?.extracted_text || "");
-                        setExtractedPrimaryUrl(data.data?.primary_url || selectedUrls[0]);
-                        setCrawlStep("refine");
-                    } else {
-                        setStatus({ type: "error", text: `Extraction failed: ${data.message || "Unknown error"}`, action: "" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
-                } finally {
-                    setIsExtracting(false);
-                }
-            };
-
-            const handleConfirmIngest = async () => {
-                if (!refinedText.trim()) {
-                    setStatus({ type: "error", text: "Refined text cannot be empty.", action: "" });
-                    return;
-                }
-
-                setIsUploading(true);
-                setStatus({ type: "", text: "", action: "" });
-
-                try {
-                    const response = await authenticatedFetch(`/api/knowledge/scrape-embed${botQuery}`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            text_content: refinedText,
-                            primary_url: extractedPrimaryUrl,
-                            file_name: extractedPrimaryUrl
-                        }),
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        setStatus({ type: "success", text: data.data?.message || "Website saved as supporting knowledge.", action: "upload" });
-                        setLinkUrl("");
-                        setIsModalOpen(false);
-                        await fetchFiles();
-                    } else {
-                        setStatus({ type: "error", text: `Ingestion failed: ${data.message || "Unknown error"}`, action: "" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
-                } finally {
-                    setIsUploading(false);
-                }
-            };
-
-            const handleUpload = async () => {
-                if (!file) {
-                    setStatus({ type: "error", text: "Please select a PDF file first.", action: "" });
-                    return;
-                }
-
-                setIsUploading(true);
-                setStatus({ type: "", text: "", action: "" });
-
-                const formData = new FormData();
-                formData.append("pdf_file", file);
-
-                try {
-                    const response = await authenticatedFetch(`/upload-pdf${botQuery}`, {
-                        method: "POST",
-                        body: formData,
-                    });
-
-                    if (response.ok) {
-                        setStatus({ type: "success", text: "PDF uploaded and set as primary knowledge.", action: "upload" });
-                        setFile(null);
-                        setIsModalOpen(false);
-                        await fetchFiles();
-                    } else {
-                        const data = await response.json();
-                        setStatus({ type: "error", text: `Upload failed: ${data.message || "Unknown error"}`, action: "" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
-                } finally {
-                    setIsUploading(false);
-                }
-            };
-
-            const handleSetActive = async (fileName) => {
-                try {
-                    const response = await authenticatedFetch(`/api/knowledge/set-active${botQuery}`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({ file_name: fileName }),
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        setStatus({ type: "success", text: data.data?.message || `${fileName} is now the active primary knowledge.`, action: "setActive" });
-                        await fetchFiles();
-                    } else {
-                        setStatus({ type: "error", text: data.message || "Failed to set primary knowledge.", action: "" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
-                }
-            };
-
-            const handleToggleSupport = async (fileName, nextEnabled) => {
-                try {
-                    const response = await authenticatedFetch(`/api/knowledge/toggle-support${botQuery}`, {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                        },
-                        body: JSON.stringify({
-                            file_name: fileName,
-                            is_enabled: nextEnabled,
-                        }),
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        setStatus({
-                            type: "success",
-                            text: data.data?.message || (nextEnabled ? "Supporting website enabled." : "Supporting website disabled."),
-                            action: "toggleSupport"
-                        });
-                        await fetchFiles();
-                    } else {
-                        setStatus({ type: "error", text: data.message || "Failed to update supporting website.", action: "" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
-                }
-            };
-
-            const triggerDeleteFile = (fileName) => {
-                setFileToDelete(fileName);
-            };
-
-            const confirmDeleteFile = async () => {
-                if (!fileToDelete) return;
-                const fileName = fileToDelete;
-                setFileToDelete(null);
-
-                try {
-                    const response = await authenticatedFetch(`/api/knowledge/files/${encodeURIComponent(fileName)}${botQuery}`, {
-                        method: "DELETE",
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        setStatus({ type: "deleted", text: data.data?.message || `${fileName} deleted successfully.`, action: "delete" });
-                        await fetchFiles();
-                    } else {
-                        setStatus({ type: "error", text: data.message || "Failed to delete knowledge source.", action: "" });
-                    }
-                } catch (error) {
-                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
-                }
-            };
-
-            useEffect(() => {
-                fetchBotInfo();
-                fetchFiles();
-            }, []);
-
-            const totalItems = files.length;
-            const trainedCount = files.length;
-            const pendingCount = 0;
-            const failedCount = 0;
-            const totalChars = files.reduce((sum, f) => sum + Number(f.size || 0), 0);
-
-            return (
-                <>
-                    <chatbot-sidebar></chatbot-sidebar>
-
-                    <main className="main-container">
-                        <div className="header">
-                            <h1>Knowledge Sources ({botName || "Bot"})</h1>
-                            <p>Manage the primary PDF and supporting website sources your AI chatbot uses.</p>
-                        </div>
-
-                        {status.text && (
-                            <div className={`status-message ${status.type}`}>
-                                {status.type === "success" ? "✨" : status.type === "deleted" ? "🗑️" : "⚠️"} {status.text}
-                            </div>
-                        )}
-
-                        {status.type === "success" && status.action === "setActive" && (
-                            <div
-                                style={{
-                                    marginBottom: "20px",
-                                    padding: "18px",
-                                    borderRadius: "16px",
-                                    background: "rgba(37, 99, 235, 0.08)",
-                                    border: "1px solid var(--glass-border)",
-                                    textAlign: "left"
-                                }}
-                            >
-                                <div style={{ fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>
-                                    Next step
-                                </div>
-                                <div style={{ fontSize: "15px", color: "var(--text-dim)", marginBottom: "14px", lineHeight: "1.5" }}>
-                                    Please review Bot Configuration so the chatbot matches this primary knowledge source.
-                                </div>
-                                <a
-                                    href={`new_prompt.html${pageQuery}`}
-                                    style={{
-                                        display: "inline-block",
-                                        padding: "10px 16px",
-                                        borderRadius: "10px",
-                                        textDecoration: "none",
-                                        background: "var(--primary)",
-                                        color: "white",
-                                        fontSize: "14px",
-                                        fontWeight: "600"
-                                    }}
-                                >
-                                    Open Bot Configuration
-                                </a>
-                            </div>
-                        )}
-
-                        <div className="stats-row">
-                            <div className="glass-card">
-                                <div className="stat-label">Files</div>
-                                <div className="stat-value">{totalItems}</div>
-                            </div>
-                            <div className="glass-card">
-                                <div className="stat-label">Trained</div>
-                                <div className="stat-value">{trainedCount}</div>
-                            </div>
-                            <div className="glass-card">
-                                <div className="stat-label">Pending</div>
-                                <div className="stat-value">{pendingCount}</div>
-                            </div>
-                            <div className="glass-card">
-                                <div className="stat-label">Failed</div>
-                                <div className="stat-value">{failedCount}</div>
-                            </div>
-                            <div className="glass-card">
-                                <div className="stat-label">Total Size</div>
-                                <div className="stat-value">{(totalChars / 1024).toFixed(1)} KB</div>
-                            </div>
-                        </div>
-
-                        <div className="tabs-nav">
-                            <div className="tab-item">Primary PDF / Supporting Websites</div>
-                        </div>
-
-                        <div className="action-bar">
-                            <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-                                <span style={{ fontWeight: 500, fontSize: "0.95rem", marginRight: "12px" }}>
-                                    Total sources: {totalItems}
-                                </span>
-                            </div>
-
-                            <button className="btn btn-primary" type="button" onClick={openModal}>
-                                ➕ Add Knowledge Source
-                            </button>
-                        </div>
-
-                        <div className="table-area">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Name</th>
-                                        <th>Size</th>
-                                        <th>Status</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {files.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="4" style={{ color: "var(--text-dim)" }}>
-                                                No knowledge sources added yet.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        files.map((f, index) => {
-                                            const websiteSource = isWebsiteKnowledge(f);
-                                            const sourceEnabled = isSourceEnabled(f);
-                                            const isPrimary = !websiteSource && f.file_name === activeFile;
-
-                                            return (
-                                                <tr key={index}>
-                                                    <td>
-                                                        <div className="name-cell">
-                                                            <span>{websiteSource ? "🔗" : "📄"}</span>
-                                                            <span>{f.file_name}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="char-count">
-                                                        {f.size ? `${(Number(f.size) / 1024).toFixed(1)} KB` : "-"}
-                                                    </td>
-                                                    <td>
-                                                        <span
-                                                            className={`status-badge ${isPrimary || (websiteSource && sourceEnabled) ? "" : "inactive"}`}
-                                                            title={websiteSource ? "Websites are supporting knowledge and cannot be set as primary." : ""}
-                                                        >
-                                                            {websiteSource ? `SUPPORTING ${sourceEnabled ? "ENABLED" : "DISABLED"}` : isPrimary ? "ACTIVE PRIMARY" : "AVAILABLE"}
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div className="table-actions">
-                                                            {!websiteSource && (
-                                                                <button
-                                                                    className="btn btn-primary"
-                                                                    type="button"
-                                                                    onClick={() => handleSetActive(f.file_name)}
-                                                                    disabled={isPrimary}
-                                                                    title={isPrimary ? "This PDF is already the active primary knowledge." : "Set this PDF as primary knowledge"}
-                                                                >
-                                                                    {isPrimary ? "Active Primary" : "Set as Primary"}
-                                                                </button>
-                                                            )}
-
-                                                            {websiteSource && (
-                                                                <button
-                                                                    className="btn"
-                                                                    type="button"
-                                                                    onClick={() => handleToggleSupport(f.file_name, !sourceEnabled)}
-                                                                    title={sourceEnabled ? "Temporarily disable this supporting website in AI answers" : "Enable this supporting website for AI answers"}
-                                                                >
-                                                                    {sourceEnabled ? "Disable" : "Enable"}
-                                                                </button>
-                                                            )}
-
-                                                            <button
-                                                                className="btn btn-danger"
-                                                                type="button"
-                                                                onClick={() => triggerDeleteFile(f.file_name)}
-                                                                title={websiteSource ? "Delete this supporting website source" : "Delete this PDF"}
-                                                            >
-                                                                Delete
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <div style={{ marginTop: "12px", textAlign: "right", fontSize: "0.8rem", opacity: 0.6 }}>
-                            {files.length === 0 ? "0 items" : `1-${files.length} of ${files.length} items`}
-                        </div>
-                    </main>
-
-                    <div className={`modal-backdrop ${isModalOpen ? "open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-                        <div className="modal-content">
-                            <h2 style={{ marginBottom: "8px" }}>Add Knowledge Source</h2>
-                            <p style={{ color: "var(--text-dim)", fontSize: "0.9rem", marginBottom: "24px" }}>
-                                Add a primary PDF or supporting website source.
-                            </p>
-
-                            <div className="modal-tabs">
-                                <button
-                                    className={`modal-tab ${activeTab === "link" ? "active" : ""}`}
-                                    type="button"
-                                    onClick={() => setActiveTab("link")}
-                                    disabled={isUploading || isAnalyzing}
-                                >
-                                    Supporting Website
-                                </button>
-                                <button
-                                    className={`modal-tab ${activeTab === "file" ? "active" : ""}`}
-                                    type="button"
-                                    onClick={() => setActiveTab("file")}
-                                    disabled={isUploading || isAnalyzing}
-                                >
-                                    Primary PDF
-                                </button>
-                            </div>
-
-                            {activeTab === "link" ? (
-                                crawlStep === "input" ? (
-                                    <div className="input-group">
-                                        <label>Website URL</label>
-                                        <input
-                                            type="text"
-                                            className="modal-input"
-                                            value={linkUrl}
-                                            onChange={(e) => setLinkUrl(e.target.value)}
-                                            placeholder="https://example.com/blog/article-1"
-                                            disabled={isAnalyzing}
-                                        />
-                                        <div style={{ marginTop: "10px", color: "var(--text-dim)", fontSize: "0.85rem" }}>
-                                            Enter a website URL to save as supporting knowledge.
-                                        </div>
-                                        {isAnalyzing && (
-                                            <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px", color: "var(--primary)" }}>
-                                                <span className="spinner"></span>
-                                                <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Finding subpages... (discovered links will load shortly)</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : crawlStep === "select" ? (
-                                    <div className="input-group">
-                                        <label style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
-                                            Discovered {analyzedLinks.length} subpages
-                                        </label>
-                                        <div style={{ color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "15px" }}>
-                                            Select which pages from <strong>{linkUrl}</strong> you want to save as supporting knowledge.
-                                        </div>
-
-                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                                            <span style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                                                Available Pages
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={handleToggleAllLinks}
-                                                style={{
-                                                    background: "transparent",
-                                                    border: "none",
-                                                    color: "var(--primary)",
-                                                    cursor: "pointer",
-                                                    fontSize: "0.85rem",
-                                                    fontWeight: "600",
-                                                    padding: "0"
-                                                }}
-                                            >
-                                                {analyzedLinks.length > 0 && analyzedLinks.every(l => selectedLinks[l]) ? "Deselect All" : "Select All"}
-                                            </button>
-                                        </div>
-
-                                        {analyzedLinks.length === 0 ? (
-                                            <div style={{ padding: "20px", textAlign: "center", color: "var(--text-dim)", fontSize: "0.9rem", border: "1px solid var(--glass-border)", borderRadius: "12px" }}>
-                                                No subpages found. You can still ingest the main page.
-                                            </div>
-                                        ) : (
-                                            <div className="link-list-container">
-                                                {analyzedLinks.map((link, idx) => (
-                                                    <div key={idx} className="link-list-item">
-                                                        <input
-                                                            type="checkbox"
-                                                            id={`link-chk-${idx}`}
-                                                            checked={!!selectedLinks[link]}
-                                                            onChange={() => handleToggleLink(link)}
-                                                        />
-                                                        <label htmlFor={`link-chk-${idx}`}>{link}</label>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {isExtracting && (
-                                            <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px", color: "var(--primary)" }}>
-                                                <span className="spinner"></span>
-                                                <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Extracting business facts via Gemini... Please wait...</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="input-group">
-                                        <label style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
-                                            Review & Refine Extracted Knowledge
-                                        </label>
-                                        <div style={{ color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "15px" }}>
-                                            Verify and edit the AI-extracted supporting knowledge details below to ensure absolute correctness.
-                                        </div>
-                                        <textarea
-                                            className="modal-input"
-                                            value={refinedText}
-                                            onChange={(e) => setRefinedText(e.target.value)}
-                                            style={{
-                                                width: "100%",
-                                                height: "220px",
-                                                fontFamily: "monospace",
-                                                fontSize: "0.85rem",
-                                                lineHeight: "1.5",
-                                                resize: "vertical"
-                                            }}
-                                            disabled={isUploading}
-                                        />
-                                    </div>
-                                )
-                            ) : (
-                                <div>
-                                    <div className="drop-zone" onClick={() => document.getElementById("file-input").click()}>
-                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginBottom: "12px", opacity: 0.5 }}>
-                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                            <polyline points="17 8 12 3 7 8"></polyline>
-                                            <line x1="12" y1="3" x2="12" y2="15"></line>
-                                        </svg>
-                                        <p>Click to Upload PDF</p>
-                                        <input
-                                            type="file"
-                                            id="file-input"
-                                            style={{ display: "none" }}
-                                            accept=".pdf"
-                                            onChange={(e) => handleFileSelect(e.target)}
-                                        />
-                                    </div>
-
-                                    {file && (
-                                        <div style={{ marginTop: "12px", fontSize: "0.85rem", color: "var(--primary)", fontWeight: 600 }}>
-                                            📄 Selected: {file.name}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            <div className="modal-footer">
-                                {activeTab === "link" && crawlStep === "select" && (
-                                    <button
-                                        className="btn"
-                                        type="button"
-                                        onClick={() => setCrawlStep("input")}
-                                        disabled={isExtracting}
-                                        style={{ marginRight: "auto" }}
-                                    >
-                                        Back
-                                    </button>
-                                )}
-                                {activeTab === "link" && crawlStep === "refine" && (
-                                    <button
-                                        className="btn"
-                                        type="button"
-                                        onClick={() => setCrawlStep("select")}
-                                        disabled={isUploading}
-                                        style={{ marginRight: "auto" }}
-                                    >
-                                        Back
-                                    </button>
-                                )}
-                                <button className="btn" type="button" onClick={closeModal} disabled={isUploading || isAnalyzing || isExtracting}>
-                                    Cancel
-                                </button>
-                                {activeTab === "link" ? (
-                                    crawlStep === "input" ? (
-                                        <button
-                                            className="btn btn-primary"
-                                            type="button"
-                                            onClick={handleAnalyze}
-                                            disabled={isAnalyzing || !linkUrl.trim()}
-                                        >
-                                            {isAnalyzing ? (
-                                                <span>
-                                                    <span className="spinner"></span> Analyzing...
-                                                </span>
-                                            ) : "Analyze Website"}
-                                        </button>
-                                    ) : crawlStep === "select" ? (
-                                        <button
-                                            className="btn btn-primary"
-                                            type="button"
-                                            onClick={handleExtractContent}
-                                            disabled={isExtracting || Object.values(selectedLinks).filter(Boolean).length === 0}
-                                        >
-                                            {isExtracting ? (
-                                                <span>
-                                                    <span className="spinner"></span> Extracting...
-                                                </span>
-                                            ) : `Extract & Review (${Object.values(selectedLinks).filter(Boolean).length} Selected)`}
-                                        </button>
-                                    ) : (
-                                        <button
-                                            className="btn btn-primary"
-                                            type="button"
-                                            onClick={handleConfirmIngest}
-                                            disabled={isUploading || !refinedText.trim()}
-                                        >
-                                            {isUploading ? (
-                                                <span>
-                                                    <span className="spinner"></span> Ingesting...
-                                                </span>
-                                            ) : "Confirm & Ingest"}
-                                        </button>
-                                    )
-                                ) : (
-                                    <button
-                                        className="btn btn-primary"
-                                        type="button"
-                                        onClick={handleUpload}
-                                        disabled={isUploading || !file}
-                                    >
-                                        {isUploading ? (
-                                            <span>
-                                                <span className="spinner"></span> Uploading...
-                                            </span>
-                                        ) : "Add Resource"}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Custom Delete Confirmation Modal */}
-                    <div className={`modal-backdrop ${fileToDelete ? "open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) setFileToDelete(null); }}>
-                        <div className="modal-content" style={{ maxWidth: "420px", textAlign: "center", padding: "40px 30px" }}>
-                            <div style={{ fontSize: "48px", marginBottom: "20px" }}>🗑️</div>
-                            <h2 style={{ marginBottom: "12px" }}>Delete Document?</h2>
-                            <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "32px", lineHeight: "1.5" }}>
-                                Are you sure you want to delete <strong>{fileToDelete}</strong>?<br />
-                                This action cannot be undone.
-                            </p>
-                            <div className="modal-footer" style={{ justifyContent: "center", gap: "16px" }}>
-                                <button className="btn" type="button" onClick={() => setFileToDelete(null)}>
-                                    Cancel
-                                </button>
-                                <button className="btn btn-danger" type="button" onClick={confirmDeleteFile}>
-                                    Delete
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </>
-            );
-        }
-
-        const root = ReactDOM.createRoot(document.getElementById("root"));
-        root.render(<App />);
-    </script>
+    <script>
+const {
+  useState,
+  useEffect
+} = React;
+function App() {
+  const [file, setFile] = useState(null);
+  const [status, setStatus] = useState({
+    type: "",
+    text: "",
+    action: ""
+  });
+  const [isUploading, setIsUploading] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [activeFile, setActiveFile] = useState("");
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState(null);
+  const [activeTab, setActiveTab] = useState("file");
+  const [linkUrl, setLinkUrl] = useState("");
+
+  // Interactive Crawler State Variables
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analyzedLinks, setAnalyzedLinks] = useState([]);
+  const [selectedLinks, setSelectedLinks] = useState({});
+  const [crawlStep, setCrawlStep] = useState("input"); // "input", "select", or "refine"
+  const [refinedText, setRefinedText] = useState("");
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractedPrimaryUrl, setExtractedPrimaryUrl] = useState("");
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlBotId = urlParams.get("bot_id");
+  const storedBotId = sessionStorage.getItem("selectedBotId");
+  if (!urlBotId && storedBotId) {
+    window.location.href = `new_linkdocs.html?bot_id=${encodeURIComponent(storedBotId)}`;
+    return null;
+  }
+  if (!urlBotId) {
+    window.location.href = "bots.html";
+    return null;
+  }
+  const selectedBotId = urlBotId;
+  sessionStorage.setItem("selectedBotId", selectedBotId);
+  const botQuery = `?chatbot_id=${selectedBotId}`;
+  const pageQuery = `?bot_id=${selectedBotId}`;
+  const [botName, setBotName] = useState("");
+  const fetchBotInfo = async () => {
+    try {
+      const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setBotName(data.data.bot_name || "Bot");
+      }
+    } catch (error) {
+      setBotName("Bot");
+    }
+  };
+  const getKnowledgeType = item => {
+    const explicitType = (item?.file_type || "").toLowerCase();
+    if (explicitType) return explicitType;
+    const name = item?.file_name || item?.name || "";
+    return name.startsWith("http://") || name.startsWith("https://") ? "url" : "pdf";
+  };
+  const isWebsiteKnowledge = item => getKnowledgeType(item) === "url";
+  const isSourceEnabled = item => item?.is_enabled !== false;
+  const openModal = () => {
+    setStatus({
+      type: "",
+      text: "",
+      action: ""
+    });
+    setFile(null);
+    setLinkUrl("");
+    setActiveTab("file");
+    setIsModalOpen(true);
+    // Reset crawler states
+    setIsAnalyzing(false);
+    setAnalyzedLinks([]);
+    setSelectedLinks({});
+    setCrawlStep("input");
+    setRefinedText("");
+    setIsExtracting(false);
+    setExtractedPrimaryUrl("");
+  };
+  const closeModal = () => {
+    if (isUploading || isAnalyzing || isExtracting) return;
+    setIsModalOpen(false);
+    setFile(null);
+    setLinkUrl("");
+    setActiveTab("file");
+    // Reset crawler states
+    setIsAnalyzing(false);
+    setAnalyzedLinks([]);
+    setSelectedLinks({});
+    setCrawlStep("input");
+    setRefinedText("");
+    setIsExtracting(false);
+    setExtractedPrimaryUrl("");
+  };
+  const handleFileSelect = input => {
+    const selectedFile = input?.files?.[0];
+    if (!selectedFile) return;
+    if (selectedFile.name.length > 60) {
+      setStatus({
+        type: "error",
+        text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`,
+        action: ""
+      });
+      return;
+    }
+    if (selectedFile.type !== "application/pdf") {
+      setStatus({
+        type: "error",
+        text: "Please select a valid PDF file.",
+        action: ""
+      });
+      return;
+    }
+    setFile(selectedFile);
+    setStatus({
+      type: "",
+      text: "",
+      action: ""
+    });
+  };
+  const fetchFiles = async () => {
+    try {
+      const res = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
+      const data = await res.json();
+      const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
+      const activeData = await activeRes.json();
+      if (data.status === "success") {
+        setFiles(data.data || []);
+      }
+      if (activeData.status === "success") {
+        setActiveFile(activeData.data?.file_name || "");
+      }
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: "Failed to load files from backend.",
+        action: ""
+      });
+    }
+  };
+  const handleAnalyze = async () => {
+    if (!linkUrl) {
+      setStatus({
+        type: "error",
+        text: "Please enter a website URL.",
+        action: ""
+      });
+      return;
+    }
+    setIsAnalyzing(true);
+    setStatus({
+      type: "",
+      text: "",
+      action: ""
+    });
+    setAnalyzedLinks([]);
+    setSelectedLinks({});
+    try {
+      const response = await authenticatedFetch(`/api/knowledge/scrape-analyze${botQuery}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          url: linkUrl
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const links = data.data?.links || [];
+        setAnalyzedLinks(links);
+
+        // Select all by default
+        const initialSelected = {};
+        links.forEach(l => {
+          initialSelected[l] = true;
+        });
+        setSelectedLinks(initialSelected);
+        setCrawlStep("select");
+      } else {
+        setStatus({
+          type: "error",
+          text: `Analysis failed: ${data.message || "Unknown error"}`,
+          action: ""
+        });
+      }
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: "Network connection failed. Is the backend running?",
+        action: ""
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+  const handleToggleLink = link => {
+    setSelectedLinks(prev => ({
+      ...prev,
+      [link]: !prev[link]
+    }));
+  };
+  const handleToggleAllLinks = () => {
+    const allSelected = analyzedLinks.every(l => selectedLinks[l]);
+    const nextSelected = {};
+    analyzedLinks.forEach(l => {
+      nextSelected[l] = !allSelected;
+    });
+    setSelectedLinks(nextSelected);
+  };
+  const handleExtractContent = async () => {
+    const selectedUrls = analyzedLinks.filter(l => selectedLinks[l]);
+    if (selectedUrls.length === 0) {
+      setStatus({
+        type: "error",
+        text: "Please select at least one page to ingest.",
+        action: ""
+      });
+      return;
+    }
+    setIsExtracting(true);
+    setStatus({
+      type: "",
+      text: "",
+      action: ""
+    });
+    try {
+      const response = await authenticatedFetch(`/api/knowledge/scrape-extract${botQuery}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          urls: selectedUrls
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setRefinedText(data.data?.extracted_text || "");
+        setExtractedPrimaryUrl(data.data?.primary_url || selectedUrls[0]);
+        setCrawlStep("refine");
+      } else {
+        setStatus({
+          type: "error",
+          text: `Extraction failed: ${data.message || "Unknown error"}`,
+          action: ""
+        });
+      }
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: "Network connection failed. Is the backend running?",
+        action: ""
+      });
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+  const handleConfirmIngest = async () => {
+    if (!refinedText.trim()) {
+      setStatus({
+        type: "error",
+        text: "Refined text cannot be empty.",
+        action: ""
+      });
+      return;
+    }
+    setIsUploading(true);
+    setStatus({
+      type: "",
+      text: "",
+      action: ""
+    });
+    try {
+      const response = await authenticatedFetch(`/api/knowledge/scrape-embed${botQuery}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          text_content: refinedText,
+          primary_url: extractedPrimaryUrl,
+          file_name: extractedPrimaryUrl
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStatus({
+          type: "success",
+          text: data.data?.message || "Website saved as supporting knowledge.",
+          action: "upload"
+        });
+        setLinkUrl("");
+        setIsModalOpen(false);
+        await fetchFiles();
+      } else {
+        setStatus({
+          type: "error",
+          text: `Ingestion failed: ${data.message || "Unknown error"}`,
+          action: ""
+        });
+      }
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: "Network connection failed. Is the backend running?",
+        action: ""
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  const handleUpload = async () => {
+    if (!file) {
+      setStatus({
+        type: "error",
+        text: "Please select a PDF file first.",
+        action: ""
+      });
+      return;
+    }
+    setIsUploading(true);
+    setStatus({
+      type: "",
+      text: "",
+      action: ""
+    });
+    const formData = new FormData();
+    formData.append("pdf_file", file);
+    try {
+      const response = await authenticatedFetch(`/upload-pdf${botQuery}`, {
+        method: "POST",
+        body: formData
+      });
+      if (response.ok) {
+        setStatus({
+          type: "success",
+          text: "PDF uploaded and set as primary knowledge.",
+          action: "upload"
+        });
+        setFile(null);
+        setIsModalOpen(false);
+        await fetchFiles();
+      } else {
+        const data = await response.json();
+        setStatus({
+          type: "error",
+          text: `Upload failed: ${data.message || "Unknown error"}`,
+          action: ""
+        });
+      }
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: "Network connection failed. Is the backend running?",
+        action: ""
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+  const handleSetActive = async fileName => {
+    try {
+      const response = await authenticatedFetch(`/api/knowledge/set-active${botQuery}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          file_name: fileName
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStatus({
+          type: "success",
+          text: data.data?.message || `${fileName} is now the active primary knowledge.`,
+          action: "setActive"
+        });
+        await fetchFiles();
+      } else {
+        setStatus({
+          type: "error",
+          text: data.message || "Failed to set primary knowledge.",
+          action: ""
+        });
+      }
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: "Failed to connect to backend.",
+        action: ""
+      });
+    }
+  };
+  const handleToggleSupport = async (fileName, nextEnabled) => {
+    try {
+      const response = await authenticatedFetch(`/api/knowledge/toggle-support${botQuery}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          file_name: fileName,
+          is_enabled: nextEnabled
+        })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStatus({
+          type: "success",
+          text: data.data?.message || (nextEnabled ? "Supporting website enabled." : "Supporting website disabled."),
+          action: "toggleSupport"
+        });
+        await fetchFiles();
+      } else {
+        setStatus({
+          type: "error",
+          text: data.message || "Failed to update supporting website.",
+          action: ""
+        });
+      }
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: "Failed to connect to backend.",
+        action: ""
+      });
+    }
+  };
+  const triggerDeleteFile = fileName => {
+    setFileToDelete(fileName);
+  };
+  const confirmDeleteFile = async () => {
+    if (!fileToDelete) return;
+    const fileName = fileToDelete;
+    setFileToDelete(null);
+    try {
+      const response = await authenticatedFetch(`/api/knowledge/files/${encodeURIComponent(fileName)}${botQuery}`, {
+        method: "DELETE"
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setStatus({
+          type: "deleted",
+          text: data.data?.message || `${fileName} deleted successfully.`,
+          action: "delete"
+        });
+        await fetchFiles();
+      } else {
+        setStatus({
+          type: "error",
+          text: data.message || "Failed to delete knowledge source.",
+          action: ""
+        });
+      }
+    } catch (error) {
+      setStatus({
+        type: "error",
+        text: "Failed to connect to backend.",
+        action: ""
+      });
+    }
+  };
+  useEffect(() => {
+    fetchBotInfo();
+    fetchFiles();
+  }, []);
+  const totalItems = files.length;
+  const trainedCount = files.length;
+  const pendingCount = 0;
+  const failedCount = 0;
+  const totalChars = files.reduce((sum, f) => sum + Number(f.size || 0), 0);
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("chatbot-sidebar", null), /*#__PURE__*/React.createElement("main", {
+    className: "main-container"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "header"
+  }, /*#__PURE__*/React.createElement("h1", null, "Knowledge Sources (", botName || "Bot", ")"), /*#__PURE__*/React.createElement("p", null, "Manage the primary PDF and supporting website sources your AI chatbot uses.")), status.text && /*#__PURE__*/React.createElement("div", {
+    className: `status-message ${status.type}`
+  }, status.type === "success" ? "✨" : status.type === "deleted" ? "🗑️" : "⚠️", " ", status.text), status.type === "success" && status.action === "setActive" && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginBottom: "20px",
+      padding: "18px",
+      borderRadius: "16px",
+      background: "rgba(37, 99, 235, 0.08)",
+      border: "1px solid var(--glass-border)",
+      textAlign: "left"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "18px",
+      fontWeight: "700",
+      marginBottom: "8px"
+    }
+  }, "Next step"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "15px",
+      color: "var(--text-dim)",
+      marginBottom: "14px",
+      lineHeight: "1.5"
+    }
+  }, "Please review Bot Configuration so the chatbot matches this primary knowledge source."), /*#__PURE__*/React.createElement("a", {
+    href: `new_prompt.html${pageQuery}`,
+    style: {
+      display: "inline-block",
+      padding: "10px 16px",
+      borderRadius: "10px",
+      textDecoration: "none",
+      background: "var(--primary)",
+      color: "white",
+      fontSize: "14px",
+      fontWeight: "600"
+    }
+  }, "Open Bot Configuration")), /*#__PURE__*/React.createElement("div", {
+    className: "stats-row"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "glass-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stat-label"
+  }, "Files"), /*#__PURE__*/React.createElement("div", {
+    className: "stat-value"
+  }, totalItems)), /*#__PURE__*/React.createElement("div", {
+    className: "glass-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stat-label"
+  }, "Trained"), /*#__PURE__*/React.createElement("div", {
+    className: "stat-value"
+  }, trainedCount)), /*#__PURE__*/React.createElement("div", {
+    className: "glass-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stat-label"
+  }, "Pending"), /*#__PURE__*/React.createElement("div", {
+    className: "stat-value"
+  }, pendingCount)), /*#__PURE__*/React.createElement("div", {
+    className: "glass-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stat-label"
+  }, "Failed"), /*#__PURE__*/React.createElement("div", {
+    className: "stat-value"
+  }, failedCount)), /*#__PURE__*/React.createElement("div", {
+    className: "glass-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "stat-label"
+  }, "Total Size"), /*#__PURE__*/React.createElement("div", {
+    className: "stat-value"
+  }, (totalChars / 1024).toFixed(1), " KB"))), /*#__PURE__*/React.createElement("div", {
+    className: "tabs-nav"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "tab-item"
+  }, "Primary PDF / Supporting Websites")), /*#__PURE__*/React.createElement("div", {
+    className: "action-bar"
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "12px",
+      alignItems: "center",
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontWeight: 500,
+      fontSize: "0.95rem",
+      marginRight: "12px"
+    }
+  }, "Total sources: ", totalItems)), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    type: "button",
+    onClick: openModal
+  }, "➕ Add Knowledge Source")), /*#__PURE__*/React.createElement("div", {
+    className: "table-area"
+  }, /*#__PURE__*/React.createElement("table", null, /*#__PURE__*/React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", null, "Name"), /*#__PURE__*/React.createElement("th", null, "Size"), /*#__PURE__*/React.createElement("th", null, "Status"), /*#__PURE__*/React.createElement("th", null, "Actions"))), /*#__PURE__*/React.createElement("tbody", null, files.length === 0 ? /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("td", {
+    colSpan: "4",
+    style: {
+      color: "var(--text-dim)"
+    }
+  }, "No knowledge sources added yet.")) : files.map((f, index) => {
+    const websiteSource = isWebsiteKnowledge(f);
+    const sourceEnabled = isSourceEnabled(f);
+    const isPrimary = !websiteSource && f.file_name === activeFile;
+    return /*#__PURE__*/React.createElement("tr", {
+      key: index
+    }, /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+      className: "name-cell"
+    }, /*#__PURE__*/React.createElement("span", null, websiteSource ? "🔗" : "📄"), /*#__PURE__*/React.createElement("span", null, f.file_name))), /*#__PURE__*/React.createElement("td", {
+      className: "char-count"
+    }, f.size ? `${(Number(f.size) / 1024).toFixed(1)} KB` : "-"), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("span", {
+      className: `status-badge ${isPrimary || websiteSource && sourceEnabled ? "" : "inactive"}`,
+      title: websiteSource ? "Websites are supporting knowledge and cannot be set as primary." : ""
+    }, websiteSource ? `SUPPORTING ${sourceEnabled ? "ENABLED" : "DISABLED"}` : isPrimary ? "ACTIVE PRIMARY" : "AVAILABLE")), /*#__PURE__*/React.createElement("td", null, /*#__PURE__*/React.createElement("div", {
+      className: "table-actions"
+    }, !websiteSource && /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-primary",
+      type: "button",
+      onClick: () => handleSetActive(f.file_name),
+      disabled: isPrimary,
+      title: isPrimary ? "This PDF is already the active primary knowledge." : "Set this PDF as primary knowledge"
+    }, isPrimary ? "Active Primary" : "Set as Primary"), websiteSource && /*#__PURE__*/React.createElement("button", {
+      className: "btn",
+      type: "button",
+      onClick: () => handleToggleSupport(f.file_name, !sourceEnabled),
+      title: sourceEnabled ? "Temporarily disable this supporting website in AI answers" : "Enable this supporting website for AI answers"
+    }, sourceEnabled ? "Disable" : "Enable"), /*#__PURE__*/React.createElement("button", {
+      className: "btn btn-danger",
+      type: "button",
+      onClick: () => triggerDeleteFile(f.file_name),
+      title: websiteSource ? "Delete this supporting website source" : "Delete this PDF"
+    }, "Delete"))));
+  })))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "12px",
+      textAlign: "right",
+      fontSize: "0.8rem",
+      opacity: 0.6
+    }
+  }, files.length === 0 ? "0 items" : `1-${files.length} of ${files.length} items`)), /*#__PURE__*/React.createElement("div", {
+    className: `modal-backdrop ${isModalOpen ? "open" : ""}`,
+    onClick: e => {
+      if (e.target === e.currentTarget) closeModal();
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-content"
+  }, /*#__PURE__*/React.createElement("h2", {
+    style: {
+      marginBottom: "8px"
+    }
+  }, "Add Knowledge Source"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      color: "var(--text-dim)",
+      fontSize: "0.9rem",
+      marginBottom: "24px"
+    }
+  }, "Add a primary PDF or supporting website source."), /*#__PURE__*/React.createElement("div", {
+    className: "modal-tabs"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: `modal-tab ${activeTab === "link" ? "active" : ""}`,
+    type: "button",
+    onClick: () => setActiveTab("link"),
+    disabled: isUploading || isAnalyzing
+  }, "Supporting Website"), /*#__PURE__*/React.createElement("button", {
+    className: `modal-tab ${activeTab === "file" ? "active" : ""}`,
+    type: "button",
+    onClick: () => setActiveTab("file"),
+    disabled: isUploading || isAnalyzing
+  }, "Primary PDF")), activeTab === "link" ? crawlStep === "input" ? /*#__PURE__*/React.createElement("div", {
+    className: "input-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Website URL"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    className: "modal-input",
+    value: linkUrl,
+    onChange: e => setLinkUrl(e.target.value),
+    placeholder: "https://example.com/blog/article-1",
+    disabled: isAnalyzing
+  }), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "10px",
+      color: "var(--text-dim)",
+      fontSize: "0.85rem"
+    }
+  }, "Enter a website URL to save as supporting knowledge."), isAnalyzing && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "15px",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      color: "var(--primary)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "spinner"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "0.9rem",
+      fontWeight: "600"
+    }
+  }, "Finding subpages... (discovered links will load shortly)"))) : crawlStep === "select" ? /*#__PURE__*/React.createElement("div", {
+    className: "input-group"
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: "0.95rem",
+      fontWeight: "700",
+      color: "var(--text-main)",
+      marginBottom: "4px"
+    }
+  }, "Discovered ", analyzedLinks.length, " subpages"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "var(--text-dim)",
+      fontSize: "0.85rem",
+      marginBottom: "15px"
+    }
+  }, "Select which pages from ", /*#__PURE__*/React.createElement("strong", null, linkUrl), " you want to save as supporting knowledge."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginBottom: "8px"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "0.8rem",
+      fontWeight: "700",
+      color: "var(--text-dim)",
+      textTransform: "uppercase",
+      letterSpacing: "0.5px"
+    }
+  }, "Available Pages"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: handleToggleAllLinks,
+    style: {
+      background: "transparent",
+      border: "none",
+      color: "var(--primary)",
+      cursor: "pointer",
+      fontSize: "0.85rem",
+      fontWeight: "600",
+      padding: "0"
+    }
+  }, analyzedLinks.length > 0 && analyzedLinks.every(l => selectedLinks[l]) ? "Deselect All" : "Select All")), analyzedLinks.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    style: {
+      padding: "20px",
+      textAlign: "center",
+      color: "var(--text-dim)",
+      fontSize: "0.9rem",
+      border: "1px solid var(--glass-border)",
+      borderRadius: "12px"
+    }
+  }, "No subpages found. You can still ingest the main page.") : /*#__PURE__*/React.createElement("div", {
+    className: "link-list-container"
+  }, analyzedLinks.map((link, idx) => /*#__PURE__*/React.createElement("div", {
+    key: idx,
+    className: "link-list-item"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    id: `link-chk-${idx}`,
+    checked: !!selectedLinks[link],
+    onChange: () => handleToggleLink(link)
+  }), /*#__PURE__*/React.createElement("label", {
+    htmlFor: `link-chk-${idx}`
+  }, link)))), isExtracting && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "15px",
+      display: "flex",
+      alignItems: "center",
+      gap: "10px",
+      color: "var(--primary)"
+    }
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "spinner"
+  }), /*#__PURE__*/React.createElement("span", {
+    style: {
+      fontSize: "0.9rem",
+      fontWeight: "600"
+    }
+  }, "Extracting business facts via Gemini... Please wait..."))) : /*#__PURE__*/React.createElement("div", {
+    className: "input-group"
+  }, /*#__PURE__*/React.createElement("label", {
+    style: {
+      fontSize: "0.95rem",
+      fontWeight: "700",
+      color: "var(--text-main)",
+      marginBottom: "4px"
+    }
+  }, "Review & Refine Extracted Knowledge"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "var(--text-dim)",
+      fontSize: "0.85rem",
+      marginBottom: "15px"
+    }
+  }, "Verify and edit the AI-extracted supporting knowledge details below to ensure absolute correctness."), /*#__PURE__*/React.createElement("textarea", {
+    className: "modal-input",
+    value: refinedText,
+    onChange: e => setRefinedText(e.target.value),
+    style: {
+      width: "100%",
+      height: "220px",
+      fontFamily: "monospace",
+      fontSize: "0.85rem",
+      lineHeight: "1.5",
+      resize: "vertical"
+    },
+    disabled: isUploading
+  })) : /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("div", {
+    className: "drop-zone",
+    onClick: () => document.getElementById("file-input").click()
+  }, /*#__PURE__*/React.createElement("svg", {
+    width: "40",
+    height: "40",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    style: {
+      marginBottom: "12px",
+      opacity: 0.5
+    }
+  }, /*#__PURE__*/React.createElement("path", {
+    d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"
+  }), /*#__PURE__*/React.createElement("polyline", {
+    points: "17 8 12 3 7 8"
+  }), /*#__PURE__*/React.createElement("line", {
+    x1: "12",
+    y1: "3",
+    x2: "12",
+    y2: "15"
+  })), /*#__PURE__*/React.createElement("p", null, "Click to Upload PDF"), /*#__PURE__*/React.createElement("input", {
+    type: "file",
+    id: "file-input",
+    style: {
+      display: "none"
+    },
+    accept: ".pdf",
+    onChange: e => handleFileSelect(e.target)
+  })), file && /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "12px",
+      fontSize: "0.85rem",
+      color: "var(--primary)",
+      fontWeight: 600
+    }
+  }, "📄 Selected: ", file.name)), /*#__PURE__*/React.createElement("div", {
+    className: "modal-footer"
+  }, activeTab === "link" && crawlStep === "select" && /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    type: "button",
+    onClick: () => setCrawlStep("input"),
+    disabled: isExtracting,
+    style: {
+      marginRight: "auto"
+    }
+  }, "Back"), activeTab === "link" && crawlStep === "refine" && /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    type: "button",
+    onClick: () => setCrawlStep("select"),
+    disabled: isUploading,
+    style: {
+      marginRight: "auto"
+    }
+  }, "Back"), /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    type: "button",
+    onClick: closeModal,
+    disabled: isUploading || isAnalyzing || isExtracting
+  }, "Cancel"), activeTab === "link" ? crawlStep === "input" ? /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    type: "button",
+    onClick: handleAnalyze,
+    disabled: isAnalyzing || !linkUrl.trim()
+  }, isAnalyzing ? /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "spinner"
+  }), " Analyzing...") : "Analyze Website") : crawlStep === "select" ? /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    type: "button",
+    onClick: handleExtractContent,
+    disabled: isExtracting || Object.values(selectedLinks).filter(Boolean).length === 0
+  }, isExtracting ? /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "spinner"
+  }), " Extracting...") : `Extract & Review (${Object.values(selectedLinks).filter(Boolean).length} Selected)`) : /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    type: "button",
+    onClick: handleConfirmIngest,
+    disabled: isUploading || !refinedText.trim()
+  }, isUploading ? /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "spinner"
+  }), " Ingesting...") : "Confirm & Ingest") : /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-primary",
+    type: "button",
+    onClick: handleUpload,
+    disabled: isUploading || !file
+  }, isUploading ? /*#__PURE__*/React.createElement("span", null, /*#__PURE__*/React.createElement("span", {
+    className: "spinner"
+  }), " Uploading...") : "Add Resource")))), /*#__PURE__*/React.createElement("div", {
+    className: `modal-backdrop ${fileToDelete ? "open" : ""}`,
+    onClick: e => {
+      if (e.target === e.currentTarget) setFileToDelete(null);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-content",
+    style: {
+      maxWidth: "420px",
+      textAlign: "center",
+      padding: "40px 30px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "48px",
+      marginBottom: "20px"
+    }
+  }, "🗑️"), /*#__PURE__*/React.createElement("h2", {
+    style: {
+      marginBottom: "12px"
+    }
+  }, "Delete Document?"), /*#__PURE__*/React.createElement("p", {
+    style: {
+      color: "var(--text-dim)",
+      fontSize: "0.95rem",
+      marginBottom: "32px",
+      lineHeight: "1.5"
+    }
+  }, "Are you sure you want to delete ", /*#__PURE__*/React.createElement("strong", null, fileToDelete), "?", /*#__PURE__*/React.createElement("br", null), "This action cannot be undone."), /*#__PURE__*/React.createElement("div", {
+    className: "modal-footer",
+    style: {
+      justifyContent: "center",
+      gap: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn",
+    type: "button",
+    onClick: () => setFileToDelete(null)
+  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
+    className: "btn btn-danger",
+    type: "button",
+    onClick: confirmDeleteFile
+  }, "Delete")))));
+}
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(/*#__PURE__*/React.createElement(App, null));
+</script>
 </body>
 
 </html>
