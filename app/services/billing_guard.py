@@ -1,4 +1,4 @@
-﻿"""
+"""
 billing_guard.py — Central enforcement engine for subscription limits.
 
 This module provides the building blocks for checking whether a company
@@ -21,11 +21,14 @@ class BillingLimitError(Exception):
         message — human-readable explanation
         code     — optional short string for future UI handling
                    (e.g. "chatbot_limit", "ai_message_limit")
+        details  — optional dict with additional structured information
+                   (e.g. current usage, limit, incoming size for storage)
     """
 
-    def __init__(self, message: str, code: str | None = None) -> None:
+    def __init__(self, message: str, code: str | None = None, details: dict | None = None) -> None:
         super().__init__(message)
         self.code = code
+        self.details = details
 
 
 def _get_limits(subscription: dict | None) -> dict:
@@ -119,13 +122,10 @@ def can_create_chatbot(company_id: int) -> bool:
     Raises BillingLimitError when the chatbot limit has been reached.
     """
     data = check_company_limit(company_id)
-
     if data is None:
         return True
-
     used = data["usage"].get("usage", {}).get("chatbots", {}).get("used")
     limit = data["limits"].get("chatbots")
-
     return _check_limit(used, limit, "Chatbot limit reached", "chatbot_limit")
 
 
@@ -136,13 +136,10 @@ def can_send_ai_message(company_id: int) -> bool:
     Raises BillingLimitError when the AI message limit has been reached.
     """
     data = check_company_limit(company_id)
-
     if data is None:
         return True
-
     used = data["usage"].get("usage", {}).get("ai_messages", {}).get("used")
     limit = data["limits"].get("ai_messages")
-
     return _check_limit(used, limit, "AI message limit reached", "ai_message_limit")
 
 
@@ -153,13 +150,10 @@ def can_upload_knowledge_file(company_id: int) -> bool:
     Raises BillingLimitError when the knowledge-file limit has been reached.
     """
     data = check_company_limit(company_id)
-
     if data is None:
         return True
-
     used = data["usage"].get("usage", {}).get("knowledge_files", {}).get("used")
     limit = data["limits"].get("knowledge_files")
-
     return _check_limit(used, limit, "Knowledge file limit reached", "file_limit")
 
 
@@ -170,11 +164,132 @@ def can_connect_channel(company_id: int) -> bool:
     Raises BillingLimitError when the channel limit has been reached.
     """
     data = check_company_limit(company_id)
-
     if data is None:
         return True
-
     used = data["usage"].get("usage", {}).get("channels", {}).get("used")
     limit = data["limits"].get("channels")
-
     return _check_limit(used, limit, "Channel limit reached", "channel_limit")
+
+
+def can_add_team_member(company_id: int) -> bool:
+    """Check whether the company can add a new team member.
+
+    Reads the team_member limit from the active subscription plan
+    and compares it against the current count of active users.
+
+    Returns True when allowed.
+    Raises BillingLimitError when the team-member limit has been reached.
+    """
+    data = check_company_limit(company_id)
+    if data is None:
+        return True
+    used = data["usage"].get("usage", {}).get("team_members", {}).get("used")
+    limit = data["limits"].get("team_members")
+    return _check_limit(used, limit, "Team member limit reached for the current subscription plan.", "team_member_limit")
+
+
+
+# ---------------------------------------------------------------------------
+# Plan feature flag guard
+# ---------------------------------------------------------------------------
+
+# Recognised feature keys for subscription plan feature_flags.
+# Extend this set when adding new gated features.
+# Model-access categories (Economy, Standard, Premium) are NOT boolean
+# features and require separate design.
+PLAN_FEATURES = frozenset({
+    "batch_website_scraping",
+    "ai_generated_reports",
+    "ai_assisted_menu_generation",
+})
+
+
+def can_use_plan_feature(company_id, feature_key):
+    """Check whether the company's current subscription plan allows a feature.
+
+    Reads ``feature_flags`` from the active plan (a JSONB column on the
+    ``subscription_plans`` table) and checks whether *feature_key* is
+    explicitly enabled.
+
+    Backward-compatibility rules (temporary - each plan must be configured
+    explicitly before public launch):
+        * Feature key missing from the plan ``feature_flags``   -> allowed
+        * ``feature_flags`` column is NULL or empty dict        -> allowed
+        * No active subscription exists                         -> allowed
+        * Feature explicitly set to ``true``                    -> allowed
+        * Feature explicitly set to ``false``                   -> blocked
+    """
+    if not feature_key or not isinstance(feature_key, str):
+        raise ValueError("feature_key must be a non-empty string")
+
+    if feature_key not in PLAN_FEATURES:
+        raise ValueError(
+            "Unknown feature key: " + repr(feature_key) + ". "
+            "Recognised keys: " + str(sorted(PLAN_FEATURES))
+        )
+
+    subscription = get_current_subscription(company_id)
+    if subscription is None:
+        return True  # No active subscription - allow (temporary compat)
+
+    plan = subscription.get("plan") or {}
+    feature_flags = plan.get("feature_flags")
+
+    # Backward compatibility: missing or null flags -> allow
+    if feature_flags is None or not isinstance(feature_flags, dict):
+        return True
+
+    # Feature key not present in the flags map -> allow (temporary compat)
+    if feature_key not in feature_flags:
+        return True
+
+    enabled = feature_flags.get(feature_key)
+
+    if enabled is True:
+        return True
+
+    # Explicitly false (or any falsy non-None value) -> block
+    raise BillingLimitError(
+        "The feature \"" + feature_key + "\" is not available on your current subscription plan.",
+        code="feature_not_available",
+        details={"feature_key": feature_key},
+    )
+
+
+
+def can_upload_knowledge_storage(company_id: int, incoming_size_bytes: int) -> bool:
+    """Check whether the company can upload a knowledge file of the given size.
+
+    Projects the current storage usage plus the incoming file size against
+    the plan's storage-byte limit.
+
+    Args:
+        company_id: The company to check.
+        incoming_size_bytes: Size of the file being uploaded, in bytes.
+
+    Returns True when allowed.
+    Raises BillingLimitError when projected usage exceeds the plan limit.
+    Raises ValueError if incoming_size_bytes is negative.
+    """
+    if incoming_size_bytes < 0:
+        raise ValueError(f"incoming_size_bytes must be non-negative, got {incoming_size_bytes}")
+    data = check_company_limit(company_id)
+    if data is None:
+        return True
+    current_usage = data["usage"].get("usage", {}).get("knowledge_storage_bytes", {}).get("used", 0) or 0
+    limit = data["limits"].get("storage_bytes")
+    if limit is None:
+        return True
+    projected = current_usage + incoming_size_bytes
+    if projected > limit:
+        raise BillingLimitError(
+            f"Knowledge storage limit reached: {projected} bytes projected exceeds {limit} bytes allowed",
+            code="knowledge_storage_limit",
+            details={
+                "current_usage_bytes": current_usage,
+                "incoming_size_bytes": incoming_size_bytes,
+                "projected_usage_bytes": projected,
+                "limit_bytes": limit,
+            },
+        )
+    return True

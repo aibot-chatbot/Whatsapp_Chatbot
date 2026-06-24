@@ -15,6 +15,7 @@ from app.database.invite_repository import (
     delete_invite,
 )
 from app.database.user_repository import get_user_by_email, create_user
+from app.services.billing_guard import can_add_team_member, BillingLimitError
 from app.routes.auth_routes import validate_password_strength
 
 invite_bp = Blueprint("invite", __name__, url_prefix="/api/invites")
@@ -58,6 +59,9 @@ def create_invite_endpoint():
 
         company_id = g.company_id
 
+        # Check subscription limit before creating invitation
+        can_add_team_member(company_id)
+
         existing = get_pending_invite_by_email(email, company_id)
         if existing:
             return jsonify({
@@ -96,6 +100,12 @@ def create_invite_endpoint():
             "status": "error",
             "message": str(e)
         }), 400
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
     except Exception as e:
                 return jsonify({
             "status": "success",
@@ -395,6 +405,10 @@ def accept_invite():
                 "message": "This email is already registered."
             }), 409
 
+        # ── Check subscription limit before creating user ──
+        company_id_from_invite = invite.get("company_id")
+        can_add_team_member(company_id_from_invite)
+
         # ── Create user ──
 
         password_hash = generate_password_hash(password)
@@ -428,6 +442,12 @@ def accept_invite():
             "status": "error",
             "message": str(e)
         }), 400
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
     except Exception as e:
         return jsonify({
             "status": "error",

@@ -844,11 +844,20 @@ function App() {
         setExtractedPrimaryUrl(data.data?.primary_url || selectedUrls[0]);
         setCrawlStep("refine");
       } else {
-        setStatus({
-          type: "error",
-          text: `Extraction failed: ${data.message || "Unknown error"}`,
-          action: ""
-        });
+        // Detect subscription plan limitation for batch scraping
+        if (!response.ok && data.code === "feature_not_available" && data.details?.feature_key === "batch_website_scraping") {
+          setStatus({
+            type: "error",
+            text: "Batch website scraping is not available on your current subscription plan. You can scrape one URL at a time or upgrade your plan.",
+            action: ""
+          });
+        } else {
+          setStatus({
+            type: "error",
+            text: `Extraction failed: ${data.message || "Unknown error"}`,
+            action: ""
+          });
+        }
       }
     } catch (error) {
       setStatus({
@@ -914,7 +923,15 @@ function App() {
       setIsUploading(false);
     }
   };
-  const handleUpload = async () => {
+  
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    const val = bytes / Math.pow(1024, i);
+    return val.toFixed(i === 0 ? 0 : 1) + " " + units[i];
+  };
+const handleUpload = async () => {
     if (!file) {
       setStatus({
         type: "error",
@@ -947,11 +964,19 @@ function App() {
         await fetchFiles();
       } else {
         const data = await response.json();
-        setStatus({
-          type: "error",
-          text: `Upload failed: ${data.message || "Unknown error"}`,
-          action: ""
-        });
+        if (data.code === "knowledge_storage_limit" && data.details) {
+          const d = data.details;
+          const msg = `This PDF (${formatBytes(d.incoming_size_bytes)}) would exceed your plan\'s knowledge storage limit. ` +
+            `Current usage: ${formatBytes(d.current_usage_bytes)} / ${formatBytes(d.limit_bytes)}. ` +
+            `Try deleting unused files or upgrading your subscription.`;
+          setStatus({ type: "error", text: msg, action: "" });
+        } else {
+          setStatus({
+            type: "error",
+            text: `Upload failed: ${data.message || "Unknown error"}`,
+            action: ""
+          });
+        }
       }
     } catch (error) {
       setStatus({

@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request, g
 
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
-from app.services.billing_guard import can_create_chatbot, BillingLimitError
+from app.services.billing_guard import can_create_chatbot, can_use_plan_feature, BillingLimitError
 from app.services.bot_service import (
     list_bots,
     get_bot,
@@ -132,6 +132,14 @@ def update_existing_bot(bot_id):
             "message": str(e)
         }), 400
 
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+            "details": e.details or {}
+        }), 403
+
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -177,6 +185,9 @@ def auto_generate_menu(bot_id):
         if not bot:
             return jsonify({"status": "error", "message": "Bot not found"}), 404
 
+        # Check subscription feature access for AI-assisted menu generation
+        can_use_plan_feature(company_id, "ai_assisted_menu_generation")
+
         from app.services.flow_builder_service import auto_generate_welcome_menu
         
         result = auto_generate_welcome_menu(bot_id)
@@ -192,6 +203,14 @@ def auto_generate_menu(bot_id):
             "status": "error",
             "message": str(e)
         }), 400
+
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+            "details": e.details or {}
+        }), 403
 
     except Exception as e:
         return jsonify({

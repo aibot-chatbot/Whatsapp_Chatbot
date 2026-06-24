@@ -441,7 +441,12 @@
                     renderEditor();
                     renderPreview();
                 } else {
-                    alert("Error: " + json.message);
+                    // Detect subscription plan limitation
+                    if (json.code === "feature_not_available" && json.details?.feature_key === "ai_assisted_menu_generation") {
+                        alert("AI-assisted menu generation is not available on your current subscription plan. You can still create the welcome menu manually or upgrade your plan.");
+                    } else {
+                        alert("Error: " + json.message);
+                    }
                 }
             } catch (err) {
                 alert("Failed to connect to the server.");

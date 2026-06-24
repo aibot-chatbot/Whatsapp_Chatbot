@@ -42,6 +42,7 @@ def list_active_plans():
             "knowledge_file_limit": plan.get("knowledge_file_limit"),
             "knowledge_storage_limit_bytes": plan.get("knowledge_storage_limit_bytes"),
             "channel_limit": plan.get("channel_limit"),
+            "feature_flags": plan.get("feature_flags"),
         })
 
     return result
@@ -96,6 +97,7 @@ def get_current_subscription(company_id):
             "knowledge_file_limit": plan.get("knowledge_file_limit"),
             "knowledge_storage_limit_bytes": plan.get("knowledge_storage_limit_bytes"),
             "channel_limit": plan.get("channel_limit"),
+            "feature_flags": plan.get("feature_flags"),
         }
 
     return result
@@ -151,7 +153,7 @@ def _resolve_billing_period(subscription, plan):
         if period_end is not None:
             return period_start, period_end, "stored"
 
-    # current_period_end is missing — calculate from start using the plan interval
+    # current_period_end is missing ï¿½ calculate from start using the plan interval
     if billing_interval == "monthly":
         period_end = period_start + relativedelta(months=1)
     elif billing_interval == "yearly":
@@ -319,7 +321,7 @@ def ensure_default_company_subscription(company_id):
         retried = _get_company_subscription(company_id)
         if retried:
             return get_current_subscription(company_id)
-        # Re-raise the original error — it was not a duplicate violation
+        # Re-raise the original error ï¿½ it was not a duplicate violation
         raise
 
     # Re-read and return the enriched subscription
