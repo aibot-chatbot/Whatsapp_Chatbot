@@ -430,7 +430,18 @@
                     const errorEl = document.createElement("div");
                     errorEl.style.color = "#f87171";
                     errorEl.style.textAlign = "center";
-                    errorEl.textContent = `Failed to generate report: ${result.message || "Unknown error occurred"}`;
+
+                    // Detect subscription plan limitation
+                    const isPlanLimit = !response.ok &&
+                        result.code === "feature_not_available" &&
+                        result.details?.feature_key === "ai_generated_reports";
+
+                    if (isPlanLimit) {
+                        errorEl.textContent = "AI-generated reports are not available on your current subscription plan. Please upgrade to access this feature.";
+                    } else {
+                        errorEl.textContent = `Failed to generate report: ${result.message || "Unknown error occurred"}`;
+                    }
+
                     container.appendChild(errorEl);
                     document.getElementById("btn-download-pdf").style.display = "none";
                 }

@@ -13,7 +13,7 @@ from .utils.whatsapp_utils import (
 )
 from app.services.knowledge_service import save_uploaded_pdf
 from app.utils.access_control import verify_chatbot_access, role_required
-from app.services.billing_guard import can_upload_knowledge_file, BillingLimitError
+from app.services.billing_guard import can_upload_knowledge_file, can_upload_knowledge_storage, BillingLimitError
 
 webhook_blueprint = Blueprint("webhook", __name__)
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
@@ -133,8 +133,14 @@ def upload_pdf():
 
         verify_chatbot_access(chatbot_id)
 
-        # Check subscription limit before file upload
+        # Determine file size before saving (seek to end, then reset)
+        file.seek(0, 2)
+        incoming_size = file.tell()
+        file.seek(0)
+
+        # Check subscription limits before file upload
         can_upload_knowledge_file(g.company_id)
+        can_upload_knowledge_storage(g.company_id, incoming_size)
         result = save_uploaded_pdf(file, chatbot_id)
 
         return jsonify({
@@ -142,11 +148,14 @@ def upload_pdf():
         }), 200
 
     except BillingLimitError as e:
-        return jsonify({
+        response = {
             "status": "error",
             "code": e.code,
-            "message": str(e)
-        }), 403
+            "message": str(e),
+        }
+        if getattr(e, "details", None):
+            response["details"] = e.details
+        return jsonify(response), 403
 
     except Exception as e:
         return jsonify({

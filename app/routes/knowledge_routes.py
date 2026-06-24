@@ -1,7 +1,7 @@
 ﻿from flask import Blueprint, jsonify, request, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
-from app.services.billing_guard import can_upload_knowledge_file, BillingLimitError
+from app.services.billing_guard import can_upload_knowledge_file, can_use_plan_feature, BillingLimitError
 
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
@@ -310,6 +310,8 @@ def scrape_batch_website():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        # Check subscription feature access for batch scraping
+        can_use_plan_feature(g.company_id, "batch_website_scraping")
         # Check subscription limit before knowledge file creation
         can_upload_knowledge_file(g.company_id)
         result = scrape_website_urls_batch(data["urls"], chatbot_id)
@@ -357,6 +359,8 @@ def scrape_extract_website():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        # Check subscription feature access for batch website scraping
+        can_use_plan_feature(g.company_id, "batch_website_scraping")
 
         urls = data["urls"]
         if not urls:
@@ -397,6 +401,13 @@ def scrape_extract_website():
                 "failed_urls": failed_urls
             }
         }), 200
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+            "details": e.details or {}
+        }), 403
     except Exception as e:
         return jsonify({
             "status": "error",
