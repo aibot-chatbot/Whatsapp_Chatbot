@@ -589,7 +589,7 @@ def extract_business_knowledge(raw_text, chatbot_id):
     if not chatbot_id:
         raise ValueError("chatbot_id is required for AI knowledge extraction.")
     try:
-        from app.services.ai_router import generate_system_response
+        from app.services.ai_router import generate_system_response, OPERATION_KNOWLEDGE_EXTRACTION
         prompt = (
             "You are an expert Business Analyst. Extract only the key business information, "
             "services, packages, pricing, business hours, locations, policies, and FAQs from the "
@@ -607,6 +607,7 @@ def extract_business_knowledge(raw_text, chatbot_id):
             provider="google",
             model="gemini-2.5-flash",
             temperature=0.3,
+            operation_type=OPERATION_KNOWLEDGE_EXTRACTION,
         )
     except Exception as e:
         logging.error(f"Error in extract_business_knowledge: {e}")

@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from app.services.ai_router import generate_response
+from app.services.ai_router import generate_response, OPERATION_TEST_BOT
 from app.services.settings_service import get_deployed_runtime
 from app.services.profile_service import get_profile_by_name
 from app.decorators.auth_decorator import token_required
@@ -69,6 +69,7 @@ def chat_with_testbot():
             TESTBOT_SESSION_ID,
             chatbot_id,
             source_channel="web",
+            operation_type=OPERATION_TEST_BOT,
         )
 
         return jsonify({

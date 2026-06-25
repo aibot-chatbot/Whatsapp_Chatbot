@@ -4,7 +4,7 @@ from supabase import create_client, Client
 
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access
-from app.services.ai_router import generate_system_response
+from app.services.ai_router import generate_system_response, OPERATION_GUIDE_ASSISTANT
 
 # Initialize Supabase
 supabase: Client = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
@@ -105,6 +105,7 @@ def guide_chat():
                 provider=provider,
                 model=db_model,
                 temperature=0.7,
+                operation_type=OPERATION_GUIDE_ASSISTANT,
             )
         except RuntimeError as e:
             error_msg = str(e)

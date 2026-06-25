@@ -1,6 +1,6 @@
 ﻿import logging
 from app.database.analytics_repository import get_transcript_logs
-from app.services.ai_router import generate_system_response
+from app.services.ai_router import generate_system_response, OPERATION_AI_REPORT
 
 
 def generate_weekly_report(chatbot_id: int, days: int = 7) -> str:
@@ -52,6 +52,7 @@ Structure the report clearly with bold Markdown headers. Do not use raw HTML tag
             provider=provider,
             model=model,
             temperature=0.3,
+            operation_type=OPERATION_AI_REPORT,
         )
         return f"{reply.strip()}\n\n---\n*Report generated using model: **{provider} / {model or 'default'}***"
     except Exception as e:
@@ -65,6 +66,7 @@ Structure the report clearly with bold Markdown headers. Do not use raw HTML tag
                 provider="google",
                 model="gemini-2.5-flash",
                 temperature=0.3,
+                operation_type=OPERATION_AI_REPORT,
             )
             return f"{reply.strip()}\n\n---\n*Report generated using fallback model: **google / gemini-2.5-flash** (original request to {provider}/{model or 'default'} failed)*"
         except Exception as fallback_err:
