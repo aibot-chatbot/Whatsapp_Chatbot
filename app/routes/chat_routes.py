@@ -3,7 +3,7 @@ from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 
 # import your existing chatbot function
-from app.services.ai_router import generate_response
+from app.services.ai_router import generate_response, OPERATION_TEST_CHAT
 
 # create blueprint
 chat_blueprint = Blueprint("chat", __name__)
@@ -39,6 +39,7 @@ def test_chat():
             "test_user",
             chatbot_id=chatbot_id,
             source_channel="web",
+            operation_type=OPERATION_TEST_CHAT,
         )
 
         return jsonify({

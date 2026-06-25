@@ -27,6 +27,59 @@ CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
 )
 
 
+def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temperature=0.7, source_channel="whatsapp"):
+    """Raw DeepSeek API request returning (success, response_object_or_error_text).
+
+    This is the internal provider-calling layer used by ai_router.call_provider().
+    The existing generate_response() remains as a backward-compatible wrapper.
+
+    Returns:
+        tuple[bool, object | str]: (True, SDK ChatCompletion object) on success,
+                                    (False, direct_reply_or_error_text) on failure/direct-reply.
+        The call_provider() in ai_router.py handles both SDK objects and dict responses.
+    """
+    try:
+        pipeline = prepare_chat_prompt(
+            message=message,
+            customer_id=customer_id,
+            chatbot_id=chatbot_id,
+            source_channel=source_channel,
+        )
+
+        if pipeline.get("direct_reply"):
+            return True, {"choices": [{"message": {"content": pipeline["direct_reply"]}}]}
+
+        prompt = pipeline.get("prompt")
+
+        if not prompt:
+            raise ValueError("Prompt could not be prepared for DeepSeek.")
+
+        logging.info(f"[DeepSeek] _request using model: {model}")
+
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": CUSTOMER_SERVICE_SYSTEM_MESSAGE
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                },
+            ],
+            temperature=temperature,
+            stream=False
+        )
+
+        return True, response
+
+    except Exception as e:
+        logging.error(f"DeepSeek _request Error: {e}")
+        return False, "I'm sorry, I encountered an error while processing your request with DeepSeek."
+
+
+
 def generate_response(
     message,
     customer_id,

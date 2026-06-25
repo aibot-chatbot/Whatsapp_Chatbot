@@ -22,6 +22,39 @@ CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
 )
 
 
+def _request(prompt, model="google/gemini-3.5-flash", temperature=0.7, max_tokens=1500):
+    """Raw OpenRouter API request returning (success, data_dict_or_error_text)."""
+    try:
+        if not OPENROUTER_API_KEY:
+            logging.error("OPENROUTER_API_KEY is missing.")
+            return False, "Sorry, I'm having trouble replying right now."
+        headers = {
+            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-OpenRouter-Title": "AI Chatbot System",
+        }
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        logging.info(f"[OpenRouter] _request using model: {model}")
+        response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+        data = response.json()
+        return True, data
+    except requests.exceptions.HTTPError as e:
+        logging.error(f"OpenRouter HTTP error: {e}")
+        logging.error(f"OpenRouter response: {response.text if 'response' in locals() else ''}")
+        return False, "Sorry, I'm having trouble replying right now."
+    except Exception as e:
+        logging.error(f"OpenRouter error: {e}")
+        return False, "Sorry, I'm having trouble replying right now."
+
+
+
 def generate_response(
     prompt,
     model="google/gemini-3.5-flash",

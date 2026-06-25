@@ -4,7 +4,7 @@ import logging
 from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
 from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
 from app.database.bot_repository import get_bot_by_id
-from app.services.ai_router import generate_system_response
+from app.services.ai_router import generate_system_response, OPERATION_WELCOME_MENU
 
 
 def auto_generate_welcome_menu(chatbot_id):
@@ -60,6 +60,7 @@ def auto_generate_welcome_menu(chatbot_id):
             chatbot_id=chatbot_id,
             temperature=0.3,
             json_response=True,
+            operation_type=OPERATION_WELCOME_MENU,
         )
         
         data = json.loads(reply)

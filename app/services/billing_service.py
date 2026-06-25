@@ -22,6 +22,17 @@ from app.database.billing_usage_repository import (
 )
 
 
+# Recognised AI model access tiers for subscription plans.
+# These are ordered from least to most capable. Plans with a given tier
+# may access models classified at or below that tier.
+# Model-tier enforcement is not yet implemented.
+MODEL_ACCESS_TIERS = frozenset({
+    "economy",
+    "standard",
+    "premium",
+})
+
+
 def list_active_plans():
     """Return formatted list of active subscription plans."""
     plans = _get_active_plans()
@@ -43,6 +54,8 @@ def list_active_plans():
             "knowledge_storage_limit_bytes": plan.get("knowledge_storage_limit_bytes"),
             "channel_limit": plan.get("channel_limit"),
             "feature_flags": plan.get("feature_flags"),
+            "included_ai_credit_micro_units": plan.get("included_ai_credit_micro_units", 0),
+            "model_access_tier": plan.get("model_access_tier", "economy"),
         })
 
     return result
@@ -98,6 +111,8 @@ def get_current_subscription(company_id):
             "knowledge_storage_limit_bytes": plan.get("knowledge_storage_limit_bytes"),
             "channel_limit": plan.get("channel_limit"),
             "feature_flags": plan.get("feature_flags"),
+            "included_ai_credit_micro_units": plan.get("included_ai_credit_micro_units", 0),
+            "model_access_tier": plan.get("model_access_tier", "economy"),
         }
 
     return result
