@@ -1,4 +1,4 @@
-"""
+﻿"""
 ai_usage_repository.py — Immutable AI usage log for per-request provider cost tracking.
 
 Records one row per completed AI provider call. This is the authoritative
@@ -114,3 +114,39 @@ def _validate_non_negative(value: int | None, field_name: str):
         raise ValueError(
             f"{field_name} must be non-negative, got {value}"
         )
+
+
+def get_usage_log_by_provider_generation_id(provider: str, generation_id: str) -> dict | None:
+    """Look up an existing usage log by provider and generation ID.
+
+    This supports duplicate detection and safe recovery: if a usage row
+    was previously inserted but charging may have failed, the existing
+    row can be found and re-charged without making another provider call.
+
+    Args:
+        provider: The provider identifier (e.g. "openrouter").
+        generation_id: The generation ID returned by the provider.
+
+    Returns:
+        The existing usage-log record dictionary, or None if not found.
+
+    Raises:
+        ValueError: If provider or generation_id is empty.
+    """
+    if not provider or not provider.strip():
+        raise ValueError("provider is required")
+    if not generation_id or not generation_id.strip():
+        raise ValueError("generation_id is required")
+
+    response = (
+        supabase
+        .table(TABLE_NAME)
+        .select("*")
+        .eq("provider", provider)
+        .eq("generation_id", generation_id)
+        .limit(1)
+        .execute()
+    )
+
+    rows = response.data or []
+    return rows[0] if rows else None
