@@ -14,6 +14,14 @@ from app.services.model_catalog import (
 from app.services.response_formatter import clean_ai_reply
 from app.database.bot_repository import get_bot_by_id
 from app.services.billing_guard import can_send_ai_message, BillingLimitError
+from app.services.ai_credit_service import (
+    is_ai_credit_enforcement_enabled,
+    get_ai_retail_markup_basis_points,
+    get_company_ai_credit_summary,
+    ensure_company_ai_credit,
+    charge_logged_ai_usage,
+)
+from app.database.ai_usage_repository import insert_usage_log
 
 def _usd_to_micro_usd(raw_cost) -> int | None:
     """Convert a USD cost value to integer micro-USD using Decimal arithmetic.
@@ -190,16 +198,27 @@ def _extract_gemini_usage(response, provider: str, model: str) -> dict:
     return {"provider": provider, "model": model}
 
 
-def _make_usage_log(result: _ProviderResult, company_id: int, chatbot_id: int, operation_type: str, attempt_number: int):
-    """Write an immutable AI usage log entry.
+def _make_usage_log(result: _ProviderResult, company_id: int, chatbot_id: int, operation_type: str, attempt_number: int) -> dict | None:
+    """Write an immutable AI usage log entry and optionally charge AI credit.
 
-    This is called after every provider attempt that returns a billable response.
-    Logging failure is tolerated: the AI response is preserved and no second
-    provider call is made.
+    When AI-credit enforcement is enabled, this function also atomically
+    charges the logged usage against the company's AI-credit balance.
+
+    Args:
+        result: The provider result with usage metadata.
+        company_id: The company that owns the chatbot.
+        chatbot_id: The chatbot that generated the response.
+        operation_type: The type of AI operation.
+        attempt_number: The provider-call attempt number.
+
+    Returns:
+        The inserted usage-log dictionary, or None if no row was inserted.
+
+    Logging or charging failure is tolerated: the AI response is preserved
+    and no second provider call is made.
     """
     try:
-        from app.database.ai_usage_repository import insert_usage_log
-        insert_usage_log(
+        record = insert_usage_log(
             company_id=company_id,
             chatbot_id=chatbot_id,
             provider=result.provider,
@@ -220,7 +239,87 @@ def _make_usage_log(result: _ProviderResult, company_id: int, chatbot_id: int, o
             "Failed to write AI usage log for company %s chatbot %s: %s",
             company_id, chatbot_id, exc,
         )
+        return None
 
+    if record is None:
+        # Duplicate generation_id: lookup existing record for safe re-charging
+        if result.generation_id:
+            try:
+                from app.database.ai_usage_repository import get_usage_log_by_provider_generation_id
+                record = get_usage_log_by_provider_generation_id(
+                    result.provider, result.generation_id,
+                )
+            except Exception as exc:
+                logging.error(
+                    "Failed to lookup existing usage log for provider %s gen %s: %s",
+                    result.provider, result.generation_id, exc,
+                )
+        if record is None:
+            return None
+
+    usage_log_id = record.get("id")
+    if not usage_log_id:
+        return None
+
+    if is_ai_credit_enforcement_enabled():
+        _charge_logged_usage(usage_log_id, company_id, chatbot_id, operation_type)
+
+    return record
+
+
+
+
+def _charge_logged_usage(usage_log_id: int, company_id: int, chatbot_id: int, operation_type: str):
+    """Charge a single AI usage log entry against company AI credit.
+
+    This is called centrally from _make_usage_log when enforcement is enabled.
+    It uses the atomic charge RPC to prevent double-charging.
+
+    Logging or charging failure never repeats the provider request.
+    """
+    try:
+        charge_result = charge_logged_ai_usage(usage_log_id)
+    except Exception as exc:
+        logging.error(
+            "AI-credit charging failed for usage_log %s (company %s chatbot %s): %s",
+            usage_log_id, company_id, chatbot_id, exc,
+        )
+        return
+
+    status = charge_result.get("status", "unknown")
+    if status == "charged":
+        logging.debug(
+            "AI credit charged for usage_log %s (company %s)", usage_log_id, company_id,
+        )
+    elif status == "already_charged":
+        logging.debug(
+            "Usage log %s already charged (idempotent)", usage_log_id,
+        )
+    elif status == "unknown_cost":
+        logging.error(
+            "AI-credit charge failed for usage_log %s: provider cost unknown. "
+            "Provider response still returned to customer.", usage_log_id,
+        )
+    elif status == "no_active_subscription":
+        logging.error(
+            "AI-credit charge failed for usage_log %s: no active subscription "
+            "(company %s). Provider response still returned.", usage_log_id, company_id,
+        )
+    elif status == "no_balance":
+        logging.error(
+            "AI-credit charge failed for usage_log %s: no balance after initialisation "
+            "(company %s). Provider response still returned.", usage_log_id, company_id,
+        )
+    elif status == "usage_not_found":
+        logging.error(
+            "AI-credit charge failed for usage_log %s: usage log not found "
+            "immediately after insert (company %s).", usage_log_id, company_id,
+        )
+    else:
+        logging.error(
+            "AI-credit charge returned unexpected status %r for usage_log %s",
+            status, usage_log_id,
+        )
 
 def _make_result_from_text(text: str, provider: str = "", model: str = "", success: bool = True) -> _ProviderResult:
     """Wrap an error or direct-reply text into a _ProviderResult."""
@@ -261,6 +360,82 @@ def _complete_provider_result(text: str, provider: str, model: str, response_dat
     )
 
 
+def _check_ai_credit_before_provider(company_id: int | None):
+    if not is_ai_credit_enforcement_enabled():
+        return
+
+    if not company_id:
+        raise RuntimeError(
+            "AI-credit enforcement requires a valid company_id, got None."
+        )
+
+    get_ai_retail_markup_basis_points()
+
+    ensure_result = ensure_company_ai_credit(company_id)
+    if not ensure_result:
+        raise RuntimeError(
+            f"AI-credit period initialisation returned no result for company {company_id}."
+        )
+
+    summary = get_company_ai_credit_summary(company_id)
+    if not summary.get("initialised"):
+        raise RuntimeError(
+            f"AI-credit balance row missing after initialisation for company {company_id}."
+        )
+
+    total = summary.get("total_balance_micro_usd")
+    if total is None or not isinstance(total, int):
+        raise RuntimeError(
+            f"AI-credit total_balance_micro_usd is invalid for company {company_id}: {total!r}."
+        )
+
+    if total <= 0:
+        raise BillingLimitError(
+            "Your account has no remaining AI credit. Please top up to continue.",
+            code="ai_credit_insufficient",
+        )
+
+
+def _route_for_enforcement(provider: str, model: str | None):
+    if not is_ai_credit_enforcement_enabled():
+        return provider, model
+
+    # Under enforcement, all billable calls must use a cost-known route.
+    # No verified OpenRouter DeepSeek model mapping currently exists in the
+    # model catalog. Block before any network request.
+    if provider == "deepseek":
+        raise RuntimeError(
+            "AI-credit enforcement is enabled but the selected provider "
+            "(deepseek) does not have a verified OpenRouter model mapping. "
+            "Configure a model from the available OpenRouter-compatible providers "
+            "or disable AI-credit enforcement."
+        )
+
+    # Google is already in OPENROUTER_PROVIDER_KEYS, so it already routes
+    # through OpenRouter in call_provider(). No conversion needed.
+    return provider, model
+
+
+def _get_system_provider_for_enforcement(provider: str, model: str | None):
+    if not is_ai_credit_enforcement_enabled():
+        return provider, model
+
+    # Under enforcement, all billable calls must use a cost-known route.
+    if provider == "deepseek":
+        raise RuntimeError(
+            "AI-credit enforcement is enabled but the selected provider "
+            "(deepseek) does not have a verified OpenRouter model mapping. "
+            "Configure a model from the available OpenRouter-compatible providers "
+            "or disable AI-credit enforcement."
+        )
+
+    # Google direct: under enforcement, must use OpenRouter (cost-known).
+    # google is already in OPENROUTER_PROVIDER_KEYS, so the dispatch below
+    # will route to _call_openrouter_direct. Keep google as the provider so the
+    # OpenRouter-compatible model ID (e.g. google/gemini-3.5-flash) is preserved.
+    return provider, model
+
+
 def is_error_reply(reply):
     if not reply:
         return True
@@ -277,6 +452,7 @@ def call_provider(
     model_name=None,
     temperature=0.7,
     source_channel="whatsapp",
+    company_id=None,
 ):
     """Call an AI provider and return a _ProviderResult with usage metadata.
 
@@ -306,6 +482,8 @@ def call_provider(
         if not model:
             raise ValueError(f"No default model found for provider: {provider}")
 
+        _check_ai_credit_before_provider(company_id)
+
         success, raw = openrouter_service._request(
             prompt=prompt,
             model=model,
@@ -334,11 +512,11 @@ def call_provider(
         if not success:
             return _make_result_from_text(raw, provider, model, success=False)
 
-        # raw may be a dict (direct_reply) or an OpenAI SDK response object
         if isinstance(raw, dict) and "choices" in raw:
-            # Direct reply (e.g. greeting) — not a billable AI call
             text = raw["choices"][0]["message"]["content"].strip()
             return _make_result_from_text(text, provider, model)
+
+        _check_ai_credit_before_provider(company_id)
 
         if hasattr(raw, "choices"):
             reply = raw.choices[0].message.content
@@ -382,6 +560,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         if not bot:
             logging.warning(f"Bot {chatbot_id} not found. Using DeepSeek fallback.")
 
+            company_id = None
             result = call_provider(
                 "deepseek",
                 message,
@@ -390,10 +569,10 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 model_name=get_default_model("deepseek"),
                 temperature=0.7,
                 source_channel=source_channel,
+                company_id=company_id,
             )
 
             if _should_log_provider_usage(result):
-                company_id = bot.get("company_id") if bot else None
                 if company_id:
                     _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
             return clean_ai_reply(result.text)
@@ -408,6 +587,8 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
             model_name,
         )
 
+        selected_provider, model_name = _route_for_enforcement(selected_provider, model_name)
+
         logging.info(
             f"Routing request for Bot {chatbot_id} to provider: {selected_provider}, model: {model_name}"
         )
@@ -421,6 +602,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 model_name=model_name,
                 temperature=temperature,
                 source_channel=source_channel,
+                company_id=company_id,
             )
 
             if _should_log_provider_usage(result) and company_id:
@@ -433,6 +615,8 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 f"Provider {selected_provider} returned an error reply. Trying fallback provider."
             )
 
+        except BillingLimitError:
+            raise
         except Exception as provider_error:
             logging.error(f"Provider {selected_provider} failed: {provider_error}")
 
@@ -449,6 +633,10 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                     None,
                 )
 
+                fallback_provider, fallback_model = _route_for_enforcement(
+                    fallback_provider, fallback_model,
+                )
+
                 logging.info(
                     f"Trying fallback provider: {fallback_provider}, model: {fallback_model}"
                 )
@@ -461,6 +649,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                     model_name=fallback_model,
                     temperature=temperature,
                     source_channel=source_channel,
+                    company_id=company_id,
                 )
 
                 if not is_error_reply(result.text):
@@ -471,6 +660,8 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
 
                 logging.warning(f"Fallback provider {fallback_provider} returned error reply.")
 
+            except BillingLimitError:
+                raise
             except Exception as fallback_error:
                 logging.error(f"Fallback provider {fallback_provider} failed: {fallback_error}")
 
@@ -478,6 +669,8 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
 
         return "Sorry, I'm having trouble replying right now. Please try again later."
 
+    except BillingLimitError:
+        raise
     except Exception as e:
         logging.error(f"AI Router Error: {e}")
         return "Sorry, I'm having trouble replying right now. Please try again later."
@@ -606,24 +799,28 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
     if not selected_model:
         selected_model = get_default_model(selected_provider)
 
+    selected_provider, selected_model = _get_system_provider_for_enforcement(
+        selected_provider, selected_model,
+    )
+
     logging.info(
         "System AI call for chatbot %s -> provider: %s, model: %s",
         chatbot_id, selected_provider, selected_model,
     )
 
     company_id = bot.get("company_id") if bot else None
-    # operation_type is now a parameter with default OPERATION_KNOWLEDGE_EXTRACTION
 
     result = None
 
     if selected_provider == "deepseek":
+        _check_ai_credit_before_provider(company_id)
         result = _call_deepseek_direct(prompt, selected_model, selected_temperature, json_response)
     elif selected_provider in OPENROUTER_PROVIDER_KEYS:
+        _check_ai_credit_before_provider(company_id)
         result = _call_openrouter_direct(prompt, selected_model, selected_temperature)
-    elif selected_provider == "google":
-        result = _call_gemini_direct(prompt, selected_model, selected_temperature)
     else:
         logging.warning("Unsupported system AI provider: %s, falling back to deepseek", selected_provider)
+        _check_ai_credit_before_provider(company_id)
         result = _call_deepseek_direct(prompt, get_default_model("deepseek"), selected_temperature, json_response)
 
     if result and _should_log_provider_usage(result) and company_id:
