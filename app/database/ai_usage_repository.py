@@ -36,6 +36,8 @@ def insert_usage_log(
     provider_cost_micro_usd: int | None = None,
     generation_id: str = None,
     attempt_number: int = 1,
+    billing_fx_rate_micro_myr_per_usd: int | None = None,
+    billing_markup_basis_points: int | None = None,
 ) -> dict | None:
     """Insert one immutable AI usage log entry.
 
@@ -57,6 +59,8 @@ def insert_usage_log(
         provider_cost_micro_usd: Provider-side cost in micro-USD (None when unknown).
         generation_id: Provider generation ID for duplicate prevention.
         attempt_number: Attempt counter starting at 1.
+        billing_fx_rate_micro_myr_per_usd: USD-to-MYR rate snapshot at request time.
+        billing_markup_basis_points: Markup snapshot in basis points at request time.
 
     Returns:
         dict: The created usage log record.
@@ -94,6 +98,8 @@ def insert_usage_log(
         "reasoning_tokens": reasoning_tokens if reasoning_tokens else 0,
         "cached_tokens": cached_tokens if cached_tokens else 0,
         "provider_cost_micro_usd": provider_cost_micro_usd,
+        "billing_fx_rate_micro_myr_per_usd": billing_fx_rate_micro_myr_per_usd,
+        "billing_markup_basis_points": billing_markup_basis_points,
         "generation_id": generation_id,
         "attempt_number": attempt_number,
         "created_at": _now_iso(),
