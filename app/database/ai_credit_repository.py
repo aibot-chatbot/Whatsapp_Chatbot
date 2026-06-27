@@ -9,6 +9,7 @@ in `company_ai_credit_balances` or `ai_credit_transactions`.
 """
 
 import logging
+from typing import Any
 
 from app.database.db import supabase
 
@@ -139,9 +140,9 @@ def ensure_company_ai_credit_period(company_id: int) -> dict:
         - subscription_id
         - period_start
         - period_end
-        - included_balance_micro_usd
-        - topup_balance_micro_usd
-        - included_credit_granted_micro_usd
+        - included_balance_micro_myr
+        - topup_balance_micro_myr
+        - included_credit_granted_micro_myr
         - period_changed (bool)
         - transaction_id (nullable)
 
@@ -169,6 +170,7 @@ def ensure_company_ai_credit_period(company_id: int) -> dict:
 def charge_ai_usage_credit(
     ai_usage_log_id: int,
     markup_basis_points: int,
+    fx_rate_micro_myr_per_usd: int,
 ) -> dict:
     """Atomically charge a completed AI usage against a company's credit.
 
@@ -180,6 +182,8 @@ def charge_ai_usage_credit(
     Args:
         ai_usage_log_id: The AI usage log to charge.
         markup_basis_points: Retail markup in basis points (integer).
+        fx_rate_micro_myr_per_usd: USD-to-MYR exchange rate in micro-MYR per
+            whole USD (positive integer).
 
     Returns:
         RPC result dictionary containing:
@@ -191,17 +195,18 @@ def charge_ai_usage_credit(
         - subscription_id
         - ai_usage_log_id
         - provider_cost_micro_usd
-        - customer_charge_micro_usd
-        - included_used_micro_usd
-        - topup_used_micro_usd
-        - uncovered_charge_micro_usd
-        - included_balance_micro_usd
-        - topup_balance_micro_usd
+        - customer_charge_micro_myr
+        - included_used_micro_myr
+        - topup_used_micro_myr
+        - uncovered_charge_micro_myr
+        - included_balance_micro_myr
+        - topup_balance_micro_myr
         - markup_basis_points
+        - fx_rate_micro_myr_per_usd
 
     Raises:
         ValueError: If ai_usage_log_id is not a positive integer, or
-                    markup_basis_points is negative.
+                    markup_basis_points is negative, or fx_rate is invalid.
         RuntimeError: If the RPC call fails or returns no data.
     """
     if not ai_usage_log_id or not isinstance(ai_usage_log_id, int) or ai_usage_log_id < 1:
@@ -209,12 +214,14 @@ def charge_ai_usage_credit(
             f"ai_usage_log_id must be a positive integer, got {ai_usage_log_id!r}"
         )
     _validate_non_negative_markup(markup_basis_points)
+    _validate_positive_fx_rate(fx_rate_micro_myr_per_usd)
 
     result = supabase.rpc(
         "charge_ai_usage_credit",
         {
             "p_ai_usage_log_id": ai_usage_log_id,
             "p_markup_basis_points": markup_basis_points,
+            "p_fx_rate_micro_myr_per_usd": fx_rate_micro_myr_per_usd,
         },
     ).execute()
 
@@ -248,5 +255,16 @@ def _validate_non_negative_markup(markup_basis_points: int):
     if markup_basis_points < 0:
         raise ValueError(
             f"markup_basis_points must be non-negative, got {markup_basis_points!r}"
+        )
+
+
+def _validate_positive_fx_rate(fx_rate_micro_myr_per_usd: int):
+    if not isinstance(fx_rate_micro_myr_per_usd, int):
+        raise ValueError(
+            f"fx_rate_micro_myr_per_usd must be an integer, got {fx_rate_micro_myr_per_usd!r}"
+        )
+    if fx_rate_micro_myr_per_usd <= 0:
+        raise ValueError(
+            f"fx_rate_micro_myr_per_usd must be a positive integer, got {fx_rate_micro_myr_per_usd}"
         )
 

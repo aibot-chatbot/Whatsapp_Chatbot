@@ -54,7 +54,7 @@ def list_active_plans():
             "knowledge_storage_limit_bytes": plan.get("knowledge_storage_limit_bytes"),
             "channel_limit": plan.get("channel_limit"),
             "feature_flags": plan.get("feature_flags"),
-            "included_ai_credit_micro_units": plan.get("included_ai_credit_micro_units", 0),
+            "included_ai_credit_micro_myr": plan.get("included_ai_credit_micro_myr", 0),
             "model_access_tier": plan.get("model_access_tier", "economy"),
         })
 
@@ -111,7 +111,7 @@ def get_current_subscription(company_id):
             "knowledge_storage_limit_bytes": plan.get("knowledge_storage_limit_bytes"),
             "channel_limit": plan.get("channel_limit"),
             "feature_flags": plan.get("feature_flags"),
-            "included_ai_credit_micro_units": plan.get("included_ai_credit_micro_units", 0),
+            "included_ai_credit_micro_myr": plan.get("included_ai_credit_micro_myr", 0),
             "model_access_tier": plan.get("model_access_tier", "economy"),
         }
 

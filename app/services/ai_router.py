@@ -17,6 +17,7 @@ from app.services.billing_guard import can_send_ai_message, BillingLimitError
 from app.services.ai_credit_service import (
     is_ai_credit_enforcement_enabled,
     get_ai_retail_markup_basis_points,
+    get_ai_usd_to_myr_rate_micro_myr_per_usd,
     get_company_ai_credit_summary,
     ensure_company_ai_credit,
     charge_logged_ai_usage,
@@ -109,6 +110,8 @@ class _ProviderResult:
     generation_id: str | None = None
     request_status: str = "completed"
     is_provider_response: bool = False
+    billing_fx_rate_micro_myr_per_usd: int | None = None
+    billing_markup_basis_points: int | None = None
 
 
 def _should_log_provider_usage(result) -> bool:
@@ -233,6 +236,8 @@ def _make_usage_log(result: _ProviderResult, company_id: int, chatbot_id: int, o
             provider_cost_micro_usd=result.provider_cost_micro_usd,
             generation_id=result.generation_id,
             attempt_number=attempt_number,
+            billing_fx_rate_micro_myr_per_usd=result.billing_fx_rate_micro_myr_per_usd,
+            billing_markup_basis_points=result.billing_markup_basis_points,
         )
     except Exception as exc:
         logging.error(
@@ -278,7 +283,11 @@ def _charge_logged_usage(usage_log_id: int, company_id: int, chatbot_id: int, op
     Logging or charging failure never repeats the provider request.
     """
     try:
-        charge_result = charge_logged_ai_usage(usage_log_id)
+        charge_result = charge_logged_ai_usage(
+            usage_log_id,
+            markup_basis_points=None,
+            fx_rate_micro_myr_per_usd=None,
+        )
     except Exception as exc:
         logging.error(
             "AI-credit charging failed for usage_log %s (company %s chatbot %s): %s",
@@ -370,6 +379,7 @@ def _check_ai_credit_before_provider(company_id: int | None):
         )
 
     get_ai_retail_markup_basis_points()
+    get_ai_usd_to_myr_rate_micro_myr_per_usd()
 
     ensure_result = ensure_company_ai_credit(company_id)
     if not ensure_result:
@@ -383,10 +393,10 @@ def _check_ai_credit_before_provider(company_id: int | None):
             f"AI-credit balance row missing after initialisation for company {company_id}."
         )
 
-    total = summary.get("total_balance_micro_usd")
+    total = summary.get("total_balance_micro_myr")
     if total is None or not isinstance(total, int):
         raise RuntimeError(
-            f"AI-credit total_balance_micro_usd is invalid for company {company_id}: {total!r}."
+            f"AI-credit total_balance_micro_myr is invalid for company {company_id}: {total!r}."
         )
 
     if total <= 0:
