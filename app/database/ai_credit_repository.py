@@ -1,4 +1,4 @@
-﻿"""ai_credit_repository.py -- Read-only and RPC-wrapper access for AI credit balances and transactions.
+"""ai_credit_repository.py -- Read-only and RPC-wrapper access for AI credit balances and transactions.
 
 This repository provides read access to the immutable credit-transaction ledger
 and the current company credit balance. All balance-changing operations are
@@ -42,7 +42,7 @@ def get_company_credit_balance(company_id: int) -> dict | None:
     response = (
         supabase
         .table(_BALANCE_TABLE)
-        .select("*")
+        .select("company_id,subscription_id,period_start,period_end,included_balance_micro_myr,topup_balance_micro_myr,created_at,updated_at")
         .eq("company_id", company_id)
         .limit(1)
         .execute()
@@ -75,7 +75,7 @@ def list_company_credit_transactions(
     response = (
         supabase
         .table(_TRANSACTION_TABLE)
-        .select("*")
+        .select("id,transaction_type,included_delta_micro_myr,topup_delta_micro_myr,included_balance_after_micro_myr,topup_balance_after_micro_myr,customer_charge_micro_myr,uncovered_charge_micro_myr,provider_cost_micro_usd,fx_rate_micro_myr_per_usd,markup_basis_points,ai_usage_log_id,reversal_of_transaction_id,period_start,period_end,description,created_at")
         .eq("company_id", company_id)
         .order("created_at", desc=True)
         .limit(safe_limit)
@@ -109,7 +109,7 @@ def get_credit_transaction_by_usage(ai_usage_log_id: int) -> dict | None:
     response = (
         supabase
         .table(_TRANSACTION_TABLE)
-        .select("*")
+        .select("id,transaction_type,included_delta_micro_myr,topup_delta_micro_myr,included_balance_after_micro_myr,topup_balance_after_micro_myr,customer_charge_micro_myr,uncovered_charge_micro_myr,provider_cost_micro_usd,fx_rate_micro_myr_per_usd,markup_basis_points,ai_usage_log_id,reversal_of_transaction_id,period_start,period_end,description,created_at,company_id,subscription_id")
         .eq("ai_usage_log_id", ai_usage_log_id)
         .limit(1)
         .execute()

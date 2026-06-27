@@ -206,6 +206,8 @@ def get_company_ai_credit_summary(company_id: int) -> dict:
             "period_end": None,
             "subscription_id": None,
             "initialised": False,
+            "currency": "MYR",
+            "unit": "micro_myr",
         }
 
     included = balance.get("included_balance_micro_myr") or 0
@@ -219,6 +221,8 @@ def get_company_ai_credit_summary(company_id: int) -> dict:
         "period_end": balance.get("period_end"),
         "subscription_id": balance.get("subscription_id"),
         "initialised": True,
+        "currency": "MYR",
+        "unit": "micro_myr",
     }
 
 
