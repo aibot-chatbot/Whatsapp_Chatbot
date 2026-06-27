@@ -4,9 +4,9 @@ ai_usage_repository.py — Immutable AI usage log for per-request provider cost 
 Records one row per completed AI provider call. This is the authoritative
 source for AI-credit deduction. The table is append-only: rows are never
 updated or deleted after creation.
-
-The existing monthly_ai_message_limit and the AI-credit accounting system
-both read usage from this table for their respective periods.
+Token usage is recorded for telemetry (prompt, completion, and total tokens).
+Provider cost is stored in micro-USD. Customer billing uses MYR AI credit.
+The table is append-only: rows are never updated or deleted after creation.
 """
 
 from datetime import datetime, timezone

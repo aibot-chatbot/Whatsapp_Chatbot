@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+﻿from datetime import datetime, timezone
 
 from app.database.db import supabase
 
@@ -167,39 +167,29 @@ def sum_company_knowledge_storage(company_id):
         size = row.get("file_size")
         if size is not None:
             total += int(size)
-
     return total
 
 
-def count_company_ai_messages(company_id, period_start, period_end):
-    """Count AI-generated bot messages for a company within a time range.
+def sum_company_ai_usage_tokens(company_id, period_start, period_end):
+    """Aggregate AI usage token counts for a company over a billing period.
 
-    Only counts messages where:
-      - ai_generated = true (set at generation time regardless of delivery)
-      - sender_type = 'bot'
-      - created_at >= period_start (inclusive start)
-      - created_at < period_end (exclusive end)
-      - The message's conversation belongs to a chatbot owned by the company
+    Sums prompt_tokens, completion_tokens, and total_tokens from ai_usage_logs
+    scoped to the company and time range.
 
-    Failed and permanently failed messages are included because they still
-    consumed AI generation resources. Non-AI bot messages (e.g. system
-    fallback messages with ai_generated = false) are excluded.
+    Args:
+        company_id: The company to aggregate tokens for.
+        period_start: Start of the billing period (inclusive).
+        period_end: End of the billing period (exclusive).
 
-    Uses Supabase count="exact" with an inner join on conversations
-    to scope by chatbot_id without loading individual rows.
-
-    Returns zero when the company has no chatbots or no messages.
+    Returns:
+        dict: {"prompt_tokens": int, "completion_tokens": int, "total_tokens": int}
+        All values default to 0 when no usage exists or the company has no chatbots.
     """
     if not company_id:
         raise ValueError("Company ID is required")
 
     if not period_start or not period_end:
         raise ValueError("period_start and period_end are required")
-
-    chatbot_ids = get_company_chatbot_ids(company_id)
-
-    if not chatbot_ids:
-        return 0
 
     period_start_iso = (
         period_start.isoformat()
@@ -214,14 +204,28 @@ def count_company_ai_messages(company_id, period_start, period_end):
 
     response = (
         supabase
-        .table("messages")
-        .select("id,conversations!inner(chatbot_id)", count="exact")
-        .eq("ai_generated", True)
-        .eq("sender_type", "bot")
-        .in_("conversations.chatbot_id", chatbot_ids)
+        .table("ai_usage_logs")
+        .select("prompt_tokens,completion_tokens,total_tokens")
+        .eq("company_id", company_id)
+        .eq("request_status", "completed")
         .gte("created_at", period_start_iso)
         .lt("created_at", period_end_iso)
         .execute()
     )
 
-    return response.count or 0
+    rows = response.data or []
+
+    prompt_tokens = 0
+    completion_tokens = 0
+    total_tokens = 0
+
+    for row in rows:
+        prompt_tokens += row.get("prompt_tokens") or 0
+        completion_tokens += row.get("completion_tokens") or 0
+        total_tokens += row.get("total_tokens") or 0
+
+    return {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": total_tokens,
+    }

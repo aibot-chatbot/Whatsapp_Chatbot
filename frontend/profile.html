@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -630,6 +630,50 @@
                 </div>
             </div>
 
+
+            <!-- Full Width: AI Usage & Credit -->
+            <div class="profile-section glass-card full-width" id="ai-credit-section">
+                <div class="profile-section-header">
+                    <i data-lucide="sparkles" style="width:17px;height:17px;"></i>
+                    AI Usage &amp; Credit
+                </div>
+
+                <!-- Loading state -->
+                <div id="ai-credit-loading">
+                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
+                        <i data-lucide="loader-2" class="spin" style="width:16px;height:16px;color:var(--primary);"></i>
+                        <span style="color:var(--text-dim);font-size:0.9rem;">Loading AI credit...</span>
+                    </div>
+                </div>
+
+                <!-- Content (hidden until loaded) -->
+                <div id="ai-credit-content" style="display:none;">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                        <div class="form-row" style="margin-bottom:0;">
+                            <label>Included AI Credit</label>
+                            <span id="ai-credit-included" style="font-size:1.1rem;font-weight:600;color:var(--accent);">&mdash;</span>
+                        </div>
+                        <div class="form-row" style="margin-bottom:0;">
+                            <label>Top-Up AI Credit</label>
+                            <span id="ai-credit-topup" style="font-size:1.1rem;font-weight:600;color:var(--accent);">&mdash;</span>
+                        </div>
+                        <div class="form-row" style="margin-bottom:0;">
+                            <label>Total AI Credit</label>
+                            <span id="ai-credit-total" style="font-size:1.1rem;font-weight:600;color:var(--text-main);">&mdash;</span>
+                        </div>
+                        <div class="form-row" style="margin-bottom:0;">
+                            <label>Period</label>
+                            <span id="ai-credit-period" style="color:var(--text-dim);font-size:0.85rem;">&mdash;</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error state -->
+                <div id="ai-credit-error" style="display:none;padding:8px 0;color:var(--text-dim);font-size:0.9rem;">
+                    Unable to load AI credit information.
+                </div>
+            </div>
+
             <!-- Full Width Bottom: Preferences -->
             <div class="profile-section glass-card full-width">
                 <div class="profile-section-header">
@@ -1123,7 +1167,9 @@
                     var rows = [
                         buildUsageRow("Chatbots", u.chatbots && u.chatbots.used, u.chatbots && u.chatbots.limit, false),
                         buildUsageRow("Team Members", u.team_members && u.team_members.used, u.team_members && u.team_members.limit, false),
-                        buildUsageRow("AI Messages", u.ai_messages && u.ai_messages.used, u.ai_messages && u.ai_messages.limit, false),
+                        buildUsageRow("Input Tokens Used", u.ai_tokens && u.ai_tokens.input_tokens, null, false),
+                        buildUsageRow("Output Tokens Used", u.ai_tokens && u.ai_tokens.output_tokens, null, false),
+                        buildUsageRow("Total Tokens Used", u.ai_tokens && u.ai_tokens.total_tokens, null, false),
                         buildUsageRow("Knowledge Files", u.knowledge_files && u.knowledge_files.used, u.knowledge_files && u.knowledge_files.limit, false),
                         buildUsageRow("Knowledge Storage", u.knowledge_storage_bytes && u.knowledge_storage_bytes.used, u.knowledge_storage_bytes && u.knowledge_storage_bytes.limit, true),
                         buildUsageRow("Connected Channels", u.channels && u.channels.used, u.channels && u.channels.limit, false),
@@ -1136,11 +1182,51 @@
             }
         }
 
+
+        async function fetchAiCredit() {
+            var section = document.getElementById("ai-credit-section");
+            if (!section) return;
+            var loading = document.getElementById("ai-credit-loading");
+            var content = document.getElementById("ai-credit-content");
+            var errorDiv = document.getElementById("ai-credit-error");
+
+            try {
+                var res = await authenticatedFetch("/api/billing/ai-credit/summary");
+                if (!res.ok) {
+                    if (loading) loading.style.display = "none";
+                    if (errorDiv) errorDiv.style.display = "block";
+                    return;
+                }
+                var body = await res.json();
+                if (body.success && body.data && body.data.initialised) {
+                    var d = body.data;
+                    var microMyr = function(v) { return (Number(v) / 1000000).toFixed(2); };
+                    document.getElementById("ai-credit-included").innerText = "RM " + microMyr(d.included_balance_micro_myr);
+                    document.getElementById("ai-credit-topup").innerText = "RM " + microMyr(d.topup_balance_micro_myr);
+                    document.getElementById("ai-credit-total").innerText = "RM " + microMyr(d.total_balance_micro_myr);
+                    if (d.period_start && d.period_end) {
+                        document.getElementById("ai-credit-period").innerText = new Date(d.period_start).toLocaleDateString() + " - " + new Date(d.period_end).toLocaleDateString();
+                    }
+                    if (loading) loading.style.display = "none";
+                    if (content) content.style.display = "block";
+                } else {
+                    if (loading) loading.style.display = "none";
+                    if (errorDiv) {
+                        errorDiv.style.display = "block";
+                        errorDiv.textContent = "AI credit has not been initialized yet.";
+                    }
+                }
+            } catch (e) {
+                if (loading) loading.style.display = "none";
+                if (errorDiv) errorDiv.style.display = "block";
+            }
+        }
         // Init
         restorePreferences();
         loadProfile();
         loadTeamInfo();
         loadBillingInfo();
+        fetchAiCredit();
     </script>
 </body>
 

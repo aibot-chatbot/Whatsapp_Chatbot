@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from datetime import datetime, timezone
 
 from dateutil.relativedelta import relativedelta
@@ -18,7 +18,7 @@ from app.database.billing_usage_repository import (
     count_company_channels,
     count_company_knowledge_files,
     sum_company_knowledge_storage,
-    count_company_ai_messages,
+    sum_company_ai_usage_tokens,
 )
 
 
@@ -49,7 +49,6 @@ def list_active_plans():
             "billing_interval": plan.get("billing_interval"),
             "chatbot_limit": plan.get("chatbot_limit"),
             "team_member_limit": plan.get("team_member_limit"),
-            "monthly_ai_message_limit": plan.get("monthly_ai_message_limit"),
             "knowledge_file_limit": plan.get("knowledge_file_limit"),
             "knowledge_storage_limit_bytes": plan.get("knowledge_storage_limit_bytes"),
             "channel_limit": plan.get("channel_limit"),
@@ -106,7 +105,6 @@ def get_current_subscription(company_id):
             "billing_interval": plan.get("billing_interval"),
             "chatbot_limit": plan.get("chatbot_limit"),
             "team_member_limit": plan.get("team_member_limit"),
-            "monthly_ai_message_limit": plan.get("monthly_ai_message_limit"),
             "knowledge_file_limit": plan.get("knowledge_file_limit"),
             "knowledge_storage_limit_bytes": plan.get("knowledge_storage_limit_bytes"),
             "channel_limit": plan.get("channel_limit"),
@@ -219,7 +217,7 @@ def get_company_usage(company_id):
     channel_used = count_company_channels(company_id)
     file_used = count_company_knowledge_files(company_id)
     storage_used = sum_company_knowledge_storage(company_id)
-    ai_message_used = count_company_ai_messages(
+    ai_tokens_used = sum_company_ai_usage_tokens(
         company_id, period_start, period_end
     )
 
@@ -244,10 +242,6 @@ def get_company_usage(company_id):
                 "used": member_used,
                 "limit": _limit_value(plan, "team_member_limit"),
             },
-            "ai_messages": {
-                "used": ai_message_used,
-                "limit": _limit_value(plan, "monthly_ai_message_limit"),
-            },
             "knowledge_files": {
                 "used": file_used,
                 "limit": _limit_value(plan, "knowledge_file_limit"),
@@ -255,6 +249,11 @@ def get_company_usage(company_id):
             "knowledge_storage_bytes": {
                 "used": storage_used,
                 "limit": _limit_value(plan, "knowledge_storage_limit_bytes"),
+            },
+            "ai_tokens": {
+                "input_tokens": ai_tokens_used["prompt_tokens"],
+                "output_tokens": ai_tokens_used["completion_tokens"],
+                "total_tokens": ai_tokens_used["total_tokens"],
             },
             "channels": {
                 "used": channel_used,

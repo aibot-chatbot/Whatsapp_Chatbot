@@ -1,4 +1,4 @@
-"""
+﻿"""
 billing_guard.py — Central enforcement engine for subscription limits.
 
 This module provides the building blocks for checking whether a company
@@ -20,7 +20,7 @@ class BillingLimitError(Exception):
     Attributes:
         message — human-readable explanation
         code     — optional short string for future UI handling
-                   (e.g. "chatbot_limit", "ai_message_limit")
+                   (e.g. "chatbot_limit", "knowledge_storage_limit")
         details  — optional dict with additional structured information
                    (e.g. current usage, limit, incoming size for storage)
     """
@@ -44,7 +44,6 @@ def _get_limits(subscription: dict | None) -> dict:
         return {
             "chatbots": None,
             "team_members": None,
-            "ai_messages": None,
             "knowledge_files": None,
             "storage_bytes": None,
             "channels": None,
@@ -53,7 +52,6 @@ def _get_limits(subscription: dict | None) -> dict:
     return {
         "chatbots": plan.get("chatbot_limit"),
         "team_members": plan.get("team_member_limit"),
-        "ai_messages": plan.get("monthly_ai_message_limit"),
         "knowledge_files": plan.get("knowledge_file_limit"),
         "storage_bytes": plan.get("knowledge_storage_limit_bytes"),
         "channels": plan.get("channel_limit"),
@@ -127,22 +125,6 @@ def can_create_chatbot(company_id: int) -> bool:
     used = data["usage"].get("usage", {}).get("chatbots", {}).get("used")
     limit = data["limits"].get("chatbots")
     return _check_limit(used, limit, "Chatbot limit reached", "chatbot_limit")
-
-
-def can_send_ai_message(company_id: int) -> bool:
-    """Check whether the company can send an AI message this billing period.
-
-    Returns True when allowed.
-    Raises BillingLimitError when the AI message limit has been reached.
-    """
-    data = check_company_limit(company_id)
-    if data is None:
-        return True
-    used = data["usage"].get("usage", {}).get("ai_messages", {}).get("used")
-    limit = data["limits"].get("ai_messages")
-    return _check_limit(used, limit, "AI message limit reached", "ai_message_limit")
-
-
 def can_upload_knowledge_file(company_id: int) -> bool:
     """Check whether the company can upload a new knowledge file.
 

@@ -13,7 +13,7 @@ from app.services.model_catalog import (
 )
 from app.services.response_formatter import clean_ai_reply
 from app.database.bot_repository import get_bot_by_id
-from app.services.billing_guard import can_send_ai_message, BillingLimitError
+from app.services.billing_guard import BillingLimitError
 from app.services.ai_credit_service import (
     is_ai_credit_enforcement_enabled,
     get_ai_retail_markup_basis_points,
@@ -540,30 +540,8 @@ def call_provider(
     raise ValueError(f"Unsupported AI provider: {provider}")
 
 
-def _check_billing_for_bot(chatbot_id):
-    """Check billing limit for a given chatbot_id. Returns company_id or None."""
-    bot = get_bot_by_id(chatbot_id)
-    if bot:
-        company_id = bot.get("company_id")
-        if company_id:
-            try:
-                can_send_ai_message(company_id)
-                return company_id
-            except BillingLimitError as e:
-                logging.warning(
-                    "AI message limit reached for company %s (chatbot %s): %s",
-                    company_id, chatbot_id, e,
-                )
-                raise
-    return None
-
-
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY):
     try:
-        try:
-            _check_billing_for_bot(chatbot_id)
-        except BillingLimitError:
-            return "Your account has reached its monthly AI message limit. Please upgrade your plan to continue."
 
         bot = get_bot_by_id(chatbot_id)
 
@@ -790,10 +768,6 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
     Returns:
         The LLM response text, or raises RuntimeError on failure
     """
-    try:
-        _check_billing_for_bot(chatbot_id)
-    except BillingLimitError:
-        raise  # Let caller handle billing limit errors
 
     bot = get_bot_by_id(chatbot_id)
 
