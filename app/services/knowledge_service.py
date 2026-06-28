@@ -1,4 +1,5 @@
-﻿import os
+﻿from openai.types.chat import chat_completion_message_custom_tool_call_param
+import os
 import logging
 from werkzeug.utils import secure_filename
 
@@ -690,8 +691,7 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
         "message": "Website saved as supporting knowledge."
     }
 
-<<<<<<< Updated upstream
-=======
+
 def extract_and_store_graph_supabase(chunks: list, chatbot_id: int, file_id: int):
     import os
     import json
@@ -836,4 +836,3 @@ Rules:
             continue
 
     logging.info(f"[GraphRAG] Finished graph extraction for file_id={file_id}.")
->>>>>>> Stashed changes

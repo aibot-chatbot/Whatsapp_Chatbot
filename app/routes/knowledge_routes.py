@@ -1,8 +1,4 @@
-<<<<<<< Updated upstream
-﻿from flask import Blueprint, jsonify, request, g
-=======
-from flask import Blueprint, jsonify, request
->>>>>>> Stashed changes
+from flask import Blueprint, jsonify, request, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_use_plan_feature, BillingLimitError
@@ -478,8 +474,6 @@ def scrape_embed_website():
             "message": str(e)
         }), 500
 
-<<<<<<< Updated upstream
-=======
 
 @knowledge_blueprint.route("/api/knowledge/graph", methods=["GET"])
 @token_required
@@ -652,4 +646,3 @@ def get_knowledge_graph_data():
             "status": "error",
             "message": str(e)
         }), 500
->>>>>>> Stashed changes
