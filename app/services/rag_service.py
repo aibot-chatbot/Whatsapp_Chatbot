@@ -501,17 +501,56 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
 
             logging.info("[RAG] Website selected count=%s", source_counts["website"])
 
-        if not context_chunks:
-            logging.info("No relevant PDF or supporting website chunks found.")
+        # --- GRAPH RAG OPTION ---
+        graph_facts = []
+        try:
+            from app.database.knowledge_graph_repository import get_edges_for_nodes
+            from app.database.db import supabase
+            nodes_res = (
+                supabase.table("knowledge_graph_nodes")
+                .select("name")
+                .eq("chatbot_id", chatbot_id)
+                .execute()
+            )
+            
+            query_lower = query.lower()
+            matched_names = []
+            for row in nodes_res.data or []:
+                name = row["name"].lower().strip()
+                if not name:
+                    continue
+                if name in query_lower or any(w == name for w in query_words):
+                    matched_names.append(name)
+                    
+            if matched_names:
+                logging.info(f"[GraphRAG] Matched nodes: {matched_names}")
+                edges = get_edges_for_nodes(chatbot_id, matched_names)
+                if edges:
+                    facts = []
+                    for edge in edges:
+                        src = edge["source_name"].title()
+                        tgt = edge["target_name"].title()
+                        rel = edge["rel_type"].replace("_", " ")
+                        facts.append(f"- {src} {rel} {tgt}")
+                    
+                    if facts:
+                        graph_facts_str = "Knowledge Graph connections found:\n" + "\n".join(facts)
+                        graph_facts.append(_format_knowledge_chunk("Relational Graph Connections", graph_facts_str))
+        except Exception as graph_err:
+            logging.error(f"[GraphRAG] Failed to query graph edges: {graph_err}")
+
+        if not context_chunks and not graph_facts:
+            logging.info("No relevant PDF, supporting website chunks, or graph connections found.")
 
         logging.info(
-            "[RAG] Final context source mix: pdf=%s website=%s total=%s",
+            "[RAG] Final context source mix: pdf=%s website=%s graph=%s total=%s",
             source_counts["pdf"],
             source_counts["website"],
-            len(context_chunks[:top_k]),
+            len(graph_facts),
+            len(context_chunks[:top_k]) + len(graph_facts),
         )
 
-        return context_chunks[:top_k]
+        return graph_facts + context_chunks[:top_k]
 
     except Exception as e:
         logging.error(f"Retrieve relevant chunks failed: {e}")

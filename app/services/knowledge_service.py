@@ -88,6 +88,11 @@ def save_uploaded_pdf(file, chatbot_id):
                     metadata={"chunk_index": idx}
                 )
         logging.info("Successfully saved all chunks to Supabase.")
+
+        try:
+            extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
+        except Exception as graph_err:
+            logging.error(f"Failed to generate and store knowledge graph for PDF: {graph_err}")
     except Exception as e:
         import logging
         logging.error(f"Failed to process PDF chunks: {e}")
@@ -95,7 +100,7 @@ def save_uploaded_pdf(file, chatbot_id):
 
     set_active_pdf_knowledge_file(
         chatbot_id=chatbot_id,
-        file_name=safe_name
+        file_id=file_id
     )
 
     update_chatbot_runtime({
@@ -190,7 +195,7 @@ def set_active_pdf(file_name, chatbot_id):
 
     set_active_pdf_knowledge_file(
         chatbot_id=chatbot_id,
-        file_name=selected_name
+        file_id=file_id
     )
 
     relative_pdf_path = selected_path or os.path.join("data", secure_filename(selected_name))
@@ -268,6 +273,11 @@ def delete_pdf_file(file_name, chatbot_id):
         raise ValueError("Knowledge file id is missing")
 
     delete_chunks_by_file_for_chatbot(chatbot_id, file_id)
+    try:
+        from app.database.knowledge_graph_repository import delete_graph_by_file_id
+        delete_graph_by_file_id(chatbot_id, file_id)
+    except Exception as e:
+        logging.error(f"Failed to delete graph data for file_id {file_id}: {e}")
     delete_knowledge_file_by_id(chatbot_id, file_id)
 
     target_paths = []
@@ -443,6 +453,11 @@ def scrape_website_url(url, chatbot_id):
                     metadata={"chunk_index": idx}
                 )
         logging.info("Successfully saved web chunks to Supabase.")
+
+        try:
+            extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
+        except Exception as graph_err:
+            logging.error(f"Failed to generate and store knowledge graph for URL: {graph_err}")
     except Exception as e:
         import logging
         logging.error(f"Failed to process web chunks: {e}")
@@ -563,6 +578,11 @@ def scrape_website_urls_batch(urls, chatbot_id):
                     metadata={"chunk_index": idx}
                 )
         logging.info("Successfully saved batch web chunks to Supabase.")
+
+        try:
+            extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
+        except Exception as graph_err:
+            logging.error(f"Failed to generate and store knowledge graph for batch URL: {graph_err}")
     except Exception as e:
         import logging
         logging.error(f"Failed to process batch web chunks: {e}")
@@ -656,6 +676,11 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
                     metadata={"chunk_index": idx}
                 )
         logging.info("[KnowledgeService] Successfully saved refined web chunks to Supabase.")
+
+        try:
+            extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
+        except Exception as graph_err:
+            logging.error(f"Failed to generate and store knowledge graph for refined web chunks: {graph_err}")
     except Exception as e:
         import logging
         logging.error(f"Failed to process refined web chunks: {e}")
@@ -665,3 +690,150 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
         "message": "Website saved as supporting knowledge."
     }
 
+<<<<<<< Updated upstream
+=======
+def extract_and_store_graph_supabase(chunks: list, chatbot_id: int, file_id: int):
+    import os
+    import json
+    import logging
+    from openai import OpenAI
+    from app.database.knowledge_graph_repository import upsert_node, upsert_edge
+    
+    api_key = os.getenv("DEEPSEEK_API_KEY")
+    if not api_key:
+        logging.error("[GraphRAG] DEEPSEEK_API_KEY not found in environment settings.")
+        return
+        
+    try:
+        # Initialize OpenAI client pointed to DeepSeek Endpoint
+        client = OpenAI(
+            api_key=api_key,
+            base_url="https://api.deepseek.com"
+        )
+    except Exception as e:
+        logging.error(f"[GraphRAG] Failed to initialize DeepSeek client: {e}")
+        return
+        
+    allowed_labels = {
+        "Company", "Brand", "Category", "Product", "Service", "Package", "Accessory", 
+        "Price", "Warranty", "Promotion", "Branch", "Supplier", "Customer Segment", 
+        "Policy", "FAQ", "Staff", "Schedule", "Location", "Requirement", "Event"
+    }
+    
+    prompt_template = """
+Analyze the following text chunk and extract key entities and their relationships to construct a knowledge graph.
+
+ALLOWED ENTITY LABELS (use ONLY these labels):
+- Company (e.g. MegaCorp)
+- Brand (e.g. Apple)
+- Category (e.g. Electronics)
+- Product (e.g. Titan Laptop)
+- Service (e.g. Haircut, Screen Repair)
+- Package (e.g. Student Starter Pack)
+- Accessory (e.g. Phone Case)
+- Price (e.g. $899, $50/hour)
+- Warranty (e.g. 2-Year Damage Warranty)
+- Promotion (e.g. Back to School Discount)
+- Branch (e.g. Downtown Branch)
+- Supplier (e.g. DHL, Local Farm)
+- Customer Segment (e.g. Students, VIPs)
+- Policy (e.g. 30-Day Return Policy)
+- FAQ (e.g. Questions & Answers about a policy/product)
+- Staff (e.g. Dr. Alice, Stylist Sarah)
+- Schedule (e.g. Weekdays 9am-5pm)
+- Location (e.g. West Side delivery zone, 123 Main Street)
+- Requirement (e.g. Fasting 12 hours prior, 18+ age limit)
+- Event (e.g. Yoga Flow class, Summer Seminar)
+
+Return the output as a valid JSON object matching this structure:
+{
+   "nodes": [
+      {"name": "Entity Name", "label": "One of the allowed labels", "description": "Short definition or value"}
+   ],
+   "relationships": [
+      {"source": "Entity Name 1", "target": "Entity Name 2", "type": "Relationship verb or tag (uppercase)"}
+   ]
+}
+
+Rules:
+1. The 'label' in nodes MUST be exactly one of the ALLOWED ENTITY LABELS.
+2. The node 'name' should be concise and normalized (e.g. "student" instead of "students", lowercase is fine but keep readable casing).
+3. Do not invent entities or relationships not directly supported by the text.
+4. Avoid self-referencing relationships where source and target are the same.
+5. Return the raw JSON without markdown formatting backticks.
+"""
+
+    logging.info(f"[GraphRAG] Extracting entities and relations via DeepSeek for file_id={file_id} from {len(chunks)} chunks...")
+    
+    import time
+    for i, chunk in enumerate(chunks):
+        try:
+            # We add a minor 100ms sleep to prevent raw thread saturation, 
+            # but no long delay is needed because this is a paid API account.
+            time.sleep(0.1)
+            
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[
+                    {"role": "system", "content": prompt_template},
+                    {"role": "user", "content": f"Text Chunk:\n{chunk}"}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1
+            )
+            
+            res_text = response.choices[0].message.content
+            if not res_text:
+                continue
+                
+            data = json.loads(res_text)
+            
+            # 1. Store extracted nodes
+            nodes_dict = {}
+            for node in data.get("nodes", []):
+                name = node.get("name", "").strip()
+                label = node.get("label", "").strip()
+                desc = node.get("description", "").strip()
+                
+                if not name or not label:
+                    continue
+                    
+                matched_label = next((l for l in allowed_labels if l.lower() == label.lower()), None)
+                if not matched_label:
+                    logging.warning(f"[GraphRAG] Skipping node '{name}' with invalid label '{label}'")
+                    continue
+                    
+                properties = {"description": desc} if desc else {}
+                upserted = upsert_node(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    name=name,
+                    label=matched_label,
+                    properties=properties
+                )
+                if upserted:
+                    nodes_dict[name.lower()] = name
+                    
+            # 2. Store extracted edges
+            for edge in data.get("relationships", []):
+                src = edge.get("source", "").strip()
+                tgt = edge.get("target", "").strip()
+                rtype = edge.get("type", "").strip().upper().replace(" ", "_")
+                
+                if not src or not tgt or not rtype:
+                    continue
+                    
+                upsert_edge(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    source_name=src,
+                    target_name=tgt,
+                    rel_type=rtype
+                )
+                
+        except Exception as e:
+            logging.error(f"[GraphRAG] Failed processing chunk index {i} via DeepSeek: {e}")
+            continue
+
+    logging.info(f"[GraphRAG] Finished graph extraction for file_id={file_id}.")
+>>>>>>> Stashed changes

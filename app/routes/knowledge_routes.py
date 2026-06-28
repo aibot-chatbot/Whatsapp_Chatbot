@@ -1,4 +1,8 @@
+<<<<<<< Updated upstream
 ﻿from flask import Blueprint, jsonify, request, g
+=======
+from flask import Blueprint, jsonify, request
+>>>>>>> Stashed changes
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_use_plan_feature, BillingLimitError
@@ -474,3 +478,178 @@ def scrape_embed_website():
             "message": str(e)
         }), 500
 
+<<<<<<< Updated upstream
+=======
+
+@knowledge_blueprint.route("/api/knowledge/graph", methods=["GET"])
+@token_required
+@role_required("admin", "owner")
+def get_knowledge_graph_data():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        
+        from app.database.db import supabase
+        from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+        from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
+        from app.services.knowledge_service import extract_and_store_graph_supabase
+        
+        # 1. Identify the current active PDF knowledge file
+        active_file = get_active_pdf_knowledge_file(chatbot_id)
+        if not active_file:
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "nodes": [],
+                    "edges": []
+                }
+            }), 200
+            
+        file_id = active_file["id"]
+        
+        # 2. Check if we have nodes for this active PDF
+        nodes_check = (
+            supabase.table("knowledge_graph_nodes")
+            .select("id")
+            .eq("chatbot_id", chatbot_id)
+            .eq("file_id", file_id)
+            .limit(1)
+            .execute()
+        )
+        
+        # 3. If no nodes exist, auto-trigger extraction synchronously
+        if not nodes_check.data:
+            logging.info(f"[GraphRAG] No nodes found for active file_id={file_id}. Running auto-extraction...")
+            chunks_data = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+            chunks = [c["content"] for c in chunks_data]
+            
+            # Self-healing: if 0 chunks exist, attempt to parse the local PDF file from the disk
+            if not chunks:
+                logging.info(f"[GraphRAG] Chunks count is 0 in DB. Attempting to parse physical PDF file...")
+                from app.services.knowledge_service import DATA_FOLDER
+                import os
+                import fitz
+                from app.services.rag_service import split_text_into_sections, generate_embedding
+                from app.database.knowledge_chunk_repository import save_knowledge_chunk
+                
+                file_name = active_file.get("file_name", "")
+                stored_path = active_file.get("file_path", "")
+                from werkzeug.utils import secure_filename
+                
+                # Robust path candidates lookup
+                candidates = []
+                if stored_path:
+                    if os.path.isabs(stored_path):
+                        candidates.append(stored_path)
+                    else:
+                        candidates.append(os.path.join(DATA_FOLDER, os.path.basename(stored_path)))
+                        
+                candidates.extend([
+                    os.path.join(DATA_FOLDER, file_name),
+                    os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_name}"),
+                    os.path.join(DATA_FOLDER, secure_filename(file_name)),
+                    os.path.join(DATA_FOLDER, secure_filename(f"bot_{chatbot_id}_{file_name}")),
+                ])
+                
+                target_path = None
+                for path in candidates:
+                    if path and os.path.exists(path):
+                        target_path = path
+                        break
+                        
+                logging.info(f"[GraphRAG] Resolved path candidates: {candidates} -> Chosen: {target_path}")
+                    
+                if target_path:
+                    try:
+                        doc = fitz.open(target_path)
+                        lines = []
+                        for page in doc:
+                            blocks = page.get_text("blocks")
+                            blocks = sorted(blocks, key=lambda b: (b[1], b[0]))
+                            for block in blocks:
+                                text = block[4].strip()
+                                if text:
+                                    for line in text.splitlines():
+                                        clean_line = " ".join(line.split())
+                                        if clean_line:
+                                            lines.append(clean_line)
+                        pdf_text = "\n".join(lines)
+                        chunks = split_text_into_sections(pdf_text)
+                        
+                        logging.info(f"[GraphRAG] Extracted {len(chunks)} chunks from local PDF. Saving to database...")
+                        for idx, chunk in enumerate(chunks):
+                            embedding = generate_embedding(chunk)
+                            if embedding:
+                                save_knowledge_chunk(
+                                    chatbot_id=chatbot_id,
+                                    file_id=file_id,
+                                    content=chunk,
+                                    embedding=embedding,
+                                    metadata={"chunk_index": idx}
+                                )
+                    except Exception as parse_err:
+                        logging.error(f"[GraphRAG] Failed to parse local PDF file {target_path}: {parse_err}")
+                else:
+                    logging.error(f"[GraphRAG] Local PDF file does not exist for candidates: {candidates}")
+            
+            if chunks:
+                try:
+                    extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
+                except Exception as ext_err:
+                    logging.error(f"[GraphRAG] Auto-extraction failed for file_id={file_id}: {ext_err}")
+        
+        # 4. Fetch graph elements ONLY for this active PDF file
+        nodes_result = (
+            supabase.table("knowledge_graph_nodes")
+            .select("*")
+            .eq("chatbot_id", chatbot_id)
+            .eq("file_id", file_id)
+            .execute()
+        )
+        
+        edges_result = (
+            supabase.table("knowledge_graph_edges")
+            .select("*")
+            .eq("chatbot_id", chatbot_id)
+            .eq("file_id", file_id)
+            .execute()
+        )
+        
+        # Format nodes and edges for frontend graphing libraries (like vis.js)
+        formatted_nodes = []
+        for node in (nodes_result.data or []):
+            formatted_nodes.append({
+                "id": node["name"],
+                "label": node["name"].title(),
+                "title": f"Type: {node['label']}\n{node.get('properties', {}).get('description', '')}".strip(),
+                "group": node["label"]
+            })
+            
+        formatted_edges = []
+        for edge in (edges_result.data or []):
+            formatted_edges.append({
+                "from": edge["source_name"],
+                "to": edge["target_name"],
+                "label": edge["rel_type"].replace("_", " "),
+                "title": edge["rel_type"]
+            })
+            
+        return jsonify({
+            "status": "success",
+            "data": {
+                "nodes": formatted_nodes,
+                "edges": formatted_edges
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+>>>>>>> Stashed changes

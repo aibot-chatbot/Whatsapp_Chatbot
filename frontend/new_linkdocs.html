@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -8,7 +8,14 @@
 
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<<<<<<< Updated upstream
     
+=======
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Import Vis.js for Knowledge Graph visualization -->
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+>>>>>>> Stashed changes
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
@@ -207,12 +214,23 @@
 
         .tab-item {
             padding-bottom: 12px;
-            color: var(--text-main);
-            font-weight: 700;
+            color: var(--text-dim);
+            font-weight: 600;
             position: relative;
+            cursor: pointer;
+            transition: color 0.3s;
         }
 
-        .tab-item::after {
+        .tab-item:hover {
+            color: var(--text-main);
+        }
+
+        .tab-item.active {
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .tab-item.active::after {
             content: '';
             position: absolute;
             bottom: -1px;
@@ -599,6 +617,7 @@
 <body>
     <div id="root"></div>
 
+<<<<<<< Updated upstream
     <script>
 const {
   useState,
@@ -857,6 +876,1321 @@ function App() {
             text: `Extraction failed: ${data.message || "Unknown error"}`,
             action: ""
           });
+=======
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function GraphVisualizer({ botId, activeFile }) {
+            const [loadingStatus, setLoadingStatus] = useState("fetching"); // "fetching", "stabilizing", "done"
+            const [stabilizationPercent, setStabilizationPercent] = useState(0);
+            const [error, setError] = useState("");
+            const [selectedNode, setSelectedNode] = useState(null);
+            const [hoveredNode, setHoveredNode] = useState(null);
+            
+            // Graph Data States
+            const [rawNodes, setRawNodes] = useState([]);
+            const [rawEdges, setRawEdges] = useState([]);
+            const [activeFilters, setActiveFilters] = useState(new Set());
+            const [nodeCounts, setNodeCounts] = useState({});
+
+            // 1. Fetch graph data once
+            useEffect(() => {
+                setLoadingStatus("fetching");
+                setStabilizationPercent(0);
+                setError("");
+                setSelectedNode(null);
+                setHoveredNode(null);
+
+                authenticatedFetch(`/api/knowledge/graph?chatbot_id=${botId}`)
+                    .then(res => res.json())
+                    .then(result => {
+                        if (result.status === "success") {
+                            const nodes = result.data.nodes || [];
+                            const edges = result.data.edges || [];
+                            setRawNodes(nodes);
+                            setRawEdges(edges);
+
+                            if (nodes.length === 0) {
+                                setError("No knowledge graph nodes generated yet. Upload a PDF or add website sources to populate the graph.");
+                                setLoadingStatus("done");
+                                return;
+                            }
+
+                            // Calculate node counts for each category
+                            const counts = {};
+                            const initialFilters = new Set();
+                            nodes.forEach(node => {
+                                counts[node.group] = (counts[node.group] || 0) + 1;
+                                initialFilters.add(node.group);
+                            });
+                            setNodeCounts(counts);
+                            setActiveFilters(initialFilters);
+                        } else {
+                            setError(result.message || "Failed to load graph data.");
+                            setLoadingStatus("done");
+                        }
+                    })
+                    .catch(err => {
+                        setLoadingStatus("done");
+                        setError("Error connecting to backend API.");
+                    });
+            }, [botId, activeFile]);
+
+            // 2. Render and manage vis.js network when activeFilters change
+            useEffect(() => {
+                if (rawNodes.length === 0) return;
+
+                const container = document.getElementById("network-graph-canvas");
+                if (!container) return;
+
+                // Filter nodes based on active checkboxes
+                const filteredNodes = rawNodes.filter(n => activeFilters.has(n.group));
+                
+                // Filter edges to only keep connections where both source & target exist in active nodes
+                const activeNodeIds = new Set(filteredNodes.map(n => n.id));
+                const filteredEdges = rawEdges.filter(e => activeNodeIds.has(e.from) && activeNodeIds.has(e.to));
+
+                if (filteredNodes.length === 0) {
+                    container.innerHTML = "<div style='display:flex;width:100%;height:100%;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.9rem;'>No categories selected. Check the filters on the right.</div>";
+                    setLoadingStatus("done");
+                    return;
+                }
+
+                // Define colors
+                const groupColors = {
+                    "Company": "#3b82f6",
+                    "Brand": "#60a5fa",
+                    "Category": "#93c5fd",
+                    "Product": "#10b981",
+                    "Service": "#8b5cf6",
+                    "Package": "#f59e0b",
+                    "Accessory": "#34d399",
+                    "Price": "#06b6d4",
+                    "Warranty": "#14b8a6",
+                    "Promotion": "#fb7185",
+                    "Branch": "#ec4899",
+                    "Supplier": "#a855f7",
+                    "Customer Segment": "#c084fc",
+                    "Policy": "#ef4444",
+                    "FAQ": "#f97316",
+                    "Staff": "#fbbf24",
+                    "Schedule": "#a7f3d0",
+                    "Location": "#22c55e",
+                    "Requirement": "#f43f5e",
+                    "Event": "#d946ef"
+                };
+
+                const nodesWithColors = filteredNodes.map(node => {
+                    const color = groupColors[node.group] || "#94a3b8";
+                    return {
+                        ...node,
+                        size: 22,
+                        color: {
+                            background: "#0f172a", // Solid dark background so line lines don't bleed through
+                            border: color,
+                            highlight: {
+                                background: color,
+                                border: "#ffffff"
+                            },
+                            hover: {
+                                background: "rgba(30, 41, 59, 1)",
+                                border: "#ffffff"
+                            }
+                        },
+                        font: { 
+                            color: "#ffffff", 
+                            face: "Outfit", 
+                            size: 13, 
+                            strokeWidth: 4, 
+                            strokeColor: "#050b18" // Outlines label text for extreme readability on dark background
+                        },
+                        borderWidth: 3,
+                        borderWidthSelected: 5
+                    };
+                });
+
+                const graphData = {
+                    nodes: new vis.DataSet(nodesWithColors),
+                    edges: new vis.DataSet(filteredEdges)
+                };
+
+                const options = {
+                    nodes: {
+                        shape: "dot",
+                    },
+                    edges: {
+                        width: 2, // Thicker relation lines
+                        font: { 
+                            size: 10, 
+                            align: "top", 
+                            color: "#cbd5e1", // Light gray for relationship text
+                            strokeWidth: 3, 
+                            strokeColor: "#050b18", // Outline for relationship text
+                            face: "Outfit" 
+                        },
+                        arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+                        color: { color: "rgba(255, 255, 255, 0.35)", highlight: "#3b82f6", hover: "rgba(255, 255, 255, 0.6)" },
+                        smooth: { enabled: true, type: "dynamic", roundness: 0.5 }
+                    },
+                    interaction: {
+                        hover: true,
+                        hoverConnectedEdges: true,
+                        selectConnectedEdges: true
+                    },
+                    physics: {
+                        enabled: true,
+                        solver: "forceAtlas2Based",
+                        forceAtlas2Based: {
+                            gravitationalConstant: -100,
+                            centralGravity: 0.015,
+                            springLength: 120,
+                            springConstant: 0.08
+                        },
+                        stabilization: {
+                            enabled: true,
+                            iterations: 200,
+                            updateInterval: 10
+                        }
+                    }
+                };
+
+                const network = new vis.Network(container, graphData, options);
+
+                network.on("stabilizationProgress", function (params) {
+                    setLoadingStatus("stabilizing");
+                    const progress = Math.round((params.iterations / params.total) * 100);
+                    setStabilizationPercent(progress);
+                });
+
+                network.on("stabilizationIterationsDone", function () {
+                    setLoadingStatus("done");
+                });
+
+                // Fallback timeout to guarantee loading overlay disappears after 2 seconds
+                const fallbackTimeout = setTimeout(() => {
+                    setLoadingStatus("done");
+                }, 2000);
+
+                network.on("click", function (params) {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        const nodeObj = rawNodes.find(n => n.id === nodeId);
+                        setSelectedNode(nodeObj);
+                    } else {
+                        setSelectedNode(null);
+                    }
+                });
+
+                network.on("hoverNode", function (params) {
+                    const nodeId = params.node;
+                    const nodeObj = rawNodes.find(n => n.id === nodeId);
+                    setHoveredNode(nodeObj);
+                });
+
+                network.on("blurNode", function () {
+                    setHoveredNode(null);
+                });
+
+                return () => {
+                    clearTimeout(fallbackTimeout);
+                    network.destroy();
+                };
+            }, [rawNodes, rawEdges, activeFilters]);
+
+            const handleToggleFilter = (group) => {
+                const nextFilters = new Set(activeFilters);
+                if (nextFilters.has(group)) {
+                    nextFilters.delete(group);
+                } else {
+                    nextFilters.add(group);
+                }
+                setActiveFilters(nextFilters);
+            };
+
+            const handleSelectAllFilters = () => {
+                const allGroups = new Set(rawNodes.map(n => n.group));
+                setActiveFilters(allGroups);
+            };
+
+            const handleClearAllFilters = () => {
+                setActiveFilters(new Set());
+            };
+
+            // Get relations for the selected node
+            const getSelectedNodeRelations = () => {
+                if (!selectedNode) return [];
+                const nodeId = selectedNode.id;
+                const relations = [];
+
+                rawEdges.forEach(edge => {
+                    if (edge.from === nodeId) {
+                        relations.push({
+                            type: "source",
+                            rel: edge.label || edge.title || "CONNECTED_TO",
+                            target: edge.to
+                        });
+                    } else if (edge.to === nodeId) {
+                        relations.push({
+                            type: "target",
+                            rel: edge.label || edge.title || "CONNECTED_TO",
+                            source: edge.from
+                        });
+                    }
+                });
+
+                return relations;
+            };
+
+            const selectedRelations = getSelectedNodeRelations();
+            const categories = Object.keys(nodeCounts).sort();
+
+            const groupColors = {
+                "Company": "#3b82f6",
+                "Brand": "#60a5fa",
+                "Category": "#93c5fd",
+                "Product": "#10b981",
+                "Service": "#8b5cf6",
+                "Package": "#f59e0b",
+                "Accessory": "#34d399",
+                "Price": "#06b6d4",
+                "Warranty": "#14b8a6",
+                "Promotion": "#fb7185",
+                "Branch": "#ec4899",
+                "Supplier": "#a855f7",
+                "Customer Segment": "#c084fc",
+                "Policy": "#ef4444",
+                "FAQ": "#f97316",
+                "Staff": "#fbbf24",
+                "Schedule": "#a7f3d0",
+                "Location": "#22c55e",
+                "Requirement": "#f43f5e",
+                "Event": "#d946ef"
+            };
+
+            return (
+                <div style={{ display: "flex", gap: "20px", height: "650px", position: "relative", marginTop: "10px" }}>
+                    {loadingStatus !== "done" && (
+                        <div style={{ position: "absolute", top: "0", left: "0", width: "100%", height: "100%", background: "rgba(5, 11, 24, 0.7)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", zIndex: 10, borderRadius: "24px", backdropFilter: "blur(4px)" }}>
+                            <span className="spinner" style={{ width: "32px", height: "32px" }}></span>
+                            <span style={{ fontWeight: 600, fontSize: "0.95rem", color: "#f8fafc" }}>
+                                {loadingStatus === "fetching" ? "Fetching graph data..." : `Positioning nodes: ${stabilizationPercent}%`}
+                            </span>
+                            {loadingStatus === "stabilizing" && (
+                                <div style={{ width: "180px", height: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "2px", overflow: "hidden" }}>
+                                    <div style={{ width: `${stabilizationPercent}%`, height: "100%", background: "var(--primary)", transition: "width 0.15s ease" }} />
+                                </div>
+                            )}
+                        </div>
+                    )}
+                    
+                    {error ? (
+                        <div style={{ margin: "auto", textAlign: "center", color: "var(--text-dim)", maxWidth: "450px", padding: "20px" }}>
+                            <div style={{ fontSize: "40px", marginBottom: "16px" }}>🕸️</div>
+                            <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px", color: "var(--text-main)" }}>Graph Empty or Unavailable</div>
+                            <p style={{ fontSize: "14px", lineHeight: "1.5" }}>{error}</p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* Left Network Canvas */}
+                            <div style={{ flexGrow: 1, height: "100%", position: "relative" }}>
+                                <div id="network-graph-canvas" style={{ width: "100%", height: "100%", background: "rgba(15, 23, 42, 0.4)", borderRadius: "24px", border: "1px solid var(--glass-border)", backdropFilter: "blur(10px)" }} />
+                                
+                                {/* Floating Hover Tooltip (Top Left of Canvas) */}
+                                {hoveredNode && (
+                                    <div style={{ position: "absolute", top: "16px", left: "16px", background: "rgba(15, 23, 42, 0.95)", border: `1.5px solid ${groupColors[hoveredNode.group] || "#94a3b8"}`, padding: "12px 16px", borderRadius: "14px", maxWidth: "320px", zIndex: 5, backdropFilter: "blur(5px)", animation: "fadeIn 0.15s ease-out" }}>
+                                        <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: "#94a3b8", fontWeight: "700" }}>{hoveredNode.group}</div>
+                                        <div style={{ fontSize: "14px", fontWeight: "700", margin: "4px 0", color: "#f8fafc" }}>{hoveredNode.label}</div>
+                                        {hoveredNode.title && (
+                                            <div style={{ fontSize: "12px", color: "var(--text-dim)", lineHeight: "1.4" }}>
+                                                {hoveredNode.title.split('\n').slice(1).join('\n')}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right Panel: Legend, Filters, Details */}
+                            <div style={{ width: "320px", display: "flex", flexDirection: "column", gap: "16px", height: "100%" }}>
+                                
+                                {/* Categories Filter */}
+                                <div className="glass-card" style={{ padding: "20px", background: "var(--card-bg)", borderRadius: "20px", border: "1px solid var(--glass-border)", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "280px", overflowY: "auto" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "6px" }}>
+                                        <span style={{ fontSize: "0.85rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Categories</span>
+                                        <div style={{ display: "flex", gap: "8px" }}>
+                                            <button 
+                                                onClick={handleSelectAllFilters} 
+                                                style={{ 
+                                                    background: "rgba(59, 130, 246, 0.15)", 
+                                                    border: "1px solid rgba(59, 130, 246, 0.3)", 
+                                                    color: "#60a5fa", 
+                                                    fontSize: "0.72rem", 
+                                                    fontWeight: "700", 
+                                                    cursor: "pointer",
+                                                    padding: "3px 8px",
+                                                    borderRadius: "12px",
+                                                    transition: "all 0.2s"
+                                                }}
+                                                onMouseOver={(e) => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.3)"; }}
+                                                onMouseOut={(e) => { e.currentTarget.style.background = "rgba(59, 130, 246, 0.15)"; }}
+                                            >
+                                                All
+                                            </button>
+                                            <button 
+                                                onClick={handleClearAllFilters} 
+                                                style={{ 
+                                                    background: "rgba(255, 255, 255, 0.05)", 
+                                                    border: "1px solid rgba(255, 255, 255, 0.15)", 
+                                                    color: "var(--text-dim)", 
+                                                    fontSize: "0.72rem", 
+                                                    fontWeight: "700", 
+                                                    cursor: "pointer",
+                                                    padding: "3px 8px",
+                                                    borderRadius: "12px",
+                                                    transition: "all 0.2s"
+                                                }}
+                                                onMouseOver={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.15)"; }}
+                                                onMouseOut={(e) => { e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)"; }}
+                                            >
+                                                None
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                        {categories.map(cat => {
+                                            const color = groupColors[cat] || "#94a3b8";
+                                            const active = activeFilters.has(cat);
+                                            return (
+                                                <div 
+                                                    key={cat} 
+                                                    onClick={() => handleToggleFilter(cat)}
+                                                    style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 8px", borderRadius: "8px", background: active ? "rgba(255,255,255,0.03)" : "transparent", cursor: "pointer", transition: "0.2s" }}
+                                                >
+                                                    <div style={{ width: "12px", height: "12px", borderRadius: "50%", background: color, border: active ? "1.5px solid #fff" : "none" }}></div>
+                                                    <span style={{ fontSize: "0.85rem", fontWeight: active ? "600" : "400", color: active ? "#f8fafc" : "var(--text-dim)", flexGrow: 1 }}>{cat}</span>
+                                                    <span style={{ fontSize: "0.75rem", opacity: 0.6 }}>{nodeCounts[cat]}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Node Details Panel */}
+                                <div className="glass-card" style={{ padding: "20px", background: "var(--card-bg)", borderRadius: "20px", border: "1px solid var(--glass-border)", flexGrow: 1, display: "flex", flexDirection: "column", gap: "12px", overflowY: "auto" }}>
+                                    <div style={{ fontSize: "0.85rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "6px" }}>
+                                        Entity Details
+                                    </div>
+                                    
+                                    {!selectedNode ? (
+                                        <div style={{ margin: "auto", textAlign: "center", color: "var(--text-dim)", fontSize: "0.85rem", padding: "10px 0" }}>
+                                            Select any node in the graph to view details and relationships.
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                            <div>
+                                                <div style={{ display: "inline-block", background: groupColors[selectedNode.group] || "#94a3b8", color: "#000", fontSize: "10px", fontWeight: "800", padding: "2px 8px", borderRadius: "4px", textTransform: "uppercase", marginBottom: "4px" }}>
+                                                    {selectedNode.group}
+                                                </div>
+                                                <h3 style={{ fontSize: "1.1rem", fontWeight: "700", wordBreak: "break-word" }}>{selectedNode.label}</h3>
+                                            </div>
+                                            
+                                            {selectedNode.title && (
+                                                <div style={{ fontSize: "0.88rem", color: "var(--text-dim)", background: "rgba(0,0,0,0.15)", padding: "10px", borderRadius: "10px", lineHeight: "1.4" }}>
+                                                    {selectedNode.title.split('\n').slice(1).join('\n')}
+                                                </div>
+                                            )}
+
+                                            {/* Relationships List */}
+                                            <div style={{ marginTop: "8px" }}>
+                                                <div style={{ fontSize: "0.8rem", fontWeight: "700", color: "#94a3b8", marginBottom: "6px" }}>RELATIONS ({selectedRelations.length})</div>
+                                                {selectedRelations.length === 0 ? (
+                                                    <div style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>No active connections.</div>
+                                                ) : (
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
+                                                        {selectedRelations.map((rel, idx) => (
+                                                            <div key={idx} style={{ fontSize: "0.8rem", padding: "6px", background: "rgba(255,255,255,0.02)", borderRadius: "6px", borderLeft: "2px solid var(--primary)", display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                                {rel.type === "source" ? (
+                                                                    <>
+                                                                        <span style={{ fontSize: "9px", textTransform: "uppercase", color: "var(--text-dim)" }}>{rel.rel}</span>
+                                                                        <span style={{ color: "#f8fafc", fontWeight: "600" }}>{String(rel.target || '').charAt(0).toUpperCase() + String(rel.target || '').slice(1)}</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <span style={{ fontSize: "9px", textTransform: "uppercase", color: "var(--text-dim)" }}>{rel.rel} BY</span>
+                                                                        <span style={{ color: "#f8fafc", fontWeight: "600" }}>{String(rel.source || '').charAt(0).toUpperCase() + String(rel.source || '').slice(1)}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        }
+
+        function App() {
+            const [file, setFile] = useState(null);
+            const [status, setStatus] = useState({ type: "", text: "", action: "" });
+            const [isUploading, setIsUploading] = useState(false);
+            const [files, setFiles] = useState([]);
+            const [activeFile, setActiveFile] = useState("");
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [fileToDelete, setFileToDelete] = useState(null);
+            const [activeTab, setActiveTab] = useState("file");
+            const [linkUrl, setLinkUrl] = useState("");
+            const [activeViewTab, setActiveViewTab] = useState("sources");
+
+            // Interactive Crawler State Variables
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [analyzedLinks, setAnalyzedLinks] = useState([]);
+            const [selectedLinks, setSelectedLinks] = useState({});
+            const [crawlStep, setCrawlStep] = useState("input"); // "input", "select", or "refine"
+            const [refinedText, setRefinedText] = useState("");
+            const [isExtracting, setIsExtracting] = useState(false);
+            const [extractedPrimaryUrl, setExtractedPrimaryUrl] = useState("");
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlBotId = urlParams.get("bot_id");
+            const storedBotId = sessionStorage.getItem("selectedBotId");
+
+            if (!urlBotId && storedBotId) {
+                window.location.href = `new_linkdocs.html?bot_id=${encodeURIComponent(storedBotId)}`;
+                return null;
+            }
+
+            if (!urlBotId) {
+                window.location.href = "bots.html";
+                return null;
+            }
+
+            const selectedBotId = urlBotId;
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+            const botQuery = `?chatbot_id=${selectedBotId}`;
+            const pageQuery = `?bot_id=${selectedBotId}`;
+            const [botName, setBotName] = useState("");
+
+            const fetchBotInfo = async () => {
+                try {
+                    const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setBotName(data.data.bot_name || "Bot");
+                    }
+                } catch (error) {
+                    setBotName("Bot");
+                }
+            };
+
+            const getKnowledgeType = (item) => {
+                const explicitType = (item?.file_type || "").toLowerCase();
+                if (explicitType) return explicitType;
+
+                const name = item?.file_name || item?.name || "";
+                return name.startsWith("http://") || name.startsWith("https://") ? "url" : "pdf";
+            };
+
+            const isWebsiteKnowledge = (item) => getKnowledgeType(item) === "url";
+            const isSourceEnabled = (item) => item?.is_enabled !== false;
+
+            const openModal = () => {
+                setStatus({ type: "", text: "", action: "" });
+                setFile(null);
+                setLinkUrl("");
+                setActiveTab("file");
+                setIsModalOpen(true);
+                // Reset crawler states
+                setIsAnalyzing(false);
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+                setCrawlStep("input");
+                setRefinedText("");
+                setIsExtracting(false);
+                setExtractedPrimaryUrl("");
+            };
+
+            const closeModal = () => {
+                if (isUploading || isAnalyzing || isExtracting) return;
+                setIsModalOpen(false);
+                setFile(null);
+                setLinkUrl("");
+                setActiveTab("file");
+                // Reset crawler states
+                setIsAnalyzing(false);
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+                setCrawlStep("input");
+                setRefinedText("");
+                setIsExtracting(false);
+                setExtractedPrimaryUrl("");
+            };
+
+            const handleFileSelect = (input) => {
+                const selectedFile = input?.files?.[0];
+                if (!selectedFile) return;
+
+                if (selectedFile.name.length > 60) {
+                    setStatus({
+                        type: "error",
+                        text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`,
+                        action: ""
+                    });
+                    return;
+                }
+
+                if (selectedFile.type !== "application/pdf") {
+                    setStatus({ type: "error", text: "Please select a valid PDF file.", action: "" });
+                    return;
+                }
+
+                setFile(selectedFile);
+                setStatus({ type: "", text: "", action: "" });
+            };
+
+            const fetchFiles = async () => {
+                try {
+                    const res = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
+                    const data = await res.json();
+
+                    const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
+                    const activeData = await activeRes.json();
+
+                    if (data.status === "success") {
+                        setFiles(data.data || []);
+                    }
+
+                    if (activeData.status === "success") {
+                        setActiveFile(activeData.data?.file_name || "");
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to load files from backend.", action: "" });
+                }
+            };
+
+            const handleAnalyze = async () => {
+                if (!linkUrl) {
+                    setStatus({ type: "error", text: "Please enter a website URL.", action: "" });
+                    return;
+                }
+                setIsAnalyzing(true);
+                setStatus({ type: "", text: "", action: "" });
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-analyze${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ url: linkUrl }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        const links = data.data?.links || [];
+                        setAnalyzedLinks(links);
+
+                        // Select all by default
+                        const initialSelected = {};
+                        links.forEach(l => {
+                            initialSelected[l] = true;
+                        });
+                        setSelectedLinks(initialSelected);
+                        setCrawlStep("select");
+                    } else {
+                        setStatus({ type: "error", text: `Analysis failed: ${data.message || "Unknown error"}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsAnalyzing(false);
+                }
+            };
+
+            const handleToggleLink = (link) => {
+                setSelectedLinks(prev => ({
+                    ...prev,
+                    [link]: !prev[link]
+                }));
+            };
+
+            const handleToggleAllLinks = () => {
+                const allSelected = analyzedLinks.every(l => selectedLinks[l]);
+                const nextSelected = {};
+                analyzedLinks.forEach(l => {
+                    nextSelected[l] = !allSelected;
+                });
+                setSelectedLinks(nextSelected);
+            };
+
+            const handleExtractContent = async () => {
+                const selectedUrls = analyzedLinks.filter(l => selectedLinks[l]);
+                if (selectedUrls.length === 0) {
+                    setStatus({ type: "error", text: "Please select at least one page to ingest.", action: "" });
+                    return;
+                }
+
+                setIsExtracting(true);
+                setStatus({ type: "", text: "", action: "" });
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-extract${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ urls: selectedUrls }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setRefinedText(data.data?.extracted_text || "");
+                        setExtractedPrimaryUrl(data.data?.primary_url || selectedUrls[0]);
+                        setCrawlStep("refine");
+                    } else {
+                        setStatus({ type: "error", text: `Extraction failed: ${data.message || "Unknown error"}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsExtracting(false);
+                }
+            };
+
+            const handleConfirmIngest = async () => {
+                if (!refinedText.trim()) {
+                    setStatus({ type: "error", text: "Refined text cannot be empty.", action: "" });
+                    return;
+                }
+
+                setIsUploading(true);
+                setStatus({ type: "", text: "", action: "" });
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-embed${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            text_content: refinedText,
+                            primary_url: extractedPrimaryUrl,
+                            file_name: extractedPrimaryUrl
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "success", text: data.data?.message || "Website saved as supporting knowledge.", action: "upload" });
+                        setLinkUrl("");
+                        setIsModalOpen(false);
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: `Ingestion failed: ${data.message || "Unknown error"}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsUploading(false);
+                }
+            };
+
+            const handleUpload = async () => {
+                if (!file) {
+                    setStatus({ type: "error", text: "Please select a PDF file first.", action: "" });
+                    return;
+                }
+
+                setIsUploading(true);
+                setStatus({ type: "", text: "", action: "" });
+
+                const formData = new FormData();
+                formData.append("pdf_file", file);
+
+                try {
+                    const response = await authenticatedFetch(`/upload-pdf${botQuery}`, {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    if (response.ok) {
+                        setStatus({ type: "success", text: "PDF uploaded and set as primary knowledge.", action: "upload" });
+                        setFile(null);
+                        setIsModalOpen(false);
+                        await fetchFiles();
+                    } else {
+                        const data = await response.json();
+                        setStatus({ type: "error", text: `Upload failed: ${data.message || "Unknown error"}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsUploading(false);
+                }
+            };
+
+            const handleSetActive = async (fileName) => {
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/set-active${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ file_name: fileName }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "success", text: data.data?.message || `${fileName} is now the active primary knowledge.`, action: "setActive" });
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to set primary knowledge.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
+                }
+            };
+
+            const handleToggleSupport = async (fileName, nextEnabled) => {
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/toggle-support${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            file_name: fileName,
+                            is_enabled: nextEnabled,
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({
+                            type: "success",
+                            text: data.data?.message || (nextEnabled ? "Supporting website enabled." : "Supporting website disabled."),
+                            action: "toggleSupport"
+                        });
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to update supporting website.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
+                }
+            };
+
+            const triggerDeleteFile = (fileName) => {
+                setFileToDelete(fileName);
+            };
+
+            const confirmDeleteFile = async () => {
+                if (!fileToDelete) return;
+                const fileName = fileToDelete;
+                setFileToDelete(null);
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/files/${encodeURIComponent(fileName)}${botQuery}`, {
+                        method: "DELETE",
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "deleted", text: data.data?.message || `${fileName} deleted successfully.`, action: "delete" });
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to delete knowledge source.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
+                }
+            };
+
+            useEffect(() => {
+                fetchBotInfo();
+                fetchFiles();
+            }, []);
+
+            const totalItems = files.length;
+            const trainedCount = files.length;
+            const pendingCount = 0;
+            const failedCount = 0;
+            const totalChars = files.reduce((sum, f) => sum + Number(f.size || 0), 0);
+
+            return (
+                <>
+                    <chatbot-sidebar></chatbot-sidebar>
+
+                    <main className="main-container">
+                        <div className="header">
+                            <h1>Knowledge Sources ({botName || "Bot"})</h1>
+                            <p>Manage the primary PDF and supporting website sources your AI chatbot uses.</p>
+                        </div>
+
+                        {status.text && (
+                            <div className={`status-message ${status.type}`}>
+                                {status.type === "success" ? "✨" : status.type === "deleted" ? "🗑️" : "⚠️"} {status.text}
+                            </div>
+                        )}
+
+                        {status.type === "success" && status.action === "setActive" && (
+                            <div
+                                style={{
+                                    marginBottom: "20px",
+                                    padding: "18px",
+                                    borderRadius: "16px",
+                                    background: "rgba(37, 99, 235, 0.08)",
+                                    border: "1px solid var(--glass-border)",
+                                    textAlign: "left"
+                                }}
+                            >
+                                <div style={{ fontSize: "18px", fontWeight: "700", marginBottom: "8px" }}>
+                                    Next step
+                                </div>
+                                <div style={{ fontSize: "15px", color: "var(--text-dim)", marginBottom: "14px", lineHeight: "1.5" }}>
+                                    Please review Bot Configuration so the chatbot matches this primary knowledge source.
+                                </div>
+                                <a
+                                    href={`new_prompt.html${pageQuery}`}
+                                    style={{
+                                        display: "inline-block",
+                                        padding: "10px 16px",
+                                        borderRadius: "10px",
+                                        textDecoration: "none",
+                                        background: "var(--primary)",
+                                        color: "white",
+                                        fontSize: "14px",
+                                        fontWeight: "600"
+                                    }}
+                                >
+                                    Open Bot Configuration
+                                </a>
+                            </div>
+                        )}
+
+                        <div className="stats-row">
+                            <div className="glass-card">
+                                <div className="stat-label">Files</div>
+                                <div className="stat-value">{totalItems}</div>
+                            </div>
+                            <div className="glass-card">
+                                <div className="stat-label">Trained</div>
+                                <div className="stat-value">{trainedCount}</div>
+                            </div>
+                            <div className="glass-card">
+                                <div className="stat-label">Pending</div>
+                                <div className="stat-value">{pendingCount}</div>
+                            </div>
+                            <div className="glass-card">
+                                <div className="stat-label">Failed</div>
+                                <div className="stat-value">{failedCount}</div>
+                            </div>
+                            <div className="glass-card">
+                                <div className="stat-label">Total Size</div>
+                                <div className="stat-value">{(totalChars / 1024).toFixed(1)} KB</div>
+                            </div>
+                        </div>
+
+                        <div className="tabs-nav">
+                            <div 
+                                className={`tab-item ${activeViewTab === "sources" ? "active" : ""}`}
+                                onClick={() => setActiveViewTab("sources")}
+                                style={{ cursor: "pointer" }}
+                            >
+                                Primary PDF / Supporting Websites
+                            </div>
+                            <div 
+                                className={`tab-item ${activeViewTab === "graph" ? "active" : ""}`}
+                                onClick={() => setActiveViewTab("graph")}
+                                style={{ cursor: "pointer" }}
+                            >
+                                Knowledge Graph
+                            </div>
+                        </div>
+
+                        {activeViewTab === "sources" ? (
+                            <>
+                                <div className="action-bar">
+                                    <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+                                        <span style={{ fontWeight: 500, fontSize: "0.95rem", marginRight: "12px" }}>
+                                            Total sources: {totalItems}
+                                        </span>
+                                    </div>
+
+                                    <button className="btn btn-primary" type="button" onClick={openModal}>
+                                        ➕ Add Knowledge Source
+                                    </button>
+                                </div>
+
+                                <div className="table-area">
+                                    <table>
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Size</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {files.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="4" style={{ color: "var(--text-dim)" }}>
+                                                        No knowledge sources added yet.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                files.map((f, index) => {
+                                                    const websiteSource = isWebsiteKnowledge(f);
+                                                    const sourceEnabled = isSourceEnabled(f);
+                                                    const isPrimary = !websiteSource && f.is_active;
+
+                                                    return (
+                                                        <tr key={index}>
+                                                            <td>
+                                                                <div className="name-cell">
+                                                                    <span>{websiteSource ? "🔗" : "📄"}</span>
+                                                                    <span>{f.file_name}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="char-count">
+                                                                {f.size ? `${(Number(f.size) / 1024).toFixed(1)} KB` : "-"}
+                                                            </td>
+                                                            <td>
+                                                                <span
+                                                                    className={`status-badge ${isPrimary || (websiteSource && sourceEnabled) ? "" : "inactive"}`}
+                                                                    title={websiteSource ? "Websites are supporting knowledge and cannot be set as primary." : ""}
+                                                                >
+                                                                    {websiteSource ? `SUPPORTING ${sourceEnabled ? "ENABLED" : "DISABLED"}` : isPrimary ? "ACTIVE PRIMARY" : "AVAILABLE"}
+                                                                </span>
+                                                            </td>
+                                                            <td>
+                                                                <div className="table-actions">
+                                                                    {!websiteSource && (
+                                                                        <button
+                                                                            className="btn btn-primary"
+                                                                            type="button"
+                                                                            onClick={() => handleSetActive(f.file_name)}
+                                                                            disabled={isPrimary}
+                                                                            title={isPrimary ? "This PDF is already the active primary knowledge." : "Set this PDF as primary knowledge"}
+                                                                        >
+                                                                            {isPrimary ? "Active Primary" : "Set as Primary"}
+                                                                        </button>
+                                                                    )}
+
+                                                                    {websiteSource && (
+                                                                        <button
+                                                                            className="btn"
+                                                                            type="button"
+                                                                            onClick={() => handleToggleSupport(f.file_name, !sourceEnabled)}
+                                                                            title={sourceEnabled ? "Temporarily disable this supporting website in AI answers" : "Enable this supporting website for AI answers"}
+                                                                        >
+                                                                            {sourceEnabled ? "Disable" : "Enable"}
+                                                                        </button>
+                                                                    )}
+
+                                                                    <button
+                                                                        className="btn btn-danger"
+                                                                        type="button"
+                                                                        onClick={() => triggerDeleteFile(f.file_name)}
+                                                                        title={websiteSource ? "Delete this supporting website source" : "Delete this PDF"}
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div style={{ marginTop: "12px", textAlign: "right", fontSize: "0.8rem", opacity: 0.6 }}>
+                                    {files.length === 0 ? "0 items" : `1-${files.length} of ${files.length} items`}
+                                </div>
+                            </>
+                        ) : (
+                            <GraphVisualizer botId={selectedBotId} activeFile={activeFile} />
+                        )}
+                    </main>
+
+                    <div className={`modal-backdrop ${isModalOpen ? "open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+                        <div className="modal-content">
+                            <h2 style={{ marginBottom: "8px" }}>Add Knowledge Source</h2>
+                            <p style={{ color: "var(--text-dim)", fontSize: "0.9rem", marginBottom: "24px" }}>
+                                Add a primary PDF or supporting website source.
+                            </p>
+
+                            <div className="modal-tabs">
+                                <button
+                                    className={`modal-tab ${activeTab === "link" ? "active" : ""}`}
+                                    type="button"
+                                    onClick={() => setActiveTab("link")}
+                                    disabled={isUploading || isAnalyzing}
+                                >
+                                    Supporting Website
+                                </button>
+                                <button
+                                    className={`modal-tab ${activeTab === "file" ? "active" : ""}`}
+                                    type="button"
+                                    onClick={() => setActiveTab("file")}
+                                    disabled={isUploading || isAnalyzing}
+                                >
+                                    Primary PDF
+                                </button>
+                            </div>
+
+                            {activeTab === "link" ? (
+                                crawlStep === "input" ? (
+                                    <div className="input-group">
+                                        <label>Website URL</label>
+                                        <input
+                                            type="text"
+                                            className="modal-input"
+                                            value={linkUrl}
+                                            onChange={(e) => setLinkUrl(e.target.value)}
+                                            placeholder="https://example.com/blog/article-1"
+                                            disabled={isAnalyzing}
+                                        />
+                                        <div style={{ marginTop: "10px", color: "var(--text-dim)", fontSize: "0.85rem" }}>
+                                            Enter a website URL to save as supporting knowledge.
+                                        </div>
+                                        {isAnalyzing && (
+                                            <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px", color: "var(--primary)" }}>
+                                                <span className="spinner"></span>
+                                                <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Finding subpages... (discovered links will load shortly)</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : crawlStep === "select" ? (
+                                    <div className="input-group">
+                                        <label style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
+                                            Discovered {analyzedLinks.length} subpages
+                                        </label>
+                                        <div style={{ color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "15px" }}>
+                                            Select which pages from <strong>{linkUrl}</strong> you want to save as supporting knowledge.
+                                        </div>
+
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                            <span style={{ fontSize: "0.8rem", fontWeight: "700", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                                Available Pages
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={handleToggleAllLinks}
+                                                style={{
+                                                    background: "transparent",
+                                                    border: "none",
+                                                    color: "var(--primary)",
+                                                    cursor: "pointer",
+                                                    fontSize: "0.85rem",
+                                                    fontWeight: "600",
+                                                    padding: "0"
+                                                }}
+                                            >
+                                                {analyzedLinks.length > 0 && analyzedLinks.every(l => selectedLinks[l]) ? "Deselect All" : "Select All"}
+                                            </button>
+                                        </div>
+
+                                        {analyzedLinks.length === 0 ? (
+                                            <div style={{ padding: "20px", textAlign: "center", color: "var(--text-dim)", fontSize: "0.9rem", border: "1px solid var(--glass-border)", borderRadius: "12px" }}>
+                                                No subpages found. You can still ingest the main page.
+                                            </div>
+                                        ) : (
+                                            <div className="link-list-container">
+                                                {analyzedLinks.map((link, idx) => (
+                                                    <div key={idx} className="link-list-item">
+                                                        <input
+                                                            type="checkbox"
+                                                            id={`link-chk-${idx}`}
+                                                            checked={!!selectedLinks[link]}
+                                                            onChange={() => handleToggleLink(link)}
+                                                        />
+                                                        <label htmlFor={`link-chk-${idx}`}>{link}</label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {isExtracting && (
+                                            <div style={{ marginTop: "15px", display: "flex", alignItems: "center", gap: "10px", color: "var(--primary)" }}>
+                                                <span className="spinner"></span>
+                                                <span style={{ fontSize: "0.9rem", fontWeight: "600" }}>Extracting business facts via Gemini... Please wait...</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="input-group">
+                                        <label style={{ fontSize: "0.95rem", fontWeight: "700", color: "var(--text-main)", marginBottom: "4px" }}>
+                                            Review & Refine Extracted Knowledge
+                                        </label>
+                                        <div style={{ color: "var(--text-dim)", fontSize: "0.85rem", marginBottom: "15px" }}>
+                                            Verify and edit the AI-extracted supporting knowledge details below to ensure absolute correctness.
+                                        </div>
+                                        <textarea
+                                            className="modal-input"
+                                            value={refinedText}
+                                            onChange={(e) => setRefinedText(e.target.value)}
+                                            style={{
+                                                width: "100%",
+                                                height: "220px",
+                                                fontFamily: "monospace",
+                                                fontSize: "0.85rem",
+                                                lineHeight: "1.5",
+                                                resize: "vertical"
+                                            }}
+                                            disabled={isUploading}
+                                        />
+                                    </div>
+                                )
+                            ) : (
+                                <div>
+                                    <div className="drop-zone" onClick={() => document.getElementById("file-input").click()}>
+                                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ marginBottom: "12px", opacity: 0.5 }}>
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                            <polyline points="17 8 12 3 7 8"></polyline>
+                                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                                        </svg>
+                                        <p>Click to Upload PDF</p>
+                                        <input
+                                            type="file"
+                                            id="file-input"
+                                            style={{ display: "none" }}
+                                            accept=".pdf"
+                                            onChange={(e) => handleFileSelect(e.target)}
+                                        />
+                                    </div>
+
+                                    {file && (
+                                        <div style={{ marginTop: "12px", fontSize: "0.85rem", color: "var(--primary)", fontWeight: 600 }}>
+                                            📄 Selected: {file.name}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="modal-footer">
+                                {activeTab === "link" && crawlStep === "select" && (
+                                    <button
+                                        className="btn"
+                                        type="button"
+                                        onClick={() => setCrawlStep("input")}
+                                        disabled={isExtracting}
+                                        style={{ marginRight: "auto" }}
+                                    >
+                                        Back
+                                    </button>
+                                )}
+                                {activeTab === "link" && crawlStep === "refine" && (
+                                    <button
+                                        className="btn"
+                                        type="button"
+                                        onClick={() => setCrawlStep("select")}
+                                        disabled={isUploading}
+                                        style={{ marginRight: "auto" }}
+                                    >
+                                        Back
+                                    </button>
+                                )}
+                                <button className="btn" type="button" onClick={closeModal} disabled={isUploading || isAnalyzing || isExtracting}>
+                                    Cancel
+                                </button>
+                                {activeTab === "link" ? (
+                                    crawlStep === "input" ? (
+                                        <button
+                                            className="btn btn-primary"
+                                            type="button"
+                                            onClick={handleAnalyze}
+                                            disabled={isAnalyzing || !linkUrl.trim()}
+                                        >
+                                            {isAnalyzing ? (
+                                                <span>
+                                                    <span className="spinner"></span> Analyzing...
+                                                </span>
+                                            ) : "Analyze Website"}
+                                        </button>
+                                    ) : crawlStep === "select" ? (
+                                        <button
+                                            className="btn btn-primary"
+                                            type="button"
+                                            onClick={handleExtractContent}
+                                            disabled={isExtracting || Object.values(selectedLinks).filter(Boolean).length === 0}
+                                        >
+                                            {isExtracting ? (
+                                                <span>
+                                                    <span className="spinner"></span> Extracting...
+                                                </span>
+                                            ) : `Extract & Review (${Object.values(selectedLinks).filter(Boolean).length} Selected)`}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            className="btn btn-primary"
+                                            type="button"
+                                            onClick={handleConfirmIngest}
+                                            disabled={isUploading || !refinedText.trim()}
+                                        >
+                                            {isUploading ? (
+                                                <span>
+                                                    <span className="spinner"></span> Ingesting...
+                                                </span>
+                                            ) : "Confirm & Ingest"}
+                                        </button>
+                                    )
+                                ) : (
+                                    <button
+                                        className="btn btn-primary"
+                                        type="button"
+                                        onClick={handleUpload}
+                                        disabled={isUploading || !file}
+                                    >
+                                        {isUploading ? (
+                                            <span>
+                                                <span className="spinner"></span> Uploading...
+                                            </span>
+                                        ) : "Add Resource"}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Custom Delete Confirmation Modal */}
+                    <div className={`modal-backdrop ${fileToDelete ? "open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) setFileToDelete(null); }}>
+                        <div className="modal-content" style={{ maxWidth: "420px", textAlign: "center", padding: "40px 30px" }}>
+                            <div style={{ fontSize: "48px", marginBottom: "20px" }}>🗑️</div>
+                            <h2 style={{ marginBottom: "12px" }}>Delete Document?</h2>
+                            <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "32px", lineHeight: "1.5" }}>
+                                Are you sure you want to delete <strong>{fileToDelete}</strong>?<br />
+                                This action cannot be undone.
+                            </p>
+                            <div className="modal-footer" style={{ justifyContent: "center", gap: "16px" }}>
+                                <button className="btn" type="button" onClick={() => setFileToDelete(null)}>
+                                    Cancel
+                                </button>
+                                <button className="btn btn-danger" type="button" onClick={confirmDeleteFile}>
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            );
+>>>>>>> Stashed changes
         }
       }
     } catch (error) {
