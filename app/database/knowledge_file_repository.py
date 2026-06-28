@@ -207,19 +207,19 @@ def update_supporting_knowledge_enabled(chatbot_id: int, file_id: int, is_enable
     return result.data[0] if result.data else None
 
 
-def set_active_pdf_knowledge_file(chatbot_id: int, file_name: str):
+def set_active_pdf_knowledge_file(chatbot_id: int, file_id: int):
     supabase.table("knowledge_files") \
         .update({"is_active": False}) \
         .eq("chatbot_id", chatbot_id) \
         .eq("file_type", "pdf") \
         .execute()
-
+ 
     result = (
         supabase.table("knowledge_files")
         .update({"is_active": True})
         .eq("chatbot_id", chatbot_id)
         .eq("file_type", "pdf")
-        .eq("file_name", file_name)
+        .eq("id", file_id)
         .execute()
     )
 
