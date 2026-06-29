@@ -648,3 +648,275 @@ def get_knowledge_graph_data():
             "status": "error",
             "message": str(e)
         }), 500
+ 
+ 
+@knowledge_blueprint.route("/api/knowledge/refinement/questions", methods=["GET"])
+@token_required
+@role_required("admin", "owner")
+def get_refinement_questions():
+    chatbot_id = request.args.get("chatbot_id", type=int)
+    if not chatbot_id:
+        return jsonify({
+            "status": "error",
+            "message": "chatbot_id is required"
+        }), 400
+
+    verify_chatbot_access(chatbot_id)
+    
+    from flask import Response, stream_with_context
+    import json
+    
+    def generate():
+        try:
+            yield "data: " + json.dumps({"type": "log", "message": "Connecting to database..."}) + "\n\n"
+            
+            from app.database.db import supabase
+            from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+            
+            # 1. Get active PDF
+            active_file = get_active_pdf_knowledge_file(chatbot_id)
+            if not active_file:
+                yield "data: " + json.dumps({"type": "error", "message": "No active primary PDF found. Please set a primary PDF before scanning for clarifications."}) + "\n\n"
+                return
+                
+            file_id = active_file["id"]
+            file_name = active_file["file_name"]
+            
+            yield "data: " + json.dumps({"type": "log", "message": f"Active PDF detected: {file_name}"}) + "\n\n"
+            yield "data: " + json.dumps({"type": "log", "message": "Loading Knowledge Graph nodes and edges..."}) + "\n\n"
+            
+            # 2. Get graph elements for this PDF
+            nodes_res = (
+                supabase.table("knowledge_graph_nodes")
+                .select("*")
+                .eq("chatbot_id", chatbot_id)
+                .eq("file_id", file_id)
+                .execute()
+            )
+            
+            edges_res = (
+                supabase.table("knowledge_graph_edges")
+                .select("*")
+                .eq("chatbot_id", chatbot_id)
+                .eq("file_id", file_id)
+                .execute()
+            )
+            
+            nodes = nodes_res.data or []
+            edges = edges_res.data or []
+            
+            if not nodes:
+                yield "data: " + json.dumps({"type": "error", "message": "No knowledge graph elements found for this PDF. The graph must be populated first."}) + "\n\n"
+                return
+                
+            yield "data: " + json.dumps({"type": "log", "message": f"Graph loaded: {len(nodes)} nodes, {len(edges)} edges."}) + "\n\n"
+            yield "data: " + json.dumps({"type": "log", "message": "Scanning Knowledge Graph for structural gaps using AI..."}) + "\n\n"
+            
+            # 3. Format the graph elements into a summary prompt
+            graph_text = f"Here is the knowledge graph extracted from active file '{file_name}':\n\n"
+            graph_text += "Entities (Nodes):\n"
+            for n in nodes:
+                graph_text += f"- {n['name']} (Category: {n['label']})"
+                if n.get("properties") and isinstance(n["properties"], dict):
+                    props_str = ", ".join(f"{k}: {v}" for k, v in n["properties"].items())
+                    if props_str:
+                        graph_text += f" | Details: {props_str}"
+                graph_text += "\n"
+                
+            graph_text += "\nConnections (Edges):\n"
+            for e in edges:
+                graph_text += f"- {e['source_name']} [{e['rel_type']}] -> {e['target_name']}\n"
+                
+            system_prompt = (
+                "You are a knowledge graph refinement assistant for a customer support AI chatbot.\n"
+                "Your task is to analyze the extracted business knowledge graph and identify 3 to 5 critical clarifying questions "
+                "that a customer might ask but are ambiguous, incomplete, or lack specific details in the current nodes/relationships "
+                "(e.g., missing prices, undefined warranties, service limitations, shipping times, or package details).\n"
+                "You must return the result as a raw JSON array of objects with the fields: 'question' and 'context'.\n"
+                "Example output format:\n"
+                "[\n"
+                "  {\"question\": \"What is the warranty period for Titan Laptop?\", \"context\": \"Titan Laptop is connected to Warranty, but details/duration are not specified.\"},\n"
+                "  {\"question\": \"How much does the Platinum Package cost?\", \"context\": \"Platinum Package is a Service, but has no HAS_PRICE relation.\"}\n"
+                "]\n"
+                "Return ONLY the raw JSON block without markdown formatting."
+            )
+            
+            import os
+            from openai import OpenAI
+            api_key = os.getenv("DEEPSEEK_API_KEY")
+            if not api_key:
+                api_key = os.getenv("OPENROUTER_API_KEY")
+                client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://openrouter.ai/api/v1"
+                )
+                model = "deepseek/deepseek-chat"
+            else:
+                client = OpenAI(
+                    api_key=api_key,
+                    base_url="https://api.deepseek.com"
+                )
+                model = "deepseek-chat"
+                
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": graph_text}
+                ],
+                temperature=0.3
+            )
+            
+            content = response.choices[0].message.content.strip()
+            if content.startswith("```"):
+                lines = content.splitlines()
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines[-1].startswith("```"):
+                    lines = lines[:-1]
+                content = "\n".join(lines).strip()
+                
+            draft_questions = json.loads(content)
+            
+            yield "data: " + json.dumps({"type": "log", "message": f"Found {len(draft_questions)} candidate questions. Commencing Layer 2 Semantic checks against PDF chunks..."}) + "\n\n"
+            
+            from app.services.rag_service import generate_embedding
+            from app.database.knowledge_chunk_repository import search_similar_chunks
+            
+            retained_questions = []
+            
+            # 4. Run Second Layer Semantic Check for each question
+            for q_idx, item in enumerate(draft_questions):
+                question = item.get("question", "")
+                context = item.get("context", "")
+                if not question:
+                    continue
+                    
+                yield "data: " + json.dumps({"type": "log", "message": f"[{q_idx+1}/{len(draft_questions)}] Auditing text chunks: \"{question}\"..."}) + "\n\n"
+                
+                # Fetch relevant chunks
+                emb = generate_embedding(question)
+                chunks = []
+                if emb:
+                    chunks = search_similar_chunks(
+                        chatbot_id=chatbot_id,
+                        query_embedding=emb,
+                        match_threshold=0.3,
+                        match_count=3,
+                        file_id=file_id
+                    )
+                    
+                chunk_contents = "\n".join(c["content"] for c in chunks) if chunks else ""
+                
+                if not chunk_contents:
+                    retained_questions.append(item)
+                    yield "data: " + json.dumps({"type": "log", "message": " -> Genuinely missing (No PDF context found). Retained."}) + "\n\n"
+                    continue
+                    
+                # Call LLM to verify if it is answerable in the text
+                verify_prompt = (
+                    "You are a knowledge auditing assistant.\n"
+                    "Your task is to determine if the question below is already answered clearly and completely by the provided context snippet.\n"
+                    "If yes, reply with the prefix 'RESOLVED: ' followed by the answer found in the context.\n"
+                    "If no (or if the context is ambiguous, incomplete, or doesn't mention the answer), reply ONLY with 'AMBIGUOUS'.\n\n"
+                    f"Question: {question}\n\n"
+                    f"Context Snippet:\n{chunk_contents}"
+                )
+                
+                verify_res = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "user", "content": verify_prompt}
+                    ],
+                    temperature=0.1
+                )
+                
+                verify_reply = verify_res.choices[0].message.content.strip()
+                if verify_reply.upper().startswith("RESOLVED"):
+                    ans_part = verify_reply[len("RESOLVED:"):].strip()
+                    yield "data: " + json.dumps({"type": "log", "message": f" -> Auto-resolved: \"{ans_part}\" (Filtered out)"}) + "\n\n"
+                else:
+                    retained_questions.append(item)
+                    yield "data: " + json.dumps({"type": "log", "message": " -> Ambiguous/unspecified in text. Retained."}) + "\n\n"
+            
+            yield "data: " + json.dumps({"type": "log", "message": f"Audits completed. Retained {len(retained_questions)} unresolved clarifications."}) + "\n\n"
+            yield "data: " + json.dumps({"type": "complete", "questions": retained_questions}) + "\n\n"
+            
+        except Exception as e:
+            logging.error(f"[Refinement Generator] Error: {e}")
+            yield "data: " + json.dumps({"type": "error", "message": str(e)}) + "\n\n"
+            
+    return Response(stream_with_context(generate()), content_type="text/event-stream")
+
+
+@knowledge_blueprint.route("/api/knowledge/refinement/submit", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+def submit_refinement_answers():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        
+        data = request.get_json()
+        answers = data.get("answers", [])
+        if not answers:
+            return jsonify({
+                "status": "error",
+                "message": "No answers provided"
+            }), 400
+            
+        from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+        from app.services.rag_service import generate_embedding
+        from app.database.knowledge_chunk_repository import save_knowledge_chunk
+        
+        # 1. Get active PDF
+        active_file = get_active_pdf_knowledge_file(chatbot_id)
+        if not active_file:
+            return jsonify({
+                "status": "error",
+                "message": "No active primary PDF found."
+            }), 400
+            
+        file_id = active_file["id"]
+        
+        # 2. Save each answer as a new chunk with embeddings
+        saved_count = 0
+        for item in answers:
+            question = item.get("question", "").strip()
+            answer = item.get("answer", "").strip()
+            if not question or not answer:
+                continue
+                
+            chunk_content = f"Question: {question}\nAnswer: {answer}"
+            embedding = generate_embedding(chunk_content)
+            if embedding:
+                save_knowledge_chunk(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    content=chunk_content,
+                    embedding=embedding,
+                    metadata={
+                        "source_type": "refinement",
+                        "question": question,
+                        "refined_at": "2026-06-29"
+                    }
+                )
+                saved_count += 1
+                
+        return jsonify({
+            "status": "success",
+            "message": f"Successfully saved {saved_count} refined knowledge clarifications."
+        }), 200
+        
+    except Exception as e:
+        logging.error(f"[Refinement] Failed to submit answers: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
