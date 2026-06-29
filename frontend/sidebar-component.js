@@ -1,4 +1,4 @@
-﻿class ChatbotSidebar extends HTMLElement {
+class ChatbotSidebar extends HTMLElement {
     constructor() {
         super();
     }
@@ -371,14 +371,9 @@
                         <span>Dashboard</span>
                     </a>
                     
-                    <a href="conversations.html${botQuery}" class="nav-link" title="Conversations">
+                    <a href="conversations.html${botQuery}" class="nav-link" title="Inbox & Conversations">
                         <i data-lucide="message-square"></i>
-                        <span>Conversations</span>
-                    </a>
-
-                    <a href="inbox.html${botQuery}" class="nav-link" title="Inbox & Escalations">
-                        <i data-lucide="inbox"></i>
-                        <span>Inbox & Escalations</span>
+                        <span>Inbox & Conversations</span>
                     </a>
                     
                     <a href="crm.html${botQuery}" class="nav-link" title="CRM / Leads">
