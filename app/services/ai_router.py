@@ -472,6 +472,17 @@ def call_provider(
     provider = provider.lower().strip()
 
     if provider in OPENROUTER_PROVIDER_KEYS:
+        # Run an early credit preflight for non-local requests.
+        # Local intents (greeting, main_menu, out_of_scope) return a direct
+        # reply before embedding or generation. Check credit only when a
+        # text-generation provider call would actually be needed, so that
+        # free local responses never trigger a credit check.
+        from app.services.chat_logic_service import detect_intent
+
+        preflight_intent = detect_intent(message)
+        if preflight_intent not in ("greeting", "main_menu", "out_of_scope"):
+            _check_ai_credit_before_provider(company_id)
+
         pipeline = prepare_chat_prompt(
             message=message,
             customer_id=customer_id,
