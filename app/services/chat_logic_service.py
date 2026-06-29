@@ -187,6 +187,11 @@ def get_primary_pdf_greeting_menu(chatbot_id):
 
 
 def handle_greeting(chatbot_id):
+    from app.database.bot_repository import get_bot_by_id
+    bot = get_bot_by_id(chatbot_id)
+    if bot and bot.get("welcome_message"):
+        return bot.get("welcome_message")
+
     settings = get_deployed_settings(chatbot_id)
     greeting = generate_greeting(settings)
     menu = get_primary_pdf_greeting_menu(chatbot_id)

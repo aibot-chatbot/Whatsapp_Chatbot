@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -764,6 +764,43 @@
             color: #10b981;
             border: 1px solid rgba(16, 185, 129, 0.3);
         }
+
+        /* Status Tabs */
+        .status-tabs {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            margin-bottom: 4px;
+        }
+        .status-tab {
+            flex: 1;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .status-tab:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+        }
+        .status-tab.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--primary);
+            color: var(--text-main);
+        }
+        .escalation-badge {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            margin-left: 6px;
+        }
     </style>
 </head>
 
@@ -792,6 +829,10 @@
                         <button class="filter-pill" data-platform="whatsapp" onclick="setPlatformFilter('whatsapp')">WhatsApp</button>
                         <button class="filter-pill" data-platform="wasender" onclick="setPlatformFilter('wasender')">Wasender</button>
                         <button class="filter-pill" data-platform="telegram" onclick="setPlatformFilter('telegram')">Telegram</button>
+                    </div>
+                    <div class="status-tabs">
+                        <button class="status-tab active" data-status="all" onclick="setStatusFilter('all')">All Chats</button>
+                        <button class="status-tab" data-status="escalated" onclick="setStatusFilter('escalated')">Needs Attention</button>
                     </div>
                 </div>
                 <div class="conversation-list" id="conversation-list">
@@ -904,8 +945,11 @@
         let currentMessageSearchQuery = "";
         let currentMessageSearchMatches = [];
         let currentMessageSearchIndex = -1;
+        
+        let allEscalations = [];
+        let currentStatusFilter = 'all';
 
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             if (!selectedBotId) {
                 return;
             }
@@ -913,8 +957,21 @@
             lucide.createIcons();
             setupConversationCrmModal();
             fetchSelectedBot();
+            await fetchEscalations();
             fetchConversations();
         });
+
+        async function fetchEscalations() {
+            try {
+                const res = await authenticatedFetch(`/api/agent/escalations?chatbot_id=${selectedBotId}`);
+                const json = await res.json();
+                if (json.status === 'success') {
+                    allEscalations = json.data || [];
+                }
+            } catch (err) {
+                console.error("Failed to fetch escalations", err);
+            }
+        }
 
         async function fetchSelectedBot() {
             try {
@@ -1080,6 +1137,14 @@
                 const time = document.createElement('span');
                 time.className = 'convo-time';
                 time.textContent = formatTime(conv.updated_at);
+                
+                const isEscalated = allEscalations.some(e => e.conversation_id === conv.id);
+                if (isEscalated) {
+                    const badge = document.createElement('span');
+                    badge.className = 'escalation-badge';
+                    badge.title = "Needs Attention";
+                    time.appendChild(badge);
+                }
 
                 top.appendChild(phoneContainer);
                 top.appendChild(time);
@@ -1166,9 +1231,27 @@
                 const matchesQuery = searchText.includes(query);
                 const platform = normalizePlatform(c.source_channel);
                 const matchesPlatform = currentPlatform === 'all' || platform === currentPlatform;
-                return matchesQuery && matchesPlatform;
+                
+                let matchesStatus = true;
+                if (currentStatusFilter === 'escalated') {
+                    matchesStatus = allEscalations.some(e => e.conversation_id === c.id);
+                }
+
+                return matchesQuery && matchesPlatform && matchesStatus;
             });
             renderConversationList(filtered);
+        }
+
+        function setStatusFilter(status) {
+            currentStatusFilter = status;
+            document.querySelectorAll('.status-tab').forEach(btn => {
+                if (btn.getAttribute('data-status') === status) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            filterConversations();
         }
 
         function setPlatformFilter(platform) {
@@ -1220,12 +1303,82 @@
                 if (result.status === "success") {
                     currentConversationMessages = Array.isArray(result.data) ? result.data : [];
                     renderMessages(currentConversationMessages, phone, name);
+                    
+                    const isEscalated = allEscalations.some(e => e.conversation_id === Number(conversationId));
+                    const replyBox = document.getElementById('reply-box');
+                    const resolveBtn = document.getElementById('resolve-btn');
+                    if (replyBox && resolveBtn) {
+                        if (isEscalated) {
+                            replyBox.style.display = 'flex';
+                            resolveBtn.style.display = 'inline-block';
+                        } else {
+                            replyBox.style.display = 'none';
+                            resolveBtn.style.display = 'none';
+                        }
+                    }
                 } else {
                     console.error("Failed to fetch messages:", result.message);
                 }
             } catch (err) {
                 console.error("Error fetching messages:", err);
             }
+        }
+
+        async function sendReply() {
+            const currentEscalation = allEscalations.find(e => e.conversation_id === Number(currentConversationId));
+            if (!currentEscalation) return;
+            const input = document.getElementById('reply-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.disabled = true;
+            try {
+                const res = await authenticatedFetch(`/api/conversations/${currentConversationId}/agent-reply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chatbot_id: selectedBotId,
+                        text: text,
+                        action_id: currentEscalation.id
+                    })
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    input.value = '';
+                    loadMessages(currentConversationId, currentConversationPhone, currentConversationName);
+                } else {
+                    alert('Error: ' + json.message);
+                }
+            } catch (err) {
+                alert('Failed to send reply');
+            }
+            input.disabled = false;
+            input.focus();
+        }
+
+        async function resolveEscalation() {
+            const currentEscalation = allEscalations.find(e => e.conversation_id === Number(currentConversationId));
+            if (!currentEscalation) return;
+            try {
+                const res = await authenticatedFetch(`/api/agent/escalations/${currentEscalation.id}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatbot_id: selectedBotId })
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    await fetchEscalations();
+                    filterConversations();
+                    const replyBox = document.getElementById('reply-box');
+                    const resolveBtn = document.getElementById('resolve-btn');
+                    if (replyBox) replyBox.style.display = 'none';
+                    if (resolveBtn) resolveBtn.style.display = 'none';
+                }
+            } catch (err) {}
+        }
+
+        function handleReplyKey(e) {
+            if (e.key === 'Enter') sendReply();
         }
 
         function createChatHeader(phone, name, loading = false) {
@@ -1284,10 +1437,22 @@
                 crmButton.textContent = 'CRM Lead';
                 crmButton.addEventListener('click', openConversationCrmModal);
 
+                const resolveBtn = document.createElement('button');
+                resolveBtn.type = 'button';
+                resolveBtn.className = 'transcript-btn';
+                resolveBtn.id = 'resolve-btn';
+                resolveBtn.style.display = 'none';
+                resolveBtn.style.background = 'var(--accent)';
+                resolveBtn.style.color = 'white';
+                resolveBtn.style.border = 'none';
+                resolveBtn.innerHTML = '<i data-lucide="check-circle" style="width: 14px; height: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Mark as Resolved';
+                resolveBtn.addEventListener('click', resolveEscalation);
+
                 const feedback = document.createElement('span');
                 feedback.className = 'transcript-feedback';
                 feedback.id = 'transcript-feedback';
 
+                actions.appendChild(resolveBtn);
                 actions.appendChild(crmButton);
                 actions.appendChild(copyLinkButton);
                 actions.appendChild(copyButton);
@@ -1367,10 +1532,53 @@
 
             const transcript = document.createElement('div');
             transcript.className = 'chat-transcript';
+            transcript.id = 'chat-transcript';
             transcript.appendChild(createTranscriptMessage('Loading messages...'));
 
             chatPane.appendChild(createChatHeader(phone, name, true));
             chatPane.appendChild(transcript);
+            
+            const replyBox = document.createElement('div');
+            replyBox.id = 'reply-box';
+            replyBox.className = 'reply-box';
+            replyBox.style.display = 'none';
+            replyBox.style.padding = '20px';
+            replyBox.style.borderTop = '1px solid var(--glass-border)';
+            replyBox.style.background = 'rgba(0,0,0,0.2)';
+            replyBox.style.gap = '12px';
+            replyBox.style.alignItems = 'center';
+            
+            const replyInput = document.createElement('input');
+            replyInput.type = 'text';
+            replyInput.id = 'reply-input';
+            replyInput.placeholder = 'Type your reply to the customer...';
+            replyInput.style.flexGrow = '1';
+            replyInput.style.background = 'var(--input-bg)';
+            replyInput.style.border = '1px solid var(--glass-border)';
+            replyInput.style.borderRadius = '12px';
+            replyInput.style.padding = '12px 16px';
+            replyInput.style.color = 'white';
+            replyInput.style.fontSize = '0.95rem';
+            replyInput.style.outline = 'none';
+            replyInput.onkeypress = handleReplyKey;
+            
+            const sendBtn = document.createElement('button');
+            sendBtn.onclick = sendReply;
+            sendBtn.style.background = 'var(--primary)';
+            sendBtn.style.color = 'white';
+            sendBtn.style.border = 'none';
+            sendBtn.style.padding = '12px 20px';
+            sendBtn.style.borderRadius = '12px';
+            sendBtn.style.fontWeight = '600';
+            sendBtn.style.cursor = 'pointer';
+            sendBtn.style.display = 'flex';
+            sendBtn.style.alignItems = 'center';
+            sendBtn.style.gap = '8px';
+            sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send';
+            
+            replyBox.appendChild(replyInput);
+            replyBox.appendChild(sendBtn);
+            chatPane.appendChild(replyBox);
         }
 
         function appendTextWithLineBreaks(parent, text) {
