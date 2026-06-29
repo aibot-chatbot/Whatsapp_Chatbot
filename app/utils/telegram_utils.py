@@ -1,5 +1,6 @@
 import logging
 import requests
+import re
 
 from app.services.ai_router import generate_response
 from app.database.conversation_repository import (
@@ -14,9 +15,9 @@ from app.database.processed_telegram_update_repository import (
 )
 
 
-def send_telegram_message(bot_token: str, chat_id: str, text: str):
+def send_telegram_message(bot_token: str, chat_id: str, text: str, reply_markup: dict = None):
     """
-    Send text reply back to Telegram.
+    Send text reply back to Telegram, optionally with a custom keyboard or inline buttons.
     """
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
@@ -25,6 +26,9 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str):
         "text": text,
         "disable_web_page_preview": True,
     }
+
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
 
     try:
         response = requests.post(url, json=payload, timeout=10)
@@ -157,20 +161,44 @@ def process_telegram_update(update: dict, webhook_secret: str):
         return
 
     message = update.get("message")
+    callback_query = update.get("callback_query")
 
-    if not message:
-        logging.info("Telegram update has no message. Ignored.")
+    if callback_query:
+        message = callback_query.get("message")
+        chat = message.get("chat", {}) if message else {}
+        from_user = callback_query.get("from", {})
+        chat_id = chat.get("id")
+        message_id = message.get("message_id") if message else None
+        message_text = callback_query.get("data")
+        contact = None
+        customer_name = get_telegram_customer_name(from_user)
+
+        # Answer callback query to stop the loading indicator on the button
+        requests.post(
+            f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery",
+            json={"callback_query_id": callback_query.get("id")},
+            timeout=5
+        ).json()
+
+        # Show typing indicator so the user knows the bot is processing their click
+        requests.post(
+            f"https://api.telegram.org/bot{bot_token}/sendChatAction",
+            json={"chat_id": chat_id, "action": "typing"},
+            timeout=5
+        )
+
+    elif message:
+        chat = message.get("chat", {})
+        from_user = message.get("from", {})
+        chat_id = chat.get("id")
+        message_id = message.get("message_id")
+        message_text = message.get("text")
+        contact = message.get("contact")
+        customer_name = get_telegram_customer_name(from_user)
+    else:
+        logging.info("Telegram update has no message or callback_query. Ignored.")
         save_processed_telegram_update(telegram_channel_id, update_id)
         return
-
-    chat = message.get("chat", {})
-    from_user = message.get("from", {})
-
-    chat_id = chat.get("id")
-    message_id = message.get("message_id")
-    message_text = message.get("text")
-    contact = message.get("contact")
-    customer_name = get_telegram_customer_name(from_user)
 
     if not chat_id:
         logging.warning("Telegram message missing chat_id. Ignored.")
@@ -329,13 +357,29 @@ def process_telegram_update(update: dict, webhook_secret: str):
         source_channel="telegram",
     )
 
-    for reply_part in split_telegram_reply(reply):
-        send_telegram_message(bot_token, customer_key, reply_part)
+    # Extract interactive buttons if any
+    button_matches = re.findall(r"\[BUTTON:\s*(.*?)\]", reply, re.IGNORECASE)
+    clean_reply = re.sub(r"\[BUTTON:\s*(.*?)\]", "", reply, flags=re.IGNORECASE).strip()
+
+    reply_markup = None
+    if button_matches:
+        # Create an inline keyboard layout (1 button per row)
+        inline_keyboard = [
+            [{"text": btn_text.strip(), "callback_data": btn_text.strip()}]
+            for btn_text in button_matches[:10] # limit just in case
+        ]
+        reply_markup = {"inline_keyboard": inline_keyboard}
+
+    parts = split_telegram_reply(clean_reply)
+    for i, reply_part in enumerate(parts):
+        # Only attach the buttons to the VERY LAST part of the split message
+        part_markup = reply_markup if i == len(parts) - 1 else None
+        send_telegram_message(bot_token, customer_key, reply_part, reply_markup=part_markup)
 
     save_message(
         conversation_id=conversation["id"],
         sender_type="bot",
-        message_text=reply,
+        message_text=clean_reply,
         message_type="text",
         delivery_status="sent",
         ai_generated=True,
