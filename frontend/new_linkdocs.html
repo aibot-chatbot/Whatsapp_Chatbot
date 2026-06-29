@@ -1073,28 +1073,71 @@
         function KnowledgeRefinement({ botId }) {
             const [questions, setQuestions] = useState([]);
             const [answers, setAnswers] = useState({});
+            const [logs, setLogs] = useState([]);
             const [loading, setLoading] = useState(false);
             const [submitting, setSubmitting] = useState(false);
             const [error, setError] = useState("");
             const [successMsg, setSuccessMsg] = useState("");
+            const logEndRef = React.useRef(null);
+
+            React.useEffect(() => {
+                if (logEndRef.current) {
+                    logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, [logs]);
 
             const fetchQuestions = async () => {
                 setLoading(true);
                 setError("");
                 setSuccessMsg("");
                 setQuestions([]);
+                setLogs(["Initializing verification scan..."]);
+                
                 try {
                     const response = await authenticatedFetch(`/api/knowledge/refinement/questions?chatbot_id=${botId}`);
-                    const data = await response.json();
-                    if (response.ok && data.status === "success") {
-                        setQuestions(data.data || []);
-                        const initialAnswers = {};
-                        (data.data || []).forEach((q, idx) => {
-                            initialAnswers[idx] = "";
-                        });
-                        setAnswers(initialAnswers);
-                    } else {
-                        setError(data.message || "Failed to generate questions.");
+                    
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        setError(errData.message || "Failed to generate questions.");
+                        setLoading(false);
+                        return;
+                    }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder("utf-8");
+                    let buffer = "";
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop(); // Save trailing unfinished line
+                        
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (trimmed.startsWith("data:")) {
+                                const dataStr = trimmed.slice(5).trim();
+                                try {
+                                    const parsed = JSON.parse(dataStr);
+                                    if (parsed.type === "log") {
+                                        setLogs(prev => [...prev, parsed.message]);
+                                    } else if (parsed.type === "error") {
+                                        setError(parsed.message);
+                                    } else if (parsed.type === "complete") {
+                                        setQuestions(parsed.questions || []);
+                                        const initialAnswers = {};
+                                        (parsed.questions || []).forEach((q, idx) => {
+                                            initialAnswers[idx] = "";
+                                        });
+                                        setAnswers(initialAnswers);
+                                    }
+                                } catch (e) {
+                                    console.error("Failed to parse SSE line:", e);
+                                }
+                            }
+                        }
                     }
                 } catch (err) {
                     setError("Network error. Please make sure the backend is running.");
@@ -1188,11 +1231,34 @@
                     )}
 
                     {loading && (
-                        <div style={{ textAlign: "center", padding: "60px 20px" }}>
+                        <div style={{ textAlign: "center", padding: "30px 20px" }}>
                             <div className="spinner" style={{ width: "36px", height: "36px", margin: "0 auto 16px auto" }}></div>
-                            <p style={{ color: "var(--text-dim)", fontSize: "0.95rem" }}>
-                                Analyzing the Knowledge Graph relationships using AI. This may take a few seconds...
+                            <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "20px" }}>
+                                Auditing the Knowledge Graph & PDF Content...
                             </p>
+                            
+                            <div style={{ 
+                                background: "#0b0b0c", 
+                                border: "1px solid rgba(255,255,255,0.08)", 
+                                borderRadius: "8px", 
+                                padding: "15px 20px", 
+                                maxHeight: "220px", 
+                                overflowY: "auto", 
+                                textAlign: "left", 
+                                fontFamily: "Consolas, Monaco, monospace", 
+                                fontSize: "0.85rem",
+                                color: "#00E676",
+                                lineHeight: "1.6",
+                                boxShadow: "inset 0 2px 8px rgba(0,0,0,0.8)"
+                            }}>
+                                {logs.map((log, lIdx) => (
+                                    <div key={lIdx} style={{ whiteSpace: "pre-wrap" }}>
+                                        <span style={{ color: "rgba(255,255,255,0.3)", marginRight: "8px" }}>&gt;</span>
+                                        {log}
+                                    </div>
+                                ))}
+                                <div ref={logEndRef} />
+                            </div>
                         </div>
                     )}
 
