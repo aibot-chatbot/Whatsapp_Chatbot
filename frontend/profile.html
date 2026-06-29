@@ -759,26 +759,31 @@
 
         /* ===== Load Team Info ===== */
         async function loadTeamInfo() {
+            var roleInput = document.getElementById("team-role");
+            var memberCountEl = document.getElementById("team-member-count");
+
+            // Start with neutral values — never show fake placeholder defaults
+            if (roleInput) roleInput.value = "N/A";
+            if (memberCountEl) memberCountEl.textContent = "Unable to load";
+
+            // Use the real role if loadProfile has already fetched it
+            if (roleInput && currentUser && currentUser.role) {
+                roleInput.value = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
+            }
+
+            // Fetch live member count from the existing team endpoint
             try {
-                var res = await authenticatedFetch("/api/team/current");
+                var res = await authenticatedFetch("/api/users");
                 var json = await res.json();
 
-                if (json.status === "success" && json.data) {
-                    var data = json.data;
-                    var nameInput = document.getElementById("team-name");
-                    var roleInput = document.getElementById("team-role");
-                    var memberCount = document.getElementById("team-member-count");
-                    var inviteInput = document.getElementById("team-invite-link");
-
-                    if (nameInput && data.team_name) nameInput.value = data.team_name;
-                    if (roleInput && data.role) roleInput.value = data.role;
-                    if (memberCount && data.member_count != null) {
-                        memberCount.textContent = data.member_count + " Member" + (data.member_count === 1 ? "" : "s");
+                if (res.ok && json.status === "success" && Array.isArray(json.data)) {
+                    var count = json.data.length;
+                    if (memberCountEl) {
+                        memberCountEl.textContent = count + " Member" + (count === 1 ? "" : "s");
                     }
-                    if (inviteInput && data.invite_link) inviteInput.value = data.invite_link;
                 }
             } catch (err) {
-                // Silently fall back to static placeholders
+                // Silently fall back — neutral values already set
             }
         }
 
@@ -1095,6 +1100,16 @@
             return html;
         }
 
+        function buildTokenRow(label, value) {
+            var val = (value == null || value === undefined) ? 0 : value;
+            var formatted = Number(val).toLocaleString();
+            var html = "<div style='background:var(--input-bg,rgba(15,23,42,0.6));border:1px solid var(--glass-border,rgba(255,255,255,0.1));border-radius:12px;padding:12px 14px;'>";
+            html += "<div style='font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;'>" + label + "</div>";
+            html += "<div style='font-size:1rem;font-weight:600;color:var(--text-main);'>" + formatted + "</div>";
+            html += "</div>";
+            return html;
+        }
+
         async function loadBillingInfo() {
             var section = document.getElementById("billing-section");
             var loading = document.getElementById("billing-loading");
@@ -1167,9 +1182,9 @@
                     var rows = [
                         buildUsageRow("Chatbots", u.chatbots && u.chatbots.used, u.chatbots && u.chatbots.limit, false),
                         buildUsageRow("Team Members", u.team_members && u.team_members.used, u.team_members && u.team_members.limit, false),
-                        buildUsageRow("Input Tokens Used", u.ai_tokens && u.ai_tokens.input_tokens, null, false),
-                        buildUsageRow("Output Tokens Used", u.ai_tokens && u.ai_tokens.output_tokens, null, false),
-                        buildUsageRow("Total Tokens Used", u.ai_tokens && u.ai_tokens.total_tokens, null, false),
+                        buildTokenRow("Input Tokens Used", u.ai_tokens && u.ai_tokens.input_tokens),
+                        buildTokenRow("Output Tokens Used", u.ai_tokens && u.ai_tokens.output_tokens),
+                        buildTokenRow("Total Tokens Used", u.ai_tokens && u.ai_tokens.total_tokens),
                         buildUsageRow("Knowledge Files", u.knowledge_files && u.knowledge_files.used, u.knowledge_files && u.knowledge_files.limit, false),
                         buildUsageRow("Knowledge Storage", u.knowledge_storage_bytes && u.knowledge_storage_bytes.used, u.knowledge_storage_bytes && u.knowledge_storage_bytes.limit, true),
                         buildUsageRow("Connected Channels", u.channels && u.channels.used, u.channels && u.channels.limit, false),
@@ -1198,7 +1213,7 @@
                     return;
                 }
                 var body = await res.json();
-                if (body.success && body.data && body.data.initialised) {
+                if (body.status === "success" && body.data && body.data.initialised) {
                     var d = body.data;
                     var microMyr = function(v) { return (Number(v) / 1000000).toFixed(2); };
                     document.getElementById("ai-credit-included").innerText = "RM " + microMyr(d.included_balance_micro_myr);
