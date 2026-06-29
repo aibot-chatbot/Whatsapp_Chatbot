@@ -189,10 +189,10 @@ def normalize_model_selection(provider, model_name):
     provider = (provider or "default").lower().strip()
 
     if provider in ["default", "none", "null", ""]:
-        return "default", None
+        provider = "openai"
 
     if not is_valid_provider(provider):
-        provider = "deepseek"
+        raise ValueError(f"Unsupported AI provider: {provider}")
 
     if not model_name or not is_valid_model(provider, model_name):
         model_name = get_default_model(provider)

@@ -1070,6 +1070,263 @@
             );
         }
 
+        function KnowledgeRefinement({ botId }) {
+            const [questions, setQuestions] = useState([]);
+            const [answers, setAnswers] = useState({});
+            const [logs, setLogs] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [submitting, setSubmitting] = useState(false);
+            const [error, setError] = useState("");
+            const [successMsg, setSuccessMsg] = useState("");
+            const logEndRef = React.useRef(null);
+
+            React.useEffect(() => {
+                if (logEndRef.current) {
+                    logEndRef.current.scrollIntoView({ behavior: 'smooth' });
+                }
+            }, [logs]);
+
+            const fetchQuestions = async () => {
+                setLoading(true);
+                setError("");
+                setSuccessMsg("");
+                setQuestions([]);
+                setLogs(["Initializing verification scan..."]);
+                
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/refinement/questions?chatbot_id=${botId}`);
+                    
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        setError(errData.message || "Failed to generate questions.");
+                        setLoading(false);
+                        return;
+                    }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder("utf-8");
+                    let buffer = "";
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop(); // Save trailing unfinished line
+                        
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (trimmed.startsWith("data:")) {
+                                const dataStr = trimmed.slice(5).trim();
+                                try {
+                                    const parsed = JSON.parse(dataStr);
+                                    if (parsed.type === "log") {
+                                        setLogs(prev => [...prev, parsed.message]);
+                                    } else if (parsed.type === "error") {
+                                        setError(parsed.message);
+                                    } else if (parsed.type === "complete") {
+                                        setQuestions(parsed.questions || []);
+                                        const initialAnswers = {};
+                                        (parsed.questions || []).forEach((q, idx) => {
+                                            initialAnswers[idx] = "";
+                                        });
+                                        setAnswers(initialAnswers);
+                                    }
+                                } catch (e) {
+                                    console.error("Failed to parse SSE line:", e);
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    setError("Network error. Please make sure the backend is running.");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleAnswerChange = (idx, value) => {
+                setAnswers(prev => ({
+                    ...prev,
+                    [idx]: value
+                }));
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setSubmitting(true);
+                setError("");
+                setSuccessMsg("");
+                
+                const qaPairs = questions.map((q, idx) => ({
+                    question: q.question,
+                    answer: answers[idx] || ""
+                })).filter(item => item.answer.trim() !== "");
+
+                if (qaPairs.length === 0) {
+                    setError("Please answer at least one question before submitting.");
+                    setSubmitting(false);
+                    return;
+                }
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/refinement/submit?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ answers: qaPairs }),
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.status === "success") {
+                        setSuccessMsg(data.message || "Refinement saved successfully!");
+                        setAnswers({});
+                        setQuestions([]);
+                    } else {
+                        setError(data.message || "Failed to submit answers.");
+                    }
+                } catch (err) {
+                    setError("Network error occurred during submission.");
+                } finally {
+                    setSubmitting(false);
+                }
+            };
+
+            return (
+                <div className="glass-card" style={{ padding: "30px", marginTop: "20px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+                        <div>
+                            <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "600", color: "var(--text)" }}>
+                                Interactive Knowledge Refinement
+                            </h3>
+                            <p style={{ margin: "4px 0 0 0", fontSize: "0.85rem", color: "var(--text-dim)" }}>
+                                Scan the knowledge graph to detect ambiguities, fill in the blanks, and make your AI chatbot smarter.
+                            </p>
+                        </div>
+                        <button 
+                            className="btn btn-primary" 
+                            type="button" 
+                            onClick={fetchQuestions}
+                            disabled={loading || submitting}
+                        >
+                            {loading ? (
+                                <span>
+                                    <span className="spinner"></span> Scanning...
+                                </span>
+                            ) : "🔍 Scan Graph for Gaps"}
+                        </button>
+                    </div>
+
+                    {error && (
+                        <div style={{ padding: "12px 16px", borderRadius: "8px", background: "rgba(220, 53, 69, 0.1)", border: "1px solid rgba(220, 53, 69, 0.2)", color: "#ff6b6b", marginBottom: "20px", fontSize: "0.9rem" }}>
+                            ⚠️ {error}
+                        </div>
+                    )}
+
+                    {successMsg && (
+                        <div style={{ padding: "12px 16px", borderRadius: "8px", background: "rgba(40, 167, 69, 0.1)", border: "1px solid rgba(40, 167, 69, 0.2)", color: "#2ebd59", marginBottom: "20px", fontSize: "0.9rem" }}>
+                            ✅ {successMsg}
+                        </div>
+                    )}
+
+                    {loading && (
+                        <div style={{ textAlign: "center", padding: "30px 20px" }}>
+                            <div className="spinner" style={{ width: "36px", height: "36px", margin: "0 auto 16px auto" }}></div>
+                            <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "20px" }}>
+                                Auditing the Knowledge Graph & PDF Content...
+                            </p>
+                            
+                            <div style={{ 
+                                background: "#0b0b0c", 
+                                border: "1px solid rgba(255,255,255,0.08)", 
+                                borderRadius: "8px", 
+                                padding: "15px 20px", 
+                                maxHeight: "220px", 
+                                overflowY: "auto", 
+                                textAlign: "left", 
+                                fontFamily: "Consolas, Monaco, monospace", 
+                                fontSize: "0.85rem",
+                                color: "#00E676",
+                                lineHeight: "1.6",
+                                boxShadow: "inset 0 2px 8px rgba(0,0,0,0.8)"
+                            }}>
+                                {logs.map((log, lIdx) => (
+                                    <div key={lIdx} style={{ whiteSpace: "pre-wrap" }}>
+                                        <span style={{ color: "rgba(255,255,255,0.3)", marginRight: "8px" }}>&gt;</span>
+                                        {log}
+                                    </div>
+                                ))}
+                                <div ref={logEndRef} />
+                            </div>
+                        </div>
+                    )}
+
+                    {!loading && questions.length === 0 && !successMsg && (
+                        <div style={{ textAlign: "center", padding: "40px 20px", border: "1px dashed var(--border)", borderRadius: "12px" }}>
+                            <div style={{ fontSize: "40px", marginBottom: "16px" }}>🎯</div>
+                            <h4 style={{ margin: "0 0 8px 0", fontSize: "1rem", color: "var(--text)" }}>Ready to Refine Knowledge</h4>
+                            <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-dim)", maxWidth: "480px", marginLeft: "auto", marginRight: "auto", lineHeight: "1.5" }}>
+                                Click the "Scan Graph for Gaps" button above. The AI will look at your active PDF's entities and relations to find missing or ambiguous information that needs clarification.
+                            </p>
+                        </div>
+                    )}
+
+                    {questions.length > 0 && (
+                        <form onSubmit={handleSubmit}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginBottom: "24px" }}>
+                                {questions.map((q, idx) => (
+                                    <div key={idx} className="glass-card" style={{ padding: "20px", background: "rgba(255,255,255,0.02)", border: "1px solid var(--border)" }}>
+                                        <div style={{ display: "flex", gap: "8px", alignItems: "flex-start", marginBottom: "12px" }}>
+                                            <span style={{ background: "rgba(0, 123, 255, 0.15)", color: "var(--primary)", fontSize: "0.75rem", fontWeight: "700", padding: "3px 8px", borderRadius: "20px" }}>
+                                                GAP DETECTED
+                                            </span>
+                                            <span style={{ fontSize: "0.85rem", color: "var(--text-dim)" }}>
+                                                {q.context}
+                                            </span>
+                                        </div>
+                                        <label style={{ display: "block", fontSize: "0.95rem", fontWeight: "500", color: "var(--text)", marginBottom: "8px" }}>
+                                            {q.question}
+                                        </label>
+                                        <textarea
+                                            className="form-control"
+                                            rows="3"
+                                            placeholder="Type the answer here..."
+                                            style={{ width: "100%", background: "rgba(0,0,0,0.2)", color: "white", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px", fontSize: "0.9rem", resize: "vertical", fontFamily: "inherit" }}
+                                            value={answers[idx] || ""}
+                                            onChange={(e) => handleAnswerChange(idx, e.target.value)}
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
+                                <button 
+                                    className="btn" 
+                                    type="button" 
+                                    onClick={() => setQuestions([])}
+                                    disabled={submitting}
+                                >
+                                    Clear
+                                </button>
+                                <button 
+                                    className="btn btn-primary" 
+                                    type="submit"
+                                    disabled={submitting}
+                                >
+                                    {submitting ? (
+                                        <span>
+                                            <span className="spinner"></span> Saving Refinements...
+                                        </span>
+                                    ) : "Save Refinements & Update AI"}
+                                </button>
+                            </div>
+                        </form>
+                    )}
+                </div>
+            );
+        }
+
         function App() {
             const [file, setFile] = useState(null);
             const [status, setStatus] = useState({ type: "", text: "", action: "" });
@@ -1555,9 +1812,16 @@
                             >
                                 Knowledge Graph
                             </div>
+                            <div 
+                                className={`tab-item ${activeViewTab === "refinement" ? "active" : ""}`}
+                                onClick={() => setActiveViewTab("refinement")}
+                                style={{ cursor: "pointer" }}
+                            >
+                                Knowledge Refinement Q&A
+                            </div>
                         </div>
 
-                        {activeViewTab === "sources" ? (
+                        {activeViewTab === "sources" && (
                             <>
                                 <div className="action-bar">
                                     <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
@@ -1660,8 +1924,12 @@
                                     {files.length === 0 ? "0 items" : `1-${files.length} of ${files.length} items`}
                                 </div>
                             </>
-                        ) : (
+                        )}
+                        {activeViewTab === "graph" && (
                             <GraphVisualizer botId={selectedBotId} activeFile={activeFile} />
+                        )}
+                        {activeViewTab === "refinement" && (
+                            <KnowledgeRefinement botId={selectedBotId} />
                         )}
                     </main>
 

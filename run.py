@@ -18,10 +18,14 @@ def env_flag(name, default=False):
 
 
 if __name__ == "__main__":
-    start_ngrok()
+    # Start side effects only in the real serving process.
+    # The werkzeug reloader parent also executes __main__ but
+    # WERKZEUG_RUN_MAIN is set only in the child process.
+    if os.environ.get("WERKZEUG_RUN_MAIN") == "true":
+        start_ngrok()
 
-    if env_flag("WASENDER_RETRY_WORKER_ENABLED", default=True):
-        start_wasender_retry_worker()
+        if env_flag("WASENDER_RETRY_WORKER_ENABLED", default=True):
+            start_wasender_retry_worker()
 
     app.run(
         host=os.getenv("FLASK_HOST", "0.0.0.0"),
