@@ -4,6 +4,7 @@ from app.utils.access_control import verify_chatbot_access, role_required
 
 # import your existing chatbot function
 from app.services.ai_router import generate_response, OPERATION_TEST_CHAT
+from app.services.billing_guard import BillingLimitError
 
 # create blueprint
 chat_blueprint = Blueprint("chat", __name__)
@@ -47,6 +48,19 @@ def test_chat():
             "reply": reply
         }), 200
 
+    except BillingLimitError as e:
+        if e.code == "ai_credit_insufficient":
+            return jsonify({
+                "status": "error",
+                "code": "ai_credit_insufficient",
+                "message": str(e)
+            }), 402
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+            "details": e.details or {}
+        }), 403
     except Exception as e:
         return jsonify({
             "status": "error",

@@ -15,6 +15,7 @@ from app.database.ai_credit_repository import (
     get_credit_transaction_by_usage as _get_transaction_by_usage,
     ensure_company_ai_credit_period as _ensure_period,
     charge_ai_usage_credit as _charge_usage,
+    add_ai_credit_topup as _add_topup,
 )
 
 logger = logging.getLogger(__name__)
@@ -309,3 +310,91 @@ def charge_logged_ai_usage(
     markup = markup_basis_points if markup_basis_points is not None else get_ai_retail_markup_basis_points()
     fx_rate = fx_rate_micro_myr_per_usd if fx_rate_micro_myr_per_usd is not None else get_ai_usd_to_myr_rate_micro_myr_per_usd()
     return _charge_usage(ai_usage_log_id, markup, fx_rate)
+
+# ---------------------------------------------------------------------------
+# Top-up
+# ---------------------------------------------------------------------------
+
+
+def add_company_ai_credit_topup(
+    company_id: int,
+    amount_micro_myr: int,
+    idempotency_key: str,
+    payment_reference: str,
+    description: str | None = None,
+) -> dict:
+    """Add top-up credit to a company's AI credit balance.
+
+    This function is intended for authenticated internal use only. It is
+    not exposed directly via any public API endpoint.
+
+    Steps performed (all atomically in the RPC):
+    1. Validates all input parameters.
+    2. Calls the `add_ai_credit_topup` RPC.
+    3. Returns a structured result with the new balances.
+
+    Args:
+        company_id: The company to top up (must be a positive integer).
+        amount_micro_myr: Amount in micro-MYR (must be a positive integer).
+        idempotency_key: Unique key to prevent duplicate processing
+            (must be a non-empty string).
+        payment_reference: External payment reference (must be a non-empty
+            string, e.g. gateway transaction ID).
+        description: Optional human-readable description for the ledger
+            entry.
+
+    Returns:
+        Dictionary containing:
+        - status: `"applied"` or `"already_applied"`
+        - transaction_id (int or None)
+        - company_id (int)
+        - amount_micro_myr (int)
+        - included_balance_micro_myr (int)
+        - topup_balance_micro_myr (int)
+        - total_balance_micro_myr (int)
+        - payment_reference (str)
+        - idempotency_key (str)
+
+    Raises:
+        ValueError: If any input parameter is invalid.
+        RuntimeError: If the RPC call fails or returns no data.
+    """
+    if not company_id or not isinstance(company_id, int) or company_id < 1:
+        raise ValueError(
+            f"company_id must be a positive integer, got {company_id!r}"
+        )
+    if not isinstance(amount_micro_myr, int) or amount_micro_myr <= 0:
+        raise ValueError(
+            f"amount_micro_myr must be a positive integer, got {amount_micro_myr!r}"
+        )
+    if not idempotency_key or not isinstance(idempotency_key, str) or not idempotency_key.strip():
+        raise ValueError(
+            "idempotency_key must be a non-empty string"
+        )
+    if not payment_reference or not isinstance(payment_reference, str) or not payment_reference.strip():
+        raise ValueError(
+            "payment_reference must be a non-empty string"
+        )
+
+    result = _add_topup(
+        company_id=company_id,
+        amount_micro_myr=amount_micro_myr,
+        idempotency_key=idempotency_key.strip(),
+        payment_reference=payment_reference.strip(),
+        description=description.strip() if description else None,
+    )
+
+    included = result.get("included_balance_micro_myr", 0) or 0
+    topup = result.get("topup_balance_micro_myr", 0) or 0
+
+    return {
+        "status": result.get("status"),
+        "transaction_id": result.get("transaction_id"),
+        "company_id": result.get("company_id", company_id),
+        "amount_micro_myr": result.get("amount_micro_myr", amount_micro_myr),
+        "included_balance_micro_myr": included,
+        "topup_balance_micro_myr": topup,
+        "total_balance_micro_myr": included + topup,
+        "payment_reference": result.get("payment_reference", payment_reference),
+        "idempotency_key": result.get("idempotency_key", idempotency_key),
+    }
