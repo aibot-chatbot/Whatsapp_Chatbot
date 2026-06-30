@@ -236,6 +236,91 @@ def charge_ai_usage_credit(
 
 
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Top-up
+# ---------------------------------------------------------------------------
+
+
+def add_ai_credit_topup(
+    company_id: int,
+    amount_micro_myr: int,
+    idempotency_key: str,
+    payment_reference: str,
+    description: str | None = None,
+) -> dict:
+    """Atomically add top-up credit to a company's AI credit balance.
+
+    Delegates to the PostgreSQL RPC function `add_ai_credit_topup` so
+    that the balance update, ledger insert, and duplicate checks happen
+    in a single database transaction.
+
+    The RPC protects against duplicate idempotency keys and duplicate
+    payment references, returning `already_applied` instead of
+    creating a duplicate top-up.
+
+    Args:
+        company_id: The company to top up.
+        amount_micro_myr: Amount of top-up credit in micro-MYR (must be
+            a positive integer).
+        idempotency_key: Unique key to prevent duplicate processing.
+        payment_reference: External payment reference (e.g. gateway
+            transaction ID).
+        description: Optional human-readable description for the ledger
+            entry.
+
+    Returns:
+        RPC result dictionary containing:
+        - status: `"applied"` or `"already_applied"`
+        - transaction_id
+        - company_id
+        - amount_micro_myr
+        - included_balance_micro_myr
+        - topup_balance_micro_myr
+        - total_balance_micro_myr
+        - payment_reference
+        - idempotency_key
+
+    Raises:
+        ValueError: If company_id, amount, idempotency_key or
+            payment_reference are invalid.
+        RuntimeError: If the RPC call fails or returns no data.
+    """
+    _validate_company_id(company_id)
+    _validate_topup_amount(amount_micro_myr)
+
+    if not idempotency_key or not isinstance(idempotency_key, str) or not idempotency_key.strip():
+        raise ValueError(
+            f"idempotency_key must be a non-empty string, got {idempotency_key!r}"
+        )
+    if not payment_reference or not isinstance(payment_reference, str) or not payment_reference.strip():
+        raise ValueError(
+            f"payment_reference must be a non-empty string, got {payment_reference!r}"
+        )
+
+    params = {
+        "p_company_id": company_id,
+        "p_amount_micro_myr": amount_micro_myr,
+        "p_idempotency_key": idempotency_key.strip(),
+        "p_payment_reference": payment_reference.strip(),
+        "p_description": description.strip() if description else None,
+    }
+
+    result = supabase.rpc(
+        "add_ai_credit_topup",
+        params,
+    ).execute()
+
+    data = result.data
+
+    if not data or not isinstance(data, list) or len(data) == 0:
+        raise RuntimeError(
+            f"add_ai_credit_topup RPC returned no data for company {company_id}, "
+            f"idempotency_key={idempotency_key!r}"
+        )
+
+    return data[0]
+
 # Internal helpers
 # ---------------------------------------------------------------------------
 
@@ -268,3 +353,13 @@ def _validate_positive_fx_rate(fx_rate_micro_myr_per_usd: int):
             f"fx_rate_micro_myr_per_usd must be a positive integer, got {fx_rate_micro_myr_per_usd}"
         )
 
+
+def _validate_topup_amount(amount_micro_myr: int):
+    if not isinstance(amount_micro_myr, int):
+        raise ValueError(
+            f"amount_micro_myr must be an integer, got {amount_micro_myr!r}"
+        )
+    if amount_micro_myr <= 0:
+        raise ValueError(
+            f"amount_micro_myr must be a positive integer, got {amount_micro_myr}"
+        )

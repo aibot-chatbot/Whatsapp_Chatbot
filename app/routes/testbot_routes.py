@@ -5,6 +5,7 @@ from app.services.settings_service import get_deployed_runtime
 from app.services.profile_service import get_profile_by_name
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
+from app.services.billing_guard import BillingLimitError
 
 testbot_blueprint = Blueprint("testbot", __name__)
 TESTBOT_SESSION_ID = "web_testbot_session"
@@ -82,6 +83,19 @@ def chat_with_testbot():
         return jsonify({
             "status": "error",
             "message": str(e)
+        }), 403
+    except BillingLimitError as e:
+        if e.code == "ai_credit_insufficient":
+            return jsonify({
+                "status": "error",
+                "code": "ai_credit_insufficient",
+                "message": str(e)
+            }), 402
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+            "details": e.details or {}
         }), 403
     except Exception as e:
         return jsonify({
