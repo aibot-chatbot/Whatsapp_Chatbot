@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, request
 import os
 from flask_cors import CORS
 from app.config import load_configurations, configure_logging
@@ -23,6 +23,7 @@ from app.routes.agent_routes import agent_blueprint
 from app.routes.user_routes import user_bp, team_bp
 from app.routes.invite_routes import invite_bp
 from app.routes.billing_routes import billing_bp
+from app.routes.toyyibpay_routes import toyyibpay_bp
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -62,5 +63,23 @@ def create_app():
     app.register_blueprint(team_bp)
     app.register_blueprint(invite_bp)
     app.register_blueprint(billing_bp)
+    app.register_blueprint(toyyibpay_bp)
+
+    # Serve frontend files as fallback for unmatched GET routes
+    FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+
+    @app.errorhandler(404)
+    def serve_frontend_fallback(error):
+        path = request.path.lstrip("/")
+        if not path:
+            path = "login.html"
+        if path.startswith("api/"):
+            return {"status": "error", "message": "Not found"}, 404
+        try:
+            from flask import send_from_directory
+            return send_from_directory(FRONTEND_DIR, path), 200
+        except Exception:
+            return {"status": "error", "message": "Not found"}, 404
 
     return app
+

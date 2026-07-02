@@ -1,4 +1,4 @@
-﻿"""ai_credit_topup_order_service.py -- Service layer for AI-credit top-up order management.
+"""ai_credit_topup_order_service.py -- Service layer for AI-credit top-up order management.
 
 This module sits between routes and the top-up order repository.  It enforces
 business rules, input validation, and status-transition logic.
@@ -7,6 +7,7 @@ No browser-controlled endpoint is added by this module.
 """
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Any
 
@@ -31,9 +32,28 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _validate_order_reference(ref: str, label: str = "order_reference"):
-    if not ref or not isinstance(ref, str) or not ref.strip():
-        raise ValueError(f"{label} must be a non-empty string")
+def _validate_order_reference(ref: str | uuid.UUID, label: str = "order_reference") -> str:
+    """Validate and return a canonical lowercase hyphenated UUID string.
+
+    Accepts a `str` (hex with or without hyphens, any case) or a
+    `uuid.UUID` object.  Rejects custom non-UUID strings such as
+    `TOPUP-...`, empty values, integers, booleans and malformed input.
+
+    Returns:
+        Canonical lowercase hyphenated UUID string, for example
+        ``"550e8400-e29b-41d4-a716-446655440000"``.
+    """
+    if isinstance(ref, uuid.UUID):
+        return str(ref)
+    if not isinstance(ref, str) or not ref.strip():
+        raise ValueError(f"{label} must be a non-empty UUID string")
+    try:
+        parsed = uuid.UUID(hex=ref.strip())
+    except (ValueError, AttributeError):
+        raise ValueError(
+            f"{label} must be a valid UUID, got {ref!r}"
+        )
+    return str(parsed)
 
 
 def _validate_positive_int(value: Any, label: str):
@@ -108,7 +128,7 @@ def create_pending_topup_order(
         )
 
     # Generate a unique order reference
-    order_reference = _generate_order_reference(company_id)
+    order_reference = _generate_order_reference()
 
     created = _repo_create(
         order_reference=order_reference,
@@ -147,11 +167,11 @@ def update_gateway_details(
     Returns:
         The updated order row dictionary.
     """
-    _validate_order_reference(order_reference)
+    order_reference = _validate_order_reference(order_reference)
     _validate_non_empty_str(gateway_order_id, "gateway_order_id")
 
     return _repo_update_gateway(
-        order_reference=order_reference.strip(),
+        order_reference=order_reference,
         gateway_order_id=gateway_order_id.strip(),
         checkout_url=checkout_url,
         expires_at=expires_at,
@@ -188,14 +208,14 @@ def mark_order_paid(
         ValueError: If inputs are invalid.
         RuntimeError: If the status transition is not allowed.
     """
-    _validate_order_reference(order_reference)
+    order_reference = _validate_order_reference(order_reference)
     _validate_non_empty_str(gateway_payment_id, "gateway_payment_id")
     _validate_non_empty_str(payment_reference, "payment_reference")
 
     timestamp = paid_at if paid_at else _now_iso()
 
     return _repo_mark_paid(
-        order_reference=order_reference.strip(),
+        order_reference=order_reference,
         gateway_payment_id=gateway_payment_id.strip(),
         payment_reference=payment_reference.strip(),
         paid_at=timestamp,
@@ -229,13 +249,13 @@ def mark_order_credited(
         ValueError: If inputs are invalid.
         RuntimeError: If the status transition is not allowed.
     """
-    _validate_order_reference(order_reference)
+    order_reference = _validate_order_reference(order_reference)
     _validate_positive_int(credit_transaction_id, "credit_transaction_id")
 
     timestamp = credited_at if credited_at else _now_iso()
 
     return _repo_mark_credited(
-        order_reference=order_reference.strip(),
+        order_reference=order_reference,
         credit_transaction_id=credit_transaction_id,
         credited_at=timestamp,
     )
@@ -259,9 +279,9 @@ def mark_order_failed(
     Returns:
         The updated order row dictionary.
     """
-    _validate_order_reference(order_reference)
+    order_reference = _validate_order_reference(order_reference)
     return _repo_mark_failed(
-        order_reference=order_reference.strip(),
+        order_reference=order_reference,
         failure_reason=failure_reason,
     )
 
@@ -275,8 +295,8 @@ def mark_order_expired(order_reference: str) -> dict:
     Returns:
         The updated order row dictionary.
     """
-    _validate_order_reference(order_reference)
-    return _repo_mark_expired(order_reference=order_reference.strip())
+    order_reference = _validate_order_reference(order_reference)
+    return _repo_mark_expired(order_reference=order_reference)
 
 
 def mark_order_cancelled(order_reference: str) -> dict:
@@ -288,8 +308,8 @@ def mark_order_cancelled(order_reference: str) -> dict:
     Returns:
         The updated order row dictionary.
     """
-    _validate_order_reference(order_reference)
-    return _repo_mark_cancelled(order_reference=order_reference.strip())
+    order_reference = _validate_order_reference(order_reference)
+    return _repo_mark_cancelled(order_reference=order_reference)
 
 
 # ---------------------------------------------------------------------------
@@ -297,16 +317,14 @@ def mark_order_cancelled(order_reference: str) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def _generate_order_reference(company_id: int) -> str:
-    """Generate a unique order reference string.
+def _generate_order_reference() -> str:
+    """Generate a unique order reference as a canonical UUID v4 string.
 
-    Format: ``TOPUP-{company_id}-{timestamp_nonce}``
-
-    This is a simple unique reference generator.  A production system
-    should use a dedicated service for guaranteed uniqueness.
+    The database ``ai_credit_topup_orders.order_reference`` column is
+    ``UUID`` with a default of ``gen_random_uuid()``, so the reference
+    must be a valid UUID.
     """
-    nonce = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    return f"TOPUP-{company_id}-{nonce}"
+    return str(uuid.uuid4())
 # ---------------------------------------------------------------------------
 # Checkout-claim service wrappers
 # ---------------------------------------------------------------------------
@@ -438,7 +456,7 @@ def complete_checkout_creation(
     checkout_url: str,
     expires_at: str | None = None,
 ) -> dict:
-    """Complete a claimed checkout by storing Billplz gateway details.
+    """Complete a claimed checkout by storing payment gateway details.
 
     This is the service-layer wrapper around
     :func:`complete_topup_checkout() <app.database.ai_credit_topup_order_repository.complete_topup_checkout>`.
@@ -446,8 +464,8 @@ def complete_checkout_creation(
     Args:
         order_reference: The claimed order.
         claim_token: The token used when claiming.
-        gateway_order_id: Billplz bill ID.
-        checkout_url: Billplz checkout URL.
+        gateway_order_id: payment bill ID.
+        checkout_url: payment checkout URL.
         expires_at: Optional ISO-8601 expiry timestamp.
 
     Returns:
@@ -526,4 +544,5 @@ def _normalize_failure_reason(reason: str | None) -> str | None:
     if not cleaned:
         return None
     return cleaned[:500]
+
 
