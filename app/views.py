@@ -18,25 +18,9 @@ from app.services.billing_guard import can_upload_knowledge_file, can_upload_kno
 webhook_blueprint = Blueprint("webhook", __name__)
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
 
-
 @webhook_blueprint.route("/", methods=["GET"])
 def serve_frontend_root():
     return send_from_directory(FRONTEND_DIR, "login.html")
-
-
-@webhook_blueprint.route("/<path:filename>", methods=["GET"])
-def serve_frontend_file(filename):
-    reserved_prefixes = (
-        "api/",
-        "webhook",
-        "telegram/webhook/",
-        "wasender/webhook/",
-    )
-
-    if filename == "webhook" or filename.startswith(reserved_prefixes):
-        abort(404)
-
-    return send_from_directory(FRONTEND_DIR, filename)
 
 
 def handle_message():
@@ -80,7 +64,6 @@ def handle_message():
         logging.error(f"Webhook error: {e}")
         return jsonify({"status": "error", "message": "Internal error"}), 500
 
-
 # Required webhook verifictaion for WhatsApp
 def verify():
     # Parse params from the webhook verification request
@@ -103,7 +86,6 @@ def verify():
         logging.info("MISSING_PARAMETER")
         return jsonify({"status": "error", "message": "Missing parameters"}), 400
 
-
 @webhook_blueprint.route("/webhook", methods=["GET"])
 def webhook_get():
     return verify()
@@ -112,7 +94,6 @@ def webhook_get():
 @signature_required
 def webhook_post():
     return handle_message()
-
 
 @webhook_blueprint.route("/upload-pdf", methods=["POST"])
 @token_required

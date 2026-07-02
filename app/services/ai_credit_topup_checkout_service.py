@@ -1,17 +1,19 @@
-﻿"""ai_credit_topup_checkout_service.py -- Internal Billplz top-up checkout orchestration.
+"""ai_credit_topup_checkout_service.py -- Internal generic top-up checkout orchestration.
 
-This module creates a pending AI-credit top-up order and a corresponding
-Billplz Bill.  It is an internal service with no public Flask route.
+This module creates a pending AI-credit top-up order and a corresponding\nToyyibPay payment gateway bill.  It is an internal service
+with no public Flask route.
 
 No AI credit is granted by this module.
 """
 
 import logging
 import uuid
-from typing import Any
+from typing import Any, Callable
 
-from app.services.billplz_service import (
-    create_bill as _create_billplz_bill,
+from app.services.toyyibpay_service import (
+    ToyyibPayConfig,
+    ToyyibPayConfigError,
+    create_bill as _create_toyyibpay_bill,
 )
 from app.services.ai_credit_topup_order_service import (
     create_pending_topup_order as _create_pending_order,
@@ -22,8 +24,6 @@ from app.services.ai_credit_topup_order_service import (
 
 logger = logging.getLogger(__name__)
 
-_PAYMENT_GATEWAY = "billplz"
-
 _MICRO_MYR_PER_SEN = 10_000
 
 _VALID_NON_CREDIT_STATUSES = frozenset({
@@ -33,6 +33,36 @@ _VALID_NON_CREDIT_STATUSES = frozenset({
     "expired",
     "cancelled",
 })
+
+_VALID_GATEWAYS = frozenset({"toyyibpay"})
+
+
+def _call_toyyibpay_create_bill(
+    order_reference: str,
+    amount_micro_myr: int,
+    customer_email: str,
+    customer_name: str,
+    description: str,
+    customer_phone: str | None = None,
+    **_kwargs: Any,
+) -> dict:
+    return _create_toyyibpay_bill(
+        order_reference=order_reference,
+        amount_micro_myr=amount_micro_myr,
+        customer_email=customer_email,
+        customer_name=customer_name,
+        description=description,
+        customer_phone=customer_phone,
+    )
+
+
+_PROVIDER_REGISTRY: dict[str, Callable[..., dict]] = {
+    "toyyibpay": _call_toyyibpay_create_bill,
+}
+
+_PROVIDER_NAMES: dict[str, str] = {
+    "toyyibpay": "ToyyibPay",
+}
 
 
 def _validate_positive_int(value: Any, label: str) -> None:
@@ -63,7 +93,15 @@ def _validate_amount_divisibility(amount_micro_myr: int) -> None:
         )
 
 
-def create_billplz_topup_checkout(
+def _validate_gateway(gateway: str) -> None:
+    if gateway not in _VALID_GATEWAYS:
+        raise ValueError(
+            f"payment_gateway must be one of {sorted(_VALID_GATEWAYS)}, "
+            f"got {gateway!r}"
+        )
+
+
+def create_ai_credit_topup_checkout(
     company_id: int,
     subscription_id: int,
     created_by_user_id: int,
@@ -71,10 +109,11 @@ def create_billplz_topup_checkout(
     customer_email: str,
     customer_name: str,
     idempotency_key: str,
+    payment_gateway: str,
     description: str | None = None,
     expires_at: str | None = None,
+    customer_phone: str | None = None,
 ) -> dict:
-    """Create a Billplz-powered AI-credit top-up checkout."""
     _validate_positive_int(company_id, "company_id")
     _validate_positive_int(subscription_id, "subscription_id")
     _validate_positive_int(created_by_user_id, "created_by_user_id")
@@ -82,17 +121,21 @@ def create_billplz_topup_checkout(
     _validate_email(customer_email)
     _validate_non_empty_str(customer_name, "customer_name")
     _validate_non_empty_str(idempotency_key, "idempotency_key")
+    _validate_gateway(payment_gateway)
     _validate_amount_divisibility(amount_micro_myr)
 
     if description is not None and not isinstance(description, str):
         raise ValueError("description must be a string or None")
 
+    provider_name = _PROVIDER_NAMES[payment_gateway]
+    provider_fn = _PROVIDER_REGISTRY[payment_gateway]
+
     normalized_desc = description.strip() if description else "AI Credit Top-Up"
 
     logger.info(
-        "Creating Billplz top-up checkout for company %d, amount %d micro-MYR, "
+        "Creating %s top-up checkout for company %d, amount %d micro-MYR, "
         "idempotency_key %r",
-        company_id, amount_micro_myr, idempotency_key,
+        provider_name, company_id, amount_micro_myr, idempotency_key,
     )
 
     order = _create_pending_order(
@@ -100,7 +143,7 @@ def create_billplz_topup_checkout(
         subscription_id=subscription_id,
         created_by_user_id=created_by_user_id,
         amount_micro_myr=amount_micro_myr,
-        payment_gateway=_PAYMENT_GATEWAY,
+        payment_gateway=payment_gateway,
         idempotency_key=idempotency_key,
         expires_at=expires_at,
     )
@@ -126,6 +169,7 @@ def create_billplz_topup_checkout(
                 order=order,
                 gateway_order_id=existing_gateway_order_id,
                 checkout_url=existing_checkout_url,
+                payment_gateway=payment_gateway,
             )
 
     elif order_status == "paid":
@@ -182,6 +226,7 @@ def create_billplz_topup_checkout(
             order=existing_order,
             gateway_order_id=gw_id,
             checkout_url=gw_url,
+            payment_gateway=payment_gateway,
         )
 
     elif reason == "checkout_in_progress":
@@ -190,7 +235,7 @@ def create_billplz_topup_checkout(
         )
 
     elif reason == "invalid_status":
-        status = claim_result.get("order_status", "unknown")
+        status = claim_result.get("status", "unknown")
         raise RuntimeError(
             f"Checkout cannot be created for order status: {status}"
         )
@@ -202,59 +247,88 @@ def create_billplz_topup_checkout(
         )
 
     try:
-        billplz_result = _create_billplz_bill(
+        bill_result = provider_fn(
             order_reference=order_reference,
             amount_micro_myr=amount_micro_myr,
             customer_email=customer_email.strip(),
             customer_name=customer_name.strip(),
             description=normalized_desc,
+            customer_phone=customer_phone.strip() if customer_phone else None,
         )
-    except (ValueError, RuntimeError):
+    except (ValueError, RuntimeError, ToyyibPayConfigError):
         _fail_checkout(
             order_reference=order_reference,
             claim_token=claim_token,
-            failure_reason="Billplz bill creation failed",
+            failure_reason=f"{provider_name} bill creation failed",
         )
         raise
 
-    bill_id = billplz_result.get("bill_id")
-    checkout_url_result = billplz_result.get("checkout_url")
+    gateway_order_id = bill_result.get("gateway_order_id") or bill_result.get("bill_id")
+    checkout_url_result = bill_result.get("checkout_url")
 
-    if not bill_id or not checkout_url_result:
+    if not gateway_order_id or not checkout_url_result:
         _fail_checkout(
             order_reference=order_reference,
             claim_token=claim_token,
-            failure_reason="Billplz response missing bill ID or URL",
+            failure_reason=f"{provider_name} response missing gateway ID or URL",
         )
         raise RuntimeError(
-            f"Billplz returned a response without a bill ID or checkout URL "
-            f"for order {order_reference!r}"
+            f"{provider_name} returned a response without a gateway order ID "
+            f"or checkout URL for order {order_reference!r}"
         )
 
     try:
         _complete_checkout(
             order_reference=order_reference,
             claim_token=claim_token,
-            gateway_order_id=bill_id,
+            gateway_order_id=gateway_order_id,
             checkout_url=checkout_url_result,
             expires_at=expires_at,
         )
     except (ValueError, RuntimeError) as exc:
         logger.error(
-            "CRITICAL: Billplz bill %s created for order %s but completing "
+            "CRITICAL: %s gateway order %s created for order %s but completing "
             "checkout claim failed: %s. Manual reconciliation required.",
-            bill_id, order_reference, exc,
+            provider_name, gateway_order_id, order_reference, exc,
         )
         raise RuntimeError(
             f"Reconciliation required for order {order_reference!r} and "
-            f"Billplz bill {bill_id!r}: checkout completion failed. "
-            f"Please contact support."
+            f"{provider_name} gateway order {gateway_order_id!r}: "
+            f"checkout completion failed. Please contact support."
         )
 
     return _build_checkout_result(
         order=order,
-        gateway_order_id=bill_id,
+        gateway_order_id=gateway_order_id,
         checkout_url=checkout_url_result,
+        payment_gateway=payment_gateway,
+    )
+
+
+def create_toyyibpay_topup_checkout(
+    company_id: int,
+    subscription_id: int,
+    created_by_user_id: int,
+    amount_micro_myr: int,
+    customer_email: str,
+    customer_name: str,
+    idempotency_key: str,
+    customer_phone: str | None = None,
+    description: str | None = None,
+    expires_at: str | None = None,
+) -> dict:
+    return create_ai_credit_topup_checkout(
+        company_id=company_id,
+        subscription_id=subscription_id,
+        created_by_user_id=created_by_user_id,
+        amount_micro_myr=amount_micro_myr,
+        customer_email=customer_email,
+        customer_name=customer_name,
+        idempotency_key=idempotency_key,
+        payment_gateway="toyyibpay",
+        customer_phone=customer_phone,
+        description=description,
+        expires_at=expires_at,
     )
 
 
@@ -262,6 +336,7 @@ def _build_checkout_result(
     order: dict,
     gateway_order_id: str,
     checkout_url: str,
+    payment_gateway: str = "toyyibpay",
 ) -> dict:
     return {
         "status": "pending",
@@ -270,7 +345,7 @@ def _build_checkout_result(
         "company_id": order.get("company_id"),
         "amount_micro_myr": order.get("amount_micro_myr"),
         "currency": "MYR",
-        "payment_gateway": _PAYMENT_GATEWAY,
+        "payment_gateway": payment_gateway,
         "gateway_order_id": gateway_order_id,
         "checkout_url": checkout_url,
         "expires_at": order.get("expires_at"),

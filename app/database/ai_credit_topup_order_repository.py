@@ -116,7 +116,7 @@ def create_topup_order(
         created_by_user_id: Authenticated user who initiated the order.
         amount_micro_myr: Amount in micro-MYR (positive integer).
         currency: Currency code (must be "MYR").
-        payment_gateway: Payment gateway name (e.g. "stripe", "billplz").
+        payment_gateway: Payment gateway name (e.g. "stripe", "toyyibpay").
         idempotency_key: Unique key for duplicate protection.
         expires_at: Optional ISO-8601 timestamp for order expiry.
 
@@ -520,7 +520,7 @@ def complete_topup_checkout(
     checkout_url: str,
     expires_at: str | None = None,
 ) -> dict:
-    """Complete a claimed top-up checkout with Billplz gateway details.
+    """Complete a claimed top-up checkout with payment gateway details.
 
     Calls the ``complete_ai_credit_topup_checkout`` RPC, which
     transitions a ``claimed`` order to ``pending`` and stores the
@@ -529,8 +529,8 @@ def complete_topup_checkout(
     Args:
         order_reference: The claimed order.
         claim_token: The token used when claiming the order.
-        gateway_order_id: Billplz bill ID.
-        checkout_url: Billplz checkout URL.
+        gateway_order_id: payment bill ID.
+        checkout_url: payment checkout URL.
         expires_at: Optional ISO-8601 expiry timestamp.
 
     Returns:
@@ -630,3 +630,4 @@ def fail_topup_checkout(
         )
 
     return row
+
