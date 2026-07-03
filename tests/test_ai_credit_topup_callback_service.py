@@ -54,6 +54,7 @@ _BASE_ORDER = {
 _CALLBACK = {
     "payment_gateway": "toyyibpay",
     "gateway_order_id": "BC123",
+    "order_reference": "11111111-1111-4111-8111-111111111111",
     "paid": True,
     "payment_reference": "REF123",
     "amount_sen": 100,
@@ -350,6 +351,137 @@ class TestTopupCallbackService(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             process_topup_payment_callback(self._make_callback())
         self.assertIn("Reconciliation required", str(ctx.exception))
+
+
+
+    # ------------------------------------------------------------------
+    # 17. callback order_id identity cross-check
+    # ------------------------------------------------------------------
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_matching_order_reference_accepted(self, mock_get):
+        """Valid callback with matching order_id is processed normally."""
+        mock_get.return_value = self._make_order(status="pending")
+        with patch("app.services.ai_credit_topup_callback_service._mark_order_paid") as mock_paid,              patch("app.services.ai_credit_topup_callback_service._add_topup_credit") as mock_credit,              patch("app.services.ai_credit_topup_callback_service._mark_order_credited") as mock_credited:
+            mock_paid.return_value = self._make_order(status="paid")
+            mock_credit.return_value = {"status": "applied", "transaction_id": 500}
+            mock_credited.return_value = self._make_order(status="credited")
+            result = process_topup_payment_callback(
+                self._make_callback(
+                    order_reference="11111111-1111-4111-8111-111111111111",
+                )
+            )
+            self.assertEqual(result["status"], "credited")
+            mock_paid.assert_called_once()
+
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_mismatched_order_reference_rejected(self, mock_get):
+        """Valid hash but different order_id is rejected before credit."""
+        mock_get.return_value = self._make_order(status="pending")
+        with patch("app.services.ai_credit_topup_callback_service._mark_order_paid") as mock_paid,              patch("app.services.ai_credit_topup_callback_service._add_topup_credit") as mock_credit,              patch("app.services.ai_credit_topup_callback_service._mark_order_credited") as mock_credited:
+            with self.assertRaises(ValueError) as ctx:
+                process_topup_payment_callback(
+                    self._make_callback(
+                        order_reference="22222222-2222-4222-8222-222222222222",
+                    )
+                )
+            self.assertIn("does not match", str(ctx.exception))
+            mock_paid.assert_not_called()
+            mock_credit.assert_not_called()
+            mock_credited.assert_not_called()
+
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_mismatched_callback_does_not_apply_credit(self, mock_get):
+        """Mismatched order_id does not call credit RPC."""
+        mock_get.return_value = self._make_order(status="pending")
+        with patch("app.services.ai_credit_topup_callback_service._mark_order_paid") as mock_paid,              patch("app.services.ai_credit_topup_callback_service._add_topup_credit") as mock_credit,              patch("app.services.ai_credit_topup_callback_service._mark_order_credited") as mock_credited:
+            with self.assertRaises(ValueError):
+                process_topup_payment_callback(
+                    self._make_callback(
+                        order_reference="22222222-2222-4222-8222-222222222222",
+                    )
+                )
+            mock_credit.assert_not_called()
+
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_mismatched_callback_does_not_mark_paid(self, mock_get):
+        """Mismatched order_id does not mark order paid."""
+        mock_get.return_value = self._make_order(status="pending")
+        with patch("app.services.ai_credit_topup_callback_service._mark_order_paid") as mock_paid,              patch("app.services.ai_credit_topup_callback_service._add_topup_credit") as mock_credit,              patch("app.services.ai_credit_topup_callback_service._mark_order_credited") as mock_credited:
+            with self.assertRaises(ValueError):
+                process_topup_payment_callback(
+                    self._make_callback(
+                        order_reference="22222222-2222-4222-8222-222222222222",
+                    )
+                )
+            mock_paid.assert_not_called()
+
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_missing_callback_order_reference_rejected(self, mock_get):
+        """Callback without order_id is rejected by processing."""
+        mock_get.return_value = self._make_order(status="pending")
+        with self.assertRaises(ValueError) as ctx:
+            process_topup_payment_callback(
+                self._make_callback(order_reference=None)
+            )
+        self.assertIn("order_reference", str(ctx.exception))
+
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_empty_callback_order_reference_rejected(self, mock_get):
+        """Callback with empty order_id is rejected."""
+        mock_get.return_value = self._make_order(status="pending")
+        with self.assertRaises(ValueError) as ctx:
+            process_topup_payment_callback(
+                self._make_callback(order_reference="")
+            )
+        self.assertIn("order_reference", str(ctx.exception))
+
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_uppercase_uuid_still_matches(self, mock_get):
+        """Uppercase UUID in callback is normalized to canonical form."""
+        mock_get.return_value = self._make_order(status="pending")
+        with patch("app.services.ai_credit_topup_callback_service._mark_order_paid") as mock_paid,              patch("app.services.ai_credit_topup_callback_service._add_topup_credit") as mock_credit,              patch("app.services.ai_credit_topup_callback_service._mark_order_credited") as mock_credited:
+            mock_paid.return_value = self._make_order(status="paid")
+            mock_credit.return_value = {"status": "applied", "transaction_id": 500}
+            mock_credited.return_value = self._make_order(status="credited")
+            result = process_topup_payment_callback(
+                self._make_callback(
+                    order_reference="11111111-1111-4111-8111-111111111111".upper(),
+                )
+            )
+            self.assertEqual(result["status"], "credited")
+            mock_paid.assert_called_once()
+
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_compact_uuid_still_matches(self, mock_get):
+        """Compact UUID (no hyphens) in callback is normalized to canonical."""
+        mock_get.return_value = self._make_order(status="pending")
+        with patch("app.services.ai_credit_topup_callback_service._mark_order_paid") as mock_paid,              patch("app.services.ai_credit_topup_callback_service._add_topup_credit") as mock_credit,              patch("app.services.ai_credit_topup_callback_service._mark_order_credited") as mock_credited:
+            mock_paid.return_value = self._make_order(status="paid")
+            mock_credit.return_value = {"status": "applied", "transaction_id": 500}
+            mock_credited.return_value = self._make_order(status="credited")
+            compact = "11111111111141118111111111111111"
+            result = process_topup_payment_callback(
+                self._make_callback(
+                    order_reference=compact,
+                )
+            )
+            self.assertEqual(result["status"], "credited")
+            mock_paid.assert_called_once()
+
+    @patch("app.services.ai_credit_topup_callback_service._get_order_by_gateway")
+    def test_no_network_request_in_identity_check(self, mock_get):
+        """Identity check does not make ToyyibPay or Supabase calls."""
+        mock_get.return_value = self._make_order(status="pending")
+        with patch("app.services.ai_credit_topup_callback_service._mark_order_paid") as mock_paid,              patch("app.services.ai_credit_topup_callback_service._add_topup_credit") as mock_credit,              patch("app.services.ai_credit_topup_callback_service._mark_order_credited") as mock_credited:
+            with patch("app.services.toyyibpay_service.requests.post") as mock_post:
+                with self.assertRaises(ValueError):
+                    process_topup_payment_callback(
+                        self._make_callback(
+                            order_reference="22222222-2222-4222-8222-222222222222",
+                        )
+                    )
+                mock_post.assert_not_called()
+
 
 
 if __name__ == "__main__":

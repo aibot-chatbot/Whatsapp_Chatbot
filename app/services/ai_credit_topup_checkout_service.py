@@ -93,6 +93,20 @@ def _validate_amount_divisibility(amount_micro_myr: int) -> None:
         )
 
 
+
+
+def _validate_phone(phone):
+    """Validate phone number for ToyyibPay checkout."""
+    if not phone:
+        raise ValueError("customer_phone is required for ToyyibPay checkout.")
+    import re
+    stripped = re.sub(r"[\s\-\(\)]", "", phone)
+    if not re.match(r"^\+?\d+$", stripped):
+        raise ValueError("customer_phone contains invalid characters.")
+    digits = stripped.lstrip("+")
+    if len(digits) < 8 or len(digits) > 15:
+        raise ValueError("customer_phone must have 8 to 15 digits.")
+
 def _validate_gateway(gateway: str) -> None:
     if gateway not in _VALID_GATEWAYS:
         raise ValueError(
@@ -123,6 +137,7 @@ def create_ai_credit_topup_checkout(
     _validate_non_empty_str(idempotency_key, "idempotency_key")
     _validate_gateway(payment_gateway)
     _validate_amount_divisibility(amount_micro_myr)
+    _validate_phone(customer_phone)
 
     if description is not None and not isinstance(description, str):
         raise ValueError("description must be a string or None")

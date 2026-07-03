@@ -5,6 +5,32 @@ from app.database.user_repository import get_user_by_id, get_user_by_email, crea
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
 from app.routes.auth_routes import validate_password_strength
+import re
+
+
+
+def _normalize_phone(raw):
+    """Normalize a phone number.
+    Trims whitespace, removes common visual separators (spaces, hyphens, parentheses),
+    preserves one optional leading +, requires 8-15 digits after normalization.
+    Returns None for None/empty/whitespace-only values (clearing the field).
+    Raises ValueError for invalid input.
+    """
+    if raw is None:
+        return None
+    cleaned = raw.strip()
+    if not cleaned:
+        return None
+    # Remove common visual separators
+    stripped = re.sub(r"[\s\-\(\)]", "", cleaned)
+    # Must have only digits and optional single leading +
+    if not re.match(r"^\+?\d+$", stripped):
+        raise ValueError("Phone number contains invalid characters.")
+    # Count digits (excluding leading +)
+    digits = stripped.lstrip("+")
+    if len(digits) < 8 or len(digits) > 15:
+        raise ValueError("Phone number must have 8 to 15 digits.")
+    return stripped
 
 user_bp = Blueprint("user", __name__, url_prefix="/api/user")
 
@@ -29,7 +55,8 @@ def fetch_current_user():
                 "full_name": user.get("full_name"),
                 "email": user.get("email"),
                 "role": user.get("role"),
-                "company_id": user.get("company_id")
+                "company_id": user.get("company_id"),
+                "phone": user.get("phone")
             }
         }), 200
 
@@ -73,6 +100,11 @@ def update_current_user():
                 }), 400
             payload["email"] = email
 
+
+        if "phone" in data:
+            phone = _normalize_phone(data.get("phone"))
+            payload["phone"] = phone
+
         if not payload:
             return jsonify({
                 "status": "error",
@@ -88,7 +120,8 @@ def update_current_user():
                 "id": updated_user["id"],
                 "full_name": updated_user.get("full_name"),
                 "email": updated_user.get("email"),
-                "role": updated_user.get("role")
+                "role": updated_user.get("role"),
+                "phone": updated_user.get("phone")
             }
         }), 200
 
@@ -240,6 +273,7 @@ def create_company_member():
             "data": {
                 "id": user["id"],
                 "company_id": user.get("company_id"),
+                "phone": user.get("phone"),
                 "full_name": user.get("full_name"),
                 "email": user.get("email"),
                 "role": user.get("role"),
