@@ -92,6 +92,29 @@ def get_topup_order_by_gateway_order_id(
 
 
 # ---------------------------------------------------------------------------
+def get_topup_order_by_reference_and_company(
+    order_reference: str,
+    company_id: int,
+) -> dict | None:
+    """Fetch a single top-up order by its reference and company ID.
+
+    Returns the order row only when both the reference and the company
+    match, enforcing company-level isolation.
+    """
+    if not order_reference or not company_id:
+        return None
+
+    response = (
+        supabase
+        .table(TABLE)
+        .select('*')
+        .eq('order_reference', order_reference)
+        .eq('company_id', company_id)
+        .limit(1)
+        .execute()
+    )
+    return _single_row(response, 'get_topup_order_by_reference_and_company')
+
 # Write functions
 # ---------------------------------------------------------------------------
 

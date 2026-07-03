@@ -252,6 +252,7 @@ class TestCallbackIdempotencyKeyUUID(unittest.TestCase):
         result = process_topup_payment_callback({
             "payment_gateway": "toyyibpay",
             "gateway_order_id": "BC123",
+            "order_reference": TEST_UUID_STR,
             "paid": True,
             "payment_reference": "REF123",
             "amount_sen": 100,

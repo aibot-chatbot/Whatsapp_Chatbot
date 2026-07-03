@@ -136,8 +136,6 @@ def process_topup_payment_callback(normalized_callback: dict) -> dict:
     # ------------------------------------------------------------------
     # 5. Validate amount matches the order
     # ------------------------------------------------------------------
-    # 5. Validate amount matches the order
-    # ------------------------------------------------------------------
     # Gateway fees may cause callback total to exceed the order amount.
     # Log the callback total for auditing but do not reject the transaction.
     if callback_amount_micro_myr is not None and callback_amount_micro_myr != order_amount_micro_myr:
@@ -153,6 +151,48 @@ def process_topup_payment_callback(normalized_callback: dict) -> dict:
         raise ValueError(
             f"Order {order_reference!r} has payment_gateway "
             f"{stored_gateway!r} but callback is for {payment_gateway!r}"
+        )
+
+    # ------------------------------------------------------------------
+    # 6. Verify callback order_id matches stored order_reference
+    # ------------------------------------------------------------------
+    # The callback order_id is covered by the verified ToyyibPay hash
+    # (MD5(secretKey + status + order_id + refno + "ok")).
+    # After looking up the order by billcode, we must verify that the
+    # signed order_id matches the stored order_reference.
+    # This prevents a valid billcode from being paired with a different
+    # order's callback data.
+    callback_order_reference = normalized_callback.get("order_reference")
+    if not callback_order_reference:
+        raise ValueError(
+            "Callback is missing required field 'order_reference'"
+        )
+
+    stored_order_reference = order.get("order_reference")
+    if not stored_order_reference:
+        raise RuntimeError(
+            f"Order {gateway_order_id!r} is missing order_reference"
+        )
+
+    # Normalize both to canonical UUID for comparison
+    try:
+        from uuid import UUID as _UUID
+        canonical_callback_ref = str(_UUID(str(callback_order_reference)))
+        canonical_stored_ref = str(_UUID(str(stored_order_reference)))
+    except (ValueError, AttributeError) as exc:
+        raise ValueError(
+            f"Order reference comparison failed: {exc}"
+        )
+
+    if canonical_callback_ref != canonical_stored_ref:
+        logger.error(
+            "%s callback order_reference %r does not match stored "
+            "order_reference %r for gateway ID %s. Rejecting.",
+            payment_gateway, callback_order_reference,
+            stored_order_reference, gateway_order_id,
+        )
+        raise ValueError(
+            f"Callback order reference does not match the stored order"
         )
 
     # ------------------------------------------------------------------
