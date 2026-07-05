@@ -135,3 +135,78 @@ def delete_graph_by_file_id(chatbot_id: int, file_id: int):
     except Exception as e:
         logging.error(f"Failed to delete graph data for file_id {file_id}: {e}")
         return {"deleted_nodes_count": 0, "deleted_edges_count": 0}
+
+def delete_node(chatbot_id: int, name: str):
+    try:
+        result = (
+            supabase.table("knowledge_graph_nodes")
+            .delete()
+            .eq("chatbot_id", chatbot_id)
+            .eq("name", name.strip().lower())
+            .execute()
+        )
+        return result.data if result.data else []
+    except Exception as e:
+        logging.error(f"Failed to delete node {name} for chatbot {chatbot_id}: {e}")
+        return []
+
+def delete_edges_by_node(chatbot_id: int, node_name: str):
+    try:
+        normalized = node_name.strip().lower()
+        res1 = (
+            supabase.table("knowledge_graph_edges")
+            .delete()
+            .eq("chatbot_id", chatbot_id)
+            .eq("source_name", normalized)
+            .execute()
+        )
+        res2 = (
+            supabase.table("knowledge_graph_edges")
+            .delete()
+            .eq("chatbot_id", chatbot_id)
+            .eq("target_name", normalized)
+            .execute()
+        )
+        return (res1.data or []) + (res2.data or [])
+    except Exception as e:
+        logging.error(f"Failed to delete edges for node {node_name}: {e}")
+        return []
+
+def delete_edge(chatbot_id: int, source_name: str, target_name: str, rel_type: str):
+    try:
+        result = (
+            supabase.table("knowledge_graph_edges")
+            .delete()
+            .eq("chatbot_id", chatbot_id)
+            .eq("source_name", source_name.strip().lower())
+            .eq("target_name", target_name.strip().lower())
+            .eq("rel_type", rel_type.strip().upper().replace(" ", "_"))
+            .execute()
+        )
+        return result.data if result.data else []
+    except Exception as e:
+        logging.error(f"Failed to delete edge {source_name} -> {target_name} ({rel_type}): {e}")
+        return []
+
+def update_edge_node_references(chatbot_id: int, old_name: str, new_name: str):
+    try:
+        old_normalized = old_name.strip().lower()
+        new_normalized = new_name.strip().lower()
+        res1 = (
+            supabase.table("knowledge_graph_edges")
+            .update({"source_name": new_normalized})
+            .eq("chatbot_id", chatbot_id)
+            .eq("source_name", old_normalized)
+            .execute()
+        )
+        res2 = (
+            supabase.table("knowledge_graph_edges")
+            .update({"target_name": new_normalized})
+            .eq("chatbot_id", chatbot_id)
+            .eq("target_name", old_normalized)
+            .execute()
+        )
+        return (res1.data or []) + (res2.data or [])
+    except Exception as e:
+        logging.error(f"Failed to update edge references from {old_name} to {new_name}: {e}")
+        return []

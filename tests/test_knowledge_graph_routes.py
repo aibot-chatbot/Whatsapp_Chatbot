@@ -1,0 +1,115 @@
+import os
+os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
+os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
+os.environ.setdefault("SECRET_KEY", "test-secret-key")
+
+import sys
+import unittest
+from unittest.mock import patch, MagicMock
+import types
+
+# Mock standard broken imports
+if "google" not in sys.modules:
+    _g = types.ModuleType("google")
+    _g.genai = types.ModuleType("google.genai")
+    _g.genai.Client = MagicMock()
+    sys.modules["google"] = _g
+    sys.modules["google.genai"] = _g.genai
+if "fitz" not in sys.modules:
+    sys.modules["fitz"] = types.ModuleType("fitz")
+
+with patch("app.database.db.supabase", MagicMock()):
+    from app import create_app
+
+MOCK_USER = {
+    "id": 1,
+    "full_name": "Test User",
+    "email": "test@example.com",
+    "status": "active",
+}
+
+class TestKnowledgeGraphRoutes(unittest.TestCase):
+    def setUp(self):
+        app = create_app()
+        app.config["TESTING"] = True
+        self.client = app.test_client()
+
+    def _patch_jwt_decode(self):
+        return patch(
+            "app.decorators.auth_decorator.jwt.decode",
+            return_value={"company_id": 42, "user_id": 1, "role": "admin"},
+        )
+
+    def _patch_user_repo(self):
+        return patch(
+            "app.database.user_repository.get_user_by_id",
+            return_value=MOCK_USER,
+        )
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file")
+    @patch("app.database.knowledge_graph_repository.upsert_node")
+    def test_save_graph_node_success(self, mock_upsert, mock_get_active, mock_verify):
+        mock_get_active.return_value = {"id": 100, "file_name": "test.pdf"}
+        mock_upsert.return_value = {"id": "test_node", "label": "Product", "properties": {}}
+
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/graph/node?chatbot_id=1",
+                json={"name": "test_node", "label": "Product", "properties": {"description": "test"}},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "success")
+            self.assertEqual(data["data"]["id"], "test_node")
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file")
+    @patch("app.database.knowledge_graph_repository.delete_node")
+    @patch("app.database.knowledge_graph_repository.delete_edges_by_node")
+    def test_delete_graph_node_success(self, mock_delete_edges, mock_delete_node, mock_get_active, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/node?chatbot_id=1&name=test_node",
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "success")
+            mock_delete_edges.assert_called_once()
+            mock_delete_node.assert_called_once()
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file")
+    @patch("app.database.knowledge_graph_repository.upsert_edge")
+    def test_save_graph_edge_success(self, mock_upsert_edge, mock_get_active, mock_verify):
+        mock_get_active.return_value = {"id": 100, "file_name": "test.pdf"}
+        mock_upsert_edge.return_value = {"source_name": "src", "target_name": "tgt", "rel_type": "HAS_PRICE"}
+
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"source_name": "src", "target_name": "tgt", "rel_type": "HAS_PRICE"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "success")
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_graph_repository.delete_edge")
+    def test_delete_graph_edge_success(self, mock_delete_edge, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"source_name": "src", "target_name": "tgt", "rel_type": "HAS_PRICE"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "success")
+            mock_delete_edge.assert_called_once()
+
+if __name__ == "__main__":
+    unittest.main()

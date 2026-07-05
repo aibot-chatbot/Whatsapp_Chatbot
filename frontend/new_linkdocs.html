@@ -606,6 +606,17 @@
             accent-color: var(--primary);
             cursor: pointer;
         }
+
+        @keyframes scaleUp {
+            from {
+                transform: scale(0.95);
+                opacity: 0;
+            }
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 
@@ -621,20 +632,63 @@
             const [error, setError] = useState("");
             const [selectedNode, setSelectedNode] = useState(null);
             const [hoveredNode, setHoveredNode] = useState(null);
-            
+
             // Graph Data States
             const [rawNodes, setRawNodes] = useState([]);
             const [rawEdges, setRawEdges] = useState([]);
             const [activeFilters, setActiveFilters] = useState(new Set());
             const [nodeCounts, setNodeCounts] = useState({});
 
-            // 1. Fetch graph data once
-            useEffect(() => {
+            // Graph CRUD/Editing States
+            const [isEditingNode, setIsEditingNode] = useState(false);
+            const [editName, setEditName] = useState("");
+            const [editGroup, setEditGroup] = useState("");
+            const [editDesc, setEditDesc] = useState("");
+            const [editError, setEditError] = useState("");
+            const [editSuccess, setEditSuccess] = useState("");
+            const [isSaving, setIsSaving] = useState(false);
+
+            // Add Node States
+            const [isAddingNode, setIsAddingNode] = useState(false);
+            const [newName, setNewName] = useState("");
+            const [newGroup, setNewGroup] = useState("Company");
+            const [newDesc, setNewDesc] = useState("");
+
+            // Add Relationship States
+            const [newRelType, setNewRelType] = useState("CONNECTED_TO");
+            const [newRelTarget, setNewRelTarget] = useState("");
+            const [customRelType, setCustomRelType] = useState("");
+
+            // Confirm Relation Modal States
+            const [showConfirmModal, setShowConfirmModal] = useState(false);
+            const [confirmDetails, setConfirmDetails] = useState({ sourceLabel: "", targetLabel: "", relType: "" });
+
+            const ALLOWED_GROUPS = [
+                "Company", "Brand", "Category", "Product", "Service", "Package", "Accessory",
+                "Price", "Warranty", "Promotion", "Branch", "Supplier", "Customer Segment",
+                "Policy", "FAQ", "Staff", "Schedule", "Location", "Requirement", "Event"
+            ];
+
+            const COMMON_RELATIONS = [
+                "CONNECTED_TO", "HAS_PRICE", "LOCATED_IN", "WARRANTY_FOR", "PROMOTION_FOR",
+                "OFFERS", "FAQ_FOR", "SUPPLIED_BY", "HAS_SCHEDULE", "MEMBER_OF", "ACCESSIBLE_BY"
+            ];
+
+            // Helper to capitalize first letter
+            const capitalize = (str) => {
+                if (!str) return "";
+                return str.charAt(0).toUpperCase() + str.slice(1);
+            };
+
+            // Load graph data from backend
+            const loadGraphData = () => {
                 setLoadingStatus("fetching");
                 setStabilizationPercent(0);
                 setError("");
                 setSelectedNode(null);
                 setHoveredNode(null);
+                setIsEditingNode(false);
+                setIsAddingNode(false);
 
                 authenticatedFetch(`/api/knowledge/graph?chatbot_id=${botId}`)
                     .then(res => res.json())
@@ -669,9 +723,14 @@
                         setLoadingStatus("done");
                         setError("Error connecting to backend API.");
                     });
+            };
+
+            // Fetch graph data on mount or change of chatbot / file
+            useEffect(() => {
+                loadGraphData();
             }, [botId, activeFile]);
 
-            // 2. Render and manage vis.js network when activeFilters change
+            // Render and manage vis.js network when activeFilters change
             useEffect(() => {
                 if (rawNodes.length === 0) return;
 
@@ -680,10 +739,15 @@
 
                 // Filter nodes based on active checkboxes
                 const filteredNodes = rawNodes.filter(n => activeFilters.has(n.group));
-                
+
                 // Filter edges to only keep connections where both source & target exist in active nodes
                 const activeNodeIds = new Set(filteredNodes.map(n => n.id));
-                const filteredEdges = rawEdges.filter(e => activeNodeIds.has(e.from) && activeNodeIds.has(e.to));
+                const filteredEdges = rawEdges
+                    .filter(e => activeNodeIds.has(e.from) && activeNodeIds.has(e.to))
+                    .map((e, idx) => ({
+                        ...e,
+                        id: e.id || `edge-${e.from}-${e.to}-${idx}`
+                    }));
 
                 if (filteredNodes.length === 0) {
                     container.innerHTML = "<div style='display:flex;width:100%;height:100%;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.9rem;'>No categories selected. Check the filters on the right.</div>";
@@ -732,11 +796,11 @@
                                 border: "#ffffff"
                             }
                         },
-                        font: { 
-                            color: "#ffffff", 
-                            face: "Outfit", 
-                            size: 13, 
-                            strokeWidth: 4, 
+                        font: {
+                            color: "#ffffff",
+                            face: "Outfit",
+                            size: 13,
+                            strokeWidth: 4,
                             strokeColor: "#050b18" // Outlines label text for extreme readability on dark background
                         },
                         borderWidth: 3,
@@ -755,13 +819,13 @@
                     },
                     edges: {
                         width: 2, // Thicker relation lines
-                        font: { 
-                            size: 10, 
-                            align: "top", 
+                        font: {
+                            size: 10,
+                            align: "top",
                             color: "#cbd5e1", // Light gray for relationship text
-                            strokeWidth: 3, 
+                            strokeWidth: 3,
                             strokeColor: "#050b18", // Outline for relationship text
-                            face: "Outfit" 
+                            face: "Outfit"
                         },
                         arrows: { to: { enabled: true, scaleFactor: 0.6 } },
                         color: { color: "rgba(255, 255, 255, 0.35)", highlight: "#3b82f6", hover: "rgba(255, 255, 255, 0.6)" },
@@ -808,11 +872,94 @@
 
                 network.on("click", function (params) {
                     if (params.nodes.length > 0) {
-                        const nodeId = params.nodes[0];
-                        const nodeObj = rawNodes.find(n => n.id === nodeId);
+                        const selectedId = params.nodes[0];
+
+                        // Highlights selected node & neighbors, dims all other nodes
+                        const connectedNodes = network.getConnectedNodes(selectedId);
+                        const neighbors = new Set(connectedNodes);
+                        neighbors.add(selectedId);
+
+                        const updatedNodes = nodesWithColors.map(node => {
+                            const isNeighbor = neighbors.has(node.id);
+                            const baseColor = groupColors[node.group] || "#94a3b8";
+                            return {
+                                id: node.id,
+                                color: {
+                                    background: isNeighbor ? "#0f172a" : "rgba(15, 23, 42, 0.15)",
+                                    border: isNeighbor ? baseColor : "rgba(148, 163, 184, 0.15)",
+                                    highlight: {
+                                        background: baseColor,
+                                        border: "#ffffff"
+                                    },
+                                    hover: {
+                                        background: isNeighbor ? "rgba(30, 41, 59, 1)" : "rgba(15, 23, 42, 0.15)",
+                                        border: isNeighbor ? "#ffffff" : "rgba(148, 163, 184, 0.15)"
+                                    }
+                                },
+                                font: {
+                                    color: isNeighbor ? "#ffffff" : "rgba(255, 255, 255, 0.15)",
+                                    face: "Outfit",
+                                    size: 13,
+                                    strokeWidth: 4,
+                                    strokeColor: isNeighbor ? "#050b18" : "rgba(5, 11, 24, 0.15)"
+                                }
+                            };
+                        });
+                        graphData.nodes.update(updatedNodes);
+
+                        // Highlight connected edges, dims others
+                        const updatedEdges = filteredEdges.map(edge => {
+                            const isConnected = edge.from === selectedId || edge.to === selectedId;
+                            return {
+                                id: edge.id,
+                                color: {
+                                    color: isConnected ? "rgba(59, 130, 246, 0.95)" : "rgba(255, 255, 255, 0.05)",
+                                    highlight: "#3b82f6"
+                                },
+                                width: isConnected ? 3 : 1
+                            };
+                        });
+                        graphData.edges.update(updatedEdges);
+
+                        const nodeObj = rawNodes.find(n => n.id === selectedId);
                         setSelectedNode(nodeObj);
+                        setIsEditingNode(false);
+                        setIsAddingNode(false);
                     } else {
+                        // Reset all nodes
+                        const resetNodes = nodesWithColors.map(node => {
+                            const baseColor = groupColors[node.group] || "#94a3b8";
+                            return {
+                                id: node.id,
+                                color: {
+                                    background: "#0f172a",
+                                    border: baseColor
+                                },
+                                font: {
+                                    color: "#ffffff",
+                                    face: "Outfit",
+                                    size: 13,
+                                    strokeWidth: 4,
+                                    strokeColor: "#050b18"
+                                }
+                            };
+                        });
+                        graphData.nodes.update(resetNodes);
+
+                        // Reset all edges
+                        const resetEdges = filteredEdges.map(edge => {
+                            return {
+                                id: edge.id,
+                                color: {
+                                    color: "rgba(255, 255, 255, 0.35)"
+                                },
+                                width: 2
+                            };
+                        });
+                        graphData.edges.update(resetEdges);
+
                         setSelectedNode(null);
+                        setIsEditingNode(false);
                     }
                 });
 
@@ -876,6 +1023,200 @@
                 return relations;
             };
 
+            // CRUD Handlers
+            const handleSaveNode = async (e) => {
+                e.preventDefault();
+                if (!editName.trim() || !editGroup) {
+                    setEditError("Name and category are required.");
+                    return;
+                }
+                setIsSaving(true);
+                setEditError("");
+                setEditSuccess("");
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/node?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            old_name: selectedNode.id,
+                            name: editName.trim(),
+                            label: editGroup,
+                            properties: { description: editDesc.trim() }
+                        }),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setEditSuccess("Node updated successfully!");
+                        setTimeout(() => {
+                            loadGraphData();
+                        }, 800);
+                    } else {
+                        setEditError(result.message || "Failed to update node.");
+                    }
+                } catch (err) {
+                    setEditError("Network error. Failed to save node.");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleDeleteNode = async () => {
+                if (!window.confirm(`Are you sure you want to delete the entity "${selectedNode.id}" and all its connections?`)) {
+                    return;
+                }
+                setIsSaving(true);
+                setEditError("");
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/node?chatbot_id=${botId}&name=${encodeURIComponent(selectedNode.id)}`, {
+                        method: "DELETE",
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setSelectedNode(null);
+                        loadGraphData();
+                    } else {
+                        alert(result.message || "Failed to delete node.");
+                    }
+                } catch (err) {
+                    alert("Network error. Failed to delete node.");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleAddNode = async (e) => {
+                e.preventDefault();
+                if (!newName.trim() || !newGroup) {
+                    alert("Name and category are required.");
+                    return;
+                }
+                setIsSaving(true);
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/node?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            name: newName.trim(),
+                            label: newGroup,
+                            properties: { description: newDesc.trim() }
+                        }),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setNewName("");
+                        setNewDesc("");
+                        setIsAddingNode(false);
+                        loadGraphData();
+                    } else {
+                        alert(result.message || "Failed to add node.");
+                    }
+                } catch (err) {
+                    alert("Network error. Failed to add node.");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleAddRelation = (e) => {
+                e.preventDefault();
+                const target = newRelTarget;
+                const relType = newRelType === "CUSTOM" ? customRelType.trim().toUpperCase() : newRelType;
+
+                if (!target) {
+                    alert("Please select a target entity.");
+                    return;
+                }
+                if (!relType) {
+                    alert("Please specify a relation type.");
+                    return;
+                }
+
+                const targetObj = rawNodes.find(n => n.id === target);
+                const targetLabel = targetObj ? targetObj.label : target;
+                const sourceLabel = selectedNode.label || selectedNode.id;
+
+                setConfirmDetails({
+                    sourceLabel,
+                    targetLabel,
+                    relType
+                });
+                setShowConfirmModal(true);
+            };
+
+            const submitAddRelation = async () => {
+                setShowConfirmModal(false);
+                setIsSaving(true);
+                const target = newRelTarget;
+                const relType = newRelType === "CUSTOM" ? customRelType.trim().toUpperCase() : newRelType;
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/edge?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            source_name: selectedNode.id,
+                            target_name: target,
+                            rel_type: relType
+                        }),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setNewRelTarget("");
+                        setCustomRelType("");
+                        loadGraphData();
+                    } else {
+                        alert(result.message || "Failed to create relationship.");
+                    }
+                } catch (err) {
+                    alert("Network error. Failed to create relationship.");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleDeleteRelation = async (rel) => {
+                if (!window.confirm(`Delete relationship: ${selectedNode.id} [${rel.rel}] -> ${rel.type === "source" ? rel.target : rel.source}?`)) {
+                    return;
+                }
+                setIsSaving(true);
+
+                const src = rel.type === "source" ? selectedNode.id : rel.source;
+                const tgt = rel.type === "source" ? rel.target : selectedNode.id;
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/edge?chatbot_id=${botId}`, {
+                        method: "DELETE",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            source_name: src,
+                            target_name: tgt,
+                            rel_type: rel.rel.replace(/ /g, "_")
+                        }),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        loadGraphData();
+                    } else {
+                        alert(result.message || "Failed to delete relationship.");
+                    }
+                } catch (err) {
+                    alert("Network error. Failed to delete relationship.");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
             const selectedRelations = getSelectedNodeRelations();
             const categories = Object.keys(nodeCounts).sort();
 
@@ -917,7 +1258,7 @@
                             )}
                         </div>
                     )}
-                    
+
                     {error ? (
                         <div style={{ margin: "auto", textAlign: "center", color: "var(--text-dim)", maxWidth: "450px", padding: "20px" }}>
                             <div style={{ fontSize: "40px", marginBottom: "16px" }}>🕸️</div>
@@ -929,7 +1270,7 @@
                             {/* Left Network Canvas */}
                             <div style={{ flexGrow: 1, height: "100%", position: "relative" }}>
                                 <div id="network-graph-canvas" style={{ width: "100%", height: "100%", background: "rgba(15, 23, 42, 0.4)", borderRadius: "24px", border: "1px solid var(--glass-border)", backdropFilter: "blur(10px)" }} />
-                                
+
                                 {/* Floating Hover Tooltip (Top Left of Canvas) */}
                                 {hoveredNode && (
                                     <div style={{ position: "absolute", top: "16px", left: "16px", background: "rgba(15, 23, 42, 0.95)", border: `1.5px solid ${groupColors[hoveredNode.group] || "#94a3b8"}`, padding: "12px 16px", borderRadius: "14px", maxWidth: "320px", zIndex: 5, backdropFilter: "blur(5px)", animation: "fadeIn 0.15s ease-out" }}>
@@ -946,20 +1287,20 @@
 
                             {/* Right Panel: Legend, Filters, Details */}
                             <div style={{ width: "320px", display: "flex", flexDirection: "column", gap: "16px", height: "100%" }}>
-                                
+
                                 {/* Categories Filter */}
                                 <div className="glass-card" style={{ padding: "20px", background: "var(--card-bg)", borderRadius: "20px", border: "1px solid var(--glass-border)", display: "flex", flexDirection: "column", gap: "12px", maxHeight: "280px", overflowY: "auto" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "6px" }}>
                                         <span style={{ fontSize: "0.85rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Categories</span>
                                         <div style={{ display: "flex", gap: "8px" }}>
-                                            <button 
-                                                onClick={handleSelectAllFilters} 
-                                                style={{ 
-                                                    background: "rgba(59, 130, 246, 0.15)", 
-                                                    border: "1px solid rgba(59, 130, 246, 0.3)", 
-                                                    color: "#60a5fa", 
-                                                    fontSize: "0.72rem", 
-                                                    fontWeight: "700", 
+                                            <button
+                                                onClick={handleSelectAllFilters}
+                                                style={{
+                                                    background: "rgba(59, 130, 246, 0.15)",
+                                                    border: "1px solid rgba(59, 130, 246, 0.3)",
+                                                    color: "#60a5fa",
+                                                    fontSize: "0.72rem",
+                                                    fontWeight: "700",
                                                     cursor: "pointer",
                                                     padding: "3px 8px",
                                                     borderRadius: "12px",
@@ -970,14 +1311,14 @@
                                             >
                                                 All
                                             </button>
-                                            <button 
-                                                onClick={handleClearAllFilters} 
-                                                style={{ 
-                                                    background: "rgba(255, 255, 255, 0.05)", 
-                                                    border: "1px solid rgba(255, 255, 255, 0.15)", 
-                                                    color: "var(--text-dim)", 
-                                                    fontSize: "0.72rem", 
-                                                    fontWeight: "700", 
+                                            <button
+                                                onClick={handleClearAllFilters}
+                                                style={{
+                                                    background: "rgba(255, 255, 255, 0.05)",
+                                                    border: "1px solid rgba(255, 255, 255, 0.15)",
+                                                    color: "var(--text-dim)",
+                                                    fontSize: "0.72rem",
+                                                    fontWeight: "700",
                                                     cursor: "pointer",
                                                     padding: "3px 8px",
                                                     borderRadius: "12px",
@@ -995,8 +1336,8 @@
                                             const color = groupColors[cat] || "#94a3b8";
                                             const active = activeFilters.has(cat);
                                             return (
-                                                <div 
-                                                    key={cat} 
+                                                <div
+                                                    key={cat}
                                                     onClick={() => handleToggleFilter(cat)}
                                                     style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 8px", borderRadius: "8px", background: active ? "rgba(255,255,255,0.03)" : "transparent", cursor: "pointer", transition: "0.2s" }}
                                                 >
@@ -1009,25 +1350,161 @@
                                     </div>
                                 </div>
 
-                                {/* Node Details Panel */}
+                                {/* Node Details / Add Node Panel */}
                                 <div className="glass-card" style={{ padding: "20px", background: "var(--card-bg)", borderRadius: "20px", border: "1px solid var(--glass-border)", flexGrow: 1, display: "flex", flexDirection: "column", gap: "12px", overflowY: "auto" }}>
-                                    <div style={{ fontSize: "0.85rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "6px" }}>
-                                        Entity Details
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "6px" }}>
+                                        <span style={{ fontSize: "0.85rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.5px" }}>Entity Details</span>
+                                        {!isAddingNode && (
+                                            <button
+                                                onClick={() => { setSelectedNode(null); setIsAddingNode(true); }}
+                                                style={{ background: "rgba(16, 185, 129, 0.15)", border: "1px solid rgba(16, 185, 129, 0.3)", color: "var(--accent)", fontSize: "0.72rem", fontWeight: "700", cursor: "pointer", padding: "3px 8px", borderRadius: "12px", transition: "all 0.2s" }}
+                                                onMouseOver={(e) => { e.currentTarget.style.background = "rgba(16, 185, 129, 0.3)"; }}
+                                                onMouseOut={(e) => { e.currentTarget.style.background = "rgba(16, 185, 129, 0.15)"; }}
+                                            >
+                                                + New Entity
+                                            </button>
+                                        )}
                                     </div>
-                                    
-                                    {!selectedNode ? (
+
+                                    {isAddingNode ? (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                            <h3 style={{ fontSize: "1.0rem", fontWeight: "700" }}>Add New Entity</h3>
+                                            <form onSubmit={handleAddNode} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                                <div className="input-group" style={{ marginBottom: "6px" }}>
+                                                    <label style={{ fontSize: "0.75rem", marginBottom: "4px" }}>Entity Name</label>
+                                                    <input
+                                                        type="text"
+                                                        className="modal-input"
+                                                        value={newName}
+                                                        onChange={(e) => setNewName(e.target.value)}
+                                                        placeholder="e.g. Premium Support"
+                                                        required
+                                                        style={{ padding: "8px 12px" }}
+                                                    />
+                                                </div>
+                                                <div className="input-group" style={{ marginBottom: "6px" }}>
+                                                    <label style={{ fontSize: "0.75rem", marginBottom: "4px" }}>Category</label>
+                                                    <select
+                                                        className="modal-input"
+                                                        value={newGroup}
+                                                        onChange={(e) => setNewGroup(e.target.value)}
+                                                        style={{ padding: "8px 12px", background: "var(--input-bg)" }}
+                                                    >
+                                                        {ALLOWED_GROUPS.map(g => (
+                                                            <option key={g} value={g} style={{ background: "#0f172a" }}>{g}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="input-group" style={{ marginBottom: "6px" }}>
+                                                    <label style={{ fontSize: "0.75rem", marginBottom: "4px" }}>Description</label>
+                                                    <textarea
+                                                        className="modal-input"
+                                                        value={newDesc}
+                                                        onChange={(e) => setNewDesc(e.target.value)}
+                                                        placeholder="Brief details about the entity..."
+                                                        style={{ padding: "8px 12px", height: "80px", resize: "none" }}
+                                                    />
+                                                </div>
+                                                <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                                                    <button type="submit" className="btn btn-primary" style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", fontSize: "0.85rem" }} disabled={isSaving}>Save</button>
+                                                    <button type="button" className="btn" onClick={() => setIsAddingNode(false)} style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", fontSize: "0.85rem" }}>Cancel</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    ) : isEditingNode ? (
+                                        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                            <h3 style={{ fontSize: "1.0rem", fontWeight: "700" }}>Edit Entity</h3>
+                                            <form onSubmit={handleSaveNode} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                                {editError && <div style={{ fontSize: "0.8rem", color: "var(--error)" }}>{editError}</div>}
+                                                {editSuccess && <div style={{ fontSize: "0.8rem", color: "var(--accent)" }}>{editSuccess}</div>}
+                                                <div className="input-group" style={{ marginBottom: "6px" }}>
+                                                    <label style={{ fontSize: "0.75rem", marginBottom: "4px" }}>Name</label>
+                                                    <input
+                                                        type="text"
+                                                        className="modal-input"
+                                                        value={editName}
+                                                        onChange={(e) => setEditName(e.target.value)}
+                                                        required
+                                                        style={{ padding: "8px 12px" }}
+                                                    />
+                                                </div>
+                                                <div className="input-group" style={{ marginBottom: "6px" }}>
+                                                    <label style={{ fontSize: "0.75rem", marginBottom: "4px" }}>Category</label>
+                                                    <select
+                                                        className="modal-input"
+                                                        value={editGroup}
+                                                        onChange={(e) => setEditGroup(e.target.value)}
+                                                        style={{ padding: "8px 12px", background: "var(--input-bg)" }}
+                                                    >
+                                                        {ALLOWED_GROUPS.map(g => (
+                                                            <option key={g} value={g} style={{ background: "#0f172a" }}>{g}</option>
+                                                        ))}
+                                                    </select>
+                                                </div>
+                                                <div className="input-group" style={{ marginBottom: "6px" }}>
+                                                    <label style={{ fontSize: "0.75rem", marginBottom: "4px" }}>Description</label>
+                                                    <textarea
+                                                        className="modal-input"
+                                                        value={editDesc}
+                                                        onChange={(e) => setEditDesc(e.target.value)}
+                                                        style={{ padding: "8px 12px", height: "80px", resize: "none" }}
+                                                    />
+                                                </div>
+                                                <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+                                                    <button type="submit" className="btn btn-primary" style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", fontSize: "0.85rem" }} disabled={isSaving}>Save</button>
+                                                    <button type="button" className="btn" onClick={() => setIsEditingNode(false)} style={{ flex: 1, padding: "8px 12px", borderRadius: "10px", fontSize: "0.85rem" }}>Cancel</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    ) : !selectedNode ? (
                                         <div style={{ margin: "auto", textAlign: "center", color: "var(--text-dim)", fontSize: "0.85rem", padding: "10px 0" }}>
                                             Select any node in the graph to view details and relationships.
+                                            <div style={{ marginTop: "16px" }}>
+                                                <button
+                                                    className="btn btn-primary"
+                                                    onClick={() => setIsAddingNode(true)}
+                                                    style={{ width: "100%", padding: "10px 16px", borderRadius: "12px", fontSize: "0.85rem" }}
+                                                >
+                                                    ➕ Add New Entity
+                                                </button>
+                                            </div>
                                         </div>
                                     ) : (
                                         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                                            <div>
-                                                <div style={{ display: "inline-block", background: groupColors[selectedNode.group] || "#94a3b8", color: "#000", fontSize: "10px", fontWeight: "800", padding: "2px 8px", borderRadius: "4px", textTransform: "uppercase", marginBottom: "4px" }}>
-                                                    {selectedNode.group}
+                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                                <div>
+                                                    <div style={{ display: "inline-block", background: groupColors[selectedNode.group] || "#94a3b8", color: "#000", fontSize: "10px", fontWeight: "800", padding: "2px 8px", borderRadius: "4px", textTransform: "uppercase", marginBottom: "4px" }}>
+                                                        {selectedNode.group}
+                                                    </div>
+                                                    <h3 style={{ fontSize: "1.1rem", fontWeight: "700", wordBreak: "break-word" }}>{selectedNode.label}</h3>
                                                 </div>
-                                                <h3 style={{ fontSize: "1.1rem", fontWeight: "700", wordBreak: "break-word" }}>{selectedNode.label}</h3>
+                                                <div style={{ display: "flex", gap: "6px" }}>
+                                                    <button
+                                                        onClick={() => {
+                                                            setIsEditingNode(true);
+                                                            setEditName(selectedNode.id);
+                                                            setEditGroup(selectedNode.group);
+                                                            setEditDesc(selectedNode.title ? selectedNode.title.split('\n').slice(1).join('\n') : "");
+                                                            setEditError("");
+                                                            setEditSuccess("");
+                                                        }}
+                                                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid var(--glass-border)", color: "var(--text-main)", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontSize: "0.75rem", transition: "0.2s" }}
+                                                        onMouseOver={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+                                                        onMouseOut={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                                                    >
+                                                        Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={handleDeleteNode}
+                                                        style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", color: "#fca5a5", cursor: "pointer", padding: "4px 8px", borderRadius: "8px", fontSize: "0.75rem", transition: "0.2s" }}
+                                                        onMouseOver={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.25)"}
+                                                        onMouseOut={(e) => e.currentTarget.style.background = "rgba(239, 68, 68, 0.1)"}
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
                                             </div>
-                                            
+
                                             {selectedNode.title && (
                                                 <div style={{ fontSize: "0.88rem", color: "var(--text-dim)", background: "rgba(0,0,0,0.15)", padding: "10px", borderRadius: "10px", lineHeight: "1.4" }}>
                                                     {selectedNode.title.split('\n').slice(1).join('\n')}
@@ -1040,24 +1517,83 @@
                                                 {selectedRelations.length === 0 ? (
                                                     <div style={{ fontSize: "0.78rem", color: "var(--text-dim)" }}>No active connections.</div>
                                                 ) : (
-                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
+                                                    <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "120px", overflowY: "auto" }}>
                                                         {selectedRelations.map((rel, idx) => (
-                                                            <div key={idx} style={{ fontSize: "0.8rem", padding: "6px", background: "rgba(255,255,255,0.02)", borderRadius: "6px", borderLeft: "2px solid var(--primary)", display: "flex", flexDirection: "column", gap: "2px" }}>
-                                                                {rel.type === "source" ? (
-                                                                    <>
-                                                                        <span style={{ fontSize: "9px", textTransform: "uppercase", color: "var(--text-dim)" }}>{rel.rel}</span>
-                                                                        <span style={{ color: "#f8fafc", fontWeight: "600" }}>{String(rel.target || '').charAt(0).toUpperCase() + String(rel.target || '').slice(1)}</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <span style={{ fontSize: "9px", textTransform: "uppercase", color: "var(--text-dim)" }}>{rel.rel} BY</span>
-                                                                        <span style={{ color: "#f8fafc", fontWeight: "600" }}>{String(rel.source || '').charAt(0).toUpperCase() + String(rel.source || '').slice(1)}</span>
-                                                                    </>
-                                                                )}
+                                                            <div key={idx} style={{ fontSize: "0.8rem", padding: "6px", background: "rgba(255,255,255,0.02)", borderRadius: "6px", borderLeft: "2px solid var(--primary)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                                                                    {rel.type === "source" ? (
+                                                                        <>
+                                                                            <span style={{ fontSize: "9px", textTransform: "uppercase", color: "var(--text-dim)" }}>{rel.rel}</span>
+                                                                            <span style={{ color: "#f8fafc", fontWeight: "600" }}>{capitalize(rel.target)}</span>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <span style={{ fontSize: "9px", textTransform: "uppercase", color: "var(--text-dim)" }}>{rel.rel} BY</span>
+                                                                            <span style={{ color: "#f8fafc", fontWeight: "600" }}>{capitalize(rel.source)}</span>
+                                                                        </>
+                                                                    )}
+                                                                </div>
+                                                                <button
+                                                                    onClick={() => handleDeleteRelation(rel)}
+                                                                    style={{ background: "transparent", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "1.0rem", padding: "0 6px", fontWeight: "bold" }}
+                                                                    title="Delete Relationship"
+                                                                >
+                                                                    &times;
+                                                                </button>
                                                             </div>
                                                         ))}
                                                     </div>
                                                 )}
+                                            </div>
+
+                                            {/* Add Relation Form */}
+                                            <div style={{ marginTop: "12px", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: "12px" }}>
+                                                <div style={{ fontSize: "0.8rem", fontWeight: "700", color: "#94a3b8", marginBottom: "8px" }}>ADD RELATIONSHIP</div>
+                                                <form onSubmit={handleAddRelation} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                                    <div style={{ display: "flex", gap: "6px" }}>
+                                                        <select
+                                                            className="modal-input"
+                                                            value={newRelTarget}
+                                                            onChange={(e) => setNewRelTarget(e.target.value)}
+                                                            style={{ flex: 1, padding: "6px 10px", fontSize: "0.8rem", background: "var(--input-bg)" }}
+                                                            required
+                                                        >
+                                                            <option value="" style={{ background: "#0f172a" }}>Target Node...</option>
+                                                            {rawNodes.filter(n => n.id !== selectedNode.id).map(n => (
+                                                                <option key={n.id} value={n.id} style={{ background: "#0f172a" }}>{n.label}</option>
+                                                            ))}
+                                                        </select>
+
+                                                        <select
+                                                            className="modal-input"
+                                                            value={newRelType}
+                                                            onChange={(e) => setNewRelType(e.target.value)}
+                                                            style={{ flex: 1, padding: "6px 10px", fontSize: "0.8rem", background: "var(--input-bg)" }}
+                                                            required
+                                                        >
+                                                            {COMMON_RELATIONS.map(r => (
+                                                                <option key={r} value={r} style={{ background: "#0f172a" }}>{r.replace(/_/g, " ")}</option>
+                                                            ))}
+                                                            <option value="CUSTOM" style={{ background: "#0f172a" }}>CUSTOM...</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {newRelType === "CUSTOM" && (
+                                                        <input
+                                                            type="text"
+                                                            className="modal-input"
+                                                            value={customRelType}
+                                                            onChange={(e) => setCustomRelType(e.target.value)}
+                                                            placeholder="RELATION NAME (e.g. WORKS_AT)"
+                                                            required
+                                                            style={{ padding: "6px 10px", fontSize: "0.8rem" }}
+                                                        />
+                                                    )}
+
+                                                    <button type="submit" className="btn btn-primary" style={{ padding: "8px", borderRadius: "8px", fontSize: "0.8rem", fontWeight: "600" }} disabled={isSaving}>
+                                                        Add Relation
+                                                    </button>
+                                                </form>
                                             </div>
                                         </div>
                                     )}
@@ -1065,6 +1601,137 @@
 
                             </div>
                         </>
+                    )}
+                    {/* Premium Confirmation Modal Overlay */}
+                    {showConfirmModal && (
+                        <div style={{
+                            position: "fixed",
+                            top: 0,
+                            left: 0,
+                            width: "100vw",
+                            height: "100vh",
+                            background: "rgba(5, 8, 16, 0.8)",
+                            backdropFilter: "blur(8px)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            zIndex: 99999,
+                            animation: "fadeIn 0.25s ease-out"
+                        }}>
+                            <div style={{
+                                width: "450px",
+                                background: "rgba(15, 23, 42, 0.95)",
+                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                borderRadius: "24px",
+                                padding: "28px",
+                                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "20px",
+                                position: "relative",
+                                animation: "scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)"
+                            }}>
+                                {/* Header */}
+                                <div>
+                                    <h3 style={{ fontSize: "1.2rem", fontWeight: "700", color: "#f8fafc", margin: 0 }}>Confirm Connection</h3>
+                                    <p style={{ fontSize: "0.85rem", color: "var(--text-dim)", marginTop: "4px" }}>
+                                        Establish a new relationship link in the chatbot's knowledge base.
+                                    </p>
+                                </div>
+
+                                {/* Connection Visual Representation */}
+                                <div style={{
+                                    background: "rgba(0, 0, 0, 0.25)",
+                                    border: "1px solid rgba(255, 255, 255, 0.05)",
+                                    borderRadius: "16px",
+                                    padding: "20px 16px",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "12px",
+                                    textAlign: "center"
+                                }}>
+                                    <div style={{ fontSize: "0.95rem", fontWeight: "600", color: "#60a5fa" }}>
+                                        {confirmDetails.sourceLabel}
+                                    </div>
+                                    <div style={{ display: "flex", alignItems: "center", width: "100%", justifyContent: "center", position: "relative" }}>
+                                        {/* Line indicator */}
+                                        <div style={{ height: "1px", background: "linear-gradient(90deg, transparent, rgba(96, 165, 250, 0.5), transparent)", width: "80%", position: "absolute", zIndex: 1 }} />
+                                        {/* Relationship Type Badge */}
+                                        <span style={{
+                                            fontSize: "0.7rem",
+                                            fontWeight: "800",
+                                            letterSpacing: "0.8px",
+                                            textTransform: "uppercase",
+                                            background: "var(--primary, #3b82f6)",
+                                            color: "#fff",
+                                            padding: "4px 10px",
+                                            borderRadius: "9999px",
+                                            boxShadow: "0 0 12px rgba(59, 130, 246, 0.4)",
+                                            zIndex: 2,
+                                            position: "relative"
+                                        }}>
+                                            {confirmDetails.relType.replace(/_/g, " ")}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: "0.95rem", fontWeight: "600", color: "var(--accent, #10b981)" }}>
+                                        {confirmDetails.targetLabel}
+                                    </div>
+                                </div>
+
+                                {/* Description note */}
+                                <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", lineHeight: "1.4", display: "flex", gap: "8px", alignItems: "flex-start", background: "rgba(59, 130, 246, 0.05)", padding: "10px 12px", borderRadius: "10px", borderLeft: "3px solid #3b82f6" }}>
+                                    <span>💡</span>
+                                    <span>This link helps the AI retrieve context from both entities simultaneously during conversation matching.</span>
+                                </div>
+
+                                {/* Actions */}
+                                <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirmModal(false)}
+                                        style={{
+                                            flex: 1,
+                                            padding: "10px 16px",
+                                            borderRadius: "12px",
+                                            background: "rgba(255, 255, 255, 0.05)",
+                                            border: "1px solid rgba(255, 255, 255, 0.15)",
+                                            color: "var(--text-main)",
+                                            fontSize: "0.88rem",
+                                            fontWeight: "600",
+                                            cursor: "pointer",
+                                            transition: "0.2s"
+                                        }}
+                                        onMouseOver={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.1)"}
+                                        onMouseOut={(e) => e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)"}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={submitAddRelation}
+                                        style={{
+                                            flex: 1,
+                                            padding: "10px 16px",
+                                            borderRadius: "12px",
+                                            background: "linear-gradient(135deg, #3b82f6, #1d4ed8)",
+                                            border: "none",
+                                            color: "#fff",
+                                            fontSize: "0.88rem",
+                                            fontWeight: "600",
+                                            cursor: "pointer",
+                                            transition: "0.2s",
+                                            boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)"
+                                        }}
+                                        onMouseOver={(e) => e.currentTarget.style.transform = "translateY(-1px)"}
+                                        onMouseOut={(e) => e.currentTarget.style.transform = "translateY(0)"}
+                                    >
+                                        Confirm Link
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     )}
                 </div>
             );
@@ -1092,10 +1759,10 @@
                 setSuccessMsg("");
                 setQuestions([]);
                 setLogs(["Initializing verification scan..."]);
-                
+
                 try {
                     const response = await authenticatedFetch(`/api/knowledge/refinement/questions?chatbot_id=${botId}`);
-                    
+
                     if (!response.ok) {
                         const errData = await response.json();
                         setError(errData.message || "Failed to generate questions.");
@@ -1110,11 +1777,11 @@
                     while (true) {
                         const { value, done } = await reader.read();
                         if (done) break;
-                        
+
                         buffer += decoder.decode(value, { stream: true });
                         const lines = buffer.split("\n");
                         buffer = lines.pop(); // Save trailing unfinished line
-                        
+
                         for (const line of lines) {
                             const trimmed = line.trim();
                             if (trimmed.startsWith("data:")) {
@@ -1158,7 +1825,7 @@
                 setSubmitting(true);
                 setError("");
                 setSuccessMsg("");
-                
+
                 const qaPairs = questions.map((q, idx) => ({
                     question: q.question,
                     answer: answers[idx] || ""
@@ -1204,9 +1871,9 @@
                                 Scan the knowledge graph to detect ambiguities, fill in the blanks, and make your AI chatbot smarter.
                             </p>
                         </div>
-                        <button 
-                            className="btn btn-primary" 
-                            type="button" 
+                        <button
+                            className="btn btn-primary"
+                            type="button"
                             onClick={fetchQuestions}
                             disabled={loading || submitting}
                         >
@@ -1236,16 +1903,16 @@
                             <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "20px" }}>
                                 Auditing the Knowledge Graph & PDF Content...
                             </p>
-                            
-                            <div style={{ 
-                                background: "#0b0b0c", 
-                                border: "1px solid rgba(255,255,255,0.08)", 
-                                borderRadius: "8px", 
-                                padding: "15px 20px", 
-                                maxHeight: "220px", 
-                                overflowY: "auto", 
-                                textAlign: "left", 
-                                fontFamily: "Consolas, Monaco, monospace", 
+
+                            <div style={{
+                                background: "#0b0b0c",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                                borderRadius: "8px",
+                                padding: "15px 20px",
+                                maxHeight: "220px",
+                                overflowY: "auto",
+                                textAlign: "left",
+                                fontFamily: "Consolas, Monaco, monospace",
                                 fontSize: "0.85rem",
                                 color: "#00E676",
                                 lineHeight: "1.6",
@@ -1301,16 +1968,16 @@
                             </div>
 
                             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-                                <button 
-                                    className="btn" 
-                                    type="button" 
+                                <button
+                                    className="btn"
+                                    type="button"
                                     onClick={() => setQuestions([])}
                                     disabled={submitting}
                                 >
                                     Clear
                                 </button>
-                                <button 
-                                    className="btn btn-primary" 
+                                <button
+                                    className="btn btn-primary"
                                     type="submit"
                                     disabled={submitting}
                                 >
@@ -1798,21 +2465,21 @@
                         </div>
 
                         <div className="tabs-nav">
-                            <div 
+                            <div
                                 className={`tab-item ${activeViewTab === "sources" ? "active" : ""}`}
                                 onClick={() => setActiveViewTab("sources")}
                                 style={{ cursor: "pointer" }}
                             >
                                 Primary PDF / Supporting Websites
                             </div>
-                            <div 
+                            <div
                                 className={`tab-item ${activeViewTab === "graph" ? "active" : ""}`}
                                 onClick={() => setActiveViewTab("graph")}
                                 style={{ cursor: "pointer" }}
                             >
                                 Knowledge Graph
                             </div>
-                            <div 
+                            <div
                                 className={`tab-item ${activeViewTab === "refinement" ? "active" : ""}`}
                                 onClick={() => setActiveViewTab("refinement")}
                                 style={{ cursor: "pointer" }}
