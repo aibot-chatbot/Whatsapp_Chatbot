@@ -1,4 +1,4 @@
-# Feature Status
+﻿# Feature Status
 
 ## Status Definitions
 
@@ -124,11 +124,11 @@
 
 | Feature | Status | Notes |
 |---|---|---|
-| Subscription plans | Implemented | Plan retrieval and display exist |
+| Subscription plans | Implemented | Plan catalogue seeded (Free, Essential, Advanced, Pro); commercial prices TBD |
 | Current subscription | Implemented | Company-scoped |
 | Usage summary | Implemented | Usage data exposed in billing UI |
 | Default free subscription | Implemented | Created during company onboarding |
-| Subscription limit enforcement | Implemented | Guard layer exists |
+| Subscription limit enforcement | Implemented | Guard layer with fail-closed fallback; missing subscriptions resolved to Free plan or denied |
 | Feature flag enforcement | Implemented | Backed by plan feature data |
 | AI-credit summary | Verified complete | Included in the latest billing test work |
 | AI-credit transactions | Verified complete | Included in the latest billing implementation |
@@ -146,7 +146,7 @@
 The latest recorded full automated suite after the ToyyibPay migration passed:
 
 ```text
-136+ tests passed (knowledge graph, escalation, agent reply, and silent-bot tests added)
+339 tests passed (knowledge graph, escalation, agent reply, silent-bot, and subscription plan tests added)
 ```
 
 A later read-only Codex audit could not rerun the suite because its virtual environment referenced an unavailable Python installation. That environment limitation does not replace the previously recorded successful result.
