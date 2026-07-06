@@ -49,10 +49,50 @@ def resolve_esc(action_id):
             return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
 
         verify_chatbot_access(chatbot_id)
-        
         resolved = resolve_escalation(action_id, chatbot_id)
         if not resolved:
             return jsonify({"status": "error", "message": "Escalation not found or already resolved."}), 404
+
+        # Let the user know the session has ended
+        try:
+            conversation_id = resolved.get("conversation_id")
+            if conversation_id:
+                from app.database.agent_action_repository import resolve_all_escalations_for_conversation
+                resolve_all_escalations_for_conversation(conversation_id, chatbot_id)
+                
+                conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
+                if conversation:
+                    source_channel = conversation.get("source_channel")
+                    customer_phone = conversation.get("customer_phone")
+                    platform_user_id = conversation.get("platform_user_id")
+                    end_msg = "The customer service session has ended. You are now chatting with the AI assistant again. Let me know if you need anything else!"
+                    
+                    # Save bot message to DB
+                    save_message(
+                        conversation_id=conversation_id,
+                        sender_type="bot",
+                        message_text=end_msg,
+                        message_type="text",
+                        delivery_status="sent",
+                        ai_generated=False,
+                    )
+                    
+                    if source_channel == "whatsapp":
+                        channels = get_whatsapp_channels_by_chatbot(chatbot_id)
+                        if channels:
+                            from app.utils.whatsapp_utils import get_text_message_input
+                            msg_data = get_text_message_input(customer_phone, end_msg)
+                            send_whatsapp_message(msg_data, channels[0])
+                    elif source_channel == "telegram":
+                        channels = get_telegram_channels_by_chatbot(chatbot_id)
+                        if channels:
+                            send_telegram_message(channels[0]["bot_token"], platform_user_id, end_msg)
+                    elif source_channel == "wasender":
+                        channels = get_wasender_channels_by_chatbot(chatbot_id)
+                        if channels:
+                            send_wasender_text_message(channels[0]["api_key"], platform_user_id or customer_phone, end_msg)
+        except Exception as e:
+            logging.error(f"Failed to send end of service message: {e}")
 
         return jsonify({"status": "success", "message": "Escalation resolved."}), 200
 
@@ -87,11 +127,11 @@ def agent_reply(conversation_id):
         # Save agent's message to DB
         save_message(
             conversation_id=conversation_id,
-            chatbot_id=chatbot_id,
-            role="assistant", # Treat agent as assistant visually for now
-            content=text,
+            sender_type="bot", # Treat agent as bot visually for now
+            message_text=text,
             message_type="text",
-            metadata={"sent_by": "human_agent"}
+            delivery_status="sent",
+            ai_generated=False,
         )
 
         # Dispatch
@@ -122,10 +162,6 @@ def agent_reply(conversation_id):
         except Exception as dispatch_e:
             logging.error(f"Failed to dispatch agent message: {dispatch_e}")
             return jsonify({"status": "error", "message": f"Message saved, but failed to send: {str(dispatch_e)}"}), 500
-
-        # Auto-resolve escalation if action_id is provided
-        if action_id:
-            resolve_escalation(action_id, chatbot_id)
 
         return jsonify({"status": "success", "message": "Reply sent successfully."}), 200
 

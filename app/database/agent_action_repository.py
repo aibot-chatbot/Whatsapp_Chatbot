@@ -112,3 +112,19 @@ def resolve_escalation(action_id, chatbot_id):
         .execute()
     )
     return result.data[0] if result.data else None
+
+def resolve_all_escalations_for_conversation(conversation_id, chatbot_id):
+    supabase.table("agent_actions").update({"status": "resolved"}).eq("conversation_id", conversation_id).eq("chatbot_id", chatbot_id).eq("status", "detected").execute()
+
+def is_conversation_escalated(conversation_id):
+    result = (
+        supabase
+        .table("agent_actions")
+        .select("id")
+        .eq("conversation_id", conversation_id)
+        .eq("status", "detected")
+        .in_("intent", ["handoff_request", "complaint", "knowledge_gap"])
+        .limit(1)
+        .execute()
+    )
+    return bool(result.data)

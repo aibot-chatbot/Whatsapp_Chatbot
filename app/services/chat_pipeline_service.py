@@ -36,6 +36,15 @@ def prepare_chat_prompt(
         limit=MAX_HISTORY,
     )
 
+    from app.database.agent_action_repository import is_conversation_escalated
+    if is_conversation_escalated(conversation["id"]):
+        logging.info(f"[ChatPipeline] Conversation {conversation['id']} is currently escalated to human staff. Skipping AI response.")
+        return {
+            "direct_reply": "<SILENT_BOT_RESPONSE>",
+            "prompt": None,
+            "intent": "escalated_to_human",
+        }
+
     try:
         agent_decision = analyze_agent_intent(
             message,
@@ -65,6 +74,26 @@ def prepare_chat_prompt(
                 chatbot_id,
                 e,
             )
+
+        # Trigger email notification for handoff requests
+        if agent_decision.get("intent") == "handoff_request":
+            try:
+                from app.services.email_service import send_handoff_notification_email
+                # We need to run this asynchronously or just let it block briefly (SMTP takes ~1-2s)
+                # To keep it simple we just call it directly.
+                send_handoff_notification_email(
+                    company_id=conversation.get("company_id"),
+                    conversation=conversation,
+                    chatbot_id=chatbot_id
+                )
+            except Exception as e:
+                logging.warning(f"[AgentDecision] failed to send handoff email: {e}")
+            
+            return {
+                "direct_reply": "I'm transferring you to our Customer Service team now. Please hold on while I connect you. They will be with you shortly! \U0001f60a",
+                "prompt": None,
+                "intent": "handoff_request",
+            }
 
         try:
             create_crm_lead_from_agent_signal(

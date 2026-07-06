@@ -958,7 +958,32 @@
             setupConversationCrmModal();
             fetchSelectedBot();
             await fetchEscalations();
-            fetchConversations();
+            await fetchConversations();
+
+            // Auto-polling for new messages and conversations
+            setInterval(async () => {
+                if (!selectedBotId) return;
+                try {
+                    const escRes = await authenticatedFetch(`/api/agent/escalations?chatbot_id=${selectedBotId}`);
+                    const escJson = await escRes.json();
+                    if (escJson.status === 'success') {
+                        allEscalations = escJson.data || [];
+                    }
+
+                    const convRes = await authenticatedFetch(`/api/conversations?chatbot_id=${selectedBotId}`);
+                    const convJson = await convRes.json();
+                    if (convJson.status === "success") {
+                        allConversations = convJson.data;
+                        filterConversations(); // Updates list, keeps search/filters active
+                    }
+                } catch(err) {
+                    // Fail silently during polling
+                }
+
+                if (currentConversationId) {
+                    await loadMessages(currentConversationId, currentConversationPhone, currentConversationName, true);
+                }
+            }, 3000);
         });
 
         async function fetchEscalations() {
@@ -1097,6 +1122,8 @@
 
         function renderConversationList(conversations) {
             const listEl = document.getElementById('conversation-list');
+            const savedScrollTop = listEl.scrollTop;
+            
             listEl.replaceChildren();
 
             if (!conversations || conversations.length === 0) {
@@ -1159,6 +1186,8 @@
                 item.appendChild(preview);
                 listEl.appendChild(item);
             });
+            
+            listEl.scrollTop = savedScrollTop;
         }
 
         function openLinkedConversationIfPresent() {
@@ -1279,30 +1308,36 @@
             window.history.replaceState({}, "", newUrl);
         }
 
-        async function loadMessages(conversationId, phone, name) {
-            activeConversationId = conversationId;
-            currentConversationId = conversationId;
-            currentConversationPhone = phone || "";
-            currentConversationName = name || "User";
-            currentConversationMessages = [];
-            currentConversationData = allConversations.find(conv => Number(conv.id) === Number(conversationId)) || null;
-            currentConversationCrmLead = null;
-            resetMessageSearchState();
+        async function loadMessages(conversationId, phone, name, isPolling = false) {
+            if (!isPolling) {
+                activeConversationId = conversationId;
+                currentConversationId = conversationId;
+                currentConversationPhone = phone || "";
+                currentConversationName = name || "User";
+                currentConversationMessages = [];
+                currentConversationData = allConversations.find(conv => Number(conv.id) === Number(conversationId)) || null;
+                currentConversationCrmLead = null;
+                resetMessageSearchState();
 
-            updateConversationUrl(conversationId);
+                updateConversationUrl(conversationId);
 
-            filterConversations();
-            scrollActiveConversationIntoView();
+                filterConversations();
+                scrollActiveConversationIntoView();
 
-            renderChatLoading(phone, name);
+                renderChatLoading(phone, name);
+            }
 
             try {
                 const response = await authenticatedFetch(`/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
                 const result = await response.json();
 
                 if (result.status === "success") {
-                    currentConversationMessages = Array.isArray(result.data) ? result.data : [];
-                    renderMessages(currentConversationMessages, phone, name);
+                    const newMessages = Array.isArray(result.data) ? result.data : [];
+                    
+                    if (!isPolling || newMessages.length !== currentConversationMessages.length) {
+                        currentConversationMessages = newMessages;
+                        renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
+                    }
                     
                     const isEscalated = allEscalations.some(e => e.conversation_id === Number(conversationId));
                     const replyBox = document.getElementById('reply-box');
@@ -1317,10 +1352,10 @@
                         }
                     }
                 } else {
-                    console.error("Failed to fetch messages:", result.message);
+                    if (!isPolling) console.error("Failed to fetch messages:", result.message);
                 }
             } catch (err) {
-                console.error("Error fetching messages:", err);
+                if (!isPolling) console.error("Error fetching messages:", err);
             }
         }
 
@@ -2111,13 +2146,75 @@
 
         function renderMessages(messages, phone, name) {
             const chatPane = document.getElementById('chat-pane');
-            chatPane.replaceChildren();
             currentMessageSearchMatches = [];
-
-            const transcript = document.createElement('div');
-            transcript.className = 'chat-transcript';
-            transcript.id = 'chat-transcript';
             const searchQuery = currentMessageSearchQuery.trim();
+
+            let transcript = document.getElementById('chat-transcript');
+            let replyBox = document.getElementById('reply-box');
+            let chatHeader = chatPane.querySelector('.chat-header');
+
+            if (chatHeader && !chatHeader.querySelector('.chat-header-actions')) {
+                const newHeader = createChatHeader(phone, name);
+                chatPane.replaceChild(newHeader, chatHeader);
+                chatHeader = newHeader;
+            }
+
+            if (!transcript) {
+                chatPane.replaceChildren();
+                chatHeader = createChatHeader(phone, name);
+                chatPane.appendChild(chatHeader);
+
+                transcript = document.createElement('div');
+                transcript.className = 'chat-transcript';
+                transcript.id = 'chat-transcript';
+                chatPane.appendChild(transcript);
+                
+                replyBox = document.createElement('div');
+                replyBox.id = 'reply-box';
+                replyBox.className = 'reply-box';
+                replyBox.style.display = 'none';
+                replyBox.style.padding = '20px';
+                replyBox.style.borderTop = '1px solid var(--glass-border)';
+                replyBox.style.background = 'rgba(0,0,0,0.2)';
+                replyBox.style.gap = '12px';
+                replyBox.style.alignItems = 'center';
+                
+                const replyInput = document.createElement('input');
+                replyInput.type = 'text';
+                replyInput.id = 'reply-input';
+                replyInput.placeholder = 'Type your reply to the customer...';
+                replyInput.style.flexGrow = '1';
+                replyInput.style.background = 'var(--input-bg)';
+                replyInput.style.border = '1px solid var(--glass-border)';
+                replyInput.style.borderRadius = '12px';
+                replyInput.style.padding = '12px 16px';
+                replyInput.style.color = 'white';
+                replyInput.style.fontSize = '0.95rem';
+                replyInput.style.outline = 'none';
+                replyInput.onkeypress = handleReplyKey;
+                
+                const sendBtn = document.createElement('button');
+                sendBtn.onclick = sendReply;
+                sendBtn.style.background = 'var(--primary)';
+                sendBtn.style.color = 'white';
+                sendBtn.style.border = 'none';
+                sendBtn.style.padding = '12px 20px';
+                sendBtn.style.borderRadius = '12px';
+                sendBtn.style.fontWeight = '600';
+                sendBtn.style.cursor = 'pointer';
+                sendBtn.style.display = 'flex';
+                sendBtn.style.alignItems = 'center';
+                sendBtn.style.gap = '8px';
+                sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send';
+                
+                replyBox.appendChild(replyInput);
+                replyBox.appendChild(sendBtn);
+                chatPane.appendChild(replyBox);
+            }
+
+            const shouldScrollToBottom = transcript.scrollHeight - transcript.scrollTop <= transcript.clientHeight + 50;
+
+            transcript.replaceChildren();
 
             if (!messages || messages.length === 0) {
                 transcript.appendChild(createTranscriptMessage('No messages recorded yet.'));
@@ -2151,8 +2248,14 @@
                 });
             }
 
-            chatPane.appendChild(createChatHeader(phone, name));
-            chatPane.appendChild(transcript);
+            if (shouldScrollToBottom) {
+                transcript.scrollTop = transcript.scrollHeight;
+            }
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+
             normalizeMessageSearchIndex();
             updateActiveMessageMatch();
             updateMessageSearchControls();
