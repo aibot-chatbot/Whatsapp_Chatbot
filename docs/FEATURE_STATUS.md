@@ -58,6 +58,8 @@
 | Knowledge refinement | Implemented | Requires end-to-end verification |
 | Chunk storage and retrieval | Implemented | Database/vector configuration requires environment verification |
 | RAG response flow | Implemented | Quality and adversarial testing remain |
+| Knowledge graph visualization | Implemented | Graph rendering and node/edge CRUD in new_linkdocs.html |
+| Knowledge graph editing | Implemented | Add, rename, delete nodes; add, delete edges; focused route tests exist |
 
 ## AI Providers
 
@@ -91,6 +93,9 @@
 | Conversation list | Implemented | Backend and frontend exist |
 | Message history | Implemented | Conversation-scoped |
 | Message search | Implemented | Previously reviewed in the conversation interface |
+| Inbox auto-polling | Implemented | 3-second interval for escalations, conversations, and messages |
+| Agent reply and dispatch | Implemented | Reply via inbox dispatches to WhatsApp, Telegram, Wasender |
+| Handoff email notification | Implemented | SMTP-based email to active staff when customer requests human agent |
 | Conversation deep links | Implemented | URL synchronization and direct loading were previously reviewed |
 | Copy conversation link | Implemented | Previously reviewed |
 | Copy transcript | Implemented | Previously reviewed |
@@ -113,7 +118,7 @@
 | Dashboard health | Implemented | Requires environment verification |
 | Agent insights | Implemented | Requires data-path tests |
 | AI-generated reports | Implemented | External model and feature-gate verification required |
-| Escalation handling | Implemented | Requires workflow tests |
+| Escalation handling | Implemented | Escalation detection, agent reply, resolution, email notification, and silent bot response; focused route tests exist |
 
 ## Subscription and AI Credit
 
@@ -141,7 +146,7 @@
 The latest recorded full automated suite after the ToyyibPay migration passed:
 
 ```text
-136 tests passed
+136+ tests passed (knowledge graph, escalation, agent reply, and silent-bot tests added)
 ```
 
 A later read-only Codex audit could not rerun the suite because its virtual environment referenced an unavailable Python installation. That environment limitation does not replace the previously recorded successful result.
