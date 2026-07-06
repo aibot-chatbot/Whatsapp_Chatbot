@@ -85,6 +85,10 @@
 | Meta WhatsApp Embedded Signup | Implemented | Live status depends on Meta app/business approval |
 | Meta WhatsApp webhook | Implemented | Production signature and message-flow verification required |
 | Message deduplication | Implemented | Repository support exists for supported channels |
+| Broadcast campaigns dashboard | Verified complete | Dedicated frontend workspace and CRUD routes verified |
+| Broadcast CSV uploading | Verified complete | Client-side CSV parser and pending logs registration verified |
+| Broadcast CRM contacts extraction | Verified complete | Extraction of unmasked contacts from active chats verified |
+| Broadcast pacing delay sending | Verified complete | Context-propagated background worker sending with 3s delays verified |
 
 ## Conversations and CRM
 

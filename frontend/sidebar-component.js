@@ -260,7 +260,7 @@ class ChatbotSidebar extends HTMLElement {
             .sidebar.collapsed .logout-link span {
                 display: none;
             }
-            
+
             .nav-link-content {
                 display: flex;
                 align-items: center;
@@ -356,36 +356,41 @@ class ChatbotSidebar extends HTMLElement {
                     <span class="sidebar-toggle-icon">${isCollapsed ? "☰" : "«"}</span>
                 </button>
             </div>
-    
+
             <nav class="nav-list">
                 <a href="bots.html" class="nav-link" title="My Bots">
                     <i data-lucide="home"></i>
                     <span>My Bots</span>
                 </a>
-    
+
                 ${!isBotsPage && botId ? `
                     <div style="height: 1px; background: rgba(255,255,255,0.05); margin: 12px 0;"></div>
-                    
+
                     <a href="index.html${botQuery}" class="nav-link" title="Dashboard">
                         <i data-lucide="layout-dashboard"></i>
                         <span>Dashboard</span>
                     </a>
-                    
+
                     <a href="conversations.html${botQuery}" class="nav-link" title="Inbox & Conversations">
                         <i data-lucide="message-square"></i>
                         <span>Inbox & Conversations</span>
                     </a>
-                    
+
                     <a href="crm.html${botQuery}" class="nav-link" title="CRM / Leads">
                         <i data-lucide="users"></i>
                         <span>CRM / Leads</span>
+                    </a>
+
+                    <a href="broadcast.html${botQuery}" class="nav-link" title="Broadcast / Campaigns">
+                        <i data-lucide="send"></i>
+                        <span>Broadcast / Campaigns</span>
                     </a>
 
                     <a href="reports.html${botQuery}" class="nav-link" title="Reports">
                         <i data-lucide="bar-chart-3"></i>
                         <span>Reports</span>
                     </a>
-                    
+
                     ${isAdmin ? `
                     <a href="flows.html${botQuery}" class="nav-link" title="Flow Builder">
                         <i data-lucide="workflow"></i>
@@ -397,7 +402,7 @@ class ChatbotSidebar extends HTMLElement {
                         <span>Customer Insights</span>
                     </a>
 
-                    
+
                     <div class="dropdown-container" id="training-dropdown">
                         <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')" title="Training Data">
                             <div class="nav-link-content">
@@ -417,7 +422,7 @@ class ChatbotSidebar extends HTMLElement {
                             </a>
                         </div>
                     </div>
-    
+
                     <div class="dropdown-container" id="behaviour-dropdown">
                         <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('behaviour-dropdown')" title="Behaviour">
                             <div class="nav-link-content">
@@ -437,7 +442,7 @@ class ChatbotSidebar extends HTMLElement {
                             </a>
                         </div>
                     </div>
-    
+
                     <a href="integration.html${botQuery}" class="nav-link" title="Integration">
                         <i data-lucide="plug"></i>
                         <span>Integration</span>
@@ -469,7 +474,7 @@ class ChatbotSidebar extends HTMLElement {
             </div>
 
         </aside>
-        
+
 
         <!-- System Guidance Bot UI - ONLY ON INTERNAL PAGES -->
         ${(!isBotsPage && botId) ? `
