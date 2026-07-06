@@ -1,5 +1,4 @@
-﻿"""
-billing_guard.py — Central enforcement engine for subscription limits.
+﻿"""billing_guard.py — Central enforcement engine for subscription limits.
 
 This module provides the building blocks for checking whether a company
 has exceeded its subscription plan limits. It is deliberately kept
@@ -8,10 +7,15 @@ incrementally without modifying the usage-tracking or subscription-
 management code.
 """
 
+import logging
+
 from app.services.billing_service import (
     get_company_usage,
     get_current_subscription,
+    ensure_default_company_subscription,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BillingLimitError(Exception):
@@ -58,6 +62,66 @@ def _get_limits(subscription: dict | None) -> dict:
     }
 
 
+def _resolve_company_subscription(company_id: int) -> dict | None:
+    """Resolve a valid subscription for a company, creating the Free plan if needed.
+
+    Attempts to resolve the current subscription.  If no subscription exists,
+    attempts to create the default Free subscription.  If that also fails,
+    returns None — the caller should deny the action.
+
+    This is the single place where the missing-subscription fallback is
+    handled, so that all guards behave consistently.
+
+    Unexpected exceptions from get_current_subscription are caught and
+    converted to a logged None return so that repository or network
+    failures do not escape the guard layer.
+
+    Returns:
+        A subscription dict (with nested plan) when a subscription is
+        available, or None when no subscription can be resolved.
+    """
+    try:
+        subscription = get_current_subscription(company_id)
+    except BillingLimitError:
+        # Already a controlled error — re-raise
+        raise
+    except Exception:
+        logger.exception(
+            "Failed to resolve current subscription for company %s; denying access.",
+            company_id,
+        )
+        return None
+
+    if subscription is not None:
+        return subscription
+
+    # No subscription — try to assign the Free plan
+    try:
+        subscription = ensure_default_company_subscription(company_id)
+    except Exception:
+        logger.exception(
+            "Failed to create default Free subscription for company %s; denying access.",
+            company_id,
+        )
+        return None
+
+    if subscription is None:
+        logger.warning(
+            "ensure_default_company_subscription returned None for company %s; denying access.",
+            company_id,
+        )
+        return None
+
+    # Confirm we actually have a plan after recovery
+    plan = subscription.get("plan")
+    if not plan:
+        logger.warning(
+            "Company %s has a subscription row but no plan; denying access.",
+            company_id,
+        )
+        return None
+
+    return subscription
 def check_company_limit(company_id: int) -> dict | None:
     """Return current usage, plan limits, and plan info for testing.
 
@@ -117,25 +181,53 @@ def can_create_chatbot(company_id: int) -> bool:
     """Check whether the company can create a new chatbot.
 
     Returns True when allowed.
-    Raises BillingLimitError when the chatbot limit has been reached.
+    Raises BillingLimitError when no subscription exists or the
+    chatbot limit has been reached.
     """
-    data = check_company_limit(company_id)
-    if data is None:
+    subscription = _resolve_company_subscription(company_id)
+    if subscription is None:
+        raise BillingLimitError(
+            "No active subscription plan. Please contact support.",
+            code="no_subscription",
+        )
+    plan = subscription.get("plan") or {}
+    limit = plan.get("chatbot_limit")
+    if limit is None:
         return True
-    used = data["usage"].get("usage", {}).get("chatbots", {}).get("used")
-    limit = data["limits"].get("chatbots")
+    usage = get_company_usage(company_id)
+    if usage is None:
+        raise BillingLimitError(
+            "Unable to verify usage limits. Please try again.",
+            code="usage_unavailable",
+        )
+    used = usage.get("usage", {}).get("chatbots", {}).get("used", 0) or 0
     return _check_limit(used, limit, "Chatbot limit reached", "chatbot_limit")
+
+
 def can_upload_knowledge_file(company_id: int) -> bool:
     """Check whether the company can upload a new knowledge file.
 
     Returns True when allowed.
-    Raises BillingLimitError when the knowledge-file limit has been reached.
+    Raises BillingLimitError when no subscription exists or the
+    knowledge-file limit has been reached.
     """
-    data = check_company_limit(company_id)
-    if data is None:
+    subscription = _resolve_company_subscription(company_id)
+    if subscription is None:
+        raise BillingLimitError(
+            "No active subscription plan. Please contact support.",
+            code="no_subscription",
+        )
+    plan = subscription.get("plan") or {}
+    limit = plan.get("knowledge_file_limit")
+    if limit is None:
         return True
-    used = data["usage"].get("usage", {}).get("knowledge_files", {}).get("used")
-    limit = data["limits"].get("knowledge_files")
+    usage = get_company_usage(company_id)
+    if usage is None:
+        raise BillingLimitError(
+            "Unable to verify usage limits. Please try again.",
+            code="usage_unavailable",
+        )
+    used = usage.get("usage", {}).get("knowledge_files", {}).get("used", 0) or 0
     return _check_limit(used, limit, "Knowledge file limit reached", "file_limit")
 
 
@@ -143,13 +235,26 @@ def can_connect_channel(company_id: int) -> bool:
     """Check whether the company can connect a new channel.
 
     Returns True when allowed.
-    Raises BillingLimitError when the channel limit has been reached.
+    Raises BillingLimitError when no subscription exists or the
+    channel limit has been reached.
     """
-    data = check_company_limit(company_id)
-    if data is None:
+    subscription = _resolve_company_subscription(company_id)
+    if subscription is None:
+        raise BillingLimitError(
+            "No active subscription plan. Please contact support.",
+            code="no_subscription",
+        )
+    plan = subscription.get("plan") or {}
+    limit = plan.get("channel_limit")
+    if limit is None:
         return True
-    used = data["usage"].get("usage", {}).get("channels", {}).get("used")
-    limit = data["limits"].get("channels")
+    usage = get_company_usage(company_id)
+    if usage is None:
+        raise BillingLimitError(
+            "Unable to verify usage limits. Please try again.",
+            code="usage_unavailable",
+        )
+    used = usage.get("usage", {}).get("channels", {}).get("used", 0) or 0
     return _check_limit(used, limit, "Channel limit reached", "channel_limit")
 
 
@@ -160,15 +265,27 @@ def can_add_team_member(company_id: int) -> bool:
     and compares it against the current count of active users.
 
     Returns True when allowed.
-    Raises BillingLimitError when the team-member limit has been reached.
+    Raises BillingLimitError when no subscription exists or the
+    team-member limit has been reached.
     """
-    data = check_company_limit(company_id)
-    if data is None:
+    subscription = _resolve_company_subscription(company_id)
+    if subscription is None:
+        raise BillingLimitError(
+            "No active subscription plan. Please contact support.",
+            code="no_subscription",
+        )
+    plan = subscription.get("plan") or {}
+    limit = plan.get("team_member_limit")
+    if limit is None:
         return True
-    used = data["usage"].get("usage", {}).get("team_members", {}).get("used")
-    limit = data["limits"].get("team_members")
+    usage = get_company_usage(company_id)
+    if usage is None:
+        raise BillingLimitError(
+            "Unable to verify usage limits. Please try again.",
+            code="usage_unavailable",
+        )
+    used = usage.get("usage", {}).get("team_members", {}).get("used", 0) or 0
     return _check_limit(used, limit, "Team member limit reached for the current subscription plan.", "team_member_limit")
-
 
 
 # ---------------------------------------------------------------------------
@@ -193,11 +310,16 @@ def can_use_plan_feature(company_id, feature_key):
     ``subscription_plans`` table) and checks whether *feature_key* is
     explicitly enabled.
 
+    Missing-subscription behavior:
+        Attempts to resolve a subscription (creating the Free plan if
+        absent).  If no subscription can be resolved, the feature is
+        denied.
+
     Backward-compatibility rules (temporary - each plan must be configured
     explicitly before public launch):
         * Feature key missing from the plan ``feature_flags``   -> allowed
         * ``feature_flags`` column is NULL or empty dict        -> allowed
-        * No active subscription exists                         -> allowed
+        * No active subscription exists                         -> denied
         * Feature explicitly set to ``true``                    -> allowed
         * Feature explicitly set to ``false``                   -> blocked
     """
@@ -210,9 +332,12 @@ def can_use_plan_feature(company_id, feature_key):
             "Recognised keys: " + str(sorted(PLAN_FEATURES))
         )
 
-    subscription = get_current_subscription(company_id)
+    subscription = _resolve_company_subscription(company_id)
     if subscription is None:
-        return True  # No active subscription - allow (temporary compat)
+        raise BillingLimitError(
+            "No active subscription plan. Please contact support.",
+            code="no_subscription",
+        )
 
     plan = subscription.get("plan") or {}
     feature_flags = plan.get("feature_flags")
@@ -238,7 +363,6 @@ def can_use_plan_feature(company_id, feature_key):
     )
 
 
-
 def can_upload_knowledge_storage(company_id: int, incoming_size_bytes: int) -> bool:
     """Check whether the company can upload a knowledge file of the given size.
 
@@ -250,18 +374,33 @@ def can_upload_knowledge_storage(company_id: int, incoming_size_bytes: int) -> b
         incoming_size_bytes: Size of the file being uploaded, in bytes.
 
     Returns True when allowed.
-    Raises BillingLimitError when projected usage exceeds the plan limit.
+    Raises BillingLimitError when projected usage exceeds the plan limit
+    or when no subscription can be resolved.
     Raises ValueError if incoming_size_bytes is negative.
     """
     if incoming_size_bytes < 0:
         raise ValueError(f"incoming_size_bytes must be non-negative, got {incoming_size_bytes}")
-    data = check_company_limit(company_id)
-    if data is None:
-        return True
-    current_usage = data["usage"].get("usage", {}).get("knowledge_storage_bytes", {}).get("used", 0) or 0
-    limit = data["limits"].get("storage_bytes")
+
+    subscription = _resolve_company_subscription(company_id)
+    if subscription is None:
+        raise BillingLimitError(
+            "No active subscription plan. Please contact support.",
+            code="no_subscription",
+        )
+
+    plan = subscription.get("plan") or {}
+    limit = plan.get("knowledge_storage_limit_bytes")
     if limit is None:
         return True
+
+    usage = get_company_usage(company_id)
+    if usage is None:
+        raise BillingLimitError(
+            "Unable to verify usage limits. Please try again.",
+            code="usage_unavailable",
+        )
+
+    current_usage = usage.get("usage", {}).get("knowledge_storage_bytes", {}).get("used", 0) or 0
     projected = current_usage + incoming_size_bytes
     if projected > limit:
         raise BillingLimitError(
