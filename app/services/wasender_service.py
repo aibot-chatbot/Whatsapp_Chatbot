@@ -332,6 +332,11 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
         source_channel="wasender",
     )
 
+    if reply == "<SILENT_BOT_RESPONSE>":
+        logging.info("AI is silenced (conversation escalated to human).")
+        save_processed_wasender_message(wasender_channel_id, message_id)
+        return
+
     send_success = True
     send_errors = []
 

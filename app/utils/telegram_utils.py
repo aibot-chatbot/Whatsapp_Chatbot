@@ -357,6 +357,11 @@ def process_telegram_update(update: dict, webhook_secret: str):
         source_channel="telegram",
     )
 
+    if reply == "<SILENT_BOT_RESPONSE>":
+        logging.info("AI is silenced (conversation escalated to human).")
+        save_processed_telegram_update(telegram_channel_id, update_id)
+        return
+
     # Extract interactive buttons if any
     button_matches = re.findall(r"\[BUTTON:\s*(.*?)\]", reply, re.IGNORECASE)
     clean_reply = re.sub(r"\[BUTTON:\s*(.*?)\]", "", reply, flags=re.IGNORECASE).strip()

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -211,6 +211,603 @@
         .btn-save:hover {
             opacity: 0.9;
         }
+
+        /* ============ AI REVIEW OVERLAY ============ */
+        #ai-review-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+        }
+
+        #ai-review-overlay.active {
+            display: flex;
+        }
+
+        .ai-review-modal {
+            background: #0f172a;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 900px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.15), 0 20px 60px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        .review-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: linear-gradient(90deg, rgba(16,185,129,0.15) 0%, transparent 100%);
+        }
+
+        .review-header .ai-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .review-header h2 {
+            font-size: 18px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+
+        .review-header p {
+            font-size: 13px;
+            color: #64748b;
+            margin-top: 2px;
+        }
+
+        .review-body {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        /* Left: editable fields */
+        .review-edit-panel {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+            border-right: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .review-edit-panel h3 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #10b981;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .review-field-label {
+            font-size: 13px;
+            color: #94a3b8;
+            font-weight: 500;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .review-field-label .ai-badge {
+            background: rgba(16,185,129,0.15);
+            color: #10b981;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .review-textarea {
+            width: 100%;
+            padding: 12px;
+            background: rgba(15,23,42,0.8);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 8px;
+            color: #f8fafc;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.2s;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.5;
+        }
+
+        .review-textarea:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 2px rgba(16,185,129,0.1);
+        }
+
+        .review-btn-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .review-btn-input {
+            flex: 1;
+            padding: 10px 12px;
+            background: rgba(15,23,42,0.8);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 6px;
+            color: #f8fafc;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .review-btn-input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+
+        .review-btn-remove {
+            background: rgba(239,68,68,0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239,68,68,0.2);
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .review-btn-remove:hover {
+            background: rgba(239,68,68,0.2);
+        }
+
+        .review-add-btn {
+            width: 100%;
+            padding: 9px;
+            background: rgba(59,130,246,0.08);
+            border: 1px dashed rgba(59,130,246,0.4);
+            border-radius: 6px;
+            color: #3b82f6;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+
+        .review-add-btn:hover {
+            background: rgba(59,130,246,0.15);
+        }
+
+        /* Right: live preview */
+        .review-preview-panel {
+            width: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            flex-shrink: 0;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .review-phone {
+            width: 240px;
+            background: #E5DDD5;
+            border-radius: 24px;
+            border: 8px solid #1e293b;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .review-phone-header {
+            background: #075E54;
+            color: white;
+            padding: 10px 14px;
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .review-phone-body {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 200px;
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+            background-size: cover;
+        }
+
+        .review-bubble {
+            background: white;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border-top-left-radius: 0;
+            font-size: 12px;
+            color: #111;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+
+        .review-wa-btn {
+            background: white;
+            color: #00A884;
+            text-align: center;
+            padding: 8px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 12px;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+        }
+
+        .review-footer {
+            padding: 16px 24px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn-discard {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #94a3b8;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .btn-discard:hover {
+            background: rgba(255,255,255,0.1);
+            color: #f8fafc;
+        }
+
+        .btn-apply {
+            flex: 1;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .review-field-label .ai-badge {
+            background: rgba(16,185,129,0.15);
+            color: #10b981;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .review-textarea {
+            width: 100%;
+            padding: 12px;
+            background: rgba(15,23,42,0.8);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 8px;
+            color: #f8fafc;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 100px;
+            transition: border-color 0.2s;
+            font-family: 'Inter', sans-serif;
+            line-height: 1.5;
+        }
+
+        .review-textarea:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 2px rgba(16,185,129,0.1);
+        }
+
+        .review-btn-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            align-items: center;
+        }
+
+        .review-btn-input {
+            flex: 1;
+            padding: 10px 12px;
+            background: rgba(15,23,42,0.8);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 6px;
+            color: #f8fafc;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .review-btn-input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+
+        .review-btn-remove {
+            background: rgba(239,68,68,0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239,68,68,0.2);
+            padding: 8px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .review-btn-remove:hover {
+            background: rgba(239,68,68,0.2);
+        }
+
+        .review-add-btn {
+            width: 100%;
+            padding: 9px;
+            background: rgba(59,130,246,0.08);
+            border: 1px dashed rgba(59,130,246,0.4);
+            border-radius: 6px;
+            color: #3b82f6;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+
+        .review-add-btn:hover {
+            background: rgba(59,130,246,0.15);
+        }
+
+        /* Right: live preview */
+        .review-preview-panel {
+            width: 280px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            flex-shrink: 0;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .review-phone {
+            width: 240px;
+            background: #E5DDD5;
+            border-radius: 24px;
+            border: 8px solid #1e293b;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+
+        .review-phone-header {
+            background: #075E54;
+            color: white;
+            padding: 10px 14px;
+            font-weight: 600;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .review-phone-body {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 200px;
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+            background-size: cover;
+        }
+
+        .review-bubble {
+            background: white;
+            padding: 8px 10px;
+            border-radius: 8px;
+            border-top-left-radius: 0;
+            font-size: 12px;
+            color: #111;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+
+        .review-wa-btn {
+            background: white;
+            color: #00A884;
+            text-align: center;
+            padding: 8px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 12px;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+        }
+
+        .review-footer {
+            padding: 16px 24px;
+            border-top: 1px solid rgba(255,255,255,0.08);
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .btn-discard {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #94a3b8;
+            font-weight: 500;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .btn-discard:hover {
+            background: rgba(255,255,255,0.1);
+            color: #f8fafc;
+        }
+
+        .btn-apply {
+            flex: 1;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        .btn-apply:hover {
+            opacity: 0.92;
+            transform: translateY(-1px);
+        }
+
+        .section-divider {
+            margin: 16px 0;
+            border: none;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+
+        /* Button detail card */
+        .btn-detail-card {
+            background: rgba(15,23,42,0.6);
+            border: 1px solid rgba(16,185,129,0.2);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            transition: border-color 0.2s;
+        }
+
+        .btn-detail-card:hover {
+            border-color: rgba(16,185,129,0.4);
+        }
+
+        .btn-card-top {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .btn-card-num {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: rgba(16,185,129,0.2);
+            color: #10b981;
+            font-size: 11px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .btn-card-label-input {
+            flex: 1;
+            padding: 7px 10px;
+            background: rgba(15,23,42,0.9);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 6px;
+            color: #f8fafc;
+            font-size: 14px;
+            font-weight: 600;
+            transition: border-color 0.2s;
+        }
+
+        .btn-card-label-input:focus {
+            outline: none;
+            border-color: #10b981;
+        }
+
+        .btn-card-remove {
+            background: rgba(239,68,68,0.1);
+            color: #ef4444;
+            border: 1px solid rgba(239,68,68,0.2);
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .btn-card-remove:hover {
+            background: rgba(239,68,68,0.25);
+        }
+
+        .btn-card-reason {
+            background: rgba(16,185,129,0.06);
+            border: 1px solid rgba(16,185,129,0.12);
+            border-radius: 6px;
+            padding: 8px 10px;
+            display: flex;
+            gap: 7px;
+            align-items: flex-start;
+        }
+
+        .btn-card-reason-icon {
+            color: #10b981;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .btn-card-reason-text {
+            font-size: 12px;
+            color: #94a3b8;
+            line-height: 1.5;
+        }
+
+        .btn-card-reason-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: #10b981;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 2px;
+        }
     </style>
 </head>
 <body>
@@ -265,6 +862,81 @@
         </div>
     </main>
 
+    <!-- ============ AI REVIEW OVERLAY ============ -->
+    <div id="ai-review-overlay">
+        <div class="ai-review-modal">
+            <!-- Header -->
+            <div class="review-header">
+                <div class="ai-icon">
+                    <i data-lucide="sparkles" style="width:20px; color:white;"></i>
+                </div>
+                <div>
+                    <h2>✨ AI-Generated Suggestion</h2>
+                    <p>Review the content below. You can edit any part before applying it.</p>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div class="review-body">
+                <!-- Left: Editable fields -->
+                <div class="review-edit-panel">
+                    <h3>
+                        <i data-lucide="pencil" style="width:14px;"></i>
+                        Review & Edit
+                    </h3>
+
+                    <div style="margin-bottom: 16px;">
+                        <div class="review-field-label">
+                            Welcome Message
+                            <span class="ai-badge">AI Generated</span>
+                        </div>
+                        <textarea class="review-textarea" id="review-welcome-text" rows="5" oninput="updateReviewPreview()"></textarea>
+                    </div>
+
+                    <hr class="section-divider">
+
+                    <div>
+                        <div class="review-field-label" style="margin-bottom: 12px;">
+                            Interactive Buttons (max 3)
+                            <span class="ai-badge">AI Generated</span>
+                        </div>
+                        <div id="review-buttons-container"></div>
+                        <button class="review-add-btn" id="review-add-btn" onclick="addReviewButton()">+ Add Button</button>
+                    </div>
+
+                    <div style="margin-top: 16px; padding: 12px; background: rgba(234,179,8,0.08); border: 1px solid rgba(234,179,8,0.2); border-radius: 8px; font-size: 12px; color: #ca8a04; display: flex; gap: 8px;">
+                        <i data-lucide="alert-triangle" style="width:14px; height:14px; flex-shrink:0; margin-top:1px;"></i>
+                        <span>Please verify the content is accurate. Modify anything that doesn't look right before applying.</span>
+                    </div>
+                </div>
+
+                <!-- Right: Live preview -->
+                <div class="review-preview-panel">
+                    <div>
+                        <p style="text-align:center; font-size:12px; color:#64748b; margin-bottom:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em;">Live Preview</p>
+                        <div class="review-phone">
+                            <div class="review-phone-header">
+                                <i data-lucide="bot" style="width:16px;"></i> AI Assistant
+                            </div>
+                            <div class="review-phone-body" id="review-phone-body"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="review-footer">
+                <button class="btn-discard" onclick="closeReview()">
+                    ✕ Discard
+                </button>
+                <button class="btn-apply" onclick="applyReview()">
+                    <i data-lucide="check-circle" style="width:18px;"></i>
+                    Apply to Editor
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script src="sidebar-component.js"></script>
     <script>
         requireLogin();
@@ -273,6 +945,11 @@
         let botData = null;
         let welcomeText = "";
         let buttons = [];
+
+        // Review state
+        let reviewText = "";
+        let reviewButtons = []; // plain string labels
+        let reviewButtonsDetail = []; // {label, reason}
 
         const urlParams = new URLSearchParams(window.location.search);
         const urlBotId = urlParams.get("bot_id");
@@ -421,10 +1098,14 @@
             }
         }
 
+        // ============================
+        // AUTO-GENERATE WITH REVIEW
+        // ============================
+
         async function autoGenerate() {
             if (!selectedBotId) return;
             const btn = document.getElementById('btn-auto-gen');
-            const originalText = btn.innerHTML;
+            const originalHTML = btn.innerHTML;
             btn.innerHTML = `<i data-lucide="loader" class="spinner" style="width: 18px; margin-right: 8px;"></i> Scanning PDF...`;
             btn.disabled = true;
             if (window.lucide) lucide.createIcons();
@@ -436,12 +1117,22 @@
                 const json = await res.json();
                 
                 if (json.status === 'success') {
-                    welcomeText = json.data.welcome_text;
-                    buttons = json.data.buttons || [];
-                    renderEditor();
-                    renderPreview();
+                    // Load into review state instead of directly applying
+                    reviewText = json.data.welcome_text || "";
+                    const detail = json.data.buttons_detail || [];
+                    // Build reviewButtonsDetail from buttons_detail if available
+                    if (detail.length > 0) {
+                        reviewButtonsDetail = detail.map(d => ({
+                            label: d.label || "",
+                            reason: d.reason || ""
+                        }));
+                        reviewButtons = reviewButtonsDetail.map(d => d.label);
+                    } else {
+                        reviewButtons = [...(json.data.buttons || [])];
+                        reviewButtonsDetail = reviewButtons.map(l => ({ label: l, reason: "" }));
+                    }
+                    openReview();
                 } else {
-                    // Detect subscription plan limitation
                     if (json.code === "feature_not_available" && json.details?.feature_key === "ai_assisted_menu_generation") {
                         alert("AI-assisted menu generation is not available on your current subscription plan. You can still create the welcome menu manually or upgrade your plan.");
                     } else {
@@ -451,12 +1142,110 @@
             } catch (err) {
                 alert("Failed to connect to the server.");
             } finally {
-                btn.innerHTML = originalText;
+                btn.innerHTML = originalHTML;
                 btn.disabled = false;
                 if (window.lucide) lucide.createIcons();
             }
         }
+
+        function openReview() {
+            // Populate review fields
+            document.getElementById('review-welcome-text').value = reviewText;
+            renderReviewButtons();
+            updateReviewPreview();
+
+            // Show overlay
+            document.getElementById('ai-review-overlay').classList.add('active');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function closeReview() {
+            document.getElementById('ai-review-overlay').classList.remove('active');
+        }
+
+        function applyReview() {
+            // Read the potentially-edited review text
+            reviewText = document.getElementById('review-welcome-text').value.trim();
+
+            // Apply to main editor
+            welcomeText = reviewText;
+            buttons = reviewButtonsDetail.map(d => d.label);
+            renderEditor();
+            renderPreview();
+
+            closeReview();
+        }
+
+        function renderReviewButtons() {
+            const container = document.getElementById('review-buttons-container');
+            container.innerHTML = '';
+
+            reviewButtonsDetail.forEach((btn, index) => {
+                const card = document.createElement('div');
+                card.className = 'btn-detail-card';
+
+                const reasonHtml = btn.reason
+                    ? `<div class="btn-card-reason">
+                        <svg class="btn-card-reason-icon" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                        <div><div class="btn-card-reason-label">Why AI chose this</div><div class="btn-card-reason-text">${btn.reason}</div></div>
+                       </div>`
+                    : `<div class="btn-card-reason"><div class="btn-card-reason-text" style="color:#64748b;">No reason provided by AI.</div></div>`;
+
+                card.innerHTML = `
+                    <div class="btn-card-top">
+                        <div class="btn-card-num">${index + 1}</div>
+                        <input type="text" class="btn-card-label-input" value="${btn.label}"
+                            placeholder="Button label" oninput="updateReviewButton(${index}, this.value)">
+                        <button class="btn-card-remove" onclick="removeReviewButton(${index})" title="Remove">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                        </button>
+                    </div>
+                    ${reasonHtml}
+                `;
+                container.appendChild(card);
+            });
+
+            if (window.lucide) lucide.createIcons();
+            document.getElementById('review-add-btn').style.display = reviewButtonsDetail.length >= 3 ? 'none' : 'block';
+        }
+
+        function addReviewButton() {
+            if (reviewButtonsDetail.length < 3) {
+                reviewButtonsDetail.push({ label: "", reason: "" });
+                reviewButtons = reviewButtonsDetail.map(d => d.label);
+                renderReviewButtons();
+                updateReviewPreview();
+            }
+        }
+
+        function removeReviewButton(index) {
+            reviewButtonsDetail.splice(index, 1);
+            reviewButtons = reviewButtonsDetail.map(d => d.label);
+            renderReviewButtons();
+            updateReviewPreview();
+        }
+
+        function updateReviewButton(index, val) {
+            reviewButtonsDetail[index].label = val;
+            reviewButtons = reviewButtonsDetail.map(d => d.label);
+            updateReviewPreview();
+        }
+
+        function updateReviewPreview() {
+            const text = document.getElementById('review-welcome-text').value;
+            const body = document.getElementById('review-phone-body');
+            body.innerHTML = '';
+
+            if (text.trim()) {
+                body.innerHTML += `<div class="review-bubble">${text.trim()}</div>`;
+            }
+
+            reviewButtonsDetail.forEach(btn => {
+                if (btn.label && btn.label.trim()) {
+                    body.innerHTML += `<div class="review-wa-btn">${btn.label.trim()}</div>`;
+                }
+            });
+        }
     </script>
 </body>
 </html>
-

@@ -211,6 +211,13 @@ def process_whatsapp_message(body):
         chatbot_id,
         source_channel="whatsapp",
     )
+    
+    if response == "<SILENT_BOT_RESPONSE>":
+        logging.info("AI is silenced (conversation escalated to human).")
+        save_processed(chatbot_id, message_id)
+        update_workflow_state(chatbot_id, "COMPLETED", "<SILENT_BOT_RESPONSE>", wa_id)
+        return
+        
     response = process_text_for_whatsapp(response)
 
     # Extract interactive buttons if any
