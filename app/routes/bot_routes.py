@@ -217,3 +217,47 @@ def auto_generate_menu(bot_id):
             "status": "error",
             "message": str(e)
         }), 500
+
+
+@bot_blueprint.route("/api/bots/<int:bot_id>/extract-data-points", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+def extract_data_points(bot_id):
+    try:
+        company_id = get_current_company_id()
+        bot = get_bot(bot_id, company_id)
+        if not bot:
+            return jsonify({"status": "error", "message": "Bot not found"}), 404
+
+        # Reuse same subscription feature gate as auto-generate
+        can_use_plan_feature(company_id, "ai_assisted_menu_generation")
+
+        from app.services.flow_builder_service import extract_pdf_data_points
+
+        result = extract_pdf_data_points(bot_id)
+
+        return jsonify({
+            "status": "success",
+            "data": result,
+            "message": "Data points extracted successfully"
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+            "details": e.details or {}
+        }), 403
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
