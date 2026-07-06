@@ -111,5 +111,187 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
             self.assertEqual(data["status"], "success")
             mock_delete_edge.assert_called_once()
 
-if __name__ == "__main__":
-    unittest.main()
+
+
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_graph_repository.delete_edge")
+    def test_delete_graph_edge_lowercase_rel_type(self, mock_delete_edge, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"source_name": "src", "target_name": "tgt", "rel_type": "has_price"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "success")
+            mock_delete_edge.assert_called_once_with(1, "src", "tgt", "has_price")
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_graph_repository.delete_edge")
+    def test_delete_graph_edge_rel_type_with_spaces(self, mock_delete_edge, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"source_name": "src", "target_name": "tgt", "rel_type": "connected to"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "success")
+            mock_delete_edge.assert_called_once_with(1, "src", "tgt", "connected to")
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    def test_delete_graph_edge_missing_source(self, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"target_name": "tgt", "rel_type": "HAS_PRICE"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    def test_delete_graph_edge_missing_target(self, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"source_name": "src", "rel_type": "HAS_PRICE"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    def test_delete_graph_edge_missing_rel_type(self, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"source_name": "src", "target_name": "tgt"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    def test_delete_graph_edge_missing_chatbot_id(self):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge",
+                json={"source_name": "src", "target_name": "tgt", "rel_type": "HAS_PRICE"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_graph_repository.delete_edge")
+    def test_delete_graph_edge_unauthorized_role(self, mock_delete_edge, mock_verify):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        with patch(
+            "app.decorators.auth_decorator.jwt.decode",
+            return_value={"company_id": 42, "user_id": 1, "role": "member"},
+        ), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"source_name": "src", "target_name": "tgt", "rel_type": "HAS_PRICE"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 403)
+            data = resp.get_json()
+            self.assertIn("permission", data.get("message", "").lower())
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_graph_repository.delete_edge")
+    def test_delete_graph_edge_cross_company_access(self, mock_delete_edge, mock_verify):
+        mock_verify.side_effect = PermissionError("Cross-company access denied")
+        with patch(
+            "app.decorators.auth_decorator.jwt.decode",
+            return_value={"company_id": 99, "user_id": 2, "role": "admin"},
+        ), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={"source_name": "src", "target_name": "tgt", "rel_type": "HAS_PRICE"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 403)
+
+
+
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    def test_save_graph_node_missing_name(self, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/graph/node?chatbot_id=1",
+                json={"label": "Product"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    def test_save_graph_node_missing_label(self, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/graph/node?chatbot_id=1",
+                json={"name": "test_node"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    def test_save_graph_node_missing_chatbot_id(self):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/graph/node",
+                json={"name": "test_node", "label": "Product"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    def test_delete_graph_node_missing_name(self, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/node?chatbot_id=1",
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    def test_delete_graph_node_missing_chatbot_id(self):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/node?name=test_node",
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.database.knowledge_graph_repository.delete_node")
+    @patch("app.database.knowledge_graph_repository.delete_edges_by_node")
+    def test_delete_graph_node_cross_company_access(self, mock_delete_edges, mock_delete_node, mock_verify):
+        mock_verify.side_effect = PermissionError("Cross-company access denied")
+        with patch(
+            "app.decorators.auth_decorator.jwt.decode",
+            return_value={"company_id": 99, "user_id": 2, "role": "admin"},
+        ), self._patch_user_repo():
+            resp = self.client.delete(
+                "/api/knowledge/graph/node?chatbot_id=1&name=test_node",
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 403)
+
+    def test_save_graph_edge_missing_chatbot_id(self):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/graph/edge",
+                json={"source_name": "src", "target_name": "tgt", "rel_type": "HAS_PRICE"},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    def test_save_graph_edge_missing_all_fields(self, mock_verify):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/graph/edge?chatbot_id=1",
+                json={},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 400)

@@ -1201,7 +1201,7 @@
                         body: JSON.stringify({
                             source_name: src,
                             target_name: tgt,
-                            rel_type: rel.rel.replace(/ /g, "_")
+                            rel_type: rel.rel.trim().toUpperCase().replace(/ /g, '_')
                         }),
                     });
                     const result = await response.json();
