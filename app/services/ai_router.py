@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from decimal import Decimal, ROUND_HALF_UP
 from dataclasses import dataclass, field
 from typing import Any
@@ -10,9 +10,23 @@ from app.services.model_catalog import (
     OPENROUTER_PROVIDER_KEYS,
     normalize_model_selection,
     get_default_model,
+    is_model_allowed_for_tier,
+    is_openrouter_model,
+    get_model_tier,
+    get_model_provider,
+    validate_provider_model_pair,
 )
 from app.services.response_formatter import clean_ai_reply
 from app.database.bot_repository import get_bot_by_id
+from app.services.ai_access_policy import (
+    resolve_ai_access,
+    ROUTE_DIRECT_DEEPSEEK,
+    ROUTE_OPENROUTER,
+    ROUTE_DENIED,
+    OPENROUTER_PROVIDER_FAMILIES,
+    TRIAL_PROVIDER,
+    TRIAL_MODEL,
+)
 from app.services.billing_guard import BillingLimitError
 from app.services.ai_credit_service import (
     is_ai_credit_enforcement_enabled,
@@ -407,43 +421,139 @@ def _check_ai_credit_before_provider(company_id: int | None):
 
 
 def _route_for_enforcement(provider: str, model: str | None):
-    if not is_ai_credit_enforcement_enabled():
-        return provider, model
+    # Resolve AI access policy.
+    # The company_id must be available from the calling context (set in g).
+    from flask import g
+    company_id = getattr(g, "company_id", None)
+    if not company_id:
+        raise RuntimeError("No company context available for routing enforcement.")
 
-    # Under enforcement, all billable calls must use a cost-known route.
-    # No verified OpenRouter DeepSeek model mapping currently exists in the
-    # model catalog. Block before any network request.
-    if provider == "deepseek":
-        raise RuntimeError(
-            "AI-credit enforcement is enabled but the selected provider "
-            "(deepseek) does not have a verified OpenRouter model mapping. "
-            "Configure a model from the available OpenRouter-compatible providers "
-            "or disable AI-credit enforcement."
+    policy = resolve_ai_access(company_id)
+
+    if not policy.allowed:
+        raise BillingLimitError(
+            policy.denial_reason or "AI access is not available on your current plan.",
+            code="ai_access_denied",
         )
 
-    # Google is already in OPENROUTER_PROVIDER_KEYS, so it already routes
-    # through OpenRouter in call_provider(). No conversion needed.
-    return provider, model
+    if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
+        # Trial: only direct DeepSeek allowed
+        if provider != TRIAL_PROVIDER:
+            raise BillingLimitError(
+                "During your trial period, only the DeepSeek AI provider is available.",
+                code="trial_provider_restricted",
+            )
+        # Force the fixed trial model
+        return TRIAL_PROVIDER, TRIAL_MODEL
+
+    if policy.api_route == ROUTE_OPENROUTER:
+        # Paid: reject direct DeepSeek
+        if provider not in OPENROUTER_PROVIDER_FAMILIES:
+            raise BillingLimitError(
+                "The selected AI provider is not available on your plan.",
+                code="provider_not_available",
+            )
+        # Validate model against plan tier at runtime
+        if not model:
+            raise BillingLimitError(
+                "No model specified for the request.",
+                code="model_missing",
+            )
+        if not is_openrouter_model(model):
+            raise BillingLimitError(
+                "The specified model is not an approved OpenRouter model.",
+                code="model_not_openrouter",
+            )
+        if not is_model_allowed_for_tier(model, policy.max_model_tier):
+            raise BillingLimitError(
+                "The selected model is not available on your plan. "
+                "Please choose a model within your plan's allowed tier.",
+                code="model_tier_denied",
+            )
+        # Validate provider-model pair
+        if get_model_provider(model) != provider:
+            raise BillingLimitError(
+                f"Model '{model}' is not valid for provider '{provider}'.",
+                code="provider_model_mismatch",
+            )
+        return provider, model
+
+    # Fall-closed
+    raise BillingLimitError(
+        policy.denial_reason or "AI access is not available.",
+        code="ai_access_denied",
+    )
 
 
 def _get_system_provider_for_enforcement(provider: str, model: str | None):
-    if not is_ai_credit_enforcement_enabled():
+    # Resolve AI access policy.
+    # System callers (report_service, flow_builder_service, knowledge_service)
+    # resolve the company_id from the bot record before calling.
+    from app.services.ai_access_policy import resolve_ai_access
+
+    # We need a company_id. This function is called from generate_system_response
+    # which has access to the bot. We pass company_id=None for now and require
+    # callers of generate_system_response to provide company context.
+    # Fall back to flask.g as a last resort.
+    from flask import g
+    company_id = getattr(g, "company_id", None)
+
+    if not company_id:
+        # Without company context, we cannot enforce. This is a safety fallback
+        # that should not be reached in normal operation.
         return provider, model
 
-    # Under enforcement, all billable calls must use a cost-known route.
-    if provider == "deepseek":
-        raise RuntimeError(
-            "AI-credit enforcement is enabled but the selected provider "
-            "(deepseek) does not have a verified OpenRouter model mapping. "
-            "Configure a model from the available OpenRouter-compatible providers "
-            "or disable AI-credit enforcement."
+    policy = resolve_ai_access(company_id)
+
+    if not policy.allowed:
+        raise BillingLimitError(
+            policy.denial_reason or "AI access is not available on your current plan.",
+            code="ai_access_denied",
         )
 
-    # Google direct: under enforcement, must use OpenRouter (cost-known).
-    # google is already in OPENROUTER_PROVIDER_KEYS, so the dispatch below
-    # will route to _call_openrouter_direct. Keep google as the provider so the
-    # OpenRouter-compatible model ID (e.g. google/gemini-3.5-flash) is preserved.
-    return provider, model
+    if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
+        if provider != TRIAL_PROVIDER:
+            raise BillingLimitError(
+                "During your trial period, only the DeepSeek AI provider is available.",
+                code="trial_provider_restricted",
+            )
+        return TRIAL_PROVIDER, TRIAL_MODEL
+
+    if policy.api_route == ROUTE_OPENROUTER:
+        if provider not in OPENROUTER_PROVIDER_FAMILIES:
+            raise BillingLimitError(
+                "The selected AI provider is not available on your plan.",
+                code="provider_not_available",
+            )
+        # Validate model against plan tier at runtime (system calls)
+        if not model:
+            raise BillingLimitError(
+                "No model specified for the system request.",
+                code="model_missing",
+            )
+        if not is_openrouter_model(model):
+            raise BillingLimitError(
+                "The specified model is not an approved OpenRouter model.",
+                code="model_not_openrouter",
+            )
+        if not is_model_allowed_for_tier(model, policy.max_model_tier):
+            raise BillingLimitError(
+                "The selected model is not available on your plan. "
+                "Please choose a model within your plan's allowed tier.",
+                code="model_tier_denied",
+            )
+        # Validate provider-model pair
+        if get_model_provider(model) != provider:
+            raise BillingLimitError(
+                f"Model '{model}' is not valid for provider '{provider}'.",
+                code="provider_model_mismatch",
+            )
+        return provider, model
+
+    raise BillingLimitError(
+        policy.denial_reason or "AI access is not available.",
+        code="ai_access_denied",
+    )
 
 
 def is_error_reply(reply):
@@ -521,6 +631,8 @@ def call_provider(
     if provider == "deepseek":
         model = model_name if model_name else get_default_model("deepseek")
 
+        _check_ai_credit_before_provider(company_id)
+
         success, raw = deepseek_service._request(
             message,
             customer_id,
@@ -536,8 +648,6 @@ def call_provider(
         if isinstance(raw, dict) and "choices" in raw:
             text = raw["choices"][0]["message"]["content"].strip()
             return _make_result_from_text(text, provider, model)
-
-        _check_ai_credit_before_provider(company_id)
 
         if hasattr(raw, "choices"):
             reply = raw.choices[0].message.content
@@ -611,7 +721,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 return clean_ai_reply(result.text)
 
             logging.warning(
-                f"Provider {selected_provider} returned an error reply. Trying fallback provider."
+                f"Provider {selected_provider} returned an error reply. Cross-provider fallback is disabled."
             )
 
         except BillingLimitError:
@@ -619,53 +729,10 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         except Exception as provider_error:
             logging.error(f"Provider {selected_provider} failed: {provider_error}")
 
-        fallback_providers = ["deepseek", "google", "openai"]
-        attempt_number = 2
-
-        for fallback_provider in fallback_providers:
-            if fallback_provider == selected_provider:
-                continue
-
-            try:
-                fallback_provider, fallback_model = normalize_model_selection(
-                    fallback_provider,
-                    None,
-                )
-
-                fallback_provider, fallback_model = _route_for_enforcement(
-                    fallback_provider, fallback_model,
-                )
-
-                logging.info(
-                    f"Trying fallback provider: {fallback_provider}, model: {fallback_model}"
-                )
-
-                result = call_provider(
-                    fallback_provider,
-                    message,
-                    customer_id,
-                    chatbot_id,
-                    model_name=fallback_model,
-                    temperature=temperature,
-                    source_channel=source_channel,
-                    company_id=company_id,
-                )
-
-                if not is_error_reply(result.text):
-                    logging.info(f"Fallback provider {fallback_provider} succeeded.")
-                    if _should_log_provider_usage(result) and company_id:
-                        _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=attempt_number)
-                    return clean_ai_reply(result.text)
-
-                logging.warning(f"Fallback provider {fallback_provider} returned error reply.")
-
-            except BillingLimitError:
-                raise
-            except Exception as fallback_error:
-                logging.error(f"Fallback provider {fallback_provider} failed: {fallback_error}")
-
-            attempt_number += 1
-
+        # Cross-provider fallback is disabled for Phase 2B-2A.
+        # Trial must never fall back to OpenRouter.
+        # Paid must never fall back to direct DeepSeek.
+        # Model-tier-aware fallback will be implemented in Phase 2B-2B.
         return "Sorry, I'm having trouble replying right now. Please try again later."
 
     except BillingLimitError:
@@ -814,9 +881,8 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         _check_ai_credit_before_provider(company_id)
         result = _call_openrouter_direct(prompt, selected_model, selected_temperature)
     else:
-        logging.warning("Unsupported system AI provider: %s, falling back to deepseek", selected_provider)
-        _check_ai_credit_before_provider(company_id)
-        result = _call_deepseek_direct(prompt, get_default_model("deepseek"), selected_temperature, json_response)
+        logging.warning("Unsupported system AI provider: %s (fail-closed)", selected_provider)
+        raise RuntimeError(f"Unsupported AI provider: {selected_provider}. This path should not be reached because _get_system_provider_for_enforcement already validates permitted providers.")
 
     if result and _should_log_provider_usage(result) and company_id:
         _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)

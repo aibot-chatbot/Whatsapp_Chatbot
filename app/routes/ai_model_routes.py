@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 
-from app.services.model_catalog import MODEL_CATALOG
+from app.services.model_catalog import get_models_with_tiers
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
 
@@ -14,7 +14,7 @@ def get_ai_models():
     try:
         return jsonify({
             "status": "success",
-            "data": MODEL_CATALOG
+            "data": get_models_with_tiers()
         }), 200
 
     except Exception as e:

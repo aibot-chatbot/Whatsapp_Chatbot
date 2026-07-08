@@ -1,7 +1,8 @@
-﻿import logging
-from datetime import datetime, timezone
+import logging
+from datetime import datetime, timezone, timedelta
 
 from dateutil.relativedelta import relativedelta
+from app.services.ai_access_policy import TRIAL_DURATION_DAYS
 
 from app.database.subscription_plan_repository import (
     get_active_plans as _get_active_plans,
@@ -17,6 +18,7 @@ from app.database.billing_usage_repository import (
     count_active_company_members,
     count_company_channels,
     count_company_knowledge_files,
+    count_pending_company_invitations,
     sum_company_knowledge_storage,
     sum_company_ai_usage_tokens,
 )
@@ -214,6 +216,7 @@ def get_company_usage(company_id):
     # Calculate all usage metrics
     chatbot_used = count_company_chatbots(company_id)
     member_used = count_active_company_members(company_id)
+    pending_invites = count_pending_company_invitations(company_id)
     channel_used = count_company_channels(company_id)
     file_used = count_company_knowledge_files(company_id)
     storage_used = sum_company_knowledge_storage(company_id)
@@ -241,6 +244,7 @@ def get_company_usage(company_id):
             "team_members": {
                 "used": member_used,
                 "limit": _limit_value(plan, "team_member_limit"),
+                "pending_invitations": pending_invites,
             },
             "knowledge_files": {
                 "used": file_used,
@@ -315,13 +319,17 @@ def ensure_default_company_subscription(company_id):
     period_end = now + relativedelta(months=1)
     period_end_iso = period_end.isoformat()
 
+    trial_end = now + timedelta(days=TRIAL_DURATION_DAYS)
+    trial_end_iso = trial_end.isoformat()
+
     subscription_data = {
         "company_id": company_id,
         "plan_id": plan_id,
-        "status": "active",
+        "status": "trialing",
         "starts_at": now_iso,
         "current_period_start": now_iso,
         "current_period_end": period_end_iso,
+        "trial_ends_at": trial_end_iso,
     }
 
     try:
@@ -340,3 +348,105 @@ def ensure_default_company_subscription(company_id):
 
     # Re-read and return the enriched subscription
     return get_current_subscription(company_id)
+
+def convert_trial_ai_configuration(company_id, new_plan_code):
+    """Migrate all company chatbots from trial DeepSeek to paid OpenRouter default.
+
+    This function is intended to be called when a trial subscription becomes
+    a paid subscription (Essential, Advanced or Pro).
+
+    Idempotent: safe to call multiple times.
+    Does not modify chatbots that already have a valid paid configuration.
+    Preserves all chatbot data unrelated to AI provider/model.
+
+    Args:
+        company_id: The company whose chatbots should be converted.
+        new_plan_code: The new plan code (essential, advanced, pro).
+
+    Raises:
+        ValueError: If company_id or new_plan_code is missing.
+        RuntimeError: If the conversion partially fails.
+    """
+    from app.services.model_catalog import (
+        DEFAULT_PAID_PROVIDER,
+        DEFAULT_PAID_MODEL,
+        is_valid_model,
+        is_openrouter_model,
+    )
+    from app.database.bot_repository import get_all_bots, update_bot
+
+    if not company_id:
+        raise ValueError("company_id is required for trial AI configuration conversion.")
+
+    if not new_plan_code:
+        raise ValueError("new_plan_code is required for trial AI configuration conversion.")
+
+    plan_code = new_plan_code.strip().lower()
+    if plan_code not in ("essential", "advanced", "pro"):
+        logging.warning(
+            "convert_trial_ai_configuration called with non-paid plan code: %s. Skipping conversion.",
+            plan_code,
+        )
+        return
+
+    bots = get_all_bots(company_id)
+
+    if not bots:
+        logging.info("Company %s has no chatbots to convert.", company_id)
+        return
+
+    updated_count = 0
+    failed_bot_ids = []
+
+    for bot in bots:
+        bot_id = bot.get("id")
+        current_provider = (bot.get("ai_provider") or "").strip().lower()
+        current_model = (bot.get("model_name") or "").strip()
+
+        # If already using a valid paid OpenRouter model, leave unchanged
+        if current_provider in ("openai", "google", "anthropic", "xai", "qwen", "mistral"):
+            if current_model and is_valid_model(current_provider, current_model):
+                if is_openrouter_model(current_model):
+                    logging.info(
+                        "Bot %s already has a valid paid configuration (%s/%s). Skipping.",
+                        bot_id, current_provider, current_model,
+                    )
+                    continue
+
+        # If the provider is already the paid default with the default model, skip
+        if current_provider == DEFAULT_PAID_PROVIDER and current_model == DEFAULT_PAID_MODEL:
+            continue
+
+        # Determine target provider and model
+        target_provider = DEFAULT_PAID_PROVIDER
+        target_model = DEFAULT_PAID_MODEL
+
+        try:
+            update_payload = {
+                "ai_provider": target_provider,
+                "model_name": target_model,
+            }
+            update_bot(bot_id, update_payload, company_id)
+            updated_count += 1
+            logging.info(
+                "Converted bot %s from %s/%s to %s/%s.",
+                bot_id, current_provider, current_model,
+                target_provider, target_model,
+            )
+        except Exception as exc:
+            failed_bot_ids.append(bot_id)
+            logging.error(
+                "Failed to convert bot %s for company %s: %s",
+                bot_id, company_id, exc,
+            )
+
+    if failed_bot_ids:
+        raise RuntimeError(
+            f"Trial AI configuration conversion partially failed for company {company_id}. "
+            f"Updated {updated_count} bot(s), failed bot IDs: {failed_bot_ids}."
+        )
+
+    logging.info(
+        "Trial AI configuration conversion complete for company %s. Updated %d chatbot(s).",
+        company_id, updated_count,
+    )

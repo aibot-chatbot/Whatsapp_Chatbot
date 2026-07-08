@@ -156,6 +156,91 @@ MODEL_CATALOG = {
     },
 }
 
+
+# ---------------------------------------------------------------------------
+# Model-tier classification for subscription plan enforcement (Phase 2B-2B)
+# ---------------------------------------------------------------------------
+
+MODEL_TIER_RANK = {
+    'economy': 0,
+    'standard': 1,
+    'premium': 2,
+}
+
+MODEL_TIER_MAP = {
+    # Economy
+    'google/gemini-3.5-flash': 'economy',
+    'google/gemini-3.1-flash-lite': 'economy',
+    'qwen/qwen3.6-35b-a3b': 'economy',
+    'qwen/qwen3.6-27b': 'economy',
+    'mistralai/devstral-small': 'economy',
+    # Standard
+    'openai/gpt-4.1': 'standard',
+    'openai/gpt-chat-latest': 'standard',
+    'google/gemini-3.1-pro-preview': 'standard',
+    'google/gemini-2.5-pro': 'standard',
+    'anthropic/claude-sonnet-4': 'standard',
+    'qwen/qwen3.7-max': 'standard',
+    'qwen/qwen3.6-max-preview': 'standard',
+    'mistralai/mistral-medium-3-5': 'standard',
+    'mistralai/devstral-medium': 'standard',
+    'mistralai/mistral-large-2411': 'standard',
+    # Premium
+    'openai/gpt-5.5': 'premium',
+    'openai/gpt-5.5-pro': 'premium',
+    'anthropic/claude-sonnet-4.6': 'premium',
+    'anthropic/claude-opus-4.7': 'premium',
+    'anthropic/claude-opus-4.7-fast': 'premium',
+    'x-ai/grok-4.3': 'premium',
+    'x-ai/grok-4.20': 'premium',
+    'x-ai/grok-build-0.1': 'premium',
+}
+
+# Default provider and model for paid plan chatbot creation.
+# Must exist in MODEL_CATALOG and be classified as economy.
+DEFAULT_PAID_PROVIDER = 'google'
+DEFAULT_PAID_MODEL = 'google/gemini-3.5-flash'
+
+
+def get_model_tier(model_name):
+    return MODEL_TIER_MAP.get(model_name)
+
+
+def get_model_provider(model_name):
+    for provider_key, config in MODEL_CATALOG.items():
+        for m in config.get('models', []):
+            if m.get('value') == model_name:
+                return provider_key
+    return None
+
+
+def is_openrouter_model(model_name):
+    provider = get_model_provider(model_name)
+    return provider is not None and provider in OPENROUTER_PROVIDER_KEYS
+
+
+def is_model_allowed_for_tier(model_name, maximum_tier):
+    model_tier = get_model_tier(model_name)
+    if model_tier is None:
+        return False
+    max_rank = MODEL_TIER_RANK.get(maximum_tier)
+    if max_rank is None:
+        return False
+    return MODEL_TIER_RANK.get(model_tier, -1) <= max_rank
+
+
+def validate_provider_model_pair(provider, model_name):
+    provider = provider.lower().strip() if provider else provider
+    if not provider or not model_name:
+        raise ValueError('Both provider and model must be specified.')
+    if not is_valid_provider(provider):
+        raise ValueError(f'Unsupported AI provider: {provider}')
+    if not is_valid_model(provider, model_name):
+        raise ValueError(f"Model '{model_name}' is not valid for provider '{provider}'.")
+    return provider, model_name
+
+
+
 def get_default_model(provider):
     provider_config = MODEL_CATALOG.get(provider)
 
@@ -183,6 +268,39 @@ def is_valid_model(provider, model_name):
     models = provider_config.get("models", [])
 
     return any(model.get("value") == model_name for model in models)
+
+
+
+def get_models_with_tiers():
+    """Return MODEL_CATALOG augmented with tier metadata per model.
+
+    Each OpenRouter model dict receives a 'tier' key (economy/standard/premium).
+    DeepSeek models receive 'access': 'trial_only'.
+    Unknown models leave tier as None.
+    This is backward compatible: existing fields are preserved.
+    """
+    result = {}
+    for provider_key, config in MODEL_CATALOG.items():
+        provider_entry = {
+            'label': config['label'],
+            'models': [],
+        }
+        for m in config.get('models', []):
+            model_value = m['value']
+            entry = dict(m)
+            if model_value in MODEL_TIER_MAP:
+                entry['tier'] = MODEL_TIER_MAP[model_value]
+                entry['access'] = 'paid'
+            elif provider_key in ('deepseek',):
+                entry['tier'] = None
+                entry['access'] = 'trial_only'
+            else:
+                entry['tier'] = None
+                entry['access'] = 'paid'
+            provider_entry['models'].append(entry)
+        result[provider_key] = provider_entry
+    return result
+
 
 
 def normalize_model_selection(provider, model_name):

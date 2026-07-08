@@ -11,6 +11,7 @@ from app.database.knowledge_file_repository import get_knowledge_files
 from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
 from app.database.knowledge_file_repository import update_supporting_knowledge_enabled
 from app.database.knowledge_chunk_repository import delete_chunks_by_file_for_chatbot
+from app.services.billing_guard import can_upload_knowledge_storage, BillingLimitError
 from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
 
 DATA_FOLDER = os.path.abspath(
@@ -413,11 +414,15 @@ def fetch_and_parse_url(url):
     return text_content
 
 
-def scrape_website_url(url, chatbot_id):
+def scrape_website_url(url, chatbot_id, company_id=None):
     text_content = fetch_and_parse_url(url)
 
     # Save to knowledge_files table
     file_size = len(text_content.encode('utf-8'))
+
+    # Check storage limit before saving
+    if company_id:
+        can_upload_knowledge_storage(company_id, file_size)
 
     file_record = save_knowledge_file(
         chatbot_id=chatbot_id,
@@ -517,7 +522,7 @@ def discover_website_links(url):
     return sorted(list(links))[:20]
 
 
-def scrape_website_urls_batch(urls, chatbot_id):
+def scrape_website_urls_batch(urls, chatbot_id, company_id=None):
     if not urls:
         raise ValueError("At least one URL must be selected.")
 
@@ -544,6 +549,10 @@ def scrape_website_urls_batch(urls, chatbot_id):
         file_name = f"{primary_url} (+{len(urls) - 1} pages)"
 
     file_size = len(combined_text.encode('utf-8'))
+
+    # Check storage limit before saving
+    if company_id:
+        can_upload_knowledge_storage(company_id, file_size)
 
     file_record = save_knowledge_file(
         chatbot_id=chatbot_id,
@@ -624,8 +633,8 @@ def extract_business_knowledge(raw_text, chatbot_id):
         return generate_system_response(
             prompt=prompt,
             chatbot_id=chatbot_id,
-            provider="google",
-            model="gemini-2.5-flash",
+            provider=None,
+            model=None,
             temperature=0.3,
             operation_type=OPERATION_KNOWLEDGE_EXTRACTION,
         )
@@ -636,11 +645,14 @@ def extract_business_knowledge(raw_text, chatbot_id):
 
 
 
-def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_id):
+def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_id, company_id=None):
     if not text_content:
         raise ValueError("Text content cannot be empty.")
 
     file_size = len(text_content.encode('utf-8'))
+    # Check storage limit before saving
+    if company_id:
+        can_upload_knowledge_storage(company_id, file_size)
 
     # Save to knowledge_files table
     file_record = save_knowledge_file(
@@ -693,27 +705,18 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
 
 
 def extract_and_store_graph_supabase(chunks: list, chatbot_id: int, file_id: int):
-    import os
+    """Extract knowledge graph nodes and relationships via the central AI router.
+
+    Uses generate_system_response() so that subscription, provider, model-tier
+    and AI-credit enforcement are applied.  No direct DeepSeek/OpenAI client
+    is created here.
+    """
     import json
     import logging
-    from openai import OpenAI
+    import time
+    from app.services.ai_router import generate_system_response, OPERATION_KNOWLEDGE_EXTRACTION
     from app.database.knowledge_graph_repository import upsert_node, upsert_edge
     
-    api_key = os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
-        logging.error("[GraphRAG] DEEPSEEK_API_KEY not found in environment settings.")
-        return
-        
-    try:
-        # Initialize OpenAI client pointed to DeepSeek Endpoint
-        client = OpenAI(
-            api_key=api_key,
-            base_url="https://api.deepseek.com"
-        )
-    except Exception as e:
-        logging.error(f"[GraphRAG] Failed to initialize DeepSeek client: {e}")
-        return
-        
     allowed_labels = {
         "Company", "Brand", "Category", "Product", "Service", "Package", "Accessory", 
         "Price", "Warranty", "Promotion", "Branch", "Supplier", "Customer Segment", 
@@ -763,29 +766,25 @@ Rules:
 5. Return the raw JSON without markdown formatting backticks.
 """
 
-    logging.info(f"[GraphRAG] Extracting entities and relations via DeepSeek for file_id={file_id} from {len(chunks)} chunks...")
+    logging.info(f"[GraphRAG] Extracting entities and relations for file_id={file_id} from {len(chunks)} chunks...")
     
-    import time
     for i, chunk in enumerate(chunks):
         try:
-            # We add a minor 100ms sleep to prevent raw thread saturation, 
-            # but no long delay is needed because this is a paid API account.
             time.sleep(0.1)
             
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": prompt_template},
-                    {"role": "user", "content": f"Text Chunk:\n{chunk}"}
-                ],
-                response_format={"type": "json_object"},
-                temperature=0.1
+            prompt = prompt_template + f"\n\nText Chunk:\n{chunk}"
+            res_text = generate_system_response(
+                prompt=prompt,
+                chatbot_id=chatbot_id,
+                provider=None,
+                model=None,
+                temperature=0.1,
+                json_response=True,
+                operation_type=OPERATION_KNOWLEDGE_EXTRACTION,
             )
-            
-            res_text = response.choices[0].message.content
             if not res_text:
                 continue
-                
+
             data = json.loads(res_text)
             
             # 1. Store extracted nodes

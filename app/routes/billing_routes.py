@@ -17,6 +17,7 @@ import uuid
 from app.services.ai_credit_topup_checkout_service import (
     create_toyyibpay_topup_checkout,
 )
+from app.services.ai_access_policy import resolve_ai_access
 from app.database.user_repository import get_user_by_id
 from app.database.ai_credit_topup_order_repository import get_topup_order_by_reference_and_company
 
@@ -362,6 +363,14 @@ def toyyibpay_checkout():
                 "status": "error",
                 "message": "Company has no active subscription."
             }), 400
+
+        # Check AI access policy for top-up eligibility
+        policy = resolve_ai_access(company_id)
+        if not policy.top_up_allowed:
+            return jsonify({
+                "status": "error",
+                "message": policy.denial_reason or "AI credit top-up is not available on your current plan.",
+            }), 403
 
         # ------------------------------------------------------------------
         # Create the checkout

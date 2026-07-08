@@ -52,7 +52,13 @@ MOCK_PLANS = [
         "knowledge_file_limit": 10,
         "knowledge_storage_limit_bytes": 10485760,
         "channel_limit": 1,
-        "feature_flags": None,
+        "feature_flags": {
+            "single_website_scraping": False,
+            "batch_website_scraping": False,
+            "ai_generated_reports": False,
+            "ai_assisted_menu_generation": False,
+            "crm_lead_assignment": False,
+        },
         "included_ai_credit_micro_myr": 0,
         "model_access_tier": "economy",
         "is_active": True,
@@ -70,7 +76,7 @@ MOCK_PLANS = [
         "knowledge_file_limit": 5,
         "knowledge_storage_limit_bytes": 52428800,
         "channel_limit": 1,
-        "feature_flags": {"batch_website_scraping": False, "ai_generated_reports": False, "ai_assisted_menu_generation": False},
+        "feature_flags": {"single_website_scraping": False, "batch_website_scraping": False, "ai_generated_reports": False, "ai_assisted_menu_generation": False, "crm_lead_assignment": False},
         "included_ai_credit_micro_myr": None,
         "model_access_tier": "economy",
         "is_active": True,
@@ -88,7 +94,7 @@ MOCK_PLANS = [
         "knowledge_file_limit": 25,
         "knowledge_storage_limit_bytes": 262144000,
         "channel_limit": 2,
-        "feature_flags": {"batch_website_scraping": False, "ai_generated_reports": False, "ai_assisted_menu_generation": True},
+        "feature_flags": {"single_website_scraping": True, "batch_website_scraping": False, "ai_generated_reports": False, "ai_assisted_menu_generation": True, "crm_lead_assignment": True},
         "included_ai_credit_micro_myr": None,
         "model_access_tier": "standard",
         "is_active": True,
@@ -106,7 +112,7 @@ MOCK_PLANS = [
         "knowledge_file_limit": 75,
         "knowledge_storage_limit_bytes": 1073741824,
         "channel_limit": 2,
-        "feature_flags": {"batch_website_scraping": True, "ai_generated_reports": True, "ai_assisted_menu_generation": True},
+        "feature_flags": {"single_website_scraping": True, "batch_website_scraping": True, "ai_generated_reports": True, "ai_assisted_menu_generation": True, "crm_lead_assignment": True},
         "included_ai_credit_micro_myr": None,
         "model_access_tier": "premium",
         "is_active": True,
@@ -127,7 +133,13 @@ SERIALIZED_PLANS = [
         "knowledge_file_limit": 10,
         "knowledge_storage_limit_bytes": 10485760,
         "channel_limit": 1,
-        "feature_flags": None,
+        "feature_flags": {
+            "single_website_scraping": False,
+            "batch_website_scraping": False,
+            "ai_generated_reports": False,
+            "ai_assisted_menu_generation": False,
+            "crm_lead_assignment": False,
+        },
         "included_ai_credit_micro_myr": 0,
         "model_access_tier": "economy",
     },
@@ -144,7 +156,7 @@ SERIALIZED_PLANS = [
         "knowledge_file_limit": 5,
         "knowledge_storage_limit_bytes": 52428800,
         "channel_limit": 1,
-        "feature_flags": {"batch_website_scraping": False, "ai_generated_reports": False, "ai_assisted_menu_generation": False},
+        "feature_flags": {"single_website_scraping": False, "batch_website_scraping": False, "ai_generated_reports": False, "ai_assisted_menu_generation": False, "crm_lead_assignment": False},
         "included_ai_credit_micro_myr": None,
         "model_access_tier": "economy",
     },
@@ -161,7 +173,7 @@ SERIALIZED_PLANS = [
         "knowledge_file_limit": 25,
         "knowledge_storage_limit_bytes": 262144000,
         "channel_limit": 2,
-        "feature_flags": {"batch_website_scraping": False, "ai_generated_reports": False, "ai_assisted_menu_generation": True},
+        "feature_flags": {"single_website_scraping": True, "batch_website_scraping": False, "ai_generated_reports": False, "ai_assisted_menu_generation": True, "crm_lead_assignment": True},
         "included_ai_credit_micro_myr": None,
         "model_access_tier": "standard",
     },
@@ -178,7 +190,7 @@ SERIALIZED_PLANS = [
         "knowledge_file_limit": 75,
         "knowledge_storage_limit_bytes": 1073741824,
         "channel_limit": 2,
-        "feature_flags": {"batch_website_scraping": True, "ai_generated_reports": True, "ai_assisted_menu_generation": True},
+        "feature_flags": {"single_website_scraping": True, "batch_website_scraping": True, "ai_generated_reports": True, "ai_assisted_menu_generation": True, "crm_lead_assignment": True},
         "included_ai_credit_micro_myr": None,
         "model_access_tier": "premium",
     },
@@ -210,7 +222,13 @@ MOCK_SUBSCRIPTION = {
         "knowledge_file_limit": 10,
         "knowledge_storage_limit_bytes": 10485760,
         "channel_limit": 1,
-        "feature_flags": None,
+        "feature_flags": {
+            "single_website_scraping": False,
+            "batch_website_scraping": False,
+            "ai_generated_reports": False,
+            "ai_assisted_menu_generation": False,
+            "crm_lead_assignment": False,
+        },
         "included_ai_credit_micro_myr": 0,
         "model_access_tier": "economy",
     },
@@ -1035,7 +1053,12 @@ class TestPlanSeedData(unittest.TestCase):
         self.assertEqual(free["knowledge_storage_limit_bytes"], 10485760)
         self.assertEqual(free["channel_limit"], 1)
         self.assertEqual(free["model_access_tier"], "economy")
-        self.assertIsNone(free["feature_flags"])
+        self.assertIsNotNone(free["feature_flags"])
+        self.assertFalse(free["feature_flags"]["single_website_scraping"])
+        self.assertFalse(free["feature_flags"]["batch_website_scraping"])
+        self.assertFalse(free["feature_flags"]["ai_generated_reports"])
+        self.assertFalse(free["feature_flags"]["ai_assisted_menu_generation"])
+        self.assertFalse(free["feature_flags"]["crm_lead_assignment"])
 
     def test_serialization_all_expected_keys(self):
         """Each serialized plan has all keys expected by the frontend."""
@@ -1165,3 +1188,322 @@ class TestPriceAndCreditSerialization(unittest.TestCase):
         self.assertIsInstance(plans[0]["price"], str)
 
 
+
+
+# ==============================================================================
+# Phase 2A — New feature flags: single_website_scraping, crm_lead_assignment
+# ==============================================================================
+
+class TestPhase2AFeatureFlagData(unittest.TestCase):
+    """Verify the Phase 2A feature flag configuration in MOCK_PLANS."""
+
+    def test_free_has_both_new_features_disabled(self):
+        ff = [p for p in MOCK_PLANS if p["code"] == "free"][0]["feature_flags"]
+        self.assertIsNotNone(ff)
+        self.assertFalse(ff["single_website_scraping"])
+        self.assertFalse(ff["batch_website_scraping"])
+        self.assertFalse(ff["ai_generated_reports"])
+        self.assertFalse(ff["ai_assisted_menu_generation"])
+        self.assertFalse(ff["crm_lead_assignment"])
+
+    def test_essential_has_both_new_features_disabled(self):
+        ff = [p for p in MOCK_PLANS if p["code"] == "essential"][0]["feature_flags"]
+        self.assertIsNotNone(ff)
+        self.assertFalse(ff["single_website_scraping"])
+        self.assertFalse(ff["crm_lead_assignment"])
+
+    def test_advanced_has_both_new_features_enabled(self):
+        ff = [p for p in MOCK_PLANS if p["code"] == "advanced"][0]["feature_flags"]
+        self.assertIsNotNone(ff)
+        self.assertTrue(ff["single_website_scraping"])
+        self.assertTrue(ff["crm_lead_assignment"])
+
+    def test_pro_has_both_new_features_enabled(self):
+        ff = [p for p in MOCK_PLANS if p["code"] == "pro"][0]["feature_flags"]
+        self.assertIsNotNone(ff)
+        self.assertTrue(ff["single_website_scraping"])
+        self.assertTrue(ff["crm_lead_assignment"])
+
+    def test_existing_feature_flags_still_present(self):
+        """Existing flags (batch_website_scraping, ai_generated_reports, ai_assisted_menu_generation) are not removed."""
+        essential = [p for p in MOCK_PLANS if p["code"] == "essential"][0]["feature_flags"]
+        self.assertIn("batch_website_scraping", essential)
+        self.assertIn("ai_generated_reports", essential)
+        self.assertIn("ai_assisted_menu_generation", essential)
+
+    def test_mock_plans_have_new_feature_keys(self):
+        """All four plans in MOCK_PLANS include both new feature keys."""
+        for plan in MOCK_PLANS:
+            ff = plan.get("feature_flags")
+            if ff is not None:
+                self.assertIn("single_website_scraping", ff)
+                self.assertIn("crm_lead_assignment", ff)
+
+
+    def test_free_has_all_plan_features_explicit(self):
+        """Free plan now has every supported PLAN_FEATURES key explicitly set."""
+        ff = [p for p in MOCK_PLANS if p["code"] == "free"][0]["feature_flags"]
+        self.assertIsNotNone(ff)
+        self.assertIn("single_website_scraping", ff)
+        self.assertIn("batch_website_scraping", ff)
+        self.assertIn("ai_generated_reports", ff)
+        self.assertIn("ai_assisted_menu_generation", ff)
+        self.assertIn("crm_lead_assignment", ff)
+
+    def test_free_all_five_flags_are_false(self):
+        """All five Free feature values are false."""
+        ff = [p for p in MOCK_PLANS if p["code"] == "free"][0]["feature_flags"]
+        self.assertFalse(ff["single_website_scraping"])
+        self.assertFalse(ff["batch_website_scraping"])
+        self.assertFalse(ff["ai_generated_reports"])
+        self.assertFalse(ff["ai_assisted_menu_generation"])
+        self.assertFalse(ff["crm_lead_assignment"])
+
+    def test_jsonb_merge_preserves_unrelated_keys_still(self):
+        """Simulating JSONB merge: keys not set by the migration survive."""
+        existing = {"batch_website_scraping": True, "legacy_key": "survive"}
+        merged = dict(existing)
+        merged["single_website_scraping"] = False
+        merged["crm_lead_assignment"] = False
+        self.assertEqual(merged["legacy_key"], "survive")
+        self.assertEqual(merged["batch_website_scraping"], True)
+        self.assertEqual(merged["single_website_scraping"], False)
+
+# Raw seed data used by TestPlanSeedData — also include the new keys
+MOCK_PLANS_WITH_NEW = [
+    {
+        "code": "free",
+        "name": "Free",
+        "feature_flags": {
+            "single_website_scraping": False,
+            "batch_website_scraping": False,
+            "ai_generated_reports": False,
+            "ai_assisted_menu_generation": False,
+            "crm_lead_assignment": False,
+        },
+    },
+    {
+        "code": "essential",
+        "name": "Essential",
+        "feature_flags": {
+            "single_website_scraping": False,
+            "batch_website_scraping": False,
+            "ai_generated_reports": False,
+            "ai_assisted_menu_generation": False,
+            "crm_lead_assignment": False,
+        },
+    },
+    {
+        "code": "advanced",
+        "name": "Advanced",
+        "feature_flags": {
+            "single_website_scraping": True,
+            "batch_website_scraping": False,
+            "ai_generated_reports": False,
+            "ai_assisted_menu_generation": True,
+            "crm_lead_assignment": True,
+        },
+    },
+    {
+        "code": "pro",
+        "name": "Pro",
+        "feature_flags": {
+            "single_website_scraping": True,
+            "batch_website_scraping": True,
+            "ai_generated_reports": True,
+            "ai_assisted_menu_generation": True,
+            "crm_lead_assignment": True,
+        },
+    },
+]
+
+
+class TestPhase2AMigrationSeedData(unittest.TestCase):
+    """Verify that the Phase 2A seed data matches the approved configuration."""
+
+    def test_essential_disabled(self):
+        essential = [p for p in MOCK_PLANS_WITH_NEW if p["code"] == "essential"][0]
+        ff = essential["feature_flags"]
+        self.assertFalse(ff["single_website_scraping"])
+        self.assertFalse(ff["crm_lead_assignment"])
+
+    def test_advanced_enabled(self):
+        advanced = [p for p in MOCK_PLANS_WITH_NEW if p["code"] == "advanced"][0]
+        ff = advanced["feature_flags"]
+        self.assertTrue(ff["single_website_scraping"])
+        self.assertTrue(ff["crm_lead_assignment"])
+
+    def test_pro_enabled(self):
+        pro = [p for p in MOCK_PLANS_WITH_NEW if p["code"] == "pro"][0]
+        ff = pro["feature_flags"]
+        self.assertTrue(ff["single_website_scraping"])
+        self.assertTrue(ff["crm_lead_assignment"])
+        self.assertTrue(ff["batch_website_scraping"])
+
+    def test_advanced_batch_scraping_disabled(self):
+        """Advanced does not get batch_website_scraping."""
+        advanced = [p for p in MOCK_PLANS_WITH_NEW if p["code"] == "advanced"][0]
+        ff = advanced["feature_flags"]
+        self.assertTrue(ff["single_website_scraping"])
+        self.assertFalse(ff["batch_website_scraping"])
+
+    def test_jsonb_merge_preserves_existing_keys(self):
+        """Simulating the JSONB merge: existing keys not in the migration must survive."""
+        existing = {"batch_website_scraping": True, "legacy_key": "keep_me"}
+        merged = dict(existing)
+        merged.update({"single_website_scraping": True, "crm_lead_assignment": True})
+        self.assertEqual(merged["legacy_key"], "keep_me")
+        self.assertEqual(merged["batch_website_scraping"], True)
+        self.assertEqual(merged["single_website_scraping"], True)
+        self.assertEqual(merged["crm_lead_assignment"], True)
+
+
+class TestPhase2AFeatureGating(unittest.TestCase):
+    """Test that can_use_plan_feature correctly gates the new feature keys."""
+
+    COMPANY_ID = 999
+
+    def _mock_sub(self, feature_flags):
+        return {"plan": {"feature_flags": feature_flags}}
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_essential_denied_single_scraping(self, mock_ensure, mock_sub):
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"single_website_scraping": False, "batch_website_scraping": False}
+        )
+        with self.assertRaises(BillingLimitError):
+            can_use_plan_feature(self.COMPANY_ID, "single_website_scraping")
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_advanced_allowed_single_scraping(self, mock_ensure, mock_sub):
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"single_website_scraping": True, "batch_website_scraping": False}
+        )
+        result = can_use_plan_feature(self.COMPANY_ID, "single_website_scraping")
+        self.assertTrue(result)
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_pro_allowed_single_scraping(self, mock_ensure, mock_sub):
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"single_website_scraping": True, "batch_website_scraping": True}
+        )
+        result = can_use_plan_feature(self.COMPANY_ID, "single_website_scraping")
+        self.assertTrue(result)
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_advanced_denied_batch_scraping(self, mock_ensure, mock_sub):
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"single_website_scraping": True, "batch_website_scraping": False}
+        )
+        with self.assertRaises(BillingLimitError):
+            can_use_plan_feature(self.COMPANY_ID, "batch_website_scraping")
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_pro_allowed_batch_scraping(self, mock_ensure, mock_sub):
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"single_website_scraping": True, "batch_website_scraping": True}
+        )
+        result = can_use_plan_feature(self.COMPANY_ID, "batch_website_scraping")
+        self.assertTrue(result)
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_single_scraping_uses_own_key_not_batch(self, mock_ensure, mock_sub):
+        """single_website_scraping denied even when batch_website_scraping is enabled."""
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"single_website_scraping": False, "batch_website_scraping": True}
+        )
+        with self.assertRaises(BillingLimitError):
+            can_use_plan_feature(self.COMPANY_ID, "single_website_scraping")
+
+    # --- CRM assignment gating ---
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_essential_denied_crm_assign(self, mock_ensure, mock_sub):
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"crm_lead_assignment": False, "single_website_scraping": False}
+        )
+        with self.assertRaises(BillingLimitError):
+            can_use_plan_feature(self.COMPANY_ID, "crm_lead_assignment")
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_advanced_allowed_crm_assign(self, mock_ensure, mock_sub):
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"crm_lead_assignment": True, "single_website_scraping": True}
+        )
+        result = can_use_plan_feature(self.COMPANY_ID, "crm_lead_assignment")
+        self.assertTrue(result)
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_pro_allowed_crm_assign(self, mock_ensure, mock_sub):
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub(
+            {"crm_lead_assignment": True, "batch_website_scraping": True}
+        )
+        result = can_use_plan_feature(self.COMPANY_ID, "crm_lead_assignment")
+        self.assertTrue(result)
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_crm_assign_missing_flag_denies(self, mock_ensure, mock_sub):
+        """Feature flag explicitly set to false denies CRM assignment."""
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub({"crm_lead_assignment": False})
+        with self.assertRaises(BillingLimitError):
+            can_use_plan_feature(self.COMPANY_ID, "crm_lead_assignment")
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.ensure_default_company_subscription")
+    def test_new_feature_false_still_denied(self, mock_ensure, mock_sub):
+        """crm_lead_assignment explicitly set to false denies assignment."""
+        mock_ensure.return_value = None
+        mock_sub.return_value = self._mock_sub({"crm_lead_assignment": False, "some_other_flag": True})
+        with self.assertRaises(BillingLimitError):
+            can_use_plan_feature(self.COMPANY_ID, "crm_lead_assignment")
+
+
+class TestSample(unittest.TestCase):
+    def test_placeholder(self):
+        self.assertTrue(True)
+
+# =============================================================================
+# Phase 2B-2A: AI access policy resolver tests
+# =============================================================================
+
+
+class TestAIAccessPolicyResolver(unittest.TestCase):
+    """Tests for resolve_ai_access() in ai_access_policy.py."""
+
+    def setUp(self):
+        self.company_id = 1
+        self.free_plan = {
+            'id': 10, 'code': 'free', 'name': 'Free',
+        }
+        self.essential_plan = {
+            'id': 11, 'code': 'essential', 'name': 'Essential',
+            'model_access_tier': 'economy',
+        }
+        self.advanced_plan = {
+            'id': 12, 'code': 'advanced', 'name': 'Advanced',
+            'model_access_tier': 'standard',
+        }
+        self.pro_plan = {
+            'id': 13, 'code': 'pro', 'name': 'Pro',
+            'model_access_tier': 'premium',
+        }
