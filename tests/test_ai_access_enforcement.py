@@ -1310,6 +1310,19 @@ class TestFallbackIsolation(unittest.TestCase):
         self.assertEqual(called_provider, "openai")
         self.assertIn("trouble", result)
 
+    @patch("app.services.ai_router.get_bot_by_id")
+    @patch("app.services.ai_router.call_provider")
+    def test_bot_not_found_returns_safe_error(self, mock_call, mock_get_bot):
+        """When bot is not found, returns safe error without calling any provider."""
+        mock_get_bot.return_value = None
+
+        from app.services.ai_router import generate_response
+        result = generate_response("Hello", 1, 9999)
+
+        self.assertIn("trouble", result)
+        mock_call.assert_not_called()
+
+
 
 # ============================================================
 # TestGraphRAGDirectClientProhibition (2 tests)

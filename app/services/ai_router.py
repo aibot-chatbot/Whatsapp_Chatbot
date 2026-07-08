@@ -667,24 +667,11 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         bot = get_bot_by_id(chatbot_id)
 
         if not bot:
-            logging.warning(f"Bot {chatbot_id} not found. Using DeepSeek fallback.")
-
-            company_id = None
-            result = call_provider(
-                "deepseek",
-                message,
-                customer_id,
+            logging.warning(
+                "Bot %s not found. AI response denied - no provider configuration available.",
                 chatbot_id,
-                model_name=get_default_model("deepseek"),
-                temperature=0.7,
-                source_channel=source_channel,
-                company_id=company_id,
             )
-
-            if _should_log_provider_usage(result):
-                if company_id:
-                    _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
-            return clean_ai_reply(result.text)
+            return "Sorry, I'm having trouble replying right now. Please try again later."
 
         selected_provider = bot.get("ai_provider", "deepseek")
         model_name = bot.get("model_name")
@@ -729,10 +716,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         except Exception as provider_error:
             logging.error(f"Provider {selected_provider} failed: {provider_error}")
 
-        # Cross-provider fallback is disabled for Phase 2B-2A.
-        # Trial must never fall back to OpenRouter.
-        # Paid must never fall back to direct DeepSeek.
-        # Model-tier-aware fallback will be implemented in Phase 2B-2B.
+        # Cross-provider fallback is disabled.
         return "Sorry, I'm having trouble replying right now. Please try again later."
 
     except BillingLimitError:
