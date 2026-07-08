@@ -33,7 +33,7 @@ def get_text_message_input(recipient, text):
 def get_interactive_button_message_input(recipient, body_text, buttons):
     # WhatsApp API limits buttons to 3
     buttons = buttons[:3]
-    
+
     interactive_buttons = []
     for i, btn_text in enumerate(buttons):
         # Truncate button text to 20 chars max as per WhatsApp limit
@@ -45,7 +45,7 @@ def get_interactive_button_message_input(recipient, body_text, buttons):
                 "title": btn_title
             }
         })
-        
+
     return json.dumps(
         {
             "messaging_product": "whatsapp",
@@ -92,7 +92,14 @@ def send_message(data, channel=None):
         return jsonify({"status": "error", "message": "Request timed out"}), 408
     except requests.RequestException as e:
         logging.error(f"Request failed due to: {e}")
-        return jsonify({"status": "error", "message": "Failed to send message"}), 500
+        error_detail = "Failed to send message"
+        try:
+            if e.response is not None:
+                err_json = e.response.json()
+                error_detail = err_json.get("error", {}).get("message", e.response.text)
+        except Exception:
+            error_detail = str(e)
+        return jsonify({"status": "error", "message": error_detail}), 500
     else:
         log_http_response(response)
         return response
@@ -211,13 +218,13 @@ def process_whatsapp_message(body):
         chatbot_id,
         source_channel="whatsapp",
     )
-    
+
     if response == "<SILENT_BOT_RESPONSE>":
         logging.info("AI is silenced (conversation escalated to human).")
         save_processed(chatbot_id, message_id)
         update_workflow_state(chatbot_id, "COMPLETED", "<SILENT_BOT_RESPONSE>", wa_id)
         return
-        
+
     response = process_text_for_whatsapp(response)
 
     # Extract interactive buttons if any
@@ -239,7 +246,7 @@ def process_whatsapp_message(body):
         data = get_interactive_button_message_input(wa_id, clean_response, button_matches)
     else:
         data = get_text_message_input(wa_id, response)
-        
+
     send_message(data, channel)
 
     save_processed(chatbot_id, message_id)
