@@ -3,12 +3,14 @@ from app.database.analytics_repository import get_transcript_logs
 from app.services.ai_router import generate_system_response, OPERATION_AI_REPORT
 
 
+
+from app.database.bot_repository import get_bot_by_id
+
 def generate_weekly_report(chatbot_id: int, days: int = 7) -> str:
     """
     Generate an AI insights report by analyzing recent conversation transcripts.
     All AI calls go through ai_router.generate_system_response for billing enforcement.
     """
-    from app.database.bot_repository import get_bot_by_id
 
     transcripts = get_transcript_logs(chatbot_id=chatbot_id, days=days)
 
@@ -44,7 +46,9 @@ Structure the report clearly with bold Markdown headers. Do not use raw HTML tag
     provider = bot.get("ai_provider", "deepseek") if bot else "deepseek"
     model = bot.get("model_name") if bot else None
 
-    # Use the system AI gateway — billing is enforced inside generate_system_response
+    # Use the system AI gateway - billing is enforced inside generate_system_response
+    # No hardcoded provider fallback: provider isolation and model-tier enforcement
+    # are handled centrally.  If the request fails, return a safe error message.
     try:
         reply = generate_system_response(
             prompt=prompt,
@@ -57,18 +61,4 @@ Structure the report clearly with bold Markdown headers. Do not use raw HTML tag
         return f"{reply.strip()}\n\n---\n*Report generated using model: **{provider} / {model or 'default'}***"
     except Exception as e:
         logging.error(f"Error in generate_weekly_report: {e}")
-        # Fallback: try Gemini directly
-        logging.info("Attempting fallback to direct Gemini model 'gemini-2.5-flash'")
-        try:
-            reply = generate_system_response(
-                prompt=prompt,
-                chatbot_id=chatbot_id,
-                provider="google",
-                model="gemini-2.5-flash",
-                temperature=0.3,
-                operation_type=OPERATION_AI_REPORT,
-            )
-            return f"{reply.strip()}\n\n---\n*Report generated using fallback model: **google / gemini-2.5-flash** (original request to {provider}/{model or 'default'} failed)*"
-        except Exception as fallback_err:
-            logging.error(f"Fallback to Gemini failed: {fallback_err}")
-            return f"An error occurred while generating the report: {str(e)}"
+        return f"An error occurred while generating the report: {str(e)}"

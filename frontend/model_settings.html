@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -177,7 +177,12 @@
             <p>Configure the brain of your chatbot. Select the best model for your needs.</p>
         </div>
 
-        <div class="glass-card">
+                <div id="plan-info" class="glass-card" style="margin-bottom:20px;padding:16px 20px;display:none;">
+            <div style="display:flex;align-items:center;gap:10px;font-size:0.9rem;color:var(--text-dim);">
+                <span id="plan-info-text"></span>
+            </div>
+        </div>
+<div class="glass-card">
             <div class="form-group">
                 <label>AI Provider</label>
                 <p>Choose which AI engine will power your chatbot's responses.</p>
@@ -257,6 +262,8 @@
             document.getElementById("temp-val-label").innerText = val;
         }
 
+                let _subscriptionAccess = null;
+
         let modelOptions = {};
 
 
@@ -293,6 +300,108 @@
         }
 
 
+
+        async function fetchSubscriptionAccess() {
+            try {
+                const response = await authenticatedFetch("/api/billing/subscription");
+                const result = await response.json();
+                if (result.status === "success" && result.data) {
+                    _subscriptionAccess = result.data;
+                    applyPlanFiltering();
+                } else {
+                    _subscriptionAccess = null;
+                    applyPlanFiltering();
+                }
+            } catch (error) {
+                console.error("Failed to fetch subscription access:", error);
+                _subscriptionAccess = null;
+                applyPlanFiltering();
+            }
+        }
+
+        function getMaxModelTier() {
+            if (!_subscriptionAccess || !_subscriptionAccess.plan) return null;
+            if (_subscriptionAccess.status === "trialing") return null; // trial = DeepSeek only
+            return _subscriptionAccess.plan.model_access_tier || "economy";
+        }
+
+        function isActiveTrial() {
+            return _subscriptionAccess && _subscriptionAccess.status === "trialing";
+        }
+
+        function isPaidPlan() {
+            if (!_subscriptionAccess || !_subscriptionAccess.plan) return false;
+            if (_subscriptionAccess.status !== "active") return false;
+            var code = (_subscriptionAccess.plan.code || "").toLowerCase();
+            return code === "essential" || code === "advanced" || code === "pro";
+        }
+
+        function hasAccessToModels() {
+            return isActiveTrial() || isPaidPlan();
+        }
+
+        function isModelAllowedForAccess(model) {
+            if (!_subscriptionAccess) return true; // no data = show all (backend enforces)
+            if (isActiveTrial()) {
+                // Trial: only DeepSeek models with access "trial_only"
+                return model.access === "trial_only";
+            }
+            if (isPaidPlan()) {
+                // Paid: exclude trial_only, filter by tier
+                if (model.access === "trial_only") return false;
+                var maxTier = getMaxModelTier();
+                if (!maxTier) return false;
+                var tierRank = { "economy": 0, "standard": 1, "premium": 2 };
+                var maxRank = tierRank[maxTier] !== undefined ? tierRank[maxTier] : -1;
+                var modelRank = tierRank[model.tier] !== undefined ? tierRank[model.tier] : -1;
+                return modelRank >= 0 && modelRank <= maxRank;
+            }
+            // No access: show nothing
+            return false;
+        }
+
+        function applyPlanFiltering() {
+            var planInfo = document.getElementById("plan-info");
+            var planInfoText = document.getElementById("plan-info-text");
+            var providerSelect = document.getElementById("ai-provider");
+            var modelSelect = document.getElementById("model-select");
+            var customContainer = document.getElementById("custom-model-container");
+            var saveBtn = document.getElementById("save-btn");
+
+            if (planInfo) planInfo.style.display = "block";
+            if (customContainer) customContainer.style.display = "none";
+
+            if (!hasAccessToModels()) {
+                // No valid subscription, show all but warn
+                if (planInfoText) planInfoText.innerHTML = "Your current plan does not include AI model access. <a href='pricing.html' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View plans &amp; upgrade &rarr;</a>";
+                if (providerSelect) providerSelect.disabled = true;
+                if (modelSelect) modelSelect.disabled = true;
+                if (saveBtn) saveBtn.disabled = true;
+                return;
+            }
+
+            if (providerSelect) providerSelect.disabled = false;
+            if (modelSelect) modelSelect.disabled = false;
+            if (saveBtn) saveBtn.disabled = false;
+
+            if (isActiveTrial()) {
+                if (planInfoText) planInfoText.innerHTML = "Trial uses <strong>DeepSeek AI</strong> only. <a href='pricing.html' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View pricing &amp; upgrade &rarr;</a>";
+                if (customContainer) customContainer.style.display = "none";
+            } else if (isPaidPlan()) {
+                var planName = _subscriptionAccess.plan.name || "Current";
+                var tierName = getMaxModelTier() || "economy";
+                var code = (_subscriptionAccess.plan.code || "").toLowerCase();
+                var upgradeMsg = "";
+                if (code === "essential") {
+                    upgradeMsg = " <span style='font-size:0.82rem;color:var(--text-dim);'>Standard models available in <strong>Advanced</strong>. <a href='pricing.html' style='color:var(--primary);text-decoration:underline;'>Upgrade &rarr;</a></span>";
+                } else if (code === "advanced") {
+                    upgradeMsg = " <span style='font-size:0.82rem;color:var(--text-dim);'>Premium models available in <strong>Pro</strong>. <a href='pricing.html' style='color:var(--primary);text-decoration:underline;'>Upgrade &rarr;</a></span>";
+                }
+                if (planInfoText) planInfoText.innerHTML = "<strong>" + planName + "</strong> plan &mdash; model access: <strong>" + tierName.charAt(0).toUpperCase() + tierName.slice(1) + "</strong> tier." + upgradeMsg;
+            }
+
+            populateProviderDropdown();
+        }
         async function fetchModelCatalog() {
             try {
                 const response = await authenticatedFetch("/api/ai-models");

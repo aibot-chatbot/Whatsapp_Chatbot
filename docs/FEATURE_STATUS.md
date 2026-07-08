@@ -54,7 +54,7 @@
 | Knowledge file listing | Implemented | Chatbot-scoped |
 | Active knowledge selection | Implemented | Current active file behavior exists |
 | Supporting knowledge toggle | Implemented | Enabled/disabled knowledge behavior exists |
-| Website scraping | Implemented | Requires safe URL and production verification |
+| Website scraping | Implemented | Single URL scraping requires single_website_scraping feature; batch scraping requires batch_website_scraping; Advanced can scrape single URLs only |
 | Knowledge refinement | Implemented | Requires end-to-end verification |
 | Chunk storage and retrieval | Implemented | Database/vector configuration requires environment verification |
 | RAG response flow | Implemented | Quality and adversarial testing remain |
@@ -103,7 +103,7 @@
 | CRM lead list | Implemented | Company/chatbot scoped |
 | Lead status | Implemented | Status editing exists |
 | Lead priority | Implemented | Priority editing exists |
-| Lead assignment | Implemented | Requires permission verification |
+| Lead assignment | Implemented | Gated by crm_lead_assignment feature flag (Advanced and Pro only); assignment clearing available to all plans |
 | Lead follow-up | Implemented | Follow-up fields and UI exist |
 | CRM filters | Implemented | Status, assignment, and related filtering exist |
 | CRM-to-conversation navigation | Implemented | Conversation ID linking was previously reviewed |
@@ -126,10 +126,20 @@
 |---|---|---|
 | Subscription plans | Implemented | Plan catalogue seeded (Free, Essential, Advanced, Pro); commercial prices TBD |
 | Current subscription | Implemented | Company-scoped |
+| AI-access policy resolver | Implemented | Central resolve_ai_access() in ai_access_policy.py handles trial/paid/denied states |
+| Trial initialization | Implemented | New companies get Free plan + status=trialing + 7-day trial_ends_at |
+| Trial provider isolation | Implemented | Active trial uses direct DeepSeek only; no OpenRouter for trials |
+| Paid provider isolation | Implemented | Paid plans (Essential/Advanced/Pro) use OpenRouter only; direct DeepSeek denied |
+| Bot creation enforcement | Implemented | add_bot() and edit_bot() enforce AI access policy; trial locks provider/model |
+| Runtime provider enforcement | Implemented | _route_for_enforcement and _get_system_provider_for_enforcement in ai_router.py |
+| ToyyibPay top-up restriction | Implemented | Active trial, Free, expired trial and past_due cannot top up AI credits |
+| Provider fallback disabled | Implemented | Cross-provider fallback (deepseek->google->openai) removed for Phase 2B-2A |
+| Model-tier enforcement (Phase 2B-2B) | Implemented | Economy/Standard/Premium mapping in model_catalog.py; save-time and runtime enforcement; OpenAI/Gemini/Claude/Qwen/Mistral/xAI classified |
+| GraphRAG/background AI cleanup (Phase 2B-2C) | Implemented | GraphRAG routes through ai_router; website knowledge no longer hardcodes Google; AI reports no longer use Gemini fallback; all AI entry points use central provider, subscription, model-tier and credit enforcement |
 | Usage summary | Implemented | Usage data exposed in billing UI |
-| Default free subscription | Implemented | Created during company onboarding |
+| Default subscription | Implemented | Created during company onboarding; new companies receive Free plan with 7-day trial (status=trialing); expired trials denied AI access |
 | Subscription limit enforcement | Implemented | Guard layer with fail-closed fallback; missing subscriptions resolved to Free plan or denied |
-| Feature flag enforcement | Implemented | Backed by plan feature data |
+| Feature flag enforcement | Implemented | Keys: single_website_scraping, batch_website_scraping, crm_lead_assignment, ai_generated_reports, ai_assisted_menu_generation |
 | AI-credit summary | Verified complete | Included in the latest billing test work |
 | AI-credit transactions | Verified complete | Included in the latest billing implementation |
 | AI-credit usage charging | Implemented | Atomic repository/RPC flow exists; broader integration verification needed |
@@ -146,7 +156,7 @@
 The latest recorded full automated suite after the ToyyibPay migration passed:
 
 ```text
-339 tests passed (knowledge graph, escalation, agent reply, silent-bot, and subscription plan tests added)
+398+82 tests passed (knowledge graph, escalation, agent reply, silent-bot, subscription plan, AI-access enforcement, and model-tier enforcement tests added)
 ```
 
 A later read-only Codex audit could not rerun the suite because its virtual environment referenced an unavailable Python installation. That environment limitation does not replace the previously recorded successful result.

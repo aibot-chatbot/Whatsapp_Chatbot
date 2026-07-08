@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -605,6 +605,10 @@
                             <div class="form-row" style="margin-bottom:0;">
                                 <label>Billing</label>
                                 <span id="billing-interval" style="color:var(--text-main);">&mdash;</span>
+                            </div>
+                            <div class="form-row" id="trial-info-row" style="display:none;">
+                                <label>Trial</label>
+                                <span id="trial-info-text" style="color:var(--text-main);">&mdash;</span>
                             </div>
                             <div class="form-row" style="margin-bottom:0;">
                                 <label>Period Start</label>
@@ -1239,6 +1243,21 @@
             return html;
         }
 
+
+        function buildTeamUsageRow(used, limit, pending) {
+            var limitText = formatBillingLimit(limit, false);
+            var usedVal = (used == null || used === undefined) ? 0 : used;
+            var pendingVal = (pending == null || pending === undefined) ? 0 : pending;
+            var overLimit = (limit != null && (usedVal + pendingVal) > limit);
+            var html = '<div style="background:var(--input-bg,rgba(15,23,42,0.6));border:1px solid var(--glass-border,rgba(255,255,255,0.1));border-radius:12px;padding:12px 14px;">';
+            html += '<div style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Team Members</div>';
+            html += '<div style="font-size:1rem;font-weight:600;color:var(--text-main);">' + usedVal + ' / ' + limitText + '</div>';
+            if (pendingVal > 0) {
+                html += '<div style="font-size:0.82rem;color:var(--warning);margin-top:2px;">Pending invitations: ' + pendingVal + '</div>';
+            }
+            html += '</div>';
+            return html;
+        }
         function buildTokenRow(label, value) {
             var val = (value == null || value === undefined) ? 0 : value;
             var formatted = Number(val).toLocaleString();
@@ -1306,6 +1325,22 @@
             document.getElementById("billing-interval").textContent = formatBillingInterval(plan.billing_interval);
             document.getElementById("billing-period-start").textContent = formatBillingDate(subData.current_period_start);
 
+            // Trial info
+            var trialRow = document.getElementById("trial-info-row");
+            var trialText = document.getElementById("trial-info-text");
+            if (subData.status === "trialing" && subData.trial_ends_at) {
+                if (trialRow) trialRow.style.display = "";
+                if (trialText) {
+                    var trialEnd = new Date(subData.trial_ends_at);
+                    var now = new Date();
+                    var daysLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
+                    var dateStr = trialEnd.toLocaleDateString();
+                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) — uses <strong>DeepSeek AI</strong> only";
+                }
+            } else {
+                if (trialRow) trialRow.style.display = "none";
+            }
+
             // Period end: prefer usage period.end for calculated dates
             var periodEnd = subData.current_period_end;
             if (usageData && usageData.period && usageData.period.end) {
@@ -1320,7 +1355,7 @@
                 if (grid) {
                     var rows = [
                         buildUsageRow("Chatbots", u.chatbots && u.chatbots.used, u.chatbots && u.chatbots.limit, false),
-                        buildUsageRow("Team Members", u.team_members && u.team_members.used, u.team_members && u.team_members.limit, false),
+                        buildTeamUsageRow(u.team_members && u.team_members.used, u.team_members && u.team_members.limit, u.team_members && u.team_members.pending_invitations),
                         buildTokenRow("Input Tokens Used", u.ai_tokens && u.ai_tokens.input_tokens),
                         buildTokenRow("Output Tokens Used", u.ai_tokens && u.ai_tokens.output_tokens),
                         buildTokenRow("Total Tokens Used", u.ai_tokens && u.ai_tokens.total_tokens),
@@ -1329,6 +1364,19 @@
                         buildUsageRow("Connected Channels", u.channels && u.channels.used, u.channels && u.channels.limit, false),
                     ];
                     grid.innerHTML = rows.join("");
+                    // Add upgrade button
+
+                    var upgradeRow = document.getElementById("billing-upgrade-row");
+                    if (!upgradeRow) {
+                        var gridParent = grid.parentNode;
+                        var upRow = document.createElement("div");
+                        upRow.id = "billing-upgrade-row";
+                        upRow.style.cssText = "grid-column:1/-1;margin-top:4px;";
+                        upRow.innerHTML = '<a href="pricing.html" class="btn-upgrade-link" style="display:block;width:100%;text-align:center;padding:12px;border-radius:12px;background:var(--primary);color:white;font-weight:600;font-size:0.9rem;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background=\'#2563eb\'" onmouseout="this.style.background=\'var(--primary)\'"><i data-lucide="zap" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> Upgrade Plan</a>';
+                        gridParent.appendChild(upRow);
+                        refreshIcons();
+                    }
+
                 }
             } else if (usageResult.status === "fulfilled") {
                 // Usage API was called but returned error

@@ -742,32 +742,18 @@ def get_refinement_questions():
             )
 
             import os
-            from openai import OpenAI
-            api_key = os.getenv("DEEPSEEK_API_KEY")
-            if not api_key:
-                api_key = os.getenv("OPENROUTER_API_KEY")
-                client = OpenAI(
-                    api_key=api_key,
-                    base_url="https://openrouter.ai/api/v1"
-                )
-                model = "deepseek/deepseek-chat"
-            else:
-                client = OpenAI(
-                    api_key=api_key,
-                    base_url="https://api.deepseek.com"
-                )
-                model = "deepseek-chat"
-
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": graph_text}
-                ],
-                temperature=0.3
+            from app.services.ai_router import generate_system_response
+            full_prompt = system_prompt + "\n\nKnowledge Graph:\n" + graph_text
+            content = generate_system_response(
+                prompt=full_prompt,
+                chatbot_id=chatbot_id,
+                temperature=0.3,
+                json_response=True,
             )
+            if not content:
+                content = "[]"
 
-            content = response.choices[0].message.content.strip()
+            content = content.strip()
             if content.startswith("```"):
                 lines = content.splitlines()
                 if lines[0].startswith("```"):
@@ -776,9 +762,13 @@ def get_refinement_questions():
                     lines = lines[:-1]
                 content = "\n".join(lines).strip()
 
-            draft_questions = json.loads(content)
+            try:
+                draft_questions = json.loads(content)
+            except Exception:
+                draft_questions = []
 
             yield "data: " + json.dumps({"type": "log", "message": f"Found {len(draft_questions)} candidate questions. Commencing Layer 2 Semantic checks against PDF chunks..."}) + "\n\n"
+
 
             from app.services.rag_service import generate_embedding
             from app.database.knowledge_chunk_repository import search_similar_chunks
@@ -823,15 +813,16 @@ def get_refinement_questions():
                     f"Context Snippet:\n{chunk_contents}"
                 )
 
-                verify_res = client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {"role": "user", "content": verify_prompt}
-                    ],
-                    temperature=0.1
+                verify_res = generate_system_response(
+                    prompt=verify_prompt,
+                    chatbot_id=chatbot_id,
+                    temperature=0.1,
                 )
+                if not verify_res:
+                    verify_reply = "AMBIGUOUS"
+                else:
+                    verify_reply = verify_res.strip()
 
-                verify_reply = verify_res.choices[0].message.content.strip()
                 if verify_reply.upper().startswith("RESOLVED"):
                     ans_part = verify_reply[len("RESOLVED:"):].strip()
                     yield "data: " + json.dumps({"type": "log", "message": f" -> Auto-resolved: \"{ans_part}\" (Filtered out)"}) + "\n\n"

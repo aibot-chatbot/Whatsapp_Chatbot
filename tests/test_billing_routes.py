@@ -104,9 +104,21 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
             side_effect=side_effect,
         )
 
+    def _patch_ai_access(self):
+        """Patch resolve_ai_access to allow top-up (returns top_up_allowed=True)."""
+        from app.services.ai_access_policy import AIAccessPolicy, ROUTE_OPENROUTER, STATE_ESSENTIAL
+        return patch(
+            "app.routes.billing_routes.resolve_ai_access",
+            return_value=AIAccessPolicy(
+                allowed=True, access_state=STATE_ESSENTIAL,
+                api_route=ROUTE_OPENROUTER, top_up_allowed=True,
+                model_editable=True, denial_reason=None,
+            ),
+        )
+
     # ----- Route registration -----
     def test_route_registered(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service():
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertNotEqual(resp.status_code, 404)
 
@@ -121,12 +133,12 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
 
     # ----- Successful checkout -----
     def test_valid_checkout_returns_201(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service():
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 201)
 
     def test_valid_response_contains_safe_fields(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service():
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             data = resp.get_json()
             self.assertIn("data", data)
@@ -138,7 +150,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
             self.assertNotIn("secret", str(data).lower())
 
     def test_service_receives_correct_params(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service() as mock_service:
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service() as mock_service:
             self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             mock_service.assert_called_once()
             _, kwargs = mock_service.call_args
@@ -152,7 +164,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
 
     # ----- company_id from body -----
     def test_company_id_in_body_ignored(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service() as mock_service:
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service() as mock_service:
             body = {**self.valid_body, "company_id": 999}
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 201)
@@ -207,37 +219,37 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
             self.assertEqual(resp.status_code, 400)
 
     def test_minimum_valid_amount_accepted(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service():
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/toyyibpay/checkout", json={"amount_micro_myr": 1010000}, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 201)
 
     # ----- Error handling -----
     def test_service_value_error_returns_400(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=ValueError("Invalid amount")):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=ValueError("Invalid amount")):
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 400)
 
     def test_unexpected_exception_returns_500(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=RuntimeError("DB crash")):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=RuntimeError("DB crash")):
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 500)
 
     def test_unexpected_exception_does_not_leak_details(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=RuntimeError("DB crash")):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=RuntimeError("DB crash")):
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             data = resp.get_json()
             self.assertNotIn("DB crash", str(data))
 
     # ----- No credit applied by checkout -----
     def test_checkout_does_not_apply_credit(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service():
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             with patch("app.services.ai_credit_topup_callback_service.process_topup_payment_callback") as mock_credit:
                 self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
                 mock_credit.assert_not_called()
 
     # ----- No network calls -----
     def test_no_live_http_requests(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription(), self._patch_checkout_service():
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 201)
 
@@ -252,7 +264,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
         )
 
     def test_valid_phone_passed_to_service(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription():
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription():
             with patch("app.routes.billing_routes.create_toyyibpay_topup_checkout") as mock_svc:
                 mock_svc.return_value = self.service_result
                 self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
@@ -292,7 +304,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
             self.assertEqual(resp.status_code, 400)
 
     def test_request_phone_ignored(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_get_subscription():
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription():
             with patch("app.routes.billing_routes.create_toyyibpay_topup_checkout") as mock_svc:
                 mock_svc.return_value = self.service_result
                 body = dict(self.valid_body)

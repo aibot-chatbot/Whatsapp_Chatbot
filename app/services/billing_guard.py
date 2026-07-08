@@ -1,4 +1,4 @@
-﻿"""billing_guard.py — Central enforcement engine for subscription limits.
+"""billing_guard.py — Central enforcement engine for subscription limits.
 
 This module provides the building blocks for checking whether a company
 has exceeded its subscription plan limits. It is deliberately kept
@@ -285,7 +285,8 @@ def can_add_team_member(company_id: int) -> bool:
             code="usage_unavailable",
         )
     used = usage.get("usage", {}).get("team_members", {}).get("used", 0) or 0
-    return _check_limit(used, limit, "Team member limit reached for the current subscription plan.", "team_member_limit")
+    pending = usage.get("usage", {}).get("team_members", {}).get("pending_invitations", 0) or 0
+    return _check_limit(used + pending, limit, "Team member limit reached for the current subscription plan.", "team_member_limit")
 
 
 # ---------------------------------------------------------------------------
@@ -298,8 +299,10 @@ def can_add_team_member(company_id: int) -> bool:
 # features and require separate design.
 PLAN_FEATURES = frozenset({
     "batch_website_scraping",
+    "single_website_scraping",
     "ai_generated_reports",
     "ai_assisted_menu_generation",
+    "crm_lead_assignment",
 })
 
 

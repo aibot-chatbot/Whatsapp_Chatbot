@@ -717,6 +717,51 @@
                 sidebar.initSidebar();
             }
         });
+
+        async function loadTeamUsage() {
+            var loading = document.getElementById("team-usage-loading");
+            var content = document.getElementById("team-usage-content");
+            var membersEl = document.getElementById("team-usage-members");
+            var pendingEl = document.getElementById("team-usage-pending");
+            var limitEl = document.getElementById("team-usage-limit");
+            var warnEl = document.getElementById("team-upgrade-warning");
+            if (!content) return;
+            try {
+                var subRes = await authenticatedFetch("/api/billing/subscription");
+                var subJson = await subRes.json();
+                var usageRes = await authenticatedFetch("/api/billing/usage");
+                var usageJson = await usageRes.json();
+                if (loading) loading.style.display = "none";
+                content.style.display = "block";
+
+                var subData = subJson.status === "success" ? subJson.data : null;
+                var usageData = usageJson.status === "success" ? usageJson.data : null;
+
+                var teamUsage = usageData && usageData.usage ? usageData.usage.team_members : null;
+                var plan = subData && subData.plan ? subData.plan : null;
+
+                var used = teamUsage ? (teamUsage.used || 0) : "?";
+                var pending = teamUsage ? (teamUsage.pending_invitations || 0) : "?";
+                var limit = plan ? (plan.team_member_limit != null ? plan.team_member_limit : "Unlimited") : "?";
+
+                if (membersEl) membersEl.textContent = used;
+                if (pendingEl) pendingEl.textContent = pending;
+                if (limitEl) limitEl.textContent = limit;
+
+                // Show warning if at or over limit
+                if (warnEl && limit !== "?" && limit !== "Unlimited" && limit !== null) {
+                    var total = (typeof used === "number" ? used : 0) + (typeof pending === "number" ? pending : 0);
+                    if (total >= limit) {
+                        warnEl.style.display = "block";
+                        refreshIcons();
+                    }
+                }
+                refreshIcons();
+            } catch (e) {
+                console.error("Failed to load team usage:", e);
+                if (loading) { loading.textContent = "Unable to load usage information."; }
+            }
+        }
     </script>
 
     <div class="main-container">
@@ -736,6 +781,33 @@
             <i data-lucide="info" style="width:18px;height:18px;"></i>
             <span>Admins can send invitations to new team members. Only admins and owners can manage the team.</span>
         </div>
+
+        <!-- Team Usage Summary -->
+        <div class="glass-card" id="team-usage-card" style="margin-bottom:20px;padding:16px 20px;">
+            <div id="team-usage-loading" style="color:var(--text-dim);font-size:0.9rem;">
+                <i data-lucide="loader-2" class="spin" style="width:16px;height:16px;vertical-align:middle;"></i> Loading usage...
+            </div>
+            <div id="team-usage-content" style="display:none;">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;">
+                    <div>
+                        <div style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;">Active Members</div>
+                        <div id="team-usage-members" style="font-size:1.1rem;font-weight:700;color:var(--text-main);margin-top:4px;">&mdash;</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;">Pending Invitations</div>
+                        <div id="team-usage-pending" style="font-size:1.1rem;font-weight:700;color:var(--text-main);margin-top:4px;">&mdash;</div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;">Plan Limit</div>
+                        <div id="team-usage-limit" style="font-size:1.1rem;font-weight:700;color:var(--text-main);margin-top:4px;">&mdash;</div>
+                    </div>
+                </div>
+                <div id="team-upgrade-warning" style="display:none;margin-top:10px;padding:10px 14px;border-radius:10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:var(--warning);font-size:0.85rem;">
+                    <i data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> Team limit reached. <a href="pricing.html" style="color:var(--primary);text-decoration:underline;font-weight:600;">Upgrade your plan &rarr;</a>
+                </div>
+            </div>
+        </div>
+
 
         <div class="glass-card" id="team-card">
             <div class="loading-state" id="loading-state">
@@ -950,6 +1022,7 @@
             var userName = selectEl.getAttribute("data-user-name") || "User";
             if (!await showConfirmModal({ message: "Change " + userName + "'s role to " + capitalize(newRole) + "?", confirmText: "Change Role", confirmType: "primary" })) {
                 loadTeam();
+            loadTeamUsage();
                 return;
             }
             try {
@@ -962,6 +1035,7 @@
                 if (json.status === "success") {
                     showMessage("Role updated to " + capitalize(newRole) + ".", "success");
                     loadTeam();
+            loadTeamUsage();
                 } else {
                     showMessage(json.message || "Failed to update role.", "error");
                 }
@@ -986,6 +1060,7 @@
                 if (json.status === "success") {
                     showMessage("User " + label + "d successfully.", "success");
                     loadTeam();
+            loadTeamUsage();
                 } else {
                     showMessage(json.message || "Failed to update status.", "error");
                 }
@@ -1072,6 +1147,7 @@
                     closeAddMemberModal();
                     showMessage("Invitation sent successfully.", "success");
                     loadTeam();
+            loadTeamUsage();
                 } else {
                     showMemberFormError(json.message || "Failed to send invitation.");
                 }
@@ -1285,8 +1361,54 @@ async function resendInvite(email) {
         });
         try {
             loadTeam();
+            loadTeamUsage();
         } catch (e) {
             console.warn("team.html: loadTeam error (page continues safely):", e);
+        }
+
+        async function loadTeamUsage() {
+            var loading = document.getElementById("team-usage-loading");
+            var content = document.getElementById("team-usage-content");
+            var membersEl = document.getElementById("team-usage-members");
+            var pendingEl = document.getElementById("team-usage-pending");
+            var limitEl = document.getElementById("team-usage-limit");
+            var warnEl = document.getElementById("team-upgrade-warning");
+            if (!content) return;
+            try {
+                var subRes = await authenticatedFetch("/api/billing/subscription");
+                var subJson = await subRes.json();
+                var usageRes = await authenticatedFetch("/api/billing/usage");
+                var usageJson = await usageRes.json();
+                if (loading) loading.style.display = "none";
+                content.style.display = "block";
+
+                var subData = subJson.status === "success" ? subJson.data : null;
+                var usageData = usageJson.status === "success" ? usageJson.data : null;
+
+                var teamUsage = usageData && usageData.usage ? usageData.usage.team_members : null;
+                var plan = subData && subData.plan ? subData.plan : null;
+
+                var used = teamUsage ? (teamUsage.used || 0) : "?";
+                var pending = teamUsage ? (teamUsage.pending_invitations || 0) : "?";
+                var limit = plan ? (plan.team_member_limit != null ? plan.team_member_limit : "Unlimited") : "?";
+
+                if (membersEl) membersEl.textContent = used;
+                if (pendingEl) pendingEl.textContent = pending;
+                if (limitEl) limitEl.textContent = limit;
+
+                // Show warning if at or over limit
+                if (warnEl && limit !== "?" && limit !== "Unlimited" && limit !== null) {
+                    var total = (typeof used === "number" ? used : 0) + (typeof pending === "number" ? pending : 0);
+                    if (total >= limit) {
+                        warnEl.style.display = "block";
+                        refreshIcons();
+                    }
+                }
+                refreshIcons();
+            } catch (e) {
+                console.error("Failed to load team usage:", e);
+                if (loading) { loading.textContent = "Unable to load usage information."; }
+            }
         }
     </script>
 </body>

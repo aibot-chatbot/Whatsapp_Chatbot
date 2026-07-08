@@ -456,6 +456,12 @@ class ChatbotSidebar extends HTMLElement {
                     </div>
                 </a>
                 ` : ""}
+                <a href="pricing.html${botQuery}" class="profile-link" title="Pricing & Billing">
+                    <div class="profile-link-content">
+                        <i data-lucide="credit-card"></i>
+                        <span>Billing</span>
+                    </div>
+                </a>
                 <a href="profile.html${botQuery}" class="profile-link" title="Profile">
                     <div class="profile-link-content">
                         <i data-lucide="user-circle"></i>

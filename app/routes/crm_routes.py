@@ -10,6 +10,7 @@ from app.database.crm_lead_repository import (
 )
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access
+from app.services.billing_guard import can_use_plan_feature, BillingLimitError
 
 
 crm_blueprint = Blueprint("crm", __name__)
@@ -52,6 +53,13 @@ def get_crm_leads():
             "message": str(e)
         }), 403
 
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
+
     except ValueError as e:
         return jsonify({
             "status": "error",
@@ -90,6 +98,11 @@ def update_crm_lead(lead_id):
             }), 400
 
         verify_chatbot_access(chatbot_id)
+
+        # Check CRM lead assignment feature gate if assigning to a non-null member
+        if assigned_to is not None and assigned_to != "":
+            can_use_plan_feature(g.company_id, "crm_lead_assignment")
+
         update_kwargs = {
             "chatbot_id": chatbot_id,
             "lead_id": lead_id,
@@ -119,6 +132,13 @@ def update_crm_lead(lead_id):
     except PermissionError as e:
         return jsonify({
             "status": "error",
+            "message": str(e)
+        }), 403
+
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
             "message": str(e)
         }), 403
 
@@ -158,6 +178,11 @@ def upsert_crm_lead():
         chatbot_id = int(chatbot_id)
         conversation_id = int(conversation_id)
         status = str(data.get("status") or "new").strip().lower()
+        # Check CRM lead assignment feature gate if assigning to a non-null member
+        assigned_to = data.get("assigned_to")
+        if assigned_to is not None and assigned_to != "":
+            can_use_plan_feature(g.company_id, "crm_lead_assignment")
+
         priority = str(data.get("priority") or "medium").strip().lower()
 
         if status not in ALLOWED_CRM_LEAD_STATUSES:
@@ -205,6 +230,13 @@ def upsert_crm_lead():
     except PermissionError as e:
         return jsonify({
             "status": "error",
+            "message": str(e)
+        }), 403
+
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
             "message": str(e)
         }), 403
 

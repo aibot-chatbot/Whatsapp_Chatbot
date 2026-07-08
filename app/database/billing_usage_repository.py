@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timezone
+from datetime import datetime, timezone
 
 from app.database.db import supabase
 
@@ -65,6 +65,56 @@ def count_active_company_members(company_id):
 
     return response.count or 0
 
+
+
+def count_pending_company_invitations(company_id):
+    """Count pending valid invitations for a company.
+
+    Pending invitations are counted only if:
+      - status = 'pending'
+      - expires_at is NULL OR expires_at > current UTC time
+
+    This prevents companies from bypassing the team_member_limit by
+    creating unlimited pending invitations.
+
+    Accepted, expired or deleted invitations are not counted.
+    """
+    if not company_id:
+        raise ValueError("Company ID is required")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    # Fetch all pending invites for this company
+    response = (
+        supabase
+        .table("invites")
+        .select("id,expires_at")
+        .eq("company_id", company_id)
+        .eq("status", "pending")
+        .execute()
+    )
+
+    rows = response.data or []
+
+    if not rows:
+        return 0
+
+    count = 0
+    for row in rows:
+        expires_at = row.get("expires_at")
+        if not expires_at:
+            # No expiry set — treat as valid
+            count += 1
+        else:
+            try:
+                expires_dt = datetime.fromisoformat(expires_at)
+                if expires_dt > datetime.now(timezone.utc):
+                    count += 1
+            except (ValueError, TypeError):
+                # Malformed expiry — count it (fail open to avoid bypass)
+                count += 1
+
+    return count
 
 def count_company_channels(company_id):
     """Count connected channels across Telegram, Wasender, and WhatsApp
