@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import re
 
 from flask import Blueprint, jsonify, g, request
@@ -24,6 +24,17 @@ from app.services.ai_access_policy import resolve_ai_access
 from app.database.subscription_plan_repository import get_plan_by_code as _get_plan_by_code
 from app.database.user_repository import get_user_by_id
 from app.database.ai_credit_topup_order_repository import get_topup_order_by_reference_and_company
+from app.services.subscription_lifecycle_service import (
+    schedule_cancellation as _schedule_cancellation,
+    clear_scheduled_cancellation as _clear_scheduled_cancellation,
+    undo_subscription_cancellation as _undo_subscription_cancellation,
+    schedule_subscription_downgrade as _schedule_downgrade,
+    clear_scheduled_downgrade as _clear_scheduled_downgrade,
+)
+from app.database.subscription_plan_repository import get_plan_by_code as _get_plan_by_code_v2
+from app.database.subscription_plan_repository import get_plan_by_id as _get_plan_by_id
+
+
 
 billing_bp = Blueprint("billing", __name__, url_prefix="/api/billing")
 
@@ -779,6 +790,79 @@ def dev_complete_subscription_order(reference):
 @billing_bp.route("/subscription/downgrade-check/<target_plan_code>", methods=["GET"])
 @token_required
 def subscription_downgrade_check(target_plan_code):
+    return _subscription_downgrade_check(target_plan_code)
+
+def cancel_subscription():
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return (jsonify({"status": "error", "message": "Company not found in authentication token."}), 401)
+        result = _schedule_cancellation(company_id=company_id)
+        return (jsonify({"status": "success", "data": {"cancellation_scheduled": True, "cancellation_effective_at": result.get("cancellation_effective_at"), "cancellation_scheduled_at": result.get("cancellation_scheduled_at"), "plan_id": result.get("plan_id")}}), 200)
+    except ValueError as e:
+        return (jsonify({"status": "error", "message": str(e)}), 409)
+    except Exception:
+        logging.exception("Failed to cancel subscription")
+        return (jsonify({"status": "error", "message": "Unable to process cancellation."}), 500)
+
+@billing_bp.route("/subscription/undo-cancel", methods=["POST"])
+@token_required
+def undo_cancel_subscription():
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return (jsonify({"status": "error", "message": "Company not found in authentication token."}), 401)
+        result = _undo_subscription_cancellation(company_id=company_id)
+        return (jsonify({"status": "success", "data": {"cancellation_undone": True, "cancellation_scheduled_at": result.get("cancellation_scheduled_at"), "cancellation_effective_at": result.get("cancellation_effective_at")}}), 200)
+    except ValueError as e:
+        return (jsonify({"status": "error", "message": str(e)}), 409)
+    except Exception:
+        logging.exception("Failed to undo cancellation")
+        return (jsonify({"status": "error", "message": "Unable to process undo cancellation."}), 500)
+
+@billing_bp.route("/subscription/downgrade", methods=["POST"])
+@token_required
+def schedule_downgrade():
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return (jsonify({"status": "error", "message": "Company not found in authentication token."}), 401)
+        data = request.get_json(silent=True) or {}
+        target_code = (data.get("target_plan_code") or "").strip().lower()
+        if not target_code:
+            return (jsonify({"status": "error", "message": "target_plan_code is required."}), 400)
+        valid_paid = {"essential": 1, "advanced": 2, "pro": 3}
+        if target_code not in valid_paid:
+            return (jsonify({"status": "error", "message": "Invalid downgrade target. Only Essential, Advanced or Pro are valid targets."}), 400)
+        target_plan = _get_plan_by_code(target_code)
+        if not target_plan or not target_plan.get("is_active", False):
+            return (jsonify({"status": "error", "message": f"Plan '{target_code}' is not available."}), 400)
+        target_plan_id = target_plan["id"]
+        result = _schedule_downgrade(company_id=company_id, target_plan_id=target_plan_id)
+        return (jsonify({"status": "success", "data": {"downgrade_scheduled": True, "target_plan": target_code, "plan_change_effective_at": result.get("plan_change_effective_at")}}), 200)
+    except ValueError as e:
+        return (jsonify({"status": "error", "message": str(e)}), 409)
+    except Exception:
+        logging.exception("Failed to schedule downgrade")
+        return (jsonify({"status": "error", "message": "Unable to schedule downgrade."}), 500)
+
+@billing_bp.route("/subscription/downgrade", methods=["DELETE"])
+@token_required
+def clear_downgrade():
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return (jsonify({"status": "error", "message": "Company not found in authentication token."}), 401)
+        result = _clear_scheduled_downgrade(company_id=company_id)
+        return (jsonify({"status": "success", "data": {"downgrade_cleared": True, "pending_plan_id": result.get("pending_plan_id"), "plan_change_effective_at": result.get("plan_change_effective_at")}}), 200)
+    except ValueError as e:
+        return (jsonify({"status": "error", "message": str(e)}), 409)
+    except Exception:
+        logging.exception("Failed to clear scheduled downgrade")
+        return (jsonify({"status": "error", "message": "Unable to clear downgrade schedule."}), 500)
+
+
+def _subscription_downgrade_check(target_plan_code):
     """Check whether the company can downgrade to a lower paid plan.
 
     Returns eligibility, current usage vs target limits, and any blocking

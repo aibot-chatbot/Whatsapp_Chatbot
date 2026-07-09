@@ -280,7 +280,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertFalse(policy.allowed)
-        self.assertIn("not recognised", policy.denial_reason)
+        self.assertIn("cancelled", policy.denial_reason)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")

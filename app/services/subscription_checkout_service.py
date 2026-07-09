@@ -85,10 +85,106 @@ def create_subscription_checkout(
             "A default subscription must exist before checkout."
         )
     subscription_id = subscription["id"]
+    current_plan = subscription.get("plan") or {}
+    current_code = (current_plan.get("code") or "").lower()
+    current_status = (subscription.get("status") or "").lower().strip()
+
+    # --- Purchase protections ---
+    _plan_rank = {"free": 0, "essential": 1, "advanced": 2, "pro": 3}
+    target_rank = _plan_rank.get(norm_code, -1)
+    current_rank = _plan_rank.get(current_code, -1)
+    _paid_plan_codes = {"essential", "advanced", "pro"}
+
+    if norm_code in _paid_plan_codes:
+        if current_status == "trialing":
+            pass
+        elif current_status in ("expired", "past_due"):
+            if norm_code == current_code:
+                pass
+            elif target_rank > current_rank:
+                pass
+            else:
+                raise ValueError(
+                    f"Plan \"" + norm_code + "\" is lower than your current plan. "
+                    "Lower plans must be scheduled through the downgrade process."
+                )
+        elif current_status == "active":
+            if norm_code == current_code:
+                raise ValueError(
+                    f"You are already subscribed to the " + current_code.title() + " plan. "
+                    "If you need to change your plan, please use the Change Plan option."
+                )
+            elif target_rank < current_rank:
+                raise ValueError(
+                    f"Plan \"" + norm_code + "\" is lower than your current " + current_code.title() + " plan. "
+                    "Lower plans must be scheduled through the downgrade process."
+                )
 
     # --- Create order reference and idempotency key ---
     order_reference = str(uuid.uuid4())
     idempotency_key = f"sub_checkout_{company_id}_{norm_code}_{order_reference}"
+
+    # --- Capture subscription snapshot for atomic activation ---
+    source_plan_id = subscription.get("plan_id")
+    source_period_start = subscription.get("current_period_start")
+    source_period_end = subscription.get("current_period_end")
+    source_status = current_status
+
+    # Determine activation type for this order
+    if source_status == "trialing":
+        activation_type = "initial_purchase"
+    elif source_status in ("expired", "past_due", "cancelled"):
+        activation_type = "renewal"
+    elif source_status == "active":
+        activation_type = "upgrade"
+    else:
+        activation_type = "initial_purchase"
+
+    # Generate deterministic activation_sequence_key at checkout time
+    _trial_end = subscription.get("trial_ends_at") or "no-trial"
+    if activation_type == "initial_purchase":
+        activation_sequence_key = f"company:{company_id}:initial-from:{subscription_id}:trial:{_trial_end}"
+    elif activation_type == "renewal":
+        activation_sequence_key = f"company:{company_id}:renewal-after:{source_period_end}"
+    elif activation_type == "upgrade":
+        activation_sequence_key = f"company:{company_id}:upgrade-from:{source_plan_id}:period:{source_period_start}"
+    else:
+        activation_sequence_key = f"company:{company_id}:other:{order_reference}"
+
+    # --- Validate activation fields for schema version 2 ---
+    # All newly created orders must have the required atomicity fields
+    # appropriate for their activation type. The validation is specific
+    # to each activation_type so that only genuinely required fields
+    # are enforced.
+    _missing = []
+    if not activation_type:
+        _missing.append("activation_type")
+    if not activation_sequence_key:
+        _missing.append("activation_sequence_key")
+    if not source_status:
+        _missing.append("source_status")
+    if activation_type == "initial_purchase":
+        if not subscription_id:
+            _missing.append("subscription_id")
+    elif activation_type == "renewal":
+        if not source_plan_id:
+            _missing.append("source_plan_id")
+        if not source_period_end:
+            _missing.append("source_period_end")
+    elif activation_type == "upgrade":
+        if not source_plan_id:
+            _missing.append("source_plan_id")
+        if not source_period_start:
+            _missing.append("source_period_start")
+        if not source_period_end:
+            _missing.append("source_period_end")
+    if _missing:
+        raise ValueError(
+            f"Subscription order is missing required activation fields: "
+            f"activation_type={activation_type!r}, "
+            f"missing={_missing}. "
+            f"Order cannot be created without complete atomicity data."
+        )
 
     # --- Create the pending order ---
     try:
@@ -101,6 +197,13 @@ def create_subscription_checkout(
             payment_gateway="toyyibpay",
             idempotency_key=idempotency_key,
             created_by_user_id=user_id,
+            source_plan_id=source_plan_id,
+            source_period_start=source_period_start,
+            source_period_end=source_period_end,
+            source_status=source_status,
+            activation_type=activation_type,
+            activation_sequence_key=activation_sequence_key,
+            order_schema_version=2,
         )
     except RuntimeError as exc:
         logger.error("Failed to create subscription order: %s", exc)

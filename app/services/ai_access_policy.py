@@ -25,6 +25,8 @@ PLAN_CODE_PRO = "pro"
 STATUS_TRIALING = "trialing"
 STATUS_ACTIVE = "active"
 STATUS_PAST_DUE = "past_due"
+STATUS_EXPIRED = "expired"
+STATUS_CANCELLED = "cancelled"
 
 ROUTE_DIRECT_DEEPSEEK = "direct_deepseek"
 ROUTE_OPENROUTER = "openrouter"
@@ -137,6 +139,19 @@ def resolve_ai_access(company_id, *, now=None):
 
     # active
     if status == STATUS_ACTIVE:
+        # Scheduler-safe guard: if current_period_end is in the past,
+        # deny access even if the lifecycle job has not yet transitioned
+        # the subscription to "expired". This protects the system when
+        # the scheduled expiry processor is delayed.
+        period_end_raw = subscription.get("current_period_end")
+        if period_end_raw:
+            period_end_dt = _parse_iso_datetime(period_end_raw)
+            if period_end_dt is not None and period_end_dt <= now:
+                return AIAccessPolicy(
+                    allowed=False, access_state=STATE_UNKNOWN,
+                    denial_reason="Your subscription period has ended. Please renew to continue.",
+                )
+
         if plan_code == PLAN_CODE_ESSENTIAL:
             return AIAccessPolicy(
                 allowed=True, access_state=STATE_ESSENTIAL,
@@ -172,6 +187,18 @@ def resolve_ai_access(company_id, *, now=None):
         return AIAccessPolicy(
             allowed=False, access_state=STATE_PAST_DUE,
             denial_reason="Your subscription payment is past due.",
+        )
+
+    if status == STATUS_EXPIRED:
+        return AIAccessPolicy(
+            allowed=False, access_state=STATE_UNKNOWN,
+            denial_reason="Your subscription has expired. Please renew to continue using AI features.",
+        )
+
+    if status == STATUS_CANCELLED:
+        return AIAccessPolicy(
+            allowed=False, access_state=STATE_UNKNOWN,
+            denial_reason="Your subscription has been cancelled.",
         )
 
     return AIAccessPolicy(
