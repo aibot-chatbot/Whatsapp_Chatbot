@@ -1,7 +1,8 @@
 """toyyibpay_routes.py -- ToyyibPay payment callback endpoint.
 
 This module exposes the ToyyibPay server-to-server callback endpoint
-for AI-credit top-up payment notifications.
+for AI-credit top-up payment notifications and subscription payment
+notifications.
 """
 
 import logging
@@ -17,19 +18,38 @@ from app.services.toyyibpay_service import (
 from app.services.ai_credit_topup_callback_service import (
     process_topup_payment_callback,
 )
+from app.services.subscription_payment_callback_service import (
+    process_subscription_payment_callback,
+)
+from app.database.company_subscription_order_repository import (
+    get_subscription_order_by_gateway_id,
+)
 
 logger = logging.getLogger(__name__)
 
 toyyibpay_bp = Blueprint('toyyibpay', __name__)
 
 
+def _is_subscription_callback(payment_gateway, gateway_order_id):
+    """Check whether a callback gateway ID corresponds to a subscription order."""
+    if not payment_gateway or not gateway_order_id:
+        return False
+    order = get_subscription_order_by_gateway_id(
+        payment_gateway=payment_gateway,
+        gateway_order_id=gateway_order_id,
+    )
+    return order is not None
+
+
 @toyyibpay_bp.route('/api/billing/toyyibpay/callback', methods=['POST'])
 def toyyibpay_callback():
-    """Handle ToyyibPay payment callback for AI-credit top-up orders.
+    """Handle ToyyibPay payment callback.
+
+    Detects whether the callback is for a subscription order or an
+    AI-credit top-up order and delegates to the appropriate handler.
 
     This endpoint is called by ToyyibPay after a customer completes payment.
-    It verifies the callback hash, processes the payment, and grants AI credit
-    to the company.
+    It verifies the callback hash before processing.
 
     ToyyibPay may retry on HTTP 500 responses.
     Returns HTTP 200 for successful and idempotent-replay callbacks.
@@ -91,12 +111,47 @@ def toyyibpay_callback():
                 "message": "Invalid callback data.",
             }), 400
 
-        # Process the callback (mark order paid, grant credit, etc.)
+        # Detect callback type: subscription or AI-credit top-up
+        payment_gateway = parsed.get("payment_gateway")
+        gateway_order_id = parsed.get("gateway_order_id")
+
+        if _is_subscription_callback(payment_gateway, gateway_order_id):
+            # Process subscription payment callback
+            try:
+                result = process_subscription_payment_callback(parsed)
+            except ValueError as exc:
+                logger.warning(
+                    "Subscription callback rejected: %s",
+                    exc,
+                )
+                return jsonify({
+                    "status": "error",
+                    "message": str(exc),
+                }), 400
+            except RuntimeError as exc:
+                logger.error(
+                    "Subscription callback processing failed: %s",
+                    exc,
+                )
+                return jsonify({
+                    "status": "error",
+                    "message": "Temporary processing failure. ToyyibPay will retry.",
+                }), 500
+
+            logger.info(
+                "Subscription callback processed: billcode %s, order %s, status %s",
+                gateway_order_id,
+                result.get("order_reference"),
+                result.get("status"),
+            )
+            return jsonify({"status": "success"}), 200
+
+        # Process AI-credit top-up payment callback
         try:
             result = process_topup_payment_callback(parsed)
         except ValueError as exc:
             logger.warning(
-                "ToyyibPay callback processing rejected: %s",
+                "ToyyibPay top-up callback processing rejected: %s",
                 exc,
             )
             return jsonify({
@@ -105,7 +160,7 @@ def toyyibpay_callback():
             }), 400
         except RuntimeError as exc:
             logger.error(
-                "ToyyibPay callback processing failed: %s",
+                "ToyyibPay top-up callback processing failed: %s",
                 exc,
             )
             return jsonify({
@@ -115,7 +170,7 @@ def toyyibpay_callback():
 
         # Return success
         logger.info(
-            "ToyyibPay callback processed: billcode %s, order %s, status %s",
+            "ToyyibPay top-up callback processed: billcode %s, order %s, status %s",
             parsed.get("gateway_order_id"),
             result.get("order_reference"),
             result.get("status"),

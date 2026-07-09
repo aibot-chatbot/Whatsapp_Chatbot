@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -1268,6 +1268,12 @@
             return html;
         }
 
+        function getBotQuery() {
+            var p = new URLSearchParams(window.location.search);
+            var bId = p.get("bot_id");
+            return bId ? "?bot_id=" + encodeURIComponent(bId) : "";
+        }
+
         async function loadBillingInfo() {
             var section = document.getElementById("billing-section");
             var loading = document.getElementById("billing-loading");
@@ -1364,19 +1370,33 @@
                         buildUsageRow("Connected Channels", u.channels && u.channels.used, u.channels && u.channels.limit, false),
                     ];
                     grid.innerHTML = rows.join("");
-                    // Add upgrade button
-
+                    // Plan action button (Change / Manage / Upgrade / Renew)
+                    var planCodeForUpgrade2 = (plan.code || "").toLowerCase();
+                    var subStatusForButton = (subData.status || "").toLowerCase();
+                    var btnLabel = "";
+                    var btnColor = "var(--primary)";
+                    var btnHover = "#2563eb";
+                    if (subStatusForButton === "trialing" || subStatusForButton === "" || planCodeForUpgrade2 === "free") {
+                        btnLabel = "Upgrade Plan";
+                    } else if (subStatusForButton === "past_due" || subStatusForButton === "expired") {
+                        btnLabel = "Renew Plan";
+                    } else if (planCodeForUpgrade2 === "pro") {
+                        btnLabel = "Manage Plan";
+                        btnColor = "rgba(255,255,255,0.12)";
+                        btnHover = "rgba(255,255,255,0.18)";
+                    } else {
+                        btnLabel = "Change Plan";
+                    }
                     var upgradeRow = document.getElementById("billing-upgrade-row");
                     if (!upgradeRow) {
                         var gridParent = grid.parentNode;
                         var upRow = document.createElement("div");
                         upRow.id = "billing-upgrade-row";
                         upRow.style.cssText = "grid-column:1/-1;margin-top:4px;";
-                        upRow.innerHTML = '<a href="pricing.html" class="btn-upgrade-link" style="display:block;width:100%;text-align:center;padding:12px;border-radius:12px;background:var(--primary);color:white;font-weight:600;font-size:0.9rem;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background=\'#2563eb\'" onmouseout="this.style.background=\'var(--primary)\'"><i data-lucide="zap" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> Upgrade Plan</a>';
+                        upRow.innerHTML = '<a href="pricing.html' + getBotQuery() + '" class="btn-upgrade-link" style="display:block;width:100%;text-align:center;padding:12px;border-radius:12px;background:' + btnColor + ';color:white;font-weight:600;font-size:0.9rem;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background=\'' + btnHover + '\'" onmouseout="this.style.background=\'' + btnColor + '\'"><i data-lucide="zap" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> ' + btnLabel + '</a>';
                         gridParent.appendChild(upRow);
                         refreshIcons();
                     }
-
                 }
             } else if (usageResult.status === "fulfilled") {
                 // Usage API was called but returned error
@@ -1758,6 +1778,132 @@
             if (btn) setTimeout(function() { btn.disabled = false; }, 2000);
         }
 
+        function fetchSubscriptionOrderStatus(orderReference) {
+            try {
+                return authenticatedFetch("/api/billing/subscription/orders/" + encodeURIComponent(orderReference)).then(function(res) {
+                    if (!res.ok) {
+                        if (res.status === 401 || res.status === 403) return { authError: true };
+                        return null;
+                    }
+                    return res.json().then(function(body) {
+                        if (body.status !== "success" || !body.data) return null;
+                        return body.data;
+                    });
+                });
+            } catch (e) {
+                return Promise.resolve(null);
+            }
+        }
+
+        function handleSubscriptionPaymentStatusResult(data) {
+            if (!data) {
+                showPaymentStatus("error", "Verification error", "We could not confirm the subscription payment status. Please check your subscription after a moment." );
+                return { terminal: false, showRetry: true };
+            }
+            var status = data.status || "";
+            if (status === "credited") {
+                showPaymentStatus("success", "Subscription activated!", "Your plan is now active. AI credits and subscription information have been updated." );
+                sessionStorage.removeItem("pending_subscription_order_reference");
+                _paymentResolvedRef = null;
+                (async function() {
+                    loadBillingInfo();
+                    fetchAiCredit();
+                })();
+                return { terminal: true, showRetry: false };
+            }
+            if (status === "paid") {
+                showPaymentStatus("processing", "Payment received.", "Your payment was received and your subscription is being activated." );
+                return { terminal: false, showRetry: false };
+            }
+            if (status === "pending" || status === "claimed") {
+                showPaymentStatus("processing", "Still processing.", "Your subscription payment is still being processed." );
+                return { terminal: false, showRetry: false };
+            }
+            if (status === "failed") {
+                showPaymentStatus("failed", "Payment not completed.", "The payment was not completed. No changes were made to your subscription." );
+                sessionStorage.removeItem("pending_subscription_order_reference");
+                _paymentResolvedRef = null;
+                return { terminal: true, showRetry: false };
+            }
+            if (status === "cancelled") {
+                showPaymentStatus("cancelled", "Payment cancelled.", "The subscription upgrade was cancelled. Your plan remains unchanged." );
+                sessionStorage.removeItem("pending_subscription_order_reference");
+                _paymentResolvedRef = null;
+                return { terminal: true, showRetry: false };
+            }
+            if (status === "expired") {
+                showPaymentStatus("expired", "Payment session expired.", "The payment session expired. No changes were made to your subscription." );
+                sessionStorage.removeItem("pending_subscription_order_reference");
+                _paymentResolvedRef = null;
+                return { terminal: true, showRetry: false };
+            }
+            showPaymentStatus("error", "Verification error", "We could not confirm the subscription payment status." );
+            return { terminal: true, showRetry: true };
+        }
+
+        function handleSubscriptionPaymentReturn() {
+            var ref = sessionStorage.getItem("pending_subscription_order_reference");
+            if (!ref) return;
+            var norm = normalizeUuid(ref);
+            if (!norm) {
+                console.warn("Subscription return: invalid stored reference");
+                sessionStorage.removeItem("pending_subscription_order_reference");
+                return;
+            }
+            _paymentResolvedRef = norm;
+            startSubscriptionPaymentPolling();
+        }
+
+        function startSubscriptionPaymentPolling() {
+            stopPaymentPolling();
+            var btn = document.getElementById("btn-check-again");
+            if (btn) btn.style.display = "none";
+            _paymentPollCount = 0;
+            showPaymentStatus("checking", "Checking your subscription payment status...", "");
+            function poll() {
+                if (_paymentPollCount >= _paymentPollMax) {
+                    showPaymentStatus("processing", "Still processing.", "Please wait — your subscription will update once payment is verified. You can also check again below." );
+                    var btn2 = document.getElementById("btn-check-again");
+                    if (btn2) btn2.style.display = "inline-flex";
+                    return;
+                }
+                _paymentPollCount++;
+                checkSubscriptionPaymentOnce().then(function(result) {
+                    if (result.terminal) {
+                        stopPaymentPolling();
+                        if (result.showRetry) {
+                            var btn2 = document.getElementById("btn-check-again");
+                            if (btn2) btn2.style.display = "inline-flex";
+                        }
+                    } else {
+                        _paymentPollTimer = setTimeout(poll, _paymentPollIntervalMs);
+                    }
+                });
+            }
+            checkSubscriptionPaymentOnce().then(function(result) {
+                if (result.terminal) {
+                    stopPaymentPolling();
+                    if (result.showRetry) {
+                        var btn2 = document.getElementById("btn-check-again");
+                        if (btn2) btn2.style.display = "inline-flex";
+                    }
+                } else {
+                    _paymentPollTimer = setTimeout(poll, _paymentPollIntervalMs);
+                }
+            });
+        }
+
+        async function checkSubscriptionPaymentOnce() {
+            var ref = _paymentResolvedRef;
+            if (!ref) return { terminal: true, showRetry: false };
+            var data = await fetchSubscriptionOrderStatus(ref);
+            if (data && data.authError === true) {
+                return { terminal: true, showRetry: true };
+            }
+            return handleSubscriptionPaymentStatusResult(data);
+        }
+
+
         function handleToyyibpayReturn() {
             var params = new URLSearchParams(window.location.search);
             var hasReturnParams = params.has("status_id") || params.has("billcode") || params.has("order_id");
@@ -1952,6 +2098,7 @@
         fetchAiCredit();
         fetchAiCreditTransactions();
         handleToyyibpayReturn();
+        handleSubscriptionPaymentReturn();
     </script>
 </body>
 

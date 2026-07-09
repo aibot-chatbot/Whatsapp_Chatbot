@@ -17,7 +17,11 @@ import uuid
 from app.services.ai_credit_topup_checkout_service import (
     create_toyyibpay_topup_checkout,
 )
+from app.services.subscription_checkout_service import (
+    create_subscription_checkout,
+)
 from app.services.ai_access_policy import resolve_ai_access
+from app.database.subscription_plan_repository import get_plan_by_code as _get_plan_by_code
 from app.database.user_repository import get_user_by_id
 from app.database.ai_credit_topup_order_repository import get_topup_order_by_reference_and_company
 
@@ -476,4 +480,434 @@ def toyyibpay_order_status(order_reference):
         return jsonify({
             'status': 'error',
             'message': 'Unable to retrieve order status.'
+        }), 500
+
+
+@billing_bp.route("/subscription/checkout", methods=["POST"])
+@token_required
+def subscription_checkout():
+    """Create a subscription payment checkout (ToyyibPay bill).
+
+    Request body:
+        plan_code: Required, lowercase plan code ("essential", "advanced", "pro").
+
+    Response:
+        order_reference: UUID string for the created order.
+        checkout_url:    ToyyibPay payment page URL.
+        amount_sen:      Amount billed in sen.
+
+    Does not activate the subscription or grant AI credits.
+    """
+    try:
+        company_id = g.company_id
+        user_id = g.user_id
+
+        if not company_id:
+            return jsonify({
+                "status": "error",
+                "message": "Company not found in authentication token."
+            }), 401
+
+        if not user_id:
+            return jsonify({
+                "status": "error",
+                "message": "User not found in authentication token."
+            }), 401
+
+        body = request.get_json(silent=True)
+        if not body:
+            return jsonify({
+                "status": "error",
+                "message": "Request body must be valid JSON."
+            }), 400
+
+        plan_code = body.get("plan_code", "").strip()
+        if not plan_code:
+            return jsonify({
+                "status": "error",
+                "message": "plan_code is required."
+            }), 400
+
+        # Resolve authenticated user details
+        user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({
+                "status": "error",
+                "message": "Authenticated user not found."
+            }), 401
+
+        customer_name = (user.get("full_name") or user.get("email") or str(user_id)).strip()
+        customer_phone = user.get("phone") or None
+        customer_email = (user.get("email") or "").strip()
+        if not customer_email:
+            return jsonify({
+                "status": "error",
+                "message": "Authenticated user has no email."
+            }), 400
+
+        result = create_subscription_checkout(
+            company_id=company_id,
+            user_id=user_id,
+            plan_code=plan_code,
+            customer_name=customer_name,
+            customer_email=customer_email,
+            customer_phone=customer_phone,
+        )
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "order_reference": result["order_reference"],
+                "checkout_url": result["checkout_url"],
+                "amount_sen": result["amount_sen"],
+            },
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 400
+
+    except RuntimeError as e:
+        logging.error("Subscription checkout failed: %s", e)
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 502
+
+    except Exception:
+        logging.exception("Unexpected error creating subscription checkout")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to create checkout. Please try again later."
+        }), 500
+
+@billing_bp.route("/subscription/orders/<reference>", methods=["GET"])
+@token_required
+def fetch_subscription_order_status(reference):
+    """Return the status of a subscription order.
+
+    This is a read-only endpoint used for payment return polling.
+    It never modifies the subscription or grants credits.
+    The company_id is taken from the authenticated JWT token only.
+    """
+    try:
+        company_id = g.company_id
+
+        if not company_id:
+            return jsonify({
+                "status": "error",
+                "message": "Company not found in authentication token."
+            }), 401
+
+        # Validate UUID format
+        try:
+            uuid.UUID(reference)
+        except (ValueError, AttributeError):
+            return jsonify({
+                "status": "error",
+                "message": "Invalid order reference format."
+            }), 400
+
+        from app.database.company_subscription_order_repository import (
+            get_subscription_order_by_reference_and_company,
+        )
+
+        order = get_subscription_order_by_reference_and_company(
+            order_reference=reference,
+            company_id=company_id,
+        )
+
+        if order is None:
+            return jsonify({
+                "status": "error",
+                "message": "Order not found."
+            }), 404
+
+        data = {
+            "order_reference": order.get("order_reference"),
+            "status": order.get("status"),
+            "amount_sen": order.get("amount_sen"),
+            "plan_id": order.get("new_plan_id"),
+            "payment_gateway": order.get("payment_gateway"),
+            "created_at": order.get("created_at"),
+            "paid_at": order.get("paid_at"),
+            "credited_at": order.get("credited_at"),
+        }
+
+        return jsonify({
+            "status": "success",
+            "data": data,
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 400
+
+    except Exception:
+        logging.exception("Failed to fetch subscription order status")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve order status."
+        }), 500
+@billing_bp.route("/dev/subscription-orders/<reference>/complete", methods=["POST"])
+@token_required
+def dev_complete_subscription_order(reference):
+    """DEV ONLY: Complete a pending subscription order without real payment.
+
+    This endpoint is only available when FLASK_DEBUG is set to a truthy value.
+    It simulates a successful ToyyibPay callback by reusing the production
+    process_subscription_payment_callback() flow.
+    """
+    import os
+    debug_val = os.getenv("FLASK_DEBUG", "0").strip().lower()
+    if debug_val not in ("1", "true", "yes", "on"):
+        return jsonify({
+            "status": "error",
+            "message": "This endpoint is only available in development mode."
+        }), 403
+
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({
+                "status": "error",
+                "message": "Company not found in authentication token."
+            }), 401
+
+        try:
+            uuid.UUID(reference)
+        except (ValueError, AttributeError):
+            return jsonify({
+                "status": "error",
+                "message": "Invalid order reference format."
+            }), 400
+
+        from app.database.company_subscription_order_repository import (
+            get_subscription_order_by_reference_and_company,
+            update_subscription_order_status,
+        )
+
+        order = get_subscription_order_by_reference_and_company(
+            order_reference=reference,
+            company_id=company_id,
+        )
+
+        if order is None:
+            return jsonify({
+                "status": "error",
+                "message": "Order not found."
+            }), 404
+
+        order_status = order.get("status", "")
+        if order_status in ("failed", "expired", "cancelled"):
+            return jsonify({
+                "status": "error",
+                "message": f"Order has status '{order_status}' and cannot be completed."
+            }), 400
+
+        if order_status == "credited":
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "order_reference": reference,
+                    "subscription_status": "already_activated",
+                    "plan": order.get("new_plan_id"),
+                    "message": "Order is already credited. Subscription was previously activated."
+                },
+            }), 200
+
+        gateway_order_id = order.get("gateway_order_id", "") or reference
+
+        if not order.get("gateway_order_id"):
+            update_subscription_order_status(
+                reference, order_status,
+                gateway_order_id=reference,
+            )
+            gateway_order_id = reference
+
+        from app.services.subscription_payment_callback_service import (
+            process_subscription_payment_callback,
+        )
+
+        callback_payload = {
+            "payment_gateway": "toyyibpay",
+            "gateway_order_id": gateway_order_id,
+            "payment_reference": "DEV_TEST_PAYMENT",
+            "paid": True,
+            "amount_sen": order.get("amount_sen", 0),
+        }
+
+        result = process_subscription_payment_callback(callback_payload)
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "order_reference": result.get("order_reference", reference),
+                "subscription_status": result.get("status"),
+                "plan": result.get("plan_code"),
+                "message": (
+                    "Subscription activated successfully (DEV completion)."
+                    if result.get("status") == "activated"
+                    else "Subscription was already activated."
+                ),
+            },
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 400
+
+    except RuntimeError as e:
+        logging.error("DEV subscription order completion failed: %s", e)
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 502
+
+    except Exception:
+        logging.exception("Unexpected error completing subscription order in dev mode")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to complete order. Please try again later."
+        }), 500
+@billing_bp.route("/subscription/downgrade-check/<target_plan_code>", methods=["GET"])
+@token_required
+def subscription_downgrade_check(target_plan_code):
+    """Check whether the company can downgrade to a lower paid plan.
+
+    Returns eligibility, current usage vs target limits, and any blocking
+    items. This is a read-only endpoint and never modifies the subscription.
+
+    Only paid plans (essential, advanced, pro) are valid downgrade targets.
+    Free is not a valid target. The current plan must be higher-ranked than
+    the target.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({
+                "status": "error",
+                "message": "Company not found in authentication token."
+            }), 401
+
+        target_code = (target_plan_code or "").strip().lower()
+        valid_paid = {"essential": 1, "advanced": 2, "pro": 3}
+        plan_rank = {"free": 0, "essential": 1, "advanced": 2, "pro": 3}
+
+        if target_code not in valid_paid:
+            return jsonify({
+                "status": "error",
+                "message": "Invalid downgrade target. Only Essential, Advanced or Pro are valid targets."
+            }), 400
+
+        target_plan = _get_plan_by_code(target_code)
+        if not target_plan or not target_plan.get("is_active", False):
+            return jsonify({
+                "status": "error",
+                "message": f"Plan '{target_code}' is not available."
+            }), 400
+
+        subscription = get_current_subscription(company_id)
+        if not subscription:
+            return jsonify({
+                "status": "error",
+                "message": "No active subscription found."
+            }), 404
+
+        current_plan = subscription.get("plan") or {}
+        current_code = (current_plan.get("code") or "").lower()
+
+        if current_code not in plan_rank:
+            return jsonify({
+                "status": "error",
+                "message": "Current plan is not recognised."
+            }), 400
+
+        current_rank = plan_rank[current_code]
+        target_rank = plan_rank[target_code]
+
+        if target_rank >= current_rank:
+            return jsonify({
+                "status": "error",
+                "message": f"Target plan '{target_code}' is not lower than current plan '{current_code}'."
+            }), 400
+
+        # Get current usage
+        usage = get_company_usage(company_id)
+        u = usage.get("usage", {}) if usage else {}
+
+        # Target plan limits
+        target_limits = {
+            "chatbots": target_plan.get("chatbot_limit"),
+            "team_members": target_plan.get("team_member_limit"),
+            "knowledge_files": target_plan.get("knowledge_file_limit"),
+            "knowledge_storage_bytes": target_plan.get("knowledge_storage_limit_bytes"),
+            "channels": target_plan.get("channel_limit"),
+        }
+
+        # Build blocking items
+        blocking_items = []
+
+        def _check(label, used_key, limit_key, inner_key=None):
+            u_data = u.get(used_key) or {}
+            used = u_data.get(inner_key or "used", 0) or 0
+            limit = target_limits.get(limit_key)
+            if limit is not None and used > limit:
+                blocking_items.append({
+                    "resource": label,
+                    "used": used,
+                    "limit": limit,
+                    "excess": used - limit,
+                })
+
+        _check("chatbots", "chatbots", "chatbots")
+        _check("team_members", "team_members", "team_members")
+        _check("knowledge_files", "knowledge_files", "knowledge_files")
+        _check("knowledge_storage_bytes", "knowledge_storage_bytes", "knowledge_storage_bytes")
+        _check("channels", "channels", "channels")
+
+        # Include pending invitations in team usage
+        pending_invites = u.get("team_members", {}).get("pending_invitations", 0) or 0
+        team_used = (u.get("team_members", {}).get("used", 0) or 0) + pending_invites
+        tm_limit = target_limits.get("team_members")
+        if tm_limit is not None and team_used > tm_limit:
+            blocking_items.append({
+                "resource": "team_members_including_pending",
+                "used": team_used,
+                "limit": tm_limit,
+                "excess": team_used - tm_limit,
+            })
+
+        # Effective date (end of current period)
+        effective_at = subscription.get("current_period_end")
+        eligible = len(blocking_items) == 0
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "eligible": eligible,
+                "target_plan": target_code,
+                "effective_at": effective_at,
+                "blocking_items": blocking_items,
+                "message": "Downgrade is available." if eligible else "Downgrade is blocked by usage that exceeds the target plan limits.",
+            },
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 400
+
+    except Exception:
+        logging.exception("Failed to check downgrade eligibility")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to check downgrade eligibility."
         }), 500
