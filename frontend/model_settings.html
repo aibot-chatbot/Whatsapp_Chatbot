@@ -262,7 +262,9 @@
             document.getElementById("temp-val-label").innerText = val;
         }
 
-                let _subscriptionAccess = null;
+                function getBotQuery() { var p = new URLSearchParams(window.location.search); var bId = p.get("bot_id"); return bId ? "?bot_id=" + encodeURIComponent(bId) : ""; }
+
+        let _subscriptionAccess = null;
 
         let modelOptions = {};
 
@@ -373,7 +375,7 @@
 
             if (!hasAccessToModels()) {
                 // No valid subscription, show all but warn
-                if (planInfoText) planInfoText.innerHTML = "Your current plan does not include AI model access. <a href='pricing.html' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View plans &amp; upgrade &rarr;</a>";
+                if (planInfoText) planInfoText.innerHTML = "Your current plan does not include AI model access. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View plans &amp; upgrade &rarr;</a>";
                 if (providerSelect) providerSelect.disabled = true;
                 if (modelSelect) modelSelect.disabled = true;
                 if (saveBtn) saveBtn.disabled = true;
@@ -385,7 +387,7 @@
             if (saveBtn) saveBtn.disabled = false;
 
             if (isActiveTrial()) {
-                if (planInfoText) planInfoText.innerHTML = "Trial uses <strong>DeepSeek AI</strong> only. <a href='pricing.html' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View pricing &amp; upgrade &rarr;</a>";
+                if (planInfoText) planInfoText.innerHTML = "Trial uses <strong>DeepSeek AI</strong> only. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View pricing &amp; upgrade &rarr;</a>";
                 if (customContainer) customContainer.style.display = "none";
             } else if (isPaidPlan()) {
                 var planName = _subscriptionAccess.plan.name || "Current";
@@ -393,9 +395,9 @@
                 var code = (_subscriptionAccess.plan.code || "").toLowerCase();
                 var upgradeMsg = "";
                 if (code === "essential") {
-                    upgradeMsg = " <span style='font-size:0.82rem;color:var(--text-dim);'>Standard models available in <strong>Advanced</strong>. <a href='pricing.html' style='color:var(--primary);text-decoration:underline;'>Upgrade &rarr;</a></span>";
+                    upgradeMsg = " <span style='font-size:0.82rem;color:var(--text-dim);'>Standard models available in <strong>Advanced</strong>. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;'>Upgrade &rarr;</a></span>";
                 } else if (code === "advanced") {
-                    upgradeMsg = " <span style='font-size:0.82rem;color:var(--text-dim);'>Premium models available in <strong>Pro</strong>. <a href='pricing.html' style='color:var(--primary);text-decoration:underline;'>Upgrade &rarr;</a></span>";
+                    upgradeMsg = " <span style='font-size:0.82rem;color:var(--text-dim);'>Premium models available in <strong>Pro</strong>. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;'>Upgrade &rarr;</a></span>";
                 }
                 if (planInfoText) planInfoText.innerHTML = "<strong>" + planName + "</strong> plan &mdash; model access: <strong>" + tierName.charAt(0).toUpperCase() + tierName.slice(1) + "</strong> tier." + upgradeMsg;
             }

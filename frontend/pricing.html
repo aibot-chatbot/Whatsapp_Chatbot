@@ -173,6 +173,8 @@
             return '<li><span class="' + icon + '"><i data-lucide="' + icon + '" style="width:16px;height:16px;"></i></span> ' + label + "</li>";
         }
 
+        function getBotQuery() { var p = new URLSearchParams(window.location.search); var bId = p.get("bot_id"); return bId ? "?bot_id=" + encodeURIComponent(bId) : ""; }
+
         async function loadPricing() {
             var loading = document.getElementById("pricing-loading");
             var errorDiv = document.getElementById("pricing-error");
@@ -231,14 +233,45 @@
                     }
 
                     var btnHtml = "";
-                    if (isCurrent) {
-                        btnHtml = '<div class="btn-upgrade current">Current Plan</div>';
-                    } else if (code === "free") {
-                        btnHtml = '<div class="btn-upgrade coming-soon"><i data-lucide="clock" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Upgrade flow coming soon</div>';
-                    } else {
-                        btnHtml = '<div class="btn-upgrade coming-soon"><i data-lucide="clock" style="width:14px;height:14px;vertical-align:middle;margin-right:4px;"></i> Upgrade flow coming soon</div>';
-                    }
+                    var subStatus = subscription ? (subscription.status || "").toLowerCase() : "";
+                    var planRank = { "free": 0, "essential": 1, "advanced": 2, "pro": 3 };
+                    var currentRank = isCurrent ? (planRank[code] ?? -1) : -1;
+                    var prevCurrentCode = currentPlanCode || "";
+                    var prevCurrentRank = planRank[prevCurrentCode] ?? -1;
+                    var thisRank = planRank[code] ?? -1;
+                    var isFree = code === "free";
+                    var isTrialOrNoSub = (subStatus === "trialing" || subStatus === "" || subStatus === null || !subscription);
 
+                    if (isCurrent) {
+                        // Current plan card
+                        if (code === "free" && subStatus === "trialing") {
+                            btnHtml = '<div class="btn-upgrade current">Current Trial</div>';
+                        } else {
+                            btnHtml = '<div class="btn-upgrade current">Current Plan</div>';
+                        }
+                    } else if (isFree) {
+                        // Free card - only relevant for non-free current users
+                        if (isTrialOrNoSub) {
+                            btnHtml = '<div class="btn-upgrade coming-soon">Free Plan</div>';
+                        } else {
+                            btnHtml = '<div class="btn-upgrade coming-soon" style="font-size:0.8rem;">Trial plan for new accounts only</div>';
+                        }
+                    } else if (subStatus === "past_due" || subStatus === "expired") {
+                        // Expired/past due paid user
+                        if (thisRank > prevCurrentRank) {
+                            btnHtml = '<button class="btn-upgrade primary-bg" onclick="handleUpgrade(\u0027' + code + '\u0027)"><i data-lucide="zap" size="18"></i> Renew &amp; Upgrade</button>';
+                        } else if (thisRank < prevCurrentRank) {
+                            btnHtml = '<button class="btn-upgrade" style="background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;" onclick="handleDowngrade(\u0027' + code + '\u0027)">Change on Renewal</button>';
+                        } else {
+                            btnHtml = '<button class="btn-upgrade primary-bg" onclick="handleUpgrade(\u0027' + code + '\u0027)"><i data-lucide="zap" size="18"></i> Renew Plan</button>';
+                        }
+                    } else if (prevCurrentRank > 0 && thisRank < prevCurrentRank) {
+                        // Paid user looking at lower paid plan
+                        btnHtml = '<button class="btn-upgrade" style="background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;" onclick="handleDowngrade(\u0027' + code + '\u0027)"><i data-lucide="arrow-down" size="18"></i> Downgrade</button>';
+                    } else {
+                        // Upgrade (trial, free without trial, or paid user looking at higher plan)
+                        btnHtml = '<button class="btn-upgrade primary-bg" onclick="handleUpgrade(\u0027' + code + '\u0027)"><i data-lucide="zap" size="18"></i> Upgrade</button>';
+                    }
                     html += '<div class="' + cardClass + '">' + badgeHtml +
                         '<div class="plan-name">' + name + "</div>" +
                         '<div class="plan-price">' + priceHtml + "</div>" +
@@ -256,6 +289,68 @@
             }
         }
 
+
+        async function handleDowngrade(planCode) {
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/downgrade-check/" + encodeURIComponent(planCode));
+                var body = await res.json();
+                if (body.status === "success" && body.data) {
+                    var d = body.data;
+                    if (d.eligible) {
+                        alert("Downgrade scheduling is not yet available.\n\nYour plan will remain as-is until the end of your current billing period (" + new Date(d.effective_at).toLocaleDateString() + ").\n\nPlease contact support or manage your plan from your profile page to make changes.");
+                    } else {
+                        var msg = "Cannot downgrade to " + d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1) + ".\n\nThe following resources exceed the target plan limits:\n";
+                        d.blocking_items.forEach(function(item) {
+                            msg += "\n- " + item.resource.replace(/_/g, " ") + ": " + item.used + " used, limit " + item.limit + " (excess: " + item.excess + ")";
+                        });
+                        msg += "\n\nNo data will be deleted automatically. Please reduce usage before downgrading.";
+                        alert(msg);
+                    }
+                } else {
+                    alert("Downgrade check failed: " + (body.message || "Unknown error"));
+                }
+            } catch (e) {
+                console.error("Downgrade check failed:", e);
+                alert("Unable to check downgrade eligibility. Please try again.");
+            }
+        }
+
+        async function handleUpgrade(planCode) {
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plan_code: planCode })
+                });
+                var body = await res.json();
+                if (body.status === "success" && body.data && body.data.checkout_url) {
+                    var checkoutUrl = body.data.checkout_url;
+                    var orderRef = body.data.order_reference;
+                    if (typeof orderRef === "string" && orderRef.length > 0) {
+                        sessionStorage.setItem("pending_subscription_order_reference", orderRef);
+                    }
+                    if (checkoutUrl.indexOf("http://") === 0 || checkoutUrl.indexOf("https://") === 0) {
+                        window.location.assign(checkoutUrl);
+                    } else {
+                        showPricingError("Invalid checkout URL returned. Please try again.");
+                    }
+                } else {
+                    showPricingError(body.message || "Failed to create checkout. Please try again.");
+                }
+            } catch (e) {
+                console.error("Upgrade failed:", e);
+                showPricingError("An unexpected error occurred. Please try again.");
+            }
+        }
+
+        function showPricingError(msg) {
+            var errorDiv = document.getElementById("pricing-error");
+            if (errorDiv) {
+                errorDiv.textContent = msg;
+                errorDiv.style.display = "block";
+                setTimeout(function() { errorDiv.style.display = "none"; }, 8000);
+            }
+        }
         loadPricing();
     </script>
 </body>

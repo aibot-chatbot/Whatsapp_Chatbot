@@ -712,6 +712,7 @@
     <script src="assets/js/auth.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            function getBotQuery() { var p = new URLSearchParams(window.location.search); var bId = p.get("bot_id"); return bId ? "?bot_id=" + encodeURIComponent(bId) : ""; }
             var sidebar = document.querySelector("chatbot-sidebar");
             if (sidebar && typeof sidebar.initSidebar === "function") {
                 sidebar.initSidebar();
@@ -752,7 +753,7 @@
                 if (warnEl && limit !== "?" && limit !== "Unlimited" && limit !== null) {
                     var total = (typeof used === "number" ? used : 0) + (typeof pending === "number" ? pending : 0);
                     if (total >= limit) {
-                        warnEl.style.display = "block";
+                        var warnLink = document.getElementById("team-upgrade-href"); if (warnLink) warnLink.href = "pricing.html" + getBotQuery(); warnEl.style.display = "block";
                         refreshIcons();
                     }
                 }
@@ -803,7 +804,7 @@
                     </div>
                 </div>
                 <div id="team-upgrade-warning" style="display:none;margin-top:10px;padding:10px 14px;border-radius:10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:var(--warning);font-size:0.85rem;">
-                    <i data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> Team limit reached. <a href="pricing.html" style="color:var(--primary);text-decoration:underline;font-weight:600;">Upgrade your plan &rarr;</a>
+                    <i data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> Team limit reached. <a id="team-upgrade-href" href="pricing.html" style="color:var(--primary);text-decoration:underline;font-weight:600;">Upgrade your plan &rarr;</a>
                 </div>
             </div>
         </div>

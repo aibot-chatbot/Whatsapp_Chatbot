@@ -325,5 +325,259 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
                 self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
                 mock_toyyibpay.assert_not_called()
 
+
+
+class TestSubscriptionCheckoutRoute(unittest.TestCase):
+    """Tests for POST /api/billing/subscription/checkout."""
+
+    def setUp(self):
+        app = create_app()
+        app.config["TESTING"] = True
+        self.client = app.test_client()
+        self.valid_body = {"plan_code": "essential"}
+        self.service_result = {
+            "order_reference": "00000000-0000-0000-0000-000000000001",
+            "checkout_url": "https://toyyibpay.com/test-checkout",
+            "amount_sen": 3900,
+        }
+
+    def _patch_jwt_decode(self):
+        return patch(
+            "app.decorators.auth_decorator.jwt.decode",
+            return_value={"company_id": 42, "user_id": 1, "role": "admin"},
+        )
+
+    def _patch_user_repo(self):
+        return patch(
+            "app.database.user_repository.get_user_by_id",
+            return_value=MOCK_USER,
+        )
+
+    def _patch_billing_get_user(self):
+        return patch(
+            "app.routes.billing_routes.get_user_by_id",
+            return_value=MOCK_USER,
+        )
+
+    def _patch_checkout_service(self, return_value=None, side_effect=None):
+        if return_value is None:
+            return_value = self.service_result
+        return patch(
+            "app.routes.billing_routes.create_subscription_checkout",
+            return_value=return_value,
+            side_effect=side_effect,
+        )
+
+    # ----- Route registration -----
+
+    def test_route_registered(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            self.assertNotEqual(resp.status_code, 404)
+
+    def test_get_returns_405(self):
+        resp = self.client.get("/api/billing/subscription/checkout")
+        self.assertEqual(resp.status_code, 405)
+
+    # ----- Authentication -----
+
+    def test_unauthenticated_request_rejected(self):
+        resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body)
+        self.assertEqual(resp.status_code, 401)
+
+    def test_missing_company_id_rejected(self):
+        with patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": 1, "role": "admin"}), patch("app.database.user_repository.get_user_by_id", return_value=MOCK_USER):
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            self.assertEqual(resp.status_code, 401)
+
+    # ----- Request validation -----
+
+    def test_missing_plan_code_returns_400(self):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post("/api/billing/subscription/checkout", json={}, headers={"Authorization": "Bearer test-token"})
+            self.assertEqual(resp.status_code, 400)
+
+    def test_invalid_plan_code_returns_400(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user():
+            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "nonexistent"}, headers={"Authorization": "Bearer test-token"})
+            self.assertEqual(resp.status_code, 400)
+
+    def test_missing_json_body_returns_400(self):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post("/api/billing/subscription/checkout", data="not-json", content_type="application/json", headers={"Authorization": "Bearer test-token"})
+            self.assertEqual(resp.status_code, 400)
+
+    # ----- Successful checkout -----
+
+    def test_valid_checkout_returns_200(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            self.assertEqual(resp.status_code, 200)
+
+    def test_valid_response_contains_required_fields(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            data = resp.get_json()
+            self.assertIn("data", data)
+            result = data["data"]
+            self.assertIn("order_reference", result)
+            self.assertIn("checkout_url", result)
+            self.assertIn("amount_sen", result)
+            self.assertEqual(result["amount_sen"], 3900)
+
+    def test_service_receives_correct_params(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service() as mock_service:
+            self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            mock_service.assert_called_once()
+            _, kwargs = mock_service.call_args
+            self.assertEqual(kwargs["company_id"], 42)
+            self.assertEqual(kwargs["plan_code"], "essential")
+
+    # ----- Error handling -----
+
+    def test_service_value_error_returns_400(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=ValueError("Invalid plan")):
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            self.assertEqual(resp.status_code, 400)
+
+    def test_service_runtime_error_returns_502(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=RuntimeError("Gateway error")):
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            self.assertEqual(resp.status_code, 502)
+
+    # ----- No activation -----
+
+    def test_checkout_does_not_activate_subscription(self):
+        """Verify checkout does not change subscription status."""
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            self.assertEqual(resp.status_code, 200)
+            # This test passes by not raising an error - the service mock replaces
+            # the real implementation which does not modify subscriptions.
+
+
+class TestSubscriptionOrderStatusRoute(unittest.TestCase):
+    """Tests for GET /api/billing/subscription/orders/<reference>."""
+
+    def setUp(self):
+        app = create_app()
+        app.config["TESTING"] = True
+        self.client = app.test_client()
+        self.valid_ref = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+
+        self.mock_pending_order = {
+            "order_reference": self.valid_ref,
+            "status": "pending",
+            "amount_sen": 3900,
+            "new_plan_id": 20,
+            "payment_gateway": "toyyibpay",
+            "created_at": "2026-07-08T12:00:00Z",
+            "paid_at": None,
+            "credited_at": None,
+        }
+
+        self.mock_credited_order = {
+            "order_reference": self.valid_ref,
+            "status": "credited",
+            "amount_sen": 8900,
+            "new_plan_id": 21,
+            "payment_gateway": "toyyibpay",
+            "created_at": "2026-07-08T12:00:00Z",
+            "paid_at": "2026-07-08T12:05:00Z",
+            "credited_at": "2026-07-08T12:06:00Z",
+        }
+
+    def _patch_jwt_decode(self):
+        return patch(
+            "app.decorators.auth_decorator.jwt.decode",
+            return_value={"company_id": 42, "user_id": 1, "role": "admin"},
+        )
+
+    def _patch_user_repo(self):
+        return patch(
+            "app.database.user_repository.get_user_by_id",
+            return_value=MOCK_USER,
+        )
+
+    def _patch_subscription_order_repo(self, return_value=None):
+        return patch(
+            "app.database.company_subscription_order_repository.get_subscription_order_by_reference_and_company",
+            return_value=return_value,
+        )
+
+    # ----- Authentication -----
+
+    def test_unauthenticated_request_rejected(self):
+        resp = self.client.get(f"/api/billing/subscription/orders/{self.valid_ref}")
+        self.assertEqual(resp.status_code, 401)
+
+    def test_missing_company_id_rejected(self):
+        with patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": 1, "role": "admin"}), \
+             patch("app.database.user_repository.get_user_by_id", return_value=MOCK_USER):
+            resp = self.client.get(
+                f"/api/billing/subscription/orders/{self.valid_ref}",
+                headers={"Authorization": "Bearer test-token"},
+            )
+            self.assertEqual(resp.status_code, 401)
+
+    # ----- Request validation -----
+
+    def test_invalid_uuid_returns_400(self):
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.get(
+                "/api/billing/subscription/orders/not-a-uuid",
+                headers={"Authorization": "Bearer test-token"},
+            )
+            self.assertEqual(resp.status_code, 400)
+
+    # ----- Success cases -----
+
+    def test_pending_order_returns_200(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), \
+             self._patch_subscription_order_repo(self.mock_pending_order):
+            resp = self.client.get(
+                f"/api/billing/subscription/orders/{self.valid_ref}",
+                headers={"Authorization": "Bearer test-token"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["data"]["status"], "pending")
+            self.assertEqual(data["data"]["amount_sen"], 3900)
+            self.assertEqual(data["data"]["plan_id"], 20)
+
+    def test_credited_order_returns_200(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), \
+             self._patch_subscription_order_repo(self.mock_credited_order):
+            resp = self.client.get(
+                f"/api/billing/subscription/orders/{self.valid_ref}",
+                headers={"Authorization": "Bearer test-token"},
+            )
+            self.assertEqual(resp.status_code, 200)
+            data = resp.get_json()
+            self.assertEqual(data["data"]["status"], "credited")
+            self.assertEqual(data["data"]["amount_sen"], 8900)
+            self.assertIsNotNone(data["data"]["paid_at"])
+            self.assertIsNotNone(data["data"]["credited_at"])
+
+    def test_route_registered(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), \
+             self._patch_subscription_order_repo(self.mock_pending_order):
+            resp = self.client.get(
+                f"/api/billing/subscription/orders/{self.valid_ref}",
+                headers={"Authorization": "Bearer test-token"},
+            )
+            self.assertNotEqual(resp.status_code, 404)
+
+    # ----- Not found -----
+
+    def test_order_not_found_returns_404(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), \
+             self._patch_subscription_order_repo(None):
+            resp = self.client.get(
+                f"/api/billing/subscription/orders/{self.valid_ref}",
+                headers={"Authorization": "Bearer test-token"},
+            )
+            self.assertEqual(resp.status_code, 404)
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-"""Tests for the ToyyibPay callback HTTP route."""
+﻿"""Tests for the ToyyibPay callback HTTP route."""
 
 import os
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
@@ -37,6 +37,14 @@ with patch("app.database.db.supabase", MagicMock()):
 
 
 class TestToyyibPayRoutes(unittest.TestCase):
+
+    @staticmethod
+    def _patch_subscription_detection():
+        """Mock _is_subscription_callback to return False (top-up flow)."""
+        return patch(
+            "app.routes.toyyibpay_routes._is_subscription_callback",
+            return_value=False,
+        )
 
     def setUp(self):
         app = create_app()
@@ -101,7 +109,7 @@ class TestToyyibPayRoutes(unittest.TestCase):
         )
 
     def test_valid_callback_returns_200(self):
-        with self._patch_hash(), self._patch_parse(), self._patch_process():
+        with self._patch_subscription_detection(), self._patch_hash(), self._patch_parse(), self._patch_process():
             resp = self.client.post(
                 "/api/billing/toyyibpay/callback",
                 data=self.valid_payload,
@@ -109,7 +117,7 @@ class TestToyyibPayRoutes(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
 
     def test_idempotent_replay_returns_200(self):
-        with self._patch_hash(), self._patch_parse(), self._patch_process(
+        with self._patch_subscription_detection(), self._patch_hash(), self._patch_parse(), self._patch_process(
             return_value={
                 "status": "already_credited",
                 "idempotent": True,
@@ -145,7 +153,7 @@ class TestToyyibPayRoutes(unittest.TestCase):
             mock_process.assert_not_called()
 
     def test_process_value_error_returns_400(self):
-        with self._patch_hash(), self._patch_parse(), \
+        with self._patch_subscription_detection(), self._patch_hash(), self._patch_parse(), \
              self._patch_process(side_effect=ValueError("Unpaid")):
             resp = self.client.post(
                 "/api/billing/toyyibpay/callback",
@@ -163,7 +171,7 @@ class TestToyyibPayRoutes(unittest.TestCase):
             self.assertEqual(resp.status_code, 500)
 
     def test_success_response_minimal(self):
-        with self._patch_hash(), self._patch_parse(), self._patch_process():
+        with self._patch_subscription_detection(), self._patch_hash(), self._patch_parse(), self._patch_process():
             resp = self.client.post(
                 "/api/billing/toyyibpay/callback",
                 data=self.valid_payload,
@@ -172,7 +180,7 @@ class TestToyyibPayRoutes(unittest.TestCase):
             self.assertEqual(set(data.keys()), {"status"})
 
     def test_route_registered(self):
-        with self._patch_hash(), self._patch_parse(), self._patch_process():
+        with self._patch_subscription_detection(), self._patch_hash(), self._patch_parse(), self._patch_process():
             resp = self.client.post(
                 "/api/billing/toyyibpay/callback",
                 data=self.valid_payload,
@@ -232,7 +240,7 @@ class TestToyyibPayRoutes(unittest.TestCase):
         self.assertEqual(resp.status_code, 404)
 
     def test_post_callback_reaches_handler(self):
-        with self._patch_hash(), self._patch_parse(), self._patch_process():
+        with self._patch_subscription_detection(), self._patch_hash(), self._patch_parse(), self._patch_process():
             resp = self.client.post(
                 "/api/billing/toyyibpay/callback",
                 data=self.valid_payload,
