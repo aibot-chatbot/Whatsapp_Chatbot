@@ -115,6 +115,20 @@ Codex may prepare documentation and migration drafts. Human Supabase approval is
 
 ## Phase 4 â€” Core Backend Regression Coverage
 
+### Phase 4C — Cancellation and scheduled downgrade (? Implemented)
+
+- ? POST /api/billing/subscription/cancel — schedule cancellation
+- ? POST /api/billing/subscription/undo-cancel — undo pending cancellation
+- ? POST /api/billing/subscription/downgrade — schedule paid-plan downgrade
+- ? DELETE /api/billing/subscription/downgrade — clear pending downgrade
+- ? Cancellation clears pending downgrade (conflict resolution)
+- ? Downgrade rejected when cancellation is pending
+- ? Lifecycle job processes cancel ? downgrade ? expiry in order
+- ? Downgrade execution rechecks usage, transitions to expired with new plan
+- ? No AI credit granted during downgrade without payment
+- ? Subscription API returns scheduling fields
+- ? 34 unit tests passing
+
 ### Goal
 
 Expand automated coverage beyond billing.

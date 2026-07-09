@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -242,12 +242,19 @@
                     var isFree = code === "free";
                     var isTrialOrNoSub = (subStatus === "trialing" || subStatus === "" || subStatus === null || !subscription);
 
+                    var hasCancellationScheduled = subscription && subscription.cancellation_effective_at != null;
+                    var hasDowngradeScheduled = subscription && subscription.pending_plan != null;
+                    var isDowngradeTarget = hasDowngradeScheduled && subscription.pending_plan && subscription.pending_plan.code && subscription.pending_plan.code.toLowerCase() === code;
                     if (isCurrent) {
                         // Current plan card
                         if (code === "free" && subStatus === "trialing") {
-                            btnHtml = '<div class="btn-upgrade current">Current Trial</div>';
+                            btnHtml = "<div class=\"btn-upgrade current\">Current Trial</div>";
+                        } else if (isDowngradeTarget) {
+                            btnHtml = "<div class=\"btn-upgrade current\">Scheduled</div>";
+                        } else if (hasCancellationScheduled) {
+                            btnHtml = "<div class=\"btn-upgrade current\" style=\"font-size:0.8rem;\">Cancelling at period end</div>";
                         } else {
-                            btnHtml = '<div class="btn-upgrade current">Current Plan</div>';
+                            btnHtml = "<div class=\"btn-upgrade current\">Current Plan</div>";
                         }
                     } else if (isFree) {
                         // Free card - only relevant for non-free current users
@@ -290,21 +297,60 @@
         }
 
 
+        function subConfirmModal(title, msg, confirmLabel, confirmColor, onConfirm) {
+            var overlay = document.createElement("div");
+            overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;";
+            overlay.innerHTML = '<div style=\"background:var(--card-bg);border:1px solid var(--glass-border);border-radius:16px;padding:28px;max-width:420px;width:90%;box-shadow:0 25px 50px rgba(0,0,0,0.5);\"><h3 style=\"font-size:1.1rem;font-weight:600;color:var(--text-main);margin:0 0 12px 0;\">' + title + '</h3><p style=\"font-size:0.9rem;color:var(--text-dim);line-height:1.5;margin:0 0 20px 0;\">' + msg + '</p><div style=\"display:flex;gap:10px;justify-content:flex-end;\"><button id=\"pricing-modal-cancel\" style=\"padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer;border:none;background:rgba(255,255,255,0.08);color:var(--text-main);\">Cancel</button><button id=\"pricing-modal-confirm\" style=\"padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer;border:none;background:' + (confirmColor || 'var(--danger,#ef4444)') + ';color:white;\">' + confirmLabel + '</button></div></div>';
+            document.body.appendChild(overlay);
+            document.getElementById("pricing-modal-confirm").addEventListener("click", function() {
+                document.body.removeChild(overlay); if (onConfirm) onConfirm();
+            });
+            document.getElementById("pricing-modal-cancel").addEventListener("click", function() { document.body.removeChild(overlay); });
+            overlay.addEventListener("click", function(e) { if (e.target === overlay) document.body.removeChild(overlay); });
+        }
+
+        var _downgradeRequesting = false;
+
         async function handleDowngrade(planCode) {
+            if (_downgradeRequesting) return;
             try {
                 var res = await authenticatedFetch("/api/billing/subscription/downgrade-check/" + encodeURIComponent(planCode));
                 var body = await res.json();
                 if (body.status === "success" && body.data) {
                     var d = body.data;
                     if (d.eligible) {
-                        alert("Downgrade scheduling is not yet available.\n\nYour plan will remain as-is until the end of your current billing period (" + new Date(d.effective_at).toLocaleDateString() + ").\n\nPlease contact support or manage your plan from your profile page to make changes.");
+                        var dateStr = new Date(d.effective_at).toLocaleDateString();
+                        var planDisplay = d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1);
+                        subConfirmModal("Schedule Downgrade to " + planDisplay,
+                            "Your current plan will remain active until " + dateStr + ". After that your plan changes, paid access expires, and you must renew. No resources deleted. No refund.",
+                            "Confirm Downgrade", "#2563eb", async function() {
+                                _downgradeRequesting = true;
+                                try {
+                                    var schedRes = await authenticatedFetch("/api/billing/subscription/downgrade", {
+                                        method: "POST",
+                                        headers: {"Content-Type": "application/json"},
+                                        body: JSON.stringify({target_plan_code: planCode})
+                                    });
+                                    var schedBody = await schedRes.json();
+                                    if (schedBody.status === "success") {
+                                        loadPricing();
+                                    } else {
+                                        alert(schedBody.message || "Failed to schedule downgrade.");
+                                    }
+                                } catch (e) {
+                                    console.error("Downgrade scheduling failed:", e);
+                                    alert("Network error. Please try again.");
+                                }
+                                _downgradeRequesting = false;
+                            }
+                        );
                     } else {
                         var msg = "Cannot downgrade to " + d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1) + ".\n\nThe following resources exceed the target plan limits:\n";
                         d.blocking_items.forEach(function(item) {
-                            msg += "\n- " + item.resource.replace(/_/g, " ") + ": " + item.used + " used, limit " + item.limit + " (excess: " + item.excess + ")";
+                            msg += "- " + item.resource.replace(/_/g, " ") + ": " + item.used + " used, limit " + item.limit + " (excess: " + item.excess + ")\n";
                         });
-                        msg += "\n\nNo data will be deleted automatically. Please reduce usage before downgrading.";
-                        alert(msg);
+                        msg += "\nNo data will be deleted automatically. Please reduce usage before downgrading.";
+                        subConfirmModal("Downgrade Blocked", msg, "OK", "var(--text-dim)", null);
                     }
                 } else {
                     alert("Downgrade check failed: " + (body.message || "Unknown error"));
@@ -314,7 +360,44 @@
                 alert("Unable to check downgrade eligibility. Please try again.");
             }
         }
-
+                            "Your current plan will remain active until " + dateStr + ". After that your plan changes, paid access expires, and you must renew. No resources deleted. No refund.",
+                            "Confirm Downgrade", "#2563eb", async function() {
+                                _downgradeRequesting = true;
+                                try {
+                                    var schedRes = await authenticatedFetch("/api/billing/subscription/downgrade", {
+                                        method: "POST",
+                                        headers: {"Content-Type": "application/json"},
+                                        body: JSON.stringify({target_plan_code: planCode})
+                                    });
+                                    var schedBody = await schedRes.json();
+                                    if (schedBody.status === "success") {
+                                        loadPricing();
+                                    } else {
+                                        alert(schedBody.message || "Failed to schedule downgrade.");
+                                    }
+                                } catch (e) {
+                                    console.error("Downgrade scheduling failed:", e);
+                                    alert("Network error. Please try again.");
+                                }
+                                _downgradeRequesting = false;
+                            }
+                        );
+                    } else {
+                        var msg = "Cannot downgrade to " + d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1) + ".\n\nThe following resources exceed the target plan limits:\n";
+                        d.blocking_items.forEach(function(item) {
+                            msg += "- " + item.resource.replace(/_/g, " ") + ": " + item.used + " used, limit " + item.limit + " (excess: " + item.excess + ")\n";
+                        });
+                        msg += "\nNo data will be deleted automatically. Please reduce usage before downgrading.";
+                        subConfirmModal("Downgrade Blocked", msg, "OK", "var(--text-dim)", null);
+                    }
+                } else {
+                    alert("Downgrade check failed: " + (body.message || "Unknown error"));
+                }
+            } catch (e) {
+                console.error("Downgrade check failed:", e);
+                alert("Unable to check downgrade eligibility. Please try again.");
+            }
+        }
         async function handleUpgrade(planCode) {
             try {
                 var res = await authenticatedFetch("/api/billing/subscription/checkout", {

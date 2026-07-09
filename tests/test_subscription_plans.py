@@ -894,10 +894,10 @@ class TestDefaultSubscription(unittest.TestCase):
     @patch("app.services.billing_service.get_plan_by_code")
     @patch("app.services.billing_service._create_company_subscription")
     @patch("app.services.billing_service.get_current_subscription")
-    def test_creates_free_subscription_when_none_exists(
-        self, mock_get_current, mock_create, mock_get_plan, mock_get_existing
-    ):
+    @patch("app.services.billing_service._get_latest_company_subscription")
+    def test_creates_free_subscription_when_none_exists(self, mock_get_latest, mock_get_current, mock_create, mock_get_plan, mock_get_existing):
         mock_get_existing.return_value = None
+        mock_get_latest.return_value = None
         mock_get_plan.return_value = {"id": 1, "code": "free"}
         mock_create.return_value = {"id": 100, "company_id": 42, "plan_id": 1}
         mock_get_current.return_value = {
@@ -914,7 +914,8 @@ class TestDefaultSubscription(unittest.TestCase):
 
     @patch("app.services.billing_service._get_company_subscription")
     @patch("app.services.billing_service.get_plan_by_code")
-    def test_returns_existing_subscription(self, mock_get_plan, mock_get_existing):
+    @patch("app.services.billing_service._get_latest_company_subscription")
+    def test_returns_existing_subscription(self, mock_get_latest, mock_get_plan, mock_get_existing):
         mock_get_existing.return_value = {"id": 200, "company_id": 42, "plan_id": 1, "status": "active"}
         mock_get_plan.return_value = {"id": 1, "code": "free", "name": "Free"}
         with patch("app.services.billing_service.get_current_subscription") as mock_current:
@@ -927,8 +928,10 @@ class TestDefaultSubscription(unittest.TestCase):
 
     @patch("app.services.billing_service._get_company_subscription")
     @patch("app.services.billing_service.get_plan_by_code")
-    def test_missing_free_plan_raises_error(self, mock_get_plan, mock_get_existing):
+    @patch("app.services.billing_service._get_latest_company_subscription")
+    def test_missing_free_plan_raises_error(self, mock_get_latest, mock_get_plan, mock_get_existing):
         mock_get_existing.return_value = None
+        mock_get_latest.return_value = None
         mock_get_plan.return_value = None
         with self.assertRaises(RuntimeError):
             ensure_default_company_subscription(42)
@@ -940,10 +943,10 @@ class TestDefaultSubscription(unittest.TestCase):
     @patch("app.services.billing_service._get_company_subscription")
     @patch("app.services.billing_service.get_plan_by_code")
     @patch("app.services.billing_service._create_company_subscription")
-    def test_concurrent_duplicate_handled_gracefully(
-        self, mock_create, mock_get_plan, mock_get_existing
-    ):
-        mock_get_existing.side_effect = [None, {"id": 300, "company_id": 42, "plan_id": 1}]
+    @patch("app.services.billing_service._get_latest_company_subscription")
+    def test_concurrent_duplicate_handled_gracefully(self, mock_get_latest, mock_create, mock_get_plan, mock_get_existing):
+        mock_get_existing.return_value = {"id": 300, "company_id": 42, "plan_id": 1}
+        mock_get_latest.return_value = None
         mock_get_plan.return_value = {"id": 1, "code": "free"}
         mock_create.side_effect = Exception("duplicate")
         with patch("app.services.billing_service.get_current_subscription") as mock_current:

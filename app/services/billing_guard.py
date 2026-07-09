@@ -93,6 +93,34 @@ def _resolve_company_subscription(company_id: int) -> dict | None:
         return None
 
     if subscription is not None:
+        # Scheduler-safe guard: if the subscription is active but
+        # current_period_end has passed, treat it as expired for
+        # limit-enforcement purposes.  This protects the billing
+        # guard from allowing new usage when the scheduled expiry
+        # processor has not yet run.
+        sub_status = (subscription.get("status") or "").lower().strip()
+        if sub_status == "active":
+            period_end_raw = subscription.get("current_period_end")
+            if period_end_raw:
+                from datetime import datetime, timezone
+                try:
+                    period_end = datetime.fromisoformat(str(period_end_raw))
+                    if period_end.tzinfo is None:
+                        period_end = period_end.replace(tzinfo=timezone.utc)
+                    if period_end <= datetime.now(timezone.utc):
+                        logger.info(
+                            "Company %s: active subscription period ended at %s; "
+                            "denying guard check (scheduler-safe guard).",
+                            company_id, period_end_raw,
+                        )
+                        return None
+                except (ValueError, TypeError):
+                    logger.warning(
+                        "Company %s: could not parse current_period_end=%r; "
+                        "failing closed for safety.",
+                        company_id, period_end_raw,
+                    )
+                    return None
         return subscription
 
     # No subscription — try to assign the Free plan

@@ -81,6 +81,7 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
             "name": "Essential",
         }
 
+    @patch("app.database.company_subscription_order_repository.claim_subscription_billing_period")
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".update_company_subscription")
@@ -90,7 +91,7 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
     def test_successful_payment_activation(
         self, mock_convert, mock_update_status,
         mock_add_topup, mock_update_sub,
-        mock_get_plan, mock_get_order,
+        mock_get_plan, mock_get_order, mock_claim_period,
     ):
         mock_get_order.return_value = self.mock_order
         mock_get_plan.return_value = self.mock_plan
@@ -100,7 +101,7 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
 
         result = process_subscription_payment_callback(self.valid_callback)
 
-        self.assertEqual(result["status"], "activated")
+        self.assertEqual(result["status"], "legacy_order_activated")
         self.assertEqual(result["order_reference"], "abc-123")
         self.assertEqual(result["company_id"], 42)
         self.assertEqual(result["plan_code"], "essential")
@@ -189,6 +190,7 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
             process_subscription_payment_callback(callback)
         self.assertIn("payment_gateway", str(ctx.exception))
 
+    @patch("app.database.company_subscription_order_repository.claim_subscription_billing_period")
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".update_company_subscription")
@@ -198,7 +200,7 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
     def test_trial_conversion_called(
         self, mock_convert, mock_update_status,
         mock_add_topup, mock_update_sub,
-        mock_get_plan, mock_get_order,
+        mock_get_plan, mock_get_order, mock_claim_period,
     ):
         mock_get_order.return_value = self.mock_order
         mock_get_plan.return_value = self.mock_plan
@@ -208,7 +210,7 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
 
         result = process_subscription_payment_callback(self.valid_callback)
 
-        self.assertEqual(result["status"], "activated")
+        self.assertEqual(result["status"], "legacy_order_activated")
         mock_convert.assert_called_once_with(42, "essential")
 
 

@@ -361,6 +361,9 @@ class TestPlanChangePricing(unittest.TestCase):
             "id": 10, "company_id": 42, "plan_id": 3, "status": "active",
         }
         with patch(
+            "app.services.billing_service._get_latest_company_subscription",
+            return_value=existing_sub,
+        ), patch(
             "app.services.billing_service._get_company_subscription",
             return_value=existing_sub,
         ), patch(

@@ -11,6 +11,7 @@ from app.database.subscription_plan_repository import (
 )
 from app.database.company_subscription_repository import (
     get_company_subscription as _get_company_subscription,
+    get_latest_company_subscription as _get_latest_company_subscription,
     create_company_subscription as _create_company_subscription,
 )
 from app.database.billing_usage_repository import (
@@ -76,15 +77,23 @@ def get_current_subscription(company_id):
     subscription = _get_company_subscription(company_id)
 
     if not subscription:
+        # Fall back to latest subscription for expired/cancelled views
+        subscription = _get_latest_company_subscription(company_id)
+
+    if not subscription:
         return None
 
     plan = get_plan_by_id(subscription.get("plan_id"))
+
+    subscription_status = (subscription.get("status") or "").lower().strip()
+    can_renew = subscription_status in ("expired", "past_due", "cancelled")
+    renewal_required = subscription_status in ("expired", "past_due")
 
     result = {
         "id": subscription.get("id"),
         "company_id": subscription.get("company_id"),
         "plan_id": subscription.get("plan_id"),
-        "status": subscription.get("status"),
+        "status": subscription_status,
         "starts_at": subscription.get("starts_at"),
         "current_period_start": subscription.get("current_period_start"),
         "current_period_end": subscription.get("current_period_end"),
@@ -94,9 +103,35 @@ def get_current_subscription(company_id):
         "payment_gateway": subscription.get("payment_gateway"),
         "created_at": subscription.get("created_at"),
         "updated_at": subscription.get("updated_at"),
+        "can_renew": can_renew,
+        "renewal_required": renewal_required,
+        "cancellation_scheduled": subscription.get("cancellation_scheduled_at") is not None,
+        "cancellation_scheduled_at": subscription.get("cancellation_scheduled_at"),
+        "cancellation_effective_at": subscription.get("cancellation_effective_at"),
+        "cancelled_at": subscription.get("cancelled_at"),
+        "downgrade_scheduled": subscription.get("pending_plan_id") is not None,
+        "pending_plan_id": subscription.get("pending_plan_id"),
+        "plan_change_effective_at": subscription.get("plan_change_effective_at"),
+        "cancellation_undoable": (subscription.get("status") == "active" and subscription.get("cancellation_effective_at") is not None),
+        "downgrade_clearable": subscription.get("pending_plan_id") is not None,
     }
 
+    # Resolve pending plan name for frontend convenience
+    pending_pid = result.get("pending_plan_id")
+    if pending_pid:
+        pplan = get_plan_by_id(pending_pid)
+        if pplan:
+            result["pending_plan"] = {
+                "id": pplan.get("id"),
+                "code": pplan.get("code"),
+                "name": pplan.get("name"),
+            }
+        else:
+            result["pending_plan"] = None
+    else:
+        result["pending_plan"] = None
     if plan:
+
         result["plan"] = {
             "id": plan.get("id"),
             "name": plan.get("name"),
@@ -299,7 +334,7 @@ def ensure_default_company_subscription(company_id):
         raise ValueError("Company ID is required")
 
     # 1. Check whether the company already has a current subscription
-    existing = _get_company_subscription(company_id)
+    existing = _get_latest_company_subscription(company_id)
     if existing:
         # Enriched response matching get_current_subscription format
         return get_current_subscription(company_id)
