@@ -360,44 +360,6 @@
                 alert("Unable to check downgrade eligibility. Please try again.");
             }
         }
-                            "Your current plan will remain active until " + dateStr + ". After that your plan changes, paid access expires, and you must renew. No resources deleted. No refund.",
-                            "Confirm Downgrade", "#2563eb", async function() {
-                                _downgradeRequesting = true;
-                                try {
-                                    var schedRes = await authenticatedFetch("/api/billing/subscription/downgrade", {
-                                        method: "POST",
-                                        headers: {"Content-Type": "application/json"},
-                                        body: JSON.stringify({target_plan_code: planCode})
-                                    });
-                                    var schedBody = await schedRes.json();
-                                    if (schedBody.status === "success") {
-                                        loadPricing();
-                                    } else {
-                                        alert(schedBody.message || "Failed to schedule downgrade.");
-                                    }
-                                } catch (e) {
-                                    console.error("Downgrade scheduling failed:", e);
-                                    alert("Network error. Please try again.");
-                                }
-                                _downgradeRequesting = false;
-                            }
-                        );
-                    } else {
-                        var msg = "Cannot downgrade to " + d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1) + ".\n\nThe following resources exceed the target plan limits:\n";
-                        d.blocking_items.forEach(function(item) {
-                            msg += "- " + item.resource.replace(/_/g, " ") + ": " + item.used + " used, limit " + item.limit + " (excess: " + item.excess + ")\n";
-                        });
-                        msg += "\nNo data will be deleted automatically. Please reduce usage before downgrading.";
-                        subConfirmModal("Downgrade Blocked", msg, "OK", "var(--text-dim)", null);
-                    }
-                } else {
-                    alert("Downgrade check failed: " + (body.message || "Unknown error"));
-                }
-            } catch (e) {
-                console.error("Downgrade check failed:", e);
-                alert("Unable to check downgrade eligibility. Please try again.");
-            }
-        }
         async function handleUpgrade(planCode) {
             try {
                 var res = await authenticatedFetch("/api/billing/subscription/checkout", {
