@@ -792,6 +792,8 @@ def dev_complete_subscription_order(reference):
 def subscription_downgrade_check(target_plan_code):
     return _subscription_downgrade_check(target_plan_code)
 
+@billing_bp.route("/subscription/cancel", methods=["POST"])
+@token_required
 def cancel_subscription():
     try:
         company_id = g.company_id
