@@ -122,6 +122,7 @@
             grid-column: 1 / -1;
         }
 
+
         .profile-section-header {
             display: flex;
             align-items: center;
@@ -140,8 +141,7 @@
         .profile-section-header svg {
             color: var(--primary);
         }
-
-        /* ===== Form Fields ===== */
+/* ===== Form Fields ===== */
         .form-row {
             display: flex;
             flex-direction: column;
@@ -752,8 +752,6 @@
                 </div>
             </div>
 
-</div>
-
             <!-- Subscription Payment History -->
             <div class="profile-section glass-card full-width" id="subscription-payment-history-section" style="display:none;">
                 <div class="profile-section-header">
@@ -1068,7 +1066,7 @@
             var roleInput = document.getElementById("team-role");
             var memberCountEl = document.getElementById("team-member-count");
 
-            // Start with neutral values â€” never show fake placeholder defaults
+            // Start with neutral values Ã¢â‚¬â€ never show fake placeholder defaults
             if (roleInput) roleInput.value = "N/A";
             if (memberCountEl) memberCountEl.textContent = "Unable to load";
 
@@ -1089,7 +1087,7 @@
                     }
                 }
             } catch (err) {
-                // Silently fall back â€” neutral values already set
+                // Silently fall back Ã¢â‚¬â€ neutral values already set
             }
         }
 
@@ -1663,7 +1661,7 @@ async function loadBillingInfo() {
                     var now = new Date();
                     var daysLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
                     var dateStr = trialEnd.toLocaleDateString();
-                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) â€” uses <strong>DeepSeek AI</strong> only";
+                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) Ã¢â‚¬â€ uses <strong>DeepSeek AI</strong> only";
                 }
             } else {
                 if (trialRow) trialRow.style.display = "none";
@@ -1818,7 +1816,7 @@ async function loadBillingInfo() {
                     // Plan
                     var planTd = document.createElement("td");
                     planTd.style.padding = "8px 10px";
-                    planTd.textContent = (o.plan && o.plan.name) || "�";
+                    planTd.textContent = (o.plan && o.plan.name) || "ï¿½";
                     tr.appendChild(planTd);
 
                     // Amount
@@ -1853,17 +1851,51 @@ async function loadBillingInfo() {
                     refTd.title = refStr;
                     tr.appendChild(refTd);
 
-                    // Actions
+                                        // Actions
                     var actTd2 = document.createElement("td");
                     actTd2.style.padding = "8px 10px";
                     actTd2.style.textAlign = "center";
                     actTd2.style.whiteSpace = "nowrap";
-                    var actionsHtml = '<button class="sph-action-btn" onclick="showOrderDetailModal(\'' + refStr + '\')" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--text-main);border:1px solid var(--glass-border);cursor:pointer;font-size:0.78rem;">View</button>';
+                    var btnStyle = "padding:4px 10px;border-radius:6px;border:1px solid var(--glass-border);cursor:pointer;font-size:0.78rem;";
+                    var viewBtn = document.createElement("button");
+                    viewBtn.type = "button";
+                    viewBtn.className = "sph-action-btn";
+                    viewBtn.style.cssText = btnStyle + "background:rgba(255,255,255,0.08);color:var(--text-main);";
+                    viewBtn.textContent = "View";
+                    viewBtn.addEventListener("click", function(ref) {
+                        return function() { showOrderDetailModal(ref); };
+                    }(refStr));
+                    actTd2.appendChild(viewBtn);
                     if (o.retry_allowed) {
-                        actionsHtml += ' <button class="sph-action-btn" onclick="handleRetryFromHistory(\'' + refStr + '\')" style="padding:4px 10px;border-radius:6px;background:rgba(234,179,8,0.15);color:#fbbf24;border:1px solid rgba(234,179,8,0.3);cursor:pointer;font-size:0.78rem;">Retry</button>';
+                        var retryBtn = document.createElement("button");
+                        retryBtn.type = "button";
+                        retryBtn.className = "sph-action-btn";
+                        retryBtn.style.cssText = btnStyle + "background:rgba(234,179,8,0.15);color:#fbbf24;border-color:rgba(234,179,8,0.3);margin-left:4px;";
+                        retryBtn.textContent = "Retry";
+                        retryBtn.addEventListener("click", function(ref) {
+                            return function() { handleRetryFromHistory(ref); };
+                        }(refStr));
+                        actTd2.appendChild(retryBtn);
                     }
-                    actionsHtml += ' <button class="sph-action-btn" onclick="window.open(\'/api/billing/subscription/orders/' + encodeURIComponent(refStr) + '/receipt\', \'_blank\')" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.05);color:var(--text-dim);border:1px solid var(--glass-border);cursor:pointer;font-size:0.78rem;">Receipt</button>';
-                    actTd2.innerHTML = actionsHtml;
+                    var receiptBtn = document.createElement("button");
+                    receiptBtn.type = "button";
+                    receiptBtn.className = "sph-action-btn";
+                    var isPaidCompleted = (o.payment_status === "paid" || o.payment_status === "credited") && (o.activation_status === "completed" || o.activation_status === "credited");
+                    if (isPaidCompleted) {
+                        receiptBtn.style.cssText = btnStyle + "background:rgba(255,255,255,0.05);color:var(--text-dim);margin-left:4px;";
+                        receiptBtn.disabled = false;
+                    } else {
+                        receiptBtn.style.cssText = btnStyle + "background:rgba(255,255,255,0.02);color:var(--text-dim);opacity:0.5;margin-left:4px;cursor:not-allowed;";
+                        receiptBtn.disabled = true;
+                    }
+                    receiptBtn.textContent = "Receipt";
+                    receiptBtn.addEventListener("click", function(ref) {
+                        return function() {
+                            if (this.disabled) return;
+                            openReceipt(ref);
+                        };
+                    }(refStr));
+                    actTd2.appendChild(receiptBtn);
                     tr.appendChild(actTd2);
 
                     tbody.appendChild(tr);
@@ -1921,7 +1953,7 @@ async function loadBillingInfo() {
             if (reconciliationRequired) {
                 return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:#f59e0b22;color:#f59e0b;">Needs Attention</span>';
             }
-            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">�</span>';
+            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">ï¿½</span>';
         }
 
 
@@ -1951,14 +1983,14 @@ async function loadBillingInfo() {
                 var plan = d.plan || {};
                 var amtMyr = d.amount_myr || ((d.amount_sen || 0) / 100);
                 var html = '';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "�") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "ï¿½") + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Amount</label><span style="color:var(--text-main);">RM ' + Number(amtMyr).toFixed(2) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "�") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "�") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "�") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "ï¿½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "ï¿½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "ï¿½") + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Status</label><span>' + buildPaymentStatusBadge(d.status) + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Activation Status</label><span>' + buildActivationStatusBadge(d.activation_status, d.reconciliation_required) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "�") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "ï¿½") + '</span></div>';
                 if (d.paid_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Paid At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.paid_at).toLocaleString() + '</span></div>'; }
                 if (d.credited_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Credited At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.credited_at).toLocaleString() + '</span></div>'; }
                 if (d.message) { html += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--text-dim);font-size:0.85rem;">' + d.message + '</div>'; }
@@ -1998,6 +2030,7 @@ async function loadBillingInfo() {
                     loadSubscriptionPaymentHistory();
                     loadBillingInfo();
                     fetchAiCredit();
+        fetchAiCreditUsageSummary();
                 } else {
                     if (btn) { btn.disabled = false; btn.textContent = "Retry Activation"; }
                     alert(body2.message || "Retry had an issue.");
@@ -2412,7 +2445,7 @@ async function loadBillingInfo() {
             showPaymentStatus("checking", "Checking your payment status...", "");
             function poll() {
                 if (_paymentPollCount >= _paymentPollMax) {
-                    showPaymentStatus("processing", "Still processing.", "Please wait â€” your balance will update once payment is verified. You can also check again below.");
+                    showPaymentStatus("processing", "Still processing.", "Please wait Ã¢â‚¬â€ your balance will update once payment is verified. You can also check again below.");
                     var btn2 = document.getElementById("btn-check-again");
                     if (btn2) btn2.style.display = "inline-flex";
                     return;
@@ -2495,6 +2528,7 @@ async function loadBillingInfo() {
                 (async function() {
                     loadBillingInfo();
                     fetchAiCredit();
+        fetchAiCreditUsageSummary();
                 })();
                 return { terminal: true, showRetry: false };
             }
@@ -2585,7 +2619,7 @@ async function loadBillingInfo() {
             showPaymentStatus("checking", "Checking your subscription payment status...", "");
             function poll() {
                 if (_paymentPollCount >= _paymentPollMax) {
-                    showPaymentStatus("processing", "Still processing.", "Please wait â€” your subscription will update once payment is verified. You can also check again below." );
+                    showPaymentStatus("processing", "Still processing.", "Please wait Ã¢â‚¬â€ your subscription will update once payment is verified. You can also check again below." );
                     var btn2 = document.getElementById("btn-check-again");
                     if (btn2) btn2.style.display = "inline-flex";
                     return;
@@ -2813,12 +2847,131 @@ async function loadBillingInfo() {
             if (_aiCreditTransactionsLoading) return;
             fetchAiCreditTransactions();
         }
-        // Init
+/* ===== Phase 4H — Export Functions ===== */
+
+        var _exportingCsv = false;
+        var _exportingCreditCsv = false;
+
+        async function exportSubscriptionOrdersCsv() {
+            if (_exportingCsv) return;
+            _exportingCsv = true;
+            var btn = event && event.target || document.querySelector("button[onclick*='exportSubscriptionOrdersCsv']");
+            if (btn) { btn.disabled = true; btn.textContent = "Exporting..."; }
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/orders/export.csv?limit=2000");
+                if (!res.ok) {
+                    alert("Unable to export data. Please try again later.");
+                    return;
+                }
+                var blob = await res.blob();
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement("a");
+                a.href = url;
+                a.download = "subscription-payment-history-" + new Date().toISOString().slice(0, 10) + ".csv";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert("Export failed. Please try again.");
+            } finally {
+                _exportingCsv = false;
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="download" style="width:14px;height:14px;"></i> Export CSV'; }
+            }
+        }
+
+        async function exportAiCreditCsv() {
+            if (_exportingCreditCsv) return;
+            _exportingCreditCsv = true;
+            var btn = event && event.target || document.querySelector("button[onclick*='exportAiCreditCsv']");
+            if (btn) { btn.disabled = true; btn.textContent = "Exporting..."; }
+            try {
+                var res = await authenticatedFetch("/api/billing/ai-credit/transactions/export.csv?limit=2000");
+                if (!res.ok) {
+                    alert("Unable to export data. Please try again later.");
+                    return;
+                }
+                var blob = await res.blob();
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement("a");
+                a.href = url;
+                a.download = "ai-credit-activity-" + new Date().toISOString().slice(0, 10) + ".csv";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert("Export failed. Please try again.");
+            } finally {
+                _exportingCreditCsv = false;
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i data-lucide="download" style="width:14px;height:14px;"></i> Export Activity CSV'; }
+            }
+        }
+
+        async function fetchAiCreditUsageSummary() {
+            var section = document.getElementById("ai-credit-usage-section");
+            if (!section) return;
+            try {
+                var res = await authenticatedFetch("/api/billing/ai-credit/usage-summary");
+                if (!res.ok) {
+                    section.style.display = "none";
+                    return;
+                }
+                var body = await res.json();
+                if (body.status !== "success" || !body.data) {
+                    section.style.display = "none";
+                    return;
+                }
+                var d = body.data;
+                var microMyr = function(v) { return "RM " + (Number(v) / 1000000).toFixed(2); };
+                document.getElementById("acu-granted").textContent = microMyr(d.activity.included_granted_myr || 0);
+                document.getElementById("acu-spent").textContent = microMyr(d.activity.usage_spent_myr || 0);
+                document.getElementById("acu-expired").textContent = microMyr(d.activity.included_expired_myr || 0);
+                section.style.display = "block";
+            } catch (e) {
+                section.style.display = "none";
+            }
+        }
+
+                async function openReceipt(orderReference) {
+            if (!orderReference) return;
+            var tab = window.open("", "_blank");
+            if (!tab) {
+                alert("Please allow popups to view the receipt.");
+                return;
+            }
+            tab.document.write('<html><head><title>Loading...</title></head><body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;"><p>Loading receipt...</p></body></html>');
+            tab.document.close();
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/orders/" + encodeURIComponent(orderReference) + "/receipt/print");
+                if (!res.ok) {
+                    tab.close();
+                    if (res.status === 401 || res.status === 403) {
+                        alert("Session expired. Please refresh the page.");
+                    } else if (res.status === 404) {
+                        alert("Receipt not found.");
+                    } else {
+                        alert("Unable to load receipt. Please try again.");
+                    }
+                    return;
+                }
+                var html = await res.text();
+                tab.document.open();
+                tab.document.write(html);
+                tab.document.close();
+            } catch (e) {
+                tab.close();
+                alert("Network error loading receipt. Please try again.");
+            }
+        }
+
+// Init
         restorePreferences();
         loadProfile();
         loadTeamInfo();
         loadBillingInfo();
         fetchAiCredit();
+        fetchAiCreditUsageSummary();
         loadSubscriptionPaymentHistory();
         fetchAiCreditTransactions();
         handleToyyibpayReturn();

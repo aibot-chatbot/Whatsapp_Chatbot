@@ -1,8 +1,11 @@
-import logging
+﻿import logging
 import re
 
 from flask import Blueprint, jsonify, g, request
 
+import csv
+import io
+from datetime import datetime
 from app.decorators.auth_decorator import token_required
 from app.services.billing_service import (
     list_active_plans,
@@ -641,6 +644,7 @@ def list_subscription_orders():
         )
         from app.database.subscription_plan_repository import get_plan_by_id
 
+        from app.database.company_subscription_order_repository import list_subscription_orders_for_company
         orders = list_subscription_orders_for_company(
             company_id=company_id,
             limit=limit_arg,
@@ -1262,6 +1266,360 @@ def _subscription_downgrade_check(target_plan_code):
             "status": "error",
             "message": "Unable to check downgrade eligibility."
         }), 500
+
+# =============================================================================
+# Phase 4H — Printable receipt, CSV exports, and usage summary
+# =============================================================================
+
+
+@billing_bp.route("/subscription/orders/<order_reference>/receipt/print", methods=["GET"])
+@token_required
+def printable_subscription_receipt(order_reference):
+    """Return a printable HTML payment receipt.
+
+    This is not a tax invoice. It shows the verified payment details
+    from the payment gateway callback and the subscription order record.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company not found."}), 401
+
+        try:
+            import uuid
+            uuid.UUID(order_reference)
+        except (ValueError, AttributeError):
+            return jsonify({"status": "error", "message": "Invalid order reference format."}), 400
+
+        from app.services.billing_receipt_service import build_subscription_receipt
+
+        receipt = build_subscription_receipt(company_id, order_reference)
+        if receipt is None:
+            return jsonify({"status": "error", "message": "Order not found."}), 404
+
+        plan = receipt.get("plan") or {}
+        plan_name = plan.get("name") or "N/A"
+        order_ref = receipt.get("order_reference") or ""
+        amount = receipt.get("amount_myr") or 0
+        currency = receipt.get("currency", "MYR")
+        payment_status = receipt.get("payment_status") or ""
+        activation_status = receipt.get("activation_status") or ""
+        payment_ref = receipt.get("payment_reference") or ""
+        gateway_ref = receipt.get("gateway_reference") or ""
+        created_at = receipt.get("created_at") or ""
+        paid_at = receipt.get("payment_date") or ""
+        credited_at = receipt.get("credited_at") or ""
+        notice = receipt.get("notice", "")
+
+        def _safe(s):
+            return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payment Receipt - {_safe(order_ref)}</title>
+<style>
+  *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #1a1a1a; padding: 20px; }}
+  .receipt-container {{ max-width: 680px; margin: 0 auto; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); overflow: hidden; }}
+  .receipt-header {{ background: linear-gradient(135deg, #1e3a5f, #2563eb); color: #fff; padding: 28px 32px; }}
+  .receipt-header h1 {{ font-size: 1.4rem; font-weight: 700; margin-bottom: 4px; }}
+  .receipt-header p {{ font-size: 0.85rem; opacity: 0.85; }}
+  .receipt-body {{ padding: 28px 32px; }}
+  .receipt-notice {{ background: #fef3c7; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 16px; font-size: 0.82rem; color: #92400e; margin-bottom: 24px; }}
+  .detail-row {{ display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb; font-size: 0.88rem; }}
+  .detail-row:last-child {{ border-bottom: none; }}
+  .detail-label {{ color: #6b7280; font-weight: 500; }}
+  .detail-value {{ color: #1a1a1a; font-weight: 600; text-align: right; }}
+  .amount-value {{ font-size: 1.2rem; color: #059669; }}
+  .section-title {{ font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: #9ca3af; margin: 20px 0 10px; }}
+  .receipt-footer {{ padding: 20px 32px; background: #f9fafb; border-top: 1px solid #e5e7eb; font-size: 0.78rem; color: #9ca3af; text-align: center; line-height: 1.5; }}
+  .btn-row {{ display: flex; gap: 12px; margin-top: 20px; justify-content: center; }}
+  .btn {{ display: inline-flex; align-items: center; gap: 6px; padding: 10px 24px; border-radius: 8px; font-size: 0.88rem; font-weight: 600; cursor: pointer; border: none; text-decoration: none; }}
+  .btn-primary {{ background: #2563eb; color: #fff; }}
+  .btn-primary:hover {{ background: #1d4ed8; }}
+  .btn-secondary {{ background: #e5e7eb; color: #374151; }}
+  .btn-secondary:hover {{ background: #d1d5db; }}
+  @media print {{
+    body {{ background: #fff; padding: 0; }}
+    .receipt-container {{ box-shadow: none; border-radius: 0; }}
+    .btn-row {{ display: none; }}
+    .no-print {{ display: none; }}
+  }}
+</style>
+</head>
+<body>
+<div class="receipt-container">
+  <div class="receipt-header">
+    <h1>Payment Receipt</h1>
+    <p>AI Chatbot Platform</p>
+  </div>
+  <div class="receipt-body">
+    <div class="receipt-notice">{_safe(notice)}</div>
+
+    <div class="section-title">Order Details</div>
+    <div class="detail-row"><span class="detail-label">Plan</span><span class="detail-value">{_safe(plan_name)}</span></div>
+    <div class="detail-row"><span class="detail-label">Amount</span><span class="detail-value amount-value">{currency} {amount:.2f}</span></div>
+    <div class="detail-row"><span class="detail-label">Order Reference</span><span class="detail-value" style="font-family:monospace;font-size:0.8rem;">{_safe(order_ref)}</span></div>
+
+    <div class="section-title">Status</div>
+    <div class="detail-row"><span class="detail-label">Payment Status</span><span class="detail-value">{_safe(payment_status)}</span></div>
+    <div class="detail-row"><span class="detail-label">Activation Status</span><span class="detail-value">{_safe(activation_status)}</span></div>
+
+    <div class="section-title">Payment Details</div>
+    <div class="detail-row"><span class="detail-label">Payment Reference</span><span class="detail-value" style="font-family:monospace;font-size:0.8rem;">{_safe(payment_ref)}</span></div>
+    <div class="detail-row"><span class="detail-label">Gateway Reference</span><span class="detail-value" style="font-family:monospace;font-size:0.8rem;">{_safe(gateway_ref)}</span></div>
+"""
+
+        if created_at:
+            html += f"""    <div class="detail-row"><span class="detail-label">Order Created</span><span class="detail-value">{_safe(created_at)}</span></div>\n"""
+        if paid_at:
+            html += f"""    <div class="detail-row"><span class="detail-label">Payment Date</span><span class="detail-value">{_safe(paid_at)}</span></div>\n"""
+        if credited_at:
+            html += f"""    <div class="detail-row"><span class="detail-label">Credit Date</span><span class="detail-value">{_safe(credited_at)}</span></div>\n"""
+
+        html += """    <div class="section-title">Billing Period</div>
+    <div class="detail-row"><span class="detail-label">Period Start</span><span class="detail-value">{}</span></div>
+    <div class="detail-row"><span class="detail-label">Period End</span><span class="detail-value">{}</span></div>
+""".format(
+    _safe(receipt.get("billing_period_start") or ""),
+    _safe(receipt.get("billing_period_end") or ""),
+)
+
+        html += """    <div class="btn-row no-print">
+      <button class="btn btn-primary" onclick="window.print()">Print / Save PDF</button>
+      <button class="btn btn-secondary" onclick="window.close()">Close</button>
+    </div>
+  </div>
+  <div class="receipt-footer">
+    Generated {gen_date}<br>
+    For support, contact us with your order reference.
+  </div>
+</div>
+</body>
+</html>""".format(gen_date=_safe(receipt.get("generated_at", "")))
+
+        from flask import make_response
+        resp = make_response(html)
+        resp.headers["Content-Type"] = "text/html; charset=utf-8"
+        return resp
+
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception:
+        logging.exception("Failed to generate printable receipt")
+        return jsonify({"status": "error", "message": "Unable to generate receipt."}), 500
+
+
+@billing_bp.route("/subscription/orders/export.csv", methods=["GET"])
+@token_required
+def export_subscription_orders_csv():
+    """Export company subscription orders as CSV."""
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company not found."}), 401
+
+        limit_str = request.args.get("limit", "500")
+        try:
+            export_limit = min(int(limit_str), 2000)
+        except (ValueError, TypeError):
+            export_limit = 500
+        if export_limit < 1:
+            export_limit = 500
+
+        from app.database.company_subscription_order_repository import list_subscription_orders_for_company
+        orders = list_subscription_orders_for_company(
+            company_id=company_id,
+            limit=export_limit,
+            offset=0,
+        )
+
+        from app.services.billing_receipt_service import _neutralize_csv
+
+        output = io.StringIO()
+        output.write("\ufeff")
+        writer = csv.writer(output)
+        writer.writerow([
+            "order_date", "payment_date", "plan", "amount_myr", "currency",
+            "payment_status", "activation_status", "order_reference",
+            "payment_reference", "gateway_reference",
+        ])
+        for o in orders:
+            plan = o.get("plan") or {}
+            plan_name = _neutralize_csv(plan.get("name"))
+            writer.writerow([
+                _neutralize_csv(o.get("created_at")),
+                _neutralize_csv(o.get("paid_at")),
+                plan_name,
+                f"{(o.get('amount_sen') or 0) / 100:.2f}",
+                "MYR",
+                _neutralize_csv(o.get("status")),
+                _neutralize_csv(o.get("activation_status")),
+                _neutralize_csv(o.get("order_reference")),
+                _neutralize_csv(o.get("payment_reference")),
+                _neutralize_csv(o.get("gateway_order_id")),
+            ])
+
+        csv_data = output.getvalue()
+        output.close()
+
+        from flask import make_response
+        resp = make_response(csv_data)
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+        resp.headers["Content-Disposition"] = f"attachment; filename=subscription-payment-history-{datetime.now().strftime('%Y-%m-%d')}.csv"
+        return resp
+
+    except Exception:
+        logging.exception("Failed to export subscription orders CSV")
+        return jsonify({"status": "error", "message": "Unable to export data."}), 500
+
+
+@billing_bp.route("/ai-credit/transactions/export.csv", methods=["GET"])
+@token_required
+def export_ai_credit_transactions_csv():
+    """Export company AI-credit transactions as CSV."""
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company not found."}), 401
+
+        limit_str = request.args.get("limit", "500")
+        try:
+            export_limit = min(int(limit_str), 2000)
+        except (ValueError, TypeError):
+            export_limit = 500
+        if export_limit < 1:
+            export_limit = 500
+
+        txns = list_credit_transactions(company_id, limit=export_limit)
+
+        from app.services.billing_receipt_service import _neutralize_csv, _micro_myr_to_myr
+
+        output = io.StringIO()
+        output.write("\ufeff")
+        writer = csv.writer(output)
+        writer.writerow([
+            "date", "transaction_type", "included_delta_myr", "topup_delta_myr",
+            "total_delta_myr", "included_balance_after_myr", "topup_balance_after_myr",
+            "total_balance_after_myr", "description", "payment_reference",
+        ])
+        for t in txns:
+            inc_delta = t.get("included_delta_micro_myr") or 0
+            top_delta = t.get("topup_delta_micro_myr") or 0
+            inc_after = t.get("included_balance_after_micro_myr") or 0
+            top_after = t.get("topup_balance_after_micro_myr") or 0
+            writer.writerow([
+                _neutralize_csv(t.get("created_at")),
+                _neutralize_csv(t.get("transaction_type")),
+                _micro_myr_to_myr(inc_delta),
+                _micro_myr_to_myr(top_delta),
+                _micro_myr_to_myr(inc_delta + top_delta),
+                _micro_myr_to_myr(inc_after),
+                _micro_myr_to_myr(top_after),
+                _micro_myr_to_myr(inc_after + top_after),
+                _neutralize_csv(t.get("description")),
+                _neutralize_csv(t.get("payment_reference")),
+            ])
+
+        csv_data = output.getvalue()
+        output.close()
+
+        from flask import make_response
+        resp = make_response(csv_data)
+        resp.headers["Content-Type"] = "text/csv; charset=utf-8"
+        resp.headers["Content-Disposition"] = f"attachment; filename=ai-credit-activity-{datetime.now().strftime('%Y-%m-%d')}.csv"
+        return resp
+
+    except Exception:
+        logging.exception("Failed to export AI-credit CSV")
+        return jsonify({"status": "error", "message": "Unable to export data."}), 500
+
+
+@billing_bp.route("/ai-credit/usage-summary", methods=["GET"])
+@token_required
+def get_ai_credit_usage_summary():
+    """Return an AI-credit usage summary for the current billing period."""
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company not found."}), 401
+
+        from app.database.ai_credit_repository import get_company_credit_balance
+        balance = get_company_credit_balance(company_id)
+        if not balance:
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "period": {"start": None, "end": None},
+                    "balances": {"included_myr": 0, "topup_myr": 0, "total_myr": 0},
+                    "activity": {
+                        "included_granted_myr": 0, "included_expired_myr": 0,
+                        "topup_added_myr": 0, "usage_spent_myr": 0, "adjustments_myr": 0,
+                    },
+                    "transaction_count": 0,
+                },
+            }), 200
+
+        period_start = balance.get("period_start")
+        period_end = balance.get("period_end")
+        included_bal = balance.get("included_balance_micro_myr") or 0
+        topup_bal = balance.get("topup_balance_micro_myr") or 0
+
+        included_granted = 0
+        included_expired = 0
+        topup_added = 0
+        usage_spent = 0
+        adjustments = 0
+
+        txns = list_credit_transactions(company_id, limit=500)
+        txn_count = 0
+        for t in txns:
+            txn_count += 1
+            ttype = (t.get("transaction_type") or "").strip().lower()
+            inc_delta = t.get("included_delta_micro_myr") or 0
+            top_delta = t.get("topup_delta_micro_myr") or 0
+            if ttype == "subscription_included":
+                included_granted += inc_delta
+            elif ttype == "topup":
+                topup_added += top_delta
+            elif ttype == "usage":
+                usage_spent += abs(inc_delta) + abs(top_delta)
+            elif ttype == "expiry":
+                included_expired += abs(inc_delta)
+            elif ttype in ("adjustment", "reversal"):
+                adjustments += inc_delta + top_delta
+
+        from app.services.billing_receipt_service import _micro_myr_to_myr
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "period": {
+                    "start": period_start,
+                    "end": period_end,
+                },
+                "balances": {
+                    "included_myr": _micro_myr_to_myr(included_bal),
+                    "topup_myr": _micro_myr_to_myr(topup_bal),
+                    "total_myr": _micro_myr_to_myr(included_bal + topup_bal),
+                },
+                "activity": {
+                    "included_granted_myr": _micro_myr_to_myr(included_granted),
+                    "included_expired_myr": _micro_myr_to_myr(included_expired),
+                    "topup_added_myr": _micro_myr_to_myr(topup_added),
+                    "usage_spent_myr": _micro_myr_to_myr(usage_spent),
+                    "adjustments_myr": _micro_myr_to_myr(adjustments),
+                },
+                "transaction_count": txn_count,
+            },
+        }), 200
+
+    except Exception:
+        logging.exception("Failed to generate AI-credit usage summary")
+        return jsonify({"status": "error", "message": "Unable to generate usage summary."}), 500
 
 
 @billing_bp.route("/health", methods=["GET"])
