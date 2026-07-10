@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 from decimal import Decimal, ROUND_HALF_UP
 from dataclasses import dataclass, field
 from typing import Any
@@ -33,7 +33,6 @@ from app.services.ai_credit_service import (
     get_ai_retail_markup_basis_points,
     get_ai_usd_to_myr_rate_micro_myr_per_usd,
     get_company_ai_credit_summary,
-    ensure_company_ai_credit,
     charge_logged_ai_usage,
 )
 from app.database.ai_usage_repository import insert_usage_log
@@ -395,16 +394,12 @@ def _check_ai_credit_before_provider(company_id: int | None):
     get_ai_retail_markup_basis_points()
     get_ai_usd_to_myr_rate_micro_myr_per_usd()
 
-    ensure_result = ensure_company_ai_credit(company_id)
-    if not ensure_result:
-        raise RuntimeError(
-            f"AI-credit period initialisation returned no result for company {company_id}."
-        )
-
     summary = get_company_ai_credit_summary(company_id)
     if not summary.get("initialised"):
         raise RuntimeError(
-            f"AI-credit balance row missing after initialisation for company {company_id}."
+            f"AI-credit period has not been initialised for company {company_id}. "
+            f"If this is an active paid subscription, a callback or reconciliation "
+            f"should have completed activation. Manual reconciliation may be required."
         )
 
     total = summary.get("total_balance_micro_myr")

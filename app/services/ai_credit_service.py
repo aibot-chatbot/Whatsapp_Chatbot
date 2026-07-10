@@ -16,6 +16,7 @@ from app.database.ai_credit_repository import (
     ensure_company_ai_credit_period as _ensure_period,
     charge_ai_usage_credit as _charge_usage,
     add_ai_credit_topup as _add_topup,
+    allocate_subscription_included_credit as _allocate_included_credit,
 )
 
 logger = logging.getLogger(__name__)
@@ -381,6 +382,98 @@ def add_company_ai_credit_topup(
         amount_micro_myr=amount_micro_myr,
         idempotency_key=idempotency_key.strip(),
         payment_reference=payment_reference.strip(),
+        description=description.strip() if description else None,
+    )
+
+    included = result.get("included_balance_micro_myr", 0) or 0
+    topup = result.get("topup_balance_micro_myr", 0) or 0
+
+    return {
+        "status": result.get("status"),
+        "transaction_id": result.get("transaction_id"),
+        "company_id": result.get("company_id", company_id),
+        "amount_micro_myr": result.get("amount_micro_myr", amount_micro_myr),
+        "included_balance_micro_myr": included,
+        "topup_balance_micro_myr": topup,
+        "total_balance_micro_myr": included + topup,
+        "payment_reference": result.get("payment_reference", payment_reference),
+        "idempotency_key": result.get("idempotency_key", idempotency_key),
+    }
+# ---------------------------------------------------------------------------
+# Subscription included credit
+# ---------------------------------------------------------------------------
+
+
+def allocate_subscription_included_credit(
+    company_id: int,
+    amount_micro_myr: int,
+    idempotency_key: str,
+    payment_reference: str,
+    period_start: str | None = None,
+    period_end: str | None = None,
+    plan_code: str | None = None,
+    description: str | None = None,
+) -> dict:
+    """Allocate subscription included AI credit to the correct balance bucket.
+
+    This is the canonical function for granting subscription-period included
+    credit.  It delegates to the PostgreSQL RPC ``allocate_subscription_included_credit``
+    which targets the **included** balance bucket (``included_balance_micro_myr``),
+    not the top-up bucket.
+
+    Unlike ``add_company_ai_credit_topup``, this function is designed for
+    subscription plan credit allocation and should be the only code path
+    that grants included credit for a new billing period.
+
+    Steps performed (all atomically in the RPC):
+    1. Checks idempotency by ``idempotency_key``.
+    2. Adds the amount to ``included_balance_micro_myr`` (not top-up).
+    3. Inserts a ledger entry with ``transaction_type = 'subscription_included'``.
+    4. Returns structured result with both included and top-up balances.
+
+    Args:
+        company_id: The company to allocate credit for.
+        amount_micro_myr: Amount in micro-MYR (must be a positive integer).
+        idempotency_key: Unique key to prevent duplicate allocation.
+        payment_reference: External payment reference (gateway transaction ID).
+        period_start: ISO-8601 timestamp for the billing period start.
+        period_end: ISO-8601 timestamp for the billing period end.
+        plan_code: Plan code for the description (e.g. "pro").
+        description: Custom description override.
+
+    Returns:
+        Dictionary containing:
+        - status: ``"applied"`` or ``"already_applied"``
+        - transaction_id (int or None)
+        - company_id (int)
+        - amount_micro_myr (int)
+        - included_balance_micro_myr (int)
+        - topup_balance_micro_myr (int)
+        - total_balance_micro_myr (int)
+        - payment_reference (str)
+        - idempotency_key (str)
+
+    Raises:
+        ValueError: If any input parameter is invalid.
+        RuntimeError: If the RPC call fails or returns no data.
+    """
+    if not company_id or not isinstance(company_id, int) or company_id < 1:
+        raise ValueError(f"company_id must be a positive integer, got {company_id!r}")
+    if not isinstance(amount_micro_myr, int) or amount_micro_myr <= 0:
+        raise ValueError(f"amount_micro_myr must be a positive integer, got {amount_micro_myr!r}")
+    if not idempotency_key or not isinstance(idempotency_key, str) or not idempotency_key.strip():
+        raise ValueError("idempotency_key must be a non-empty string")
+    if not payment_reference or not isinstance(payment_reference, str) or not payment_reference.strip():
+        raise ValueError("payment_reference must be a non-empty string")
+
+    result = _allocate_included_credit(
+        company_id=company_id,
+        amount_micro_myr=amount_micro_myr,
+        idempotency_key=idempotency_key.strip(),
+        payment_reference=payment_reference.strip(),
+        period_start=period_start,
+        period_end=period_end,
+        plan_code=plan_code.strip().lower() if plan_code else None,
         description=description.strip() if description else None,
     )
 

@@ -636,6 +636,14 @@ def fetch_subscription_order_status(reference):
                 "message": "Order not found."
             }), 404
 
+        activation_status = order.get("activation_status")
+        activation_error_code = order.get("activation_error_code")
+        reconciliation_required = order.get("reconciliation_required", False)
+        safe_message = _safe_activation_message(activation_status, activation_error_code)
+        retry_allowed = (
+            order.get("status") in ("paid",)
+            or activation_status in ("not_started", "claimed", "activated", "credit_pending", "failed")
+        )
         data = {
             "order_reference": order.get("order_reference"),
             "status": order.get("status"),
@@ -645,7 +653,15 @@ def fetch_subscription_order_status(reference):
             "created_at": order.get("created_at"),
             "paid_at": order.get("paid_at"),
             "credited_at": order.get("credited_at"),
-        }
+            "activation_status": activation_status,
+            "activation_claimed_at": order.get("activation_claimed_at"),
+            "activation_completed_at": order.get("activation_completed_at"),
+            "credit_granted_at": order.get("credit_granted_at"),
+            "reconciliation_required": reconciliation_required,
+            "activation_error_code": activation_error_code,
+            "retry_allowed": retry_allowed,
+            "message": safe_message,
+    }
 
         return jsonify({
             "status": "success",
@@ -664,6 +680,57 @@ def fetch_subscription_order_status(reference):
             "status": "error",
             "message": "Unable to retrieve order status."
         }), 500
+
+
+def _safe_activation_message(activation_status, activation_error_code):
+    if activation_status is None or activation_status == "not_started":
+        return "Payment confirmed. Subscription activation is in progress."
+    if activation_status == "claimed":
+        return "Payment confirmed. Subscription activation is in progress."
+    if activation_status == "activated":
+        return "Subscription activated. AI credit allocation is being processed."
+    if activation_status == "credit_pending":
+        return "Payment confirmed. Completing activation..."
+    if activation_status == "completed":
+        return "Subscription activation completed."
+    if activation_status == "conflict":
+        return "This payment needs support review. Please contact support with your order reference."
+    if activation_status == "failed":
+        return "This payment needs support review. Please contact support with your order reference."
+    return "Payment confirmed."
+
+
+@billing_bp.route("/subscription/orders/<order_reference>/retry", methods=["POST"])
+@token_required
+def retry_subscription_order(order_reference):
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company not found."}), 401
+        from app.services.subscription_reconciliation_service import reconcile_subscription_order
+        result = reconcile_subscription_order(order_reference=order_reference, company_id=company_id)
+        outcome = result.get("outcome")
+        order_status = result.get("order_status")
+        if outcome in ("reconciled_and_completed", "credit_retry_completed"):
+            return jsonify({"status": "success", "data": {"outcome": outcome, "order_status": order_status}}), 200
+        if outcome == "already_completed":
+            return jsonify({"status": "success", "data": {"outcome": outcome, "order_status": order_status}}), 200
+        if outcome in ("activation_already_claimed", "source_subscription_changed"):
+            return jsonify({"status": "error", "code": outcome, "message": result.get("message", "This payment needs support review.")}), 409
+        if outcome == "manual_review_required":
+            return jsonify({"status": "error", "code": "manual_review_required", "message": "This payment requires support review."}), 409
+        if outcome == "malformed_order":
+            return jsonify({"status": "error", "code": "malformed_order", "message": "This order has incomplete data. Support review required."}), 409
+        if outcome == "unpaid_order_not_reconcilable":
+            return jsonify({"status": "error", "code": "unpaid_order", "message": "This order has not been paid and cannot be retried."}), 400
+        return jsonify({"status": "error", "code": "unknown_outcome", "message": "Unexpected reconciliation result."}), 500
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+    except Exception:
+        logging.exception("Failed to retry subscription order")
+        return jsonify({"status": "error", "message": "Unable to retry order."}), 500
+
+
 @billing_bp.route("/dev/subscription-orders/<reference>/complete", methods=["POST"])
 @token_required
 def dev_complete_subscription_order(reference):

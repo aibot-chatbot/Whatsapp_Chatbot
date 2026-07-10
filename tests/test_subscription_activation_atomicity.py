@@ -1,4 +1,4 @@
-"""test_subscription_activation_atomicity.py
+﻿"""test_subscription_activation_atomicity.py
 
 Focused unit tests for Phase 4B callback atomicity improvements.
 
@@ -87,19 +87,19 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".conditional_activate_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_first_order_activates_then_second_is_rejected(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_cond_activate,
+        mock_add_included_credit, mock_cond_activate,
         mock_get_plan, mock_get_order, mock_claim_seq,
     ):
         mock_get_order.return_value = self.order_with_key
         mock_get_plan.return_value = self.mock_plan
         mock_cond_activate.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "credited"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         result1 = process_subscription_payment_callback(self.valid_callback)
         self.assertEqual(result1["status"], "activated_and_credited")
@@ -126,19 +126,19 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".conditional_activate_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_repeated_same_order_callback_is_idempotent(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_cond_activate,
+        mock_add_included_credit, mock_cond_activate,
         mock_get_plan, mock_get_order, mock_claim_seq,
     ):
         mock_get_order.return_value = self.order_with_key
         mock_get_plan.return_value = self.mock_plan
         mock_cond_activate.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "credited"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         result1 = process_subscription_payment_callback(self.valid_callback)
         self.assertEqual(result1["status"], "activated_and_credited")
@@ -157,12 +157,12 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".conditional_activate_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_source_subscription_changed_rejected(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_cond_activate,
+        mock_add_included_credit, mock_cond_activate,
         mock_get_plan, mock_get_order, mock_claim_seq,
     ):
         mock_get_order.return_value = self.order_with_key
@@ -179,35 +179,35 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".conditional_activate_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_only_one_credit_allocation(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_cond_activate,
+        mock_add_included_credit, mock_cond_activate,
         mock_get_plan, mock_get_order, mock_claim_seq,
     ):
         mock_get_order.return_value = self.order_with_key
         mock_get_plan.return_value = self.mock_plan
         mock_cond_activate.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "credited"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         process_subscription_payment_callback(self.valid_callback)
-        self.assertEqual(mock_add_topup.call_count, 1)
-        _, topup_kwargs = mock_add_topup.call_args
-        self.assertIn("company:42:upgrade-from", topup_kwargs.get("idempotency_key", ""))
-        self.assertEqual(topup_kwargs["amount_micro_myr"], 5000000)
+        self.assertEqual(mock_add_included_credit.call_count, 1)
+        _, credit_kwargs = mock_add_included_credit.call_args
+        self.assertIn("company:42:upgrade-from", credit_kwargs.get("idempotency_key", ""))
+        self.assertEqual(credit_kwargs["amount_micro_myr"], 5000000)
 
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".update_company_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_legacy_order_without_activation_key_succeeds(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_update_sub,
+        mock_add_included_credit, mock_update_sub,
         mock_get_plan, mock_get_order,
     ):
         legacy_order = {
@@ -221,7 +221,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         mock_get_plan.return_value = self.mock_plan
         mock_update_sub.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "paid"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         callback = dict(self.valid_callback)
         callback["gateway_order_id"] = "bill-legacy"
@@ -235,12 +235,12 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".conditional_activate_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_renewal_with_different_key_succeeds_after_expiry(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_cond_activate,
+        mock_add_included_credit, mock_cond_activate,
         mock_get_plan, mock_get_order, mock_claim_seq,
     ):
         renewal_order = dict(self.order_with_key)
@@ -253,7 +253,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         mock_get_plan.return_value = self.mock_plan
         mock_cond_activate.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "credited"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         callback = dict(self.valid_callback)
         callback["gateway_order_id"] = "bill-renewal"
@@ -267,23 +267,23 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".conditional_activate_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_topup_balance_preserved_during_credit_grant(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_cond_activate,
+        mock_add_included_credit, mock_cond_activate,
         mock_get_plan, mock_get_order, mock_claim_seq,
     ):
         mock_get_order.return_value = self.order_with_key
         mock_get_plan.return_value = self.mock_plan
         mock_cond_activate.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "credited"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         result = process_subscription_payment_callback(self.valid_callback)
         self.assertEqual(result["status"], "activated_and_credited")
-        mock_add_topup.assert_called_once()
+        mock_add_included_credit.assert_called_once()
 
 # ------------------------------------------------------------------#
     # Schema-version tests (Phase 4B close)
@@ -292,12 +292,12 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".update_company_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_version_null_historical_uses_legacy_path(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_update_sub,
+        mock_add_included_credit, mock_update_sub,
         mock_get_plan, mock_get_order,
     ):
         """Historical order (schema_version=NULL) uses legacy fallback."""
@@ -313,7 +313,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         mock_get_plan.return_value = self.mock_plan
         mock_update_sub.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "paid"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         callback = dict(self.valid_callback)
         callback["gateway_order_id"] = "bill-hist"
@@ -326,12 +326,12 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._claim_activation_sequence")
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_version_2_missing_source_fields_fails_closed(
         self, mock_convert, mock_update_status,
-        mock_add_topup,
+        mock_add_included_credit,
         mock_get_plan, mock_get_order, mock_claim_seq,
     ):
         """Version 2 order missing source fields returns malformed_atomic_order."""
@@ -365,12 +365,12 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._claim_activation_sequence")
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_unsupported_schema_version_fails_closed(
         self, mock_convert, mock_update_status,
-        mock_add_topup,
+        mock_add_included_credit,
         mock_get_plan, mock_get_order, mock_claim_seq,
     ):
         """Unknown schema version returns unsupported_order_schema_version."""
@@ -399,12 +399,12 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
 
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_credited_historical_order_remains_idempotent(
         self, mock_convert, mock_update_status,
-        mock_add_topup,
+        mock_add_included_credit,
         mock_get_plan, mock_get_order,
     ):
         """Historical credited order still returns already_activated."""
