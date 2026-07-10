@@ -319,6 +319,95 @@ def add_ai_credit_topup(
             f"idempotency_key={idempotency_key!r}"
         )
 
+# ---------------------------------------------------------------------------
+# Subscription included credit
+# ---------------------------------------------------------------------------
+
+
+def allocate_subscription_included_credit(
+    company_id: int,
+    amount_micro_myr: int,
+    idempotency_key: str,
+    payment_reference: str,
+    period_start: str | None = None,
+    period_end: str | None = None,
+    plan_code: str | None = None,
+    description: str | None = None,
+) -> dict:
+    """Atomically allocate subscription included AI credit to the included balance bucket.
+
+    Delegates to the PostgreSQL RPC function ``allocate_subscription_included_credit``
+    so that the balance update, ledger insert, and idempotency checks happen
+    in a single database transaction.
+
+    Unlike ``add_ai_credit_topup``, this function targets the **included** balance
+    bucket (``included_balance_micro_myr``) rather than the top-up bucket.
+
+    Args:
+        company_id: The company to allocate credit for.
+        amount_micro_myr: Amount of included credit in micro-MYR (positive integer).
+        idempotency_key: Unique key to prevent duplicate allocation.
+        payment_reference: External payment reference (e.g. callback transaction ID).
+        period_start: ISO-8601 timestamp for the billing period start.
+        period_end: ISO-8601 timestamp for the billing period end.
+        plan_code: Plan code for description (optional).
+        description: Custom description override (optional).
+
+    Returns:
+        RPC result dictionary containing:
+        - status: ``"applied"`` or ``"already_applied"``
+        - transaction_id
+        - company_id
+        - amount_micro_myr
+        - included_balance_micro_myr
+        - topup_balance_micro_myr
+        - total_balance_micro_myr
+        - payment_reference
+        - idempotency_key
+
+    Raises:
+        ValueError: If company_id, amount, or idempotency_key are invalid.
+        RuntimeError: If the RPC call fails or returns no data.
+    """
+    _validate_company_id(company_id)
+    _validate_topup_amount(amount_micro_myr)
+
+    if not idempotency_key or not isinstance(idempotency_key, str) or not idempotency_key.strip():
+        raise ValueError(
+            f"idempotency_key must be a non-empty string, got {idempotency_key!r}"
+        )
+    if not payment_reference or not isinstance(payment_reference, str) or not payment_reference.strip():
+        raise ValueError(
+            f"payment_reference must be a non-empty string, got {payment_reference!r}"
+        )
+
+    params = {
+        "p_company_id": company_id,
+        "p_amount_micro_myr": amount_micro_myr,
+        "p_idempotency_key": idempotency_key.strip(),
+        "p_payment_reference": payment_reference.strip(),
+        "p_period_start": period_start,
+        "p_period_end": period_end,
+        "p_plan_code": plan_code.strip() if plan_code else None,
+        "p_description": description.strip() if description else None,
+    }
+
+    result = supabase.rpc(
+        "allocate_subscription_included_credit",
+        params,
+    ).execute()
+
+    data = result.data
+
+    if not data or not isinstance(data, list) or len(data) == 0:
+        raise RuntimeError(
+            f"allocate_subscription_included_credit RPC returned no data for "
+            f"company {company_id}, idempotency_key={idempotency_key!r}"
+        )
+
+    return data[0]
+
+
     return data[0]
 
 # Internal helpers

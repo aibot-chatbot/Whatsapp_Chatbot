@@ -822,6 +822,8 @@
                 <div id="prs-title" class="prs-title"></div>
                 <div id="prs-detail" class="prs-detail"></div>
                 <button id="btn-check-again" class="btn btn-small" style="display:none;margin-top:8px;" onclick="manualCheckPaymentStatus()">Check Again</button>
+                <button id="btn-retry-subscription" class="btn btn-small" style="display:none;margin-top:8px;margin-left:6px;" onclick="retrySubscriptionOrder()">Retry Activation</button>
+                <div id="retry-order-ref" style="display:none;margin-top:6px;font-size:0.78rem;color:var(--text-dim);"></div>
             </div>
 
             <!-- AI Credit Transaction History -->
@@ -1191,7 +1193,7 @@
         }
 
         /* ===== Password Strength ===== */
-        
+
         /* ===== Password Show/Hide Toggle ===== */
         function togglePwd(inputId, btn) {
             var inp = document.getElementById(inputId);
@@ -1889,6 +1891,84 @@ async function loadBillingInfo() {
         }
 
         var _paymentPollTimer = null;
+        var _subscriptionRetryInProgress = false;
+
+        function hideRetryButton() {
+            var btn = document.getElementById("btn-retry-subscription");
+            if (btn) btn.style.display = "none";
+            var refEl = document.getElementById("retry-order-ref");
+            if (refEl) refEl.style.display = "none";
+        }
+
+        function showRetryButton(show, orderRef) {
+            var btn = document.getElementById("btn-retry-subscription");
+            if (btn) {
+                btn.style.display = show ? "inline-flex" : "none";
+                btn.disabled = false;
+            }
+            showOrderReference(orderRef);
+        }
+
+        function showRetryButtonIf(retryAllowed, orderRef) {
+            if (retryAllowed) {
+                showRetryButton(true, orderRef);
+            } else {
+                hideRetryButton();
+            }
+        }
+
+        function showOrderReference(orderRef) {
+            var refEl = document.getElementById("retry-order-ref");
+            if (refEl && orderRef) {
+                refEl.textContent = "Order reference: " + orderRef;
+                refEl.style.display = "block";
+            }
+        }
+
+        async function retrySubscriptionOrder() {
+            if (_subscriptionRetryInProgress) return;
+            _subscriptionRetryInProgress = true;
+            var btn = document.getElementById("btn-retry-subscription");
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = "Retrying...";
+            }
+            var ref = _paymentResolvedRef;
+            if (!ref) {
+                showPaymentStatus("error", "Retry failed.", "Could not identify the order to retry.");
+                _subscriptionRetryInProgress = false;
+                if (btn) { btn.disabled = false; btn.textContent = "Retry Activation"; }
+                return;
+            }
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/orders/" + encodeURIComponent(ref) + "/retry", { method: "POST" });
+                if (!res.ok) {
+                    if (res.status === 409) {
+                        var body = await res.json().catch(function() { return {}; });
+                        showPaymentStatus("error", "Support required.", body.message || "This payment needs support review. Please contact support.");
+                    } else {
+                        showPaymentStatus("error", "Retry failed.", "The retry attempt failed. Please try again or contact support.");
+                    }
+                    _subscriptionRetryInProgress = false;
+                    if (btn) { btn.disabled = false; btn.textContent = "Retry Activation"; }
+                    return;
+                }
+                var body = await res.json();
+                if (body.status === "success") {
+                    showPaymentStatus("success", "Activation completed!", "Your subscription is now active.");
+                    hideRetryButton();
+                    sessionStorage.removeItem("pending_subscription_order_reference");
+                    _paymentResolvedRef = null;
+                    (async function() { loadBillingInfo(); fetchAiCredit(); })();
+                } else {
+                    showPaymentStatus("error", "Retry had an issue.", body.message || "Please try again or contact support.");
+                }
+            } catch (e) {
+                showPaymentStatus("error", "Network error.", "Could not reach the server. Please try again.");
+            }
+            _subscriptionRetryInProgress = false;
+            if (btn) { btn.disabled = false; btn.textContent = "Retry Activation"; }
+        }
         var _paymentPollCount = 0;
         var _paymentPollMax = 5;
         var _paymentPollIntervalMs = 3000;
@@ -2071,46 +2151,88 @@ async function loadBillingInfo() {
 
         function handleSubscriptionPaymentStatusResult(data) {
             if (!data) {
-                showPaymentStatus("error", "Verification error", "We could not confirm the subscription payment status. Please check your subscription after a moment." );
+                showPaymentStatus("error", "Verification error", "We could not confirm the subscription payment status. Please check your subscription after a moment." )
                 return { terminal: false, showRetry: true };
             }
             var status = data.status || "";
-            if (status === "credited") {
+            var actStatus = data.activation_status || "";
+            var retryAllowed = data.retry_allowed === true;
+            var orderRef = data.order_reference || _paymentResolvedRef || "";
+
+            // Terminal success: credited + completed
+            if (status === "credited" && (actStatus === "completed" || actStatus === "")) {
                 showPaymentStatus("success", "Subscription activated!", "Your plan is now active. AI credits and subscription information have been updated." );
                 sessionStorage.removeItem("pending_subscription_order_reference");
                 _paymentResolvedRef = null;
+                hideRetryButton();
                 (async function() {
                     loadBillingInfo();
                     fetchAiCredit();
                 })();
                 return { terminal: true, showRetry: false };
             }
-            if (status === "paid") {
-                showPaymentStatus("processing", "Payment received.", "Your payment was received and your subscription is being activated." );
+
+            // Payment confirmed, activation in progress
+            if (status === "paid" && (actStatus === "not_started" || actStatus === "claimed" || actStatus === "")) {
+                showPaymentStatus("processing", "Payment confirmed.", "Your payment was received. Activating your subscription..." );
+                hideRetryButton();
                 return { terminal: false, showRetry: false };
             }
-            if (status === "pending" || status === "claimed") {
-                showPaymentStatus("processing", "Still processing.", "Your subscription payment is still being processed." );
-                return { terminal: false, showRetry: false };
+
+            // Activation done, credit pending
+            if (actStatus === "activated" || actStatus === "credit_pending") {
+                showPaymentStatus("processing", "Subscription activated.", "Completing AI credit allocation..." );
+                showRetryButtonIf(retryAllowed, orderRef);
+                return { terminal: false, showRetry: retryAllowed };
             }
+
+            // Reconciliation required: show retry button
+            if (data.reconciliation_required === true && retryAllowed) {
+                showPaymentStatus("processing", "Activation needs retry.", "Payment confirmed, but activation needs another attempt." );
+                showRetryButton(true, orderRef);
+                return { terminal: true, showRetry: true };
+            }
+
+            // Conflict: needs support review
+            if (actStatus === "conflict" || data.activation_error_code === "activation_already_claimed" || data.activation_error_code === "source_subscription_changed") {
+                var supportMsg = "This payment needs support review. Please contact support with your order reference: " + (orderRef || "(unknown)");
+                showPaymentStatus("error", "Support required.", supportMsg);
+                showOrderReference(orderRef);
+                sessionStorage.removeItem("pending_subscription_order_reference");
+                return { terminal: true, showRetry: false };
+            }
+
+            // Failed status (payment level)
             if (status === "failed") {
                 showPaymentStatus("failed", "Payment not completed.", "The payment was not completed. No changes were made to your subscription." );
                 sessionStorage.removeItem("pending_subscription_order_reference");
                 _paymentResolvedRef = null;
+                hideRetryButton();
                 return { terminal: true, showRetry: false };
             }
             if (status === "cancelled") {
                 showPaymentStatus("cancelled", "Payment cancelled.", "The subscription upgrade was cancelled. Your plan remains unchanged." );
                 sessionStorage.removeItem("pending_subscription_order_reference");
                 _paymentResolvedRef = null;
+                hideRetryButton();
                 return { terminal: true, showRetry: false };
             }
             if (status === "expired") {
                 showPaymentStatus("expired", "Payment session expired.", "The payment session expired. No changes were made to your subscription." );
                 sessionStorage.removeItem("pending_subscription_order_reference");
                 _paymentResolvedRef = null;
+                hideRetryButton();
                 return { terminal: true, showRetry: false };
             }
+
+            // Pending status
+            if (status === "pending") {
+                showPaymentStatus("processing", "Still processing.", "Your subscription payment is still being processed." );
+                hideRetryButton();
+                return { terminal: false, showRetry: false };
+            }
+
+            // Fallback
             showPaymentStatus("error", "Verification error", "We could not confirm the subscription payment status." );
             return { terminal: true, showRetry: true };
         }

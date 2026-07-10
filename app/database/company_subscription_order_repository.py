@@ -253,3 +253,261 @@ def update_subscription_order_status(
             f"(order_reference={order_reference})"
         )
     return rows[0]
+
+# Reconciliation support
+RECONCILABLE_ACTIVATION_STATUSES = frozenset({
+    "claimed", "activated", "credit_pending", "failed", "conflict",
+})
+
+
+
+def update_subscription_order_activation_state(
+    order_reference: str,
+    activation_status: str | None = None,
+    activation_error_code: str | None = None,
+    activation_error_message: str | None = None,
+    activation_claimed_at: str | None = None,
+    activation_completed_at: str | None = None,
+    credit_granted_at: str | None = None,
+    reconciliation_required: bool | None = None,
+) -> dict:
+    """Update activation-state and reconciliation fields on an order."""
+    if not order_reference:
+        raise ValueError("order_reference is required")
+    now = _now_iso()
+    updates: dict[str, Any] = {"updated_at": now}
+    if activation_status is not None:
+        updates["activation_status"] = activation_status
+    if activation_error_code is not None:
+        updates["activation_error_code"] = activation_error_code
+    if activation_error_message is not None:
+        updates["activation_error_message"] = activation_error_message
+    if activation_claimed_at is not None:
+        updates["activation_claimed_at"] = activation_claimed_at
+    if activation_completed_at is not None:
+        updates["activation_completed_at"] = activation_completed_at
+    if credit_granted_at is not None:
+        updates["credit_granted_at"] = credit_granted_at
+    if reconciliation_required is not None:
+        updates["reconciliation_required"] = reconciliation_required
+    if len(updates) == 1:
+        raise ValueError("At least one activation-state field must be provided")
+    response = (
+        supabase
+        .table(TABLE)
+        .update(updates)
+        .eq("order_reference", order_reference)
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        raise RuntimeError(f"state update returned no rows (order_reference={order_reference})")
+    return rows[0]
+
+
+
+def get_reconcilable_subscription_orders(limit: int = 100) -> list[dict]:
+    """Fetch subscription orders that need reconciliation.
+
+    Returns paid or partially-activated orders that have not yet
+    reached a completed state.  The result is ordered by updated_at
+    ascending so the oldest pending orders are processed first.
+    """
+    if not isinstance(limit, int) or limit < 1:
+        raise ValueError("limit must be a positive integer")
+
+    paid_response = (
+        supabase
+        .table(TABLE)
+        .select("*")
+        .eq("status", "paid")
+        .order("updated_at", desc=False)
+        .limit(limit)
+        .execute()
+    )
+
+    activation_response = (
+        supabase
+        .table(TABLE)
+        .select("*")
+        .in_("activation_status", list(RECONCILABLE_ACTIVATION_STATUSES))
+        .order("updated_at", desc=False)
+        .limit(limit)
+        .execute()
+    )
+
+    flagged_response = (
+        supabase
+        .table(TABLE)
+        .select("*")
+        .eq("reconciliation_required", True)
+        .order("updated_at", desc=False)
+        .limit(limit)
+        .execute()
+    )
+
+    paid_rows = paid_response.data or []
+    activation_rows = activation_response.data or []
+    flagged_rows = flagged_response.data or []
+
+    seen_references: set[str] = set()
+    merged: list[dict] = []
+    exclude_statuses = frozenset({"pending", "failed", "expired"})
+
+    for order in sorted(
+        paid_rows + activation_rows + flagged_rows,
+        key=lambda o: (o.get("updated_at") or "", o.get("order_reference") or ""),
+    ):
+        ref = order.get("order_reference")
+        if not ref or ref in seen_references:
+            continue
+
+        status = (order.get("status") or "").strip().lower()
+        act_status = (order.get("activation_status") or "").strip().lower()
+
+        if status == "credited" and act_status == "completed":
+            seen_references.add(ref)
+            continue
+
+        if status in exclude_statuses:
+            if act_status not in RECONCILABLE_ACTIVATION_STATUSES:
+                if not order.get("reconciliation_required"):
+                    seen_references.add(ref)
+                    continue
+
+        seen_references.add(ref)
+        merged.append(order)
+        if len(merged) >= limit:
+            break
+
+    return merged
+
+
+def update_subscription_order_fields(
+    order_reference: str,
+    reconcilation_increment: bool = False,
+    **fields: Any,
+) -> dict:
+    """Update arbitrary allowed fields on a subscription order.
+
+    Args:
+        order_reference: The unique order reference to update.
+        reconcilation_increment: If True, increments
+            reconciliation_attempt_count by 1.
+        **fields: Arbitrary column-value pairs to update.
+
+    Returns:
+        The updated order dictionary.
+    """
+    if not order_reference:
+        raise ValueError("order_reference is required")
+
+    now = _now_iso()
+    updates: dict[str, Any] = {"updated_at": now}
+
+    if reconcilation_increment:
+        current = get_subscription_order_by_reference(order_reference)
+        if current:
+            cur_count = current.get("reconciliation_attempt_count", 0) or 0
+            updates["reconciliation_attempt_count"] = cur_count + 1
+            updates["last_reconciliation_at"] = now
+
+    updates.update(fields)
+
+    response = (
+        supabase
+        .table(TABLE)
+        .update(updates)
+        .eq("order_reference", order_reference)
+        .execute()
+    )
+
+    rows = response.data or []
+    if not rows:
+        raise RuntimeError(f"update_subscription_order_fields: update returned no rows (order_reference={order_reference})")
+
+
+
+VALID_ACTIVATION_TRANSITIONS: dict[str, set[str | None]] = {
+    None: {"not_started"},
+    "not_started": {"claimed", "conflict", "failed"},
+    "claimed": {"activated", "conflict", "failed"},
+    "activated": {"credit_pending", "failed"},
+    "credit_pending": {"completed", "failed"},
+    "completed": set(),  # terminal - no further transitions
+    "conflict": set(),    # terminal - needs manual review
+    "failed": set(),      # terminal - needs manual review
+}
+
+
+def validate_activation_transition(
+    current_status: str | None,
+    new_status: str | None,
+    order_reference: str = "unknown",
+) -> None:
+    """Validate an activation status transition.
+
+    Args:
+        current_status: The current activation_status value (or None).
+        new_status: The proposed new activation_status value.
+        order_reference: For error messages.
+
+    Raises:
+        ValueError: If the transition is not allowed.
+    """
+    if new_status is None:
+        return  # clearing status is always allowed
+
+    current_key = current_status if current_status else None
+    allowed = VALID_ACTIVATION_TRANSITIONS.get(current_key, set())
+
+    if new_status not in allowed:
+        raise ValueError(
+            f"Invalid activation status transition for order "
+            f"{order_reference!r}: {current_status!r} -> {new_status!r}. "
+            f"Allowed transitions from {current_status!r}: {sorted(allowed)}"
+        )
+
+def increment_reconciliation_attempt(
+    order_reference: str,
+    last_error: str | None = None,
+) -> dict:
+    """Atomically increment reconciliation_attempt_count for an order.
+
+    Uses the database RPC function to avoid read-then-write race conditions.
+    The increment and last_reconciliation_at update happen in one atomic step.
+
+    Args:
+        order_reference: The unique order reference to update.
+        last_error: Optional error text from the most recent attempt.
+
+    Returns:
+        The updated order dictionary.
+
+    Raises:
+        RuntimeError: If the RPC call fails.
+    """
+    if not order_reference:
+        raise ValueError("order_reference is required")
+
+    try:
+        response = supabase.rpc(
+            "increment_subscription_reconciliation_attempt",
+            {
+                "p_order_reference": order_reference,
+                "p_last_error": last_error,
+            },
+        ).execute()
+    except Exception as exc:
+        raise RuntimeError(
+            f"increment_reconciliation_attempt RPC failed for "
+            f"order {order_reference!r}: {exc}"
+        ) from exc
+
+    rows = response.data or []
+    if not rows:
+        raise RuntimeError(
+            f"increment_reconciliation_attempt: RPC returned no rows "
+            f"(order_reference={order_reference})"
+        )
+    return rows[0]

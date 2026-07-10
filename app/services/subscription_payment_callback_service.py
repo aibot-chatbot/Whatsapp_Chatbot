@@ -22,6 +22,8 @@ from app.database.company_subscription_order_repository import (
     get_subscription_order_by_gateway_id as _get_order_by_gateway,
     update_subscription_order_status as _update_order_status,
     claim_subscription_activation_sequence as _claim_activation_sequence,
+    update_subscription_order_activation_state as _update_activation_state,
+    get_subscription_order_by_reference as _get_order_by_reference,
 )
 from app.database.subscription_plan_repository import (
     get_plan_by_id,
@@ -35,10 +37,16 @@ from app.services.billing_service import (
     convert_trial_ai_configuration,
 )
 from app.services.ai_credit_service import (
-    add_company_ai_credit_topup as _add_topup,
+    allocate_subscription_included_credit as _add_included_credit,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
 
 
 def process_subscription_payment_callback(normalized_callback: dict) -> dict:
@@ -159,6 +167,13 @@ def _mark_order_paid(order_reference, payment_reference, paid_at=None):
     if paid_at:
         updates["paid_at"] = paid_at
     _update_order_status(order_reference=order_reference, status="paid", **updates)
+    try:
+        _update_activation_state(
+            order_reference=order_reference,
+            activation_status="not_started",
+        )
+    except Exception:
+        logger.warning("Could not set activation_status=not_started on order %s", order_reference)
     logger.info("Subscription order %s marked as paid", order_reference)
 
 
@@ -372,10 +387,14 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
     if plan_included_credit > 0:
         credit_idempotency_key = f"sub_credit_{activation_sequence_key}"
         try:
-            _add_topup(
-                company_id=company_id, amount_micro_myr=plan_included_credit,
+            _add_included_credit(
+                company_id=company_id,
+                amount_micro_myr=plan_included_credit,
                 idempotency_key=credit_idempotency_key,
                 payment_reference=callback_txn_id,
+                period_start=now_iso,
+                period_end=period_end_iso,
+                plan_code=plan_code,
                 description=(
                     f"Subscription {plan_code} included AI credit "
                     f"(sequence {activation_sequence_key})"
@@ -387,6 +406,16 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 "(order %s, plan %s): %s. Manual reconciliation required.",
                 company_id, order_reference, plan_code, exc,
             )
+            try:
+                _update_activation_state(
+                    order_reference=order_reference,
+                    activation_status="credit_pending",
+                    activation_error_code="credit_grant_failed",
+                    activation_error_message="AI credit grant failed. Retry will complete.",
+                    reconciliation_required=True,
+                )
+            except Exception:
+                pass
     else:
         logger.info("Plan %s has no included AI credit for company %d", plan_code, company_id)
 

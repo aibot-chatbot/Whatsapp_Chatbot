@@ -1,4 +1,4 @@
-"""test_subscription_payment_callback.py
+﻿"""test_subscription_payment_callback.py
 
 Unit tests for subscription_payment_callback_service.py.
 All repository and service calls are mocked; no Supabase, payment gateway,
@@ -85,19 +85,19 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".update_company_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_successful_payment_activation(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_update_sub,
+        mock_add_included_credit, mock_update_sub,
         mock_get_plan, mock_get_order, mock_claim_period,
     ):
         mock_get_order.return_value = self.mock_order
         mock_get_plan.return_value = self.mock_plan
         mock_update_sub.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "paid"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         result = process_subscription_payment_callback(self.valid_callback)
 
@@ -113,10 +113,10 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
         self.assertEqual(kwargs["updates"]["status"], "active")
         self.assertIsNone(kwargs["updates"]["trial_ends_at"])
 
-        mock_add_topup.assert_called_once()
-        _, topup_kwargs = mock_add_topup.call_args
-        self.assertEqual(topup_kwargs["company_id"], 42)
-        self.assertEqual(topup_kwargs["amount_micro_myr"], 5000000)
+        mock_add_included_credit.assert_called_once()
+        _, credit_kwargs = mock_add_included_credit.call_args
+        self.assertEqual(credit_kwargs["company_id"], 42)
+        self.assertEqual(credit_kwargs["amount_micro_myr"], 5000000)
 
         mock_convert.assert_called_once_with(42, "essential")
 
@@ -194,19 +194,19 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".update_company_subscription")
-    @patch(_SVC + "._add_topup")
+    @patch(_SVC + "._add_included_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_trial_conversion_called(
         self, mock_convert, mock_update_status,
-        mock_add_topup, mock_update_sub,
+        mock_add_included_credit, mock_update_sub,
         mock_get_plan, mock_get_order, mock_claim_period,
     ):
         mock_get_order.return_value = self.mock_order
         mock_get_plan.return_value = self.mock_plan
         mock_update_sub.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "paid"}
-        mock_add_topup.return_value = {"status": "applied", "transaction_id": 99}
+        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
 
         result = process_subscription_payment_callback(self.valid_callback)
 
