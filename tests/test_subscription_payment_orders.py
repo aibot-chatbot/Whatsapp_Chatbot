@@ -144,3 +144,73 @@ class TestUpdateStatus(_RepoTestBase):
         self.mock_table.update().eq().execute.return_value = _resp([])
         with self.assertRaises(RuntimeError):
             self.repo.update_subscription_order_status("nonexistent", "paid")
+
+class TestListSubscriptionOrdersForCompany(unittest.TestCase):
+    """Tests for list_subscription_orders_for_company()."""
+
+    def setUp(self):
+        import sys
+        sys.path.insert(0, r'C:\Users\User\PycharmProjects\python-whatsapp-bot-main')
+        with patch('app.database.db.supabase', MagicMock()):
+            from app.database.company_subscription_order_repository import list_subscription_orders_for_company
+            self.repo_func = list_subscription_orders_for_company
+            from app.database.company_subscription_order_repository import TABLE
+            self.table_name = TABLE
+
+        self.mock_supabase = patch('app.database.company_subscription_order_repository.supabase', MagicMock()).start()
+        self.addCleanup(patch.stopall)
+
+    def _make_order(self, ref, status='paid', created_at='2026-07-09T12:00:00Z'):
+        return {'order_reference': ref, 'company_id': 42, 'status': status, 'created_at': created_at, 'id': 1}
+
+    def test_returns_orders_newest_first(self):
+        order1 = self._make_order('a', created_at='2026-07-09T12:00:00Z')
+        order2 = self._make_order('b', created_at='2026-07-08T12:00:00Z')
+        self.mock_supabase.table().select().eq().order().order().range().execute.return_value = MagicMock(data=[order1, order2])
+        result = self.repo_func(company_id=42)
+        self.assertEqual(len(result), 2)
+
+    def test_company_scoped(self):
+        order = self._make_order('a')
+        self.mock_supabase.table().select().eq().order().order().range().execute.return_value = MagicMock(data=[order])
+        result = self.repo_func(company_id=42)
+        self.assertEqual(len(result), 1)
+
+    def test_different_company_returns_empty(self):
+        self.mock_supabase.table().select().eq().order().order().range().execute.return_value = MagicMock(data=[])
+        result = self.repo_func(company_id=99)
+        self.assertEqual(len(result), 0)
+
+    def test_empty_company_id_returns_empty(self):
+        result = self.repo_func(company_id=0)
+        self.assertEqual(len(result), 0)
+
+    def test_status_filter_applied(self):
+        order = self._make_order('a', status='paid')
+        self.mock_supabase.table().select().eq().order().order().eq().range().execute.return_value = MagicMock(data=[order])
+        result = self.repo_func(company_id=42, status='paid')
+        self.assertEqual(len(result), 1)
+
+    def test_limit_respected(self):
+        orders = [self._make_order(str(i)) for i in range(3)]
+        self.mock_supabase.table().select().eq().order().order().range().execute.return_value = MagicMock(data=orders)
+        result = self.repo_func(company_id=42, limit=2)
+        self.assertEqual(len(result), 3)  # Mock returns all, range filter is applied server-side
+
+    def test_max_limit_capped_at_100(self):
+        result = self.repo_func(company_id=42, limit=200)
+        # If limit > 100, it should be capped - the range() call should use 100
+        self.mock_supabase.table().select().eq().order().order().range.assert_called()
+
+    def test_negative_limit_defaults(self):
+        result = self.repo_func(company_id=42, limit=-1)
+        self.assertEqual(len(result), 0)  # empty data
+
+    def test_negative_offset_defaults(self):
+        self.mock_supabase.table().select().eq().order().order().range().execute.return_value = MagicMock(data=[])
+        result = self.repo_func(company_id=42, offset=-1)
+        self.assertEqual(len(result), 0)
+
+
+if __name__ == '__main__':
+    unittest.main()

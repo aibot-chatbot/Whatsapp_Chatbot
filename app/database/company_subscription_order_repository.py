@@ -86,6 +86,49 @@ def create_subscription_order(
     return rows[0]
 
 
+def list_subscription_orders_for_company(
+    company_id: int,
+    limit: int = 20,
+    offset: int = 0,
+    status: str | None = None,
+) -> list[dict]:
+    """List subscription orders for a company, newest first.
+
+    Args:
+        company_id: The owning company.
+        limit: Maximum number of rows to return (default 20, max 100).
+        offset: Pagination offset.
+        status: Optional safe status filter.
+
+    Returns:
+        A list of order dictionaries ordered by created_at DESC, then id DESC.
+    """
+    if not company_id:
+        return []
+
+    if limit < 1:
+        limit = 20
+    if limit > 100:
+        limit = 100
+    if offset < 0:
+        offset = 0
+
+    query = (
+        supabase
+        .table(TABLE)
+        .select("*")
+        .eq("company_id", company_id)
+        .order("created_at", desc=True)
+        .order("id", desc=True)
+    )
+
+    if status:
+        query = query.eq("status", status)
+
+    response = query.range(offset, offset + limit - 1).execute()
+    return response.data or []
+
+
 def get_subscription_order_by_reference(order_reference: str) -> dict | None:
     """Fetch a single order by its unique order reference."""
     if not order_reference:

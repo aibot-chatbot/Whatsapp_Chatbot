@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -752,8 +752,59 @@
                 </div>
             </div>
 
+</div>
+
+            <!-- Subscription Payment History -->
+            <div class="profile-section glass-card full-width" id="subscription-payment-history-section" style="display:none;">
+                <div class="profile-section-header">
+                    <i data-lucide="receipt" style="width:17px;height:17px;"></i>
+                    Subscription Payment History
+                </div>
+                <div id="sph-loading" style="padding:16px;text-align:center;color:var(--text-dim);">
+                    <div class="spinner" style="width:20px;height:20px;border:2px solid var(--glass-border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 8px;"></div>
+                    Loading payment history...
+                </div>
+                <div id="sph-error" style="display:none;padding:16px;color:var(--text-dim);font-size:0.9rem;text-align:center;">
+                    Unable to load payment history. Please try again later.
+                </div>
+                <div id="sph-empty" style="display:none;padding:16px;color:var(--text-dim);font-size:0.9rem;text-align:center;">
+                    No subscription payment records found.
+                </div>
+                <div id="sph-content" style="display:none;">
+                    <div style="overflow-x:auto;">
+                        <table class="sph-table" style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid var(--glass-border);">
+                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Date</th>
+                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Plan</th>
+                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Amount</th>
+                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Payment</th>
+                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Activation</th>
+                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Reference</th>
+                                    <th style="padding:8px 10px;text-align:center;color:var(--text-dim);font-weight:600;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sph-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="sph-pagination" style="display:flex;justify-content:center;gap:12px;padding:12px 0 4px;">
+                        <button id="sph-load-more" style="display:none;padding:8px 20px;border-radius:8px;background:rgba(255,255,255,0.08);color:var(--text-main);border:1px solid var(--glass-border);cursor:pointer;font-size:0.85rem;">Load More</button>
+                        <span id="sph-no-more" style="display:none;color:var(--text-dim);font-size:0.85rem;padding:8px;">No more records</span>
+                    </div>
+                </div>
+            </div>
+
 
             <!-- Full Width: AI Usage & Credit -->
+            <!-- Subscription Order Detail Modal -->
+            <div id="sph-order-detail-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+                <div style="background:var(--card-bg);border:1px solid var(--glass-border);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:85vh;overflow-y:auto;position:relative;">
+                    <button onclick="closeOrderDetailModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.2rem;padding:4px;">&times;</button>
+                    <h3 style="margin:0 0 16px;color:var(--text-main);font-size:1.05rem;">Order Details</h3>
+                    <div id="sph-modal-body"></div>
+                </div>
+            </div>
+
             <div class="profile-section glass-card full-width" id="ai-credit-section">
                 <div class="profile-section-header">
                     <i data-lucide="sparkles" style="width:17px;height:17px;"></i>
@@ -1016,7 +1067,7 @@
             var roleInput = document.getElementById("team-role");
             var memberCountEl = document.getElementById("team-member-count");
 
-            // Start with neutral values Ã¢â‚¬â€ never show fake placeholder defaults
+            // Start with neutral values â€” never show fake placeholder defaults
             if (roleInput) roleInput.value = "N/A";
             if (memberCountEl) memberCountEl.textContent = "Unable to load";
 
@@ -1037,7 +1088,7 @@
                     }
                 }
             } catch (err) {
-                // Silently fall back Ã¢â‚¬â€ neutral values already set
+                // Silently fall back â€” neutral values already set
             }
         }
 
@@ -1611,7 +1662,7 @@ async function loadBillingInfo() {
                     var now = new Date();
                     var daysLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
                     var dateStr = trialEnd.toLocaleDateString();
-                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) Ã¢â‚¬â€ uses <strong>DeepSeek AI</strong> only";
+                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) â€” uses <strong>DeepSeek AI</strong> only";
                 }
             } else {
                 if (trialRow) trialRow.style.display = "none";
@@ -1680,6 +1731,281 @@ async function loadBillingInfo() {
             }
         }
 
+
+        var _sphLimit = 20;
+        var _sphOffset = 0;
+        var _sphLoading = false;
+        var _sphHasMore = true;
+
+        async function loadSubscriptionPaymentHistory() {
+            var section = document.getElementById("subscription-payment-history-section");
+            var loading = document.getElementById("sph-loading");
+            var content = document.getElementById("sph-content");
+            var errorDiv = document.getElementById("sph-error");
+            var emptyDiv = document.getElementById("sph-empty");
+            var tbody = document.getElementById("sph-tbody");
+            var loadMoreBtn = document.getElementById("sph-load-more");
+            var noMoreSpan = document.getElementById("sph-no-more");
+            if (!section) return;
+
+            if (_sphLoading) return;
+            _sphLoading = true;
+
+            if (_sphOffset === 0) {
+                // First load - show loading spinner, hide others
+                if (loading) loading.style.display = "";
+                if (content) content.style.display = "none";
+                if (errorDiv) errorDiv.style.display = "none";
+                if (emptyDiv) emptyDiv.style.display = "none";
+                if (loadMoreBtn) loadMoreBtn.style.display = "none";
+                if (noMoreSpan) noMoreSpan.style.display = "none";
+            }
+
+            try {
+                var url = "/api/billing/subscription/orders?limit=" + _sphLimit + "&offset=" + _sphOffset;
+                var res = await authenticatedFetch(url);
+                if (!res.ok) {
+                    if (loading) loading.style.display = "none";
+                    if (_sphOffset === 0) {
+                        if (errorDiv) { errorDiv.style.display = "block"; errorDiv.textContent = "Unable to load payment history."; }
+                    }
+                    _sphLoading = false;
+                    if (loadMoreBtn) loadMoreBtn.style.display = "none";
+                    return;
+                }
+                var body = await res.json();
+                if (body.status !== "success") {
+                    if (loading) loading.style.display = "none";
+                    if (_sphOffset === 0) {
+                        if (errorDiv) { errorDiv.style.display = "block"; errorDiv.textContent = body.message || "Unable to load payment history."; }
+                    }
+                    _sphLoading = false;
+                    if (loadMoreBtn) loadMoreBtn.style.display = "none";
+                    return;
+                }
+
+                var orders = body.data.orders || [];
+                var pagination = body.data.pagination || {};
+                _sphHasMore = pagination.has_more === true;
+
+                if (_sphOffset === 0) {
+                    // First load - populate or show empty
+                    if (loading) loading.style.display = "none";
+                    if (orders.length === 0) {
+                        if (emptyDiv) emptyDiv.style.display = "block";
+                        section.style.display = "block";
+                        _sphLoading = false;
+                        return;
+                    }
+                    if (content) content.style.display = "block";
+                    section.style.display = "block";
+                    if (tbody) tbody.innerHTML = "";
+                }
+
+                for (var i = 0; i < orders.length; i++) {
+                    var o = orders[i];
+                    var tr = document.createElement("tr");
+                    tr.style.borderBottom = "1px solid var(--glass-border)";
+
+                    // Date
+                    var dateTd = document.createElement("td");
+                    dateTd.style.padding = "8px 10px";
+                    dateTd.style.whiteSpace = "nowrap";
+                    dateTd.textContent = formatBillingDate(o.created_at);
+                    tr.appendChild(dateTd);
+
+                    // Plan
+                    var planTd = document.createElement("td");
+                    planTd.style.padding = "8px 10px";
+                    planTd.textContent = (o.plan && o.plan.name) || "�";
+                    tr.appendChild(planTd);
+
+                    // Amount
+                    var amtTd = document.createElement("td");
+                    amtTd.style.padding = "8px 10px";
+                    amtTd.style.textAlign = "right";
+                    amtTd.style.whiteSpace = "nowrap";
+                    var amtMyr = o.amount_myr || ((o.amount_sen || 0) / 100);
+                    amtTd.textContent = "RM " + Number(amtMyr).toFixed(2);
+                    tr.appendChild(amtTd);
+
+                    // Payment status
+                    var payTd = document.createElement("td");
+                    payTd.style.padding = "8px 10px";
+                    payTd.innerHTML = buildPaymentStatusBadge(o.payment_status);
+                    tr.appendChild(payTd);
+
+                    // Activation status
+                    var actTd = document.createElement("td");
+                    actTd.style.padding = "8px 10px";
+                    actTd.innerHTML = buildActivationStatusBadge(o.activation_status, o.reconciliation_required);
+                    tr.appendChild(actTd);
+
+                    // Reference
+                    var refTd = document.createElement("td");
+                    refTd.style.padding = "8px 10px";
+                    refTd.style.fontFamily = "monospace";
+                    refTd.style.fontSize = "0.78rem";
+                    refTd.style.color = "var(--text-dim)";
+                    var refStr = o.order_reference || "";
+                    refTd.textContent = refStr.length > 8 ? refStr.substring(0, 8) + "..." : refStr;
+                    refTd.title = refStr;
+                    tr.appendChild(refTd);
+
+                    // Actions
+                    var actTd2 = document.createElement("td");
+                    actTd2.style.padding = "8px 10px";
+                    actTd2.style.textAlign = "center";
+                    actTd2.style.whiteSpace = "nowrap";
+                    var actionsHtml = '<button class="sph-action-btn" onclick="showOrderDetailModal(\'' + refStr + '\')" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.08);color:var(--text-main);border:1px solid var(--glass-border);cursor:pointer;font-size:0.78rem;">View</button>';
+                    if (o.retry_allowed) {
+                        actionsHtml += ' <button class="sph-action-btn" onclick="handleRetryFromHistory(\'' + refStr + '\')" style="padding:4px 10px;border-radius:6px;background:rgba(234,179,8,0.15);color:#fbbf24;border:1px solid rgba(234,179,8,0.3);cursor:pointer;font-size:0.78rem;">Retry</button>';
+                    }
+                    actionsHtml += ' <button class="sph-action-btn" onclick="window.open(\'/api/billing/subscription/orders/' + encodeURIComponent(refStr) + '/receipt\', \'_blank\')" style="padding:4px 10px;border-radius:6px;background:rgba(255,255,255,0.05);color:var(--text-dim);border:1px solid var(--glass-border);cursor:pointer;font-size:0.78rem;">Receipt</button>';
+                    actTd2.innerHTML = actionsHtml;
+                    tr.appendChild(actTd2);
+
+                    tbody.appendChild(tr);
+                }
+
+                _sphOffset += orders.length;
+
+                if (loadMoreBtn) {
+                    loadMoreBtn.style.display = _sphHasMore ? "inline-block" : "none";
+                }
+                if (noMoreSpan) {
+                    noMoreSpan.style.display = (!_sphHasMore && _sphOffset > 0) ? "inline" : "none";
+                }
+            } catch (e) {
+                if (loading) loading.style.display = "none";
+                if (_sphOffset === 0) {
+                    if (errorDiv) { errorDiv.style.display = "block"; errorDiv.textContent = "Network error loading payment history."; }
+                }
+            }
+            _sphLoading = false;
+        }
+
+        function buildPaymentStatusBadge(status) {
+            status = (status || "").toLowerCase();
+            var colorMap = {
+                "pending": "#f59e0b",
+                "paid": "#10b981",
+                "credited": "#3b82f6",
+                "failed": "#ef4444",
+                "expired": "#6b7280"
+            };
+            var labelMap = {
+                "pending": "Pending",
+                "paid": "Paid",
+                "credited": "Completed",
+                "failed": "Failed",
+                "expired": "Expired"
+            };
+            var color = colorMap[status] || "var(--text-dim)";
+            var label = labelMap[status] || status;
+            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:' + color + '22;color:' + color + ';">' + label + '</span>';
+        }
+
+        function buildActivationStatusBadge(activationStatus, reconciliationRequired) {
+            var s = (activationStatus || "").toLowerCase();
+            if (s === "completed") {
+                return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:#10b98122;color:#10b981;">Completed</span>';
+            }
+            if (s === "credit_pending" || s === "activated" || s === "claimed" || s === "not_started") {
+                return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:#3b82f622;color:#3b82f6;">Activating</span>';
+            }
+            if (s === "conflict" || s === "failed") {
+                return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:#ef444422;color:#ef4444;">Needs Attention</span>';
+            }
+            if (reconciliationRequired) {
+                return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:#f59e0b22;color:#f59e0b;">Needs Attention</span>';
+            }
+            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">�</span>';
+        }
+
+
+        function closeOrderDetailModal() {
+            var modal = document.getElementById("sph-order-detail-modal");
+            if (modal) modal.style.display = "none";
+        }
+
+        async function showOrderDetailModal(orderReference) {
+            var modal = document.getElementById("sph-order-detail-modal");
+            var body = document.getElementById("sph-modal-body");
+            if (!modal || !body) return;
+            body.innerHTML = '<div style="text-align:center;color:var(--text-dim);padding:20px;">Loading...</div>';
+            modal.style.display = "flex";
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/orders/" + encodeURIComponent(orderReference));
+                if (!res.ok) {
+                    body.innerHTML = '<div style="color:var(--danger);padding:16px;text-align:center;">Failed to load order details.</div>';
+                    return;
+                }
+                var json = await res.json();
+                if (json.status !== "success" || !json.data) {
+                    body.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center;">Order not found.</div>';
+                    return;
+                }
+                var d = json.data;
+                var plan = d.plan || {};
+                var amtMyr = d.amount_myr || ((d.amount_sen || 0) / 100);
+                var html = '';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "�") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Amount</label><span style="color:var(--text-main);">RM ' + Number(amtMyr).toFixed(2) + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "�") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "�") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "�") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Status</label><span>' + buildPaymentStatusBadge(d.status) + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Activation Status</label><span>' + buildActivationStatusBadge(d.activation_status, d.reconciliation_required) + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "�") + '</span></div>';
+                if (d.paid_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Paid At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.paid_at).toLocaleString() + '</span></div>'; }
+                if (d.credited_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Credited At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.credited_at).toLocaleString() + '</span></div>'; }
+                if (d.message) { html += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--text-dim);font-size:0.85rem;">' + d.message + '</div>'; }
+                if (d.retry_allowed) {
+                    html += '<div style="margin-top:12px;text-align:center;"><button onclick="handleRetryFromHistory(\'' + orderReference + '\')" style="padding:10px 24px;border-radius:10px;background:rgba(234,179,8,0.15);color:#fbbf24;border:1px solid rgba(234,179,8,0.3);cursor:pointer;font-size:0.9rem;font-weight:600;">Retry Activation</button></div>';
+                }
+                if (d.reconciliation_required && !d.retry_allowed) {
+                    html += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(239,68,68,0.1);color:var(--danger);font-size:0.85rem;">Please contact support with your order reference.</div>';
+                }
+                body.innerHTML = html;
+            } catch (e) {
+                body.innerHTML = '<div style="color:var(--danger);padding:16px;text-align:center;">Network error loading details.</div>';
+            }
+        }
+
+        async function handleRetryFromHistory(orderReference) {
+            if (!orderReference) return;
+            var btn = event && event.target;
+            if (btn) { btn.disabled = true; btn.textContent = "Retrying..."; }
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/orders/" + encodeURIComponent(orderReference) + "/retry", { method: "POST" });
+                if (!res.ok) {
+                    var body2 = await res.json().catch(function() { return {}; });
+                    if (btn) { btn.disabled = false; btn.textContent = "Retry Activation"; }
+                    if (res.status === 409) {
+                        alert(body2.message || "This payment needs support review.");
+                    } else {
+                        alert("Retry failed. Please try again or contact support.");
+                    }
+                    return;
+                }
+                var body2 = await res.json();
+                if (body2.status === "success") {
+                    closeOrderDetailModal();
+                    _sphOffset = 0;
+                    _sphHasMore = true;
+                    loadSubscriptionPaymentHistory();
+                    loadBillingInfo();
+                    fetchAiCredit();
+                } else {
+                    if (btn) { btn.disabled = false; btn.textContent = "Retry Activation"; }
+                    alert(body2.message || "Retry had an issue.");
+                }
+            } catch (e) {
+                if (btn) { btn.disabled = false; btn.textContent = "Retry Activation"; }
+                alert("Network error. Please try again.");
+            }
+        }
 
         async function fetchAiCredit() {
             var section = document.getElementById("ai-credit-section");
@@ -2085,7 +2411,7 @@ async function loadBillingInfo() {
             showPaymentStatus("checking", "Checking your payment status...", "");
             function poll() {
                 if (_paymentPollCount >= _paymentPollMax) {
-                    showPaymentStatus("processing", "Still processing.", "Please wait Ã¢â‚¬â€ your balance will update once payment is verified. You can also check again below.");
+                    showPaymentStatus("processing", "Still processing.", "Please wait â€” your balance will update once payment is verified. You can also check again below.");
                     var btn2 = document.getElementById("btn-check-again");
                     if (btn2) btn2.style.display = "inline-flex";
                     return;
@@ -2258,7 +2584,7 @@ async function loadBillingInfo() {
             showPaymentStatus("checking", "Checking your subscription payment status...", "");
             function poll() {
                 if (_paymentPollCount >= _paymentPollMax) {
-                    showPaymentStatus("processing", "Still processing.", "Please wait Ã¢â‚¬â€ your subscription will update once payment is verified. You can also check again below." );
+                    showPaymentStatus("processing", "Still processing.", "Please wait â€” your subscription will update once payment is verified. You can also check again below." );
                     var btn2 = document.getElementById("btn-check-again");
                     if (btn2) btn2.style.display = "inline-flex";
                     return;
@@ -2492,6 +2818,7 @@ async function loadBillingInfo() {
         loadTeamInfo();
         loadBillingInfo();
         fetchAiCredit();
+        loadSubscriptionPaymentHistory();
         fetchAiCreditTransactions();
         handleToyyibpayReturn();
         handleSubscriptionPaymentReturn();
@@ -2499,4 +2826,3 @@ async function loadBillingInfo() {
 </body>
 
 </html>
-

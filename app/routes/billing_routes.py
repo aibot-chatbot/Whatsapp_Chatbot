@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import re
 
 from flask import Blueprint, jsonify, g, request
@@ -593,6 +593,121 @@ def subscription_checkout():
             "status": "error",
             "message": "Unable to create checkout. Please try again later."
         }), 500
+@billing_bp.route("/subscription/orders", methods=["GET"])
+@token_required
+def list_subscription_orders():
+    """Return paginated subscription order history for the authenticated company.
+
+    This is a read-only endpoint. It never modifies subscription data.
+    The company_id is taken from the authenticated JWT token only.
+    """
+    try:
+        company_id = g.company_id
+
+        if not company_id:
+            return jsonify({
+                "status": "error",
+                "message": "Company not found in authentication token."
+            }), 401
+
+        limit_arg = request.args.get("limit", 20)
+        if isinstance(limit_arg, str):
+            if not limit_arg.isdigit():
+                return jsonify({"status": "error", "message": "limit must be a positive integer."}), 400
+            limit_arg = int(limit_arg)
+            if limit_arg < 1:
+                return jsonify({"status": "error", "message": "limit must be a positive integer."}), 400
+            if limit_arg > 100:
+                limit_arg = 100
+
+        offset_arg = request.args.get("offset", 0)
+        if isinstance(offset_arg, str):
+            if not offset_arg.isdigit():
+                return jsonify({"status": "error", "message": "offset must be a non-negative integer."}), 400
+            offset_arg = int(offset_arg)
+            if offset_arg < 0:
+                return jsonify({"status": "error", "message": "offset must be a non-negative integer."}), 400
+
+        status_filter = request.args.get("status")
+        valid_statuses = {"pending", "paid", "failed", "expired", "credited"}
+        if status_filter and status_filter not in valid_statuses:
+            return jsonify({
+                "status": "error",
+                "message": f"Invalid status filter. Valid values: {', '.join(sorted(valid_statuses))}."
+            }), 400
+
+        from app.database.company_subscription_order_repository import (
+            list_subscription_orders_for_company,
+        )
+        from app.database.subscription_plan_repository import get_plan_by_id
+
+        orders = list_subscription_orders_for_company(
+            company_id=company_id,
+            limit=limit_arg,
+            offset=offset_arg,
+            status=status_filter,
+        )
+
+        safe_orders = []
+        for order in orders:
+            plan = get_plan_by_id(order.get("new_plan_id"))
+            activation_status = order.get("activation_status")
+            activation_error_code = order.get("activation_error_code")
+            safe_message = _safe_activation_message(activation_status, activation_error_code)
+            retry_allowed = (
+                order.get("status") in ("paid",)
+                or activation_status in ("not_started", "claimed", "activated", "credit_pending", "failed")
+            )
+            safe_orders.append({
+                "order_reference": order.get("order_reference"),
+                "plan": {
+                    "id": plan.get("id") if plan else None,
+                    "code": plan.get("code") if plan else None,
+                    "name": plan.get("name") if plan else None,
+                } if plan else None,
+                "amount_sen": order.get("amount_sen"),
+                "currency": "MYR",
+                "payment_status": order.get("status"),
+                "activation_status": activation_status,
+                "customer_status_message": safe_message,
+                "created_at": order.get("created_at"),
+                "paid_at": order.get("paid_at"),
+                "credited_at": order.get("credited_at"),
+                "expires_at": order.get("expires_at"),
+                "payment_reference": order.get("payment_reference"),
+                "gateway_order_id": order.get("gateway_order_id"),
+                "retry_allowed": retry_allowed,
+                "reconciliation_required": order.get("reconciliation_required", False),
+            })
+
+        has_more = len(orders) >= limit_arg
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "orders": safe_orders,
+                "pagination": {
+                    "limit": limit_arg,
+                    "offset": offset_arg,
+                    "has_more": has_more,
+                },
+            },
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 400
+
+    except Exception:
+        logging.exception("Failed to list subscription orders")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve order history."
+        }), 500
+
+
 
 @billing_bp.route("/subscription/orders/<reference>", methods=["GET"])
 @token_required
@@ -644,19 +759,31 @@ def fetch_subscription_order_status(reference):
             order.get("status") in ("paid",)
             or activation_status in ("not_started", "claimed", "activated", "credit_pending", "failed")
         )
+        from app.database.subscription_plan_repository import get_plan_by_id as _get_plan_by_id_ref
+        plan_ref = _get_plan_by_id_ref(order.get("new_plan_id"))
         data = {
             "order_reference": order.get("order_reference"),
             "status": order.get("status"),
             "amount_sen": order.get("amount_sen"),
+            "amount_myr": (order.get("amount_sen") or 0) / 100,
+            "plan": {
+                "id": plan_ref.get("id") if plan_ref else None,
+                "code": plan_ref.get("code") if plan_ref else None,
+                "name": plan_ref.get("name") if plan_ref else None,
+            } if plan_ref else None,
             "plan_id": order.get("new_plan_id"),
             "payment_gateway": order.get("payment_gateway"),
+            "payment_reference": order.get("payment_reference"),
+            "gateway_order_id": order.get("gateway_order_id"),
             "created_at": order.get("created_at"),
             "paid_at": order.get("paid_at"),
             "credited_at": order.get("credited_at"),
+            "expires_at": order.get("expires_at"),
             "activation_status": activation_status,
             "activation_claimed_at": order.get("activation_claimed_at"),
             "activation_completed_at": order.get("activation_completed_at"),
             "credit_granted_at": order.get("credit_granted_at"),
+            "currency": "MYR",
             "reconciliation_required": reconciliation_required,
             "activation_error_code": activation_error_code,
             "retry_allowed": retry_allowed,
@@ -699,6 +826,77 @@ def _safe_activation_message(activation_status, activation_error_code):
         return "This payment needs support review. Please contact support with your order reference."
     return "Payment confirmed."
 
+
+
+@billing_bp.route("/subscription/orders/<order_reference>/receipt", methods=["GET"])
+@token_required
+def subscription_order_receipt(order_reference):
+    """Return a customer-facing payment receipt as JSON.
+
+    This is not a tax invoice. It shows the verified payment details
+    from the payment gateway callback and the subscription order record.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company not found."}), 401
+
+        try:
+            uuid.UUID(order_reference)
+        except (ValueError, AttributeError):
+            return jsonify({"status": "error", "message": "Invalid order reference format."}), 400
+
+        from app.database.company_subscription_order_repository import (
+            get_subscription_order_by_reference_and_company,
+        )
+        from app.database.subscription_plan_repository import get_plan_by_id
+
+        order = get_subscription_order_by_reference_and_company(
+            order_reference=order_reference,
+            company_id=company_id,
+        )
+
+        if order is None:
+            return jsonify({"status": "error", "message": "Order not found."}), 404
+
+        plan = get_plan_by_id(order.get("new_plan_id"))
+
+        receipt = {
+            "company_id": company_id,
+            "order_reference": order.get("order_reference"),
+            "plan": {
+                "id": plan.get("id") if plan else None,
+                "code": plan.get("code") if plan else None,
+                "name": plan.get("name") if plan else None,
+            } if plan else None,
+            "amount_sen": order.get("amount_sen"),
+            "amount_myr": (order.get("amount_sen") or 0) / 100,
+            "currency": "MYR",
+            "payment_status": order.get("status"),
+            "activation_status": order.get("activation_status"),
+            "payment_reference": order.get("payment_reference"),
+            "gateway_reference": order.get("gateway_order_id"),
+            "payment_date": order.get("paid_at"),
+            "created_at": order.get("created_at"),
+            "credited_at": order.get("credited_at"),
+            "billing_period_start": order.get("source_period_start"),
+            "billing_period_end": order.get("source_period_end"),
+        }
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "receipt": receipt,
+                "notice": "This is a payment receipt, not a tax invoice.",
+            },
+        }), 200
+
+    except ValueError as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+    except Exception:
+        logging.exception("Failed to generate subscription order receipt")
+        return jsonify({"status": "error", "message": "Unable to generate receipt."}), 500
 
 @billing_bp.route("/subscription/orders/<order_reference>/retry", methods=["POST"])
 @token_required
