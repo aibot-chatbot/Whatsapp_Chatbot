@@ -1,4 +1,4 @@
-"""
+﻿"""
 company_subscription_order_repository.py
 
 Supabase data-access layer for the ``company_subscription_orders`` table.
@@ -470,6 +470,58 @@ def update_subscription_order_fields(
         raise RuntimeError(f"update_subscription_order_fields: update returned no rows (order_reference={order_reference})")
 
 
+
+
+def find_subscription_order_for_support(
+    order_reference: str | None = None,
+    payment_reference: str | None = None,
+    gateway_order_id: str | None = None,
+) -> dict | None:
+    if not order_reference and not payment_reference and not gateway_order_id:
+        raise ValueError('At least one search parameter is required')
+    if order_reference:
+        r = supabase.table('company_subscription_orders').select('*').eq('order_reference', order_reference).limit(1).execute()
+        d = r.data or []
+        if d:
+            return d[0]
+    if payment_reference:
+        r = supabase.table('company_subscription_orders').select('*').eq('payment_reference', payment_reference).limit(1).execute()
+        d = r.data or []
+        if d:
+            return d[0]
+    if gateway_order_id:
+        r = supabase.table('company_subscription_orders').select('*').eq('gateway_order_id', gateway_order_id).limit(1).execute()
+        d = r.data or []
+        if d:
+            return d[0]
+    return None
+
+
+def list_subscription_orders_for_support(
+    company_id: int | None = None,
+    activation_status: str | None = None,
+    payment_status: str | None = None,
+    reconciliation_required: bool | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> list[dict]:
+    if limit < 1:
+        limit = 50
+    if limit > 200:
+        limit = 200
+    if offset < 0:
+        offset = 0
+    q = supabase.table('company_subscription_orders').select('*').order('created_at', desc=True).order('id', desc=True)
+    if company_id is not None:
+        q = q.eq('company_id', company_id)
+    if activation_status:
+        q = q.eq('activation_status', activation_status)
+    if payment_status:
+        q = q.eq('status', payment_status)
+    if reconciliation_required is not None:
+        q = q.eq('reconciliation_required', reconciliation_required)
+    r = q.range(offset, offset + limit - 1).execute()
+    return r.data or []
 
 VALID_ACTIVATION_TRANSITIONS: dict[str, set[str | None]] = {
     None: {"not_started"},
