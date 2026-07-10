@@ -198,7 +198,7 @@ def _handle_credited_replay(order, callback_gateway_id, callback_txn_id):
         raise ValueError(
             f"Credited subscription order {order_reference!r} has payment_reference {stored_payment_reference!r} but callback transaction_id is {callback_txn_id!r}"
         )
-    logger.info("Subscription order %s is already credited; returning idempotent success", order_reference)
+    logger.info("Subscription order %s is already credited: idempotent success", order_reference)
     return {"status": "already_activated", "idempotent": True, "order_reference": order_reference, "order_status": "credited", "company_id": order.get("company_id")}
 
 

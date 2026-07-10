@@ -833,6 +833,7 @@
                         <div class="form-row" style="margin-bottom:0;">
                             <label>Total AI Credit</label>
                             <span id="ai-credit-total" style="font-size:1.1rem;font-weight:600;color:var(--text-main);">&mdash;</span>
+                            <div class="shared-credit-note" style="margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.04);font-size:0.78rem;color:var(--text-dim);line-height:1.4;">This AI credit balance, payment history, and subscription plan apply to all chatbots in this company. They are not per-bot resources.</div>
                         </div>
                         <div class="form-row" style="margin-bottom:0;">
                             <label>Period</label>
@@ -1817,7 +1818,7 @@ async function loadBillingInfo() {
                     // Plan
                     var planTd = document.createElement("td");
                     planTd.style.padding = "8px 10px";
-                    planTd.textContent = (o.plan && o.plan.name) || "—";
+                    planTd.textContent = (o.plan && o.plan.name) || "ï¿½";
                     tr.appendChild(planTd);
 
                     // Amount
@@ -1920,7 +1921,7 @@ async function loadBillingInfo() {
             if (reconciliationRequired) {
                 return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:#f59e0b22;color:#f59e0b;">Needs Attention</span>';
             }
-            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">—</span>';
+            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">ï¿½</span>';
         }
 
 
@@ -1950,14 +1951,14 @@ async function loadBillingInfo() {
                 var plan = d.plan || {};
                 var amtMyr = d.amount_myr || ((d.amount_sen || 0) / 100);
                 var html = '';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "—") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "ï¿½") + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Amount</label><span style="color:var(--text-main);">RM ' + Number(amtMyr).toFixed(2) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "—") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "—") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "—") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "ï¿½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "ï¿½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "ï¿½") + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Status</label><span>' + buildPaymentStatusBadge(d.status) + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Activation Status</label><span>' + buildActivationStatusBadge(d.activation_status, d.reconciliation_required) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "—") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "ï¿½") + '</span></div>';
                 if (d.paid_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Paid At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.paid_at).toLocaleString() + '</span></div>'; }
                 if (d.credited_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Credited At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.credited_at).toLocaleString() + '</span></div>'; }
                 if (d.message) { html += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--text-dim);font-size:0.85rem;">' + d.message + '</div>'; }
