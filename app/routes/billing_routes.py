@@ -1262,3 +1262,45 @@ def _subscription_downgrade_check(target_plan_code):
             "status": "error",
             "message": "Unable to check downgrade eligibility."
         }), 500
+
+
+@billing_bp.route("/health", methods=["GET"])
+def billing_health_check():
+    """Safe billing health check endpoint.
+
+    Verifies that required environment variables and dependencies
+    are available without exposing secret values.
+    """
+    try:
+        import os
+        checks = {
+            "secret_key": bool(os.environ.get("SECRET_KEY")),
+            "supabase_url": bool(os.environ.get("SUPABASE_URL")),
+            "supabase_key": bool(os.environ.get("SUPABASE_SERVICE_ROLE_KEY")),
+            "toyyibpay_secret_key": bool(os.environ.get("TOYYIBPAY_USER_SECRET_KEY")),
+            "toyyibpay_category_code": bool(os.environ.get("TOYYIBPAY_CATEGORY_CODE")),
+        }
+
+        from app.database.db import supabase
+        supabase_ok = False
+        try:
+            supabase.table("subscription_plans").select("id").limit(1).execute()
+            supabase_ok = True
+        except Exception:
+            pass
+        checks["supabase_connectivity"] = supabase_ok
+
+        from app.services.subscription_reconciliation_service import reconcile_subscription_order
+        checks["reconciliation_service_loaded"] = callable(reconcile_subscription_order)
+
+        all_ok = all(checks.values())
+        return jsonify({
+            "status": "ok" if all_ok else "degraded",
+            "checks": {k: v for k, v in checks.items() if k != "supabase_key"},
+        }), 200 if all_ok else 200
+
+    except Exception as exc:
+        return jsonify({
+            "status": "error",
+            "message": "Health check failed: " + str(type(exc).__name__),
+        }), 500
