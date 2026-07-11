@@ -120,7 +120,19 @@ def create_subscription_checkout(
                     "Lower plans must be scheduled through the downgrade process."
                 )
 
-    # --- Create order reference and idempotency key ---
+
+    # --- Duplicate pending order prevention ---
+    # Check for existing pending renewal/upgrade orders to the same plan
+    if norm_code in _paid_plan_codes:
+        from app.database.company_subscription_order_repository import list_subscription_orders_for_company
+        pending_orders = list_subscription_orders_for_company(company_id=company_id, status="pending")
+        for po in pending_orders:
+            if po.get("new_plan_id") == plan_id:
+                raise ValueError(
+                    "A pending order already exists for this plan. " +
+                    "Please complete or wait for the existing order to expire."
+                )
+# --- Create order reference and idempotency key ---
     order_reference = str(uuid.uuid4())
     idempotency_key = f"sub_checkout_{company_id}_{norm_code}_{order_reference}"
 
