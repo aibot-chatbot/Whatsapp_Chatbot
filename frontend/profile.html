@@ -1605,11 +1605,14 @@ async function loadBillingInfo() {
 
             var subPromise = authenticatedFetch("/api/billing/subscription").then(function(r) { return r.json(); });
             var usagePromise = authenticatedFetch("/api/billing/usage").then(function(r) { return r.json(); });
+            var renewalPromise = authenticatedFetch("/api/billing/subscription/renewal-status").then(function(r) { return r.json(); });
 
-            var results = await Promise.allSettled([subPromise, usagePromise]);
+            var results = await Promise.allSettled([subPromise, usagePromise, renewalPromise]);
 
             var subResult = results[0];
             var usageResult = results[1];
+            var renewalResult = results[2];
+            var renewalData = (renewalResult.status === "fulfilled" && renewalResult.value && renewalResult.value.status === "success") ? renewalResult.value.data : null;
 
             // Hide loading
             if (loading) loading.style.display = "none";
@@ -1673,6 +1676,20 @@ async function loadBillingInfo() {
                 periodEnd = usageData.period.end;
             }
             document.getElementById("billing-period-end").textContent = formatBillingDate(periodEnd);
+
+            // Show renewal status info
+            var renewInfo = document.getElementById("renewal-status-info");
+            if (renewalData && renewInfo) {
+                var renewMsg = renewalData.message || "";
+                if (renewMsg) {
+                    renewInfo.textContent = renewMsg;
+                    renewInfo.style.display = "block";
+                } else {
+                    renewInfo.style.display = "none";
+                }
+            } else if (renewInfo) {
+                renewInfo.style.display = "none";
+            }
 
             // Fill usage information
             if (usageData && usageData.usage) {

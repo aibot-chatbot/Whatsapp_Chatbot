@@ -19,7 +19,8 @@ Disallowed:
 """
 
 import logging
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timezone, timedelta
 
 from app.database.company_subscription_repository import (
     get_company_subscription as _get_current_sub,
@@ -460,13 +461,17 @@ def process_subscription_expiry(
     company_id: int,
     now: datetime | None = None,
 ) -> dict:
-    """Process a single subscription expiry.
+    """Process a single subscription expiry with grace period support.
 
     Determines the correct transition based on current status:
       - trialing + trial_ends_at <= now  -> trialing -> expired
-      - active + current_period_end <= now -> active -> expired
-      - past_due + current_period_end <= now -> past_due -> expired
+      - active + current_period_end <= now -> active -> past_due (grace period)
+      - past_due + current_period_end + grace <= now -> past_due -> expired
       - already expired/cancelled -> idempotent (no change)
+
+    The grace period is configurable via BILLING_GRACE_PERIOD_DAYS env var
+    (default 3 days). During grace, the subscription is in past_due state
+    and the company retains limited access.
 
     Args:
         company_id: The company whose subscription to process.
@@ -480,6 +485,7 @@ def process_subscription_expiry(
         - to_status (str or None)
         - reason (str or None)
         - idempotent (bool)
+        - grace_period_used (bool): Whether the grace period was applied.
 
     Raises:
         ValueError: If the subscription is missing or transition fails.
@@ -510,11 +516,13 @@ def process_subscription_expiry(
             "to_status": current_status,
             "reason": f"Already {current_status}",
             "idempotent": True,
+            "grace_period_used": False,
         }
 
     # Determine whether expiry condition is met
     reason = None
     target_status = "expired"
+    grace_period_used = False
 
     if current_status == "trialing":
         trial_end = subscription.get("trial_ends_at")
@@ -523,10 +531,31 @@ def process_subscription_expiry(
         else:
             reason = None
 
-    elif current_status in ("active", "past_due"):
+    elif current_status == "active":
         period_end = subscription.get("current_period_end")
         if period_end and period_end <= now_iso:
-            reason = "Billing period ended"
+            # Transition to past_due first (grace period)
+            target_status = "past_due"
+            reason = "Billing period ended; grace period started"
+            grace_period_used = True
+        else:
+            reason = None
+
+    elif current_status == "past_due":
+        period_end = subscription.get("current_period_end")
+        if period_end and period_end <= now_iso:
+            # Check if grace period has also passed
+            grace_days = get_grace_period_days()
+            try:
+                end_dt = datetime.fromisoformat(period_end)
+                grace_end = end_dt + timedelta(days=grace_days)
+                if now >= grace_end:
+                    reason = "Grace period ended"
+                else:
+                    # Still within grace period
+                    reason = None
+            except (ValueError, TypeError):
+                reason = "Billing period ended"
         else:
             reason = None
 
@@ -539,6 +568,7 @@ def process_subscription_expiry(
             "to_status": current_status,
             "reason": "Not due for expiry",
             "idempotent": True,
+            "grace_period_used": False,
         }
 
     # Perform the transition via conditional update
@@ -558,8 +588,13 @@ def process_subscription_expiry(
         raise
 
     logger.info(
-        "Subscription for company %d expired: %s -> %s (%s)",
+        "Subscription lifecycle: company=%d transition=%s->%s reason=%s grace=%s",
+        company_id, current_status, target_status, reason, grace_period_used,
+    )
+    logger.info(
+        "Subscription for company %d transitioned: %s -> %s (%s)%s",
         company_id, current_status, target_status, reason,
+        " [grace period]" if grace_period_used else "",
     )
 
     return {
@@ -569,8 +604,8 @@ def process_subscription_expiry(
         "to_status": target_status,
         "reason": reason,
         "idempotent": False,
+        "grace_period_used": grace_period_used,
     }
-
 
 def process_due_subscriptions(
     now: datetime | None = None,
@@ -914,3 +949,108 @@ def _clear_all_scheduling(subscription_id: int, company_id: int) -> dict:
             "cancellation_effective_at": None,
         },
     )
+
+# ===== Phase 4I: Renewal status & grace period =====
+
+GRACE_PERIOD_DAYS_DEFAULT = 3
+
+
+def get_grace_period_days() -> int:
+    """Return the configured grace period in days."""
+    try:
+        val = int(os.environ.get("BILLING_GRACE_PERIOD_DAYS", str(GRACE_PERIOD_DAYS_DEFAULT)))
+        return max(val, 1)
+    except (ValueError, TypeError):
+        return GRACE_PERIOD_DAYS_DEFAULT
+
+
+def get_subscription_renewal_status(company_id: int) -> dict:
+    """Return safe renewal status for a company subscription."""
+    subscription = _get_latest_sub(company_id)
+    if not subscription:
+        raise ValueError(f"No subscription found for company {company_id}")
+    status = (subscription.get("status") or "").strip().lower()
+    now = datetime.now(timezone.utc)
+    period_end_str = subscription.get("current_period_end")
+    period_end = None
+    if period_end_str:
+        try:
+            period_end = datetime.fromisoformat(period_end_str)
+        except (ValueError, TypeError):
+            pass
+    period_start_str = subscription.get("current_period_start")
+    pending_plan_id = subscription.get("pending_plan_id")
+    cancellation_effective_at = subscription.get("cancellation_effective_at")
+    days_until_expiry = None
+    expiry_date = None
+    if period_end:
+        days_until_expiry = max(0, (period_end - now).days)
+        expiry_date = period_end_str
+    grace_days = get_grace_period_days()
+    grace_period_active = False
+    grace_period_end = None
+    if status == "past_due" and period_end:
+        grace_end = period_end + timedelta(days=grace_days)
+        if now <= grace_end:
+            grace_period_active = True
+            grace_period_end = grace_end.isoformat()
+    renewal_allowed = status in ("expired", "past_due", "cancelled")
+    renewal_required = status in ("expired", "past_due")
+    pending_renewal_order = None
+    if renewal_allowed or renewal_required:
+        from app.database.company_subscription_order_repository import list_subscription_orders_for_company
+        pending_orders = list_subscription_orders_for_company(company_id=company_id, limit=5, status="pending")
+        for po in pending_orders:
+            if po.get("activation_type") == "renewal":
+                pending_renewal_order = {
+                    "order_reference": po.get("order_reference"),
+                    "created_at": po.get("created_at"),
+                    "expires_at": po.get("expires_at"),
+                }
+                break
+    next_plan = None
+    if pending_plan_id:
+        from app.database.subscription_plan_repository import get_plan_by_id
+        plan = get_plan_by_id(pending_plan_id)
+        if plan:
+            next_plan = {
+                "id": plan.get("id"),
+                "code": plan.get("code"),
+                "name": plan.get("name"),
+            }
+    logger.info(
+        "Renewal status for company %d: status=%s, days_until_expiry=%s, grace=%s, pending_order=%s",
+        company_id, status, days_until_expiry, grace_period_active,
+        "yes" if pending_renewal_order else "no",
+    )
+    message = _build_renewal_message(status, days_until_expiry, grace_period_active, grace_period_end, pending_renewal_order, cancellation_effective_at)
+    return {
+        "subscription_status": status,
+        "period_start": period_start_str,
+        "period_end": expiry_date,
+        "days_until_expiry": days_until_expiry,
+        "renewal_allowed": renewal_allowed,
+        "renewal_required": renewal_required,
+        "grace_period_active": grace_period_active,
+        "grace_period_end": grace_period_end,
+        "pending_renewal_order": pending_renewal_order,
+        "scheduled_next_plan": next_plan,
+        "message": message,
+    }
+
+
+def _build_renewal_message(status, days_until_expiry, grace_period_active, grace_period_end, pending_renewal_order, cancellation_effective_at):
+    """Build a safe customer-facing renewal message."""
+    if pending_renewal_order:
+        return "Renewal payment is pending. Once confirmed, your subscription will be reactivated."
+    if status == "active" and days_until_expiry is not None and days_until_expiry <= 0:
+        return "Your subscription period has ended. Please renew to continue."
+    if status == "active" and days_until_expiry is not None and days_until_expiry <= 7:
+        return "Your subscription expires in {} day(s). Renew now to avoid interruption.".format(days_until_expiry)
+    if status == "past_due" and grace_period_active:
+        return "Your subscription is past due. Grace period ends {}. Renew to restore full access.".format(grace_period_end)
+    if status == "expired":
+        return "Your subscription has expired. Renew to restore access."
+    if status == "cancelled":
+        return "Your subscription has been cancelled. Renew to reactivate."
+    return ""

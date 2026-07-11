@@ -111,30 +111,37 @@ class TestProcessSubscriptionExpiry(unittest.TestCase):
             expected_status="trialing", target_status="expired",
         )
 
+    @patch("app.services.subscription_lifecycle_service.get_grace_period_days")
     @patch("app.services.subscription_lifecycle_service._get_latest_sub")
     @patch("app.services.subscription_lifecycle_service._update_status_conditional")
-    def test_active_expired(self, mock_update, mock_latest):
-        """Active subscription past period end transitions to expired."""
+    def test_active_to_past_due_grace(self, mock_grace, mock_latest, mock_update):
+        """Active subscription past period end transitions to past_due (grace period)."""
+        mock_grace.return_value = 3
         mock_latest.return_value = _mk_sub({
             "id": 1, "company_id": 42, "status": "active",
             "current_period_end": HOUR_AGO,
         })
         mock_update.return_value = _mk_sub({
-            "id": 1, "company_id": 42, "status": "expired",
+            "id": 1, "company_id": 42, "status": "past_due",
         })
 
         result = process_subscription_expiry(42, now=NOW)
         self.assertTrue(result["processed"])
         self.assertEqual(result["from_status"], "active")
-        self.assertEqual(result["reason"], "Billing period ended")
+        self.assertEqual(result["to_status"], "past_due")
+        self.assertTrue(result["grace_period_used"])
+        self.assertEqual(result["reason"], "Billing period ended; grace period started")
 
+    @patch("app.services.subscription_lifecycle_service.get_grace_period_days")
     @patch("app.services.subscription_lifecycle_service._get_latest_sub")
     @patch("app.services.subscription_lifecycle_service._update_status_conditional")
-    def test_past_due_expired(self, mock_update, mock_latest):
-        """Past_due subscription past period end transitions to expired."""
+    def test_past_due_expired_after_grace(self, mock_grace, mock_latest, mock_update):
+        """Past_due subscription with expired grace period transitions to expired."""
+        mock_grace.return_value = 3
+        period_end = (NOW - timedelta(days=5)).isoformat()
         mock_latest.return_value = _mk_sub({
             "id": 1, "company_id": 42, "status": "past_due",
-            "current_period_end": HOUR_AGO,
+            "current_period_end": period_end,
         })
         mock_update.return_value = _mk_sub({
             "id": 1, "company_id": 42, "status": "expired",
@@ -143,7 +150,9 @@ class TestProcessSubscriptionExpiry(unittest.TestCase):
         result = process_subscription_expiry(42, now=NOW)
         self.assertTrue(result["processed"])
         self.assertEqual(result["from_status"], "past_due")
-        self.assertEqual(result["reason"], "Billing period ended")
+        self.assertEqual(result["to_status"], "expired")
+        self.assertIn(result["reason"], ("Grace period ended", "Billing period ended"))
+        self.assertTrue(result["processed"])
 
     @patch("app.services.subscription_lifecycle_service._get_latest_sub")
     def test_future_period_idempotent(self, mock_latest):
@@ -274,6 +283,7 @@ class TestTransitionValidation(unittest.TestCase):
 class TestRenewalCheckout(unittest.TestCase):
     """Tests that checkout service allows renewal for expired/past_due."""
 
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
     @patch("app.services.subscription_checkout_service.create_bill")
     @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
     @patch("app.services.subscription_checkout_service.create_subscription_order")
@@ -282,8 +292,9 @@ class TestRenewalCheckout(unittest.TestCase):
     @patch("app.services.subscription_checkout_service.update_subscription_order_status")
     def test_expired_can_renew(
         self, mock_update_status, mock_get_sub, mock_get_plan,
-        mock_create_order, mock_config, mock_create_bill
+        mock_create_order, mock_config, mock_create_bill, mock_list_orders
     ):
+        mock_list_orders.return_value = []
         """Expired subscription can create checkout for same plan."""
         mock_get_sub.return_value = {
             "id": 1, "company_id": 42, "plan_id": 2, "status": "expired",
@@ -441,5 +452,172 @@ class TestExpiredAccessEnforcement(unittest.TestCase):
             self.assertEqual(policy.access_state, "unknown")
 
 
-if __name__ == "__main__":
-    unittest.main()
+
+# =============================================================================
+# Tests: Grace period & renewal status (Phase 4I)
+# =============================================================================
+
+
+class TestGracePeriod(unittest.TestCase):
+    """Tests for grace period behavior in process_subscription_expiry."""
+
+    def _mk_sub(self, overrides=None):
+        sub = {
+            "id": 1, "company_id": 42, "plan_id": 3, "status": "active",
+            "current_period_start": MONTH_AGO, "current_period_end": MONTH_AHEAD,
+            "trial_ends_at": None, "cancelled_at": None,
+            "cancellation_scheduled_at": None, "cancellation_effective_at": None,
+            "pending_plan_id": None, "plan_change_effective_at": None,
+        }
+        if overrides:
+            sub.update(overrides)
+        return sub
+
+    @patch("app.services.subscription_lifecycle_service.get_grace_period_days")
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    def test_past_due_stays_in_grace(self, mock_latest, mock_grace):
+        """Past_due subscription within grace period does not expire."""
+        mock_grace.return_value = 10
+        period_end = (NOW - timedelta(days=2)).isoformat()
+        mock_latest.return_value = self._mk_sub({
+            "status": "past_due", "current_period_end": period_end,
+        })
+        result = process_subscription_expiry(42, now=NOW)
+        self.assertFalse(result["processed"])
+        self.assertEqual(result["from_status"], "past_due")
+        self.assertEqual(result["to_status"], "past_due")
+
+    @patch("app.services.subscription_lifecycle_service.get_grace_period_days")
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.services.subscription_lifecycle_service._update_status_conditional")
+    def test_full_lifecycle_active_to_expired(self, mock_update, mock_latest, mock_grace):
+        """Full lifecycle: active -> past_due -> expired through grace period."""
+        mock_grace.return_value = 3
+        period_end = (NOW - timedelta(days=7)).isoformat()
+
+        # First pass: active -> past_due
+        mock_latest.return_value = self._mk_sub({
+            "status": "active", "current_period_end": period_end,
+        })
+        mock_update.return_value = self._mk_sub({"status": "past_due"})
+        result = process_subscription_expiry(42, now=NOW)
+        self.assertTrue(result["processed"])
+        self.assertEqual(result["from_status"], "active")
+        self.assertEqual(result["to_status"], "past_due")
+
+        # Second pass: past_due -> expired (grace period exceeded)
+        mock_latest.return_value = self._mk_sub({
+            "status": "past_due", "current_period_end": period_end,
+        })
+        mock_update.return_value = self._mk_sub({"status": "expired"})
+        result = process_subscription_expiry(42, now=NOW)
+        self.assertTrue(result["processed"])
+        self.assertEqual(result["from_status"], "past_due")
+        self.assertEqual(result["to_status"], "expired")
+
+
+class TestGracePeriodConfig(unittest.TestCase):
+    """Tests for get_grace_period_days."""
+
+    @patch.dict("app.services.subscription_lifecycle_service.os.environ", {"BILLING_GRACE_PERIOD_DAYS": "7"})
+    def test_custom_grace_period(self):
+        from app.services.subscription_lifecycle_service import get_grace_period_days
+        self.assertEqual(get_grace_period_days(), 7)
+
+    @patch.dict("app.services.subscription_lifecycle_service.os.environ", {})
+    def test_default_grace_period(self):
+        from app.services.subscription_lifecycle_service import get_grace_period_days
+        self.assertEqual(get_grace_period_days(), 3)
+
+    @patch.dict("app.services.subscription_lifecycle_service.os.environ", {"BILLING_GRACE_PERIOD_DAYS": "invalid"})
+    def test_invalid_grace_fallback(self):
+        from app.services.subscription_lifecycle_service import get_grace_period_days
+        self.assertEqual(get_grace_period_days(), 3)
+
+
+class TestRenewalStatusService(unittest.TestCase):
+    """Tests for get_subscription_renewal_status."""
+
+    def _make_sub(self, overrides=None):
+        sub = {
+            "id": 1, "company_id": 42, "plan_id": 3, "status": "active",
+            "current_period_start": MONTH_AGO, "current_period_end": MONTH_AHEAD,
+            "trial_ends_at": None, "cancelled_at": None,
+            "cancellation_scheduled_at": None, "cancellation_effective_at": None,
+            "pending_plan_id": None, "plan_change_effective_at": None,
+        }
+        if overrides:
+            sub.update(overrides)
+        return sub
+
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    def test_active_no_renewal(self, mock_orders, mock_latest):
+        """Active subscription with far expiry shows renewal not required."""
+        mock_latest.return_value = self._make_sub()
+        mock_orders.return_value = []
+        from app.services.subscription_lifecycle_service import get_subscription_renewal_status
+        status = get_subscription_renewal_status(42)
+        self.assertEqual(status["subscription_status"], "active")
+        self.assertFalse(status["renewal_required"])
+        self.assertFalse(status["renewal_allowed"])
+        self.assertTrue(status["days_until_expiry"] > 0)
+
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    def test_expired_renewal_required(self, mock_orders, mock_latest):
+        """Expired subscription shows renewal required."""
+        mock_latest.return_value = self._make_sub({"status": "expired", "current_period_end": HOUR_AGO})
+        mock_orders.return_value = []
+        from app.services.subscription_lifecycle_service import get_subscription_renewal_status
+        status = get_subscription_renewal_status(42)
+        self.assertEqual(status["subscription_status"], "expired")
+        self.assertTrue(status["renewal_required"])
+        self.assertTrue(status["renewal_allowed"])
+
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    def test_pending_renewal_order_detected(self, mock_orders, mock_latest):
+        """Pending renewal order is detected."""
+        mock_latest.return_value = self._make_sub({"status": "expired"})
+        mock_orders.return_value = [{
+            "order_reference": "abc-123", "activation_type": "renewal",
+            "created_at": NOW_ISO, "expires_at": MONTH_AHEAD,
+        }]
+        from app.services.subscription_lifecycle_service import get_subscription_renewal_status
+        status = get_subscription_renewal_status(42)
+        self.assertIsNotNone(status["pending_renewal_order"])
+        self.assertEqual(status["pending_renewal_order"]["order_reference"], "abc-123")
+
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    def test_no_subscription_raises(self, mock_latest):
+        """Company without subscription raises ValueError."""
+        mock_latest.return_value = None
+        from app.services.subscription_lifecycle_service import get_subscription_renewal_status
+        with self.assertRaises(ValueError):
+            get_subscription_renewal_status(99)
+
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    @patch("app.database.subscription_plan_repository.get_plan_by_id")
+    def test_scheduled_next_plan(self, mock_plan, mock_orders, mock_latest):
+        """Scheduled downgrade shows next plan."""
+        mock_plan.return_value = {"id": 2, "code": "essential", "name": "Essential"}
+        mock_latest.return_value = self._make_sub({"pending_plan_id": 2})
+        mock_orders.return_value = []
+        from app.services.subscription_lifecycle_service import get_subscription_renewal_status
+        status = get_subscription_renewal_status(42)
+        self.assertIsNotNone(status["scheduled_next_plan"])
+        self.assertEqual(status["scheduled_next_plan"]["code"], "essential")
+
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    def test_near_expiry_message(self, mock_orders, mock_latest):
+        """Active subscription near expiry shows message."""
+        period_end = (NOW + timedelta(days=5)).isoformat()
+        mock_latest.return_value = self._make_sub({"current_period_end": period_end})
+        mock_orders.return_value = []
+        from app.services.subscription_lifecycle_service import get_subscription_renewal_status
+        status = get_subscription_renewal_status(42)
+        self.assertIn("expires", status["message"].lower())
+        self.assertTrue(status["days_until_expiry"] >= 4)

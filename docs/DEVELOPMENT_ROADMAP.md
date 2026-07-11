@@ -308,3 +308,5 @@ For each phase:
 5. Review the diff.
 6. Update `FEATURE_STATUS.md`.
 7. Commit the phase with one or a small number of meaningful commits.
+I. Grace period and failed-payment recovery .. Implemented
+J. (future phases) .......................... Not started

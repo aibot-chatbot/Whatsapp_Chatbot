@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import re
 
 from flask import Blueprint, jsonify, g, request
@@ -98,6 +98,44 @@ def fetch_subscription():
             "message": "Unable to retrieve billing information."
         }), 500
 
+
+
+@billing_bp.route("/subscription/renewal-status", methods=["GET"])
+@token_required
+def fetch_subscription_renewal_status():
+    """Return renewal status, grace period, and pending renewal info.
+
+    The company_id is taken from the authenticated JWT token only.
+    This endpoint never accepts company_id from query parameters or body.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({
+                "status": "error",
+                "message": "Company not found in authentication token."
+            }), 401
+
+        from app.services.subscription_lifecycle_service import get_subscription_renewal_status
+
+        renewal_status = get_subscription_renewal_status(company_id)
+
+        return jsonify({
+            "status": "success",
+            "data": renewal_status
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+    except Exception:
+        logging.exception("Failed to fetch renewal status")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve renewal information."
+        }), 500
 
 @billing_bp.route("/usage", methods=["GET"])
 @token_required

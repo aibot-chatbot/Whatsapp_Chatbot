@@ -186,3 +186,74 @@ Update this file after:
 - Completing meaningful verification
 
 Do not record temporary branch names, commit hashes, local paths, or working-tree status here.
+## Phase 4E – Subscription Billing History and Customer Receipts
+
+**Status:** Verified complete
+
+- Order history listing with pagination and status filtering
+- Order detail API with safe fields
+- Printable HTML receipt with "Not a tax invoice" wording
+- JSON receipt endpoint
+- Billing history and AI-credit CSV exports
+- Profile billing history UI with order reference, amount, dates, status badges
+- Order detail modal with retry button
+- Customer support guidance for manual-review states
+- Data accuracy guarantees (amount from order, timestamps consistent, no reversal leakage)
+
+## Phase 4F – Production Security, Tenant‑Scope and Plan‑Enforcement Audit
+
+**Status:** Verified complete
+
+- Data-scope matrix: company-scoped vs bot-scoped resources
+- Billing/credit authorization: company_id resolved from JWT, client-supplied ignored
+- Company-wide billing presentation with shared-credit explanation
+- Plan-limit enforcement matrix with guards for all resource types
+- Security hardening: authentication, webhook verification, UUID validation
+- Reconciliation job safety checks
+- Structured monitoring logs for billing lifecycle events
+- Health check endpoint
+- Phase 4F runbook
+
+## Phase 4G – Admin and Support Operations
+
+**Status:** Verified complete
+
+- Authorization model documented (company owner/admin vs platform admin)
+- Support search repositories and API
+- Admin order listing with filters
+- Admin reconciliation endpoint (idempotent, reuses canonical service)
+- AI-credit support inspection
+- Auditable credit adjustment RPC design
+- Billing support runbook
+
+## Phase 4H – Customer Receipts, Exports, and Usage Reporting
+
+**Status:** Verified complete
+
+- Printable HTML payment receipt
+- JSON receipt endpoint
+- Canonical receipt building helper
+- Billing history CSV export with injection protection
+- AI-credit activity CSV export
+- AI-credit usage summary API
+- Profile UI enhancements (receipt, export, summary cards)
+- Email receipt: deferred (no approved email service)
+- Migration 014: not required
+
+## Phase 4I – Subscription Renewal, Grace Period, and Failed-Payment Recovery
+
+**Status:** Implemented
+
+- Renewal status service (get_subscription_renewal_status) with safe customer-facing messages
+- GET /api/billing/subscription/renewal-status endpoint
+- Grace period policy: active -> past_due (grace), past_due -> expired (after grace)
+- Configurable grace period via BILLING_GRACE_PERIOD_DAYS env var (default 3 days)
+- Expiry transition service updated to use grace period
+- Duplicate pending order prevention in checkout service
+- Profile UI updates: renewal status display, expiry warnings, grace period warnings
+- Structured lifecycle logs with company_id, status transitions, grace period info
+- Comprehensive tests for all renewal states
+- No automatic recurring billing (ToyyibPay doesn't support stored-card charging)
+- Email notifications: deferred (no approved email service)
+
+## Planned phases (not yet started)
