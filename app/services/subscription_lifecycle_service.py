@@ -1,4 +1,4 @@
-"""subscription_lifecycle_service.py \u2014 Safe subscription state transitions and scheduling.
+﻿"""subscription_lifecycle_service.py \u2014 Safe subscription state transitions and scheduling.
 
 This module is the single authority for changing subscription status and
 scheduling plan changes or cancellations.  All subscription transitions
@@ -596,6 +596,40 @@ def process_subscription_expiry(
         company_id, current_status, target_status, reason,
         " [grace period]" if grace_period_used else "",
     )
+
+    # --- Generate notifications on state transitions ---
+    try:
+        from app.services.billing_notification_service import (
+            notify_grace_period_started,
+            notify_subscription_expired,
+        )
+        period_end = subscription.get("current_period_end", "")
+        if target_status == "past_due" and grace_period_used and period_end:
+            # Grace period started — compute grace period end
+            grace_days = int(os.environ.get("BILLING_GRACE_PERIOD_DAYS", "3"))
+            try:
+                grace_end = p_end + timedelta(days=grace_days)
+                notify_grace_period_started(
+                    company_id=company_id,
+                    subscription_id=sub_id,
+                    period_end=period_end,
+                    grace_period_end=grace_end.isoformat(),
+                )
+            except (ValueError, TypeError):
+                logger.warning("Could not parse period_end for grace notification: %s", period_end)
+        if target_status == "expired" and reason and "grace" in reason.lower() or (
+            current_status == "past_due" and target_status == "expired"
+        ):
+            notify_subscription_expired(
+                company_id=company_id,
+                subscription_id=sub_id,
+                period_end=subscription.get("current_period_end", ""),
+            )
+    except Exception as notify_err:
+        logger.warning(
+            "Failed to generate expiry notification for company %d: %s",
+            company_id, notify_err,
+        )
 
     return {
         "processed": True,

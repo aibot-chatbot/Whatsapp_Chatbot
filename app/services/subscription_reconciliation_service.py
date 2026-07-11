@@ -1,4 +1,4 @@
-"""subscription_reconciliation_service.py
+﻿"""subscription_reconciliation_service.py
 
 Recover paid-but-not-completed subscription orders.
 
@@ -271,6 +271,13 @@ def _retry_credit(
     except Exception as exc:
         logger.warning("Failed to mark order %s as credited: %s", order_reference, exc)
         return {"outcome": "credit_retry_completed", "order_status": "credit_pending", "message": "Credit granted but order status update failed."}
+
+    # Generate completion notification
+    try:
+        from app.services.billing_notification_service import notify_reconciliation_completed
+        notify_reconciliation_completed(company_id=company_id_val, order_reference=order_reference)
+    except Exception as notify_err:
+        logger.warning("Failed to send reconciliation notification for %s: %s", order_reference, notify_err)
 
     logger.info("Reconciliation completed for order %s", order_reference)
     return {"outcome": "credit_retry_completed", "order_status": "credited", "message": "Reconciliation completed successfully."}

@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import re
 
 from flask import Blueprint, jsonify, g, request
@@ -1306,7 +1306,7 @@ def _subscription_downgrade_check(target_plan_code):
         }), 500
 
 # =============================================================================
-# Phase 4H — Printable receipt, CSV exports, and usage summary
+# Phase 4H â€” Printable receipt, CSV exports, and usage summary
 # =============================================================================
 
 
@@ -1658,6 +1658,122 @@ def get_ai_credit_usage_summary():
     except Exception:
         logging.exception("Failed to generate AI-credit usage summary")
         return jsonify({"status": "error", "message": "Unable to generate usage summary."}), 500
+
+
+
+@billing_bp.route("/notifications", methods=["GET"])
+@token_required
+def list_billing_notifications():
+    """List billing notifications for the authenticated user's company.
+
+    Query parameters:
+        limit (int, optional): Max rows (default 20, max 100).
+        offset (int, optional): Pagination offset (default 0).
+        unread_only (bool, optional): Filter to unread only.
+
+    Returns:
+        JSON with list of safe notification fields.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company context required."}), 400
+
+        from flask import request as flask_request
+
+        limit = flask_request.args.get("limit", 20, type=int)
+        offset = flask_request.args.get("offset", 0, type=int)
+        unread_only = flask_request.args.get("unread_only", "false").strip().lower() == "true"
+
+        from app.database.billing_notification_repository import list_billing_notifications
+
+        notifications = list_billing_notifications(
+            company_id=company_id,
+            limit=limit,
+            offset=offset,
+            unread_only=unread_only,
+        )
+
+        return jsonify({
+            "status": "success",
+            "data": notifications,
+        }), 200
+
+    except Exception:
+        logging.exception("Failed to list billing notifications")
+        return jsonify({"status": "error", "message": "Unable to load notifications."}), 500
+
+
+@billing_bp.route("/notifications/unread-count", methods=["GET"])
+@token_required
+def billing_notifications_unread_count():
+    """Get unread billing notification count for the authenticated user's company."""
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company context required."}), 400
+
+        from app.database.billing_notification_repository import count_unread_billing_notifications
+
+        count = count_unread_billing_notifications(company_id=company_id)
+
+        return jsonify({
+            "status": "success",
+            "data": {"unread_count": count},
+        }), 200
+
+    except Exception:
+        logging.exception("Failed to count unread billing notifications")
+        return jsonify({"status": "error", "message": "Unable to check notifications."}), 500
+
+
+@billing_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])
+@token_required
+def mark_billing_notification_read(notification_id):
+    """Mark a single billing notification as read."""
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company context required."}), 400
+
+        from app.database.billing_notification_repository import mark_billing_notification_read
+
+        updated = mark_billing_notification_read(
+            company_id=company_id,
+            notification_id=notification_id,
+        )
+
+        if updated:
+            return jsonify({"status": "success", "data": {"updated": True}}), 200
+        else:
+            return jsonify({"status": "success", "data": {"updated": False}}), 200
+
+    except Exception:
+        logging.exception("Failed to mark notification read")
+        return jsonify({"status": "error", "message": "Unable to update notification."}), 500
+
+
+@billing_bp.route("/notifications/read-all", methods=["POST"])
+@token_required
+def mark_all_billing_notifications_read():
+    """Mark all unread billing notifications as read for the company."""
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company context required."}), 400
+
+        from app.database.billing_notification_repository import mark_all_billing_notifications_read
+
+        updated_count = mark_all_billing_notifications_read(company_id=company_id)
+
+        return jsonify({
+            "status": "success",
+            "data": {"marked_read": updated_count},
+        }), 200
+
+    except Exception:
+        logging.exception("Failed to mark all notifications read")
+        return jsonify({"status": "error", "message": "Unable to update notifications."}), 500
 
 
 @billing_bp.route("/health", methods=["GET"])

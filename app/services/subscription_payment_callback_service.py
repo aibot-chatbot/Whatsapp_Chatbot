@@ -1,4 +1,4 @@
-"""subscription_payment_callback_service.py - Internal callback processing for subscription payment orders.
+﻿"""subscription_payment_callback_service.py - Internal callback processing for subscription payment orders.
 
 This module processes an already-verified callback from any supported payment
 gateway to:
@@ -199,6 +199,13 @@ def _handle_credited_replay(order, callback_gateway_id, callback_txn_id):
             f"Credited subscription order {order_reference!r} has payment_reference {stored_payment_reference!r} but callback transaction_id is {callback_txn_id!r}"
         )
     logger.info("Subscription order %s is already credited: idempotent success", order_reference)
+    logger.info("Subscription order %s is already credited: idempotent success", order_reference)
+    try:
+        from app.services.billing_notification_service import notify_payment_confirmed, notify_activation_completed
+        notify_payment_confirmed(company_id=order.get("company_id"), order_reference=order_reference)
+        notify_activation_completed(company_id=order.get("company_id"), order_reference=order_reference)
+    except Exception:
+        logger.warning("Failed to send replay notification for order %s", order_reference)
     return {"status": "already_activated", "idempotent": True, "order_reference": order_reference, "order_status": "credited", "company_id": order.get("company_id")}
 
 
@@ -431,6 +438,17 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
 
     # ---- Step 6: Mark order credited ----
     _mark_order_credited(order_reference=order_reference, credited_at=callback_paid_at)
+    # ---- Step 7: Generate payment and activation notifications ----
+    try:
+        from app.services.billing_notification_service import notify_payment_confirmed, notify_activation_completed
+        notify_payment_confirmed(company_id=company_id, order_reference=order_reference)
+        notify_activation_completed(company_id=company_id, order_reference=order_reference)
+    except Exception as notify_err:
+        logger.warning(
+            "Failed to send activation notification for order %s: %s",
+            order_reference, notify_err,
+        )
+
 
     _outcome = "legacy_order_activated" if _used_legacy_path else "activated_and_credited"
     return {
