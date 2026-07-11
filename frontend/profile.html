@@ -993,6 +993,88 @@
                 </div>
             </div>
             <div class="profile-section glass-card full-width">
+            <!-- Billing & Usage Reports -->
+            <div class="profile-section glass-card full-width" id="billing-reports-section">
+                <div class="profile-section-header">
+                    <i data-lucide="bar-chart-3" style="width:17px;height:17px;"></i>
+                    Billing &amp; Usage Reports
+                </div>
+                <div class="section-subtext" style="margin-bottom:12px;font-size:0.85rem;color:var(--text-dim);">
+                    Monthly billing summaries, credit movements, and AI usage trends for your company.
+                </div>
+
+                <!-- Period Selector -->
+                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
+                    <select id="report-period-select" style="flex:1;min-width:140px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);background:rgba(255,255,255,0.05);color:var(--text-main);font-size:0.85rem;">
+                        <option value="last_3_months">Last 3 Months</option>
+                        <option value="last_6_months" selected>Last 6 Months</option>
+                        <option value="last_12_months">Last 12 Months</option>
+                        <option value="current_month">Current Month</option>
+                        <option value="previous_month">Previous Month</option>
+                    </select>
+                    <button id="btn-load-report" class="btn btn-small" onclick="loadBillingReport()" style="padding:8px 16px;">Load Report</button>
+                    <button id="btn-export-report-csv" class="btn btn-small" onclick="exportBillingReportCsv()" style="padding:8px 16px;">Export CSV</button>
+                </div>
+
+                <!-- Loading -->
+                <div id="billing-report-loading" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
+                    <div class="loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></div>
+                    Loading report...
+                </div>
+
+                <!-- Error -->
+                <div id="billing-report-error" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
+                    Unable to load billing report.
+                    <button class="btn btn-small" style="margin-left:8px;" onclick="loadBillingReport()">Retry</button>
+                </div>
+
+                <!-- Empty -->
+                <div id="billing-report-empty" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
+                    No billing activity found for this period.
+                </div>
+
+                <!-- Content -->
+                <div id="billing-report-content" style="display:none;">
+                    <!-- Summary cards -->
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;">
+                        <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Payments</div>
+                            <div id="report-payments" style="font-size:1.1rem;font-weight:700;color:var(--accent);">-</div>
+                        </div>
+                        <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Credit Spent</div>
+                            <div id="report-credit-spent" style="font-size:1.1rem;font-weight:700;color:var(--warning);">-</div>
+                        </div>
+                        <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">AI Requests</div>
+                            <div id="report-ai-requests" style="font-size:1.1rem;font-weight:700;">-</div>
+                        </div>
+                        <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Tokens</div>
+                            <div id="report-tokens" style="font-size:1.1rem;font-weight:700;">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Monthly Trend Table -->
+                    <div style="overflow-x:auto;">
+                        <table class="report-table" style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                            <thead>
+                                <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
+                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Month</th>
+                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Payments</th>
+                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Spent</th>
+                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">AI Req.</th>
+                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Tokens</th>
+                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Charge</th>
+                                </tr>
+                            </thead>
+                            <tbody id="report-trend-body">
+                                <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-dim);">No data</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
                 <div class="profile-section-header">
                     <i data-lucide="settings" style="width:17px;height:17px;"></i>
                     Preferences
@@ -3236,6 +3318,129 @@ async function loadBillingInfo() {
         }
 
 
+
+        /* ===== Billing Reports ===== */
+
+        async function loadBillingReport() {
+            var loading = document.getElementById("billing-report-loading");
+            var content = document.getElementById("billing-report-content");
+            var emptyDiv = document.getElementById("billing-report-empty");
+            var errorDiv = document.getElementById("billing-report-error");
+            var trendBody = document.getElementById("report-trend-body");
+
+            if (!loading || !trendBody) return;
+
+            var select = document.getElementById("report-period-select");
+            var period = select ? select.value : "last_6_months";
+
+            loading.style.display = "";
+            if (content) content.style.display = "none";
+            if (emptyDiv) emptyDiv.style.display = "none";
+            if (errorDiv) errorDiv.style.display = "none";
+
+            try {
+                var res = await authenticatedFetch("/api/billing/reports/summary?period=" + encodeURIComponent(period));
+                var json = await res.json();
+
+                loading.style.display = "none";
+
+                if (!res.ok || json.status !== "success") {
+                    if (errorDiv) errorDiv.style.display = "";
+                    return;
+                }
+
+                var report = json.data;
+                if (!report) {
+                    if (emptyDiv) emptyDiv.style.display = "";
+                    return;
+                }
+
+                if (content) content.style.display = "";
+
+                // Summary cards
+                var sub = report.subscription || {};
+                var credit = report.ai_credit || {};
+                var usage = report.ai_usage || {};
+
+                setText("report-payments", "RM" + (sub.gross_paid_myr || 0).toFixed(2) + " (" + (sub.payments_completed || 0) + " paid)");
+                setText("report-credit-spent", "RM" + (credit.usage_spent_myr || 0).toFixed(2));
+                setText("report-ai-requests", formatNumber(usage.requests || 0));
+                setText("report-tokens", formatNumber((usage.total_tokens || 0)));
+
+                // Load monthly trend
+                var trendRes = await authenticatedFetch("/api/billing/reports/monthly?months=6");
+                var trendJson = await trendRes.json();
+                if (trendRes.ok && trendJson.status === "success") {
+                    renderMonthlyTrend(trendBody, trendJson.data || []);
+                } else {
+                    trendBody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-dim);">Unable to load trend data.</td></tr>';
+                }
+            } catch (e) {
+                loading.style.display = "none";
+                if (errorDiv) errorDiv.style.display = "";
+            }
+        }
+
+        function renderMonthlyTrend(tbody, data) {
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-dim);">No monthly data available.</td></tr>';
+                return;
+            }
+            var html = "";
+            for (var i = 0; i < data.length; i++) {
+                var m = data[i];
+                html += "<tr>" +
+                    '<td style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-weight:600;">' + escapeHtml(m.month || "") + "</td>" +
+                    '<td style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:right;">RM' + (m.subscription_payments_myr || 0).toFixed(2) + "</td>" +
+                    '<td style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:right;">RM' + (m.credit_spent_myr || 0).toFixed(2) + "</td>" +
+                    '<td style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:right;">' + formatNumber(m.AI_requests || 0) + "</td>" +
+                    '<td style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:right;">' + formatNumber(m.total_tokens || 0) + "</td>" +
+                    '<td style="padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:right;">RM' + (m.customer_charge_myr || 0).toFixed(2) + "</td>" +
+                    "</tr>";
+            }
+            tbody.innerHTML = html;
+        }
+
+        function setText(id, val) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = val;
+        }
+
+        function formatNumber(n) {
+            if (typeof n !== "number") n = 0;
+            return n.toLocaleString();
+        }
+
+        async function exportBillingReportCsv() {
+            var select = document.getElementById("report-period-select");
+            var months = 6;
+            if (select) {
+                var val = select.value;
+                if (val === "last_12_months") months = 12;
+                else if (val === "last_6_months") months = 6;
+                else if (val === "last_3_months") months = 3;
+                else if (val === "current_month") months = 1;
+                else months = 3;
+            }
+            try {
+                var res = await authenticatedFetch("/api/billing/reports/export.csv?months=" + months);
+                if (!res.ok) {
+                    alert("Unable to export report. Please try again.");
+                    return;
+                }
+                var blob = await res.blob();
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement("a");
+                a.href = url;
+                a.download = "billing-report-" + new Date().toISOString().slice(0, 10) + ".csv";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            } catch (e) {
+                alert("Network error exporting report. Please try again.");
+            }
+        }
         function escapeHtml(str) {
             if (typeof str !== "string") return "";
             var div = document.createElement("div");

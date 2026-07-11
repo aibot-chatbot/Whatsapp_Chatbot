@@ -604,5 +604,62 @@ def increment_reconciliation_attempt(
         raise RuntimeError(
             f"increment_reconciliation_attempt: RPC returned no rows "
             f"(order_reference={order_reference})"
-        )
+            f"(order_reference={order_reference})"
+        ) from exc
+
+    rows = response.data or []
+    if not rows:
+        raise RuntimeError(
+            f"increment_reconciliation_attempt: RPC returned no rows "
+            f"(order_reference={order_reference})"
+        ) from exc
+
     return rows[0]
+
+
+
+def list_billing_report_orders(
+    company_id: int,
+    date_from: str,
+    date_to: str,
+) -> list[dict]:
+    """List subscription orders for a company within a date range for reporting.
+
+    Includes key fields for billing aggregation. Uses created_at for
+    date filtering and returns only safe, authoritative fields.
+
+    Args:
+        company_id: The company to list orders for.
+        date_from: ISO date string (inclusive), matched against created_at.
+        date_to: ISO date string (exclusive), matched against created_at.
+
+    Returns:
+        List of order dicts with fields needed for reporting.
+    """
+    if not company_id:
+        raise ValueError("company_id is required")
+    if not date_from or not date_to:
+        raise ValueError("date_from and date_to are required")
+
+        raise ValueError("company_id is required")
+    if not date_from or not date_to:
+        raise ValueError("date_from and date_to are required")
+
+    try:
+        response = (
+            supabase
+            .table(TABLE_NAME)
+            .select("order_reference,status,amount_sen,plan_code,payment_reference,created_at,paid_at,activation_status,payment_status")
+            .eq("company_id", company_id)
+            .gte("created_at", date_from)
+            .lt("created_at", date_to)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        return response.data or []
+    except Exception as exc:
+        logger.error(
+            "Error listing billing report orders for company %d: %s",
+            company_id, exc,
+        )
+        return []

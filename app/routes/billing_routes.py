@@ -1776,6 +1776,238 @@ def mark_all_billing_notifications_read():
         return jsonify({"status": "error", "message": "Unable to update notifications."}), 500
 
 
+
+# ---------------------------------------------------------------------------
+# Billing Reports
+# ---------------------------------------------------------------------------
+
+@billing_bp.route("/reports/summary", methods=["GET"])
+@token_required
+def billing_report_summary():
+    """Get a detailed billing report summary for the company.
+
+    Query:
+        period: current_month|previous_month|last_3_months|last_6_months|last_12_months|custom
+        date_from (str, optional): ISO date YYYY-MM-DD, required when period=custom.
+        date_to (str, optional): ISO date YYYY-MM-DD, required when period=custom.
+
+    Returns:
+        JSON with full structured billing report.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company context required."}), 400
+
+        from flask import request as flask_request
+        from datetime import datetime, timezone, timedelta
+
+        period = (flask_request.args.get("period", "last_3_months") or "").strip().lower()
+        now = datetime.now(timezone.utc)
+
+        valid_periods = {"current_month", "previous_month", "last_3_months", "last_6_months", "last_12_months", "custom"}
+        if period not in valid_periods:
+            return jsonify({"status": "error", "message": f"Invalid period '{period}'. Valid: {', '.join(sorted(valid_periods))}"}), 400
+
+        if period == "custom":
+            date_from = flask_request.args.get("date_from")
+            date_to = flask_request.args.get("date_to")
+            if not date_from or not date_to:
+                return jsonify({"status": "error", "message": "date_from and date_to required for custom period."}), 400
+            try:
+                datetime.strptime(date_from, "%Y-%m-%d")
+                datetime.strptime(date_to, "%Y-%m-%d")
+            except ValueError:
+                return jsonify({"status": "error", "message": "Dates must be in YYYY-MM-DD format."}), 400
+            from_dt = datetime.strptime(date_from, "%Y-%m-%d")
+            to_dt = datetime.strptime(date_to, "%Y-%m-%d")
+            if (to_dt - from_dt).days > 366:
+                return jsonify({"status": "error", "message": "Maximum report range is 366 days."}), 400
+            if to_dt <= from_dt:
+                return jsonify({"status": "error", "message": "date_to must be after date_from."}), 400
+        else:
+            current_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if period == "current_month":
+                date_from = current_month_start.strftime("%Y-%m-%d")
+                date_to = (current_month_start + timedelta(days=35)).strftime("%Y-%m-%d")
+            elif period == "previous_month":
+                prev_month = current_month_start - timedelta(days=1)
+                prev_start = prev_month.replace(day=1)
+                date_from = prev_start.strftime("%Y-%m-%d")
+                date_to = current_month_start.strftime("%Y-%m-%d")
+            elif period == "last_3_months":
+                date_from = (current_month_start - timedelta(days=90)).strftime("%Y-%m-%d")
+                date_to = (current_month_start + timedelta(days=35)).strftime("%Y-%m-%d")
+            elif period == "last_6_months":
+                date_from = (current_month_start - timedelta(days=180)).strftime("%Y-%m-%d")
+                date_to = (current_month_start + timedelta(days=35)).strftime("%Y-%m-%d")
+            elif period == "last_12_months":
+                date_from = (current_month_start - timedelta(days=365)).strftime("%Y-%m-%d")
+                date_to = (current_month_start + timedelta(days=35)).strftime("%Y-%m-%d")
+
+        from app.services.billing_report_service import get_company_billing_report
+        report = get_company_billing_report(company_id, date_from, date_to)
+
+        return jsonify({
+            "status": "success",
+            "data": report,
+        }), 200
+
+    except Exception:
+        logging.exception("Failed to generate billing report summary")
+        return jsonify({"status": "error", "message": "Unable to generate report."}), 500
+
+
+@billing_bp.route("/reports/monthly", methods=["GET"])
+@token_required
+def billing_report_monthly():
+    """Get monthly billing trend data.
+
+    Query:
+        months (int, optional): Number of months (1-12, default 6).
+
+    Returns:
+        JSON with ascending monthly trend entries.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company context required."}), 400
+
+        from flask import request as flask_request
+
+        try:
+            months = int(flask_request.args.get("months", 6))
+        except (ValueError, TypeError):
+            months = 6
+        months = max(1, min(months, 12))
+
+        from app.services.billing_report_service import get_company_monthly_trend
+        trend = get_company_monthly_trend(company_id, months=months)
+
+        return jsonify({
+            "status": "success",
+            "data": trend,
+        }), 200
+
+    except Exception:
+        logging.exception("Failed to generate monthly billing trend")
+        return jsonify({"status": "error", "message": "Unable to generate trend data."}), 500
+
+
+@billing_bp.route("/reports/plan-usage", methods=["GET"])
+@token_required
+def billing_report_plan_usage():
+    """Get current plan usage against plan limits.
+
+    Returns structured usage data with all active plan metrics.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company context required."}), 400
+
+        from app.services.billing_report_service import get_company_plan_usage_report
+        report = get_company_plan_usage_report(company_id)
+
+        return jsonify({
+            "status": "success",
+            "data": report,
+        }), 200
+
+    except Exception:
+        logging.exception("Failed to generate plan usage report")
+        return jsonify({"status": "error", "message": "Unable to generate usage report."}), 500
+
+
+@billing_bp.route("/reports/export.csv", methods=["GET"])
+@token_required
+def billing_report_export_csv():
+    """Export monthly billing report as CSV.
+
+    Query:
+        months (int, optional): Number of months (1-12, default 6).
+
+    Returns:
+        CSV file download with monthly trend data.
+    """
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({"status": "error", "message": "Company context required."}), 400
+
+        from flask import request as flask_request
+        from flask import make_response
+        import csv
+        import io
+
+        try:
+            months = int(flask_request.args.get("months", 6))
+        except (ValueError, TypeError):
+            months = 6
+        months = max(1, min(months, 12))
+
+        from app.services.billing_report_service import get_company_monthly_trend
+        trend = get_company_monthly_trend(company_id, months=months)
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Headers
+        writer.writerow([
+            "month",
+            "subscription_payments_myr",
+            "payment_count",
+            "included_credit_granted_myr",
+            "topup_credit_added_myr",
+            "credit_spent_myr",
+            "credit_expired_myr",
+            "reversals_myr",
+            "AI_requests",
+            "prompt_tokens",
+            "completion_tokens",
+            "total_tokens",
+            "customer_charge_myr",
+            "provider_cost_myr",
+        ])
+
+        # CSV injection prevention
+        def _safe_csv_value(val):
+            if isinstance(val, str):
+                if val and val[0] in ("=", "+", "-", "@", "\t", "\n"):
+                    return "'" + val
+            return val
+
+        for entry in trend:
+            writer.writerow([
+                _safe_csv_value(entry.get("month", "")),
+                entry.get("subscription_payments_myr", 0.0),
+                entry.get("payment_count", 0),
+                entry.get("included_credit_granted_myr", 0.0),
+                entry.get("topup_credit_added_myr", 0.0),
+                entry.get("credit_spent_myr", 0.0),
+                entry.get("credit_expired_myr", 0.0),
+                entry.get("reversals_myr", 0.0),
+                entry.get("AI_requests", 0),
+                entry.get("prompt_tokens", 0),
+                entry.get("completion_tokens", 0),
+                entry.get("total_tokens", 0),
+                entry.get("customer_charge_myr", 0.0),
+                entry.get("provider_cost_myr", 0.0),
+            ])
+
+        csv_bytes = output.getvalue().encode("utf-8")
+        response = make_response(csv_bytes)
+        response.headers["Content-Type"] = "text/csv; charset=utf-8"
+        from datetime import datetime, timezone
+        filename_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        response.headers["Content-Disposition"] = f'attachment; filename="billing-report-{filename_date}.csv"'
+        return response
+
+    except Exception:
+        logging.exception("Failed to export billing CSV report")
+        return jsonify({"status": "error", "message": "Unable to export report."}), 500
+
 @billing_bp.route("/health", methods=["GET"])
 def billing_health_check():
     """Safe billing health check endpoint.

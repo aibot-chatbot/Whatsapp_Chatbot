@@ -1,4 +1,4 @@
-"""ai_credit_repository.py -- Read-only and RPC-wrapper access for AI credit balances and transactions.
+﻿"""ai_credit_repository.py -- Read-only and RPC-wrapper access for AI credit balances and transactions.
 
 This repository provides read access to the immutable credit-transaction ledger
 and the current company credit balance. All balance-changing operations are
@@ -452,3 +452,42 @@ def _validate_topup_amount(amount_micro_myr: int):
         raise ValueError(
             f"amount_micro_myr must be a positive integer, got {amount_micro_myr}"
         )
+
+
+def list_company_credit_transactions_by_range(
+    company_id: int,
+    date_from: str,
+    date_to: str,
+) -> list[dict]:
+    """Return credit transactions for a company within a date range.
+
+    Used by billing reports. Returns same fields as list_company_credit_transactions
+    but filtered by created_at range instead of limited by row count.
+
+    Args:
+        company_id: The company to look up.
+        date_from: ISO date string (inclusive), matched against created_at.
+        date_to: ISO date string (exclusive), matched against created_at.
+
+    Returns:
+        List of transaction record dictionaries.
+    """
+    _validate_company_id(company_id)
+    try:
+        response = (
+            supabase
+            .table(_TRANSACTION_TABLE)
+            .select("id,transaction_type,included_delta_micro_myr,topup_delta_micro_myr,included_balance_after_micro_myr,topup_balance_after_micro_myr,customer_charge_micro_myr,provider_cost_micro_usd,ai_usage_log_id,description,created_at")
+            .eq("company_id", company_id)
+            .gte("created_at", date_from)
+            .lt("created_at", date_to)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        return response.data or []
+    except Exception as exc:
+        logger.error(
+            "Error listing credit transactions by range for company %d: %s",
+            company_id, exc,
+        )
+        return []
