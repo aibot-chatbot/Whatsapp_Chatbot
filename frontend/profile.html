@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -519,6 +519,81 @@
         .sub-confirm-modal .btn-row .btn-cancel:hover {
             background:rgba(255,255,255,0.15);
         }
+        /* --- Billing Notifications --- */
+        .billing-notification-item {
+            display:flex;align-items:flex-start;gap:10px;
+            padding:10px 12px;border-radius:8px;
+            background:rgba(255,255,255,0.03);
+            margin-bottom:6px;transition:background 0.15s;
+        }
+        .billing-notification-item.notify-unread {
+            background:rgba(255,255,255,0.07);
+            border-left:3px solid var(--accent,#3b82f6);
+        }
+        .billing-notification-item:hover {
+            background:rgba(255,255,255,0.06);
+        }
+        .notify-icon {
+            flex-shrink:0;width:28px;height:28px;
+            display:flex;align-items:center;justify-content:center;
+            border-radius:50%;font-size:0.85rem;
+        }
+        .notify-icon.notify-info {
+            background:rgba(59,130,246,0.15);color:#60a5fa;
+        }
+        .notify-icon.notify-warning {
+            background:rgba(251,191,36,0.15);color:#fbbf24;
+        }
+        .notify-icon.notify-critical {
+            background:rgba(239,68,68,0.15);color:#ef4444;
+        }
+        .notify-body {
+            flex:1;min-width:0;
+        }
+        .notify-title {
+            font-weight:600;font-size:0.9rem;color:var(--text-main);
+            margin-bottom:2px;
+        }
+        .notify-message {
+            font-size:0.82rem;color:var(--text-dim);
+            line-height:1.4;margin-bottom:4px;
+        }
+        .notify-meta {
+            display:flex;align-items:center;gap:8px;
+            font-size:0.75rem;
+        }
+        .notify-severity {
+            padding:1px 6px;border-radius:4px;
+            text-transform:uppercase;font-weight:600;
+            font-size:0.7rem;letter-spacing:0.3px;
+        }
+        .notify-severity.notify-info {
+            background:rgba(59,130,246,0.1);color:#60a5fa;
+        }
+        .notify-severity.notify-warning {
+            background:rgba(251,191,36,0.1);color:#fbbf24;
+        }
+        .notify-severity.notify-critical {
+            background:rgba(239,68,68,0.1);color:#ef4444;
+        }
+        .notify-date {
+            color:var(--text-dim);
+        }
+        .notify-mark-read {
+            flex-shrink:0;font-size:0.75rem;padding:2px 8px;
+        }
+        .notify-badge {
+            display:inline-flex;align-items:center;justify-content:center;
+            min-width:18px;height:18px;padding:0 5px;
+            border-radius:9px;background:var(--accent,#3b82f6);
+            color:white;font-size:0.7rem;font-weight:700;
+            margin-left:8px;vertical-align:middle;
+        }
+        .section-subtext {
+            margin-top:-4px;margin-bottom:12px;
+            font-size:0.85rem;color:var(--text-dim);
+            line-height:1.4;
+        }
 </style>
 </head>
 
@@ -890,6 +965,33 @@
                 </div>
             </div>
             <!-- Full Width Bottom: Preferences -->
+            <!-- Billing Notifications -->
+            <div class="profile-section glass-card full-width" id="billing-notifications-section">
+                <div class="profile-section-header">
+                    <i data-lucide="bell" style="width:17px;height:17px;"></i>
+                    Billing Notifications
+                </div>
+                <div class="section-subtext" style="margin-bottom:12px;font-size:0.85rem;color:var(--text-dim);">
+                    Notifications for subscription expiry, payment and AI credit alerts shared by all chatbots in this company.
+                </div>
+                <div id="billing-notifications-loading" style="padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
+                    <div class="loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></div>
+                    Loading notifications...
+                </div>
+                <div id="billing-notifications-empty" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
+                    No billing notifications.
+                </div>
+                <div id="billing-notifications-error" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
+                    Unable to load billing notifications.
+                    <button id="btn-notifications-retry" class="btn btn-small" style="margin-left:8px;" onclick="loadBillingNotifications()">Retry</button>
+                </div>
+                <div id="billing-notifications-content" style="display:none;">
+                    <div id="billing-notifications-list" style="max-height:400px;overflow-y:auto;"></div>
+                    <div id="billing-notifications-unread-bar" style="display:none;margin-top:8px;text-align:right;">
+                        <button id="btn-mark-all-read" class="btn btn-small" onclick="markAllNotificationsRead()">Mark all as read</button>
+                    </div>
+                </div>
+            </div>
             <div class="profile-section glass-card full-width">
                 <div class="profile-section-header">
                     <i data-lucide="settings" style="width:17px;height:17px;"></i>
@@ -1066,7 +1168,7 @@
             var roleInput = document.getElementById("team-role");
             var memberCountEl = document.getElementById("team-member-count");
 
-            // Start with neutral values Ã¢â‚¬â€ never show fake placeholder defaults
+            // Start with neutral values ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â never show fake placeholder defaults
             if (roleInput) roleInput.value = "N/A";
             if (memberCountEl) memberCountEl.textContent = "Unable to load";
 
@@ -1087,7 +1189,7 @@
                     }
                 }
             } catch (err) {
-                // Silently fall back Ã¢â‚¬â€ neutral values already set
+                // Silently fall back ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â neutral values already set
             }
         }
 
@@ -1664,7 +1766,7 @@ async function loadBillingInfo() {
                     var now = new Date();
                     var daysLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
                     var dateStr = trialEnd.toLocaleDateString();
-                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) Ã¢â‚¬â€ uses <strong>DeepSeek AI</strong> only";
+                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â uses <strong>DeepSeek AI</strong> only";
                 }
             } else {
                 if (trialRow) trialRow.style.display = "none";
@@ -1833,7 +1935,7 @@ async function loadBillingInfo() {
                     // Plan
                     var planTd = document.createElement("td");
                     planTd.style.padding = "8px 10px";
-                    planTd.textContent = (o.plan && o.plan.name) || "ï¿½";
+                    planTd.textContent = (o.plan && o.plan.name) || "Ã¯Â¿Â½";
                     tr.appendChild(planTd);
 
                     // Amount
@@ -1970,7 +2072,7 @@ async function loadBillingInfo() {
             if (reconciliationRequired) {
                 return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:#f59e0b22;color:#f59e0b;">Needs Attention</span>';
             }
-            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">ï¿½</span>';
+            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">Ã¯Â¿Â½</span>';
         }
 
 
@@ -2000,14 +2102,14 @@ async function loadBillingInfo() {
                 var plan = d.plan || {};
                 var amtMyr = d.amount_myr || ((d.amount_sen || 0) / 100);
                 var html = '';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "ï¿½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "Ã¯Â¿Â½") + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Amount</label><span style="color:var(--text-main);">RM ' + Number(amtMyr).toFixed(2) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "ï¿½") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "ï¿½") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "ï¿½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "Ã¯Â¿Â½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "Ã¯Â¿Â½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "Ã¯Â¿Â½") + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Status</label><span>' + buildPaymentStatusBadge(d.status) + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Activation Status</label><span>' + buildActivationStatusBadge(d.activation_status, d.reconciliation_required) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "ï¿½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "Ã¯Â¿Â½") + '</span></div>';
                 if (d.paid_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Paid At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.paid_at).toLocaleString() + '</span></div>'; }
                 if (d.credited_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Credited At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.credited_at).toLocaleString() + '</span></div>'; }
                 if (d.message) { html += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--text-dim);font-size:0.85rem;">' + d.message + '</div>'; }
@@ -2462,7 +2564,7 @@ async function loadBillingInfo() {
             showPaymentStatus("checking", "Checking your payment status...", "");
             function poll() {
                 if (_paymentPollCount >= _paymentPollMax) {
-                    showPaymentStatus("processing", "Still processing.", "Please wait Ã¢â‚¬â€ your balance will update once payment is verified. You can also check again below.");
+                    showPaymentStatus("processing", "Still processing.", "Please wait ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â your balance will update once payment is verified. You can also check again below.");
                     var btn2 = document.getElementById("btn-check-again");
                     if (btn2) btn2.style.display = "inline-flex";
                     return;
@@ -2636,7 +2738,7 @@ async function loadBillingInfo() {
             showPaymentStatus("checking", "Checking your subscription payment status...", "");
             function poll() {
                 if (_paymentPollCount >= _paymentPollMax) {
-                    showPaymentStatus("processing", "Still processing.", "Please wait Ã¢â‚¬â€ your subscription will update once payment is verified. You can also check again below." );
+                    showPaymentStatus("processing", "Still processing.", "Please wait ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â your subscription will update once payment is verified. You can also check again below." );
                     var btn2 = document.getElementById("btn-check-again");
                     if (btn2) btn2.style.display = "inline-flex";
                     return;
@@ -2864,7 +2966,7 @@ async function loadBillingInfo() {
             if (_aiCreditTransactionsLoading) return;
             fetchAiCreditTransactions();
         }
-/* ===== Phase 4H — Export Functions ===== */
+/* ===== Phase 4H â€” Export Functions ===== */
 
         var _exportingCsv = false;
         var _exportingCreditCsv = false;
@@ -2982,7 +3084,168 @@ async function loadBillingInfo() {
             }
         }
 
+
+        async function loadBillingNotifications() {
+            var loading = document.getElementById("billing-notifications-loading");
+            var content = document.getElementById("billing-notifications-content");
+            var emptyDiv = document.getElementById("billing-notifications-empty");
+            var errorDiv = document.getElementById("billing-notifications-error");
+            var listEl = document.getElementById("billing-notifications-list");
+            var unreadBar = document.getElementById("billing-notifications-unread-bar");
+
+            if (!loading || !listEl) return;
+
+            loading.style.display = "";
+            if (content) content.style.display = "none";
+            if (emptyDiv) emptyDiv.style.display = "none";
+            if (errorDiv) errorDiv.style.display = "none";
+
+            try {
+                var res = await authenticatedFetch("/api/billing/notifications?limit=50");
+                var json = await res.json();
+
+                loading.style.display = "none";
+
+                if (!res.ok || json.status !== "success") {
+                    if (errorDiv) errorDiv.style.display = "";
+                    return;
+                }
+
+                var notifications = json.data || [];
+
+                if (notifications.length === 0) {
+                    if (emptyDiv) emptyDiv.style.display = "";
+                    if (content) content.style.display = "none";
+                    return;
+                }
+
+                if (content) content.style.display = "";
+                listEl.innerHTML = "";
+
+                var hasUnread = false;
+                for (var i = 0; i < notifications.length; i++) {
+                    var n = notifications[i];
+                    var severityClass = "notify-info";
+                    var icon = "info";
+                    if (n.severity === "warning") {
+                        severityClass = "notify-warning";
+                        icon = "alert-triangle";
+                    } else if (n.severity === "critical") {
+                        severityClass = "notify-critical";
+                        icon = "alert-octagon";
+                    }
+
+                    var isRead = n.is_read === true;
+                    if (!isRead) hasUnread = true;
+
+                    var item = document.createElement("div");
+                    item.className = "billing-notification-item" + (isRead ? "" : " notify-unread");
+                    item.setAttribute("data-notification-id", n.id);
+
+                    var createdDate = n.created_at ? new Date(n.created_at + (n.created_at.endsWith("Z") ? "" : "Z")).toLocaleString() : "";
+
+                    item.innerHTML = "" +
+                        '<div class="notify-icon ' + severityClass + '">' +
+                            '<i data-lucide="' + icon + '" style="width:16px;height:16px;"></i>' +
+                        '</div>' +
+                        '<div class="notify-body">' +
+                            '<div class="notify-title">' + escapeHtml(n.title || "") + '</div>' +
+                            '<div class="notify-message">' + escapeHtml(n.message || "") + '</div>' +
+                            '<div class="notify-meta">' +
+                                '<span class="notify-severity ' + severityClass + '">' + escapeHtml(n.severity || "") + '</span>' +
+                                '<span class="notify-date">' + escapeHtml(createdDate) + '</span>' +
+                            '</div>' +
+                        '</div>' +
+                        (isRead ? "" : '<button class="btn btn-small notify-mark-read" onclick="markSingleNotificationRead(' + n.id + ')">Mark read</button>');
+
+                    listEl.appendChild(item);
+                }
+
+                if (typeof lucide !== "undefined" && lucide.createIcons) {
+                    lucide.createIcons();
+                }
+
+                if (unreadBar) {
+                    unreadBar.style.display = hasUnread ? "" : "none";
+                }
+            } catch (e) {
+                loading.style.display = "none";
+                if (errorDiv) errorDiv.style.display = "";
+            }
+        }
+
+        async function markSingleNotificationRead(notificationId) {
+            try {
+                var res = await authenticatedFetch("/api/billing/notifications/" + notificationId + "/read", {
+                    method: "POST",
+                });
+                var json = await res.json();
+                if (res.ok && json.status === "success") {
+                    var item = document.querySelector('.billing-notification-item[data-notification-id="' + notificationId + '"]');
+                    if (item) {
+                        item.classList.remove("notify-unread");
+                        var btn = item.querySelector(".notify-mark-read");
+                        if (btn) btn.style.display = "none";
+                    }
+                    loadBillingNotificationsUnreadCount();
+                }
+            } catch (e) {
+                // Silently fail — user can retry
+            }
+        }
+
+        async function markAllNotificationsRead() {
+            try {
+                var res = await authenticatedFetch("/api/billing/notifications/read-all", {
+                    method: "POST",
+                });
+                var json = await res.json();
+                if (res.ok && json.status === "success") {
+                    loadBillingNotifications();
+                    loadBillingNotificationsUnreadCount();
+                }
+            } catch (e) {
+                // Silently fail
+            }
+        }
+
+        async function loadBillingNotificationsUnreadCount() {
+            try {
+                var res = await authenticatedFetch("/api/billing/notifications/unread-count");
+                var json = await res.json();
+                if (res.ok && json.status === "success") {
+                    var count = json.data && json.data.unread_count;
+                    var badge = document.getElementById("billing-notifications-unread-badge");
+                    if (!badge) {
+                        badge = document.createElement("span");
+                        badge.id = "billing-notifications-unread-badge";
+                        badge.className = "notify-badge";
+                        var header = document.querySelector("#billing-notifications-section .profile-section-header");
+                        if (header) header.appendChild(badge);
+                    }
+                    if (count > 0) {
+                        badge.textContent = count > 99 ? "99+" : count;
+                        badge.style.display = "";
+                    } else {
+                        badge.style.display = "none";
+                    }
+                }
+            } catch (e) {
+                // Silently fail
+            }
+        }
+
+
+        function escapeHtml(str) {
+            if (typeof str !== "string") return "";
+            var div = document.createElement("div");
+            div.appendChild(document.createTextNode(str));
+            return div.innerHTML;
+        }
+
 // Init
+        loadBillingNotifications();
+        loadBillingNotificationsUnreadCount();
         restorePreferences();
         loadProfile();
         loadTeamInfo();
