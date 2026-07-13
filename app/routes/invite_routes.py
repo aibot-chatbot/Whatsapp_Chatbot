@@ -24,6 +24,13 @@ invite_bp = Blueprint("invite", __name__, url_prefix="/api/invites")
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
+def _build_invite_url(token):
+    """Build the full invite acceptance URL from the configured frontend URL."""
+    from flask import current_app
+    base = current_app.config.get("FRONTEND_URL", "http://localhost:3000")
+    return f"{base}/accept-invite?token={token}"
+
+
 
 # ── Admin: Create Invite ──────────────────────────────────────────────
 
@@ -79,7 +86,7 @@ def create_invite_endpoint():
             created_by=g.user_id
         )
 
-        invite_link = f"http://localhost:3000/accept-invite?token={token}"
+        invite_link = _build_invite_url(token)
 
         # Send invite email (non-blocking — failure does not break response)
         try:
@@ -190,7 +197,7 @@ def resend_invite():
             }), 404
 
         token = invite.get("token")
-        invite_link = f"http://localhost:3000/accept-invite?token={token}"
+        invite_link = _build_invite_url(token)
 
         # Send invite email (non-blocking)
         try:

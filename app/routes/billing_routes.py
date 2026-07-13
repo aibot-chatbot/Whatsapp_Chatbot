@@ -1,5 +1,6 @@
 ﻿import logging
 import re
+from app.rate_limit import limiter
 
 from flask import Blueprint, jsonify, g, request
 
@@ -307,6 +308,7 @@ def fetch_ai_credit_transactions():
 # ---------------------------------------------------------------------------
 
 @billing_bp.route("/toyyibpay/checkout", methods=["POST"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_CHECKOUT", "5/minute"))
 @token_required
 def toyyibpay_checkout():
     """Create a ToyyibPay bill for AI-credit top-up.
@@ -536,6 +538,8 @@ def toyyibpay_order_status(order_reference):
 
 
 @billing_bp.route("/subscription/checkout", methods=["POST"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_CHECKOUT", "5/minute"))
 @token_required
 def subscription_checkout():
     """Create a subscription payment checkout (ToyyibPay bill).
@@ -941,6 +945,8 @@ def subscription_order_receipt(order_reference):
         return jsonify({"status": "error", "message": "Unable to generate receipt."}), 500
 
 @billing_bp.route("/subscription/orders/<order_reference>/retry", methods=["POST"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_RETRY", "5/minute"))
 @token_required
 def retry_subscription_order(order_reference):
     try:
@@ -971,129 +977,6 @@ def retry_subscription_order(order_reference):
         return jsonify({"status": "error", "message": "Unable to retry order."}), 500
 
 
-@billing_bp.route("/dev/subscription-orders/<reference>/complete", methods=["POST"])
-@token_required
-def dev_complete_subscription_order(reference):
-    """DEV ONLY: Complete a pending subscription order without real payment.
-
-    This endpoint is only available when FLASK_DEBUG is set to a truthy value.
-    It simulates a successful ToyyibPay callback by reusing the production
-    process_subscription_payment_callback() flow.
-    """
-    import os
-    debug_val = os.getenv("FLASK_DEBUG", "0").strip().lower()
-    if debug_val not in ("1", "true", "yes", "on"):
-        return jsonify({
-            "status": "error",
-            "message": "This endpoint is only available in development mode."
-        }), 403
-
-    try:
-        company_id = g.company_id
-        if not company_id:
-            return jsonify({
-                "status": "error",
-                "message": "Company not found in authentication token."
-            }), 401
-
-        try:
-            uuid.UUID(reference)
-        except (ValueError, AttributeError):
-            return jsonify({
-                "status": "error",
-                "message": "Invalid order reference format."
-            }), 400
-
-        from app.database.company_subscription_order_repository import (
-            get_subscription_order_by_reference_and_company,
-            update_subscription_order_status,
-        )
-
-        order = get_subscription_order_by_reference_and_company(
-            order_reference=reference,
-            company_id=company_id,
-        )
-
-        if order is None:
-            return jsonify({
-                "status": "error",
-                "message": "Order not found."
-            }), 404
-
-        order_status = order.get("status", "")
-        if order_status in ("failed", "expired", "cancelled"):
-            return jsonify({
-                "status": "error",
-                "message": f"Order has status '{order_status}' and cannot be completed."
-            }), 400
-
-        if order_status == "credited":
-            return jsonify({
-                "status": "success",
-                "data": {
-                    "order_reference": reference,
-                    "subscription_status": "already_activated",
-                    "plan": order.get("new_plan_id"),
-                    "message": "Order is already credited. Subscription was previously activated."
-                },
-            }), 200
-
-        gateway_order_id = order.get("gateway_order_id", "") or reference
-
-        if not order.get("gateway_order_id"):
-            update_subscription_order_status(
-                reference, order_status,
-                gateway_order_id=reference,
-            )
-            gateway_order_id = reference
-
-        from app.services.subscription_payment_callback_service import (
-            process_subscription_payment_callback,
-        )
-
-        callback_payload = {
-            "payment_gateway": "toyyibpay",
-            "gateway_order_id": gateway_order_id,
-            "payment_reference": "DEV_TEST_PAYMENT",
-            "paid": True,
-            "amount_sen": order.get("amount_sen", 0),
-        }
-
-        result = process_subscription_payment_callback(callback_payload)
-
-        return jsonify({
-            "status": "success",
-            "data": {
-                "order_reference": result.get("order_reference", reference),
-                "subscription_status": result.get("status"),
-                "plan": result.get("plan_code"),
-                "message": (
-                    "Subscription activated successfully (DEV completion)."
-                    if result.get("status") == "activated"
-                    else "Subscription was already activated."
-                ),
-            },
-        }), 200
-
-    except ValueError as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-        }), 400
-
-    except RuntimeError as e:
-        logging.error("DEV subscription order completion failed: %s", e)
-        return jsonify({
-            "status": "error",
-            "message": str(e),
-        }), 502
-
-    except Exception:
-        logging.exception("Unexpected error completing subscription order in dev mode")
-        return jsonify({
-            "status": "error",
-            "message": "Unable to complete order. Please try again later."
-        }), 500
 @billing_bp.route("/subscription/downgrade-check/<target_plan_code>", methods=["GET"])
 @token_required
 def subscription_downgrade_check(target_plan_code):
@@ -1311,6 +1194,8 @@ def _subscription_downgrade_check(target_plan_code):
 
 
 @billing_bp.route("/subscription/orders/<order_reference>/receipt/print", methods=["GET"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_RECEIPT", "30/minute"))
 @token_required
 def printable_subscription_receipt(order_reference):
     """Return a printable HTML payment receipt.
@@ -1452,6 +1337,8 @@ def printable_subscription_receipt(order_reference):
 
 
 @billing_bp.route("/subscription/orders/export.csv", methods=["GET"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_EXPORT", "20/minute"))
 @token_required
 def export_subscription_orders_csv():
     """Export company subscription orders as CSV."""
@@ -1516,6 +1403,8 @@ def export_subscription_orders_csv():
 
 
 @billing_bp.route("/ai-credit/transactions/export.csv", methods=["GET"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_EXPORT", "20/minute"))
 @token_required
 def export_ai_credit_transactions_csv():
     """Export company AI-credit transactions as CSV."""
@@ -1577,6 +1466,8 @@ def export_ai_credit_transactions_csv():
 
 
 @billing_bp.route("/ai-credit/usage-summary", methods=["GET"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_EXPORT", "20/minute"))
 @token_required
 def get_ai_credit_usage_summary():
     """Return an AI-credit usage summary for the current billing period."""
@@ -1782,6 +1673,8 @@ def mark_all_billing_notifications_read():
 # ---------------------------------------------------------------------------
 
 @billing_bp.route("/reports/summary", methods=["GET"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_EXPORT", "20/minute"))
 @token_required
 def billing_report_summary():
     """Get a detailed billing report summary for the company.
@@ -1859,6 +1752,8 @@ def billing_report_summary():
 
 
 @billing_bp.route("/reports/monthly", methods=["GET"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_EXPORT", "20/minute"))
 @token_required
 def billing_report_monthly():
     """Get monthly billing trend data.
@@ -1896,6 +1791,8 @@ def billing_report_monthly():
 
 
 @billing_bp.route("/reports/plan-usage", methods=["GET"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_EXPORT", "20/minute"))
 @token_required
 def billing_report_plan_usage():
     """Get current plan usage against plan limits.
@@ -1921,6 +1818,8 @@ def billing_report_plan_usage():
 
 
 @billing_bp.route("/reports/export.csv", methods=["GET"])
+
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_EXPORT", "20/minute"))
 @token_required
 def billing_report_export_csv():
     """Export monthly billing report as CSV.

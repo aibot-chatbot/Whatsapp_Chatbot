@@ -1,3 +1,4 @@
+from app.rate_limit import limiter
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -12,7 +13,8 @@ from app.database.password_reset_repository import (
 from app.services.email_service import send_otp_email
 from app.utils.jwt_utils import get_jwt_secret
 import logging
-from app.services.billing_service import ensure_default_company_subscription
+import logging
+logger = logging.getLogger(__name__)
 
 import jwt
 import datetime
@@ -94,7 +96,7 @@ def google_auth():
     if google_resp.status_code != 200 or token_info.get("error_description"):
         return jsonify({"status": "error", "message": "Invalid Google token. Please try again."}), 401
 
-    # Validate audience (aud) matches our client ID — skip if not configured yet
+    # Validate audience (aud) matches our client ID â€” skip if not configured yet
     if google_client_id and token_info.get("aud") != google_client_id:
         return jsonify({"status": "error", "message": "Token audience mismatch"}), 401
 
@@ -118,7 +120,7 @@ def google_auth():
                 "message": "Your account has been deactivated. Please contact your administrator."
             }), 403
 
-        # Existing user — log them in
+        # Existing user â€” log them in
         try:
             token = jwt.encode({
                 "user_id": existing_user["id"],
@@ -143,7 +145,7 @@ def google_auth():
             }
         })
 
-    # New user — need company name
+    # New user â€” need company name
     if not company_name:
         return jsonify({
             "status": "needs_company",
@@ -225,6 +227,7 @@ def is_password_valid(stored_password, input_password):
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_LOGIN", "10/minute"))
 def login():
     data = request.get_json() or {}
 
@@ -320,7 +323,7 @@ def register():
         otp = generate_otp()
         otp_expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
 
-        # Upsert into pending_registrations — does NOT touch users/companies/bots
+        # Upsert into pending_registrations â€” does NOT touch users/companies/bots
         supabase.table("pending_registrations").upsert({
             "email": email,
             "first_name": first_name,
@@ -333,9 +336,9 @@ def register():
 
         email_sent = send_otp_email(email, otp, recipient_name=first_name)
         if email_sent:
-            print(f"DEBUG: OTP sent to {email}")
+            logger.info("OTP sent to " + email)
         else:
-            print(f"DEBUG: Email failed for {email}, OTP: {otp}")
+            logger.warning("Email failed for " + email)
 
         return jsonify({
             "status": "success",
@@ -347,6 +350,7 @@ def register():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @auth_bp.route("/verify-otp", methods=["POST"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
 def verify_otp():
     from app.database.db import supabase
     data = request.get_json() or {}
@@ -374,7 +378,7 @@ def verify_otp():
         if datetime.datetime.now(datetime.timezone.utc) > expiry:
             return jsonify({"status": "error", "message": "Verification code expired. Please request a new one."}), 400
 
-    # OTP is valid — now create the real account
+    # OTP is valid â€” now create the real account
     try:
         company = create_company(
             company_name=pending["company_name"],
@@ -418,6 +422,7 @@ def verify_otp():
         return jsonify({"status": "error", "message": f"Account creation failed: {str(e)}"}), 500
 
 @auth_bp.route("/resend-otp", methods=["POST"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
 def resend_otp():
     from app.database.db import supabase
     data = request.get_json() or {}
@@ -442,14 +447,15 @@ def resend_otp():
 
     email_sent = send_otp_email(email, otp, recipient_name=pending.get("first_name", "User"))
     if email_sent:
-        print(f"DEBUG: Resent OTP via email to {email}")
+        logger.info("Resent OTP via email to " + email)
     else:
-        print(f"DEBUG: Resend failed for {email}, OTP: {otp}")
+        logger.warning("Resend failed for " + email)
 
     return jsonify({"status": "success", "message": "New verification code sent to your email"}), 200
 
 
 @auth_bp.route("/forgot-password", methods=["POST"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
 def forgot_password():
     from app.services.email_service import send_reset_email
     data = request.get_json() or {}
@@ -478,7 +484,7 @@ def forgot_password():
 
     email_sent = send_reset_email(email, otp, recipient_name=first_name)
     if not email_sent:
-        print(f"DEBUG Reset OTP for {email}: {otp}")
+        logger.info("Reset OTP for " + email)
 
     return jsonify({
         "status": "success",
@@ -516,6 +522,7 @@ def verify_reset_otp():
 
 
 @auth_bp.route("/reset-password", methods=["POST"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
 def reset_password():
     from app.database.db import supabase
     data = request.get_json() or {}
