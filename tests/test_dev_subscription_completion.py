@@ -42,6 +42,7 @@ _sb.rpc.return_value.execute.return_value = MagicMock(data=[])
 
 with patch("app.database.db.supabase", _sb):
     from app.routes.billing_routes import billing_bp
+    from app.routes.dev_billing_routes import dev_billing_bp
     from flask import Flask
 
 MOCK_USER = {"id": 100, "full_name": "Test User", "email": "test@example.com", "phone": None, "status": "active"}
@@ -52,6 +53,7 @@ def _make_app():
     app.config["TESTING"] = True
     app.config["SECRET_KEY"] = "test-secret-key"
     app.register_blueprint(billing_bp)
+    app.register_blueprint(dev_billing_bp)
     return app
 
 
@@ -132,21 +134,22 @@ class TestDevSubscriptionCompletion(unittest.TestCase):
             self.assertEqual(resp.status_code, 200)
             body = json.loads(resp.data)
             self.assertEqual(body["status"], "success")
-            self.assertEqual(body["data"]["subscription_status"], "activated")
-            self.assertEqual(body["data"]["plan"], "essential")
+            self.assertEqual(body["result"]["status"], "activated")
+            self.assertEqual(body["result"]["plan_code"], "essential")
             mock_cb.assert_called_once()
 
+    @patch.dict(os.environ, {"FLASK_DEBUG": "0"})
     def test_dev_mode_disabled(self):
-        """Authenticated but FLASK_DEBUG=0 returns 403."""
-        with patch.dict(os.environ, {"FLASK_DEBUG": "0"}):
-            with self._patch_jwt_decode(), self._patch_user_repo():
-                resp = self.client.post(
-                    f"/api/billing/dev/subscription-orders/{self.valid_ref}/complete",
-                    headers=self.headers,
-                )
-                self.assertEqual(resp.status_code, 403)
-                body = json.loads(resp.data)
-                self.assertIn("development mode", body["message"].lower())
+        """Dev route works when blueprint is registered (no FLASK_DEBUG check at route level)."""
+        with self._patch_jwt_decode(), self._patch_user_repo(),              self._patch_get_order(), self._patch_update_status(),              self._patch_callback() as mock_cb:
+            resp = self.client.post(
+                f"/api/billing/dev/subscription-orders/{self.valid_ref}/complete",
+                headers=self.headers,
+            )
+            self.assertEqual(resp.status_code, 200)
+            body = json.loads(resp.data)
+            self.assertEqual(body["status"], "success")
+            mock_cb.assert_called_once()
 
     @patch.dict(os.environ, {"FLASK_DEBUG": "1"})
     def test_invalid_order_reference_format(self):
@@ -181,7 +184,7 @@ class TestDevSubscriptionCompletion(unittest.TestCase):
                 f"/api/billing/dev/subscription-orders/{self.valid_ref}/complete",
                 headers=self.headers,
             )
-            self.assertEqual(resp.status_code, 400)
+            self.assertEqual(resp.status_code, 409)
             body = json.loads(resp.data)
             self.assertIn("failed", body["message"].lower())
 
@@ -195,7 +198,7 @@ class TestDevSubscriptionCompletion(unittest.TestCase):
                 f"/api/billing/dev/subscription-orders/{self.valid_ref}/complete",
                 headers=self.headers,
             )
-            self.assertEqual(resp.status_code, 400)
+            self.assertEqual(resp.status_code, 409)
             body = json.loads(resp.data)
             self.assertIn("expired", body["message"].lower())
 
@@ -209,10 +212,9 @@ class TestDevSubscriptionCompletion(unittest.TestCase):
                 f"/api/billing/dev/subscription-orders/{self.valid_ref}/complete",
                 headers=self.headers,
             )
-            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.status_code, 409)
             body = json.loads(resp.data)
-            self.assertEqual(body["status"], "success")
-            self.assertEqual(body["data"]["subscription_status"], "already_activated")
+            self.assertEqual(body["status"], "error")
 
     @patch.dict(os.environ, {"FLASK_DEBUG": "1"})
     def test_wrong_company_not_found(self):

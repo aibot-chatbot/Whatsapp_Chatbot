@@ -1,6 +1,7 @@
-from flask import Flask, request
+﻿from flask import Flask, request
 import os
 from flask_cors import CORS
+from app.rate_limit import init_limiter
 from app.config import load_configurations, configure_logging
 from .views import webhook_blueprint
 from app.routes.chat_routes import chat_blueprint
@@ -26,6 +27,7 @@ from app.routes.billing_routes import billing_bp
 from app.routes.toyyibpay_routes import toyyibpay_bp
 from app.routes.broadcast_routes import broadcast_blueprint
 from app.routes.admin_billing_routes import admin_billing_bp
+from app.routes.dev_billing_routes import dev_billing_bp
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -41,6 +43,7 @@ def create_app():
     configure_logging()
 
     CORS(app, resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}})
+    init_limiter(app)
 
     # Register blueprints
     app.register_blueprint(webhook_blueprint)
@@ -68,6 +71,8 @@ def create_app():
     app.register_blueprint(toyyibpay_bp)
     app.register_blueprint(broadcast_blueprint)
     app.register_blueprint(admin_billing_bp)
+    if app.config.get("ENABLE_DEV_BILLING_ROUTES"):
+        app.register_blueprint(dev_billing_bp)
 
     # Serve frontend files as fallback for unmatched GET routes
     FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
