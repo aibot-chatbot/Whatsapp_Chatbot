@@ -1,5 +1,23 @@
 # Development Roadmap
 
+> **Note:** The roadmap below uses original Phase numbering (1–8) from early development.
+> The current billing and subscription work follows Phases 4E–4M:
+>
+> | Phase | Topic | Status |
+> |---|---|---|
+> | 4E | Subscription billing history and receipts | Complete |
+> | 4F | Production security, tenant isolation, plan enforcement | Complete |
+> | 4G | Admin and support operations | Complete |
+> | 4H | Customer receipts, exports, usage reporting | Complete |
+> | 4I | Renewal, grace period, failed-payment recovery | Complete |
+> | 4J | Billing notifications and alerts | Complete |
+> | 4K | Advanced billing and AI-usage reporting | Complete |
+> | 4L | Platform-admin controls | **Deferred** |
+> | 4M | Production launch audit and remediation | Complete |
+>
+> ---
+
+
 ## Roadmap Principles
 
 The roadmap starts from the current implemented system. It does not rebuild working modules without evidence.
@@ -275,7 +293,7 @@ Remove confirmed obsolete files and reduce maintenance overhead.
 
 ### Included work
 
-- Review `unused_backup/`
+- ~~Review~~ `unused_backup/` (removed)
 - Review root-level test and diagnostic scripts
 - Review old planning documents
 - Review committed PDF data

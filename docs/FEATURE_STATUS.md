@@ -244,16 +244,44 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 **Status:** Implemented
 
-- Renewal status service (get_subscription_renewal_status) with safe customer-facing messages
-- GET /api/billing/subscription/renewal-status endpoint
-- Grace period policy: active -> past_due (grace), past_due -> expired (after grace)
-- Configurable grace period via BILLING_GRACE_PERIOD_DAYS env var (default 3 days)
-- Expiry transition service updated to use grace period
-- Duplicate pending order prevention in checkout service
-- Profile UI updates: renewal status display, expiry warnings, grace period warnings
-- Structured lifecycle logs with company_id, status transitions, grace period info
-- Comprehensive tests for all renewal states
-- No automatic recurring billing (ToyyibPay doesn't support stored-card charging)
-- Email notifications: deferred (no approved email service)
+## Phase 4J — Billing Notifications and Customer Communication
 
-## Planned phases (not yet started)
+**Status: Complete**
+
+- In-app billing notifications with event-key deduplication
+- Renewal reminders at 7/3/1-day thresholds and expiry day
+- Grace-period started/ending notifications
+- Payment confirmed and activation notifications
+- AI-credit low/critical/depleted alerts
+- Company-scoped notification API
+- Notification generation job
+
+## Phase 4K — Advanced Billing and Usage Reporting
+
+**Status: Complete**
+
+- Monthly billing summaries and trends
+- Plan-usage reporting against limits
+- CSV exports of all reports
+- Integer arithmetic, company isolation
+
+## Phase 4M — Production Launch Audit and Remediation
+
+**Status: Complete**
+
+- Rate limiting (Flask-Limiter)
+- CORS hardening
+- Hardcoded URL fix
+- Development route isolation
+- Auth/billing endpoint rate limits
+- Full test suite: 1,084 pass
+
+## Platform Limitations
+
+| Limitation | Status |
+|---|---|
+| Platform-admin controls | Deferred (Phase 4L) |
+| Automatic recurring billing | Deferred (ToyyibPay limitation) |
+| Email/SMS delivery | Deferred (no provider) |
+| PDF receipts | Open (HTML only) |
+| Cross-company dashboard | Deferred |
