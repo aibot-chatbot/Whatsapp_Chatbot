@@ -1,4 +1,4 @@
-﻿"""generate_billing_notifications.py - Notification generation command.
+"""generate_billing_notifications.py - Notification generation command.
 
 Usage:
     python -m app.jobs.generate_billing_notifications [--batch-size N] [--dry-run]
@@ -41,11 +41,11 @@ logger = logging.getLogger(__name__)
 DEFAULT_BATCH_SIZE = 100
 
 # Default AI-credit alert thresholds (micro-MYR).
-# RM5.00 = 500_000_000 micro-MYR (5 * 100_000_000)
-# RM1.00 = 100_000_000 micro-MYR
+# RM5.00 = 5_000_000 micro-MYR
+# RM1.00 = 1_000_000 micro-MYR
 # RM0.00 = 0 micro-MYR
-DEFAULT_LOW_THRESHOLD_MICRO_MYR = 500_000_000
-DEFAULT_CRITICAL_THRESHOLD_MICRO_MYR = 100_000_000
+DEFAULT_LOW_THRESHOLD_MICRO_MYR = 5_000_000
+DEFAULT_CRITICAL_THRESHOLD_MICRO_MYR = 1_000_000
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
