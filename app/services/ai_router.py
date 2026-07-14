@@ -46,6 +46,7 @@ from app.services.billing_notification_service import (
 )
 
 from app.database.company_subscription_repository import get_company_subscription
+from app.database.subscription_plan_repository import get_plan_by_id
 
 from app.database.ai_usage_repository import insert_usage_log
 
@@ -628,6 +629,35 @@ def _validate_deepseek_pricing_config():
             )
 
 
+
+def _is_free_plan_company(company_id: int) -> bool:
+    """Check whether a company is on the Free trial plan.
+
+    Looks up the subscription, resolves plan_id to plan code via
+    get_plan_by_id, and checks whether the code is "free".
+    Uses the same pattern as ai_access_policy.resolve_ai_access().
+    Defaults to False (paid wording) when lookup fails.
+    """
+    try:
+        sub = get_company_subscription(int(company_id))
+        if not sub:
+            return False
+        plan_id = sub.get("plan_id")
+        if not plan_id:
+            return False
+        plan = get_plan_by_id(plan_id)
+        if not plan:
+            return False
+        plan_code = (plan.get("code") or "").lower().strip()
+        return plan_code == "free"
+    except Exception:
+        logging.warning(
+            "Could not determine plan for company %s; defaulting to paid wording.",
+            company_id,
+        )
+        return False
+
+
 def _check_ai_credit_before_provider(company_id: int | None):
     if not is_ai_credit_enforcement_enabled():
         return
@@ -664,6 +694,19 @@ def _check_ai_credit_before_provider(company_id: int | None):
         )
 
     if total <= 0:
+        try:
+            is_free = _is_free_plan_company(company_id)
+        except Exception:
+            logging.warning(
+                "Failed to determine plan for company %s; defaulting to paid wording.",
+                company_id,
+            )
+            is_free = False
+        if is_free:
+            raise BillingLimitError(
+                "Your trial AI credit has been fully used. Please upgrade to a paid plan to continue.",
+                code="ai_credit_insufficient",
+            )
         raise BillingLimitError(
             "Your account has no remaining AI credit. Please top up to continue.",
             code="ai_credit_insufficient",

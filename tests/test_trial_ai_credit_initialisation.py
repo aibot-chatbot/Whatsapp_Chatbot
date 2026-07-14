@@ -1,4 +1,4 @@
-"""test_trial_ai_credit_initialisation.py
+﻿"""test_trial_ai_credit_initialisation.py
 
 Tests for trial AI-credit initialisation and lazy preflight recovery.
 """
@@ -198,14 +198,16 @@ class TestLazyPreflightRecovery(unittest.TestCase):
     @patch("app.services.ai_router.get_ai_usd_to_myr_rate_micro_myr_per_usd")
     @patch("app.services.ai_router.get_company_ai_credit_summary")
     @patch("app.services.ai_router.ensure_company_ai_credit")
+    @patch("app.services.ai_router._is_free_plan_company")
     def test_billing_limit_error_when_balance_depleted(
-        self, mock_ensure, mock_summary, mock_fx, mock_markup, mock_enabled
+        self, mock_is_free, mock_ensure, mock_summary, mock_fx, mock_markup, mock_enabled
     ):
-        """BillingLimitError raised when total balance is zero after init."""
+        """BillingLimitError raised with top-up message for paid plan when balance is zero."""
         mock_enabled.return_value = True
         mock_markup.return_value = 2500
         mock_fx.return_value = 4500000
         mock_ensure.return_value = {"status": "ok"}
+        mock_is_free.return_value = False
         summary = {
             "initialised": True,
             "included_balance_micro_myr": 0,
@@ -215,7 +217,7 @@ class TestLazyPreflightRecovery(unittest.TestCase):
         mock_summary.return_value = summary
         with self.assertRaises(BillingLimitError) as ctx:
             _check_ai_credit_before_provider(self.company_id)
-        self.assertIn("no remaining AI credit", str(ctx.exception))
+        self.assertIn("top up", str(ctx.exception))
 
     @patch("app.services.ai_router.is_ai_credit_enforcement_enabled")
     @patch("app.services.ai_router.get_ai_retail_markup_basis_points")
@@ -271,6 +273,61 @@ class TestLazyPreflightRecovery(unittest.TestCase):
         _check_ai_credit_before_provider(self.company_id)
         mock_summary.assert_not_called()
 
+
+    @patch("app.services.ai_router.is_ai_credit_enforcement_enabled")
+    @patch("app.services.ai_router.get_ai_retail_markup_basis_points")
+    @patch("app.services.ai_router.get_ai_usd_to_myr_rate_micro_myr_per_usd")
+    @patch("app.services.ai_router.get_company_ai_credit_summary")
+    @patch("app.services.ai_router.ensure_company_ai_credit")
+    @patch("app.services.ai_router._is_free_plan_company")
+    def test_trial_depleted_message_contains_upgrade(
+        self, mock_is_free, mock_ensure, mock_summary, mock_fx, mock_markup, mock_enabled
+    ):
+        """Free trial depleted balance raises BillingLimitError with upgrade message."""
+        mock_enabled.return_value = True
+        mock_markup.return_value = 2500
+        mock_fx.return_value = 4500000
+        mock_ensure.return_value = {"status": "ok"}
+        mock_is_free.return_value = True
+        summary = {
+            "initialised": True,
+            "included_balance_micro_myr": 0,
+            "topup_balance_micro_myr": 0,
+            "total_balance_micro_myr": 0,
+        }
+        mock_summary.return_value = summary
+        with self.assertRaises(BillingLimitError) as ctx:
+            _check_ai_credit_before_provider(self.company_id)
+        self.assertIn("trial AI credit", str(ctx.exception))
+        self.assertIn("upgrade", str(ctx.exception).lower())
+        self.assertNotIn("top up", str(ctx.exception).lower())
+
+    @patch("app.services.ai_router.is_ai_credit_enforcement_enabled")
+    @patch("app.services.ai_router.get_ai_retail_markup_basis_points")
+    @patch("app.services.ai_router.get_ai_usd_to_myr_rate_micro_myr_per_usd")
+    @patch("app.services.ai_router.get_company_ai_credit_summary")
+    @patch("app.services.ai_router.ensure_company_ai_credit")
+    @patch("app.services.ai_router._is_free_plan_company")
+    def test_lookup_failure_defaults_to_paid_message(
+        self, mock_is_free, mock_ensure, mock_summary, mock_fx, mock_markup, mock_enabled
+    ):
+        """When trial-status lookup raises, defaults to paid message and still raises."""
+        mock_enabled.return_value = True
+        mock_markup.return_value = 2500
+        mock_fx.return_value = 4500000
+        mock_ensure.return_value = {"status": "ok"}
+        mock_is_free.side_effect = RuntimeError("DB connection lost")
+        summary = {
+            "initialised": True,
+            "included_balance_micro_myr": 0,
+            "topup_balance_micro_myr": 0,
+            "total_balance_micro_myr": 0,
+        }
+        mock_summary.return_value = summary
+        with self.assertRaises(BillingLimitError) as ctx:
+            _check_ai_credit_before_provider(self.company_id)
+        self.assertIn("top up", str(ctx.exception).lower())
+        self.assertNotIn("trial", str(ctx.exception).lower())
 
 
 class TestAuthRouteImports(unittest.TestCase):
