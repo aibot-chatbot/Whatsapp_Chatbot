@@ -1,4 +1,4 @@
-﻿"""tests/test_phase_4j_billing_notifications.py - Tests for Phase 4J billing notifications.
+"""tests/test_phase_4j_billing_notifications.py - Tests for Phase 4J billing notifications.
 
 Tests cover:
   - Notification repository CRUD, deduplication, scoping, pagination.
@@ -403,6 +403,311 @@ class TestBillingNotificationsAPI:
         assert response.status_code in (401, 302)
 
 
+
+# ---------------------------------------------------------------------------
+# Phase 4A: Trial-aware AI-credit notification message tests
+# ---------------------------------------------------------------------------
+
+class TestAiCreditTrialMessages:
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_low_paid_message_contains_top_up(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_low
+
+        mock_create.return_value = {"id": 1}
+
+        notify_ai_credit_low(
+            company_id=42, total_balance_micro_myr=300_000_000,
+            threshold_micro_myr=500_000_000, period_key="2026-07",
+            is_trial=False,
+        )
+        _, kwargs = mock_create.call_args
+        assert "top up" in kwargs["message"].lower()
+        assert "upgrade" not in kwargs["message"].lower()
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_low_trial_message_contains_upgrade_not_top_up(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_low
+
+        mock_create.return_value = {"id": 1}
+
+        notify_ai_credit_low(
+            company_id=42, total_balance_micro_myr=300_000_000,
+            threshold_micro_myr=500_000_000, period_key="2026-07",
+            is_trial=True,
+        )
+        _, kwargs = mock_create.call_args
+        assert "upgrade" in kwargs["message"].lower()
+        assert "top up" not in kwargs["message"].lower()
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_critical_trial_message_contains_upgrade(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_critical
+
+        mock_create.return_value = {"id": 1}
+
+        notify_ai_credit_critical(
+            company_id=42, total_balance_micro_myr=50_000_000,
+            threshold_micro_myr=100_000_000, period_key="2026-07",
+            is_trial=True,
+        )
+        _, kwargs = mock_create.call_args
+        assert "upgrade" in kwargs["message"].lower()
+        assert "top up" not in kwargs["message"].lower()
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_depleted_trial_message_contains_upgrade(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_depleted
+
+        mock_create.return_value = {"id": 1}
+
+        notify_ai_credit_depleted(
+            company_id=42, period_key="2026-07",
+            is_trial=True,
+        )
+        _, kwargs = mock_create.call_args
+        assert "upgrade" in kwargs["message"].lower()
+        assert "top up" not in kwargs["message"].lower()
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_depleted_paid_message_contains_top_up(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_depleted
+
+        mock_create.return_value = {"id": 1}
+
+        notify_ai_credit_depleted(
+            company_id=42, period_key="2026-07",
+            is_trial=False,
+        )
+        _, kwargs = mock_create.call_args
+        assert "top up" in kwargs["message"].lower()
+        assert "upgrade" not in kwargs["message"].lower()
+
+
+# ---------------------------------------------------------------------------
+# Phase 4A: Post-charge notification hook tests
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Phase 4A follow-up: MYR conversion unit tests
+# ---------------------------------------------------------------------------
+
+class TestAiCreditMyrConversion:
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_one_myr_displays_as_rm_one(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_low
+
+        mock_create.return_value = {"id": 1}
+
+        # 1,000,000 micro-MYR = RM1.00
+        notify_ai_credit_low(
+            company_id=42, total_balance_micro_myr=1_000_000,
+            threshold_micro_myr=5_000_000, period_key="2026-07",
+            is_trial=False,
+        )
+        _, kwargs = mock_create.call_args
+        assert "RM1.00" in kwargs["message"]
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_half_myr_displays_as_50_cents(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_low
+
+        mock_create.return_value = {"id": 1}
+
+        # 500,000 micro-MYR = RM0.50
+        notify_ai_credit_low(
+            company_id=42, total_balance_micro_myr=500_000,
+            threshold_micro_myr=5_000_000, period_key="2026-07",
+            is_trial=False,
+        )
+        _, kwargs = mock_create.call_args
+        assert "RM0.50" in kwargs["message"]
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_not_off_by_hundred(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_low
+
+        mock_create.return_value = {"id": 1}
+
+        # 997,828 micro-MYR should display as ~RM1.00, NOT RM0.01
+        notify_ai_credit_low(
+            company_id=42, total_balance_micro_myr=997_828,
+            threshold_micro_myr=5_000_000, period_key="2026-07",
+            is_trial=False,
+        )
+        _, kwargs = mock_create.call_args
+        assert "RM1.00" in kwargs["message"]
+        assert "RM0.01" not in kwargs["message"]
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_trial_message_uses_correct_conversion(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_low
+
+        mock_create.return_value = {"id": 1}
+
+        notify_ai_credit_low(
+            company_id=42, total_balance_micro_myr=750_000,
+            threshold_micro_myr=1_000_000, period_key="2026-07",
+            is_trial=True,
+        )
+        _, kwargs = mock_create.call_args
+        assert "RM0.75" in kwargs["message"]
+        assert "upgrade" in kwargs["message"].lower()
+
+    @patch("app.services.billing_notification_service.create_billing_notification")
+    def test_critical_message_uses_correct_conversion(self, mock_create):
+        from app.services.billing_notification_service import notify_ai_credit_critical
+
+        mock_create.return_value = {"id": 1}
+
+        notify_ai_credit_critical(
+            company_id=42, total_balance_micro_myr=50_000,
+            threshold_micro_myr=100_000, period_key="2026-07",
+            is_trial=False,
+        )
+        _, kwargs = mock_create.call_args
+        assert "RM0.05" in kwargs["message"]
+
+class TestPostChargeAiCreditNotifications:
+
+    @patch("app.services.ai_router.notify_ai_credit_depleted")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_depleted_fires_when_balance_zero(
+        self, mock_get_sub, mock_depleted,
+    ):
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 0,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_depleted.assert_called_once()
+
+    @patch("app.services.ai_router.notify_ai_credit_critical")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_critical_fires_when_balance_below_critical(
+        self, mock_get_sub, mock_critical,
+    ):
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 500_000,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_critical.assert_called_once()
+
+    @patch("app.services.ai_router.notify_ai_credit_low")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_low_fires_when_balance_below_low_threshold(
+        self, mock_get_sub, mock_low,
+    ):
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 3_000_000,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_low.assert_called_once()
+
+    @patch("app.services.ai_router.notify_ai_credit_low")
+    @patch("app.services.ai_router.notify_ai_credit_critical")
+    @patch("app.services.ai_router.notify_ai_credit_depleted")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_no_notification_when_balance_above_low_threshold(
+        self, mock_get_sub, mock_depleted, mock_critical, mock_low,
+    ):
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 6_000_000,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_depleted.assert_not_called()
+        mock_critical.assert_not_called()
+        mock_low.assert_not_called()
+
+    @patch("app.services.ai_router.notify_ai_credit_depleted")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_trial_passes_is_trial_true(
+        self, mock_get_sub, mock_depleted,
+    ):
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "free"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 0,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        call_kwargs = mock_depleted.call_args[1]
+        assert call_kwargs["is_trial"] is True
+
+    @patch("app.services.ai_router.notify_ai_credit_depleted")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_paid_passes_is_trial_false(
+        self, mock_get_sub, mock_depleted,
+    ):
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 0,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        call_kwargs = mock_depleted.call_args[1]
+        assert call_kwargs["is_trial"] is False
+
+    @patch("app.services.ai_router.notify_ai_credit_depleted")
+    @patch("app.services.ai_router.notify_ai_credit_critical")
+    @patch("app.services.ai_router.notify_ai_credit_low")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_exception_in_notification_does_not_raise(
+        self, mock_get_sub, mock_low, mock_critical, mock_depleted,
+    ):
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        mock_depleted.side_effect = RuntimeError("notification db error")
+
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 0,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        # Should not raise
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+
 # ---------------------------------------------------------------------------
 # Frontend Tests
 # ---------------------------------------------------------------------------
@@ -463,3 +768,144 @@ class TestProfileBillingNotificationsFrontend(unittest.TestCase):
 
     def test_safe_rendering_with_escape_html(self):
         self.assertIn("escapeHtml(n.title", self.html)
+
+
+# ---------------------------------------------------------------------------
+# Phase 4B: Threshold default value tests
+# ---------------------------------------------------------------------------
+
+class TestThresholdDefaults:
+
+    def test_default_low_threshold_is_5_myr(self):
+        """Default low threshold should be 5,000,000 micro-MYR = RM5.00."""
+        import os
+        old_low = os.environ.pop("AI_CREDIT_LOW_THRESHOLD_MICRO_MYR", None)
+        try:
+            from app.services.ai_router import _load_notification_thresholds
+            low, _ = _load_notification_thresholds()
+            assert low == 5_000_000, f"Expected 5_000_000, got {low}"
+        finally:
+            if old_low is not None:
+                os.environ["AI_CREDIT_LOW_THRESHOLD_MICRO_MYR"] = old_low
+
+    def test_default_critical_threshold_is_1_myr(self):
+        """Default critical threshold should be 1,000,000 micro-MYR = RM1.00."""
+        import os
+        old_crit = os.environ.pop("AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR", None)
+        try:
+            from app.services.ai_router import _load_notification_thresholds
+            _, critical = _load_notification_thresholds()
+            assert critical == 1_000_000, f"Expected 1_000_000, got {critical}"
+        finally:
+            if old_crit is not None:
+                os.environ["AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR"] = old_crit
+
+    def test_env_override_low_threshold(self):
+        """Environment variable should override the low default."""
+        import os
+        os.environ["AI_CREDIT_LOW_THRESHOLD_MICRO_MYR"] = "7500000"
+        try:
+            from app.services.ai_router import _load_notification_thresholds
+            low, _ = _load_notification_thresholds()
+            assert low == 7_500_000
+        finally:
+            os.environ.pop("AI_CREDIT_LOW_THRESHOLD_MICRO_MYR", None)
+
+    def test_env_override_critical_threshold(self):
+        """Environment variable should override the critical default."""
+        import os
+        os.environ["AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR"] = "2000000"
+        try:
+            from app.services.ai_router import _load_notification_thresholds
+            _, critical = _load_notification_thresholds()
+            assert critical == 2_000_000
+        finally:
+            os.environ.pop("AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR", None)
+
+
+class TestPostChargeThresholdBoundaries:
+
+    @patch("app.services.ai_router.notify_ai_credit_low")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_balance_5_500_000_not_low(self, mock_get_sub, mock_low):
+        """Balance above 5M default should NOT trigger low notification."""
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 5_500_000,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_low.assert_not_called()
+
+    @patch("app.services.ai_router.notify_ai_credit_low")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_balance_4_999_999_triggers_low(self, mock_get_sub, mock_low):
+        """Balance just below 5M default should trigger low notification."""
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 4_999_999,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_low.assert_called_once()
+
+    @patch("app.services.ai_router.notify_ai_credit_critical")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_balance_997_828_is_critical_not_depleted(self, mock_get_sub, mock_critical):
+        """RM 0.998 should trigger critical, not depleted."""
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 997_828,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_critical.assert_called_once()
+
+    @patch("app.services.ai_router.notify_ai_credit_critical")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_balance_999_999_triggers_critical(self, mock_get_sub, mock_critical):
+        """Balance just below 1M should trigger critical notification."""
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 999_999,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_critical.assert_called_once()
+
+    @patch("app.services.ai_router.notify_ai_credit_depleted")
+    @patch("app.services.ai_router.get_company_subscription")
+    def test_balance_zero_triggers_depleted(self, mock_get_sub, mock_depleted):
+        """Balance of exactly 0 should trigger depleted notification."""
+        from app.services.ai_router import _maybe_notify_ai_credit_threshold
+
+        mock_get_sub.return_value = {"plan_code": "essential"}
+        charge_result = {
+            "status": "charged",
+            "included_balance_micro_myr": 0,
+            "topup_balance_micro_myr": 0,
+            "company_id": 42,
+            "subscription_id": 1,
+        }
+        _maybe_notify_ai_credit_threshold(charge_result, 42)
+        mock_depleted.assert_called_once()

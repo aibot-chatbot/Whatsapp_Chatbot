@@ -1,5 +1,7 @@
-﻿import logging
+import logging
+import os
 from decimal import Decimal, ROUND_HALF_UP
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -36,6 +38,14 @@ from app.services.ai_credit_service import (
     charge_logged_ai_usage,
     ensure_company_ai_credit,
 )
+
+from app.services.billing_notification_service import (
+    notify_ai_credit_low,
+    notify_ai_credit_critical,
+    notify_ai_credit_depleted,
+)
+
+from app.database.company_subscription_repository import get_company_subscription
 
 from app.database.ai_usage_repository import insert_usage_log
 
@@ -414,6 +424,7 @@ def _charge_logged_usage(usage_log_id: int, company_id: int, chatbot_id: int, op
         logging.debug(
             "AI credit charged for usage_log %s (company %s)", usage_log_id, company_id,
         )
+        _maybe_notify_ai_credit_threshold(charge_result, company_id)
     elif status == "already_charged":
         logging.debug(
             "Usage log %s already charged (idempotent)", usage_log_id,
@@ -443,6 +454,104 @@ def _charge_logged_usage(usage_log_id: int, company_id: int, chatbot_id: int, op
             "AI-credit charge returned unexpected status %r for usage_log %s",
             status, usage_log_id,
         )
+
+
+# ---------------------------------------------------------------------------
+# Post-charge AI-credit notification helpers
+# ---------------------------------------------------------------------------
+
+def _load_notification_thresholds() -> tuple:
+    """Load AI-credit notification thresholds from environment with defaults."""
+    low = int(os.getenv(
+        "AI_CREDIT_LOW_THRESHOLD_MICRO_MYR",
+        "5000000",
+    ))
+    critical = int(os.getenv(
+        "AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR",
+        "1000000",
+    ))
+    return low, critical
+
+
+def _determine_trial_status(charge_result: dict) -> bool:
+    """Determine whether the charged company is on a Free trial plan.
+
+    Looks up the subscription returned by the charge RPC and checks
+    whether the plan code is 'free'.  Defaults to False (paid wording)
+    when the lookup cannot be completed safely.
+    """
+    subscription_id = charge_result.get("subscription_id")
+    if not subscription_id:
+        return False
+    try:
+        company_id = charge_result.get("company_id")
+        if not company_id:
+            return False
+        sub = get_company_subscription(int(company_id))
+        if not sub:
+            return False
+        plan_code = (sub.get("plan_code") or "").lower()
+        return plan_code == "free"
+    except Exception:
+        logging.warning(
+            "Could not determine trial status for subscription %s; "
+            "defaulting to paid notification wording.",
+            subscription_id,
+        )
+        return False
+
+
+def _maybe_notify_ai_credit_threshold(
+    charge_result: dict,
+    company_id: int,
+) -> None:
+    """Fire AI-credit threshold notifications after a successful charge.
+
+    Only called when status == 'charged'.  Notification failures are
+    caught and logged so they never affect the AI response or undo the
+    charge.
+    """
+    import os
+    try:
+        included = int(charge_result.get("included_balance_micro_myr") or 0)
+        topup = int(charge_result.get("topup_balance_micro_myr") or 0)
+        total_balance = included + topup
+
+        low_threshold, critical_threshold = _load_notification_thresholds()
+
+        now = datetime.now(timezone.utc)
+        period_key = f"{now.year}-{now.month:02d}"
+
+        is_trial = _determine_trial_status(charge_result)
+
+        if total_balance <= 0:
+            notify_ai_credit_depleted(
+                company_id=company_id,
+                period_key=period_key,
+                is_trial=is_trial,
+            )
+        elif total_balance <= critical_threshold:
+            notify_ai_credit_critical(
+                company_id=company_id,
+                total_balance_micro_myr=total_balance,
+                threshold_micro_myr=critical_threshold,
+                period_key=period_key,
+                is_trial=is_trial,
+            )
+        elif total_balance <= low_threshold:
+            notify_ai_credit_low(
+                company_id=company_id,
+                total_balance_micro_myr=total_balance,
+                threshold_micro_myr=low_threshold,
+                period_key=period_key,
+                is_trial=is_trial,
+            )
+    except Exception as exc:
+        logging.warning(
+            "AI-credit post-charge notification failed for company %s: %s",
+            company_id, exc,
+        )
+
 
 def _make_result_from_text(text: str, provider: str = "", model: str = "", success: bool = True) -> _ProviderResult:
     """Wrap an error or direct-reply text into a _ProviderResult."""

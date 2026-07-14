@@ -1,4 +1,4 @@
-﻿"""billing_notification_service.py - Generation of billing notification events.
+"""billing_notification_service.py - Generation of billing notification events.
 
 This service is the single source of notification generation for billing
 events including subscription expiry reminders, grace-period alerts, payment
@@ -284,6 +284,49 @@ def notify_activation_failed(
 
 
 # ---------------------------------------------------------------------------
+# AI-credit message helpers
+# ---------------------------------------------------------------------------
+
+def _ai_credit_low_message(balance_myr: float, is_trial: bool) -> str:
+    """Build the low-credit notification message."""
+    if is_trial:
+        return (
+            f"Your trial AI credit is running low (RM{balance_myr:.2f}). "
+            "Upgrade to a paid plan for more AI credit and full model access."
+        )
+    return (
+        f"Your company AI credit is low (RM{balance_myr:.2f}). "
+        "Top up to avoid service interruption."
+    )
+
+
+def _ai_credit_critical_message(balance_myr: float, is_trial: bool) -> str:
+    """Build the critical-credit notification message."""
+    if is_trial:
+        return (
+            f"Your trial AI credit is critically low (RM{balance_myr:.2f}). "
+            "Upgrade to a paid plan now to continue using AI features."
+        )
+    return (
+        f"Your company AI credit is critically low (RM{balance_myr:.2f}). "
+        "Top up immediately to prevent service interruption."
+    )
+
+
+def _ai_credit_depleted_message(is_trial: bool) -> str:
+    """Build the depleted-credit notification message."""
+    if is_trial:
+        return (
+            "Your trial AI credit has been fully used. "
+            "Upgrade to a paid plan to continue using AI-powered features."
+        )
+    return (
+        "Your company AI credit has been fully used. "
+        "AI-powered features will not work until you top up."
+    )
+
+
+# ---------------------------------------------------------------------------
 # AI-credit threshold alerts
 # ---------------------------------------------------------------------------
 
@@ -292,6 +335,7 @@ def notify_ai_credit_low(
     total_balance_micro_myr: int,
     threshold_micro_myr: int,
     period_key: str,
+    is_trial: bool = False,
 ) -> None:
     """Notify that AI credit is running low.
 
@@ -300,19 +344,17 @@ def notify_ai_credit_low(
         total_balance_micro_myr: Current total balance in micro-MYR.
         threshold_micro_myr: The threshold that was crossed.
         period_key: Current billing period key for deduplication.
+        is_trial: True when the company is on the Free trial plan.
     """
     event_key = f"ai-credit:{company_id}:{period_key}:low"
-    balance_myr = total_balance_micro_myr / 100_000_000
+    balance_myr = total_balance_micro_myr / 1_000_000
 
     _safe_notify(
         company_id=company_id,
         notification_type="ai_credit_low",
         severity="warning",
         title="AI credit running low",
-        message=(
-            f"Your company AI credit is low (RM{balance_myr:.2f}). "
-            "Top up to avoid service interruption."
-        ),
+        message=_ai_credit_low_message(balance_myr, is_trial),
         event_key=event_key,
         reference_type="company_id",
         reference_value=str(company_id),
@@ -324,6 +366,7 @@ def notify_ai_credit_critical(
     total_balance_micro_myr: int,
     threshold_micro_myr: int,
     period_key: str,
+    is_trial: bool = False,
 ) -> None:
     """Notify that AI credit is critically low.
 
@@ -332,19 +375,17 @@ def notify_ai_credit_critical(
         total_balance_micro_myr: Current total balance in micro-MYR.
         threshold_micro_myr: The threshold that was crossed.
         period_key: Current billing period key for deduplication.
+        is_trial: True when the company is on the Free trial plan.
     """
     event_key = f"ai-credit:{company_id}:{period_key}:critical"
-    balance_myr = total_balance_micro_myr / 100_000_000
+    balance_myr = total_balance_micro_myr / 1_000_000
 
     _safe_notify(
         company_id=company_id,
         notification_type="ai_credit_critical",
         severity="critical",
         title="AI credit critically low",
-        message=(
-            f"Your company AI credit is critically low (RM{balance_myr:.2f}). "
-            "Top up immediately to prevent service interruption."
-        ),
+        message=_ai_credit_critical_message(balance_myr, is_trial),
         event_key=event_key,
         reference_type="company_id",
         reference_value=str(company_id),
@@ -354,12 +395,14 @@ def notify_ai_credit_critical(
 def notify_ai_credit_depleted(
     company_id: int,
     period_key: str,
+    is_trial: bool = False,
 ) -> None:
     """Notify that AI credit is fully depleted.
 
     Args:
         company_id: Company to notify.
         period_key: Current billing period key for deduplication.
+        is_trial: True when the company is on the Free trial plan.
     """
     event_key = f"ai-credit:{company_id}:{period_key}:depleted"
 
@@ -368,10 +411,7 @@ def notify_ai_credit_depleted(
         notification_type="ai_credit_depleted",
         severity="critical",
         title="AI credit depleted",
-        message=(
-            "Your company AI credit has been fully used. "
-            "AI-powered features will not work until you top up."
-        ),
+        message=_ai_credit_depleted_message(is_trial),
         event_key=event_key,
         reference_type="company_id",
         reference_value=str(company_id),
