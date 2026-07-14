@@ -11,8 +11,8 @@ from app.database.password_reset_repository import (
     delete_password_reset_otp,
 )
 from app.services.email_service import send_otp_email
+from app.services.billing_service import ensure_default_company_subscription
 from app.utils.jwt_utils import get_jwt_secret
-import logging
 import logging
 logger = logging.getLogger(__name__)
 
