@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 
 from dateutil.relativedelta import relativedelta
 from app.services.ai_access_policy import TRIAL_DURATION_DAYS
+from app.services.ai_credit_service import ensure_company_ai_credit
 
 from app.database.subscription_plan_repository import (
     get_active_plans as _get_active_plans,
@@ -203,7 +204,7 @@ def _resolve_billing_period(subscription, plan):
         if period_end is not None:
             return period_start, period_end, "stored"
 
-    # current_period_end is missing � calculate from start using the plan interval
+    # current_period_end is missing - calculate from start using the plan interval
     if billing_interval == "monthly":
         period_end = period_start + relativedelta(months=1)
     elif billing_interval == "yearly":
@@ -369,6 +370,20 @@ def ensure_default_company_subscription(company_id):
 
     try:
         created = _create_company_subscription(subscription_data)
+
+        # Initialize AI-credit period for the new trial subscription.
+        # This creates the company_ai_credit_balances row and grants the
+        # Free plan's included AI credit atomically.
+        # Idempotent: safe if already initialized by a concurrent request.
+        try:
+            ensure_company_ai_credit(company_id)
+        except Exception as ai_init_exc:
+            logging.error(
+                'AI-credit initialisation failed for company %s after trial subscription creation: %s',
+                company_id, ai_init_exc,
+            )
+            # Registration succeeds even if AI-credit init fails.
+            # The balance will be initialised lazily on the first AI request.
     except Exception as exc:
         # The database has a unique partial index on company_id where
         # status IN ('trialing', 'active', 'past_due'). If creation
@@ -378,7 +393,7 @@ def ensure_default_company_subscription(company_id):
         retried = _get_company_subscription(company_id)
         if retried:
             return get_current_subscription(company_id)
-        # Re-raise the original error � it was not a duplicate violation
+        # Re-raise the original error - it was not a duplicate violation
         raise
 
     # Re-read and return the enriched subscription

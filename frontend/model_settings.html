@@ -254,6 +254,8 @@
             }
 
             await fetchModelCatalog();
+            await fetchSubscriptionAccess();
+
             await fetchSettings();
         });
 
@@ -267,29 +269,44 @@
         let _subscriptionAccess = null;
 
         let modelOptions = {};
+        let modelCatalogReadOnly = false;
+        let catalogAccessAllowed = true;
+        let catalogDenialReason = null;
 
 
         function onProviderChange() {
+            if (modelCatalogReadOnly) {
+                const modelSelect = document.getElementById("model-select");
+                modelSelect.innerHTML = "";
+                const deepseekInfo = modelOptions["deepseek"] || {};
+                const deepseekModels = deepseekInfo.models || [];
+                deepseekModels.forEach(opt => {
+                    const el = document.createElement("option");
+                    el.value = opt.value;
+                    el.textContent = opt.label;
+                    modelSelect.appendChild(el);
+                });
+                if (deepseekModels.length > 0) {
+                    modelSelect.value = deepseekModels[0].value;
+                }
+                onModelSelectChange();
+                return;
+            }
             const provider = document.getElementById("ai-provider").value;
             const modelSelect = document.getElementById("model-select");
-
             // Clear current options
             modelSelect.innerHTML = "";
-
             // Populate new options
             const providerInfo = modelOptions[provider] || {};
             const options = providerInfo.models || [];
-
             options.forEach(opt => {
                 const el = document.createElement("option");
                 el.value = opt.value;
                 el.textContent = opt.label;
                 modelSelect.appendChild(el);
             });
-
             onModelSelectChange();
         }
-
         function onModelSelectChange() {
             const modelSelect = document.getElementById("model-select");
             const customContainer = document.getElementById("custom-model-container");
@@ -331,6 +348,10 @@
             return _subscriptionAccess && _subscriptionAccess.status === "trialing";
         }
 
+        function isModelCatalogTrial() {
+            return modelCatalogReadOnly;
+        }
+
         function isPaidPlan() {
             if (!_subscriptionAccess || !_subscriptionAccess.plan) return false;
             if (_subscriptionAccess.status !== "active") return false;
@@ -339,11 +360,12 @@
         }
 
         function hasAccessToModels() {
+            if (isModelCatalogTrial()) return true;
             return isActiveTrial() || isPaidPlan();
         }
 
         function isModelAllowedForAccess(model) {
-            if (!_subscriptionAccess) return true; // no data = show all (backend enforces)
+            if (!_subscriptionAccess && !isModelCatalogTrial()) return true; // no data = show all (backend enforces)
             if (isActiveTrial()) {
                 // Trial: only DeepSeek models with access "trial_only"
                 return model.access === "trial_only";
@@ -382,6 +404,27 @@
                 return;
             }
 
+
+            if (isModelCatalogTrial()) {
+                if (planInfoText) planInfoText.innerHTML = "Trial uses <strong>DeepSeek V4 Flash</strong> only. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View pricing &amp; upgrade &rarr;</a>";
+                if (providerSelect) providerSelect.disabled = true;
+                if (modelSelect) modelSelect.disabled = true;
+                if (customContainer) customContainer.style.display = "none";
+                if (!catalogAccessAllowed) {
+                    if (saveBtn) saveBtn.disabled = true;
+                    if (catalogDenialReason && planInfoText) {
+                        planInfoText.innerHTML = catalogDenialReason + " <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View plans &amp; upgrade &rarr;</a>";
+                    }
+                } else {
+                    if (saveBtn) saveBtn.disabled = false;
+                }
+                populateProviderDropdown();
+                if (providerSelect && providerSelect.options.length > 1) {
+                    providerSelect.selectedIndex = 1;
+                    onProviderChange();
+                }
+                return;
+            }
             if (providerSelect) providerSelect.disabled = false;
             if (modelSelect) modelSelect.disabled = false;
             if (saveBtn) saveBtn.disabled = false;
@@ -411,7 +454,9 @@
 
                 if (result.status === "success") {
                     modelOptions = result.data || {};
-                    populateProviderDropdown();
+                    modelCatalogReadOnly = result.read_only === true;
+                    catalogAccessAllowed = result.access_allowed !== false;
+                    catalogDenialReason = result.denial_reason || null;
                 } else {
                     console.error("Failed to load AI model catalog:", result.message);
                 }
@@ -446,24 +491,35 @@
                 if (result.status === "success") {
                     const bot = result.data;
 
-                    if (bot.ai_provider) {
-                        document.getElementById("ai-provider").value = bot.ai_provider.toLowerCase();
+                    if (modelCatalogReadOnly) {
+                        // Free/trial: force the enforced provider/model.
+                        const providerSelect = document.getElementById("ai-provider");
+                        if (providerSelect) providerSelect.value = "deepseek";
+                        onProviderChange(); // populates DeepSeek V4 Flash
+                        // Temperature is always loaded.
+                        const saveBtn = document.getElementById("save-btn");
+                        if (!catalogAccessAllowed && saveBtn) {
+                            saveBtn.disabled = true;
+                            saveBtn.title = catalogDenialReason || "AI access is not available on your current plan.";
+                        }
+                    } else {
+                        if (bot.ai_provider) {
+                            document.getElementById("ai-provider").value = bot.ai_provider.toLowerCase();
+                        }
+                        onProviderChange(); // Populate model list
+
+                        // Try to select the saved model
+                        const modelSelect = document.getElementById("model-select");
+                        const savedModel = bot.model_name || "";
+                        const existingOption = Array.from(modelSelect.options).find(o => o.value === savedModel);
+                        if (existingOption) {
+                            modelSelect.value = savedModel;
+                        } else if (savedModel) {
+                            modelSelect.value = "custom";
+                            document.getElementById("custom-model-name").value = savedModel;
+                        }
+                        onModelSelectChange();
                     }
-
-                    onProviderChange(); // Populate model list first
-
-                    // Now try to select the saved model
-                    const modelSelect = document.getElementById("model-select");
-                    const savedModel = bot.model_name || "";
-
-                    const existingOption = Array.from(modelSelect.options).find(o => o.value === savedModel);
-                    if (existingOption) {
-                        modelSelect.value = savedModel;
-                    } else if (savedModel) {
-                        modelSelect.value = "custom";
-                        document.getElementById("custom-model-name").value = savedModel;
-                    }
-                    onModelSelectChange();
 
                     if (bot.temperature !== undefined) {
                         document.getElementById("temperature").value = bot.temperature;
@@ -476,10 +532,17 @@
         }
 
         async function saveSettings() {
-            const provider = document.getElementById("ai-provider").value;
-            const modelSelect = document.getElementById("model-select").value;
-            const customModel = document.getElementById("custom-model-name").value.trim();
-            const model_name = (modelSelect === "custom") ? customModel : modelSelect;
+            var provider, model_name;
+            if (modelCatalogReadOnly) {
+                // Free/trial: always submit the enforced values.
+                provider = "deepseek";
+                model_name = "deepseek-v4-flash";
+            } else {
+                provider = document.getElementById("ai-provider").value;
+                const modelSelectVal = document.getElementById("model-select").value;
+                const customModel = document.getElementById("custom-model-name").value.trim();
+                model_name = (modelSelectVal === "custom") ? customModel : modelSelectVal;
+            }
 
             const temp = parseFloat(document.getElementById("temperature").value);
             const saveBtn = document.getElementById("save-btn");
@@ -503,13 +566,10 @@
                 const result = await response.json();
 
                 if (result.status === "success") {
-                    statusMsg.innerText = "Settings saved successfully! ✨";
+                    statusMsg.innerText = "Settings saved successfully! \u2728";
                     statusMsg.className = "status-msg status-success";
-
-                    // Trigger real-time sync for the Guidance Bot
-                    window.dispatchEvent(new CustomEvent('recheckBotStatus'));
+                    window.dispatchEvent(new CustomEvent("recheckBotStatus"));
                 } else {
-
                     statusMsg.innerText = "Failed to save settings: " + result.message;
                     statusMsg.className = "status-msg status-error";
                 }
@@ -526,4 +586,3 @@
 </body>
 
 </html>
-

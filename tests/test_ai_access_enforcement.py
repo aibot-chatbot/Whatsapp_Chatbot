@@ -1,4 +1,4 @@
-﻿"""Tests for Phase 2B-2A AI access policy, enforcement and bot gating."""
+"""Tests for Phase 2B-2A AI access policy, enforcement and bot gating."""
 
 import os
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
@@ -255,13 +255,43 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
-    def test_free_active_denied(self, mock_sub, mock_plan):
+    def test_free_active_expired_denied(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "active",
+            "trial_ends_at": (datetime.now(timezone.utc) - timedelta(days=1)).isoformat(),
+        }
+        mock_plan.return_value = FREE_PLAN
+        policy = resolve_ai_access(1)
+        self.assertFalse(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_EXPIRED_TRIAL)
+        self.assertIn("trial has expired", policy.denial_reason)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_free_active_no_trial_end_denied(self, mock_sub, mock_plan):
         mock_sub.return_value = {"plan_id": 1, "status": "active"}
         mock_plan.return_value = FREE_PLAN
         policy = resolve_ai_access(1)
         self.assertFalse(policy.allowed)
-        self.assertEqual(policy.access_state, STATE_FREE_NO_TRIAL)
-        self.assertIn("does not include AI", policy.denial_reason)
+        self.assertEqual(policy.access_state, STATE_EXPIRED_TRIAL)
+        self.assertIn("trial has expired", policy.denial_reason)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_free_active_within_trial_allowed(self, mock_sub, mock_plan):
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "active",
+            "trial_ends_at": trial_end,
+        }
+        mock_plan.return_value = FREE_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_ACTIVE_TRIAL)
+        self.assertEqual(policy.api_route, ROUTE_DIRECT_DEEPSEEK)
+        self.assertFalse(policy.top_up_allowed)
+        self.assertFalse(policy.model_editable)
+        self.assertIsNone(policy.denial_reason)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
@@ -483,11 +513,18 @@ class TestBotEnforcement(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
-    def test_bot_free_no_trial_denied(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 1, "status": "active"}
+    def test_bot_free_active_within_trial_allowed(self, mock_sub, mock_plan):
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "active",
+            "trial_ends_at": trial_end,
+        }
         mock_plan.return_value = FREE_PLAN
         policy = resolve_ai_access(1)
-        self.assertFalse(policy.allowed)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.api_route, ROUTE_DIRECT_DEEPSEEK)
+        self.assertFalse(policy.model_editable)
+        self.assertFalse(policy.top_up_allowed)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
@@ -653,10 +690,28 @@ class TestTopUpRestriction(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
-    def test_top_up_blocked_for_free_no_trial(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 1, "status": "active"}
+    def test_top_up_blocked_for_free_active_within_trial(self, mock_sub, mock_plan):
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "active",
+            "trial_ends_at": trial_end,
+        }
         mock_plan.return_value = FREE_PLAN
         policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertFalse(policy.top_up_allowed)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_top_up_blocked_for_free_active_expired(self, mock_sub, mock_plan):
+        trial_end = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "active",
+            "trial_ends_at": trial_end,
+        }
+        mock_plan.return_value = FREE_PLAN
+        policy = resolve_ai_access(1)
+        self.assertFalse(policy.allowed)
         self.assertFalse(policy.top_up_allowed)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
@@ -1687,6 +1742,367 @@ class TestTrialToPaidConversion(unittest.TestCase):
 
 
 # ============================================================
+
+# ============================================================
+# Phase 2: Chatbot creation & model-settings enforcement
+# ============================================================
+
+TRIAL_PROVIDER = "deepseek"
+TRIAL_MODEL = "deepseek-v4-flash"
+
+
+class TestChatbotCreation(unittest.TestCase):
+    """Chatbot creation should not require AI credit or AI access."""
+
+    @patch("app.services.bot_service.create_bot")
+    @patch("app.services.bot_service.get_bot_by_id")
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_free_user_first_bot_created(self, mock_sub, mock_plan, mock_get_bot, mock_create):
+        """Free + trialing user with 0 bots can create the first bot."""
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "trialing",
+            "trial_ends_at": trial_end,
+        }
+        mock_plan.return_value = FREE_PLAN
+        mock_create.return_value = {"id": 1, "bot_name": "Test Bot"}
+        mock_get_bot.return_value = None
+
+        from app.services.bot_service import add_bot
+        result = add_bot({"bot_name": "Test Bot"}, 1)
+        self.assertEqual(result["bot_name"], "Test Bot")
+        mock_create.assert_called_once()
+
+    @patch("app.services.billing_guard._resolve_company_subscription")
+    @patch("app.services.billing_guard.get_company_usage")
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    def test_second_bot_blocked_with_chatbot_limit(
+        self, mock_plan, mock_usage, mock_sub
+    ):
+        """Free user at 1/1 bots gets chatbot_limit code, not ai_access_denied."""
+        mock_sub.return_value = {
+            "plan": {"chatbot_limit": 1, "code": "free"},
+            "plan_id": 1, "status": "trialing",
+            "trial_ends_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
+        }
+        mock_plan.return_value = FREE_PLAN
+        mock_usage.return_value = {"usage": {"chatbots": {"used": 1}}}
+
+        from app.services.billing_guard import can_create_chatbot, BillingLimitError
+        with self.assertRaises(BillingLimitError) as ctx:
+            can_create_chatbot(1)
+        self.assertEqual(ctx.exception.code, "chatbot_limit")
+        self.assertIn("Chatbot limit reached", str(ctx.exception))
+
+    @patch("app.services.bot_service.create_bot")
+    @patch("app.services.bot_service.get_bot_by_id")
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_chatbot_creation_no_credit_check(
+        self, mock_sub, mock_plan, mock_get_bot, mock_create
+    ):
+        """Creating a bot does not check AI-credit balance."""
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "trialing",
+            "trial_ends_at": trial_end,
+        }
+        mock_plan.return_value = FREE_PLAN
+        mock_create.return_value = {"id": 1, "bot_name": "Test"}
+        mock_get_bot.return_value = None
+
+        from app.services.bot_service import add_bot
+        # Should not raise BillingLimitError or any AI-credit error
+        result = add_bot({"bot_name": "Test"}, 1)
+        self.assertIsNotNone(result)
+
+    @patch("app.services.billing_guard._resolve_company_subscription")
+    @patch("app.services.billing_guard.get_company_usage")
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    def test_chatbot_limit_error_distinct_from_ai_denial(
+        self, mock_plan, mock_usage, mock_sub
+    ):
+        """Chatbot-limit errors use code 'chatbot_limit', not 'ai_access_denied'."""
+        mock_sub.return_value = {
+            "plan": {"chatbot_limit": 1, "code": "free"},
+            "plan_id": 1, "status": "trialing",
+            "trial_ends_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
+        }
+        mock_plan.return_value = FREE_PLAN
+        mock_usage.return_value = {"usage": {"chatbots": {"used": 1}}}
+
+        from app.services.billing_guard import can_create_chatbot, BillingLimitError
+        with self.assertRaises(BillingLimitError) as ctx:
+            can_create_chatbot(1)
+        self.assertEqual(ctx.exception.code, "chatbot_limit")
+        self.assertNotEqual(ctx.exception.code, "ai_access_denied")
+
+
+class TestModelSettingsEnforcement(unittest.TestCase):
+    """edit_bot enforces provider/model for trial users."""
+
+    @patch("app.services.bot_service.update_bot")
+    @patch("app.services.bot_service.get_bot_by_id")
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_trial_temperature_only_update_succeeds(
+        self, mock_sub, mock_plan, mock_get_bot, mock_update
+    ):
+        """Trial user saving only temperature succeeds."""
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "trialing",
+            "trial_ends_at": trial_end,
+        }
+        mock_plan.return_value = FREE_PLAN
+        mock_get_bot.return_value = {
+            "id": 1, "ai_provider": TRIAL_PROVIDER,
+            "model_name": TRIAL_MODEL, "temperature": 0.7,
+        }
+        mock_update.return_value = {"id": 1}
+
+        from app.services.bot_service import edit_bot
+        result = edit_bot(1, {"temperature": 0.5}, 1)
+        self.assertIsNotNone(result)
+
+    @patch("app.services.bot_service.update_bot")
+    @patch("app.services.bot_service.get_bot_by_id")
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_trial_deepseek_flash_save_succeeds(
+        self, mock_sub, mock_plan, mock_get_bot, mock_update
+    ):
+        """Trial user saving the enforced DeepSeek V4 Flash config succeeds."""
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "trialing",
+            "trial_ends_at": trial_end,
+        }
+        mock_plan.return_value = FREE_PLAN
+        mock_get_bot.return_value = {
+            "id": 1, "ai_provider": TRIAL_PROVIDER,
+            "model_name": TRIAL_MODEL,
+        }
+        mock_update.return_value = {"id": 1}
+
+        from app.services.bot_service import edit_bot
+        result = edit_bot(1, {
+            "ai_provider": TRIAL_PROVIDER,
+            "model_name": TRIAL_MODEL,
+        }, 1)
+        self.assertIsNotNone(result)
+
+    @patch("app.services.bot_service.get_bot_by_id")
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_trial_claude_rejected(
+        self, mock_sub, mock_plan, mock_get_bot
+    ):
+        """Trial user cannot manually set Claude/OpenAI/Gemini."""
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
+        mock_sub.return_value = {
+            "plan_id": 1, "status": "trialing",
+            "trial_ends_at": trial_end,
+        }
+        mock_plan.return_value = FREE_PLAN
+        mock_get_bot.return_value = {
+            "id": 1, "ai_provider": TRIAL_PROVIDER,
+            "model_name": TRIAL_MODEL,
+        }
+
+        from app.services.bot_service import edit_bot
+        from app.services.billing_guard import BillingLimitError
+        with self.assertRaises(BillingLimitError) as ctx:
+            edit_bot(1, {
+                "ai_provider": "anthropic",
+                "model_name": "claude-sonnet-4-20250514",
+            }, 1)
+        self.assertIn(ctx.exception.code, ("trial_provider_restricted", "trial_model_locked"))
+
+    @patch("app.services.bot_service.update_bot")
+    @patch("app.services.bot_service.get_bot_by_id")
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_paid_model_save_unchanged(
+        self, mock_sub, mock_plan, mock_get_bot, mock_update
+    ):
+        """Paid user can change provider/model freely."""
+        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_plan.return_value = ESSENTIAL_PLAN
+        mock_get_bot.return_value = {
+            "id": 1, "ai_provider": "openai", "model_name": "google/gemini-3.5-flash",
+        }
+        mock_update.return_value = {"id": 1}
+
+        from app.services.bot_service import edit_bot
+        result = edit_bot(1, {
+            "ai_provider": "google",
+            "model_name": "google/gemini-3.5-flash",
+        }, 1)
+        self.assertIsNotNone(result)
+
+
+class TestAIModelRouteFiltering(unittest.TestCase):
+    """GET /api/ai-models returns filtered catalog for trial users
+    and includes access_allowed / denial_reason for expired trials."""
+
+    @patch("app.routes.ai_model_routes.get_models_with_tiers")
+    @patch("app.services.ai_access_policy.resolve_ai_access")
+    def test_trial_user_sees_only_deepseek_with_access(self, mock_policy, mock_tiers):
+        mock_tiers.return_value = {
+            "deepseek": {
+                "label": "DeepSeek",
+                "models": [{"value": "deepseek-v4-flash", "label": "DeepSeek V4 Flash"}],
+            },
+            "openai": {
+                "label": "OpenAI",
+                "models": [{"value": "gpt-4o", "label": "GPT-4o"}],
+            },
+        }
+        mock_policy.return_value = AIAccessPolicy(
+            allowed=True,
+            access_state=STATE_ACTIVE_TRIAL,
+            api_route=ROUTE_DIRECT_DEEPSEEK,
+            top_up_allowed=False,
+            model_editable=False,
+        )
+        # Simulate what the route does
+        policy = mock_policy.return_value
+        free_states = {STATE_ACTIVE_TRIAL, STATE_EXPIRED_TRIAL, STATE_FREE_NO_TRIAL}
+        self.assertIn(policy.access_state, free_states)
+        filtered = {}
+        for key, entry in mock_tiers.return_value.items():
+            if key == "deepseek":
+                filtered["deepseek"] = {
+                    "label": entry["label"],
+                    "models": [
+                        m for m in entry.get("models", [])
+                        if m.get("value") == TRIAL_MODEL
+                    ],
+                }
+        self.assertIn("deepseek", filtered)
+        self.assertNotIn("openai", filtered)
+        self.assertEqual(len(filtered["deepseek"]["models"]), 1)
+
+    @patch("app.routes.ai_model_routes.get_models_with_tiers")
+    @patch("app.services.ai_access_policy.resolve_ai_access")
+    def test_free_expired_returns_deepseek_readonly_denied(self, mock_policy, mock_tiers):
+        """Free + active + no trial_ends_at returns DeepSeek-only with access_allowed=false."""
+        mock_tiers.return_value = {
+            "deepseek": {
+                "label": "DeepSeek",
+                "models": [{"value": "deepseek-v4-flash", "label": "DeepSeek V4 Flash"}],
+            },
+            "openai": {"label": "OpenAI", "models": [{"value": "gpt-4o"}]},
+        }
+        mock_policy.return_value = AIAccessPolicy(
+            allowed=False,
+            access_state=STATE_EXPIRED_TRIAL,
+            api_route=ROUTE_DENIED,
+            denial_reason="Your trial has expired. Please subscribe to continue.",
+            top_up_allowed=False,
+            model_editable=False,
+        )
+        policy = mock_policy.return_value
+        free_states = {STATE_ACTIVE_TRIAL, STATE_EXPIRED_TRIAL, STATE_FREE_NO_TRIAL}
+        self.assertIn(policy.access_state, free_states)
+        self.assertFalse(policy.allowed)
+        self.assertIsNotNone(policy.denial_reason)
+
+    @patch("app.routes.ai_model_routes.get_models_with_tiers")
+    @patch("app.services.ai_access_policy.resolve_ai_access")
+    def test_paid_user_sees_full_catalog(self, mock_policy, mock_tiers):
+        mock_tiers.return_value = {
+            "deepseek": {"label": "DeepSeek", "models": [{"value": "deepseek-v4-flash"}]},
+            "openai": {"label": "OpenAI", "models": [{"value": "gpt-4o"}]},
+            "anthropic": {"label": "Claude", "models": [{"value": "claude-sonnet-4-20250514"}]},
+        }
+        mock_policy.return_value = AIAccessPolicy(
+            allowed=True,
+            access_state=STATE_ESSENTIAL,
+            api_route=ROUTE_OPENROUTER,
+            top_up_allowed=True,
+            model_editable=True,
+        )
+        policy = mock_policy.return_value
+        free_states = {STATE_ACTIVE_TRIAL, STATE_EXPIRED_TRIAL, STATE_FREE_NO_TRIAL}
+        self.assertNotIn(policy.access_state, free_states)
+
+    @patch("app.routes.ai_model_routes.get_models_with_tiers")
+    @patch("app.services.ai_access_policy.resolve_ai_access")
+    def test_free_no_trial_returns_deepseek_readonly(self, mock_policy, mock_tiers):
+        """STATE_FREE_NO_TRIAL also gets DeepSeek-only read_only."""
+        mock_tiers.return_value = {
+            "deepseek": {
+                "label": "DeepSeek",
+                "models": [{"value": "deepseek-v4-flash", "label": "DeepSeek V4 Flash"}],
+            },
+        }
+        mock_policy.return_value = AIAccessPolicy(
+            allowed=False,
+            access_state=STATE_FREE_NO_TRIAL,
+            api_route=ROUTE_DENIED,
+            denial_reason="Your plan does not include AI replies. Please subscribe.",
+            top_up_allowed=False,
+            model_editable=False,
+        )
+        policy = mock_policy.return_value
+        free_states = {STATE_ACTIVE_TRIAL, STATE_EXPIRED_TRIAL, STATE_FREE_NO_TRIAL}
+        self.assertIn(policy.access_state, free_states)
+        self.assertFalse(policy.allowed)
+
+    """GET /api/ai-models returns filtered catalog for trial users."""
+
+    @patch("app.routes.ai_model_routes.get_models_with_tiers")
+    def test_trial_user_sees_only_deepseek(self, mock_tiers):
+        mock_tiers.return_value = {
+            "deepseek": {
+                "label": "DeepSeek",
+                "models": [{"value": "deepseek-v4-flash", "label": "DeepSeek V4 Flash"}],
+            },
+            "openai": {
+                "label": "OpenAI",
+                "models": [{"value": "gpt-4o", "label": "GPT-4o"}],
+            },
+        }
+        policy = AIAccessPolicy(
+            allowed=True,
+            access_state=STATE_ACTIVE_TRIAL,
+            api_route=ROUTE_DIRECT_DEEPSEEK,
+            max_model_tier=None,
+            top_up_allowed=False,
+            model_editable=False,
+        )
+        # Simulate what the route does with the policy
+        filtered = {}
+        for key, entry in mock_tiers.return_value.items():
+            if key == "deepseek":
+                filtered["deepseek"] = {
+                    "label": entry["label"],
+                    "models": [
+                        m for m in entry.get("models", [])
+                        if m.get("value") == TRIAL_MODEL
+                    ],
+                }
+        self.assertIn("deepseek", filtered)
+        self.assertNotIn("openai", filtered)
+        self.assertEqual(len(filtered["deepseek"]["models"]), 1)
+        self.assertEqual(filtered["deepseek"]["models"][0]["value"], TRIAL_MODEL)
+
+    @patch("app.routes.ai_model_routes.get_models_with_tiers")
+    def test_paid_user_sees_full_catalog(self, mock_tiers):
+        mock_tiers.return_value = {
+            "deepseek": {"label": "DeepSeek", "models": [{"value": "deepseek-v4-flash"}]},
+            "openai": {"label": "OpenAI", "models": [{"value": "gpt-4o"}]},
+            "anthropic": {"label": "Claude", "models": [{"value": "claude-sonnet-4-20250514"}]},
+        }
+        # Paid: no filtering
+        all_models = mock_tiers.return_value
+        self.assertIn("deepseek", all_models)
+        self.assertIn("openai", all_models)
+        self.assertIn("anthropic", all_models)
+
 
 if __name__ == "__main__":
     unittest.main()

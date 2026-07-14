@@ -34,7 +34,9 @@ from app.services.ai_credit_service import (
     get_ai_usd_to_myr_rate_micro_myr_per_usd,
     get_company_ai_credit_summary,
     charge_logged_ai_usage,
+    ensure_company_ai_credit,
 )
+
 from app.database.ai_usage_repository import insert_usage_log
 
 def _usd_to_micro_usd(raw_cost) -> int | None:
@@ -161,6 +163,84 @@ def _extract_openrouter_usage(data: dict, provider: str, model: str) -> dict:
     }
 
 
+
+_SUPPORTED_DEEPSEEK_MODELS = frozenset({"deepseek-v4-flash"})
+
+_DEEPSEEK_CACHE_HIT_INPUT_PRICE_ENV = "DEEPSEEK_V4_FLASH_CACHE_HIT_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS"
+_DEEPSEEK_CACHE_MISS_INPUT_PRICE_ENV = "DEEPSEEK_V4_FLASH_CACHE_MISS_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS"
+_DEEPSEEK_OUTPUT_PRICE_ENV = "DEEPSEEK_V4_FLASH_OUTPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS"
+
+
+def _compute_deepseek_provider_cost(
+    model: str, prompt_tokens: int, completion_tokens: int, cached_input_tokens: int = 0,
+) -> int | None:
+    """Calculate provider cost for a system-controlled DeepSeek model.
+
+    Pricing environment variables are in micro-USD per 1,000,000 tokens.
+    Cache-hit input, cache-miss input, and output are priced separately.
+    Returns integer micro-USD cost, or None when pricing or token information
+    is unavailable.
+
+    Arithmetic uses only integer operations -- no float conversions.
+    Rounding is always upward (ceil) to avoid undercharging.
+    """
+    # Normalise cached tokens: invalid or negative -> treat as zero
+    if not isinstance(cached_input_tokens, int) or cached_input_tokens < 0:
+        cached_input_tokens = 0
+
+    # Clamped: cached tokens cannot exceed total prompt tokens
+    if cached_input_tokens > prompt_tokens:
+        return None
+
+    uncached_input_tokens = prompt_tokens - cached_input_tokens
+
+    if not uncached_input_tokens and not cached_input_tokens and not completion_tokens:
+        return None
+
+    if model not in _SUPPORTED_DEEPSEEK_MODELS:
+        return None
+
+    if model == "deepseek-v4-flash":
+        cache_hit_env = _DEEPSEEK_CACHE_HIT_INPUT_PRICE_ENV
+        cache_miss_env = _DEEPSEEK_CACHE_MISS_INPUT_PRICE_ENV
+        output_env = _DEEPSEEK_OUTPUT_PRICE_ENV
+    else:
+        return None
+
+    import os
+    cache_hit_str = os.environ.get(cache_hit_env, "").strip()
+    cache_miss_str = os.environ.get(cache_miss_env, "").strip()
+    output_str = os.environ.get(output_env, "").strip()
+
+    if not cache_hit_str or not cache_miss_str or not output_str:
+        return None
+
+    try:
+        cache_hit_rate = int(cache_hit_str)
+        cache_miss_rate = int(cache_miss_str)
+        output_rate = int(output_str)
+    except (ValueError, TypeError):
+        return None
+
+    if cache_hit_rate < 0 or cache_miss_rate < 0 or output_rate < 0:
+        return None
+
+    numerator = (
+        cached_input_tokens * cache_hit_rate
+        + uncached_input_tokens * cache_miss_rate
+        + completion_tokens * output_rate
+    )
+
+    if numerator <= 0:
+        return 0 if (cache_hit_rate == 0 and cache_miss_rate == 0 and output_rate == 0) else None
+
+    provider_cost_micro_usd = (numerator + 999999) // 1000000
+
+    if provider_cost_micro_usd < 1:
+        provider_cost_micro_usd = 1
+
+    return provider_cost_micro_usd
+
 def _extract_deepseek_usage(response, provider: str, model: str) -> dict:
     """Extract usage metadata from a DeepSeek (OpenAI SDK) response.
 
@@ -168,27 +248,48 @@ def _extract_deepseek_usage(response, provider: str, model: str) -> dict:
     """
     if hasattr(response, "usage") and response.usage is not None:
         usage = response.usage
-        return {
+        pt = int(getattr(usage, "prompt_tokens", 0) or 0)
+        ct = int(getattr(usage, "completion_tokens", 0) or 0)
+        # Extract cached input tokens from SDK response
+        cached = 0
+        if hasattr(usage, "prompt_tokens_details") and usage.prompt_tokens_details is not None:
+            cached = int(getattr(usage.prompt_tokens_details, "cached_tokens", 0) or 0)
+        cost = _compute_deepseek_provider_cost(model, pt, ct, cached)
+        result = {
             "provider": provider,
             "model": getattr(response, "model", model),
-            "prompt_tokens": getattr(usage, "prompt_tokens", 0) or 0,
-            "completion_tokens": getattr(usage, "completion_tokens", 0) or 0,
+            "prompt_tokens": pt,
+            "completion_tokens": ct,
             "total_tokens": getattr(usage, "total_tokens", 0) or 0,
-            "provider_cost_micro_usd": None,
+            "provider_cost_micro_usd": cost,
             "generation_id": getattr(response, "id", None),
+            "cached_tokens": cached,
         }
+        return result
     # Dict fallback for the direct call path
     if isinstance(response, dict):
         usage = response.get("usage") or {}
-        return {
+        pt = int(usage.get("prompt_tokens", 0) or 0)
+        ct = int(usage.get("completion_tokens", 0) or 0)
+        # Extract cached input tokens from dict response
+        cached = 0
+        if isinstance(usage, dict):
+            details = usage.get("prompt_tokens_details") or {}
+            if isinstance(details, dict):
+                cached = int(details.get("cached_tokens", 0) or 0)
+        cost = _compute_deepseek_provider_cost(model, pt, ct, cached)
+        result = {
             "provider": provider,
             "model": response.get("model", model),
-            "prompt_tokens": usage.get("prompt_tokens", 0) or 0,
-            "completion_tokens": usage.get("completion_tokens", 0) or 0,
+            "prompt_tokens": pt,
+            "completion_tokens": ct,
             "total_tokens": usage.get("total_tokens", 0) or 0,
-            "provider_cost_micro_usd": None,
+            "provider_cost_micro_usd": cost,
             "generation_id": response.get("id"),
         }
+        if cached:
+            result["cached_tokens"] = cached
+        return result
     return {"provider": provider, "model": model}
 
 
@@ -382,6 +483,42 @@ def _complete_provider_result(text: str, provider: str, model: str, response_dat
     )
 
 
+
+
+def _validate_deepseek_pricing_config():
+    """Validate that DeepSeek Flash pricing is configured.
+
+    Raises RuntimeError if pricing is incomplete or invalid.
+    This is a server-side configuration error, not a customer-facing error.
+    """
+    import os
+
+    env_names = (
+        _DEEPSEEK_CACHE_HIT_INPUT_PRICE_ENV,
+        _DEEPSEEK_CACHE_MISS_INPUT_PRICE_ENV,
+        _DEEPSEEK_OUTPUT_PRICE_ENV,
+    )
+    for env_name in env_names:
+        val = os.environ.get(env_name, "").strip()
+        if not val:
+            raise RuntimeError(
+                f"AI-credit enforcement requires {env_name} to be set. "
+                "Configure DeepSeek model pricing before enabling enforcement."
+            )
+        try:
+            rate = int(val)
+        except (ValueError, TypeError):
+            raise RuntimeError(
+                f"AI-credit enforcement: {env_name}={val!r} is not a valid integer. "
+                "Configure DeepSeek model pricing before enabling enforcement."
+            )
+        if rate < 0:
+            raise RuntimeError(
+                f"AI-credit enforcement: {env_name}={val!r} must be a non-negative integer. "
+                "Configure DeepSeek model pricing before enabling enforcement."
+            )
+
+
 def _check_ai_credit_before_provider(company_id: int | None):
     if not is_ai_credit_enforcement_enabled():
         return
@@ -395,12 +532,21 @@ def _check_ai_credit_before_provider(company_id: int | None):
     get_ai_usd_to_myr_rate_micro_myr_per_usd()
 
     summary = get_company_ai_credit_summary(company_id)
+
+    # Lazy initialisation: if no balance row exists, attempt to create one.
+    # This handles companies created before AI-credit support,
+    # partial registration failures, and missing balance rows.
+    # Idempotent: ensure_company_ai_credit is safe to call when already initialised.
     if not summary.get("initialised"):
-        raise RuntimeError(
-            f"AI-credit period has not been initialised for company {company_id}. "
-            f"If this is an active paid subscription, a callback or reconciliation "
-            f"should have completed activation. Manual reconciliation may be required."
-        )
+        ensure_company_ai_credit(company_id)
+        summary = get_company_ai_credit_summary(company_id)
+        if not summary.get("initialised"):
+            raise RuntimeError(
+                f"AI-credit period has not been initialised for company {company_id}. "
+                f"If this is an active paid subscription, a callback or reconciliation "
+                f"should have completed activation. Manual reconciliation may be required."
+            )
+
 
     total = summary.get("total_balance_micro_myr")
     if total is None or not isinstance(total, int):
@@ -439,6 +585,9 @@ def _route_for_enforcement(provider: str, model: str | None):
                 code="trial_provider_restricted",
             )
         # Force the fixed trial model
+        # Validate DeepSeek Flash pricing is configured before allowing the call
+        _validate_deepseek_pricing_config()
+
         return TRIAL_PROVIDER, TRIAL_MODEL
 
     if policy.api_route == ROUTE_OPENROUTER:
@@ -512,6 +661,9 @@ def _get_system_provider_for_enforcement(provider: str, model: str | None):
                 "During your trial period, only the DeepSeek AI provider is available.",
                 code="trial_provider_restricted",
             )
+        # Validate DeepSeek Flash pricing is configured before allowing the call
+        _validate_deepseek_pricing_config()
+
         return TRIAL_PROVIDER, TRIAL_MODEL
 
     if policy.api_route == ROUTE_OPENROUTER:
