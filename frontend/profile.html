@@ -1729,6 +1729,9 @@
             var planCode = (subData.plan ? subData.plan.code || "" : "").toLowerCase();
             var isFree = planCode === "free" || !planCode;
 
+            // Hide top-up controls for Free plan users
+            updateTopupAccessUI(isFree);
+
             var cancelScheduledAt = subData.cancellation_effective_at;
             var pendingPlan = subData.pending_plan;
             var planChangeEffective = subData.plan_change_effective_at;
@@ -2346,6 +2349,21 @@ async function loadBillingInfo() {
             return microMyr;
         }
 
+        function updateTopupAccessUI(isFree) {
+            var section = document.getElementById("topup-section");
+            if (!section) return;
+
+            if (isFree) {
+                // Replace top-up controls with upgrade message for Free plan users
+                section.innerHTML = '<label>Top Up AI Credit</label>' +
+                    '<div style="padding:14px;background:rgba(59,130,246,0.08);border-radius:10px;text-align:center;border:1px solid rgba(59,130,246,0.15);">' +
+                    '<p style="margin:0 0 12px;color:var(--text-dim);font-size:0.85rem;line-height:1.5;">AI credit top-ups are available after upgrading to a paid plan.</p>' +
+                    '<a href="pricing.html' + getBotQuery() + '" class="btn-upgrade-link" style="display:inline-block;padding:10px 22px;border-radius:8px;background:rgba(59,130,246,0.85);color:white;font-weight:600;font-size:0.85rem;text-decoration:none;transition:background 0.15s;" onmouseover="this.style.background=\'rgba(59,130,246,1)\';" onmouseout="this.style.background=\'rgba(59,130,246,0.85)\'"><i data-lucide="zap" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Upgrade Plan</a>' +
+                    '</div>';
+                if (typeof refreshIcons === "function") refreshIcons();
+            }
+        }
+
         function createTopupCheckout() {
             var btn = document.getElementById("btn-topup");
             if (!btn || btn.disabled) return;
@@ -2362,6 +2380,10 @@ async function loadBillingInfo() {
                         body: JSON.stringify({ amount_micro_myr: amountMicroMyr })
                     });
                     if (res.status === 401 || res.status === 403) {
+                        var errBody = {};
+                        try { errBody = await res.json(); } catch (_) {}
+                        var errMsg = errBody.message || "AI credit top-up is not available on your current plan.";
+                        showMessage(errMsg, "error");
                         btn.innerHTML = '<i data-lucide="credit-card" style="width:16px;height:16px;"></i> Top Up Credit';
                         btn.disabled = false;
                         refreshIcons();
