@@ -46,14 +46,10 @@ def add_bot(data, company_id):
     data["bot_name"] = bot_name
 
     # Resolve AI access policy
+    # Chatbot creation is NOT blocked by AI access denial.
+    # It uses the policy only to determine the forced provider/model.
+    # The actual AI generation is blocked at runtime.
     policy = resolve_ai_access(company_id)
-
-    if not policy.allowed:
-        from app.services.billing_guard import BillingLimitError
-        raise BillingLimitError(
-            policy.denial_reason or "AI access is not available on your current plan.",
-            code="ai_access_denied",
-        )
 
     requested_provider = data.get("ai_provider")
     requested_model = data.get("model_name")
@@ -136,15 +132,22 @@ def edit_bot(bot_id, data, company_id):
                 code="ai_access_denied",
             )
 
-        if not policy.model_editable:
+        requested_provider = data.get("ai_provider") or existing_bot.get("ai_provider")
+        requested_model = data.get("model_name") or existing_bot.get("model_name")
+
+        # If the submitted values exactly match the enforced trial config
+        # there is no real change - allow the save through.
+        requested_is_trial_match = (
+            requested_provider == TRIAL_PROVIDER
+            and requested_model == TRIAL_MODEL
+        )
+
+        if not policy.model_editable and not requested_is_trial_match:
             from app.services.billing_guard import BillingLimitError
             raise BillingLimitError(
                 "AI provider and model cannot be changed during your trial period.",
                 code="trial_model_locked",
             )
-
-        requested_provider = data.get("ai_provider") or existing_bot.get("ai_provider")
-        requested_model = data.get("model_name") or existing_bot.get("model_name")
 
         if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
             if requested_provider != TRIAL_PROVIDER:

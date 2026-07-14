@@ -174,9 +174,23 @@ def resolve_ai_access(company_id, *, now=None):
                 trial_ends_at=None, denial_reason=None,
             )
         if plan_code == PLAN_CODE_FREE:
+            # Free subscriptions that ended up as active (legacy data)
+            # are treated like trial subscriptions when they are still
+            # within their trial window.  Without a valid trial_ends_at
+            # the subscription is denied with a trial-expired message so
+            # that an unlimited free state is never silently granted.
+            trial_end = _parse_iso_datetime(trial_ends_at_raw)
+            if trial_end is not None and trial_end > now:
+                return AIAccessPolicy(
+                    allowed=True, access_state=STATE_ACTIVE_TRIAL,
+                    api_route=ROUTE_DIRECT_DEEPSEEK,
+                    max_model_tier=None, top_up_allowed=False,
+                    model_editable=False,
+                    trial_ends_at=trial_end.isoformat(), denial_reason=None,
+                )
             return AIAccessPolicy(
-                allowed=False, access_state=STATE_FREE_NO_TRIAL,
-                denial_reason="Your plan does not include AI replies. Please subscribe.",
+                allowed=False, access_state=STATE_EXPIRED_TRIAL,
+                denial_reason="Your trial has expired. Please subscribe to continue.",
             )
         return AIAccessPolicy(
             allowed=False, access_state=STATE_UNKNOWN,
