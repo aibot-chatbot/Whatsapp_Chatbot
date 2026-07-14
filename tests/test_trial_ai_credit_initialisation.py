@@ -1,4 +1,4 @@
-﻿"""test_trial_ai_credit_initialisation.py
+"""test_trial_ai_credit_initialisation.py
 
 Tests for trial AI-credit initialisation and lazy preflight recovery.
 """
@@ -271,6 +271,15 @@ class TestLazyPreflightRecovery(unittest.TestCase):
         _check_ai_credit_before_provider(self.company_id)
         mock_summary.assert_not_called()
 
+
+
+class TestAuthRouteImports(unittest.TestCase):
+    """verify_otp must be able to call ensure_default_company_subscription."""
+
+    def test_ensure_default_company_subscription_imported_in_auth_routes(self):
+        """The import exists and the function is callable."""
+        from app.routes.auth_routes import ensure_default_company_subscription
+        self.assertTrue(callable(ensure_default_company_subscription))
 
 if __name__ == "__main__":
     unittest.main()
