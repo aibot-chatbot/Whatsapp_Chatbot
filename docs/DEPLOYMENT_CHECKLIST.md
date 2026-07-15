@@ -4,6 +4,29 @@
 
 ### Environment Configuration
 
+### Application Server
+
+For local development, use the Flask dev server:
+
+```
+python run.py
+```
+
+For production, use a production-grade WSGI server. The repository includes a
+`wsgi.py` entry point compatible with Gunicorn and Waitress:
+
+```
+# Gunicorn (Linux/macOS)
+gunicorn wsgi:app --bind 0.0.0.0:8000 --workers 4
+
+# Waitress (Windows-friendly)
+waitress-serve --host 0.0.0.0 --port 8000 wsgi:app
+```
+
+Do NOT use `python run.py` in production — it enables the Werkzeug reloader
+and ngrok auto-start, which are unsafe for production traffic.
+
+
 | Variable | Status | Notes |
 |---|---|---|
 | `SUPABASE_URL` | Required | Supabase project URL |
@@ -12,14 +35,18 @@
 | `JWT_SECRET` | Required | JWT signing secret |
 | `FRONTEND_URL` | **Required** | Production frontend URL; startup raises RuntimeError if missing |
 | `CORS_ORIGINS` | **Required** | Comma-separated production origins; startup raises if missing/empty |
-| `RATELIMIT_STORAGE_URI` | **Required (prod)** | Redis URI (`redis://...`); defaults to `memory://` |
+| `RATELIMIT_STORAGE_URI` | **Required (prod)** | Redis URI (`redis://localhost:6379/0`). Memory backend (`memory://`) safe only for single-process dev. Use Redis for multi-worker production. |
 | `RATELIMIT_ENABLED` | `true` | Enable rate limiting in production |
 | `TOYYIBPAY_ENV` | `production` | Switch from sandbox to production |
 | `TOYYIBPAY_CATEGORY_CODE` | Required | Production ToyyibPay category |
 | `TOYYIBPAY_USER_SECRET_KEY` | Required | Production ToyyibPay secret |
 | `OPENROUTER_API_KEY` | Required | AI provider key |
-| `AI_CREDIT_LOW_THRESHOLD_MICRO_MYR` | `500000` | RM5 in micro-MYR |
-| `AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR` | `100000` | RM1 in micro-MYR |
+| `DEEPSEEK_API_KEY` | Required | DeepSeek AI provider key |
+| `DEEPSEEK_V4_FLASH_CACHE_HIT_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek cache-hit pricing (micro-USD per 1M tokens) |
+| `DEEPSEEK_V4_FLASH_CACHE_MISS_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek cache-miss pricing (micro-USD per 1M tokens) |
+| `DEEPSEEK_V4_FLASH_OUTPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek output pricing (micro-USD per 1M tokens) |
+| `AI_CREDIT_LOW_THRESHOLD_MICRO_MYR` | `5000000` | RM5.00 (RM1 = 1,000,000 micro-MYR) |
+| `AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR` | `1000000` | RM1.00 |
 | `BILLING_GRACE_PERIOD_DAYS` | `3` | Grace period after expiry |
 | `ENABLE_DEV_BILLING_ROUTES` | Must be `false` | Production rejects this flag with RuntimeError |
 
@@ -32,6 +59,8 @@
 - [ ] `FRONTEND_URL` matches the production frontend
 - [ ] Rate limiting is enabled with Redis backend
 - [ ] JWT secret is strong and unique
+- [ ] SECRET_KEY (Flask session) is strong and unique
+- [ ] Weak or missing JWT_SECRET or SECRET_KEY blocks production startup (RuntimeError)
 - [ ] OTP values are not logged (confirmed by code audit)
 - [ ] ToyyibPay callback signature verification is enabled
 
@@ -50,7 +79,9 @@ The following credential categories were found in Git history and should be rota
 
 ### Database Migrations
 
-Apply in order (003 through 014). Each migration is safe to run sequentially on the Supabase project.
+Apply in order (003 through 019). Each migration is safe to run sequentially on the Supabase project.
+Migration 019 (`data/019_set_trial_ai_credit.sql`) initialises a trial AI-credit
+allowance for new Free plan companies. Apply it before registering trial users.
 Back up the database before applying migrations.
 
 ### Dependency Installation
@@ -155,6 +186,25 @@ Perform these tests after deployment on a staging/production environment:
 - [ ] Receipt prints correctly
 - [ ] Report totals match source records
 
+### H. Free Trial
+- [ ] Free trial company can create first bot (DeepSeek V4 Flash enforced)
+- [ ] Free trial cannot create second bot (chatbot-limit message)
+- [ ] Free trial top-up section hidden (upgrade CTA shown instead)
+- [ ] Free trial depleted AI credit blocks generation with upgrade message
+- [ ] Free trial model settings page shows DeepSeek V4 Flash only (read-only)
+
+### I. AI-Credit Notifications
+- [ ] AI-credit low notification appears when balance drops below threshold
+- [ ] AI-credit critical notification appears when balance drops below critical threshold
+- [ ] AI-credit depleted notification appears when balance reaches zero
+- [ ] Trial notifications use upgrade wording (not top-up wording)
+- [ ] Paid notifications use top-up wording
+
+### J. Security
+- [ ] Security headers present on all responses (X-Content-Type-Options, X-Frame-Options, Referrer-Policy)
+- [ ] Weak or missing JWT_SECRET blocks production startup (RuntimeError)
+- [ ] Weak or missing SECRET_KEY blocks production startup (RuntimeError)
+- [ ] Profile page JavaScript parses without syntax errors
 ## 5. Rollback Procedures
 
 - **Database:** Restore from backup taken before migrations
