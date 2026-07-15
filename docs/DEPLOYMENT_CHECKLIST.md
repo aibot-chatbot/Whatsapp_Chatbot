@@ -4,6 +4,37 @@
 
 ### Environment Configuration
 
+| Variable | Status | Notes |
+|---|---|---|
+| `SUPABASE_URL` | Required | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Required | Service-role key (server-side only) |
+| `SECRET_KEY` | Required | Flask session signing key |
+| `JWT_SECRET` | Required | JWT signing secret |
+| `FRONTEND_URL` | **Required** | Production frontend URL; startup raises RuntimeError if missing |
+| `CORS_ORIGINS` | **Required** | Comma-separated production origins; startup raises if missing/empty |
+| `RATELIMIT_STORAGE_URI` | **Required (prod)** | Redis URI (`redis://localhost:6379/0`). Memory backend (`memory://`) safe only for single-process dev. Use Redis for multi-worker production. |
+| `RATELIMIT_ENABLED` | `true` | Enable rate limiting in production |
+| `TOYYIBPAY_ENV` | `production` | Switch from sandbox to production |
+| `TOYYIBPAY_CATEGORY_CODE` | Required | Production ToyyibPay category |
+| `TOYYIBPAY_USER_SECRET_KEY` | Required | Production ToyyibPay secret |
+| `TOYYIBPAY_CALLBACK_URL` | Required | Public HTTPS URL where ToyyibPay sends payment callbacks (`/api/billing/toyyibpay/callback`). Must be a production URL, not ngrok. |
+| `TOYYIBPAY_RETURN_URL` | Required | URL where customers are redirected after payment. Must be a production URL. |
+| `OPENROUTER_API_KEY` | Required | AI provider key |
+| `OPENAI_API_KEY` | Required | OpenAI API key (used for guide/RAG) |
+| `GEMINI_API_KEY` | Required | Gemini API key (used for RAG and Gemini provider) |
+| `DEEPSEEK_API_KEY` | Required | DeepSeek AI provider key |
+| `PUBLIC_BASE_URL` | Required | Public backend URL for Meta WhatsApp webhook callbacks |
+| `AI_CREDIT_ENFORCEMENT_ENABLED` | `true` | Master switch for AI-credit charging. Requires `AI_RETAIL_MARKUP_BPS` and `AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD`. |
+| `AI_RETAIL_MARKUP_BPS` | Required (enforcement) | Retail markup in basis points (100 bps = 1%). Required when `AI_CREDIT_ENFORCEMENT_ENABLED` is true. |
+| `AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD` | Required (enforcement) | USD to MYR exchange rate in micro-MYR per USD. Example: 4500000 = RM 4.50 per USD. Required when enforcement is enabled. |
+| `DEEPSEEK_V4_FLASH_CACHE_HIT_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek cache-hit pricing (micro-USD per 1M tokens). Checked at first AI request; startup succeeds without it. |
+| `DEEPSEEK_V4_FLASH_CACHE_MISS_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek cache-miss pricing (micro-USD per 1M tokens). Checked at first AI request. |
+| `DEEPSEEK_V4_FLASH_OUTPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek output pricing (micro-USD per 1M tokens). Checked at first AI request. |
+| `AI_CREDIT_LOW_THRESHOLD_MICRO_MYR` | `5000000` | RM5.00 (RM1 = 1,000,000 micro-MYR) |
+| `AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR` | `1000000` | RM1.00 |
+| `BILLING_GRACE_PERIOD_DAYS` | `3` | Grace period after expiry |
+| `ENABLE_DEV_BILLING_ROUTES` | Must be `false` | Production rejects this flag with RuntimeError |
+
 ### Application Server
 
 For local development, use the Flask dev server:
@@ -20,35 +51,12 @@ For production, use a production-grade WSGI server. The repository includes a
 gunicorn wsgi:app --bind 0.0.0.0:8000 --workers 4
 
 # Waitress (Windows-friendly)
+pip install waitress
 waitress-serve --host 0.0.0.0 --port 8000 wsgi:app
 ```
 
-Do NOT use `python run.py` in production — it enables the Werkzeug reloader
+Do NOT use `python run.py` in production --- it enables the Werkzeug reloader
 and ngrok auto-start, which are unsafe for production traffic.
-
-
-| Variable | Status | Notes |
-|---|---|---|
-| `SUPABASE_URL` | Required | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Required | Service-role key (server-side only) |
-| `SECRET_KEY` | Required | Flask session signing key |
-| `JWT_SECRET` | Required | JWT signing secret |
-| `FRONTEND_URL` | **Required** | Production frontend URL; startup raises RuntimeError if missing |
-| `CORS_ORIGINS` | **Required** | Comma-separated production origins; startup raises if missing/empty |
-| `RATELIMIT_STORAGE_URI` | **Required (prod)** | Redis URI (`redis://localhost:6379/0`). Memory backend (`memory://`) safe only for single-process dev. Use Redis for multi-worker production. |
-| `RATELIMIT_ENABLED` | `true` | Enable rate limiting in production |
-| `TOYYIBPAY_ENV` | `production` | Switch from sandbox to production |
-| `TOYYIBPAY_CATEGORY_CODE` | Required | Production ToyyibPay category |
-| `TOYYIBPAY_USER_SECRET_KEY` | Required | Production ToyyibPay secret |
-| `OPENROUTER_API_KEY` | Required | AI provider key |
-| `DEEPSEEK_API_KEY` | Required | DeepSeek AI provider key |
-| `DEEPSEEK_V4_FLASH_CACHE_HIT_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek cache-hit pricing (micro-USD per 1M tokens) |
-| `DEEPSEEK_V4_FLASH_CACHE_MISS_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek cache-miss pricing (micro-USD per 1M tokens) |
-| `DEEPSEEK_V4_FLASH_OUTPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS` | Required (enforcement) | DeepSeek output pricing (micro-USD per 1M tokens) |
-| `AI_CREDIT_LOW_THRESHOLD_MICRO_MYR` | `5000000` | RM5.00 (RM1 = 1,000,000 micro-MYR) |
-| `AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR` | `1000000` | RM1.00 |
-| `BILLING_GRACE_PERIOD_DAYS` | `3` | Grace period after expiry |
-| `ENABLE_DEV_BILLING_ROUTES` | Must be `false` | Production rejects this flag with RuntimeError |
 
 ### Security Verification Checklist
 
@@ -106,17 +114,17 @@ pip install pytest
 
 ### requirements.txt Contents
 
-The file contains exactly 10 verified runtime packages:
-- **flask**, **flask-cors**, **werkzeug** — core web framework
-- **PyJWT** — authentication
-- **supabase** — database
-- **flask-limiter** — rate limiting
-- **python-dotenv** — environment configuration
-- **requests** — HTTP client
-- **openai** — AI provider SDK (DeepSeek via OpenAI-compatible API)
-- **google-genai** — Gemini API client for RAG
+The file contains verified runtime packages:
+- **flask**, **flask-cors**, **werkzeug** --- core web framework
+- **PyJWT** --- authentication
+- **supabase** --- database
+- **flask-limiter** --- rate limiting
+- **python-dotenv** --- environment configuration
+- **requests** --- HTTP client
+- **openai** --- AI provider SDK (DeepSeek via OpenAI-compatible API)
+- **google-genai** --- Gemini API client for RAG
 
-Optional: **redis** — required only for multi-worker Redis-backed rate limiting
+Optional: **redis** --- required only for multi-worker Redis-backed rate limiting
 
 ## 2. Scheduled Jobs
 
@@ -205,11 +213,10 @@ Perform these tests after deployment on a staging/production environment:
 - [ ] Weak or missing JWT_SECRET blocks production startup (RuntimeError)
 - [ ] Weak or missing SECRET_KEY blocks production startup (RuntimeError)
 - [ ] Profile page JavaScript parses without syntax errors
+
 ## 5. Rollback Procedures
 
 - **Database:** Restore from backup taken before migrations
 - **Application:** Deploy previous working version
 - **Payments:** Disable checkout endpoint if needed; paid orders remain safe
 - **Callbacks:** Disable callback processing temporarily if needed
-
-
