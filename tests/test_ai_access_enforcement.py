@@ -333,7 +333,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_trial_with_timezone_naive_datetime(self, mock_sub, mock_plan):
-        trial_end = (datetime.utcnow() + timedelta(days=5)).isoformat()
+        trial_end = (datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=5)).isoformat()
         mock_sub.return_value = {
             "plan_id": 1, "status": "trialing", "trial_ends_at": trial_end}
         mock_plan.return_value = FREE_PLAN

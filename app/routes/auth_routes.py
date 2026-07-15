@@ -1,4 +1,4 @@
-from app.rate_limit import limiter
+﻿from app.rate_limit import limiter
 from flask import Blueprint, request, jsonify
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -127,7 +127,7 @@ def google_auth():
                 "company_id": existing_user.get("company_id"),
                 "email": existing_user["email"],
                 "role": existing_user["role"],
-                "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+                "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
             }, get_jwt_secret(), algorithm="HS256")
         except RuntimeError:
             return auth_config_error_response()
@@ -190,7 +190,7 @@ def google_auth():
                 "company_id": company["id"],
                 "email": email,
                 "role": "admin",
-                "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+                "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
             }, get_jwt_secret(), algorithm="HS256")
         except RuntimeError:
             return auth_config_error_response()
@@ -263,7 +263,7 @@ def login():
             "company_id": user.get("company_id"),
             "email": user["email"],
             "role": user["role"],
-            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
         }, get_jwt_secret(), algorithm="HS256")
     except RuntimeError:
         return auth_config_error_response()
