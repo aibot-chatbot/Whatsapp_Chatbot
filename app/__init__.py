@@ -45,6 +45,18 @@ def create_app():
     CORS(app, resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}})
     init_limiter(app)
 
+    # ── Security response headers ──────────────────────────────────
+    @app.after_request
+    def _add_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        # CSP omitted intentionally: the frontend uses many inline
+        # scripts and styles that a strict CSP would break. A
+        # nonce-based or hash-based CSP requires frontend build
+        # tooling and is deferred to a later phase.
+        return response
+
     # Register blueprints
     app.register_blueprint(webhook_blueprint)
     app.register_blueprint(chat_blueprint)

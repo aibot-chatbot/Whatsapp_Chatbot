@@ -82,6 +82,24 @@ def load_configurations(app):
     app.config["PHONE_NUMBER_ID"] = os.getenv("PHONE_NUMBER_ID")
     app.config["VERIFY_TOKEN"] = os.getenv("VERIFY_TOKEN")
 
+    # ── Production secret validation (fail-fast) ──
+    if _is_production():
+        jwt_secret = os.getenv("JWT_SECRET", "").strip()
+        weak_secrets = {"", "your-secret-key", "change-me", "dev-secret",
+                       "secret", "test", "default"}
+        if not jwt_secret or jwt_secret.lower() in weak_secrets:
+            raise RuntimeError(
+                "JWT_SECRET is unset or uses a weak/default value. "
+                "Generate a strong random secret for production."
+            )
+
+        flask_secret = os.getenv("SECRET_KEY", "").strip()
+        if not flask_secret or flask_secret.lower() in weak_secrets:
+            raise RuntimeError(
+                "SECRET_KEY is unset or uses a weak/default value. "
+                "Session security depends on a strong secret."
+            )
+
 
 def configure_logging():
     logging.basicConfig(
