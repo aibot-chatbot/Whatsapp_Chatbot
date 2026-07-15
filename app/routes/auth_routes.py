@@ -216,9 +216,6 @@ def is_password_valid(stored_password, input_password):
     if not stored_password or not input_password:
         return False
 
-    # Support old users that were saved as plain text before hashing
-    if stored_password == input_password:
-        return True
 
     try:
         return check_password_hash(stored_password, input_password)
@@ -568,4 +565,5 @@ def reset_password():
         }), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Failed to reset password: {str(e)}"}), 500
+        logging.exception("Failed to reset password")
+        return jsonify({"status": "error", "message": "Unable to reset password. Please try again."}), 500

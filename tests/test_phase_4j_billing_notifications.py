@@ -248,6 +248,36 @@ class TestMarkRead:
         count = mark_all_billing_notifications_read(company_id=42)
         assert count == 2
 
+    def test_mark_single_read_includes_company_id_filter(self, mock_supabase):
+        """mark_billing_notification_read must filter by company_id to prevent cross-company access."""
+        from app.database.billing_notification_repository import mark_billing_notification_read
+
+        mock_update = MagicMock()
+        mock_supabase.table.return_value.update.return_value = mock_update
+        mock_update.eq.return_value = mock_update
+        mock_update.execute.return_value = MagicMock(data=[{"id": 1}])
+
+        mark_billing_notification_read(company_id=42, notification_id=7)
+
+        # Verify both id and company_id are used in the WHERE clause
+        mock_update.eq.assert_any_call("id", 7)
+        mock_update.eq.assert_any_call("company_id", 42)
+        mock_update.eq.assert_any_call("is_read", False)
+
+    def test_mark_all_read_includes_company_id_filter(self, mock_supabase):
+        """mark_all_billing_notifications_read must filter by company_id."""
+        from app.database.billing_notification_repository import mark_all_billing_notifications_read
+
+        mock_update = MagicMock()
+        mock_supabase.table.return_value.update.return_value = mock_update
+        mock_update.eq.return_value = mock_update
+        mock_update.execute.return_value = MagicMock(data=[{"id": 1}])
+
+        mark_all_billing_notifications_read(company_id=99)
+
+        mock_update.eq.assert_any_call("company_id", 99)
+        mock_update.eq.assert_any_call("is_read", False)
+
 
 # ---------------------------------------------------------------------------
 # Service Tests
