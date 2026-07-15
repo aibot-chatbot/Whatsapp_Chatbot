@@ -1851,7 +1851,7 @@ async function loadBillingInfo() {
                     var now = new Date();
                     var daysLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
                     var dateStr = trialEnd.toLocaleDateString();
-                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â uses <strong>DeepSeek AI</strong> only";
+                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) - uses <strong>DeepSeek AI</strong> only";
                 }
             } else {
                 if (trialRow) trialRow.style.display = "none";
@@ -2262,10 +2262,9 @@ async function loadBillingInfo() {
                 var body = await res.json();
                 if (body.status === "success" && body.data && body.data.initialised) {
                     var d = body.data;
-                    var microMyr = function(v) { return (Number(v) / 1000000).toFixed(2); };
-                    document.getElementById("ai-credit-included").innerText = "RM " + microMyr(d.included_balance_micro_myr);
-                    document.getElementById("ai-credit-topup").innerText = "RM " + microMyr(d.topup_balance_micro_myr);
-                    document.getElementById("ai-credit-total").innerText = "RM " + microMyr(d.total_balance_micro_myr);
+                    document.getElementById("ai-credit-included").innerText = formatMicroMyr(d.included_balance_micro_myr);
+                    document.getElementById("ai-credit-topup").innerText = formatMicroMyr(d.topup_balance_micro_myr);
+                    document.getElementById("ai-credit-total").innerText = formatMicroMyr(d.total_balance_micro_myr);
                     if (d.period_start && d.period_end) {
                         document.getElementById("ai-credit-period").innerText = new Date(d.period_start).toLocaleDateString() + " - " + new Date(d.period_end).toLocaleDateString();
                     }
@@ -2968,10 +2967,24 @@ async function loadBillingInfo() {
         }
 
         function microMyrToSignedMyr(microMyr) {
-            if (microMyr === null || microMyr === undefined) return "";
-            var absVal = Math.abs(microMyr);
+            var val = Number(microMyr);
+            if (!Number.isFinite(val)) return "";
+            var formatted = formatMicroMyr(val);
+            if (formatted === "\u2014") return "";
+            return (val < 0 ? "" : "+") + formatted;
+        }
+
+        function formatMicroMyr(microMyr) {
+            if (microMyr === null || microMyr === undefined) return "\u2014";
+            var value = Number(microMyr);
+            if (!Number.isFinite(value)) return "\u2014";
+            var absVal = Math.abs(value);
+            if (absVal === 0) return "RM 0.00";
+            if (absVal > 0 && absVal < 10000) {
+                return value < 0 ? "-RM <0.01" : "RM <0.01";
+            }
             var myr = (absVal / 1000000).toFixed(2);
-            return (microMyr < 0 ? "-" : "+") + "RM " + myr;
+            return (value < 0 ? "-RM " : "RM ") + myr;
         }
 
         function renderTransactions(txns) {
@@ -2990,10 +3003,15 @@ async function loadBillingInfo() {
             txns.forEach(function(txn) {
                 try {
                     var typeMap = {
-                        "topup": "Credit Top-Up",
-                        "usage": "AI Usage",
+                        "usage_debit": "AI Usage",
+                        "topup_purchase": "Credit Top-Up",
+                        "subscription_included": "Subscription Credit",
+                        "included_credit_grant": "Included Credit",
+                        "expiry": "Credit Expired",
                         "adjustment": "Credit Adjustment",
                         "refund": "Credit Refund"
+,
+                        "reversal": "Credit Reversal"
                     };
                     var label = typeMap[txn.transaction_type || ""] || "Credit Activity";
                     var desc = txn.description || "";
@@ -3007,7 +3025,7 @@ async function loadBillingInfo() {
                     var topAfter = txn.topup_balance_after_micro_myr;
                     var balanceStr = "";
                     if (incAfter !== null && incAfter !== undefined && topAfter !== null && topAfter !== undefined) {
-                        balanceStr = "Balance after: RM " + ((incAfter + topAfter) / 1000000).toFixed(2);
+                        balanceStr = "Balance after: " + formatMicroMyr(incAfter + topAfter);
                     }
                     var dateStr = "";
                     if (txn.created_at) {
@@ -3146,10 +3164,9 @@ async function loadBillingInfo() {
                     return;
                 }
                 var d = body.data;
-                var microMyr = function(v) { return "RM " + (Number(v) / 1000000).toFixed(2); };
-                document.getElementById("acu-granted").textContent = microMyr(d.activity.included_granted_myr || 0);
-                document.getElementById("acu-spent").textContent = microMyr(d.activity.usage_spent_myr || 0);
-                document.getElementById("acu-expired").textContent = microMyr(d.activity.included_expired_myr || 0);
+                document.getElementById("acu-granted").textContent = formatMicroMyr(d.activity.included_granted_myr || 0);
+                document.getElementById("acu-spent").textContent = formatMicroMyr(d.activity.usage_spent_myr || 0);
+                document.getElementById("acu-expired").textContent = formatMicroMyr(d.activity.included_expired_myr || 0);
                 section.style.display = "block";
             } catch (e) {
                 section.style.display = "none";
