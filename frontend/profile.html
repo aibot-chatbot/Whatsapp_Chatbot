@@ -1529,6 +1529,19 @@
             }
         }
 
+        function formatBillingNotificationTimestamp(value) {
+            if (!value || typeof value !== "string") return "";
+            var text = value.trim();
+            if (!text) return "";
+
+            var parsed = new Date(text);
+            if (isNaN(parsed.getTime()) && !/[zZ]$|[+-]\d{2}:?\d{2}$/.test(text)) {
+                parsed = new Date(text.replace(" ", "T") + "Z");
+            }
+            if (isNaN(parsed.getTime())) return "";
+            return parsed.toLocaleString();
+        }
+
         function formatBillingBytes(bytes) {
             if (bytes == null || bytes === undefined || isNaN(bytes) || bytes < 0) return "0 B";
             if (bytes === 0) return "0 B";
@@ -3263,7 +3276,7 @@ async function loadBillingInfo() {
                     item.className = "billing-notification-item" + (isRead ? "" : " notify-unread");
                     item.setAttribute("data-notification-id", n.id);
 
-                    var createdDate = n.created_at ? new Date(n.created_at + (n.created_at.endsWith("Z") ? "" : "Z")).toLocaleString() : "";
+                    var createdDate = formatBillingNotificationTimestamp(n.created_at);
 
                     item.innerHTML = "" +
                         '<div class="notify-icon ' + severityClass + '">' +

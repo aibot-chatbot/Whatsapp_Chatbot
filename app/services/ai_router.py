@@ -477,9 +477,9 @@ def _load_notification_thresholds() -> tuple:
 def _determine_trial_status(charge_result: dict) -> bool:
     """Determine whether the charged company is on a Free trial plan.
 
-    Looks up the subscription returned by the charge RPC and checks
-    whether the plan code is 'free'.  Defaults to False (paid wording)
-    when the lookup cannot be completed safely.
+    Looks up the company's current subscription and checks whether the plan is
+    Free. Some repository calls return plan_code directly, while the active
+    subscription repository returns plan_id only.
     """
     subscription_id = charge_result.get("subscription_id")
     if not subscription_id:
@@ -492,7 +492,15 @@ def _determine_trial_status(charge_result: dict) -> bool:
         if not sub:
             return False
         plan_code = (sub.get("plan_code") or "").lower()
-        return plan_code == "free"
+        if plan_code:
+            return plan_code == "free"
+        plan_id = sub.get("plan_id")
+        if not plan_id:
+            return False
+        plan = get_plan_by_id(plan_id)
+        if not plan:
+            return False
+        return (plan.get("code") or "").lower().strip() == "free"
     except Exception:
         logging.warning(
             "Could not determine trial status for subscription %s; "

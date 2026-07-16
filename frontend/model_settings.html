@@ -182,7 +182,7 @@
                 <span id="plan-info-text"></span>
             </div>
         </div>
-<div class="glass-card">
+<div class="glass-card" id="configuration-card">
             <div class="form-group">
                 <label>AI Provider</label>
                 <p>Choose which AI engine will power your chatbot's responses.</p>
@@ -272,6 +272,42 @@
         let modelCatalogReadOnly = false;
         let catalogAccessAllowed = true;
         let catalogDenialReason = null;
+        let botLoadFailed = false;
+
+        function setConfigurationControlsDisabled(disabled) {
+            const providerSelect = document.getElementById("ai-provider");
+            const modelSelect = document.getElementById("model-select");
+            const customModel = document.getElementById("custom-model-name");
+            const temperature = document.getElementById("temperature");
+            const saveBtn = document.getElementById("save-btn");
+            if (providerSelect) providerSelect.disabled = disabled;
+            if (modelSelect) modelSelect.disabled = disabled;
+            if (customModel) customModel.disabled = disabled;
+            if (temperature) temperature.disabled = disabled;
+            if (saveBtn) saveBtn.disabled = disabled;
+        }
+
+        function showBotAccessDeniedState() {
+            botLoadFailed = true;
+            setConfigurationControlsDisabled(true);
+
+            const card = document.getElementById("configuration-card");
+            if (card) card.style.display = "none";
+
+            const planInfo = document.getElementById("plan-info");
+            const planInfoText = document.getElementById("plan-info-text");
+            if (planInfo) planInfo.style.display = "block";
+            if (planInfoText) {
+                planInfoText.textContent = "Chatbot not found or you do not have access.";
+            }
+
+            const statusMsg = document.getElementById("status-msg");
+            if (statusMsg) {
+                statusMsg.innerText = "Chatbot not found or you do not have access.";
+                statusMsg.className = "status-msg status-error";
+                statusMsg.style.display = "block";
+            }
+        }
 
 
         function onProviderChange() {
@@ -488,6 +524,11 @@
                 const response = await authenticatedFetch(`/api/bots/${botId}`);
                 const result = await response.json();
 
+                if (response.status === 403 || response.status === 404 || result.status !== "success") {
+                    showBotAccessDeniedState();
+                    return;
+                }
+
                 if (result.status === "success") {
                     const bot = result.data;
 
@@ -528,10 +569,21 @@
                 }
             } catch (error) {
                 console.error("Failed to fetch settings", error);
+                showBotAccessDeniedState();
             }
         }
 
         async function saveSettings() {
+            if (botLoadFailed) {
+                const statusMsg = document.getElementById("status-msg");
+                if (statusMsg) {
+                    statusMsg.innerText = "Chatbot not found or you do not have access.";
+                    statusMsg.className = "status-msg status-error";
+                    statusMsg.style.display = "block";
+                }
+                return;
+            }
+
             var provider, model_name;
             if (modelCatalogReadOnly) {
                 // Free/trial: always submit the enforced values.
