@@ -72,6 +72,8 @@ def chat_with_testbot():
             source_channel="web",
             operation_type=OPERATION_TEST_BOT,
         )
+        if reply == "<SILENT_BOT_RESPONSE>":
+            reply = "This conversation is currently assigned to human staff."
 
         return jsonify({
             "status": "success",
