@@ -572,6 +572,11 @@
             whatsapp: null,
             wasender: null
         };
+        let channelEntitlement = {
+            loaded: false,
+            used: 0,
+            limit: null
+        };
         let whatsAppEmbeddedSignupConfig = null;
         let whatsAppSignupEventData = null;
         let metaSdkLoadingPromise = null;
@@ -616,6 +621,77 @@
             const status = channel.connection_status || (channel.is_active ? 'connected' : 'pending');
 
             return status === 'connected' && channel.is_active;
+        }
+
+        function getChannelLimitMessage() {
+            if (!isChannelLimitReached()) return "";
+            return `Channel limit reached (${channelEntitlement.used}/${channelEntitlement.limit}). Disconnect an existing channel or upgrade your plan.`;
+        }
+
+        function isChannelLimitReached() {
+            if (!channelEntitlement.loaded) return false;
+            if (channelEntitlement.limit === null || channelEntitlement.limit === undefined) return false;
+            return Number(channelEntitlement.used || 0) >= Number(channelEntitlement.limit);
+        }
+
+        function shouldBlockNewChannel(platform) {
+            return isChannelLimitReached() && !isChannelConnected(latestChannels[platform]);
+        }
+
+        async function loadChannelEntitlement() {
+            try {
+                const response = await authenticatedFetch('/api/billing/usage');
+                const result = await response.json();
+                const channels = result && result.data && result.data.usage
+                    ? result.data.usage.channels
+                    : null;
+
+                if (!response.ok || result.status !== 'success' || !channels) {
+                    channelEntitlement = { loaded: false, used: 0, limit: null };
+                    return;
+                }
+
+                channelEntitlement = {
+                    loaded: true,
+                    used: Number(channels.used || 0),
+                    limit: channels.limit === null || channels.limit === undefined
+                        ? null
+                        : Number(channels.limit)
+                };
+            } catch (error) {
+                console.error('Channel entitlement load error:', error);
+                channelEntitlement = { loaded: false, used: 0, limit: null };
+            }
+        }
+
+        function showChannelLimitNotice(platform) {
+            const message = getChannelLimitMessage();
+            const data = platformData[platform] || { title: 'Channel Setup' };
+            const container = document.getElementById('setup-steps');
+            const telegramTokenArea = document.getElementById('telegram-token-area');
+            const wasenderConnectArea = document.getElementById('wasender-connect-area');
+            const whatsappCloudArea = document.getElementById('whatsapp-cloud-area');
+            const defaultSetupButton = document.getElementById('default-setup-button');
+
+            document.getElementById('modal-title').innerText = data.title;
+            if (telegramTokenArea) telegramTokenArea.style.display = 'none';
+            if (wasenderConnectArea) wasenderConnectArea.style.display = 'none';
+            if (whatsappCloudArea) whatsappCloudArea.style.display = 'none';
+            if (container) {
+                container.innerHTML = `
+                    <div class="step-item">
+                        <div class="step-number">!</div>
+                        <div class="step-text" style="font-size:0.95rem;color:#ef4444;">${escapeHtml(message)}</div>
+                    </div>
+                `;
+            }
+            if (defaultSetupButton) {
+                defaultSetupButton.style.display = 'block';
+                defaultSetupButton.innerHTML = `
+                    <button class="btn btn-primary" onclick="closeSetup()">Close</button>
+                `;
+            }
+            document.getElementById('setup-modal').style.display = 'flex';
         }
 
         function escapeHtml(value) {
@@ -756,6 +832,11 @@
         function openSetup(platform, forceSetup = false) {
             const existingChannel = latestChannels[platform];
 
+            if (shouldBlockNewChannel(platform)) {
+                showChannelLimitNotice(platform);
+                return;
+            }
+
             if (!forceSetup && existingChannel) {
                 openManageView(platform, existingChannel);
                 return;
@@ -860,9 +941,22 @@
             }
 
             if (button) {
+                if (shouldBlockNewChannel('whatsapp')) {
+                    button.disabled = true;
+                    button.innerText = 'Channel Limit Reached';
+                    button.title = getChannelLimitMessage();
+                    button.style.opacity = '0.65';
+                    button.style.cursor = 'not-allowed';
+                    if (messageBox) {
+                        messageBox.innerText = getChannelLimitMessage();
+                        messageBox.style.color = '#ef4444';
+                    }
+                    return;
+                }
                 const isReady = Boolean(whatsAppEmbeddedSignupConfig && window.FB);
                 button.disabled = state === 'connecting' || state === 'not-configured' || (state === 'preparing' && !isReady);
                 button.innerText = state === 'connecting' ? 'Connecting...' : 'Connect with Meta';
+                button.title = '';
                 button.style.opacity = button.disabled ? '0.65' : '1';
                 button.style.cursor = button.disabled ? 'not-allowed' : 'pointer';
             }
@@ -1104,6 +1198,11 @@
         }
 
         async function connectWhatsAppCloud() {
+            if (shouldBlockNewChannel('whatsapp')) {
+                setWhatsAppCloudState('error', getChannelLimitMessage());
+                return;
+            }
+
             setWhatsAppCloudState('connecting', 'Opening Meta Embedded Signup...');
 
             try {
@@ -1234,6 +1333,20 @@
 
             if (platform === 'wasender') {
                 button.innerText = isConnected ? 'Manage WasenderAPI' : 'Connect WasenderAPI';
+            }
+
+            const blocked = !isConnected && isChannelLimitReached();
+            if (blocked) {
+                button.innerText = 'Channel Limit Reached';
+                button.disabled = true;
+                button.title = getChannelLimitMessage();
+                button.style.opacity = '0.65';
+                button.style.cursor = 'not-allowed';
+            } else {
+                button.disabled = false;
+                button.title = '';
+                button.style.opacity = '1';
+                button.style.cursor = 'pointer';
             }
         }
 
@@ -1376,6 +1489,7 @@
             setChannelStatus('whatsapp', 'pending', 'Checking WhatsApp connection...');
             setChannelStatus('wasender', 'pending', 'Checking WasenderAPI connection...');
 
+            await loadChannelEntitlement();
             await loadTelegramStatus(chatbotId);
             await loadWhatsAppStatus(chatbotId);
             await loadWasenderStatus(chatbotId);
@@ -1550,6 +1664,12 @@
                 return;
             }
 
+            if (shouldBlockNewChannel('telegram')) {
+                messageBox.style.color = '#ef4444';
+                messageBox.innerText = getChannelLimitMessage();
+                return;
+            }
+
             const apiUrl = `/api/telegram/connect?chatbot_id=${chatbotId}`;
 
             console.log("Sending Telegram connect request to:", apiUrl);
@@ -1631,6 +1751,12 @@
             }
 
             const chatbotId = getSelectedChatbotId();
+            if (shouldBlockNewChannel('wasender')) {
+                messageBox.style.color = '#ef4444';
+                messageBox.innerText = getChannelLimitMessage();
+                return;
+            }
+
             const apiUrl = `/api/wasender/connect?chatbot_id=${chatbotId}`;
 
             messageBox.style.color = 'var(--text-dim)';
