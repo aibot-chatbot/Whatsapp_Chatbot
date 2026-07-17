@@ -1711,6 +1711,16 @@
             );
         }
 
+        function subConfirmCancelSubscription() {
+            subConfirmModal(
+                "Cancel Subscription",
+                "Cancel your subscription? Your plan will remain active until the end of the current billing period.",
+                "Confirm Cancellation",
+                "#ef4444",
+                subCancelSubscription
+            );
+        }
+
         async function subClearDowngrade() {
             if (_subMgmtRequesting) return;
             _subMgmtRequesting = true;
@@ -1787,7 +1797,7 @@
                     }
                 } else {
                     // No cancellation scheduled - show Cancel button
-                    actions.push(buildSubActionButton("sub-action-cancel", '<i data-lucide="x-circle" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Cancel Subscription', "danger", "subConfirmModal('Cancel Subscription','Your subscription will remain active until the end of your current billing period (' + new Date(subData.current_period_end).toLocaleDateString() + '). Paid features will continue working until then.\n\nNo refund will be issued. Your company data will be preserved. You can renew at any time.','Confirm Cancellation','#ef4444',subCancelSubscription)"));
+                    actions.push(buildSubActionButton("sub-action-cancel", '<i data-lucide="x-circle" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Cancel Subscription', "danger", "subConfirmCancelSubscription()"));
                 }
 
                 if (pendingPlan && pendingPlan.name && planChangeEffective) {
