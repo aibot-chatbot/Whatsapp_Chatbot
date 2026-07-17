@@ -603,9 +603,12 @@
                     style="display: flex; align-items: center; gap: 8px;">
                     💡 Help?
                 </button>
-                <button class="create-btn" onclick="openCreateModal()" data-create-bot-trigger="true" disabled title="Checking chatbot limit...">
-                    <i data-lucide="plus"></i> Create Bot
-                </button>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+                    <button class="create-btn" onclick="openCreateModal()" data-create-bot-trigger="true" disabled title="Checking chatbot limit...">
+                        <i data-lucide="plus"></i> Create Bot
+                    </button>
+                    <div id="chatbot-limit-helper" style="display:none;max-width:280px;text-align:right;color:#f59e0b;font-size:0.82rem;line-height:1.35;"></div>
+                </div>
                 <!-- User dropdown -->
                 <div class="user-menu-wrapper">
                     <button class="user-menu-trigger" id="userMenuTrigger" onclick="toggleUserDropdown(event)" title="Account">
@@ -743,7 +746,7 @@
         };
 
         function getChatbotLimitMessage() {
-            return "Chatbot limit reached. Delete an existing bot or upgrade your plan.";
+            return "Chatbot limit reached. Delete an existing bot or upgrade your plan to create more bots.";
         }
 
         function isChatbotLimitReached() {
@@ -759,11 +762,17 @@
 
         function applyChatbotLimitState() {
             const loading = !chatbotEntitlement.loaded;
-            const blocked = loading || isChatbotLimitReached();
+            const limitReached = isChatbotLimitReached();
+            const blocked = loading || limitReached;
             document.querySelectorAll('[data-create-bot-trigger="true"]').forEach((button) => {
                 button.disabled = blocked;
                 button.title = loading ? "Checking chatbot limit..." : (blocked ? getChatbotLimitMessage() : "Create Bot");
             });
+            const helper = document.getElementById("chatbot-limit-helper");
+            if (helper) {
+                helper.textContent = limitReached ? getChatbotLimitMessage() : "";
+                helper.style.display = limitReached ? "block" : "none";
+            }
         }
 
         async function loadChatbotUsage() {

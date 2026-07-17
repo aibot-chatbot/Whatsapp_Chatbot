@@ -27,7 +27,8 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
             flags=re.S,
         ).group(0)
         self.assertIn("const loading = !chatbotEntitlement.loaded;", apply_fn)
-        self.assertIn("const blocked = loading || isChatbotLimitReached();", apply_fn)
+        self.assertIn("const limitReached = isChatbotLimitReached();", apply_fn)
+        self.assertIn("const blocked = loading || limitReached;", apply_fn)
         self.assertIn("button.disabled = blocked;", apply_fn)
         self.assertIn('button.title = loading ? "Checking chatbot limit..." : (blocked ? getChatbotLimitMessage() : "Create Bot");', apply_fn)
 
@@ -39,7 +40,7 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
             flags=re.S,
         ).group(0)
         self.assertIn("const loading = !chatbotEntitlement.loaded;", apply_fn)
-        self.assertIn("const blocked = loading || isChatbotLimitReached();", apply_fn)
+        self.assertIn("const blocked = loading || limitReached;", apply_fn)
 
     def test_create_bot_is_disabled_at_limit(self):
         limit_fn = re.search(
@@ -102,6 +103,31 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
         ).group(0)
         self.assertIn("rawLimit === null || rawLimit === undefined ? null : Number(rawLimit)", load_fn)
         self.assertIn("limit: limit !== null && Number.isFinite(limit) ? limit : null", load_fn)
+        apply_fn = re.search(
+            r"function applyChatbotLimitState\(\) \{.*?\n        \}",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn('helper.style.display = limitReached ? "block" : "none";', apply_fn)
+
+    def test_helper_message_appears_at_limit(self):
+        self.assertIn('id="chatbot-limit-helper"', self.html)
+        apply_fn = re.search(
+            r"function applyChatbotLimitState\(\) \{.*?\n        \}",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn('helper.textContent = limitReached ? getChatbotLimitMessage() : "";', apply_fn)
+        self.assertIn('helper.style.display = limitReached ? "block" : "none";', apply_fn)
+
+    def test_helper_message_hidden_below_limit(self):
+        apply_fn = re.search(
+            r"function applyChatbotLimitState\(\) \{.*?\n        \}",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn('helper.textContent = limitReached ? getChatbotLimitMessage() : "";', apply_fn)
+        self.assertIn('helper.style.display = limitReached ? "block" : "none";', apply_fn)
 
     def test_edit_delete_actions_remain_unaffected(self):
         self.assertIn('class="action-btn edit-btn"', self.html)
@@ -111,9 +137,18 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
         self.assertNotIn('edit-btn" data-create-bot-trigger', self.html)
         self.assertNotIn('delete-btn" data-create-bot-trigger', self.html)
 
+    def test_delete_refresh_path_updates_limit_state(self):
+        delete_success = re.search(
+            r'if \(result.status === "success"\) \{.*?closeDeleteModal\(\);.*?\}',
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn("loadChatbotUsage();", delete_success)
+        self.assertIn("fetchBots();", delete_success)
+
     def test_limit_message_matches_expected_copy(self):
         self.assertIn(
-            "Chatbot limit reached. Delete an existing bot or upgrade your plan.",
+            "Chatbot limit reached. Delete an existing bot or upgrade your plan to create more bots.",
             self.html,
         )
 
