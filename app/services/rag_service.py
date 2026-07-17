@@ -395,6 +395,65 @@ def _vector_matches_for_file(chatbot_id, file_id, query_embedding, limit):
     return results or []
 
 
+def detect_menu_code(message):
+    """Return a normalized short menu code such as A, A1, or A1.1."""
+    text = (message or "").strip()
+    if not text:
+        return None
+
+    if re.fullmatch(r"[A-Za-z](?:\d+(?:\.\d+)*)?", text):
+        return text.upper()
+
+    return None
+
+
+def _chunk_matches_exact_menu_code(content, code):
+    if not content or not code:
+        return False
+
+    escaped_code = re.escape(code)
+    code_tail = r"(?=\s|[\"'“”.,;:)\]\}]|$)"
+    trigger_patterns = [
+        rf"\bTrigger\s+Keyword\s*[:：][^\n\r]{{0,160}}\bUser\s+repl(?:y|ies)\s+with\s+[\"'“”]?{escaped_code}{code_tail}",
+        rf"\bUser\s+repl(?:y|ies)\s+with\s+[\"'“”]?{escaped_code}{code_tail}",
+    ]
+
+    for pattern in trigger_patterns:
+        if re.search(pattern, content, flags=re.IGNORECASE):
+            return True
+
+    marker_patterns = [
+        rf"(?m)^\s*(?:[-*]\s*)?{escaped_code}\s*[:：]\s*",
+    ]
+
+    if any(char.isdigit() for char in code):
+        marker_patterns.append(rf"(?m)^\s*(?:[-*]\s*)?{escaped_code}\.\s*")
+
+    for pattern in marker_patterns:
+        if re.search(pattern, content, flags=re.IGNORECASE):
+            return True
+
+    return False
+
+
+def find_chunks_for_exact_code(chatbot_id, file_id, code, limit=3, chunks=None):
+    """Find active PDF chunks that explicitly define a menu trigger code."""
+    if not code or not file_id or limit <= 0:
+        return []
+
+    file_chunks = chunks if chunks is not None else get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+    matches = []
+
+    for chunk in file_chunks or []:
+        content = chunk.get("content", "")
+        if _chunk_matches_exact_menu_code(content, code):
+            matches.append({"content": content, "score": 100})
+            if len(matches) >= limit:
+                break
+
+    return matches
+
+
 def _format_knowledge_chunk(source_label, content):
     return f"{source_label}:\n{content}"
 
@@ -402,7 +461,8 @@ def _format_knowledge_chunk(source_label, content):
 def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
     try:
         query_words = clean_query_words(query)
-        query_embedding = generate_embedding(query)
+        query_embedding = None
+        menu_code = detect_menu_code(query)
         context_chunks = []
         seen_content = set()
         source_counts = {
@@ -435,15 +495,36 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
             pdf_chunks = get_chunks_by_file_for_chatbot(chatbot_id, active_pdf_id)
             logging.info("[RAG] PDF chunks loaded=%s", len(pdf_chunks))
 
-            pdf_keyword_matches = _keyword_matches_for_file(query, pdf_chunks, query_words, pdf_limit)
+            exact_code_matches = []
+            if menu_code:
+                exact_code_matches = find_chunks_for_exact_code(
+                    chatbot_id,
+                    active_pdf_id,
+                    menu_code,
+                    limit=pdf_limit,
+                    chunks=pdf_chunks,
+                )
+                if exact_code_matches:
+                    logging.info(
+                        "[RAG] Exact menu code %s matched PDF chunks=%s",
+                        menu_code,
+                        len(exact_code_matches),
+                    )
+
+            for item in exact_code_matches:
+                add_context("pdf", "Primary PDF knowledge", item.get("content"))
+
+            remaining_pdf_limit = max(0, pdf_limit - source_counts["pdf"])
+            pdf_keyword_matches = _keyword_matches_for_file(query, pdf_chunks, query_words, remaining_pdf_limit)
             pdf_vector_matches = []
 
-            if len(pdf_keyword_matches) < pdf_limit:
+            if len(pdf_keyword_matches) < remaining_pdf_limit:
+                query_embedding = query_embedding if query_embedding is not None else generate_embedding(query)
                 pdf_vector_matches = _vector_matches_for_file(
                     chatbot_id,
                     active_pdf_id,
                     query_embedding,
-                    pdf_limit - len(pdf_keyword_matches),
+                    remaining_pdf_limit - len(pdf_keyword_matches),
                 )
 
             for item in pdf_keyword_matches:
@@ -484,6 +565,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
                 url_vector_matches = []
 
                 if len(url_keyword_matches) < remaining:
+                    query_embedding = query_embedding if query_embedding is not None else generate_embedding(query)
                     url_vector_matches = _vector_matches_for_file(
                         chatbot_id,
                         file_id,
