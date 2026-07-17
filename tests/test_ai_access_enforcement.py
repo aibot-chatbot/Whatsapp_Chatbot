@@ -71,7 +71,7 @@ FREE_PLAN = {
     "currency": "MYR",
     "billing_interval": "monthly",
     "chatbot_limit": 1,
-    "team_member_limit": 3,
+    "team_member_limit": 1,
     "knowledge_file_limit": 10,
     "knowledge_storage_limit_bytes": 10485760,
     "channel_limit": 1,

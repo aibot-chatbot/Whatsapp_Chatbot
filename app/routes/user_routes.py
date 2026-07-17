@@ -5,6 +5,7 @@ from app.database.user_repository import get_user_by_id, get_user_by_email, crea
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
 from app.routes.auth_routes import validate_password_strength
+from app.services.billing_guard import can_add_team_member, BillingLimitError
 import re
 
 
@@ -255,6 +256,8 @@ def create_company_member():
 
         # Create user under current company
         company_id = g.company_id
+        can_add_team_member(company_id)
+
         password_hash = generate_password_hash(password)
 
         user = create_user(
@@ -287,6 +290,15 @@ def create_company_member():
             "status": "error",
             "message": str(e)
         }), 400
+    except BillingLimitError as e:
+        response = {
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }
+        if getattr(e, "details", None):
+            response["details"] = e.details
+        return jsonify(response), 403
     except Exception as e:
         return jsonify({
             "status": "error",

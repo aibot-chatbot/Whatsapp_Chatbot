@@ -48,7 +48,7 @@ MOCK_PLANS = [
         "currency": "MYR",
         "billing_interval": "monthly",
         "chatbot_limit": 1,
-        "team_member_limit": 3,
+        "team_member_limit": 1,
         "knowledge_file_limit": 10,
         "knowledge_storage_limit_bytes": 10485760,
         "channel_limit": 1,
@@ -129,7 +129,7 @@ SERIALIZED_PLANS = [
         "currency": "MYR",
         "billing_interval": "monthly",
         "chatbot_limit": 1,
-        "team_member_limit": 3,
+        "team_member_limit": 1,
         "knowledge_file_limit": 10,
         "knowledge_storage_limit_bytes": 10485760,
         "channel_limit": 1,
@@ -218,7 +218,7 @@ MOCK_SUBSCRIPTION = {
         "currency": "MYR",
         "billing_interval": "monthly",
         "chatbot_limit": 1,
-        "team_member_limit": 3,
+        "team_member_limit": 1,
         "knowledge_file_limit": 10,
         "knowledge_storage_limit_bytes": 10485760,
         "channel_limit": 1,
@@ -243,7 +243,7 @@ MOCK_USAGE = {
     "plan": {"id": 1, "name": "Free", "code": "free", "billing_interval": "monthly"},
     "usage": {
         "chatbots": {"used": 1, "limit": 1},
-        "team_members": {"used": 1, "limit": 3},
+        "team_members": {"used": 1, "limit": 1},
         "knowledge_files": {"used": 0, "limit": 10},
         "knowledge_storage_bytes": {"used": 0, "limit": 10485760},
         "ai_tokens": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
@@ -471,7 +471,7 @@ FREE_PLAN_WITH_LIMITS = {
         "name": "Free",
         "code": "free",
         "chatbot_limit": 1,
-        "team_member_limit": 3,
+        "team_member_limit": 1,
         "knowledge_file_limit": 10,
         "knowledge_storage_limit_bytes": 10485760,
         "channel_limit": 1,
@@ -496,7 +496,7 @@ UNLIMITED_PLAN = {
 FREE_USAGE_AT_LIMIT = {
     "usage": {
         "chatbots": {"used": 1, "limit": 1},
-        "team_members": {"used": 3, "limit": 3},
+        "team_members": {"used": 1, "limit": 1},
         "knowledge_files": {"used": 10, "limit": 10},
         "knowledge_storage_bytes": {"used": 10485760, "limit": 10485760},
         "channels": {"used": 1, "limit": 1},
@@ -506,7 +506,7 @@ FREE_USAGE_AT_LIMIT = {
 FREE_USAGE_BELOW_LIMIT = {
     "usage": {
         "chatbots": {"used": 0, "limit": 1},
-        "team_members": {"used": 1, "limit": 3},
+        "team_members": {"used": 0, "limit": 1},
         "knowledge_files": {"used": 0, "limit": 10},
         "knowledge_storage_bytes": {"used": 0, "limit": 10485760},
         "channels": {"used": 0, "limit": 1},
@@ -1051,7 +1051,7 @@ class TestPlanSeedData(unittest.TestCase):
         """Free plan retains existing limits."""
         free = [p for p in MOCK_PLANS if p["code"] == "free"][0]
         self.assertEqual(free["chatbot_limit"], 1)
-        self.assertEqual(free["team_member_limit"], 3)
+        self.assertEqual(free["team_member_limit"], 1)
         self.assertEqual(free["knowledge_file_limit"], 10)
         self.assertEqual(free["knowledge_storage_limit_bytes"], 10485760)
         self.assertEqual(free["channel_limit"], 1)

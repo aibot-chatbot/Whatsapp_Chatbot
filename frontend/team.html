@@ -804,7 +804,7 @@
                     </div>
                 </div>
                 <div id="team-upgrade-warning" style="display:none;margin-top:10px;padding:10px 14px;border-radius:10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:var(--warning);font-size:0.85rem;">
-                    <i data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> Team limit reached. <a id="team-upgrade-href" href="pricing.html" style="color:var(--primary);text-decoration:underline;font-weight:600;">Upgrade your plan &rarr;</a>
+                    <i data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> Team limit reached. Remove a member, cancel an invitation, or <a id="team-upgrade-href" href="pricing.html" style="color:var(--primary);text-decoration:underline;font-weight:600;">upgrade your plan &rarr;</a>
                 </div>
             </div>
         </div>
@@ -1017,6 +1017,38 @@
         /* ===== Add Member Modal ===== */
         var currentUserRole = null;
         var currentUserId = null;
+        var teamMemberEntitlement = {
+            loaded: false,
+            used: 0,
+            pending: 0,
+            limit: null
+        };
+
+        function getTeamLimitMessage() {
+            return "Team limit reached. Remove a member, cancel an invitation, or upgrade your plan.";
+        }
+
+        function isTeamMemberLimitReached() {
+            if (!teamMemberEntitlement.loaded || teamMemberEntitlement.limit === null) {
+                return false;
+            }
+            return (teamMemberEntitlement.used + teamMemberEntitlement.pending) >= teamMemberEntitlement.limit;
+        }
+
+        function applyTeamInviteLimitState() {
+            var btn = document.getElementById("btn-add-member");
+            var warnEl = document.getElementById("team-upgrade-warning");
+            var limitReached = isTeamMemberLimitReached();
+
+            if (btn) {
+                btn.disabled = limitReached;
+                btn.title = limitReached ? getTeamLimitMessage() : "Send an invitation";
+            }
+
+            if (warnEl) {
+                warnEl.style.display = limitReached ? "block" : "none";
+            }
+        }
 
         async function changeUserRole(userId, selectEl) {
             var newRole = selectEl.value;
@@ -1071,6 +1103,11 @@
         }
 
         function openAddMemberModal() {
+            if (isTeamMemberLimitReached()) {
+                showMessage(getTeamLimitMessage(), "error");
+                applyTeamInviteLimitState();
+                return;
+            }
             document.getElementById("add-member-modal").classList.add("open");
             document.getElementById("member-form-error").classList.add("hidden");
             document.getElementById("member-form-error").textContent = "";
@@ -1118,6 +1155,12 @@
 
         
         async function submitAddMember() {
+            if (isTeamMemberLimitReached()) {
+                showMemberFormError(getTeamLimitMessage());
+                applyTeamInviteLimitState();
+                return;
+            }
+
             var email = document.getElementById("member-email").value.trim();
             var role = document.getElementById("member-role").value;
 
@@ -1316,6 +1359,7 @@ async function resendInvite(email) {
                 if (json.status === "success") {
                     showMessage("Invitation cancelled successfully.", "success");
                     loadInvites();
+                    loadTeamUsage();
                 } else {
                     showMessage(json.message || "Failed to cancel invitation.", "error");
                 }
@@ -1391,20 +1435,24 @@ async function resendInvite(email) {
 
                 var used = teamUsage ? (teamUsage.used || 0) : "?";
                 var pending = teamUsage ? (teamUsage.pending_invitations || 0) : "?";
-                var limit = plan ? (plan.team_member_limit != null ? plan.team_member_limit : "Unlimited") : "?";
+                var rawLimit = teamUsage ? teamUsage.limit : (plan ? plan.team_member_limit : null);
+                var limit = rawLimit != null ? rawLimit : "Unlimited";
+                var usedCount = Number(used || 0);
+                var pendingCount = Number(pending || 0);
+                var numericLimit = rawLimit != null ? Number(rawLimit) : null;
+
+                teamMemberEntitlement = {
+                    loaded: !!teamUsage,
+                    used: Number.isFinite(usedCount) ? usedCount : 0,
+                    pending: Number.isFinite(pendingCount) ? pendingCount : 0,
+                    limit: numericLimit !== null && Number.isFinite(numericLimit) ? numericLimit : null
+                };
 
                 if (membersEl) membersEl.textContent = used;
                 if (pendingEl) pendingEl.textContent = pending;
                 if (limitEl) limitEl.textContent = limit;
 
-                // Show warning if at or over limit
-                if (warnEl && limit !== "?" && limit !== "Unlimited" && limit !== null) {
-                    var total = (typeof used === "number" ? used : 0) + (typeof pending === "number" ? pending : 0);
-                    if (total >= limit) {
-                        warnEl.style.display = "block";
-                        refreshIcons();
-                    }
-                }
+                applyTeamInviteLimitState();
                 refreshIcons();
             } catch (e) {
                 console.error("Failed to load team usage:", e);
