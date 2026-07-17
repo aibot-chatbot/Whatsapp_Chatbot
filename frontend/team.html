@@ -1345,7 +1345,7 @@ async function resendInvite(email) {
 
         async function cancelInvite(inviteId) {
             var confirmed = await showConfirmModal({
-                message: "Cancel this invitation?",
+                message: "Cancel this pending invitation? The invite link will no longer be usable.",
                 confirmText: "Cancel Invite",
                 confirmType: "danger"
             });

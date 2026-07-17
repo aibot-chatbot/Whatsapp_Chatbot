@@ -662,6 +662,9 @@
             // Confirm Relation Modal States
             const [showConfirmModal, setShowConfirmModal] = useState(false);
             const [confirmDetails, setConfirmDetails] = useState({ sourceLabel: "", targetLabel: "", relType: "" });
+            const [deleteNodeTarget, setDeleteNodeTarget] = useState(null);
+            const [deleteRelationTarget, setDeleteRelationTarget] = useState(null);
+            const [isDeletingGraphItem, setIsDeletingGraphItem] = useState(false);
 
             const ALLOWED_GROUPS = [
                 "Company", "Brand", "Category", "Product", "Service", "Package", "Accessory",
@@ -1063,19 +1066,31 @@
                 }
             };
 
-            const handleDeleteNode = async () => {
-                if (!window.confirm(`Are you sure you want to delete the entity "${selectedNode.id}" and all its connections?`)) {
-                    return;
-                }
-                setIsSaving(true);
+            const handleDeleteNode = () => {
+                if (!selectedNode) return;
+                setDeleteNodeTarget({
+                    id: selectedNode.id,
+                    label: selectedNode.label || selectedNode.id
+                });
+            };
+
+            const closeDeleteNodeModal = () => {
+                if (isDeletingGraphItem) return;
+                setDeleteNodeTarget(null);
+            };
+
+            const confirmDeleteNode = async () => {
+                if (!deleteNodeTarget || isDeletingGraphItem) return;
+                setIsDeletingGraphItem(true);
                 setEditError("");
 
                 try {
-                    const response = await authenticatedFetch(`/api/knowledge/graph/node?chatbot_id=${botId}&name=${encodeURIComponent(selectedNode.id)}`, {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/node?chatbot_id=${botId}&name=${encodeURIComponent(deleteNodeTarget.id)}`, {
                         method: "DELETE",
                     });
                     const result = await response.json();
                     if (response.ok && result.status === "success") {
+                        setDeleteNodeTarget(null);
                         setSelectedNode(null);
                         loadGraphData();
                     } else {
@@ -1084,7 +1099,7 @@
                 } catch (err) {
                     alert("Network error. Failed to delete node.");
                 } finally {
-                    setIsSaving(false);
+                    setIsDeletingGraphItem(false);
                 }
             };
 
@@ -1183,14 +1198,28 @@
                 }
             };
 
-            const handleDeleteRelation = async (rel) => {
-                if (!window.confirm(`Delete relationship: ${selectedNode.id} [${rel.rel}] -> ${rel.type === "source" ? rel.target : rel.source}?`)) {
-                    return;
-                }
-                setIsSaving(true);
-
+            const handleDeleteRelation = (rel) => {
+                if (!selectedNode || !rel) return;
                 const src = rel.type === "source" ? selectedNode.id : rel.source;
                 const tgt = rel.type === "source" ? rel.target : selectedNode.id;
+                setDeleteRelationTarget({
+                    sourceName: src,
+                    targetName: tgt,
+                    relType: rel.rel.trim().toUpperCase().replace(/ /g, '_'),
+                    sourceLabel: capitalize(src),
+                    targetLabel: capitalize(tgt),
+                    displayRel: rel.rel
+                });
+            };
+
+            const closeDeleteRelationModal = () => {
+                if (isDeletingGraphItem) return;
+                setDeleteRelationTarget(null);
+            };
+
+            const confirmDeleteRelation = async () => {
+                if (!deleteRelationTarget || isDeletingGraphItem) return;
+                setIsDeletingGraphItem(true);
 
                 try {
                     const response = await authenticatedFetch(`/api/knowledge/graph/edge?chatbot_id=${botId}`, {
@@ -1199,13 +1228,14 @@
                             "Content-Type": "application/json",
                         },
                         body: JSON.stringify({
-                            source_name: src,
-                            target_name: tgt,
-                            rel_type: rel.rel.trim().toUpperCase().replace(/ /g, '_')
+                            source_name: deleteRelationTarget.sourceName,
+                            target_name: deleteRelationTarget.targetName,
+                            rel_type: deleteRelationTarget.relType
                         }),
                     });
                     const result = await response.json();
                     if (response.ok && result.status === "success") {
+                        setDeleteRelationTarget(null);
                         loadGraphData();
                     } else {
                         alert(result.message || "Failed to delete relationship.");
@@ -1213,7 +1243,7 @@
                 } catch (err) {
                     alert("Network error. Failed to delete relationship.");
                 } finally {
-                    setIsSaving(false);
+                    setIsDeletingGraphItem(false);
                 }
             };
 
@@ -1728,6 +1758,158 @@
                                         onMouseOut={(e) => e.currentTarget.style.transform = "translateY(0)"}
                                     >
                                         Confirm Link
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {deleteNodeTarget && (
+                        <div style={{
+                            position: "fixed",
+                            top: 0,
+                            left: 0,
+                            width: "100vw",
+                            height: "100vh",
+                            background: "rgba(5, 8, 16, 0.8)",
+                            backdropFilter: "blur(8px)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            zIndex: 99999
+                        }}>
+                            <div style={{
+                                width: "430px",
+                                background: "rgba(15, 23, 42, 0.95)",
+                                border: "1px solid rgba(239, 68, 68, 0.25)",
+                                borderRadius: "24px",
+                                padding: "28px",
+                                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "18px"
+                            }}>
+                                <div>
+                                    <h3 style={{ fontSize: "1.2rem", fontWeight: "700", color: "#f8fafc", margin: 0 }}>Delete Node?</h3>
+                                    <p style={{ fontSize: "0.9rem", color: "var(--text-dim)", marginTop: "8px", lineHeight: "1.5" }}>
+                                        Delete <strong style={{ color: "#f8fafc" }}>{deleteNodeTarget.label}</strong> from the knowledge graph?
+                                    </p>
+                                </div>
+                                <div style={{ fontSize: "0.86rem", color: "#fca5a5", lineHeight: "1.45", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.22)", borderRadius: "12px", padding: "12px" }}>
+                                    Deleting this node will also remove its connected relationships.
+                                </div>
+                                <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+                                    <button
+                                        type="button"
+                                        onClick={closeDeleteNodeModal}
+                                        disabled={isDeletingGraphItem}
+                                        style={{
+                                            flex: 1,
+                                            padding: "10px 16px",
+                                            borderRadius: "12px",
+                                            background: "rgba(255, 255, 255, 0.05)",
+                                            border: "1px solid rgba(255, 255, 255, 0.15)",
+                                            color: "var(--text-main)",
+                                            fontSize: "0.88rem",
+                                            fontWeight: "600",
+                                            cursor: isDeletingGraphItem ? "not-allowed" : "pointer"
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={confirmDeleteNode}
+                                        disabled={isDeletingGraphItem}
+                                        style={{
+                                            flex: 1,
+                                            padding: "10px 16px",
+                                            borderRadius: "12px",
+                                            background: "#ef4444",
+                                            border: "none",
+                                            color: "#fff",
+                                            fontSize: "0.88rem",
+                                            fontWeight: "600",
+                                            cursor: isDeletingGraphItem ? "not-allowed" : "pointer",
+                                            opacity: isDeletingGraphItem ? 0.75 : 1
+                                        }}
+                                    >
+                                        {isDeletingGraphItem ? "Deleting..." : "Delete Node"}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    {deleteRelationTarget && (
+                        <div style={{
+                            position: "fixed",
+                            top: 0,
+                            left: 0,
+                            width: "100vw",
+                            height: "100vh",
+                            background: "rgba(5, 8, 16, 0.8)",
+                            backdropFilter: "blur(8px)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            zIndex: 99999
+                        }}>
+                            <div style={{
+                                width: "430px",
+                                background: "rgba(15, 23, 42, 0.95)",
+                                border: "1px solid rgba(239, 68, 68, 0.25)",
+                                borderRadius: "24px",
+                                padding: "28px",
+                                boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: "18px"
+                            }}>
+                                <div>
+                                    <h3 style={{ fontSize: "1.2rem", fontWeight: "700", color: "#f8fafc", margin: 0 }}>Delete Relationship?</h3>
+                                    <p style={{ fontSize: "0.9rem", color: "var(--text-dim)", marginTop: "8px", lineHeight: "1.5" }}>
+                                        Remove <strong style={{ color: "#f8fafc" }}>{deleteRelationTarget.displayRel}</strong> between <strong style={{ color: "#f8fafc" }}>{deleteRelationTarget.sourceLabel}</strong> and <strong style={{ color: "#f8fafc" }}>{deleteRelationTarget.targetLabel}</strong>?
+                                    </p>
+                                </div>
+                                <div style={{ fontSize: "0.86rem", color: "#fca5a5", lineHeight: "1.45", background: "rgba(239, 68, 68, 0.08)", border: "1px solid rgba(239, 68, 68, 0.22)", borderRadius: "12px", padding: "12px" }}>
+                                    This relationship will be permanently removed.
+                                </div>
+                                <div style={{ display: "flex", gap: "12px", marginTop: "4px" }}>
+                                    <button
+                                        type="button"
+                                        onClick={closeDeleteRelationModal}
+                                        disabled={isDeletingGraphItem}
+                                        style={{
+                                            flex: 1,
+                                            padding: "10px 16px",
+                                            borderRadius: "12px",
+                                            background: "rgba(255, 255, 255, 0.05)",
+                                            border: "1px solid rgba(255, 255, 255, 0.15)",
+                                            color: "var(--text-main)",
+                                            fontSize: "0.88rem",
+                                            fontWeight: "600",
+                                            cursor: isDeletingGraphItem ? "not-allowed" : "pointer"
+                                        }}
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={confirmDeleteRelation}
+                                        disabled={isDeletingGraphItem}
+                                        style={{
+                                            flex: 1,
+                                            padding: "10px 16px",
+                                            borderRadius: "12px",
+                                            background: "#ef4444",
+                                            border: "none",
+                                            color: "#fff",
+                                            fontSize: "0.88rem",
+                                            fontWeight: "600",
+                                            cursor: isDeletingGraphItem ? "not-allowed" : "pointer",
+                                            opacity: isDeletingGraphItem ? 0.75 : 1
+                                        }}
+                                    >
+                                        {isDeletingGraphItem ? "Deleting..." : "Delete Relationship"}
                                     </button>
                                 </div>
                             </div>

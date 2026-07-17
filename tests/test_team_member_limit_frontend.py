@@ -83,6 +83,18 @@ class TestTeamMemberLimitFrontend(unittest.TestCase):
         self.assertIn("loadInvites();", cancel_success)
         self.assertIn("loadTeamUsage();", cancel_success)
 
+    def test_cancel_invite_confirmation_copy_mentions_pending_invitation(self):
+        cancel_fn = re.search(
+            r"async function cancelInvite\(inviteId\) \{.*?authenticatedFetch",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn(
+            "Cancel this pending invitation? The invite link will no longer be usable.",
+            cancel_fn,
+        )
+        self.assertIn('confirmText: "Cancel Invite"', cancel_fn)
+
     def test_limit_message_matches_expected_copy(self):
         self.assertIn(
             "Team limit reached. Remove a member, cancel an invitation, or upgrade your plan.",

@@ -1701,6 +1701,16 @@
             _subMgmtRequesting = false;
         }
 
+        function subConfirmUndoCancel() {
+            subConfirmModal(
+                "Undo Cancellation",
+                "Your subscription will remain active and will not be cancelled at the end of the billing period.",
+                "Undo Cancellation",
+                "#2563eb",
+                subUndoCancel
+            );
+        }
+
         async function subClearDowngrade() {
             if (_subMgmtRequesting) return;
             _subMgmtRequesting = true;
@@ -1721,6 +1731,16 @@
             }
             if (btn) btn.disabled = false;
             _subMgmtRequesting = false;
+        }
+
+        function subConfirmClearDowngrade() {
+            subConfirmModal(
+                "Cancel Scheduled Downgrade",
+                "Your current plan will remain active and the scheduled downgrade will be removed.",
+                "Cancel Downgrade",
+                "#2563eb",
+                subClearDowngrade
+            );
         }
 
         function buildSubActionButton(id, label, typeClass, onClick) {
@@ -1760,7 +1780,7 @@
                 if (cancelScheduledAt) {
                     // Cancellation is scheduled - show undo button
                     var dateStr = new Date(cancelScheduledAt).toLocaleDateString();
-                    actions.push(buildSubActionButton("sub-action-undo-cancel", '<i data-lucide="rotate-ccw" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Undo Cancellation', "primary-bg", "subUndoCancel()"));
+                    actions.push(buildSubActionButton("sub-action-undo-cancel", '<i data-lucide="rotate-ccw" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Undo Cancellation', "primary-bg", "subConfirmUndoCancel()"));
                     if (cancelScheduled) {
                         cancelScheduled.style.display = "block";
                         document.getElementById("sub-cancel-date-text").textContent = "Effective: " + dateStr;
@@ -1773,7 +1793,7 @@
                 if (pendingPlan && pendingPlan.name && planChangeEffective) {
                     // Downgrade scheduled
                     var dateStr = new Date(planChangeEffective).toLocaleDateString();
-                    actions.push(buildSubActionButton("sub-action-clear-downgrade", '<i data-lucide="x" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Cancel Scheduled Downgrade', "ghost", "subClearDowngrade()"));
+                    actions.push(buildSubActionButton("sub-action-clear-downgrade", '<i data-lucide="x" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Cancel Scheduled Downgrade', "ghost", "subConfirmClearDowngrade()"));
                     if (downgradeScheduled) {
                         downgradeScheduled.style.display = "block";
                         document.getElementById("sub-downgrade-target-text").innerHTML = "Target: <strong>" + pendingPlan.name + "</strong> &mdash; effective " + dateStr;
