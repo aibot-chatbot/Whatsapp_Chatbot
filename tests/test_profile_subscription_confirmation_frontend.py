@@ -49,6 +49,23 @@ class TestProfileSubscriptionConfirmationFrontend(unittest.TestCase):
         self.assertIn("subClearDowngrade", confirm_fn)
         self.assertNotIn("authenticatedFetch", confirm_fn)
 
+    def test_cancel_subscription_button_opens_confirmation_before_api_call(self):
+        self.assertIn('subConfirmCancelSubscription()', self.html)
+        self.assertIn(
+            'buildSubActionButton("sub-action-cancel", \'<i data-lucide="x-circle" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Cancel Subscription\', "danger", "subConfirmCancelSubscription()")',
+            self.html,
+        )
+        self.assertNotIn("subConfirmModal('Cancel Subscription'", self.html)
+
+        confirm_fn = self._function("subConfirmCancelSubscription()")
+        self.assertIn("subConfirmModal(", confirm_fn)
+        self.assertIn(
+            "Cancel your subscription? Your plan will remain active until the end of the current billing period.",
+            confirm_fn,
+        )
+        self.assertIn("subCancelSubscription", confirm_fn)
+        self.assertNotIn("authenticatedFetch", confirm_fn)
+
     def test_cancel_button_closes_subscription_modal_without_api_call(self):
         modal_fn = self._function("subConfirmModal(title, message, confirmLabel, confirmColor, onConfirm)")
         cancel_handler = re.search(
@@ -72,8 +89,10 @@ class TestProfileSubscriptionConfirmationFrontend(unittest.TestCase):
 
         undo_fn = self._function("subUndoCancel()")
         clear_fn = self._function("subClearDowngrade()")
+        cancel_fn = self._function("subCancelSubscription()")
         self.assertIn("/api/billing/subscription/undo-cancel", undo_fn)
         self.assertIn('/api/billing/subscription/downgrade", { method: "DELETE" }', clear_fn)
+        self.assertIn("/api/billing/subscription/cancel", cancel_fn)
 
 
 if __name__ == "__main__":
