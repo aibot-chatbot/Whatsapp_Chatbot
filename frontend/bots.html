@@ -603,7 +603,7 @@
                     style="display: flex; align-items: center; gap: 8px;">
                     💡 Help?
                 </button>
-                <button class="create-btn" onclick="openCreateModal()">
+                <button class="create-btn" onclick="openCreateModal()" data-create-bot-trigger="true" disabled title="Checking chatbot limit...">
                     <i data-lucide="plus"></i> Create Bot
                 </button>
                 <!-- User dropdown -->
@@ -731,9 +731,71 @@
         })();
 
         document.addEventListener("DOMContentLoaded", () => {
+            loadChatbotUsage();
             fetchBots();
             setupGridDelegation();
         });
+
+        let chatbotEntitlement = {
+            loaded: false,
+            used: 0,
+            limit: null
+        };
+
+        function getChatbotLimitMessage() {
+            return "Chatbot limit reached. Delete an existing bot or upgrade your plan.";
+        }
+
+        function isChatbotLimitReached() {
+            if (!chatbotEntitlement.loaded || chatbotEntitlement.limit === null) {
+                return false;
+            }
+            return chatbotEntitlement.used >= chatbotEntitlement.limit;
+        }
+
+        function canCreateChatbot() {
+            return chatbotEntitlement.loaded && !isChatbotLimitReached();
+        }
+
+        function applyChatbotLimitState() {
+            const loading = !chatbotEntitlement.loaded;
+            const blocked = loading || isChatbotLimitReached();
+            document.querySelectorAll('[data-create-bot-trigger="true"]').forEach((button) => {
+                button.disabled = blocked;
+                button.title = loading ? "Checking chatbot limit..." : (blocked ? getChatbotLimitMessage() : "Create Bot");
+            });
+        }
+
+        async function loadChatbotUsage() {
+            try {
+                const response = await authenticatedFetch("/api/billing/usage");
+                const result = await response.json();
+                const chatbots = result.status === "success" && result.data && result.data.usage
+                    ? result.data.usage.chatbots
+                    : null;
+
+                if (!chatbots) {
+                    chatbotEntitlement = { loaded: false, used: 0, limit: null };
+                    applyChatbotLimitState();
+                    return;
+                }
+
+                const used = Number(chatbots.used || 0);
+                const rawLimit = chatbots.limit;
+                const limit = rawLimit === null || rawLimit === undefined ? null : Number(rawLimit);
+
+                chatbotEntitlement = {
+                    loaded: true,
+                    used: Number.isFinite(used) ? used : 0,
+                    limit: limit !== null && Number.isFinite(limit) ? limit : null
+                };
+                applyChatbotLimitState();
+            } catch (error) {
+                console.error("Failed to load chatbot usage:", error);
+                chatbotEntitlement = { loaded: false, used: 0, limit: null };
+                applyChatbotLimitState();
+            }
+        }
 
         function setupGridDelegation() {
             document.getElementById("bots-grid").addEventListener("click", (e) => {
@@ -783,12 +845,13 @@
                             </div>
                             <h2>No Bots Created Yet</h2>
                             <p>Get started by creating your first AI Chatbot. You'll be able to upload knowledge files, define custom prompts, and integrate it with WhatsApp.</p>
-                            <button class="create-btn" onclick="openCreateModal()">
+                            <button class="create-btn" onclick="openCreateModal()" data-create-bot-trigger="true">
                                 <i data-lucide="plus"></i> Create Your First Bot
                             </button>
                         </div>
                     `;
                     lucide.createIcons();
+                    applyChatbotLimitState();
 
                     return;
                 }
@@ -825,6 +888,7 @@
 
                 // Re-initialize icons for the new dynamically added DOM elements
                 lucide.createIcons();
+                applyChatbotLimitState();
 
 
             } catch (error) {
@@ -839,6 +903,12 @@
         }
 
         function openCreateModal() {
+            if (!canCreateChatbot()) {
+                alert(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");
+                applyChatbotLimitState();
+                return;
+            }
+
             document.getElementById("bot-name").value = "";
             document.getElementById("bot-description").value = "";
             document.getElementById("bot-language").value = "English";
@@ -858,6 +928,12 @@
         }
 
         async function createBot() {
+            if (!canCreateChatbot()) {
+                alert(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");
+                applyChatbotLimitState();
+                return;
+            }
+
             const botName = document.getElementById("bot-name").value.trim();
             const botDescription = document.getElementById("bot-description").value.trim();
             const botLanguage = document.getElementById("bot-language").value.trim();
@@ -919,6 +995,7 @@
 
             if (result.status === "success") {
                 closeDeleteModal();
+                loadChatbotUsage();
                 fetchBots();
             } else {
                 alert(result.message || "Failed to delete bot");
