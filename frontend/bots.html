@@ -634,6 +634,14 @@
 
         </div>
 
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px 0;flex-wrap:wrap;">
+            <div style="display:flex;gap:8px;">
+                <button id="active-bots-tab" class="cancel-btn" onclick="setBotView('active')" style="padding:10px 16px;">Active Bots</button>
+                <button id="archived-bots-tab" class="cancel-btn" onclick="setBotView('archived')" style="padding:10px 16px;">Archived Bots</button>
+            </div>
+            <div id="bot-view-message" style="color:var(--text-dim);font-size:0.9rem;"></div>
+        </div>
+
         <div id="bots-grid" class="bots-grid">
             <div class="loading-state">
                 <i data-lucide="loader-2" class="lucide-spin" style="margin-right: 12px;"></i> Loading bots...
@@ -671,14 +679,40 @@
         <!-- Delete Modal -->
         <div id="delete-modal" class="modal-overlay">
             <div class="modal-card">
-                <h2>Delete Bot</h2>
+                <h2>Archive Bot</h2>
                 <p style="color: var(--text-dim); line-height: 1.6;">
-                    Are you sure you want to delete this bot? This action cannot be undone.
+                    Archive this bot and remove it from active use? Its knowledge files, conversations,
+                    messages, channels, CRM records, agent actions, and usage history will be preserved.
                 </p>
 
                 <div class="modal-actions">
                     <button class="cancel-btn" onclick="closeDeleteModal()">Cancel</button>
-                    <button class="danger-btn" onclick="confirmDeleteBot()">Delete</button>
+                    <button class="danger-btn" onclick="confirmDeleteBot()">Archive Bot</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Permanent Delete Modal -->
+        <div id="permanent-delete-modal" class="modal-overlay">
+            <div class="modal-card">
+                <h2>Permanently Delete Bot</h2>
+                <p style="color: var(--danger); line-height: 1.6; font-weight: 600;">
+                    This permanently deletes the bot. This cannot be undone.
+                </p>
+                <p style="color: var(--text-dim); line-height: 1.6;">
+                    Related data may be removed, including knowledge files, conversations, messages,
+                    channels, CRM records, agent actions, and graph data.
+                </p>
+                <label>Type the exact bot name to confirm</label>
+                <input id="permanent-delete-confirm-name" type="text" autocomplete="off">
+                <div id="permanent-delete-helper" style="color:var(--text-dim);font-size:0.85rem;margin-top:-4px;margin-bottom:12px;"></div>
+                <div id="permanent-delete-error" style="display:none;color:var(--danger);font-size:0.85rem;margin-top:-8px;margin-bottom:12px;">
+                    Type the exact bot name to permanently delete this bot.
+                </div>
+
+                <div class="modal-actions">
+                    <button class="cancel-btn" onclick="closePermanentDeleteModal()">Cancel</button>
+                    <button id="permanent-delete-confirm-btn" class="danger-btn" onclick="confirmPermanentDeleteBot()" disabled>Permanently Delete</button>
                 </div>
             </div>
         </div>
@@ -737,6 +771,7 @@
             loadChatbotUsage();
             fetchBots();
             setupGridDelegation();
+            setupPermanentDeleteConfirmation();
         });
 
         let chatbotEntitlement = {
@@ -744,9 +779,17 @@
             used: 0,
             limit: null
         };
+        let currentBotView = "active";
+        let selectedPermanentDeleteBotId = null;
+        let selectedPermanentDeleteBotName = "";
+        let permanentDeleteConfirmationTouched = false;
 
         function getChatbotLimitMessage() {
-            return "Chatbot limit reached. Delete an existing bot or upgrade your plan to create more bots.";
+            return "Chatbot limit reached. Archive an existing bot or upgrade your plan to create more bots.";
+        }
+
+        function getRestoreLimitMessage() {
+            return "Chatbot limit reached. Archive another active bot or upgrade your plan before restoring this bot.";
         }
 
         function isChatbotLimitReached() {
@@ -808,6 +851,23 @@
 
         function setupGridDelegation() {
             document.getElementById("bots-grid").addEventListener("click", (e) => {
+                const restoreBtn = e.target.closest(".restore-btn");
+                if (restoreBtn) {
+                    e.stopPropagation();
+                    const botId = restoreBtn.getAttribute("data-bot-id");
+                    restoreBot(botId);
+                    return;
+                }
+
+                const permanentDeleteBtn = e.target.closest(".permanent-delete-btn");
+                if (permanentDeleteBtn) {
+                    e.stopPropagation();
+                    const botId = permanentDeleteBtn.getAttribute("data-bot-id");
+                    const botName = permanentDeleteBtn.getAttribute("data-bot-name") || "";
+                    openPermanentDeleteModal(botId, botName);
+                    return;
+                }
+
                 const editBtn = e.target.closest(".edit-btn");
                 if (editBtn) {
                     e.stopPropagation();
@@ -826,17 +886,55 @@
 
                 const card = e.target.closest(".glass-card");
                 if (card) {
+                    if (currentBotView === "archived") {
+                        return;
+                    }
                     const botId = card.getAttribute("data-bot-id");
                     openBot(botId);
                 }
             });
         }
 
+        function setBotView(view) {
+            currentBotView = view === "archived" ? "archived" : "active";
+            updateBotViewTabs();
+            applyChatbotLimitState();
+            fetchBots();
+        }
+
+        function updateBotViewTabs() {
+            const activeTab = document.getElementById("active-bots-tab");
+            const archivedTab = document.getElementById("archived-bots-tab");
+            const message = document.getElementById("bot-view-message");
+
+            if (activeTab) {
+                activeTab.style.background = currentBotView === "active" ? "var(--primary)" : "rgba(255,255,255,0.08)";
+                activeTab.style.color = currentBotView === "active" ? "white" : "var(--text-main)";
+            }
+            if (archivedTab) {
+                archivedTab.style.background = currentBotView === "archived" ? "var(--primary)" : "rgba(255,255,255,0.08)";
+                archivedTab.style.color = currentBotView === "archived" ? "white" : "var(--text-main)";
+            }
+            if (message) {
+                message.textContent = currentBotView === "archived"
+                    ? "Archived bots are preserved and cannot be edited until restored."
+                    : "";
+            }
+        }
+
         async function fetchBots() {
             const grid = document.getElementById("bots-grid");
+            updateBotViewTabs();
+            grid.innerHTML = `
+                <div class="loading-state">
+                    <i data-lucide="loader-2" class="lucide-spin" style="margin-right: 12px;"></i> Loading bots...
+                </div>
+            `;
+            lucide.createIcons();
 
             try {
-                const response = await authenticatedFetch("/api/bots");
+                const endpoint = currentBotView === "archived" ? "/api/bots/archived" : "/api/bots";
+                const response = await authenticatedFetch(endpoint);
                 const result = await response.json();
 
                 if (result.status !== "success") {
@@ -847,6 +945,21 @@
                 const bots = result.data;
 
                 if (!bots || bots.length === 0) {
+                    if (currentBotView === "archived") {
+                        grid.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-icon">
+                                    <i data-lucide="archive" style="width: 48px; height: 48px; color: var(--primary);"></i>
+                                </div>
+                                <h2>No Archived Bots</h2>
+                                <p>Archived bots will appear here after you remove them from active use.</p>
+                            </div>
+                        `;
+                        lucide.createIcons();
+                        applyChatbotLimitState();
+                        return;
+                    }
+
                     grid.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-icon">
@@ -865,35 +978,7 @@
                     return;
                 }
 
-                grid.innerHTML = bots.map(bot => `
-                    <div class="glass-card" data-bot-id="${bot.id}">
-                        <div class="bot-header">
-                            <div class="bot-icon">
-                                <i data-lucide="cpu" style="width: 28px; height: 28px; color: var(--primary);"></i>
-                            </div>
-                            <span class="badge ${bot.is_active ? 'active-badge' : 'inactive-badge'}">${bot.is_active ? "Active" : "Inactive"}</span>
-                        </div>
-                        <div class="bot-title">${bot.bot_name || "Unnamed Bot"}</div>
-                        <div class="bot-desc">${bot.bot_description || "No description provided."}</div>
-                        <div class="bot-meta">Tone: ${bot.tone || "Not set"}</div>
-                        <div class="bot-meta">Language: ${bot.language || "Not set"}</div>
-                        <span class="badge">${bot.is_active ? "Active" : "Inactive"}</span>
-
-                        <div class="bot-meta-container">
-                            <div class="bot-meta"><i data-lucide="mic" style="width: 14px; height: 14px;"></i> ${bot.tone || "Not set"}</div>
-                            <div class="bot-meta"><i data-lucide="globe" style="width: 14px; height: 14px;"></i> ${bot.language || "Not set"}</div>
-                        </div>
-
-                        <div class="bot-actions">
-                            <button class="action-btn edit-btn" data-bot-id="${bot.id}">
-                                <i data-lucide="edit-2" style="width: 16px; height: 16px; pointer-events: none;"></i> Edit
-                            </button>
-                            <button class="action-btn delete-btn" data-bot-id="${bot.id}">
-                                <i data-lucide="trash-2" style="width: 16px; height: 16px; pointer-events: none;"></i> Delete
-                            </button>
-                        </div>
-                    </div>
-                `).join("");
+                grid.innerHTML = bots.map(bot => renderBotCard(bot, currentBotView === "archived")).join("");
 
                 // Re-initialize icons for the new dynamically added DOM elements
                 lucide.createIcons();
@@ -904,6 +989,61 @@
                 console.error(error);
                 grid.innerHTML = `<div class="empty-state">Error loading bots.</div>`;
             }
+        }
+
+        function renderBotCard(bot, archived) {
+            const statusLabel = archived ? "Archived" : (bot.is_active ? "Active" : "Inactive");
+            const statusClass = archived ? "inactive-badge" : (bot.is_active ? "active-badge" : "inactive-badge");
+            const actions = archived
+                ? `
+                    <button class="action-btn restore-btn" data-bot-id="${bot.id}">
+                        <i data-lucide="rotate-ccw" style="width: 16px; height: 16px; pointer-events: none;"></i> Restore
+                    </button>
+                    <button class="action-btn permanent-delete-btn" data-bot-id="${bot.id}" data-bot-name="${escapeHtmlAttribute(bot.bot_name || "")}">
+                        <i data-lucide="trash-2" style="width: 16px; height: 16px; pointer-events: none;"></i> Permanently Delete
+                    </button>
+                `
+                : `
+                    <button class="action-btn edit-btn" data-bot-id="${bot.id}">
+                        <i data-lucide="edit-2" style="width: 16px; height: 16px; pointer-events: none;"></i> Edit
+                    </button>
+                    <button class="action-btn delete-btn" data-bot-id="${bot.id}">
+                        <i data-lucide="archive" style="width: 16px; height: 16px; pointer-events: none;"></i> Archive
+                    </button>
+                `;
+
+            return `
+                    <div class="glass-card" data-bot-id="${bot.id}" data-bot-view="${archived ? "archived" : "active"}">
+                        <div class="bot-header">
+                            <div class="bot-icon">
+                                <i data-lucide="${archived ? "archive" : "cpu"}" style="width: 28px; height: 28px; color: var(--primary);"></i>
+                            </div>
+                            <span class="badge ${statusClass}">${statusLabel}</span>
+                        </div>
+                        <div class="bot-title">${bot.bot_name || "Unnamed Bot"}</div>
+                        <div class="bot-desc">${bot.bot_description || "No description provided."}</div>
+                        <div class="bot-meta">Tone: ${bot.tone || "Not set"}</div>
+                        <div class="bot-meta">Language: ${bot.language || "Not set"}</div>
+                        <span class="badge">${statusLabel}</span>
+
+                        <div class="bot-meta-container">
+                            <div class="bot-meta"><i data-lucide="mic" style="width: 14px; height: 14px;"></i> ${bot.tone || "Not set"}</div>
+                            <div class="bot-meta"><i data-lucide="globe" style="width: 14px; height: 14px;"></i> ${bot.language || "Not set"}</div>
+                        </div>
+
+                        <div class="bot-actions">
+                            ${actions}
+                        </div>
+                    </div>
+                `;
+        }
+
+        function escapeHtmlAttribute(value) {
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/"/g, "&quot;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
         }
 
         function openBot(botId) {
@@ -1004,10 +1144,131 @@
 
             if (result.status === "success") {
                 closeDeleteModal();
-                loadChatbotUsage();
+                await loadChatbotUsage();
+                applyChatbotLimitState();
                 fetchBots();
             } else {
-                alert(result.message || "Failed to delete bot");
+                alert(result.message || "Failed to archive bot");
+            }
+        }
+
+        async function restoreBot(botId) {
+            if (!botId) return;
+
+            const response = await authenticatedFetch(`/api/bots/${botId}/restore`, {
+                method: "POST"
+            });
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                await loadChatbotUsage();
+                currentBotView = "active";
+                updateBotViewTabs();
+                applyChatbotLimitState();
+                fetchBots();
+            } else if (result.code === "chatbot_limit") {
+                alert(getRestoreLimitMessage());
+            } else {
+                alert(result.message || "Failed to restore bot");
+            }
+        }
+
+        function openPermanentDeleteModal(botId, botName) {
+            selectedPermanentDeleteBotId = botId;
+            selectedPermanentDeleteBotName = botName || "";
+            const helper = document.getElementById("permanent-delete-helper");
+            if (helper) helper.textContent = `Type "${selectedPermanentDeleteBotName}" to enable permanent delete.`;
+            resetPermanentDeleteConfirmation();
+            document.getElementById("permanent-delete-modal").classList.add("show");
+        }
+
+        function closePermanentDeleteModal() {
+            selectedPermanentDeleteBotId = null;
+            selectedPermanentDeleteBotName = "";
+            resetPermanentDeleteConfirmation();
+            document.getElementById("permanent-delete-modal").classList.remove("show");
+        }
+
+        function setupPermanentDeleteConfirmation() {
+            const input = document.getElementById("permanent-delete-confirm-name");
+            if (!input) return;
+            input.addEventListener("input", function() {
+                permanentDeleteConfirmationTouched = true;
+                updatePermanentDeleteButtonState(true);
+            });
+        }
+
+        function resetPermanentDeleteConfirmation() {
+            permanentDeleteConfirmationTouched = false;
+            const input = document.getElementById("permanent-delete-confirm-name");
+            const button = document.getElementById("permanent-delete-confirm-btn");
+            if (input) input.value = "";
+            if (button) button.disabled = true;
+            hidePermanentDeleteError();
+        }
+
+        function getPermanentDeleteTypedName() {
+            const input = document.getElementById("permanent-delete-confirm-name");
+            return input ? input.value.trim() : "";
+        }
+
+        function isPermanentDeleteNameExactMatch() {
+            return getPermanentDeleteTypedName() === selectedPermanentDeleteBotName;
+        }
+
+        function showPermanentDeleteError() {
+            const error = document.getElementById("permanent-delete-error");
+            if (error) error.style.display = "block";
+        }
+
+        function hidePermanentDeleteError() {
+            const error = document.getElementById("permanent-delete-error");
+            if (error) error.style.display = "none";
+        }
+
+        function updatePermanentDeleteButtonState(showErrorWhenInvalid) {
+            const button = document.getElementById("permanent-delete-confirm-btn");
+            const matches = isPermanentDeleteNameExactMatch();
+            if (button) button.disabled = !matches;
+            if (matches) {
+                hidePermanentDeleteError();
+            } else if (showErrorWhenInvalid && permanentDeleteConfirmationTouched) {
+                showPermanentDeleteError();
+            }
+            return !!matches;
+        }
+
+        function validatePermanentDeleteName(showErrorWhenInvalid = false) {
+            return updatePermanentDeleteButtonState(showErrorWhenInvalid);
+        }
+
+        async function confirmPermanentDeleteBot() {
+            if (!selectedPermanentDeleteBotId) return;
+
+            permanentDeleteConfirmationTouched = true;
+            if (!validatePermanentDeleteName(true)) {
+                showPermanentDeleteError();
+                return;
+            }
+
+            const response = await authenticatedFetch(`/api/bots/${selectedPermanentDeleteBotId}/permanent`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    confirm_bot_name: getPermanentDeleteTypedName()
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                closePermanentDeleteModal();
+                await loadChatbotUsage();
+                applyChatbotLimitState();
+                fetchBots();
+            } else {
+                alert(result.message || "Failed to permanently delete bot");
             }
         }
 

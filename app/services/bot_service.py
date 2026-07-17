@@ -1,9 +1,12 @@
 ﻿from app.database.bot_repository import (
     get_all_bots,
+    get_archived_bots,
     get_bot_by_id,
     create_bot,
     update_bot,
-    delete_bot,
+    archive_bot,
+    restore_bot,
+    permanently_delete_archived_chatbot_rpc,
 )
 
 from app.services.model_catalog import (
@@ -24,8 +27,18 @@ from app.services.ai_access_policy import (
 )
 
 
+class PermanentBotDeleteError(ValueError):
+    def __init__(self, message, code="permanent_delete_failed"):
+        super().__init__(message)
+        self.code = code
+
+
 def list_bots(company_id):
     return get_all_bots(company_id)
+
+
+def list_archived_bots(company_id):
+    return get_archived_bots(company_id)
 
 
 def get_bot(bot_id, company_id):
@@ -196,9 +209,56 @@ def edit_bot(bot_id, data, company_id):
 
 
 def remove_bot(bot_id, company_id):
-    existing_bot = get_bot_by_id(bot_id, company_id)
+    existing_bot = get_bot_by_id(bot_id, company_id, include_archived=True)
 
     if not existing_bot:
         raise ValueError("Bot not found")
 
-    return delete_bot(bot_id, company_id)
+    archived_bot = archive_bot(bot_id, company_id)
+
+    if not archived_bot:
+        raise ValueError("Bot not found")
+
+    return archived_bot
+
+
+def restore_archived_bot(bot_id, company_id):
+    existing_bot = get_bot_by_id(bot_id, company_id, include_archived=True)
+
+    if not existing_bot or existing_bot.get("status") != "archived":
+        raise ValueError("Archived bot not found")
+
+    from app.services.billing_guard import can_create_chatbot
+    can_create_chatbot(company_id)
+
+    restored_bot = restore_bot(bot_id, company_id)
+
+    if not restored_bot:
+        raise ValueError("Archived bot not found")
+
+    return restored_bot
+
+
+def permanently_delete_archived_bot(bot_id, company_id, confirm_bot_name):
+    result = permanently_delete_archived_chatbot_rpc(
+        bot_id,
+        company_id,
+        confirm_bot_name,
+    )
+
+    if not result:
+        raise PermanentBotDeleteError(
+            "Unable to permanently delete bot",
+            code="empty_rpc_response",
+        )
+
+    if result.get("status") != "success":
+        code = result.get("code") or "permanent_delete_failed"
+        message = result.get("message") or "Unable to permanently delete bot"
+
+        if code == "not_found":
+            raise LookupError(message)
+
+        raise PermanentBotDeleteError(message, code=code)
+
+    return result
