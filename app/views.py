@@ -1,7 +1,7 @@
 import logging
 import json
 
-from flask import Blueprint, request, jsonify, current_app, abort, send_from_directory
+from flask import Blueprint, request, jsonify, current_app, abort, send_from_directory, g
 import os
 from werkzeug.utils import secure_filename
 
@@ -99,6 +99,7 @@ def webhook_post():
 @token_required
 @role_required("admin", "owner")
 def upload_pdf():
+    chatbot_id = None
     try:
         if "pdf_file" not in request.files:
             return jsonify({"message": "No file part"}), 400
@@ -138,7 +139,8 @@ def upload_pdf():
             response["details"] = e.details
         return jsonify(response), 403
 
-    except Exception as e:
+    except Exception:
+        logging.exception("PDF upload failed for chatbot_id=%s", chatbot_id)
         return jsonify({
-            "message": str(e)
+            "message": "PDF upload failed. Please check the server logs for details."
         }), 500
