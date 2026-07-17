@@ -129,10 +129,17 @@ def count_company_channels(company_id):
 
     A disconnected channel has is_active = false and
     connection_status = 'disconnected', so it is excluded.
+    Channels linked to archived or deleted/missing chatbots are also excluded
+    because they no longer represent a usable connected channel.
     Uses database COUNT with count="exact" on each table.
     """
     if not company_id:
         raise ValueError("Company ID is required")
+
+    chatbot_ids = get_company_chatbot_ids(company_id)
+
+    if not chatbot_ids:
+        return 0
 
     total = 0
 
@@ -144,6 +151,7 @@ def count_company_channels(company_id):
             .eq("company_id", company_id)
             .eq("is_active", True)
             .eq("connection_status", "connected")
+            .in_("chatbot_id", chatbot_ids)
             .execute()
         )
         total += response.count or 0
