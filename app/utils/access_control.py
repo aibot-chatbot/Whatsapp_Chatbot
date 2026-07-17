@@ -49,6 +49,8 @@ def verify_chatbot_access(chatbot_id):
         .select("id, company_id")
         .eq("id", chatbot_id)
         .eq("company_id", company_id)
+        .is_("deleted_at", "null")
+        .neq("status", "archived")
         .limit(1)
         .execute()
     )

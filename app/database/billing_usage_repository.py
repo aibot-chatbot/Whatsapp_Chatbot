@@ -8,7 +8,7 @@ def _now_iso():
 
 
 def get_company_chatbot_ids(company_id):
-    """Return list of chatbot IDs belonging to a company."""
+    """Return active, non-archived chatbot IDs belonging to a company."""
     if not company_id:
         raise ValueError("Company ID is required")
 
@@ -17,6 +17,8 @@ def get_company_chatbot_ids(company_id):
         .table("chatbots")
         .select("id")
         .eq("company_id", company_id)
+        .is_("deleted_at", "null")
+        .neq("status", "archived")
         .execute()
     )
 
@@ -24,10 +26,9 @@ def get_company_chatbot_ids(company_id):
 
 
 def count_company_chatbots(company_id):
-    """Count all chatbots belonging to a company.
+    """Count active, non-archived chatbots belonging to a company.
 
-    Chatbots are hard-deleted from the database, so every existing row
-    represents an active chatbot resource consuming a plan slot.
+    Archived chatbots preserve their data but no longer consume a plan slot.
     Uses database COUNT with count="exact" for efficiency.
     """
     if not company_id:
@@ -38,6 +39,8 @@ def count_company_chatbots(company_id):
         .table("chatbots")
         .select("id", count="exact")
         .eq("company_id", company_id)
+        .is_("deleted_at", "null")
+        .neq("status", "archived")
         .execute()
     )
 
