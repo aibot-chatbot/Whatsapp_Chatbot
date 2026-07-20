@@ -3030,6 +3030,19 @@ async function loadBillingInfo() {
             return (value < 0 ? "-RM " : "RM ") + myr;
         }
 
+        function getAiUsageDebitLabel(aiUsageType) {
+            var usageType = (aiUsageType || "").toLowerCase();
+            var usageLabelMap = {
+                "knowledge_extraction": "Knowledge Training",
+                "chat_reply": "Chat Reply",
+                "message_reply": "Chat Reply",
+                "customer_reply": "Chat Reply",
+                "test_bot": "Test Bot",
+                "test_chat": "Test Bot"
+            };
+            return usageLabelMap[usageType] || "AI Usage";
+        }
+
         function renderTransactions(txns) {
             var listEl = document.getElementById("ai-credit-txn-list");
             var emptyEl = document.getElementById("ai-credit-txn-empty");
@@ -3057,6 +3070,9 @@ async function loadBillingInfo() {
                         "reversal": "Credit Reversal"
                     };
                     var label = typeMap[txn.transaction_type || ""] || "Credit Activity";
+                    if ((txn.transaction_type || "") === "usage_debit") {
+                        label = getAiUsageDebitLabel(txn.ai_usage_type || txn.operation_type);
+                    }
                     var desc = txn.description || "";
                     var incDelta = txn.included_delta_micro_myr;
                     var topDelta = txn.topup_delta_micro_myr;

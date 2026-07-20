@@ -82,7 +82,51 @@ def list_company_credit_transactions(
         .execute()
     )
 
-    return response.data or []
+    transactions = response.data or []
+    return _attach_ai_usage_types(transactions)
+
+
+def _attach_ai_usage_types(transactions: list[dict]) -> list[dict]:
+    """Attach linked ai_usage_logs.operation_type to credit transactions.
+
+    The credit ledger stores only ai_usage_log_id. The UI needs the linked
+    operation type to distinguish chat replies from knowledge training.
+    This lookup is read-only and best-effort: missing usage rows or lookup
+    failures should not prevent the ledger from rendering.
+    """
+    usage_ids = sorted({
+        txn.get("ai_usage_log_id")
+        for txn in transactions
+        if txn.get("ai_usage_log_id")
+    })
+
+    if not usage_ids:
+        return transactions
+
+    try:
+        response = (
+            supabase
+            .table("ai_usage_logs")
+            .select("id,operation_type")
+            .in_("id", usage_ids)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("Unable to enrich AI-credit transactions with usage types: %s", exc)
+        return transactions
+
+    usage_type_by_id = {
+        row.get("id"): row.get("operation_type")
+        for row in (response.data or [])
+        if row.get("id")
+    }
+
+    for txn in transactions:
+        usage_id = txn.get("ai_usage_log_id")
+        if usage_id in usage_type_by_id:
+            txn["ai_usage_type"] = usage_type_by_id[usage_id]
+
+    return transactions
 
 
 def get_credit_transaction_by_usage(ai_usage_log_id: int) -> dict | None:
@@ -319,6 +363,8 @@ def add_ai_credit_topup(
             f"idempotency_key={idempotency_key!r}"
         )
 
+    return data[0]
+
 # ---------------------------------------------------------------------------
 # Subscription included credit
 # ---------------------------------------------------------------------------
@@ -404,9 +450,6 @@ def allocate_subscription_included_credit(
             f"allocate_subscription_included_credit RPC returned no data for "
             f"company {company_id}, idempotency_key={idempotency_key!r}"
         )
-
-    return data[0]
-
 
     return data[0]
 
