@@ -13,6 +13,7 @@ from app.database.processed_telegram_update_repository import (
     is_telegram_update_processed,
     save_processed_telegram_update,
 )
+from app.services.media_send_service import dispatch_media_after_reply
 
 
 def send_telegram_message(bot_token: str, chat_id: str, text: str, reply_markup: dict = None):
@@ -391,3 +392,6 @@ def process_telegram_update(update: dict, webhook_secret: str):
     )
 
     save_processed_telegram_update(telegram_channel_id, update_id)
+    
+    # Try sending any configured media attachments that match the user's message
+    dispatch_media_after_reply(message_text, chatbot_id, "telegram", channel, customer_key)

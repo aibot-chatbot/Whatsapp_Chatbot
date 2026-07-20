@@ -12,6 +12,7 @@ from app.database.processed_wasender_message_repository import (
     is_wasender_message_processed,
     save_processed_wasender_message,
 )
+from app.services.media_send_service import dispatch_media_after_reply
 
 
 WASENDER_BASE_URL = os.getenv("WASENDER_BASE_URL", "https://wasenderapi.com")
@@ -371,3 +372,8 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
     )
 
     save_processed_wasender_message(wasender_channel_id, message_id)
+    
+    # Try sending any configured media attachments that match the user's message
+    if send_success:
+        # Re-fetch channel to pass to dispatch so it has api_key
+        dispatch_media_after_reply(message_text, chatbot_id, "wasender", channel, customer_phone)

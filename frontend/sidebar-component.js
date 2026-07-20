@@ -420,6 +420,10 @@ class ChatbotSidebar extends HTMLElement {
                                 <i data-lucide="terminal-square"></i>
                                 <span>Bot Config</span>
                             </a>
+                            <a href="media_attachments.html${botQuery}" class="nav-link sub-link" title="Media Attachments">
+                                <i data-lucide="image-plus"></i>
+                                <span>Media Attachments</span>
+                            </a>
                         </div>
                     </div>
 
