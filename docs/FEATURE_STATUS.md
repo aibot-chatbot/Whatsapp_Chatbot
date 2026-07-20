@@ -277,11 +277,25 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Auth/billing endpoint rate limits
 - Full test suite: 1,084 pass
 
+## Phase 4L - Platform-Admin Read-Only Backend
+
+**Status: Implemented**
+
+- Separate active `platform_admin_users` mapping required on every request;
+  tenant owner/admin/member roles never grant platform access
+- Five GET-only endpoints for platform identity, company directory/detail,
+  subscription summary, and current-period AI-credit/usage summary
+- Cross-tenant reads isolated in dedicated platform repositories with explicit
+  safe projections and mandatory audit-before-response behavior
+- Automated authorization, repository, route, and audit tests added
+- No frontend, bootstrap mapping, production migration, or production API
+  verification; staging API verification remains blocked pending bootstrap
+
 ## Platform Limitations
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Deferred (Phase 4L) |
+| Platform-admin controls | Backend implemented; staging bootstrap/API verification and frontend pending |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | PDF receipts | Open (HTML only) |
