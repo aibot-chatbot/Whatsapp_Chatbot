@@ -21,6 +21,7 @@ sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
 import json
 import unittest
 import types
+from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock, PropertyMock
 
 if "google" not in sys.modules:
@@ -290,7 +291,9 @@ class TestPlanChangePricing(unittest.TestCase):
             "app.services.ai_access_policy.get_plan_by_id",
             return_value={"code": "free", "name": "Free"},
         ):
-            policy = resolve_ai_access(42)
+            policy = resolve_ai_access(
+                42, now=datetime(2026, 7, 10, tzinfo=timezone.utc)
+            )
             self.assertEqual(policy.access_state, "active_trial")
             self.assertTrue(policy.allowed)
 

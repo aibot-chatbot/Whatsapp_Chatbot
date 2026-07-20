@@ -35,6 +35,8 @@ _sb.table.return_value.insert.return_value.execute.return_value = MagicMock(data
 _sb.rpc.return_value.execute.return_value = MagicMock(data=[])
 _db_mod.supabase = _sb
 
+STRONG_TEST_SECRET = "test-only-production-secret-9f5c2d7a4b8e1f6c3a0d"
+
 
 class TestDevBillingRoutesRegistration(unittest.TestCase):
     """Tests that dev billing routes are registered conditionally."""
@@ -46,7 +48,7 @@ class TestDevBillingRoutesRegistration(unittest.TestCase):
             "FRONTEND_URL": "https://app.example.com",
             "SUPABASE_URL": "https://test.supabase.co",
             "SUPABASE_SERVICE_ROLE_KEY": "test",
-            "SECRET_KEY": "test",
+            "SECRET_KEY": STRONG_TEST_SECRET,
         }
 
     def test_dev_route_absent_in_production(self):
