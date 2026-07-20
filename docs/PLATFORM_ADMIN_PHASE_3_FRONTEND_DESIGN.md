@@ -2,16 +2,50 @@
 
 ## Status and scope
 
-**Design complete; implementation not started.** The platform-admin database
-migrations and five read-only backend endpoints are verified in staging. The
-staging mapping remains present but inactive after the Phase 2.5 revocation
-test. Production deployment remains blocked.
+**Implemented with focused automated verification; staging UI verification is
+pending.** The platform-admin database migrations and five read-only backend
+endpoints are verified in staging. The staging mapping remains present but
+inactive after the Phase 2.5 revocation test. It was not reactivated for this
+implementation. Production deployment remains blocked.
 
-This phase designs a separate internal frontend for SaaS operators. It does not
-implement frontend code, add endpoints, reactivate a mapping, change
-`users.role`, alter migrations, or deploy anything. Flow Builder, Broadcast,
-tenant administration, impersonation, exports, messaging, reconciliation,
-credit adjustments, and subscription changes remain out of scope.
+This phase provides a separate internal frontend for SaaS operators. It does
+not add endpoints, reactivate a mapping, change `users.role`, alter migrations,
+or deploy anything. Flow Builder, Broadcast, tenant administration,
+impersonation, exports, messaging, reconciliation, credit adjustments, and
+subscription changes remain out of scope.
+
+## Final implementation notes
+
+- Three standalone pages implement the dashboard, company directory, and
+  company detail information architecture described below.
+- A dedicated shell performs a fresh `/api/platform-admin/me` check before any
+  page controller can request company data. Platform authorization is never
+  inferred from tenant roles, JWT claims, cached users, or local UI flags.
+- The client exposes only the five approved GET operations and uses the normal
+  authenticated session token mechanism.
+- An in-memory request registry, abort controllers, and a monotonically
+  increasing page epoch prevent replaced or late requests from restoring
+  cleared cross-tenant data.
+- API-derived values are rendered through DOM text properties. Platform data
+  is not placed in browser storage, URLs, logs, or raw error messages; only the
+  validated numeric company ID is used in detail-page navigation.
+- The dashboard performs three exact `limit=1` company-list calls for total,
+  active, and inactive counts. Each call creates its own backend audit event,
+  and the page states this explicitly.
+- Focused source-contract coverage is implemented in
+  `tests/test_platform_admin_frontend.py`. A browser-based staging pass remains
+  required because the approved staging mapping is currently inactive.
+
+## Automated verification
+
+- Focused platform-admin frontend suite: 31 passed, 6 subtests passed.
+- Combined platform-admin backend/frontend and authentication/security
+  regressions: 88 passed, 114 subtests passed.
+- Full safe suite: 1,421 passed, 1 skipped, 125 subtests passed.
+- All five dedicated platform-admin JavaScript files pass the available Node.js
+  syntax check.
+- Manual staging browser verification is not claimed; the staging mapping
+  remains inactive and production remains blocked.
 
 ## Current frontend findings
 
@@ -506,9 +540,9 @@ read-only controls, and responsive/accessibility markers.
 - all backend routes, services, repositories, decorators, and migrations;
 - Flow Builder and Broadcast files.
 
-After implementation and verification, update `docs/FEATURE_STATUS.md`,
-`docs/DEVELOPMENT_ROADMAP.md`, and this design document. No status update is
-appropriate for this design-only task.
+`docs/FEATURE_STATUS.md`, `docs/DEVELOPMENT_ROADMAP.md`, and this design
+document were updated with implementation status. Manual staging UI
+verification remains a separate approved activity.
 
 ## Risks and unresolved decisions
 
@@ -526,18 +560,19 @@ appropriate for this design-only task.
 | Contact email/phone visibility | Confirm internal support need; fields are backend-approved but can be omitted from UI |
 | JavaScript integer precision for monetary micros | Validate safe integers; never silently round malformed/unsafe values |
 | No browser-test framework | Start with source-contract tests and manual QA; approve tooling separately |
-| Staging mapping inactive | Do not reactivate during design; later manual UI verification needs a separate approved change |
+| Staging mapping inactive | It remains inactive; manual UI verification needs a separate approved temporary reactivation |
 | Production access | Remains blocked by Phase 1.5 production gates and frontend verification |
 
-## Proposed implementation sequence
+## Completed implementation sequence
 
 1. Add the platform-only CSS, shell, authorization gate, and API client tests.
 2. Implement the dashboard and verify access-denied/unavailable transitions.
 3. Implement the server-paginated company directory and cancellation logic.
 4. Implement company detail with sequential existence then parallel safe reads.
 5. Add source-contract, rendering, state, accessibility, and responsive tests.
-6. Run the full safe suite and perform an approved staging browser verification
-   only after a separate temporary mapping activation is authorized.
+6. Run the full safe suite. An approved staging browser verification remains
+   pending and may occur only after a separate temporary mapping activation is
+   authorized.
 
 Suggested implementation commit message:
 

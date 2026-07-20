@@ -1,7 +1,7 @@
 # Development Roadmap
 
-> **Note:** The roadmap below uses original Phase numbering (1–8) from early development.
-> The current billing and subscription work follows Phases 4E–4M:
+> **Note:** The roadmap below uses original Phase numbering (1â€“8) from early development.
+> The current billing and subscription work follows Phases 4Eâ€“4M:
 >
 > | Phase | Topic | Status |
 > |---|---|---|
@@ -12,7 +12,7 @@
 > | 4I | Renewal, grace period, failed-payment recovery | Complete |
 > | 4J | Billing notifications and alerts | Complete |
 > | 4K | Advanced billing and AI-usage reporting | Complete |
-> | 4L | Platform-admin controls | **Staging verified; production blocked** |
+> | 4L | Platform-admin controls | **Backend staging verified; frontend implemented; production blocked** |
 > | 4M | Production launch audit and remediation | Complete |
 >
 > ---
@@ -24,10 +24,18 @@ platform-admin allowlist, per-request fail-closed authorization, dedicated
 cross-tenant repositories, five GET-only endpoints, and audit-before-response
 enforcement. Tenant roles and JWT claims do not grant platform access.
 
+The separate read-only frontend is also implemented with a dedicated platform
+shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
+client, in-memory request cancellation/state clearing, exact company counts,
+the server-paginated company directory, and safe company billing/AI-credit
+detail views. The ordinary tenant sidebar does not expose platform navigation.
+
 Migrations 023, 024, and 025 and all five read-only endpoints are verified in
 staging. The five expected audit events and immediate revocation were verified;
-the bootstrap mapping remains present and inactive. Production and frontend
-work remain blocked by the documented Phase 1.5 approval gates.
+the bootstrap mapping remains present and inactive. Manual staging browser
+verification of the frontend requires separately approved temporary
+reactivation. Production remains blocked by the documented Phase 1.5 approval
+gates and has not received any of these changes.
 
 ## Roadmap Principles
 
@@ -144,12 +152,12 @@ Codex may prepare documentation and migration drafts. Human Supabase approval is
 
 ## Phase 4 â€” Core Backend Regression Coverage
 
-### Phase 4C — Cancellation and scheduled downgrade (? Implemented)
+### Phase 4C â€” Cancellation and scheduled downgrade (? Implemented)
 
-- ? POST /api/billing/subscription/cancel — schedule cancellation
-- ? POST /api/billing/subscription/undo-cancel — undo pending cancellation
-- ? POST /api/billing/subscription/downgrade — schedule paid-plan downgrade
-- ? DELETE /api/billing/subscription/downgrade — clear pending downgrade
+- ? POST /api/billing/subscription/cancel â€” schedule cancellation
+- ? POST /api/billing/subscription/undo-cancel â€” undo pending cancellation
+- ? POST /api/billing/subscription/downgrade â€” schedule paid-plan downgrade
+- ? DELETE /api/billing/subscription/downgrade â€” clear pending downgrade
 - ? Cancellation clears pending downgrade (conflict resolution)
 - ? Downgrade rejected when cancellation is pending
 - ? Lifecycle job processes cancel ? downgrade ? expiry in order
