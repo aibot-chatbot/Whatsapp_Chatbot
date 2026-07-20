@@ -279,7 +279,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 ## Phase 4L - Platform-Admin Read-Only Backend and Frontend
 
-**Status: Backend verified in staging; frontend implemented; production blocked**
+**Status: Verified complete in staging; production blocked**
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
@@ -298,16 +298,19 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Focused frontend source-contract tests cover endpoint restrictions, request
   cancellation, state clearing, safe rendering, accessibility, and responsive
   behavior
-- Bootstrap mapping remains present and inactive after the revocation test
-- Staging browser verification is pending and requires separately approved
-  temporary reactivation; no production deployment occurred and existing
-  production gates remain open
+- Staging browser verification passed for the dashboard, company directory,
+  company detail, read-only controls, tenant-app return path, and logout
+- Post-verification revocation was confirmed: refresh showed Access Denied and
+  no stale platform data remained visible
+- Bootstrap mapping remains present and inactive after the browser verification
+  revocation; no production deployment occurred and existing production gates
+  remain open
 
 ## Platform Limitations
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Backend/API staging verified; read-only frontend implemented; mapping inactive; staging UI and production pending |
+| Platform-admin controls | Backend, API, and read-only frontend verified in staging; mapping inactive; production blocked |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | PDF receipts | Open (HTML only) |
