@@ -178,6 +178,20 @@ class TestTransactionTypeLabels(unittest.TestCase):
         self.assertNotIn('"usage": "AI Usage"', self.html)
         self.assertNotIn('"topup": "Credit Top-Up"', self.html)
 
+    def test_usage_debit_operation_type_labels_present(self):
+        self.assertIn("function getAiUsageDebitLabel", self.html)
+        self.assertIn('"knowledge_extraction": "Knowledge Training"', self.html)
+        self.assertIn('"chat_reply": "Chat Reply"', self.html)
+        self.assertIn('"message_reply": "Chat Reply"', self.html)
+        self.assertIn('"customer_reply": "Chat Reply"', self.html)
+        self.assertIn('"test_bot": "Test Bot"', self.html)
+        self.assertIn('"test_chat": "Test Bot"', self.html)
+        self.assertIn('return usageLabelMap[usageType] || "AI Usage";', self.html)
+
+    def test_usage_debit_uses_ai_usage_type_for_label(self):
+        self.assertIn('if ((txn.transaction_type || "") === "usage_debit")', self.html)
+        self.assertIn("label = getAiUsageDebitLabel(txn.ai_usage_type || txn.operation_type);", self.html)
+
 
 class TestProfileJavaScriptSyntax(unittest.TestCase):
     """Catch browser-breaking JavaScript syntax errors in profile.html."""
