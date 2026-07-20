@@ -187,7 +187,7 @@ Update this file after:
 - Completing meaningful verification
 
 Do not record temporary branch names, commit hashes, local paths, or working-tree status here.
-## Phase 4E ¨C Subscription Billing History and Customer Receipts
+## Phase 4E â€” Subscription Billing History and Customer Receipts
 
 **Status:** Verified complete
 
@@ -201,7 +201,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Customer support guidance for manual-review states
 - Data accuracy guarantees (amount from order, timestamps consistent, no reversal leakage)
 
-## Phase 4F ¨C Production Security, Tenant?Scope and Plan?Enforcement Audit
+## Phase 4F â€” Production Security, Tenant Scope and Plan Enforcement Audit
 
 **Status:** Verified complete
 
@@ -215,7 +215,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Health check endpoint
 - Phase 4F runbook
 
-## Phase 4G ¨C Admin and Support Operations
+## Phase 4G â€” Admin and Support Operations
 
 **Status:** Verified complete
 
@@ -227,7 +227,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Auditable credit adjustment RPC design
 - Billing support runbook
 
-## Phase 4H ¨C Customer Receipts, Exports, and Usage Reporting
+## Phase 4H â€” Customer Receipts, Exports, and Usage Reporting
 
 **Status:** Verified complete
 
@@ -241,7 +241,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Email receipt: deferred (no approved email service)
 - Migration 014: not required
 
-## Phase 4I ¨C Subscription Renewal, Grace Period, and Failed-Payment Recovery
+## Phase 4I â€” Subscription Renewal, Grace Period, and Failed-Payment Recovery
 
 **Status:** Implemented
 
@@ -277,9 +277,9 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Auth/billing endpoint rate limits
 - Full test suite: 1,084 pass
 
-## Phase 4L - Platform-Admin Read-Only Backend
+## Phase 4L - Platform-Admin Read-Only Backend and Frontend
 
-**Status: Verified complete in staging; production blocked**
+**Status: Backend verified in staging; frontend implemented; production blocked**
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
@@ -290,14 +290,24 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Automated authorization, repository, route, and audit tests added
 - Manual staging verification passed for all five endpoints and expected audit
   events, including metadata redaction and immediate revocation
+- Separate read-only frontend implemented for platform identity, exact company
+  counts, server-paginated company search, and company billing/AI-credit detail
+- Frontend performs a fresh `/me` authorization check on every page entry,
+  clears cross-tenant state on denial or unavailability, and never trusts tenant
+  roles, cached users, JWT claims, local flags, or hidden navigation
+- Focused frontend source-contract tests cover endpoint restrictions, request
+  cancellation, state clearing, safe rendering, accessibility, and responsive
+  behavior
 - Bootstrap mapping remains present and inactive after the revocation test
-- No frontend or production deployment; existing production gates remain open
+- Staging browser verification is pending and requires separately approved
+  temporary reactivation; no production deployment occurred and existing
+  production gates remain open
 
 ## Platform Limitations
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Staging backend/API verified; mapping inactive; production and frontend pending |
+| Platform-admin controls | Backend/API staging verified; read-only frontend implemented; mapping inactive; staging UI and production pending |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | PDF receipts | Open (HTML only) |
