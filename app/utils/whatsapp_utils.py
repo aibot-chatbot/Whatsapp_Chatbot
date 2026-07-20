@@ -10,6 +10,7 @@ from app.database.message_repository import save_message
 from app.database.processed_message_repository import is_processed, save_processed
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_phone_number_id
 from app.services.workflow_tracker import update_workflow_state
+from app.services.media_send_service import dispatch_media_after_reply
 
 
 def log_http_response(response):
@@ -251,6 +252,10 @@ def process_whatsapp_message(body):
 
     save_processed(chatbot_id, message_id)
     update_workflow_state(chatbot_id, "COMPLETED", response, wa_id)
+    
+    # Try sending any configured media attachments that match the user's message
+    # using the original message_body
+    dispatch_media_after_reply(message_body, chatbot_id, "meta", channel, wa_id)
 
 
 def is_valid_whatsapp_message(body):

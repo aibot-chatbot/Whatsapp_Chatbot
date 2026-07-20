@@ -1,4 +1,4 @@
-ï»¿# Feature Status
+# Feature Status
 
 ## Status Definitions
 
@@ -45,6 +45,7 @@
 | Prompt configuration | Implemented | Profile and deployment flow exists |
 | Model selection | Implemented | Model catalog and settings UI exist |
 | Automated menu or flow generation | Implemented | Requires current verification |
+| Media Attachments | Implemented | Backend, UI, and webhook dispatch created |
 
 ## Knowledge and RAG
 
@@ -186,7 +187,7 @@ Update this file after:
 - Completing meaningful verification
 
 Do not record temporary branch names, commit hashes, local paths, or working-tree status here.
-## Phase 4E â€“ Subscription Billing History and Customer Receipts
+## Phase 4E ¨C Subscription Billing History and Customer Receipts
 
 **Status:** Verified complete
 
@@ -200,7 +201,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Customer support guidance for manual-review states
 - Data accuracy guarantees (amount from order, timestamps consistent, no reversal leakage)
 
-## Phase 4F â€“ Production Security, Tenantâ€‘Scope and Planâ€‘Enforcement Audit
+## Phase 4F ¨C Production Security, Tenant?Scope and Plan?Enforcement Audit
 
 **Status:** Verified complete
 
@@ -214,7 +215,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Health check endpoint
 - Phase 4F runbook
 
-## Phase 4G â€“ Admin and Support Operations
+## Phase 4G ¨C Admin and Support Operations
 
 **Status:** Verified complete
 
@@ -226,7 +227,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Auditable credit adjustment RPC design
 - Billing support runbook
 
-## Phase 4H â€“ Customer Receipts, Exports, and Usage Reporting
+## Phase 4H ¨C Customer Receipts, Exports, and Usage Reporting
 
 **Status:** Verified complete
 
@@ -240,11 +241,11 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Email receipt: deferred (no approved email service)
 - Migration 014: not required
 
-## Phase 4I â€“ Subscription Renewal, Grace Period, and Failed-Payment Recovery
+## Phase 4I ¨C Subscription Renewal, Grace Period, and Failed-Payment Recovery
 
 **Status:** Implemented
 
-## Phase 4J — Billing Notifications and Customer Communication
+## Phase 4J ? Billing Notifications and Customer Communication
 
 **Status: Complete**
 
@@ -256,7 +257,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Company-scoped notification API
 - Notification generation job
 
-## Phase 4K — Advanced Billing and Usage Reporting
+## Phase 4K ? Advanced Billing and Usage Reporting
 
 **Status: Complete**
 
@@ -265,7 +266,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - CSV exports of all reports
 - Integer arithmetic, company isolation
 
-## Phase 4M — Production Launch Audit and Remediation
+## Phase 4M ? Production Launch Audit and Remediation
 
 **Status: Complete**
 

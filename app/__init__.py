@@ -1,4 +1,4 @@
-﻿from flask import Flask, request
+from flask import Flask, request
 import os
 from flask_cors import CORS
 from app.rate_limit import init_limiter
@@ -21,6 +21,7 @@ from app.routes.wasender_routes import wasender_blueprint
 from app.routes.ai_model_routes import ai_model_blueprint
 from app.routes.crm_routes import crm_blueprint
 from app.routes.agent_routes import agent_blueprint
+from app.routes.media_attachment_routes import media_attachment_blueprint
 from app.routes.user_routes import user_bp, team_bp
 from app.routes.invite_routes import invite_bp
 from app.routes.billing_routes import billing_bp
@@ -76,6 +77,7 @@ def create_app():
     app.register_blueprint(ai_model_blueprint)
     app.register_blueprint(crm_blueprint)
     app.register_blueprint(agent_blueprint)
+    app.register_blueprint(media_attachment_blueprint)
     app.register_blueprint(user_bp)
     app.register_blueprint(team_bp)
     app.register_blueprint(invite_bp)
