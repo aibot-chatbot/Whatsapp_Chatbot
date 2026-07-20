@@ -2315,6 +2315,44 @@
                 }
             };
 
+            const matchesUploadedPdfName = (candidateName, originalName) => {
+                if (!candidateName || !originalName) return false;
+                return candidateName === originalName || candidateName.endsWith(`_${originalName}`);
+            };
+
+            const findUploadedPdfAfterRejectedRequest = async (originalName, maxAttempts = 6, delayMs = 3000) => {
+                for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                    if (attempt > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delayMs));
+                    }
+
+                    try {
+                        const filesRes = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
+                        const filesData = await filesRes.json();
+                        const listedFiles = filesData.status === "success" ? (filesData.data || []) : [];
+                        const matchedFile = listedFiles.find(item => matchesUploadedPdfName(item.file_name || item.name || "", originalName));
+
+                        const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
+                        const activeData = await activeRes.json();
+                        const activeName = activeData.status === "success" ? (activeData.data?.file_name || "") : "";
+
+                        if (matchedFile || matchesUploadedPdfName(activeName, originalName)) {
+                            if (filesData.status === "success") {
+                                setFiles(listedFiles);
+                            }
+                            if (activeData.status === "success") {
+                                setActiveFile(activeName);
+                            }
+                            return true;
+                        }
+                    } catch (pollError) {
+                        // Keep polling; the original upload may still complete while the connection recovers.
+                    }
+                }
+
+                return false;
+            };
+
             const handleAnalyze = async () => {
                 if (!linkUrl) {
                     setStatus({ type: "error", text: "Please enter a website URL.", action: "" });
@@ -2455,6 +2493,7 @@
 
                 setIsUploading(true);
                 setStatus({ type: "", text: "", action: "" });
+                const originalFileName = file.name;
 
                 const formData = new FormData();
                 formData.append("pdf_file", file);
@@ -2475,7 +2514,29 @@
                         setStatus({ type: "error", text: `Upload failed: ${data.message || "Unknown error"}`, action: "" });
                     }
                 } catch (error) {
-                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                    setStatus({
+                        type: "error",
+                        text: "Upload is taking longer than expected. The PDF may still be processing. Checking status...",
+                        action: ""
+                    });
+
+                    const recovered = await findUploadedPdfAfterRejectedRequest(originalFileName);
+                    if (recovered) {
+                        setStatus({
+                            type: "success",
+                            text: "PDF uploaded successfully. Processing completed or is available now.",
+                            action: "upload"
+                        });
+                        setFile(null);
+                        setIsModalOpen(false);
+                        await fetchFiles();
+                    } else {
+                        setStatus({
+                            type: "error",
+                            text: "Upload may still be processing. Please refresh this page before retrying to avoid duplicate uploads.",
+                            action: ""
+                        });
+                    }
                 } finally {
                     setIsUploading(false);
                 }
@@ -2931,6 +2992,11 @@
                                     {file && (
                                         <div style={{ marginTop: "12px", fontSize: "0.85rem", color: "var(--primary)", fontWeight: 600 }}>
                                             📄 Selected: {file.name}
+                                        </div>
+                                    )}
+                                    {isUploading && (
+                                        <div style={{ marginTop: "12px", fontSize: "0.88rem", color: "var(--text-dim)", lineHeight: "1.45" }}>
+                                            Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh.
                                         </div>
                                     )}
                                 </div>
