@@ -279,7 +279,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 ## Phase 4L - Platform-Admin Read-Only Backend
 
-**Status: Implemented**
+**Status: Verified complete in staging; production blocked**
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
@@ -288,14 +288,16 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Cross-tenant reads isolated in dedicated platform repositories with explicit
   safe projections and mandatory audit-before-response behavior
 - Automated authorization, repository, route, and audit tests added
-- No frontend, bootstrap mapping, production migration, or production API
-  verification; staging API verification remains blocked pending bootstrap
+- Manual staging verification passed for all five endpoints and expected audit
+  events, including metadata redaction and immediate revocation
+- Bootstrap mapping remains present and inactive after the revocation test
+- No frontend or production deployment; existing production gates remain open
 
 ## Platform Limitations
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Backend implemented; staging bootstrap/API verification and frontend pending |
+| Platform-admin controls | Staging backend/API verified; mapping inactive; production and frontend pending |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | PDF receipts | Open (HTML only) |

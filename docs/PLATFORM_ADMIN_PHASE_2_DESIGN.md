@@ -2,11 +2,12 @@
 
 ## Status and scope
 
-**Implemented with automated verification; staging API verification is blocked
-pending bootstrap approval.** Migrations 023, 024, and 025 remain verified in
-staging only. Production deployment and first-admin bootstrap remain blocked.
-The implementation introduces no frontend, bootstrap data, production database
-change, tenant-role change, or platform claim in application JWTs.
+**Implemented and manually verified in staging; production remains blocked.**
+Migrations 023, 024, and 025 and all five read-only endpoints were verified in
+staging. The one-time bootstrap mapping was immediately revoked after testing
+and remains present with `is_active = false`. The implementation introduces no
+frontend, production database change, tenant-role change, or platform claim in
+application JWTs.
 
 Phase 2 is limited to a read-only backend surface for internal SaaS operators.
 Audit-event inserts are the only planned database writes and do not mutate
@@ -572,8 +573,10 @@ matches the design with these concrete choices:
   returned as `platform_admin_audit_unavailable` and fetched tenant data is not
   placed in the response.
 
-Automated coverage is in the four focused platform-admin test modules. Staging
-API verification is not claimed because no platform-admin mapping has been
-bootstrapped. Production remains blocked by the Phase 1.5 gates, including the
-protected internal company, bootstrap approval, metadata/retention decisions,
-append-only enforcement decision, and production executor/ownership approval.
+Automated coverage is in the four focused platform-admin test modules. Manual
+staging verification also passed for all five endpoints, the five expected
+audit events, metadata redaction, and immediate next-request revocation. The
+staging mapping remains inactive. Production remains blocked by the Phase 1.5
+gates, including production protected-company lifecycle approval, production
+bootstrap approval, metadata/retention decisions, append-only enforcement
+decision, and production executor/ownership approval.

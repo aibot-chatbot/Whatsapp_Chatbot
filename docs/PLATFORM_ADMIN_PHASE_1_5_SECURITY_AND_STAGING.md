@@ -416,3 +416,12 @@ until all of the following are approved:
    dedicated NOLOGIN/NO BYPASSRLS database role or rejection trigger.
 6. **Production executor and ownership:** approve the production migration
    executor, expected `postgres` ownership, monitoring, and recovery procedure.
+
+## Phase 2.5 successor runbook
+
+The staging-only bootstrap and manual API verification procedure is recorded in
+`docs/PLATFORM_ADMIN_PHASE_2_5_STAGING_BOOTSTRAP_AND_API_VERIFICATION.md`.
+Phase 2.5 verification completed successfully: all five endpoints returned 200,
+the five expected audit events were verified, and immediate revocation denied
+the next request. The mapping row remains present and inactive. This evidence
+does not authorize production deployment.
