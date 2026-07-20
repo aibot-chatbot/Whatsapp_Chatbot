@@ -2,11 +2,11 @@
 
 ## Status and scope
 
-**Implemented with focused automated verification; staging UI verification is
-pending.** The platform-admin database migrations and five read-only backend
-endpoints are verified in staging. The staging mapping remains present but
-inactive after the Phase 2.5 revocation test. It was not reactivated for this
-implementation. Production deployment remains blocked.
+**Verified complete in staging; production blocked.** The platform-admin
+database migrations, five read-only backend endpoints, and Phase 3 frontend
+are verified in staging. The approved mapping was temporarily reactivated for
+browser verification, then revoked again. The mapping row remains present and
+inactive. Production deployment remains blocked.
 
 This phase provides a separate internal frontend for SaaS operators. It does
 not add endpoints, reactivate a mapping, change `users.role`, alter migrations,
@@ -33,10 +33,10 @@ subscription changes remain out of scope.
   active, and inactive counts. Each call creates its own backend audit event,
   and the page states this explicitly.
 - Focused source-contract coverage is implemented in
-  `tests/test_platform_admin_frontend.py`. A browser-based staging pass remains
-  required because the approved staging mapping is currently inactive.
+  `tests/test_platform_admin_frontend.py`. The browser-based staging pass is
+  also complete.
 
-## Automated verification
+## Verification evidence
 
 - Focused platform-admin frontend suite: 31 passed, 6 subtests passed.
 - Combined platform-admin backend/frontend and authentication/security
@@ -44,8 +44,33 @@ subscription changes remain out of scope.
 - Full safe suite: 1,421 passed, 1 skipped, 125 subtests passed.
 - All five dedicated platform-admin JavaScript files pass the available Node.js
   syntax check.
-- Manual staging browser verification is not claimed; the staging mapping
-  remains inactive and production remains blocked.
+
+### Completed staging browser verification
+
+The approved staging mapping was temporarily reactivated solely for this
+verification. No live token, API response body, screenshot, or sensitive
+customer information is recorded here.
+
+- The platform dashboard loaded and displayed the **Platform Administration**
+  label, **Internal / Read Only** badge, authorized operator identity, and exact
+  total, active, and inactive company counts.
+- The company directory loaded with search, status filtering, sort field, sort
+  order, page size, company rows, and working **View details** links.
+- The approved staging company detail loaded its safe company profile,
+  subscription summary, and AI-credit/usage sections.
+- No mutation, export, impersonation, messaging, subscription-change, payment,
+  or credit-adjustment controls were present.
+- **Return to Tenant App** and **Logout** controls were present.
+- The mapping was revoked immediately after testing. Refreshing the dashboard
+  then showed the fixed **Access Denied** state, with no stale platform data
+  remaining visible.
+- The mapping row remains present and inactive. Nothing was deployed to
+  production.
+
+Production remains blocked by the Phase 1.5 gates: production executor and
+ownership approval, protected-company lifecycle controls, production bootstrap
+approval, audit metadata/redaction rules, retention/archival policy, and the
+append-only enforcement decision beyond grants.
 
 ## Current frontend findings
 
@@ -560,8 +585,8 @@ verification remains a separate approved activity.
 | Contact email/phone visibility | Confirm internal support need; fields are backend-approved but can be omitted from UI |
 | JavaScript integer precision for monetary micros | Validate safe integers; never silently round malformed/unsafe values |
 | No browser-test framework | Start with source-contract tests and manual QA; approve tooling separately |
-| Staging mapping inactive | It remains inactive; manual UI verification needs a separate approved temporary reactivation |
-| Production access | Remains blocked by Phase 1.5 production gates and frontend verification |
+| Staging mapping inactive | Browser verification is complete and the mapping was revoked again; any later access requires separate approval |
+| Production access | Remains blocked by all Phase 1.5 production gates |
 
 ## Completed implementation sequence
 
@@ -570,9 +595,8 @@ verification remains a separate approved activity.
 3. Implement the server-paginated company directory and cancellation logic.
 4. Implement company detail with sequential existence then parallel safe reads.
 5. Add source-contract, rendering, state, accessibility, and responsive tests.
-6. Run the full safe suite. An approved staging browser verification remains
-   pending and may occur only after a separate temporary mapping activation is
-   authorized.
+6. Run the full safe suite and complete the approved staging browser
+   verification; revoke the temporary mapping immediately afterward.
 
 Suggested implementation commit message:
 

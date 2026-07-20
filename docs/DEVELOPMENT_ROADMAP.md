@@ -12,7 +12,7 @@
 > | 4I | Renewal, grace period, failed-payment recovery | Complete |
 > | 4J | Billing notifications and alerts | Complete |
 > | 4K | Advanced billing and AI-usage reporting | Complete |
-> | 4L | Platform-admin controls | **Backend staging verified; frontend implemented; production blocked** |
+> | 4L | Platform-admin controls | **Verified complete in staging; production blocked** |
 > | 4M | Production launch audit and remediation | Complete |
 >
 > ---
@@ -32,10 +32,12 @@ detail views. The ordinary tenant sidebar does not expose platform navigation.
 
 Migrations 023, 024, and 025 and all five read-only endpoints are verified in
 staging. The five expected audit events and immediate revocation were verified;
-the bootstrap mapping remains present and inactive. Manual staging browser
-verification of the frontend requires separately approved temporary
-reactivation. Production remains blocked by the documented Phase 1.5 approval
-gates and has not received any of these changes.
+the frontend dashboard, company directory, approved company detail, read-only
+control set, and post-revocation Access Denied state were also verified in a
+staging browser. No stale platform data remained visible after revocation. The
+bootstrap mapping remains present and inactive. Production remains blocked by
+the documented Phase 1.5 approval gates and has not received any of these
+changes.
 
 ## Roadmap Principles
 
