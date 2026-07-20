@@ -12,11 +12,21 @@
 > | 4I | Renewal, grace period, failed-payment recovery | Complete |
 > | 4J | Billing notifications and alerts | Complete |
 > | 4K | Advanced billing and AI-usage reporting | Complete |
-> | 4L | Platform-admin controls | **Deferred** |
+> | 4L | Platform-admin controls | **Backend implemented; deployment blocked** |
 > | 4M | Production launch audit and remediation | Complete |
 >
 > ---
 
+### Phase 4L update - Platform-admin controls
+
+The initial read-only backend is implemented with a separate database-backed
+platform-admin allowlist, per-request fail-closed authorization, dedicated
+cross-tenant repositories, five GET-only endpoints, and audit-before-response
+enforcement. Tenant roles and JWT claims do not grant platform access.
+
+Migrations 023, 024, and 025 are verified in staging only. No bootstrap mapping
+exists, so staging API verification is still pending. Production and frontend
+work remain blocked by the documented Phase 1.5 approval gates.
 
 ## Roadmap Principles
 

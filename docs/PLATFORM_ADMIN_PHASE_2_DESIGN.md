@@ -2,10 +2,11 @@
 
 ## Status and scope
 
-**Design complete; implementation not started.** Migrations 023, 024, and 025
-are verified in staging only. Production deployment and first-admin bootstrap
-remain blocked. This design introduces no code, frontend, middleware, API,
-bootstrap data, or production database change.
+**Implemented with automated verification; staging API verification is blocked
+pending bootstrap approval.** Migrations 023, 024, and 025 remain verified in
+staging only. Production deployment and first-admin bootstrap remain blocked.
+The implementation introduces no frontend, bootstrap data, production database
+change, tenant-role change, or platform claim in application JWTs.
 
 Phase 2 is limited to a read-only backend surface for internal SaaS operators.
 Audit-event inserts are the only planned database writes and do not mutate
@@ -541,3 +542,38 @@ authentication token claims are not expected to change.
 7. Run the full safe test suite and update feature/roadmap status.
 8. Perform staging API verification only after bootstrap and deployment gates
    receive separate approval.
+
+## Final implementation reconciliation
+
+Phase 2 was implemented in the files listed above. The final implementation
+matches the design with these concrete choices:
+
+- `token_required` retains JWT-derived `g.company_id` and `g.role` for tenant
+  compatibility, stores the freshly loaded active row in
+  `g.authenticated_user`, and sanitizes user-repository failures as
+  `authentication_backend_unavailable`.
+- `platform_admin_required` composes `token_required` and performs a fresh
+  `user_id` plus `is_active = true` mapping query for every request. The guard
+  does not inspect tenant role, tenant company, or platform-like JWT claims.
+- The blueprint guard is registered with `before_request`, so all five routes
+  inherit the same fail-closed authorization boundary.
+- Company search is escaped before it is placed in the fixed PostgREST OR
+  expression. Listing uses exact count, range pagination, allowlisted fields,
+  and an ID tiebreaker.
+- Subscription plans are loaded through a second explicit safe projection;
+  payment identifiers and provider fields are not selected.
+- The AI usage period uses a complete valid credit-balance period first and a
+  complete valid subscription period second. It never combines boundaries from
+  two different periods and never initializes a missing balance.
+- Audit actions and resource types are fixed allowlists. Metadata must be an
+  object with allowlisted keys, passes a recursive prohibited-key check, and is
+  limited to 8,192 bytes of canonical UTF-8 JSON.
+- Audit insertion remains the only platform write. A failed audit insert is
+  returned as `platform_admin_audit_unavailable` and fetched tenant data is not
+  placed in the response.
+
+Automated coverage is in the four focused platform-admin test modules. Staging
+API verification is not claimed because no platform-admin mapping has been
+bootstrapped. Production remains blocked by the Phase 1.5 gates, including the
+protected internal company, bootstrap approval, metadata/retention decisions,
+append-only enforcement decision, and production executor/ownership approval.
