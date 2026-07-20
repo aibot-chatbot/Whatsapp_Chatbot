@@ -1,0 +1,544 @@
+# Platform Admin Phase 3: Read-Only Frontend Design
+
+## Status and scope
+
+**Design complete; implementation not started.** The platform-admin database
+migrations and five read-only backend endpoints are verified in staging. The
+staging mapping remains present but inactive after the Phase 2.5 revocation
+test. Production deployment remains blocked.
+
+This phase designs a separate internal frontend for SaaS operators. It does not
+implement frontend code, add endpoints, reactivate a mapping, change
+`users.role`, alter migrations, or deploy anything. Flow Builder, Broadcast,
+tenant administration, impersonation, exports, messaging, reconciliation,
+credit adjustments, and subscription changes remain out of scope.
+
+## Current frontend findings
+
+### Application structure and routing
+
+The frontend is a static multi-page application under `frontend/`. Each page is
+a standalone HTML document with mostly inline page CSS and JavaScript. Shared
+assets are limited to:
+
+- `frontend/assets/js/auth.js` for session checks and authenticated fetches;
+- `frontend/assets/js/shared-ui.js` for a small set of UI helpers;
+- `frontend/assets/css/shared-glass.css` for cards, buttons, and shared visuals;
+- `frontend/sidebar-component.js` for the tenant navigation custom element.
+
+There is no frontend router, bundler, or component framework. Navigation uses
+relative `.html` links and query parameters such as `?bot_id=<id>`. Flask's
+non-API 404 fallback serves files from `frontend/`; API 404s are kept separate.
+
+### Authentication and token storage
+
+Successful password and Google login store these values in `sessionStorage`:
+
+- `token` — the application JWT;
+- `user` — a cached user object;
+- `isLoggedIn` — a UI session marker.
+
+`requireLogin()` checks only that a token exists and redirects to `login.html`
+when it does not. `authenticatedFetch()` reads the same session token and adds
+the `Authorization: Bearer <token>` header. It invokes logout on HTTP 401 and
+recognizes the existing deactivated-account 403 message. `logout()` removes the
+token, cached user, and login marker before redirecting.
+
+The cached `sessionStorage.user.role` is used by `requireAdminOrOwner()` and the
+tenant sidebar to hide or redirect tenant-only UI. That mechanism is a
+presentation convenience, not authoritative security, and must never be used
+for platform access. No platform claim or platform flag should be stored in
+either session or local storage.
+
+### Navigation
+
+Most authenticated pages render `<chatbot-sidebar>`. The component determines
+the current static page from `window.location.pathname`, propagates `bot_id`,
+and conditionally renders tenant items from the cached tenant role. It includes
+tenant Billing, Team Members, Flow Builder, Broadcast, and bot-scoped links.
+
+This component is unsuitable for the platform surface because it:
+
+- is visually and structurally tenant-oriented;
+- uses a locally cached tenant role for menu visibility;
+- propagates tenant bot context;
+- exposes tenant operations that are unrelated to platform administration.
+
+### API and response handling
+
+Pages call `authenticatedFetch()` directly and interpret the backend's
+`status`/`data` response convention themselves. Loading, empty, and error states
+are implemented per page. Some existing pages render backend `message` values
+or log caught errors with `console.error`; the platform surface must instead map
+known status/code combinations to fixed public messages and must not log API
+bodies, authorization headers, raw errors, or Supabase details.
+
+### Tables, pagination, search, and modals
+
+- CRM supplies the clearest responsive table/filter styling, with native
+  controls, table wrappers, empty rows, and keyboard handlers.
+- Profile billing history demonstrates offset/limit pagination and
+  `pagination.has_more`, although it uses a Load More pattern rather than page
+  navigation.
+- Bots and billing sections demonstrate explicit loading, empty, and generic
+  failure panels.
+- Modals are page-specific rather than shared. The initial platform frontend
+  needs no modal because it has no mutation or edit action.
+- Search patterns are inconsistent and mostly client-side. The platform company
+  directory must use the backend's server-side search and validation.
+
+### Responsive and accessibility conventions
+
+Existing pages generally switch the body to a column layout around 768px,
+reduce content padding, wrap toolbars, and place tables in horizontally
+scrollable containers. Some pages use `aria-live`, native labels, dialog roles,
+and keyboard handlers, but these conventions are not centralized.
+
+Phase 3 should reuse the visual language while improving consistency: semantic
+landmarks, visible focus, native buttons/links, `aria-live` status regions,
+`aria-sort` on sortable headers, and a deliberate mobile directory layout.
+
+## Recommended information architecture
+
+Create a separate three-page static surface:
+
+| Frontend page | Purpose | Backend calls after authorization |
+|---|---|---|
+| `platform-admin.html` | Platform dashboard and operator identity | `/me`; three company-list count queries |
+| `platform-admin-companies.html` | Paginated company directory | `/me`; `/companies` |
+| `platform-admin-company.html?company_id=<id>` | Company, subscription, and AI-credit detail | `/me`; company detail; subscription; AI-credit usage |
+
+Every page independently runs the `/api/platform-admin/me` authorization gate
+before revealing the platform shell or making any company request. A static
+HTML URL being discoverable is not a grant of access.
+
+### Entry and tenant navigation
+
+The safest initial entry is a separately distributed internal URL to
+`platform-admin.html`. Do not add a platform link to the ordinary tenant sidebar
+in the first implementation. Adding such a link would either trust local role
+state or require `/me` checks across ordinary tenant pages, creating unnecessary
+denials and audit events.
+
+If a tenant-navigation entry is considered later, it may appear only after a
+successful live `/me` response in that page session. Hidden menu state remains
+non-authoritative, and the destination must repeat the `/me` check.
+
+### Dedicated navigation and visual identity
+
+Use a dedicated platform shell, not `<chatbot-sidebar>`. It should display:
+
+- a shield/building mark and the exact label **Platform Administration**;
+- a persistent **Internal / Read Only** badge;
+- Dashboard and Companies links only;
+- the authorized platform identity from `/me` after the gate succeeds;
+- a clear **Return to Tenant App** link to `bots.html`;
+- an explicit Logout button that clears in-memory platform state and invokes
+  the normal logout mechanism.
+
+Use a distinct accent from tenant administration while retaining the existing
+Outfit typography and dark glass-card system. Do not render links for tenant
+billing administration, Flow Builder, Broadcast, impersonation, export, credit
+adjustment, subscription changes, reconciliation, or messaging.
+
+## Authorization and page-entry design
+
+All platform documents begin in a blocking `checking_access` state. Company
+content must not exist in the visible DOM before authorization succeeds.
+
+```text
+require normal login token
+  -> GET /api/platform-admin/me with the normal session JWT
+  -> 200: store identity in memory and reveal platform shell
+  -> 401: clear platform state, perform normal logout, go to login
+  -> 403: clear platform state and show stable access-denied screen
+  -> 503/network: clear platform state and show unavailable screen
+```
+
+The frontend must not decode the JWT, inspect `sessionStorage.user.role`, read a
+platform flag, or infer access from a previously visible link. Only a current
+200 response from `/me` opens the page.
+
+The identity response is held in JavaScript memory only. Each platform page
+reload or cross-page navigation repeats `/me`; no platform authorization result
+is persisted.
+
+## Page designs
+
+### A. Platform dashboard
+
+Header:
+
+- **Platform Administration** and **Read Only**;
+- last successful refresh time;
+- Return to Tenant App and Logout actions.
+
+Identity card, populated only from `/me`:
+
+- application user ID, full name, email, and active status;
+- platform-admin mapping ID and active state;
+- mapping creation/update timestamps.
+
+Company summary uses only exact counts already returned by `/companies`:
+
+1. `limit=1&offset=0&sort_by=id&sort_order=asc` for total companies;
+2. the same query with `status=active` for active companies;
+3. the same query with `status=inactive` for inactive companies.
+
+The first unfiltered request may also render a small recent/directory preview
+only if its selected sort is clearly labelled. Do not calculate revenue,
+subscription distribution, AI cost across tenants, growth, or other unsupported
+aggregates. Do not assume total equals active plus inactive because the schema
+does not enforce a two-status check.
+
+Each count call is an audited endpoint request. The audit-volume cost of three
+count calls should be accepted explicitly before implementation.
+
+### B. Company directory
+
+Controls:
+
+- search input, trimmed and limited to 100 characters;
+- status: All, Active, or Inactive;
+- sort field: Created, Company Name, Status, or ID;
+- sort order: Ascending or Descending;
+- page size: 25, 50, or 100;
+- Previous and Next controls derived from backend pagination.
+
+Backend parameters remain authoritative:
+
+- `limit`: 1–100, default 25;
+- `offset`: non-negative, default 0;
+- `status`: omitted, `active`, or `inactive`;
+- `sort_by`: `created_at`, `company_name`, `status`, or `id`;
+- `sort_order`: `asc` or `desc`;
+- `search`: 1–100 trimmed characters when present.
+
+Do not silently clamp or translate invalid values outside that contract. Search
+is debounced by 350 milliseconds, resets offset to zero, and aborts the prior
+list request. The raw search text stays in memory and is not written to storage,
+console logs, analytics, or audit metadata. Non-sensitive status/sort/page state
+may use URL parameters; search should not enter browser history.
+
+Desktop table columns:
+
+- ID;
+- company name;
+- business type;
+- status;
+- contact email;
+- created date;
+- a single **View details** link.
+
+No row selection, action menu, edit button, delete button, export, or bulk
+control is present. On narrow screens, use labelled stacked rows/cards rather
+than forcing users to interpret an excessively wide table.
+
+Pagination text should expose `returned`, `total`, and the visible range without
+recomputing server totals. Disable navigation while a request is in flight and
+when no previous/next page exists.
+
+### C. Company detail
+
+Read `company_id` from the page query, accept only a positive safe integer, and
+use that value for all three backend resource paths. Never substitute the JWT
+company ID, cached tenant company, company name, or list position.
+
+Request order:
+
+1. authorize with `/me`;
+2. load `/companies/<company_id>`;
+3. only after company existence succeeds, load subscription and AI-credit usage
+   in parallel for the same ID.
+
+This prevents secondary requests for an invalid/missing company and makes the
+selected path ID auditable.
+
+Company profile section:
+
+- ID, company name, business type, status;
+- safe contact email and phone returned by the detail endpoint;
+- created and updated timestamps.
+
+Subscription section:
+
+- safe plan code/name, billing interval, currency, and price;
+- subscription status and period/trial dates;
+- cancellation or pending-plan state exposed by the backend;
+- explicit status badges for trialing, active, past due, expired, and cancelled.
+
+There is no Change Plan, Cancel, Retry, Reconcile, Checkout, or external payment
+link. A null subscription renders **No subscription recorded**, not a failure.
+
+AI-credit and usage section:
+
+- resolved period start/end;
+- initialized state;
+- included, top-up, and total balance in integer micro-MYR-derived display;
+- request count and prompt/completion/total tokens;
+- customer charge and uncovered charge in micro-MYR-derived display;
+- provider cost in micro-USD-derived display.
+
+When `initialized = false`, display **AI-credit balance not initialized** and do
+not present zero as an available initialized balance. Never offer initialization
+or top-up. Validate numeric values before formatting and show an unavailable
+placeholder rather than guessing when a value is malformed or outside safe
+JavaScript integer handling.
+
+## Shared frontend components
+
+Implement small dedicated modules rather than adding another large inline page:
+
+- platform navigation/shell custom element;
+- authorization gate and full-page state renderer;
+- fixed status badge;
+- loading skeleton/panel;
+- empty/error panel with optional manual Retry;
+- company directory table/card renderer;
+- pagination control;
+- read-only definition-list/detail card;
+- safe date, integer, micro-MYR, and micro-USD formatters.
+
+Use `textContent`, DOM property assignment, and fixed templates for API-derived
+values. Do not concatenate API fields into `innerHTML`, event-handler strings,
+URLs, CSS, or log messages. Links containing company IDs must be built from a
+validated integer with `URLSearchParams`.
+
+No modal is required in the initial read-only surface. A dedicated detail page
+is clearer, keyboard-friendlier, and avoids implying an edit workflow.
+
+## API client design
+
+Create a dedicated platform API client that wraps the existing authenticated
+session mechanism but accepts only the five GET operations. It must not expose a
+generic mutation method or arbitrary platform URL.
+
+Required operations:
+
+```text
+getMe({ signal })
+listCompanies({ limit, offset, search, status, sortBy, sortOrder, signal })
+getCompany(companyId, { signal })
+getCompanySubscription(companyId, { signal })
+getCompanyAiCreditUsage(companyId, { signal })
+```
+
+Every operation:
+
+- uses the current `sessionStorage.token` through the normal authenticated
+  session mechanism;
+- sends `Authorization: Bearer ...` and no token in query parameters;
+- uses method GET and no body;
+- accepts an `AbortSignal`;
+- parses only the expected `status`/`data` envelope;
+- maps errors to status, stable code, and a fixed UI category;
+- discards raw response details after classification;
+- never logs response bodies, headers, JWTs, raw exceptions, or Supabase data.
+
+### Stable status handling
+
+| HTTP | Frontend behavior |
+|---:|---|
+| 400 | Show a fixed validation message beside the relevant control; do not clamp or retry |
+| 401 | Clear platform state and invoke normal logout/login flow |
+| 403 | Abort all platform requests, clear all company data, show Access Denied |
+| 404 | On detail only, show Company Not Found and a directory return link |
+| 503 | Clear cross-tenant content, show Temporarily Unavailable, permit manual retry only |
+| Network | Treat as unavailable without rendering raw exception text |
+
+Do not silently retry `platform_admin_audit_unavailable` or any other 503. An
+automatic retry could create ambiguous audit outcomes and unexpected traffic.
+
+### Cancellation, duplicate prevention, and stale responses
+
+Maintain an in-memory request registry keyed by operation. A new request for the
+same key aborts its predecessor. Disable controls during the active request so
+double clicks cannot issue duplicates. On `pagehide`, logout, access denial, or
+navigation, abort every controller.
+
+Maintain a monotonically increasing page/session epoch. Response handlers may
+render only if their captured epoch still matches. If any request returns 401
+or 403, increment the epoch before clearing the DOM so a late concurrent 200
+cannot restore revoked data. Apply the same full-page clearing rule to 503 to
+avoid leaving stale cross-tenant information visible.
+
+## Frontend security requirements
+
+1. `/me` is the only frontend platform-access gate and runs on every page entry.
+2. Never authorize from JWT decoding, `users.role`, cached user data, a local
+   platform flag, URL knowledge, or hidden navigation.
+3. Never place platform identity, authorization state, company responses, or
+   filters containing user input in local/session storage.
+4. Keep cross-tenant responses only in active-page memory and clear rendered
+   data on denial, logout, 503, pagehide, and revoked-session detection.
+5. Use only the five approved GET endpoints; no `/api/admin/billing` reuse.
+6. Validate the company query ID before constructing any API path.
+7. Render API values as text, not HTML.
+8. Map fixed error messages from status/code; never display raw API messages,
+   stack traces, provider payloads, or Supabase errors.
+9. Do not log headers, tokens, bodies, company data, search text, or exceptions.
+10. Do not include payment credentials, external customer identifiers, checkout
+    URLs, provider payloads, secrets, or unsupported fields.
+11. Do not cache platform responses in service workers, IndexedDB, Cache API,
+    local storage, session storage, or persistent application globals.
+12. Treat menu hiding and read-only labels as presentation only; backend
+    authorization remains mandatory for every request.
+
+## UI state model
+
+| State | Required presentation and behavior |
+|---|---|
+| Initial authorization | Full-page neutral skeleton; platform data/nav hidden until `/me` returns 200 |
+| Loading | Labelled skeleton or spinner with `aria-live=polite`; retain no previous tenant row during replacement |
+| Access denied | Fixed 403 screen, no platform data, Return to Tenant App action |
+| Unauthenticated | Clear state and follow normal login/logout behavior |
+| Backend unavailable | Fixed 503 screen, no raw message or stale company data, manual Retry and Return actions |
+| Empty company list | Explain that no companies match; preserve filters and provide Clear Filters |
+| Missing company | Fixed 404 Company Not Found state; do not request billing panels |
+| Missing subscription | Neutral No subscription recorded panel |
+| Uninitialized AI credit | Neutral Not initialized panel; no zero-balance or initialization claim |
+| Past due | Warning badge and dates; no recovery action |
+| Expired/cancelled | Inactive badge and dates; no renew/change action |
+| Mapping revoked mid-session | Next request's 403 aborts all requests, clears DOM/in-memory data, and shows Access Denied |
+| Logout/page exit | Abort requests and clear all platform state before navigation |
+
+All retry controls are explicit buttons. Focus moves to the resulting state
+heading after a full-page transition. Status changes are announced without
+stealing focus during ordinary loading.
+
+## Test plan
+
+### Authorization and state tests
+
+- Ordinary tenant admin receives 403 and never sees platform content.
+- Ordinary tenant owner receives the same result.
+- Active mapped member receives 200 and can enter, proving tenant role is not
+  the grant.
+- Forged cached role, local platform flag, or hidden-menu manipulation does not
+  bypass `/me`.
+- No company request occurs until `/me` succeeds.
+- Revoking the mapping makes the next request deny, aborts concurrent work, and
+  clears identity/company data.
+- Two page entries make two `/me` calls; access is not cached across pages.
+- Logout clears token through the existing mechanism and clears platform memory
+  and DOM state.
+
+### API integration tests
+
+- Every platform request carries the existing session token in the Bearer
+  header and never places it in a URL/body.
+- Only the five approved GET endpoint builders exist.
+- Detail, subscription, and AI usage all use the validated page company ID, not
+  the JWT/cached company ID.
+- Invalid company IDs are rejected locally without an API call.
+- Pagination preserves backend `limit`, `offset`, `total`, and `has_more`.
+- Search debounce sends the final trimmed value once and cancels the prior
+  request.
+- Status, sort field, and sort order use only backend allowlists.
+- Duplicate interactions do not create duplicate in-flight requests.
+- 400, 401, 403, 404, 503, abort, and network conditions enter their fixed
+  states.
+- No 503 is automatically retried.
+
+### Rendering and security tests
+
+- API strings containing HTML/script syntax render as text.
+- Raw API messages, Supabase details, tokens, secrets, provider payloads, and
+  authorization headers never appear in DOM or console calls.
+- Audit-related 503 responses never expose previously fetched tenant data.
+- Missing subscription and uninitialized balance states are distinct from
+  errors and from a true zero initialized balance.
+- Past-due, expired, cancelled, active, and trialing labels are correct.
+- There are no forms or controls for mutation, impersonation, export, messaging,
+  credit adjustment, reconciliation, or subscription changes.
+- Source-contract tests reject `/api/admin/billing`, non-GET methods,
+  `select('*')` concepts, JWT decoding, tenant-role authorization, or platform
+  access flags in storage.
+
+### Accessibility and responsive tests
+
+- All functionality is usable by keyboard in logical tab order.
+- Skip link, landmarks, headings, control labels, visible focus, `aria-live`,
+  and `aria-sort` are present and meaningful.
+- Access-denied, unavailable, empty, and missing states receive appropriate
+  focus and screen-reader announcements.
+- Directory controls and company cards work at 320px, 768px, tablet, and desktop
+  widths without clipped actions or inaccessible horizontal content.
+- Reduced-motion preferences disable nonessential transitions.
+
+The repository currently uses Python source-contract tests for frontend files
+and has no established browser-test dependency. The first implementation should
+add focused Python contract tests plus a recorded manual keyboard/responsive
+matrix. Introducing Playwright or another browser runner is a separate tooling
+decision rather than an implicit Phase 3 dependency.
+
+## Exact expected implementation files
+
+### New frontend files
+
+- `frontend/platform-admin.html`
+- `frontend/platform-admin-companies.html`
+- `frontend/platform-admin-company.html`
+- `frontend/assets/css/platform-admin.css`
+- `frontend/assets/js/platform-admin-api.js`
+- `frontend/assets/js/platform-admin-shell.js`
+- `frontend/assets/js/platform-admin-dashboard.js`
+- `frontend/assets/js/platform-admin-companies.js`
+- `frontend/assets/js/platform-admin-company.js`
+
+`platform-admin-shell.js` should own the dedicated custom navigation element,
+authorization gate, request registry, state clearing, and logout/pagehide hooks.
+The three page controllers should contain only page-specific orchestration and
+rendering.
+
+### New tests
+
+- `tests/test_platform_admin_frontend.py`
+
+The test file should inspect the HTML/JS contracts and mock request outcomes for
+authorization ordering, endpoint allowlists, safe rendering, state clearing,
+read-only controls, and responsive/accessibility markers.
+
+### Existing files expected to remain unchanged
+
+- `frontend/sidebar-component.js` — no platform link in ordinary tenant nav;
+- `frontend/assets/js/auth.js` — reuse the existing token/logout mechanism;
+- all backend routes, services, repositories, decorators, and migrations;
+- Flow Builder and Broadcast files.
+
+After implementation and verification, update `docs/FEATURE_STATUS.md`,
+`docs/DEVELOPMENT_ROADMAP.md`, and this design document. No status update is
+appropriate for this design-only task.
+
+## Risks and unresolved decisions
+
+| Risk or decision | Recommendation |
+|---|---|
+| Local tenant role mistaken for platform access | Dedicated `/me` gate; never call `requireAdminOrOwner()` |
+| Discoverable static platform URL | Accept discovery; backend gate protects data and UI stays hidden before 200 |
+| Platform link in tenant sidebar | Omit initially; reconsider only with live access confirmation and audit-volume review |
+| Dashboard count audit volume | Approve three list requests or remove status cards; do not invent aggregates |
+| Concurrent response after revocation | Abort registry plus session epoch before clearing state |
+| Search text in browser history/storage | Keep search in page memory only |
+| API string injection | DOM text rendering and validated numeric URL construction |
+| Raw errors exposed by existing page patterns | Dedicated fixed error mapper; no raw `body.message` or `console.error` data |
+| Stale cross-tenant data after 503 | Clear the entire platform view before unavailable state |
+| Contact email/phone visibility | Confirm internal support need; fields are backend-approved but can be omitted from UI |
+| JavaScript integer precision for monetary micros | Validate safe integers; never silently round malformed/unsafe values |
+| No browser-test framework | Start with source-contract tests and manual QA; approve tooling separately |
+| Staging mapping inactive | Do not reactivate during design; later manual UI verification needs a separate approved change |
+| Production access | Remains blocked by Phase 1.5 production gates and frontend verification |
+
+## Proposed implementation sequence
+
+1. Add the platform-only CSS, shell, authorization gate, and API client tests.
+2. Implement the dashboard and verify access-denied/unavailable transitions.
+3. Implement the server-paginated company directory and cancellation logic.
+4. Implement company detail with sequential existence then parallel safe reads.
+5. Add source-contract, rendering, state, accessibility, and responsive tests.
+6. Run the full safe suite and perform an approved staging browser verification
+   only after a separate temporary mapping activation is authorized.
+
+Suggested implementation commit message:
+
+`feat(platform-admin): add phase 3 read-only frontend`
