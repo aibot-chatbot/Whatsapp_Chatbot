@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import call, patch
 
 from flask import Flask, g, jsonify
 
@@ -16,6 +16,8 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
         def protected():
             return jsonify({"actor": g.platform_admin_user["id"]})
 
+        self.app = app
+        self.protected = protected
         self.client = app.test_client()
         self.headers = {"Authorization": "Bearer test-token"}
         self.jwt = patch(
@@ -23,7 +25,7 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
             return_value={"user_id": 7, "company_id": 99, "role": "member", "platform_admin": True},
         )
         self.secret = patch("app.decorators.auth_decorator.get_jwt_secret", return_value="secret")
-        self.jwt.start()
+        self.jwt_decode = self.jwt.start()
         self.secret.start()
         self.addCleanup(self.jwt.stop)
         self.addCleanup(self.secret.stop)
@@ -48,11 +50,30 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
             self.assertEqual(response.status_code, 403)
             self.assertEqual(response.json["code"], "platform_admin_access_denied")
 
-    def test_active_mapped_member_allowed_and_forged_claim_irrelevant(self):
+    def test_active_mapped_member_allowed(self):
         response, mapping = self._request(mapping={"id": 12, "user_id": 7, "is_active": True})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["actor"], 12)
         mapping.assert_called_once_with(7)
+
+    def test_forged_platform_jwt_claim_has_no_effect(self):
+        self.jwt_decode.return_value = {
+            "user_id": 7, "company_id": 99, "role": "member",
+            "platform_admin": True, "is_platform_admin": True,
+        }
+        denied, denied_lookup = self._request(mapping=None)
+        self.assertEqual(denied.status_code, 403)
+        denied_lookup.assert_called_once_with(7)
+
+        self.jwt_decode.return_value = {
+            "user_id": 7, "company_id": 99, "role": "member",
+            "platform_admin": False, "is_platform_admin": False,
+        }
+        allowed, allowed_lookup = self._request(
+            mapping={"id": 12, "user_id": 7, "is_active": True}
+        )
+        self.assertEqual(allowed.status_code, 200)
+        allowed_lookup.assert_called_once_with(7)
 
     def test_missing_and_inactive_mapping_have_same_denial(self):
         for mapping in (None, {"id": 12, "user_id": 7, "is_active": False}):
@@ -94,6 +115,26 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
             self.assertEqual(self.client.get("/protected", headers=self.headers).status_code, 200)
             self.assertEqual(self.client.get("/protected", headers=self.headers).status_code, 403)
             self.assertEqual(lookup.call_count, 2)
+            self.assertEqual(lookup.call_args_list, [call(7), call(7)])
+
+    def test_missing_authenticated_user_context_fails_closed(self):
+        with self.app.test_request_context("/protected"):
+            response, status_code = self.protected.__wrapped__()
+        self.assertEqual(status_code, 500)
+        self.assertEqual(response.get_json()["code"], "platform_admin_guard_misconfigured")
+
+    def test_malformed_authenticated_user_ids_fail_before_mapping_lookup(self):
+        for malformed_id in (True, 0, -1, "7", None):
+            with self.subTest(user_id=malformed_id):
+                response, mapping = self._request(
+                    user={"id": malformed_id, "status": "active", "role": "member"},
+                    mapping={"id": 12, "is_active": True},
+                )
+                self.assertEqual(response.status_code, 500)
+                self.assertEqual(
+                    response.json["code"], "platform_admin_guard_misconfigured"
+                )
+                mapping.assert_not_called()
 
 
 if __name__ == "__main__":

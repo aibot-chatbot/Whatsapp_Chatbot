@@ -43,6 +43,14 @@ def _positive_id(value, code="invalid_company_id"):
     return value
 
 
+def _validated_actor_id(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise PlatformAdminServiceError(
+            500, "platform_admin_context_invalid", "Platform context is invalid."
+        )
+    return value
+
+
 def _integer_parameter(value, *, name, default, minimum, maximum=None):
     if value is None:
         return default
@@ -84,8 +92,9 @@ def _company_or_not_found(company_id, actor_id, action, resource_type, endpoint)
 def get_current_platform_admin_identity(authenticated_user, platform_admin_user):
     user_id = authenticated_user.get("id") if isinstance(authenticated_user, dict) else None
     actor_id = platform_admin_user.get("id") if isinstance(platform_admin_user, dict) else None
-    if not isinstance(user_id, int) or not isinstance(actor_id, int):
+    if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0:
         raise PlatformAdminServiceError(500, "platform_admin_context_invalid", "Platform context is invalid.")
+    actor_id = _validated_actor_id(actor_id)
     data = {
         "user": {
             "id": user_id,
@@ -108,6 +117,7 @@ def get_current_platform_admin_identity(authenticated_user, platform_admin_user)
 
 def list_companies(actor_id, *, limit=None, offset=None, search=None, status=None,
                    sort_by=None, sort_order=None):
+    actor_id = _validated_actor_id(actor_id)
     limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
     offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
     normalized_search = None
@@ -154,6 +164,7 @@ def list_companies(actor_id, *, limit=None, offset=None, search=None, status=Non
 
 
 def get_company_detail(company_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
     endpoint = "/api/platform-admin/companies/<company_id>"
     company = _company_or_not_found(
         company_id, actor_id, "platform_admin.company.read", "company", endpoint
@@ -165,6 +176,7 @@ def get_company_detail(company_id, actor_id):
 
 
 def get_company_subscription(company_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
     endpoint = "/api/platform-admin/companies/<company_id>/subscription"
     company = _company_or_not_found(
         company_id, actor_id, "platform_admin.company.subscription.read",
@@ -198,6 +210,7 @@ def _parse_period(value):
 
 
 def get_company_ai_credit_usage(company_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
     endpoint = "/api/platform-admin/companies/<company_id>/ai-credit-usage"
     company = _company_or_not_found(
         company_id, actor_id, "platform_admin.company.ai_credit_usage.read",

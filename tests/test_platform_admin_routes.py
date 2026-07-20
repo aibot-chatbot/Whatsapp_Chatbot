@@ -43,13 +43,13 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertTrue(all((rule.methods - {"HEAD", "OPTIONS"}) == {"GET"} for rule in rules))
 
     def test_blueprint_wide_guard_covers_all_routes(self):
-        paths = (
-            "/api/platform-admin/me", "/api/platform-admin/companies",
-            "/api/platform-admin/companies/2",
-            "/api/platform-admin/companies/2/subscription",
-            "/api/platform-admin/companies/2/ai-credit-usage",
-        )
-        for path in paths:
+        rules = [
+            rule for rule in self.app.url_map.iter_rules()
+            if rule.rule.startswith("/api/platform-admin")
+        ]
+        self.assertEqual(len(rules), 5)
+        for rule in rules:
+            path = rule.rule.replace("<int:company_id>", "2")
             with self.subTest(path=path):
                 self.assertEqual(self.client.get(path).status_code, 401)
 
@@ -87,14 +87,163 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(response.json["code"], "invalid_company_id")
 
     def test_audit_failure_response_never_contains_tenant_data(self):
-        error = platform_admin_service.PlatformAdminServiceError(
-            503, "platform_admin_audit_unavailable", "Platform audit logging is temporarily unavailable."
-        )
-        with patch.object(platform_admin_service, "get_company_detail", side_effect=error):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2, "company_name": "Sensitive Tenant"},
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=RuntimeError("Supabase insert failed with secret details"),
+        ):
             response = self.client.get("/api/platform-admin/companies/2", headers=self.headers)
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json["code"], "platform_admin_audit_unavailable")
         self.assertNotIn("data", response.json)
+        response_text = response.get_data(as_text=True).lower()
+        self.assertNotIn("sensitive tenant", response_text)
+        self.assertNotIn("supabase", response_text)
+        self.assertNotIn("secret details", response_text)
+
+    def test_authorized_missing_company_returns_audited_404(self):
+        calls = []
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            side_effect=lambda company_id: calls.append("read") or None,
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=lambda *args, **kwargs: calls.append("audit") or {"id": 1},
+        ) as audit:
+            response = self.client.get(
+                "/api/platform-admin/companies/404", headers=self.headers
+            )
+            calls.append("response")
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json["code"], "company_not_found")
+        self.assertEqual(calls, ["read", "audit", "response"])
+        self.assertEqual(audit.call_args.args[4]["outcome"], "not_found")
+
+    def test_successful_company_audit_precedes_http_response(self):
+        calls = []
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            side_effect=lambda company_id: calls.append("read") or {"id": company_id},
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=lambda *args, **kwargs: calls.append("audit") or {"id": 1},
+        ):
+            response = self.client.get(
+                "/api/platform-admin/companies/2", headers=self.headers
+            )
+            calls.append("response")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(calls, ["read", "audit", "response"])
+
+    def test_company_and_billing_failures_are_sanitized(self):
+        raw_detail = "Supabase connection failed: service_role=secret"
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "list_companies_for_platform_admin",
+            side_effect=RuntimeError(raw_detail),
+        ):
+            company_response = self.client.get(
+                "/api/platform-admin/companies", headers=self.headers
+            )
+        self.assertEqual(company_response.status_code, 503)
+        self.assertEqual(
+            company_response.json["code"], "platform_admin_data_unavailable"
+        )
+
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2, "company_name": "Tenant Secret"},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "get_subscription_summary_for_platform_admin",
+            side_effect=RuntimeError(raw_detail),
+        ):
+            billing_response = self.client.get(
+                "/api/platform-admin/companies/2/subscription", headers=self.headers
+            )
+        self.assertEqual(billing_response.status_code, 503)
+        self.assertEqual(
+            billing_response.json["code"], "platform_admin_data_unavailable"
+        )
+        for response in (company_response, billing_response):
+            body = response.get_data(as_text=True).lower()
+            self.assertNotIn("supabase", body)
+            self.assertNotIn("service_role", body)
+            self.assertNotIn("secret", body)
+            self.assertNotIn("data", response.json)
+
+    def test_read_endpoints_create_expected_audit_events(self):
+        cases = (
+            ("/api/platform-admin/me", "platform_admin.identity.read"),
+            ("/api/platform-admin/companies", "platform_admin.company.list"),
+            (
+                "/api/platform-admin/companies/2/subscription",
+                "platform_admin.company.subscription.read",
+            ),
+            (
+                "/api/platform-admin/companies/2/ai-credit-usage",
+                "platform_admin.company.ai_credit_usage.read",
+            ),
+        )
+        for path, expected_action in cases:
+            with self.subTest(path=path), patch.object(
+                platform_admin_service.platform_company_repository,
+                "list_companies_for_platform_admin", return_value=([], 0),
+            ), patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_for_platform_admin", return_value={"id": 2},
+            ), patch.object(
+                platform_admin_service.platform_billing_repository,
+                "get_subscription_summary_for_platform_admin", return_value=None,
+            ), patch.object(
+                platform_admin_service.platform_billing_repository,
+                "get_ai_credit_balance_for_platform_admin", return_value=None,
+            ), patch.object(
+                platform_admin_service.platform_admin_repository,
+                "insert_platform_admin_audit_event", return_value={"id": 1},
+            ) as audit:
+                response = self.client.get(path, headers=self.headers)
+                self.assertEqual(response.status_code, 200)
+                audit.assert_called_once()
+                self.assertEqual(audit.call_args.args[1], expected_action)
+
+    def test_missing_ai_credit_balance_is_read_only_and_uninitialized(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin", return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "get_subscription_summary_for_platform_admin", return_value=None,
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "get_ai_credit_balance_for_platform_admin", return_value=None,
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "get_ai_usage_summary_for_platform_admin",
+        ) as usage, patch.object(
+            platform_admin_service.platform_billing_repository,
+            "get_ai_credit_charge_summary_for_platform_admin",
+        ) as charges, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event", return_value={"id": 1},
+        ):
+            response = self.client.get(
+                "/api/platform-admin/companies/2/ai-credit-usage",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json["data"]["credit_balance"]["initialized"])
+        usage.assert_not_called()
+        charges.assert_not_called()
 
 
 if __name__ == "__main__":
