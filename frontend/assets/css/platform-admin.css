@@ -134,6 +134,25 @@ a {
     padding: 1.5rem;
     border-right: 1px solid var(--platform-border);
     background: rgba(5, 15, 22, 0.94);
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.platform-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.platform-sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.platform-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(148, 196, 210, 0.2);
+    border-radius: 4px;
+}
+
+.platform-sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 196, 210, 0.4);
 }
 
 .platform-brand {

@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import re
 from app.rate_limit import limiter
 
@@ -263,7 +263,21 @@ def fetch_ai_credit_transactions():
                     "message": "limit must not exceed 100."
                 }), 400
 
-        transactions = list_credit_transactions(company_id, limit=limit)
+        offset_arg = request.args.get("offset", 0)
+        if isinstance(offset_arg, str):
+            if not offset_arg.isdigit():
+                return jsonify({
+                    "status": "error",
+                    "message": "offset must be a non-negative integer."
+                }), 400
+            offset_arg = int(offset_arg)
+            if offset_arg < 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "offset must be a non-negative integer."
+                }), 400
+
+        transactions = list_credit_transactions(company_id, limit=limit, offset=offset_arg)
 
         safe_transactions = []
         for txn in transactions:
@@ -283,10 +297,17 @@ def fetch_ai_credit_transactions():
                 "created_at": txn.get("created_at"),
             })
 
+        has_more = len(safe_transactions) >= limit
+
         return jsonify({
             "status": "success",
             "data": {
                 "transactions": safe_transactions,
+                "pagination": {
+                    "limit": limit,
+                    "offset": offset_arg,
+                    "has_more": has_more,
+                }
             }
         }), 200
 

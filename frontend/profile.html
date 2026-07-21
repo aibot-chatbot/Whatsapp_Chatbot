@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -594,6 +594,86 @@
             font-size:0.85rem;color:var(--text-dim);
             line-height:1.4;
         }
+
+        /* ===== Tab Navigation System ===== */
+        .tabs-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 28px;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 0;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .tabs-nav::-webkit-scrollbar {
+            display: none;
+        }
+        .tab-item {
+            padding: 10px 16px 14px;
+            color: var(--text-dim) !important;
+            font-weight: 600;
+            font-size: 0.95rem;
+            position: relative;
+            cursor: pointer;
+            transition: color 0.2s, transform 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+        .tab-item i, .tab-item svg {
+            color: inherit !important;
+            width: 16px;
+            height: 16px;
+        }
+        .tab-item:hover {
+            color: var(--text-main) !important;
+        }
+        .tab-item.active {
+            color: var(--text-main) !important;
+            font-weight: 700;
+        }
+        .tab-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--primary);
+            border-radius: 4px;
+        }
+        @keyframes fadeInTab {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .profile-tab-content {
+            animation: fadeInTab 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ===== Custom Premium Scrollbars for Card Sections ===== */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.01);
+            border-radius: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.22);
+        }
+
+        /* Firefox support */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.12) rgba(255, 255, 255, 0.01);
+        }
 </style>
 </head>
 
@@ -615,497 +695,549 @@
         <!-- Toast Message -->
         <div id="profile-message" class="profile-message" role="alert" aria-live="polite"></div>
 
-        <!-- Two-Column Grid -->
-        <div class="profile-grid">
-
-            <!-- Left Column: Basic Info + Password -->
-            <div class="profile-section glass-card">
-                <div class="profile-section-header">
-                    <i data-lucide="info" style="width:17px;height:17px;"></i>
-                    Basic Information
-                </div>
-
-                <div class="avatar-area" id="avatar-area">
-                    <div class="avatar-circle" id="avatar-initials">U</div>
-                    <div class="avatar-info">
-                        <span class="name" id="avatar-name">Loading...</span>
-                        <span class="role-badge" id="avatar-role">...</span>
-                        <span class="email-line" id="avatar-email">...</span>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <label for="profile-full-name">Full Name</label>
-                    <input type="text" id="profile-full-name" placeholder="Your full name" autocomplete="name">
-                </div>
-
-                <div class="form-row">
-                    <label for="profile-email">Email Address</label>
-                    <input type="email" id="profile-email" placeholder="your@email.com" autocomplete="email" disabled readonly>
-                    <div class="field-note">Email is used for login and cannot be changed here.</div>
-                </div>
-                <div class="form-row">
-                    <label for="profile-phone">Phone Number</label>
-                    <input type="tel" id="profile-phone" placeholder="e.g. 012-3456789" autocomplete="tel">
-                    <div class="field-note">Required for ToyyibPay credit top-ups.</div>
-                </div>
-
-                <div class="action-row">
-                    <button class="action-btn primary" id="btn-save-profile" onclick="saveProfile()">
-                        <i data-lucide="save" style="width:15px;height:15px;"></i>
-                        Save Changes
-                    </button>
-                </div>
+        <!-- Tabs Navigation Bar -->
+        <div class="tabs-nav">
+            <div class="tab-item active" onclick="switchProfileTab('account')" id="tab-btn-account">
+                <i data-lucide="user"></i>Account &amp; Security
             </div>
-
-            <!-- Right Column Top: Change Password -->
-            <div class="profile-section glass-card">
-                <div class="profile-section-header">
-                    <i data-lucide="lock" style="width:17px;height:17px;"></i>
-                    Change Password
-                </div>
-
-                <div class="form-row">
-                    <label for="profile-current-password">Current Password</label>
-                    <div class="input-wrapper"><input type="password" id="profile-current-password" placeholder="Enter current password" autocomplete="current-password" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-current-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
-                </div>
-
-                <div class="form-row">
-                    <label for="profile-new-password">New Password</label>
-                    <div class="input-wrapper"><input type="password" id="profile-new-password" placeholder="At least 8 characters" autocomplete="new-password" oninput="updatePasswordStrength(this.value)" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-new-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
-                    <div class="password-strength"><div class="bar" id="pwd-strength-bar"></div></div>
-                    <div class="field-note">Min 8 chars, 1 uppercase, 1 number, 1 special character.</div>
-                </div>
-
-                <div class="form-row">
-                    <label for="profile-confirm-password">Confirm New Password</label>
-                    <div class="input-wrapper"><input type="password" id="profile-confirm-password" placeholder="Re-enter new password" autocomplete="new-password" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-confirm-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
-                </div>
-
-                <div class="action-row">
-                    <button class="action-btn primary" id="btn-change-password" onclick="changePassword()">
-                        <i data-lucide="key" style="width:15px;height:15px;"></i>
-                        Update Password
-                    </button>
-                </div>
+            <div class="tab-item" onclick="switchProfileTab('organization')" id="tab-btn-organization">
+                <i data-lucide="users"></i>Team &amp; Workspace
             </div>
+            <div class="tab-item" onclick="switchProfileTab('billing')" id="tab-btn-billing">
+                <i data-lucide="credit-card"></i>Billing &amp; Credits
+            </div>
+        </div>
 
-            <!-- Full Width: Team / Workspace Info -->
-            <div class="profile-section glass-card full-width">
-                <div class="profile-section-header">
-                    <i data-lucide="users" style="width:17px;height:17px;"></i>
-                    Team / Workspace Info
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-                    <div class="form-row" style="margin-bottom:0;">
-                        <label>Current Team Name</label>
-                        <input type="text" id="team-name" value="AI Chatbot Team" readonly disabled>
+        <!-- TAB 1: Account Settings -->
+        <div id="profile-tab-account" class="profile-tab-content">
+            <div class="profile-grid">
+                <!-- Basic Information (Left Column) - Pinned Action, Scrollable Fields -->
+                <div class="profile-section glass-card" style="height: 550px; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+                    <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 12px;">
+                        <i data-lucide="info" style="width:17px;height:17px;"></i>
+                        Basic Information
                     </div>
-                    <div class="form-row" style="margin-bottom:0;">
-                        <label>Your Role</label>
-                        <input type="text" id="team-role" value="Admin" readonly disabled>
-                    </div>
-                </div>
 
-                <div class="form-row">
-                    <label>Members Count</label>
-                    <div class="team-members-row">
-                        <div class="members-avatars">
-                            <div class="member-avatar-mini">A</div>
-                            <div class="member-avatar-mini">J</div>
-                            <div class="member-avatar-mini">M</div>
+                    <div style="flex: 1; overflow-y: scroll; padding-right: 6px; display: flex; flex-direction: column; gap: 14px;">
+                        <div class="avatar-area" id="avatar-area">
+                            <div class="avatar-circle" id="avatar-initials">U</div>
+                            <div class="avatar-info">
+                                <span class="name" id="avatar-name">Loading...</span>
+                                <span class="role-badge" id="avatar-role">...</span>
+                                <span class="email-line" id="avatar-email">...</span>
+                            </div>
                         </div>
-                        <span id="team-member-count" style="color:var(--text-main);font-weight:600;">3 Members</span>
-                    </div>
-                </div>
 
-                <div class="form-row" style="margin-bottom:0;">
-                    <label>Invite Link</label>
-                    <div class="invite-row">
-                        <input type="text" id="team-invite-link" value="https://your-app.com/invite/ABC123" readonly>
-                        <button class="copy-btn" id="btn-copy-invite" onclick="copyInviteLink()">
-                            <i data-lucide="copy" style="width:15px;height:15px;"></i>
-                            Copy
+                        <div class="form-row">
+                            <label for="profile-full-name">Full Name</label>
+                            <input type="text" id="profile-full-name" placeholder="Your full name" autocomplete="name">
+                        </div>
+
+                        <div class="form-row">
+                            <label for="profile-email">Email Address</label>
+                            <input type="email" id="profile-email" placeholder="your@email.com" autocomplete="email" disabled readonly>
+                            <div class="field-note">Email is used for login and cannot be changed here.</div>
+                        </div>
+                        <div class="form-row">
+                            <label for="profile-phone">Phone Number</label>
+                            <input type="tel" id="profile-phone" placeholder="e.g. 012-3456789" autocomplete="tel">
+                            <div class="field-note">Required for ToyyibPay credit top-ups.</div>
+                        </div>
+                    </div>
+
+                    <div class="action-row" style="flex-shrink: 0; margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+                        <button class="action-btn primary" id="btn-save-profile" onclick="saveProfile()">
+                            <i data-lucide="save" style="width:15px;height:15px;"></i>
+                            Save Changes
                         </button>
                     </div>
                 </div>
-                <div class="action-row">
-                    <a href="team.html" class="action-btn primary" style="text-decoration:none;">
-                        <i data-lucide="users" style="width:15px;height:15px;"></i>
-                        Manage Team Members
-                    </a>
-                </div>
-            </div>
 
-            <!-- Full Width: Company Plan & Usage -->
-            <div class="profile-section glass-card full-width" id="billing-section">
-                <div class="profile-section-header">
-                    <i data-lucide="credit-card" style="width:17px;height:17px;"></i>
-                    Company Plan &amp; Usage
-                </div>
+                <!-- Right Column: Change Password & Preferences (Sum of heights = 550px) -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- Change Password - Pinned Action, Scrollable Fields -->
+                    <div class="profile-section glass-card" style="height: 340px; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+                        <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 12px;">
+                            <i data-lucide="lock" style="width:17px;height:17px;"></i>
+                            Change Password
+                        </div>
 
-                <!-- Loading state -->
-                <div id="billing-loading">
-                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
-                        <i data-lucide="loader-2" class="spin" style="width:16px;height:16px;color:var(--primary);"></i>
-                        <span style="color:var(--text-dim);font-size:0.9rem;">Loading plan information...</span>
+                        <div style="flex: 1; overflow-y: scroll; padding-right: 6px; display: flex; flex-direction: column; gap: 14px;">
+                            <div class="form-row">
+                                <label for="profile-current-password">Current Password</label>
+                                <div class="input-wrapper"><input type="password" id="profile-current-password" placeholder="Enter current password" autocomplete="current-password" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-current-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
+                            </div>
+
+                            <div class="form-row">
+                                <label for="profile-new-password">New Password</label>
+                                <div class="input-wrapper"><input type="password" id="profile-new-password" placeholder="At least 8 characters" autocomplete="new-password" oninput="updatePasswordStrength(this.value)" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-new-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
+                                <div class="password-strength"><div class="bar" id="pwd-strength-bar"></div></div>
+                                <div class="field-note">Min 8 chars, 1 uppercase, 1 number, 1 special character.</div>
+                            </div>
+
+                            <div class="form-row">
+                                <label for="profile-confirm-password">Confirm New Password</label>
+                                <div class="input-wrapper"><input type="password" id="profile-confirm-password" placeholder="Re-enter new password" autocomplete="new-password" style="width:100%;padding-right:36px;"><button type="button" class="pwd-toggle" onclick="togglePwd('profile-confirm-password', this)" tabindex="-1" aria-label="Toggle password visibility"><i data-lucide="eye" style="width:18px;height:18px;"></i></button></div>
+                            </div>
+                        </div>
+
+                        <div class="action-row" style="flex-shrink: 0; margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+                            <button class="action-btn primary" id="btn-change-password" onclick="changePassword()">
+                                <i data-lucide="key" style="width:15px;height:15px;"></i>
+                                Update Password
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Preferences - Scrollable Fields -->
+                    <div class="profile-section glass-card" style="height: 190px; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+                        <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 12px;">
+                            <i data-lucide="settings" style="width:17px;height:17px;"></i>
+                            Preferences
+                        </div>
+
+                        <div style="flex: 1; overflow-y: scroll; padding-right: 6px;">
+                            <div class="pref-list">
+                                <div class="pref-row">
+                                    <div class="pref-label">
+                                        <span>Dark Theme</span>
+                                        <span>Toggle between dark and light appearance.</span>
+                                    </div>
+                                    <label class="toggle-switch" aria-label="Toggle dark theme">
+                                        <input type="checkbox" id="pref-theme" checked onchange="toggleTheme()">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+
+                                <div class="pref-row">
+                                    <div class="pref-label">
+                                        <span>Notifications</span>
+                                        <span>Receive browser notifications for new messages and follow-ups.</span>
+                                    </div>
+                                    <label class="toggle-switch" aria-label="Toggle notifications">
+                                        <input type="checkbox" id="pref-notifications" checked onchange="saveNotificationPref()">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Content (hidden until loaded) -->
-                <div id="billing-content" style="display:none;">
+        <!-- TAB 2: Workspace & Team -->
+        <div id="profile-tab-organization" class="profile-tab-content" style="display: none;">
+            <div class="profile-grid">
+                <!-- Team / Workspace Info - Pinned Action, Scrollable Fields -->
+                <div class="profile-section glass-card full-width" style="height: 450px; display: flex; flex-direction: column; overflow: hidden;">
+                    <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 12px;">
+                        <i data-lucide="users" style="width:17px;height:17px;"></i>
+                        Team / Workspace Info
+                    </div>
 
-                    <!-- Plan summary -->
-                    <div style="margin-bottom:24px;">
+                    <div style="flex: 1; overflow-y: scroll; padding-right: 6px; display: flex; flex-direction: column; gap: 14px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                            <div class="form-row" style="margin-bottom:0;">
+                                <label>Current Team Name</label>
+                                <input type="text" id="team-name" value="AI Chatbot Team" readonly disabled>
+                            </div>
+                            <div class="form-row" style="margin-bottom:0;">
+                                <label>Your Role</label>
+                                <input type="text" id="team-role" value="Admin" readonly disabled>
+                            </div>
+                        </div>
+
                         <div class="form-row">
-                            <label>Current Plan</label>
-                            <span id="billing-plan-name" style="font-size:1.05rem;font-weight:600;color:var(--text-main);">&mdash;</span>
-                        </div>
-
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-                            <div class="form-row" style="margin-bottom:0;">
-                                <label>Status</label>
-                                <span id="billing-status" style="display:inline-flex;align-items:center;gap:6px;"></span>
-                            </div>
-                            <div class="form-row" style="margin-bottom:0;">
-                                <label>Billing</label>
-                                <span id="billing-interval" style="color:var(--text-main);">&mdash;</span>
-                            </div>
-                            <div class="form-row" id="trial-info-row" style="display:none;">
-                                <label>Trial</label>
-                                <span id="trial-info-text" style="color:var(--text-main);">&mdash;</span>
-                            </div>
-                            <div class="form-row" style="margin-bottom:0;">
-                                <label>Period Start</label>
-                                <span id="billing-period-start" style="color:var(--text-main);">&mdash;</span>
-                            </div>
-                            <div class="form-row" style="margin-bottom:0;">
-                                <label>Period End</label>
-                                <span id="billing-period-end" style="color:var(--text-main);">&mdash;</span>
+                            <label>Members Count</label>
+                            <div class="team-members-row">
+                                <div class="members-avatars">
+                                    <div class="member-avatar-mini">A</div>
+                                    <div class="member-avatar-mini">J</div>
+                                    <div class="member-avatar-mini">M</div>
+                                </div>
+                                <span id="team-member-count" style="color:var(--text-main);font-weight:600;">3 Members</span>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Usage summary -->
-                    <div>
-                        <label style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;display:block;">Current Usage</label>
-                        <!-- === Subscription Management Section === -->
-            <div id="sub-mgmt-section" style="margin-top:16px;display:none;">
-                <div style="display:flex;flex-direction:column;gap:10px;">
-                    <!-- Plan actions appear here dynamically -->
-                    <div id="sub-mgmt-actions"></div>
-                    <!-- Scheduled cancellation info -->
-                    <div id="sub-cancel-scheduled" class="sub-schedule-info" style="display:none;">
-                        <div class="label">Cancellation Scheduled</div>
-                        <div class="value" id="sub-cancel-date-text">No date</div>
-                        <div class="note">Your paid access continues until the date shown above. After that, your subscription will be cancelled and paid features will be unavailable. You can undo this at any time before the effective date.</div>
-                    </div>
-                    <!-- Scheduled downgrade info -->
-                    <div id="sub-downgrade-scheduled" class="sub-schedule-info" style="display:none;">
-                        <div class="label">Downgrade Scheduled</div>
-                        <div id="sub-downgrade-target-text" class="value">No target</div>
-                        <div class="note">Your current plan stays active until the end of your billing period. After that, you will need to renew before paid access resumes. No resources will be deleted.</div>
-                    </div>
-                    <!-- Error display -->
-                    <div id="sub-mgmt-error" style="display:none;padding:8px 0;color:var(--danger);font-size:0.85rem;"></div>
-                </div>
-            </div>
-
-            <div id="billing-usage-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Error state -->
-                <div id="billing-error" style="display:none;padding:8px 0;color:var(--text-dim);font-size:0.9rem;">
-                </div>
-
-                <!-- Empty state (no subscription) -->
-                <div id="billing-empty" style="display:none;padding:8px 0;color:var(--text-dim);font-size:0.9rem;">
-                    No subscription plan is currently assigned to this company.
-                </div>
-            </div>
-
-            <!-- Subscription Payment History -->
-            <div class="profile-section glass-card full-width" id="subscription-payment-history-section" style="display:none;">
-                <div class="profile-section-header">
-                    <i data-lucide="receipt" style="width:17px;height:17px;"></i>
-                    Subscription Payment History
-                </div>
-                <div id="sph-loading" style="padding:16px;text-align:center;color:var(--text-dim);">
-                    <div class="spinner" style="width:20px;height:20px;border:2px solid var(--glass-border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 8px;"></div>
-                    Loading payment history...
-                </div>
-                <div id="sph-error" style="display:none;padding:16px;color:var(--text-dim);font-size:0.9rem;text-align:center;">
-                    Unable to load payment history. Please try again later.
-                </div>
-                <div id="sph-empty" style="display:none;padding:16px;color:var(--text-dim);font-size:0.9rem;text-align:center;">
-                    No subscription payment records found.
-                </div>
-                <div id="sph-content" style="display:none;">
-                    <div style="overflow-x:auto;">
-                        <table class="sph-table" style="width:100%;border-collapse:collapse;font-size:0.85rem;">
-                            <thead>
-                                <tr style="border-bottom:1px solid var(--glass-border);">
-                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Date</th>
-                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Plan</th>
-                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Amount</th>
-                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Payment</th>
-                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Activation</th>
-                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Reference</th>
-                                    <th style="padding:8px 10px;text-align:center;color:var(--text-dim);font-weight:600;">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="sph-tbody"></tbody>
-                        </table>
-                    </div>
-                    <div id="sph-pagination" style="display:flex;justify-content:center;gap:12px;padding:12px 0 4px;">
-                        <button id="sph-load-more" style="display:none;padding:8px 20px;border-radius:8px;background:rgba(255,255,255,0.08);color:var(--text-main);border:1px solid var(--glass-border);cursor:pointer;font-size:0.85rem;">Load More</button>
-                        <span id="sph-no-more" style="display:none;color:var(--text-dim);font-size:0.85rem;padding:8px;">No more records</span>
-                    </div>
-                </div>
-            </div>
-
-
-            <!-- Full Width: AI Usage & Credit -->
-            <!-- Subscription Order Detail Modal -->
-            <div id="sph-order-detail-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:9999;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
-                <div style="background:var(--card-bg);border:1px solid var(--glass-border);border-radius:16px;padding:24px;max-width:500px;width:90%;max-height:85vh;overflow-y:auto;position:relative;">
-                    <button onclick="closeOrderDetailModal()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:1.2rem;padding:4px;">&times;</button>
-                    <h3 style="margin:0 0 16px;color:var(--text-main);font-size:1.05rem;">Order Details</h3>
-                    <div id="sph-modal-body"></div>
-                </div>
-            </div>
-
-            <div class="profile-section glass-card full-width" id="ai-credit-section">
-                <div class="profile-section-header">
-                    <i data-lucide="sparkles" style="width:17px;height:17px;"></i>
-                    AI Usage &amp; Credit
-                </div>
-
-                <!-- Loading state -->
-                <div id="ai-credit-loading">
-                    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
-                        <i data-lucide="loader-2" class="spin" style="width:16px;height:16px;color:var(--primary);"></i>
-                        <span style="color:var(--text-dim);font-size:0.9rem;">Loading AI credit...</span>
-                    </div>
-                </div>
-
-                <!-- Content (hidden until loaded) -->
-                <div id="ai-credit-content" style="display:none;">
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
                         <div class="form-row" style="margin-bottom:0;">
-                            <label>Included AI Credit</label>
-                            <span id="ai-credit-included" style="font-size:1.1rem;font-weight:600;color:var(--accent);">&mdash;</span>
+                            <label>Invite Link</label>
+                            <div class="invite-row">
+                                <input type="text" id="team-invite-link" value="https://your-app.com/invite/ABC123" readonly>
+                                <button class="copy-btn" id="btn-copy-invite" onclick="copyInviteLink()">
+                                    <i data-lucide="copy" style="width:15px;height:15px;"></i>
+                                    Copy
+                                </button>
+                            </div>
                         </div>
-                        <div class="form-row" style="margin-bottom:0;">
-                            <label>Top-Up AI Credit</label>
-                            <span id="ai-credit-topup" style="font-size:1.1rem;font-weight:600;color:var(--accent);">&mdash;</span>
+                    </div>
+
+                    <div class="action-row" style="flex-shrink: 0; margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06);">
+                        <a href="team.html" class="action-btn primary" style="text-decoration:none;">
+                            <i data-lucide="users" style="width:15px;height:15px;"></i>
+                            Manage Team Members
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Billing & Credits -->
+        <div id="profile-tab-billing" class="profile-tab-content" style="display: none;">
+            <div class="profile-grid">
+                <!-- Left Column: plan & credits info (Sum of heights = 1080px) -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- Company Plan & Usage -->
+                    <div class="profile-section glass-card" id="billing-section" style="height: 530px; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+                        <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 12px;">
+                            <i data-lucide="credit-card" style="width:17px;height:17px;"></i>
+                            Company Plan &amp; Usage
                         </div>
-                        <div class="form-row" style="margin-bottom:0;">
-                            <label>Total AI Credit</label>
-                            <span id="ai-credit-total" style="font-size:1.1rem;font-weight:600;color:var(--text-main);">&mdash;</span>
-                            <div class="shared-credit-note" style="margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.04);font-size:0.78rem;color:var(--text-dim);line-height:1.4;">This AI credit balance, payment history, and subscription plan apply to all chatbots in this company. They are not per-bot resources.</div>
+
+                        <div style="flex: 1; overflow-y: scroll; padding-right: 6px; min-height: 0;">
+                            <!-- Loading state -->
+                            <div id="billing-loading">
+                                <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
+                                    <i data-lucide="loader-2" class="spin" style="width:16px;height:16px;color:var(--primary);"></i>
+                                    <span style="color:var(--text-dim);font-size:0.9rem;">Loading plan information...</span>
+                                </div>
+                            </div>
+
+                            <!-- Content (hidden until loaded) -->
+                            <div id="billing-content" style="display:none;">
+                                <!-- Plan summary -->
+                                <div style="margin-bottom:24px;">
+                                    <div class="form-row">
+                                        <label>Current Plan</label>
+                                        <span id="billing-plan-name" style="font-size:1.05rem;font-weight:600;color:var(--text-main);">&mdash;</span>
+                                    </div>
+
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                        <div class="form-row" style="margin-bottom:0;">
+                                            <label>Status</label>
+                                            <span id="billing-status" style="display:inline-flex;align-items:center;gap:6px;"></span>
+                                        </div>
+                                        <div class="form-row" style="margin-bottom:0;">
+                                            <label>Billing</label>
+                                            <span id="billing-interval" style="color:var(--text-main);">&mdash;</span>
+                                        </div>
+                                        <div class="form-row" id="trial-info-row" style="display:none;">
+                                            <label>Trial</label>
+                                            <span id="trial-info-text" style="color:var(--text-main);">&mdash;</span>
+                                        </div>
+                                        <div class="form-row" style="margin-bottom:0;">
+                                            <label>Period Start</label>
+                                            <span id="billing-period-start" style="color:var(--text-main);">&mdash;</span>
+                                        </div>
+                                        <div class="form-row" style="margin-bottom:0;">
+                                            <label>Period End</label>
+                                            <span id="billing-period-end" style="color:var(--text-main);">&mdash;</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Usage summary -->
+                                <div>
+                                    <label style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;display:block;">Current Usage</label>
+                                    <!-- === Subscription Management Section === -->
+                                    <div id="sub-mgmt-section" style="margin-top:16px;display:none;">
+                                        <div style="display:flex;flex-direction:column;gap:10px;">
+                                            <!-- Plan actions appear here dynamically -->
+                                            <div id="sub-mgmt-actions"></div>
+                                            <!-- Scheduled cancellation info -->
+                                            <div id="sub-cancel-scheduled" class="sub-schedule-info" style="display:none;">
+                                                <div class="label">Cancellation Scheduled</div>
+                                                <div class="value" id="sub-cancel-date-text">No date</div>
+                                                <div class="note">Your paid access continues until the date shown above. After that, your subscription will be cancelled and paid features will be unavailable. You can undo this at any time before the effective date.</div>
+                                            </div>
+                                            <!-- Scheduled downgrade info -->
+                                            <div id="sub-downgrade-scheduled" class="sub-schedule-info" style="display:none;">
+                                                <div class="label">Downgrade Scheduled</div>
+                                                <div id="sub-downgrade-target-text" class="value">No target</div>
+                                                <div class="note">Your current plan stays active until the end of your billing period. After that, you will need to renew before paid access resumes. No resources will be deleted.</div>
+                                            </div>
+                                            <!-- Error display -->
+                                            <div id="sub-mgmt-error" style="display:none;padding:8px 0;color:var(--danger);font-size:0.85rem;"></div>
+                                        </div>
+                                    </div>
+
+                                    <div id="billing-usage-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;"></div>
+                                </div>
+                            </div>
+
+                            <!-- Error state -->
+                            <div id="billing-error" style="display:none;padding:8px 0;color:var(--text-dim);font-size:0.9rem;"></div>
+
+                            <!-- Empty state (no subscription) -->
+                            <div id="billing-empty" style="display:none;padding:8px 0;color:var(--text-dim);font-size:0.9rem;">
+                                No subscription plan is currently assigned to this company.
+                            </div>
                         </div>
-                        <div class="form-row" style="margin-bottom:0;">
-                            <label>Period</label>
-                            <span id="ai-credit-period" style="color:var(--text-dim);font-size:0.85rem;">&mdash;</span>
+                    </div>
+
+                    <!-- AI Usage & Credit -->
+                    <div class="profile-section glass-card" id="ai-credit-section" style="height: 530px; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+                        <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 12px;">
+                            <i data-lucide="sparkles" style="width:17px;height:17px;"></i>
+                            AI Usage &amp; Credit
+                        </div>
+
+                        <div style="flex: 1; overflow-y: scroll; padding-right: 6px; display: flex; flex-direction: column; gap: 16px; min-height: 0;">
+                            <!-- Loading state -->
+                            <div id="ai-credit-loading">
+                                <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
+                                    <i data-lucide="loader-2" class="spin" style="width:16px;height:16px;color:var(--primary);"></i>
+                                    <span style="color:var(--text-dim);font-size:0.9rem;">Loading AI credit...</span>
+                                </div>
+                            </div>
+
+                            <!-- Content (hidden until loaded) -->
+                            <div id="ai-credit-content" style="display:none;">
+                                <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label>Included AI Credit</label>
+                                        <span id="ai-credit-included" style="font-size:1.1rem;font-weight:600;color:var(--accent);">&mdash;</span>
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label>Top-Up AI Credit</label>
+                                        <span id="ai-credit-topup" style="font-size:1.1rem;font-weight:600;color:var(--accent);">&mdash;</span>
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label>Total AI Credit</label>
+                                        <span id="ai-credit-total" style="font-size:1.1rem;font-weight:600;color:var(--text-main);">&mdash;</span>
+                                        <div class="shared-credit-note" style="margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.04);font-size:0.78rem;color:var(--text-dim);line-height:1.4;">This AI credit balance, payment history, and subscription plan apply to all chatbots in this company. They are not per-bot resources.</div>
+                                    </div>
+                                    <div class="form-row" style="margin-bottom:0;">
+                                        <label>Period</label>
+                                        <span id="ai-credit-period" style="color:var(--text-dim);font-size:0.85rem;">&mdash;</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Error state -->
+                            <div id="ai-credit-error" style="display:none;padding:8px 0;color:var(--text-dim);font-size:0.9rem;">
+                                Unable to load AI credit information.
+                            </div>
+
+                            <!-- AI Credit Top-Up -->
+                            <div class="topup-section" id="topup-section" style="margin-top:0; border-top:none; padding-top:0;">
+                                <label>Top Up AI Credit</label>
+                                <div class="topup-amounts">
+                                    <button class="topup-amount-btn" data-amount="2000000">RM2</button>
+                                    <button class="topup-amount-btn" data-amount="5000000">RM5</button>
+                                    <button class="topup-amount-btn" data-amount="10000000">RM10</button>
+                                    <button class="topup-amount-btn" data-amount="20000000">RM20</button>
+                                    <button class="topup-amount-btn" data-amount="50000000">RM50</button>
+                                </div>
+                                <div class="topup-custom-row">
+                                    <span class="currency-label">RM</span>
+                                    <input type="text" id="topup-custom" inputmode="decimal" placeholder="Custom amount" autocomplete="off">
+                                    <span id="topup-error" style="display:none;color:var(--danger);font-size:0.8rem;"></span>
+                                </div>
+                                <button class="btn btn-primary btn-topup" id="btn-topup" onclick="createTopupCheckout()">
+                                    <i data-lucide="credit-card" style="width:16px;height:16px;"></i> Top Up Credit
+                                </button>
+                            </div>
+
+                            <!-- Payment Return Status -->
+                            <div id="payment-return-status" class="payment-return-status">
+                                <div id="prs-icon" class="prs-icon"><i data-lucide="clock" style="width:20px;height:20px;"></i></div>
+                                <div id="prs-title" class="prs-title"></div>
+                                <div id="prs-detail" class="prs-detail"></div>
+                                <button id="btn-check-again" class="btn btn-small" style="display:none;margin-top:8px;" onclick="manualCheckPaymentStatus()">Check Again</button>
+                                <button id="btn-retry-subscription" class="btn btn-small" style="display:none;margin-top:8px;margin-left:6px;" onclick="retrySubscriptionOrder()">Retry Activation</button>
+                                <div id="retry-order-ref" style="display:none;margin-top:6px;font-size:0.78rem;color:var(--text-dim);"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Error state -->
-                <div id="ai-credit-error" style="display:none;padding:8px 0;color:var(--text-dim);font-size:0.9rem;">
-                    Unable to load AI credit information.
-                </div>
-            </div>
-
-            <!-- AI Credit Top-Up -->
-            <div class="topup-section" id="topup-section">
-                <label>Top Up AI Credit</label>
-                <div class="topup-amounts">
-                    <button class="topup-amount-btn" data-amount="2000000">RM2</button>
-                    <button class="topup-amount-btn" data-amount="5000000">RM5</button>
-                    <button class="topup-amount-btn" data-amount="10000000">RM10</button>
-                    <button class="topup-amount-btn" data-amount="20000000">RM20</button>
-                    <button class="topup-amount-btn" data-amount="50000000">RM50</button>
-                </div>
-                <div class="topup-custom-row">
-                    <span class="currency-label">RM</span>
-                    <input type="text" id="topup-custom" inputmode="decimal" placeholder="Custom amount" autocomplete="off">
-                    <span id="topup-error" style="display:none;color:var(--danger);font-size:0.8rem;"></span>
-                </div>
-                <button class="btn btn-primary btn-topup" id="btn-topup" onclick="createTopupCheckout()">
-                    <i data-lucide="credit-card" style="width:16px;height:16px;"></i> Top Up Credit
-                </button>
-            </div>
-
-            <!-- Payment Return Status -->
-            <div id="payment-return-status" class="payment-return-status">
-                <div id="prs-icon" class="prs-icon"><i data-lucide="clock" style="width:20px;height:20px;"></i></div>
-                <div id="prs-title" class="prs-title"></div>
-                <div id="prs-detail" class="prs-detail"></div>
-                <button id="btn-check-again" class="btn btn-small" style="display:none;margin-top:8px;" onclick="manualCheckPaymentStatus()">Check Again</button>
-                <button id="btn-retry-subscription" class="btn btn-small" style="display:none;margin-top:8px;margin-left:6px;" onclick="retrySubscriptionOrder()">Retry Activation</button>
-                <div id="retry-order-ref" style="display:none;margin-top:6px;font-size:0.78rem;color:var(--text-dim);"></div>
-            </div>
-
-            <!-- AI Credit Transaction History -->
-            <div id="ai-credit-txn-section" class="profile-section" style="margin-top:20px;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">
-                <label>Recent AI Credit Activity</label>
-                <div id="ai-credit-txn-loading" style="padding:12px 0;color:var(--text-dim);font-size:0.9rem;">Loading...</div>
-                <div id="ai-credit-txn-content" style="display:none;">
-                    <div id="ai-credit-txn-list"></div>
-                    <div id="ai-credit-txn-empty" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">No AI credit activity yet.</div>
-                </div>
-                <div id="ai-credit-txn-error" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
-                    We could not load your AI credit activity.
-                    <button id="btn-txn-retry" class="btn btn-small" style="margin-left:8px;" onclick="transactionRetry()">Retry</button>
-                </div>
-            </div>
-            <!-- Full Width Bottom: Preferences -->
-            <!-- Billing Notifications -->
-            <div class="profile-section glass-card full-width" id="billing-notifications-section">
-                <div class="profile-section-header">
-                    <i data-lucide="bell" style="width:17px;height:17px;"></i>
-                    Billing Notifications
-                </div>
-                <div class="section-subtext" style="margin-bottom:12px;font-size:0.85rem;color:var(--text-dim);">
-                    Notifications for subscription expiry, payment and AI credit alerts shared by all chatbots in this company.
-                </div>
-                <div id="billing-notifications-loading" style="padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
-                    <div class="loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></div>
-                    Loading notifications...
-                </div>
-                <div id="billing-notifications-empty" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
-                    No billing notifications.
-                </div>
-                <div id="billing-notifications-error" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
-                    Unable to load billing notifications.
-                    <button id="btn-notifications-retry" class="btn btn-small" style="margin-left:8px;" onclick="loadBillingNotifications()">Retry</button>
-                </div>
-                <div id="billing-notifications-content" style="display:none;">
-                    <div id="billing-notifications-list" style="max-height:400px;overflow-y:auto;"></div>
-                    <div id="billing-notifications-unread-bar" style="display:none;margin-top:8px;text-align:right;">
-                        <button id="btn-mark-all-read" class="btn btn-small" onclick="markAllNotificationsRead()">Mark all as read</button>
-                    </div>
-                </div>
-            </div>
-            <div class="profile-section glass-card full-width">
-            <!-- Billing & Usage Reports -->
-            <div class="profile-section glass-card full-width" id="billing-reports-section">
-                <div class="profile-section-header">
-                    <i data-lucide="bar-chart-3" style="width:17px;height:17px;"></i>
-                    Billing &amp; Usage Reports
-                </div>
-                <div class="section-subtext" style="margin-bottom:12px;font-size:0.85rem;color:var(--text-dim);">
-                    Monthly billing summaries, credit movements, and AI usage trends for your company.
-                </div>
-
-                <!-- Period Selector -->
-                <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;">
-                    <select id="report-period-select" style="flex:1;min-width:140px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);background:rgba(255,255,255,0.05);color:var(--text-main);font-size:0.85rem;">
-                        <option value="last_3_months">Last 3 Months</option>
-                        <option value="last_6_months" selected>Last 6 Months</option>
-                        <option value="last_12_months">Last 12 Months</option>
-                        <option value="current_month">Current Month</option>
-                        <option value="previous_month">Previous Month</option>
-                    </select>
-                    <button id="btn-load-report" class="btn btn-small" onclick="loadBillingReport()" style="padding:8px 16px;">Load Report</button>
-                    <button id="btn-export-report-csv" class="btn btn-small" onclick="exportBillingReportCsv()" style="padding:8px 16px;">Export CSV</button>
-                </div>
-
-                <!-- Loading -->
-                <div id="billing-report-loading" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
-                    <div class="loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></div>
-                    Loading report...
-                </div>
-
-                <!-- Error -->
-                <div id="billing-report-error" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
-                    Unable to load billing report.
-                    <button class="btn btn-small" style="margin-left:8px;" onclick="loadBillingReport()">Retry</button>
-                </div>
-
-                <!-- Empty -->
-                <div id="billing-report-empty" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;">
-                    No billing activity found for this period.
-                </div>
-
-                <!-- Content -->
-                <div id="billing-report-content" style="display:none;">
-                    <!-- Summary cards -->
-                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:16px;">
-                        <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
-                            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Payments</div>
-                            <div id="report-payments" style="font-size:1.1rem;font-weight:700;color:var(--accent);">-</div>
+                <!-- Right Column: logs and feeds (Sum of heights = 1080px) -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <!-- AI Credit Transaction History -->
+                    <div id="ai-credit-txn-section" class="profile-section glass-card" style="height: 530px; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+                        <div class="profile-section-header" style="flex-shrink: 0; justify-content:space-between; display:flex; align-items:center; margin-bottom: 12px;">
+                            <div style="display:flex;align-items:center;gap:10px;">
+                                <i data-lucide="history" style="width:17px;height:17px;"></i>
+                                Recent AI Credit Activity
+                            </div>
+                            <button class="btn btn-small" onclick="exportAiCreditCsv()" style="padding:6px 12px;font-size:0.75rem;display:inline-flex;align-items:center;gap:4px;">
+                                <i data-lucide="download" style="width:12px;height:12px;"></i> Export CSV
+                            </button>
                         </div>
-                        <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
-                            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Credit Spent</div>
-                            <div id="report-credit-spent" style="font-size:1.1rem;font-weight:700;color:var(--warning);">-</div>
+                        <div id="ai-credit-txn-loading" style="padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">Loading...</div>
+                        <div id="ai-credit-txn-content" style="display:none; flex: 1; overflow: hidden; display: flex; flex-direction: column; min-height: 0;">
+                            <div id="ai-credit-txn-list" style="flex: 1; overflow-y:scroll; padding-right:6px; min-height: 0;"></div>
+                            <div id="ai-credit-txn-pagination" style="display:flex;justify-content:center;gap:12px;padding:12px 0 4px;flex-shrink: 0;border-top:1px solid rgba(255,255,255,0.06);margin-top:4px;">
+                                <button id="btn-txn-load-more" onclick="loadMoreAiTransactions()" style="display:none;padding:8px 20px;border-radius:8px;background:rgba(255,255,255,0.08);color:var(--text-main);border:1px solid var(--glass-border);cursor:pointer;font-size:0.85rem;">Load More</button>
+                                <span id="lbl-txn-no-more" style="display:none;color:var(--text-dim);font-size:0.85rem;padding:8px;flex-shrink: 0;">No more records</span>
+                            </div>
+                            <div id="ai-credit-txn-empty" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">No AI credit activity yet.</div>
                         </div>
-                        <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
-                            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">AI Requests</div>
-                            <div id="report-ai-requests" style="font-size:1.1rem;font-weight:700;">-</div>
-                        </div>
-                        <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
-                            <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Tokens</div>
-                            <div id="report-tokens" style="font-size:1.1rem;font-weight:700;">-</div>
+                        <div id="ai-credit-txn-error" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">
+                            We could not load your AI credit activity.
+                            <button id="btn-txn-retry" class="btn btn-small" style="margin-left:8px;" onclick="transactionRetry()">Retry</button>
                         </div>
                     </div>
 
-                    <!-- Monthly Trend Table -->
-                    <div style="overflow-x:auto;">
-                        <table class="report-table" style="width:100%;border-collapse:collapse;font-size:0.82rem;">
-                            <thead>
-                                <tr style="border-bottom:1px solid rgba(255,255,255,0.08);">
-                                    <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Month</th>
-                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Payments</th>
-                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Spent</th>
-                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">AI Req.</th>
-                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Tokens</th>
-                                    <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Charge</th>
-                                </tr>
-                            </thead>
-                            <tbody id="report-trend-body">
-                                <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-dim);">No data</td></tr>
-                            </tbody>
-                        </table>
+                    <!-- Billing Notifications -->
+                    <div class="profile-section glass-card" id="billing-notifications-section" style="height: 530px; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+                        <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 4px;">
+                            <i data-lucide="bell" style="width:17px;height:17px;"></i>
+                            Billing Notifications
+                        </div>
+                        <div class="section-subtext" style="flex-shrink: 0; margin-bottom: 12px; font-size:0.85rem; color:var(--text-dim);">
+                            Notifications for subscription expiry, payment and AI credit alerts.
+                        </div>
+                        <div id="billing-notifications-loading" style="padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">
+                            <div class="loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></div>
+                            Loading notifications...
+                        </div>
+                        <div id="billing-notifications-empty" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">
+                            No billing notifications.
+                        </div>
+                        <div id="billing-notifications-error" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">
+                            Unable to load billing notifications.
+                            <button id="btn-notifications-retry" class="btn btn-small" style="margin-left:8px;" onclick="loadBillingNotifications()">Retry</button>
+                        </div>
+                        <div id="billing-notifications-content" style="display:none; flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;">
+                            <div id="billing-notifications-list" style="flex: 1; overflow-y:scroll; padding-right: 6px; min-height: 0;"></div>
+                            <div id="billing-notifications-unread-bar" style="display:none;margin-top:8px;text-align:right;flex-shrink: 0;">
+                                <button id="btn-mark-all-read" class="btn btn-small" onclick="markAllNotificationsRead()">Mark all as read</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoice History (Full Width Bottom) -->
+                <div class="profile-section glass-card full-width" id="subscription-payment-history-section" style="display:none; height: 400px; display: flex; flex-direction: column; overflow: hidden; margin-top: 22px; grid-column: 1 / -1;">
+                    <div class="profile-section-header" style="flex-shrink: 0; justify-content:space-between; display:flex; align-items:center; margin-bottom: 12px;">
+                        <div style="display:flex;align-items:center;gap:10px;">
+                            <i data-lucide="receipt" style="width:17px;height:17px;"></i>
+                            Subscription Payment History
+                        </div>
+                        <button class="btn btn-small" onclick="exportSubscriptionOrdersCsv()" style="padding:6px 12px;font-size:0.75rem;display:inline-flex;align-items:center;gap:4px;">
+                            <i data-lucide="download" style="width:12px;height:12px;"></i> Export CSV
+                        </button>
+                    </div>
+                    <div id="sph-loading" style="padding:16px;text-align:center;color:var(--text-dim);flex-shrink: 0;">
+                        <div class="spinner" style="width:20px;height:20px;border:2px solid var(--glass-border);border-top-color:var(--primary);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 8px;"></div>
+                        Loading payment history...
+                    </div>
+                    <div id="sph-error" style="display:none;padding:16px;color:var(--text-dim);font-size:0.9rem;text-align:center;flex-shrink: 0;">
+                        Unable to load payment history. Please try again later.
+                    </div>
+                    <div id="sph-empty" style="display:none;padding:16px;color:var(--text-dim);font-size:0.9rem;text-align:center;flex-shrink: 0;">
+                        No subscription payment records found.
+                    </div>
+                    <div id="sph-content" style="display:none; flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;">
+                        <div style="flex: 1; overflow-x:scroll; overflow-y:scroll; padding-right: 6px; min-height: 0;">
+                            <table class="sph-table" style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid var(--glass-border);">
+                                        <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Date</th>
+                                        <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Plan</th>
+                                        <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Amount</th>
+                                        <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Payment</th>
+                                        <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Activation</th>
+                                        <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Reference</th>
+                                        <th style="padding:8px 10px;text-align:center;color:var(--text-dim);font-weight:600;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sph-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div id="sph-pagination" style="display:flex;justify-content:center;gap:12px;padding:12px 0 4px;flex-shrink: 0;">
+                            <button id="sph-load-more" style="display:none;padding:8px 20px;border-radius:8px;background:rgba(255,255,255,0.08);color:var(--text-main);border:1px solid var(--glass-border);cursor:pointer;font-size:0.85rem;">Load More</button>
+                            <span id="sph-no-more" style="display:none;color:var(--text-dim);font-size:0.85rem;padding:8px;flex-shrink: 0;">No more records</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Consumption Reports (Full Width Bottom) -->
+                <div class="profile-section glass-card full-width" id="billing-reports-section" style="height: 450px; display: flex; flex-direction: column; overflow: hidden; margin-top: 22px; grid-column: 1 / -1;">
+                    <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 4px;">
+                        <i data-lucide="bar-chart-3" style="width:17px;height:17px;"></i>
+                        Billing &amp; Usage Reports
+                    </div>
+                    <div class="section-subtext" style="flex-shrink: 0; margin-bottom: 12px; font-size:0.85rem; color:var(--text-dim);">
+                        Monthly billing summaries, credit movements, and AI usage trends for your company.
+                    </div>
+
+                    <!-- Period Selector -->
+                    <div style="flex-shrink: 0; display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+                        <select id="report-period-select" style="flex:1;min-width:140px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-color);background:rgba(255,255,255,0.05);color:var(--text-main);font-size:0.85rem;">
+                            <option value="last_3_months">Last 3 Months</option>
+                            <option value="last_6_months" selected>Last 6 Months</option>
+                            <option value="last_12_months">Last 12 Months</option>
+                            <option value="current_month">Current Month</option>
+                            <option value="previous_month">Previous Month</option>
+                        </select>
+                        <button id="btn-load-report" class="btn btn-small" onclick="loadBillingReport()" style="padding:8px 16px;">Load Report</button>
+                        <button id="btn-export-report-csv" class="btn btn-small" onclick="exportBillingReportCsv()" style="padding:8px 16px;">Export CSV</button>
+                    </div>
+
+                    <!-- Loading -->
+                    <div id="billing-report-loading" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">
+                        <div class="loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></div>
+                        Loading report...
+                    </div>
+
+                    <!-- Error -->
+                    <div id="billing-report-error" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">
+                        Unable to load billing report.
+                        <button class="btn btn-small" style="margin-left:8px;" onclick="loadBillingReport()">Retry</button>
+                    </div>
+
+                    <!-- Empty -->
+                    <div id="billing-report-empty" style="display:none;padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">
+                        No billing activity found for this period.
+                    </div>
+
+                    <!-- Content -->
+                    <div id="billing-report-content" style="display:none; flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;">
+                        <!-- Summary cards -->
+                        <div style="flex-shrink: 0; display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin-bottom:16px;">
+                            <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                                <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Payments</div>
+                                <div id="report-payments" style="font-size:1.1rem;font-weight:700;color:var(--accent);">-</div>
+                            </div>
+                            <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                                <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Credit Spent</div>
+                                <div id="report-credit-spent" style="font-size:1.1rem;font-weight:700;color:var(--warning);">-</div>
+                            </div>
+                            <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                                <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">AI Requests</div>
+                                <div id="report-ai-requests" style="font-size:1.1rem;font-weight:700;">-</div>
+                            </div>
+                            <div class="report-card" style="padding:12px;border-radius:8px;background:rgba(255,255,255,0.04);">
+                                <div style="font-size:0.75rem;color:var(--text-dim);margin-bottom:2px;">Tokens</div>
+                                <div id="report-tokens" style="font-size:1.1rem;font-weight:700;">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Monthly Trend Table -->
+                        <div style="flex: 1; overflow-x:scroll; overflow-y:scroll; padding-right: 6px; min-height: 0;">
+                            <table class="report-table" style="width:100%;border-collapse:collapse;font-size:0.82rem;">
+                                <thead>
+                                    <tr style="border-bottom:1px solid rgba(255, 255, 255, 0.08);">
+                                        <th style="padding:8px 10px;text-align:left;color:var(--text-dim);font-weight:600;">Month</th>
+                                        <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Payments</th>
+                                        <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Spent</th>
+                                        <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">AI Req.</th>
+                                        <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Tokens</th>
+                                        <th style="padding:8px 10px;text-align:right;color:var(--text-dim);font-weight:600;">Charge</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="report-trend-body">
+                                    <tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text-dim);">No data</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
-                <div class="profile-section-header">
-                    <i data-lucide="settings" style="width:17px;height:17px;"></i>
-                    Preferences
-                </div>
-
-                <div class="pref-list">
-                    <div class="pref-row">
-                        <div class="pref-label">
-                            <span>Dark Theme</span>
-                            <span>Toggle between dark and light appearance.</span>
-                        </div>
-                        <label class="toggle-switch" aria-label="Toggle dark theme">
-                            <input type="checkbox" id="pref-theme" checked onchange="toggleTheme()">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-
-                    <div class="pref-row">
-                        <div class="pref-label">
-                            <span>Notifications</span>
-                            <span>Receive browser notifications for new messages and follow-ups.</span>
-                        </div>
-                        <label class="toggle-switch" aria-label="Toggle notifications">
-                            <input type="checkbox" id="pref-notifications" checked onchange="saveNotificationPref()">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-        </div><!-- /profile-grid -->
+        </div>
     </div><!-- /main-container -->
 
     <style>
@@ -2967,8 +3099,10 @@ async function loadBillingInfo() {
         }
 
         var _aiCreditTransactionsLoading = false;
+        var _aiCreditTxnLimit = 20;
+        var _aiCreditTxnOffset = 0;
 
-        async function fetchAiCreditTransactions() {
+        async function fetchAiCreditTransactions(append) {
             if (_aiCreditTransactionsLoading) return null;
             _aiCreditTransactionsLoading = true;
             var section = document.getElementById("ai-credit-txn-section");
@@ -2977,35 +3111,83 @@ async function loadBillingInfo() {
             var content = document.getElementById("ai-credit-txn-content");
             var errorDiv = document.getElementById("ai-credit-txn-error");
             var retryBtn = document.getElementById("btn-txn-retry");
-            if (loading) loading.style.display = "block";
-            if (content) content.style.display = "none";
+
+            var loadMoreBtn = document.getElementById("btn-txn-load-more");
+            var noMoreSpan = document.getElementById("lbl-txn-no-more");
+
+            if (!append) {
+                _aiCreditTxnOffset = 0;
+                if (loading) loading.style.display = "block";
+                if (content) content.style.display = "none";
+                if (loadMoreBtn) loadMoreBtn.style.display = "none";
+                if (noMoreSpan) noMoreSpan.style.display = "none";
+            }
             if (errorDiv) errorDiv.style.display = "none";
             if (retryBtn) retryBtn.disabled = true;
             try {
-                var res = await authenticatedFetch("/api/billing/ai-credit/transactions?limit=20");
+                var res = await authenticatedFetch("/api/billing/ai-credit/transactions?limit=" + _aiCreditTxnLimit + "&offset=" + _aiCreditTxnOffset);
                 if (!res.ok) {
-                    if (loading) loading.style.display = "none";
+                    if (!append && loading) loading.style.display = "none";
                     if (errorDiv) errorDiv.style.display = "block";
                     return false;
                 }
                 var body = await res.json();
                 if (body.status === "success" && body.data && Array.isArray(body.data.transactions)) {
-                    renderTransactions(body.data.transactions);
-                    if (loading) loading.style.display = "none";
-                    if (content) content.style.display = "block";
+                    var txns = body.data.transactions;
+                    renderTransactions(txns, append);
+                    if (!append && loading) loading.style.display = "none";
+                    if (content) content.style.display = "";
+
+                    var hasMore = false;
+                    if (body.data.pagination && typeof body.data.pagination.has_more === "boolean") {
+                        hasMore = body.data.pagination.has_more;
+                    } else {
+                        hasMore = txns.length >= _aiCreditTxnLimit;
+                    }
+
+                    if (hasMore) {
+                        if (loadMoreBtn) loadMoreBtn.style.display = "inline-block";
+                        if (noMoreSpan) noMoreSpan.style.display = "none";
+                    } else {
+                        if (loadMoreBtn) loadMoreBtn.style.display = "none";
+                        var listEl = document.getElementById("ai-credit-txn-list");
+                        if (listEl && listEl.children.length > 0) {
+                            if (noMoreSpan) noMoreSpan.style.display = "inline";
+                        } else {
+                            if (noMoreSpan) noMoreSpan.style.display = "none";
+                        }
+                    }
                     return true;
                 } else {
-                    if (loading) loading.style.display = "none";
+                    if (!append && loading) loading.style.display = "none";
                     if (errorDiv) errorDiv.style.display = "block";
                     return false;
                 }
             } catch (e) {
-                if (loading) loading.style.display = "none";
+                if (!append && loading) loading.style.display = "none";
                 if (errorDiv) errorDiv.style.display = "block";
                 return false;
             } finally {
                 _aiCreditTransactionsLoading = false;
                 if (retryBtn) retryBtn.disabled = false;
+            }
+        }
+
+        async function loadMoreAiTransactions() {
+            if (_aiCreditTransactionsLoading) return;
+            var loadBtn = document.getElementById("btn-txn-load-more");
+            if (loadBtn) {
+                loadBtn.disabled = true;
+                loadBtn.textContent = "Loading...";
+            }
+            _aiCreditTxnOffset += _aiCreditTxnLimit;
+            var ok = await fetchAiCreditTransactions(true);
+            if (loadBtn) {
+                loadBtn.disabled = false;
+                loadBtn.textContent = "Load More";
+            }
+            if (!ok) {
+                _aiCreditTxnOffset -= _aiCreditTxnLimit;
             }
         }
 
@@ -3043,16 +3225,18 @@ async function loadBillingInfo() {
             return usageLabelMap[usageType] || "AI Usage";
         }
 
-        function renderTransactions(txns) {
+        function renderTransactions(txns, append) {
             var listEl = document.getElementById("ai-credit-txn-list");
             var emptyEl = document.getElementById("ai-credit-txn-empty");
             var retryBtn = document.getElementById("btn-txn-retry");
             if (!listEl) return;
-            listEl.innerHTML = "";
+            if (!append) {
+                listEl.innerHTML = "";
+            }
             if (emptyEl) emptyEl.style.display = "none";
             if (retryBtn) retryBtn.style.display = "none";
             if (!txns || txns.length === 0) {
-                if (emptyEl) emptyEl.style.display = "block";
+                if (!append && emptyEl) emptyEl.style.display = "block";
                 return;
             }
             var validCount = 0;
@@ -3145,7 +3329,7 @@ async function loadBillingInfo() {
 
         function transactionRetry() {
             if (_aiCreditTransactionsLoading) return;
-            fetchAiCreditTransactions();
+            fetchAiCreditTransactions(false);
         }
 /* ===== Phase 4H â€” Export Functions ===== */
 
@@ -3546,6 +3730,69 @@ async function loadBillingInfo() {
             return div.innerHTML;
         }
 
+        /* ===== Tab Navigation System Switcher ===== */
+        function switchProfileTab(tabId) {
+            // Hide all tab contents
+            document.querySelectorAll(".profile-tab-content").forEach(function(el) {
+                el.style.display = "none";
+            });
+            // Show target tab content
+            var targetTab = document.getElementById("profile-tab-" + tabId);
+            if (targetTab) {
+                targetTab.style.display = "block";
+            }
+
+            // Remove active class from all tab items
+            document.querySelectorAll(".tabs-nav .tab-item").forEach(function(btn) {
+                btn.classList.remove("active");
+            });
+            // Add active class to selected tab item
+            var activeBtn = document.getElementById("tab-btn-" + tabId);
+            if (activeBtn) {
+                activeBtn.classList.add("active");
+            }
+
+            // Save active tab in session storage to persist between page refreshes
+            sessionStorage.setItem("active_profile_tab", tabId);
+
+            // Re-render Lucide icons inside the tab content
+            if (typeof lucide !== "undefined" && typeof lucide.createIcons === "function") {
+                lucide.createIcons();
+            }
+        }
+
+        function restoreActiveProfileTab() {
+            var params = new URLSearchParams(window.location.search);
+            // Priority 1: URL parameter (e.g. redirecting from billing return page)
+            var urlTab = params.get("tab");
+            if (urlTab === "billing" || urlTab === "account" || urlTab === "organization") {
+                switchProfileTab(urlTab);
+                // Clean up tab parameter from address bar
+                params.delete("tab");
+                var qs = params.toString();
+                var newUrl = window.location.pathname;
+                if (qs) newUrl += "?" + qs;
+                if (window.location.hash) newUrl += window.location.hash;
+                window.history.replaceState(null, "", newUrl);
+                return;
+            }
+
+            // Priority 2: Check ToyyibPay/redirect return context
+            var hasReturnParams = params.has("status_id") || params.has("billcode") || params.has("order_id");
+            if (hasReturnParams || sessionStorage.getItem("toyyibpay_pending_order_reference") || sessionStorage.getItem("pending_subscription_order_reference")) {
+                switchProfileTab("billing");
+                return;
+            }
+
+            // Priority 3: Session storage
+            var savedTab = sessionStorage.getItem("active_profile_tab");
+            if (savedTab === "billing" || savedTab === "organization" || savedTab === "account") {
+                switchProfileTab(savedTab);
+            } else {
+                switchProfileTab("account");
+            }
+        }
+
 // Init only after an optional URL chatbot context has been authorized.
         async function initializeProfilePage() {
             const requestedBotId = new URLSearchParams(window.location.search).get("bot_id");
@@ -3567,6 +3814,9 @@ async function loadBillingInfo() {
             fetchAiCreditTransactions();
             handleToyyibpayReturn();
             handleSubscriptionPaymentReturn();
+
+            // Restore active tab
+            restoreActiveProfileTab();
         }
 
         initializeProfilePage();

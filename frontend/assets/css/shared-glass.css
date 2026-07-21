@@ -1,4 +1,4 @@
-﻿/* ===== Shared Glass Card System ===== */
+/* ===== Shared Glass Card System ===== */
 /* Import this file before page-specific styles to get consistent glass cards. */
 
 /* Base glass card — most refined version from CRM */
@@ -175,4 +175,155 @@
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+/* ==========================================================================
+   ===== GLOBAL RESPONSIVE ENGINE =====
+   ========================================================================== */
+
+/* ── Base Container Layout Stacking ── */
+body,
+#root,
+div:has(> chatbot-sidebar) {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+    /* Stack sidebar and content vertically on mobile */
+    body,
+    #root,
+    div:has(> chatbot-sidebar) {
+        flex-direction: column !important;
+        overflow-x: hidden !important;
+    }
+
+    /* Force the main container to span full width cleanly */
+    .main-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 24px 16px !important;
+        margin: 0 !important;
+        flex-grow: 1 !important;
+        box-sizing: border-box !important;
+    }
+
+    /* ── Header Stacking & Button Scaling ── */
+    .header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 16px !important;
+        width: 100% !important;
+    }
+
+    .header > div {
+        width: 100% !important;
+    }
+
+    /* Make buttons full-width for easier thumb tapping on mobile */
+    .header button,
+    .header a,
+    .header .btn,
+    .header .create-btn,
+    .header .cancel-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        display: flex !important;
+    }
+
+    /* ── Auto-Reflow Fixed Grids to Single Column ── */
+    .stats-grid,
+    .bots-grid,
+    .health-grid,
+    .content-sections,
+    .stats-row,
+    .plans-grid,
+    .platforms-grid,
+    .crm-mid-section,
+    .crm-modal-grid,
+    .grid-2,
+    .grid-3,
+    .grid-4,
+    div[class*="grid"]:not([class*="timeline"]):not([class*="toggle"]) {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+    }
+
+    /* Hide horizontal line and stack workflow nodes in index.html */
+    .main-container div[style*="justify-content: space-between"][style*="position: relative"] {
+        flex-direction: column !important;
+        gap: 24px !important;
+    }
+
+    .main-container div[style*="position: absolute"][style*="height: 2px"] {
+        display: none !important;
+    }
+
+    /* ── Responsive Tables & Horizontal Scroll Areas ── */
+    .table-wrap,
+    .table-area,
+    .table-responsive,
+    .glass-card:has(table) {
+        width: 100% !important;
+        overflow-x: auto !important;
+        display: block !important;
+        -webkit-overflow-scrolling: touch !important;
+        border-radius: 12px !important;
+    }
+
+    .table-wrap table,
+    .table-area table,
+    .table-responsive table,
+    .glass-card table,
+    .enhanced-table {
+        min-width: 650px !important;
+        width: 100% !important;
+    }
+
+    /* ── Form Inputs & Controls ── */
+    .input-group,
+    .form-row,
+    .crm-filter-row {
+        grid-template-columns: 1fr !important;
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+
+    .crm-filter-search-row {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+
+    .crm-filter-search-row input,
+    .crm-filter-search-row button {
+        width: 100% !important;
+    }
+
+    /* ── Modal Dialog Scaling ── */
+    .modal-card,
+    .modal-content,
+    .modal {
+        width: calc(100% - 32px) !important;
+        max-width: 100% !important;
+        margin: 16px auto !important;
+        padding: 20px !important;
+        box-sizing: border-box !important;
+    }
+
+    .modal-actions,
+    .crm-modal-actions {
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+    }
+
+    .modal-actions button,
+    .crm-modal-actions button {
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        justify-content: center !important;
+    }
 }

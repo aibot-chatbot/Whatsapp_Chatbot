@@ -50,6 +50,10 @@ class _Query:
         self.rows = self.rows[:limit]
         return self
 
+    def range(self, start, end):
+        self.rows = self.rows[start:end + 1]
+        return self
+
     def execute(self):
         return _Response(self.rows)
 
