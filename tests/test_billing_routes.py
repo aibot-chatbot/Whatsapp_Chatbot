@@ -38,10 +38,16 @@ with patch("app.database.db.supabase", MagicMock()):
 
 MOCK_USER = {
     "id": 1,
+    "company_id": 42,
     "full_name": "Test User",
     "email": "test@example.com",
     "status": "active",
     "phone": "+60123456789",
+}
+
+MALFORMED_AUTHORITATIVE_USER = {
+    "id": 1,
+    "status": "active",
 }
 
 
@@ -385,10 +391,11 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body)
         self.assertEqual(resp.status_code, 401)
 
-    def test_missing_company_id_rejected(self):
-        with patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": 1, "role": "admin"}), patch("app.database.user_repository.get_user_by_id", return_value=MOCK_USER):
+    def test_malformed_authoritative_user_without_company_id_returns_503(self):
+        with patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": 1, "role": "admin"}), patch("app.database.user_repository.get_user_by_id", return_value=MALFORMED_AUTHORITATIVE_USER):
             resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-            self.assertEqual(resp.status_code, 401)
+            self.assertEqual(resp.status_code, 503)
+            self.assertEqual(resp.get_json()["code"], "authentication_backend_unavailable")
 
     # ----- Request validation -----
 
@@ -517,14 +524,15 @@ class TestSubscriptionOrderStatusRoute(unittest.TestCase):
         resp = self.client.get(f"/api/billing/subscription/orders/{self.valid_ref}")
         self.assertEqual(resp.status_code, 401)
 
-    def test_missing_company_id_rejected(self):
+    def test_malformed_authoritative_user_without_company_id_returns_503(self):
         with patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": 1, "role": "admin"}), \
-             patch("app.database.user_repository.get_user_by_id", return_value=MOCK_USER):
+             patch("app.database.user_repository.get_user_by_id", return_value=MALFORMED_AUTHORITATIVE_USER):
             resp = self.client.get(
                 f"/api/billing/subscription/orders/{self.valid_ref}",
                 headers={"Authorization": "Bearer test-token"},
             )
-            self.assertEqual(resp.status_code, 401)
+            self.assertEqual(resp.status_code, 503)
+            self.assertEqual(resp.get_json()["code"], "authentication_backend_unavailable")
 
     # ----- Request validation -----
 
@@ -642,14 +650,15 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
         resp = self.client.get("/api/billing/subscription/orders")
         self.assertEqual(resp.status_code, 401)
 
-    def test_missing_company_id_rejected(self):
+    def test_malformed_authoritative_user_without_company_id_returns_503(self):
         with patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": 1, "role": "admin"}), \
-             patch("app.database.user_repository.get_user_by_id", return_value=MOCK_USER):
+             patch("app.database.user_repository.get_user_by_id", return_value=MALFORMED_AUTHORITATIVE_USER):
             resp = self.client.get(
                 "/api/billing/subscription/orders",
                 headers={"Authorization": "Bearer test-token"},
             )
-            self.assertEqual(resp.status_code, 401)
+            self.assertEqual(resp.status_code, 503)
+            self.assertEqual(resp.get_json()["code"], "authentication_backend_unavailable")
 
     def test_invalid_limit_rejected(self):
         with self._patch_jwt_decode(), self._patch_user_repo():

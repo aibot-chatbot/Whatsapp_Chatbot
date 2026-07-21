@@ -9,6 +9,68 @@ function requireLogin() {
     }
 }
 
+function clearChatbotContext() {
+    sessionStorage.removeItem("selectedBotId");
+    localStorage.removeItem("guidance_bot_history");
+    localStorage.removeItem("guidance_bot_open");
+}
+
+function clearAuthenticatedSession() {
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    sessionStorage.removeItem("isLoggedIn");
+    clearChatbotContext();
+}
+
+function establishAuthenticatedSession(user, token) {
+    clearAuthenticatedSession();
+    if (
+        !user
+        || typeof user !== "object"
+        || typeof token !== "string"
+        || token.trim().length === 0
+    ) {
+        return false;
+    }
+
+    sessionStorage.setItem("isLoggedIn", "true");
+    sessionStorage.setItem("user", JSON.stringify(user));
+    sessionStorage.setItem("token", token);
+    return true;
+}
+
+function parsePositiveSafeInteger(value) {
+    if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value)) {
+        return null;
+    }
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+async function validateChatbotContext(botId) {
+    const normalizedBotId = parsePositiveSafeInteger(String(botId));
+    if (!normalizedBotId) {
+        clearChatbotContext();
+        window.location.replace("bots.html");
+        return false;
+    }
+
+    try {
+        const response = await authenticatedFetch(`/api/bots/${normalizedBotId}`);
+        if (!response.ok) {
+            clearChatbotContext();
+            window.location.replace("bots.html");
+            return false;
+        }
+        sessionStorage.setItem("selectedBotId", String(normalizedBotId));
+        return true;
+    } catch (_) {
+        clearChatbotContext();
+        window.location.replace("bots.html");
+        return false;
+    }
+}
+
 /**
  * Helper to fetch data with the Authorization token automatically attached.
  * Use this instead of standard fetch() for any API calls.
@@ -53,9 +115,7 @@ async function authenticatedFetch(url, options = {}) {
  * Logs the user out by clearing the token and redirecting.
  */
 function logout() {
-    sessionStorage.removeItem("token");
-    sessionStorage.removeItem("user");
-    sessionStorage.removeItem("isLoggedIn");
+    clearAuthenticatedSession();
     window.location.href = "login.html";
 }
 

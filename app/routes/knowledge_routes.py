@@ -37,6 +37,8 @@ def get_uploaded_pdfs():
             "status": "success",
             "data": files
         }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -61,6 +63,8 @@ def get_current_active_pdf():
             "status": "success",
             "data": active_pdf
         }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",

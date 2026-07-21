@@ -61,6 +61,8 @@ def test_chat():
             "message": str(e),
             "details": e.details or {}
         }), 403
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",

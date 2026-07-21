@@ -261,6 +261,8 @@ def connect_telegram():
             "message": str(e)
         }), 403
 
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Connect Telegram error: {e}")
         return jsonify({
@@ -308,6 +310,8 @@ def list_telegram_channels():
             "data": safe_channels
         }), 200
 
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"List Telegram channels error: {e}")
         return jsonify({

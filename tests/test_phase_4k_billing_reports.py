@@ -54,7 +54,7 @@ PROFILE_PATH = _os.path.join(
     "profile.html",
 )
 
-MOCK_USER = {"id": 1, "full_name": "Test User", "email": "test@example.com", "status": "active", "phone": "+60123456789"}
+MOCK_USER = {"id": 1, "company_id": 42, "full_name": "Test User", "email": "test@example.com", "status": "active", "phone": "+60123456789"}
 
 
 

@@ -9,6 +9,10 @@ from app.utils.jwt_utils import get_jwt_secret
 logger = logging.getLogger(__name__)
 
 
+def _is_positive_integer(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -25,11 +29,14 @@ def token_required(f):
         try:
             data = jwt.decode(token, get_jwt_secret(), algorithms=["HS256"])
 
-            # Store decoded token data for routes to use
-            g.current_user = data
-            g.company_id = data.get("company_id")
+            # Keep the claims for identity and existing role compatibility.
+            # Tenant authorization is refreshed from the database below.
+            g.jwt_claims = data
             g.user_id = data.get("user_id")
             g.role = data.get("role")
+
+            if not _is_positive_integer(g.user_id):
+                return jsonify({"status": "error", "message": "Invalid token!"}), 401
 
         except RuntimeError:
             return jsonify({
@@ -43,8 +50,8 @@ def token_required(f):
 
 
         # Check if user account is still active. Keep the refreshed row on the
-        # request context so stricter authorization layers can use authoritative
-        # database state without trusting role/company claims from the JWT.
+        # request context so authorization layers can use authoritative
+        # database tenant state without trusting the JWT company claim.
         try:
             from app.database.user_repository import get_user_by_id
             current_user = get_user_by_id(g.user_id)
@@ -63,7 +70,24 @@ def token_required(f):
                 "message": "Your account has been deactivated. Please contact your administrator."
             }), 403
 
+        refreshed_user_id = current_user.get("id")
+        refreshed_company_id = current_user.get("company_id")
+        if (
+            not _is_positive_integer(refreshed_user_id)
+            or refreshed_user_id != g.user_id
+            or not _is_positive_integer(refreshed_company_id)
+        ):
+            logger.error("Authentication backend returned invalid user authorization context")
+            return jsonify({
+                "status": "error",
+                "code": "authentication_backend_unavailable",
+                "message": "Authentication service is temporarily unavailable."
+            }), 503
+
         g.authenticated_user = current_user
+        g.current_user = current_user
+        g.user_id = refreshed_user_id
+        g.company_id = refreshed_company_id
 
         return f(*args, **kwargs)
 

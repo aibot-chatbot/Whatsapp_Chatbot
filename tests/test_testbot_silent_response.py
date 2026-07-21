@@ -40,6 +40,7 @@ class TestTestBotSilentResponse(unittest.TestCase):
         })
         self.user_patch = patch("app.database.user_repository.get_user_by_id", return_value={
             "id": 1,
+            "company_id": 42,
             "status": "active",
         })
         self.access_patch = patch("app.routes.testbot_routes.verify_chatbot_access", return_value={

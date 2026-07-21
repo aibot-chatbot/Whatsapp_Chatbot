@@ -23,6 +23,7 @@ with patch("app.database.db.supabase", MagicMock()):
 
 MOCK_USER = {
     "id": 1,
+    "company_id": 42,
     "full_name": "Test User",
     "email": "test@example.com",
     "status": "active",
@@ -204,7 +205,7 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
         mock_verify.side_effect = PermissionError("Cross-company access denied")
         with patch(
             "app.decorators.auth_decorator.jwt.decode",
-            return_value={"company_id": 99, "user_id": 2, "role": "admin"},
+            return_value={"company_id": 99, "user_id": 1, "role": "admin"},
         ), self._patch_user_repo():
             resp = self.client.delete(
                 "/api/knowledge/graph/edge?chatbot_id=1",
@@ -269,7 +270,7 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
         mock_verify.side_effect = PermissionError("Cross-company access denied")
         with patch(
             "app.decorators.auth_decorator.jwt.decode",
-            return_value={"company_id": 99, "user_id": 2, "role": "admin"},
+            return_value={"company_id": 99, "user_id": 1, "role": "admin"},
         ), self._patch_user_repo():
             resp = self.client.delete(
                 "/api/knowledge/graph/node?chatbot_id=1&name=test_node",

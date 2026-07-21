@@ -32,6 +32,7 @@ with patch("app.database.db.supabase", MagicMock()):
 
 MOCK_USER = {
     "id": 1,
+    "company_id": 42,
     "full_name": "Test User",
     "email": "test@example.com",
     "status": "active",
