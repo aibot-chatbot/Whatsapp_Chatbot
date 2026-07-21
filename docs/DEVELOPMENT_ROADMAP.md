@@ -42,13 +42,20 @@ changes.
 Phase 4 production-readiness documentation now defines the production
 preflight and approval register, protected internal-company and bootstrap
 controls, exact 023–026/backend/frontend/bootstrap verification sequence,
-rollback and monitoring plans, final staging rehearsal, audit metadata and
-retention policy, and emergency revocation. Migration 026 now implements the
+rollback and monitoring plans, completed final staging rehearsal evidence,
+audit metadata and retention policy, and emergency revocation. Migration 026
+now implements the
 recommended UPDATE/DELETE rejection trigger and is verified in staging,
 including service-role mutation rejection and rollback cleanup. The mapping
 remains inactive. No production SQL, bootstrap, deployment, tenant-role change,
 or maintenance bypass has been applied; production approvals remain
 outstanding.
+
+The final Phase 4 staging rehearsal is complete. It verified inactive-state
+denial, time-bounded reactivation, dashboard and company read paths, normal
+audit INSERTs under migration 026, approved audit metadata, revocation, and
+clearing of cross-tenant data. The mapping remains present and inactive, and all
+production-specific approval gates remain blocking.
 
 ## Roadmap Principles
 

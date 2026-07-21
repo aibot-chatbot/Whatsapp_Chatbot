@@ -330,39 +330,33 @@ database role/schema change. Review denied-access and endpoint/audit
 reconciliation daily for the first week and at the normal security-review
 cadence thereafter.
 
-## Final staging rehearsal gate
+## Final staging rehearsal — completed
 
-Run this once more from the exact release commit and migration files approved
-for production:
+**Completed successfully in staging.** The rehearsal used no production
+credentials or data and does not itself approve production.
 
-- [ ] Confirm the existing staging mapping is present and inactive.
-- [ ] Confirm migration 026 remains applied from the approved hash and the
-      staging mapping remains inactive.
-- [ ] Rerun `docs/platform_admin_phase_4_append_only_inspection.sql` and verify
-      owner, SECURITY INVOKER, fixed search path, minimized function ACL,
-      enabled trigger events, unchanged table grants, RLS, and policies.
-- [ ] Rerun
-      `docs/platform_admin_phase_4_append_only_staging_verification.sql` as one
-      rollback-only session. Require INSERT/SELECT success, stable UPDATE/DELETE
-      rejection while executing as service_role, removal of the test row, and
-      rollback of temporary test grants.
-- [ ] Verify all five backend endpoints and all three frontend pages deny access
-      without exposing stale platform data.
-- [ ] Obtain a time-bounded, two-person approval for temporary reactivation.
-- [ ] Reactivate only the approved staging mapping with explicit `updated_at`.
-- [ ] Verify all five endpoints and the dashboard, directory, and company detail
-      pages using the approved internal test company.
-- [ ] Record expected audit counts per request, action/resource/resource ID,
-      safe metadata keys, timestamp, and absence of prohibited data.
-- [ ] Verify tenant admin and owner identities without mappings remain denied.
-- [ ] Revoke the mapping, explicitly update `updated_at`, and require the next
-      request and browser refresh to show Access Denied with no stale data.
-- [ ] Confirm the mapping remains present and inactive.
-- [ ] Retain redacted status-only API/UI evidence, audit query output, operator,
-      approver, second verifier, UTC times, release hashes, and deviations.
+- It started with mapping ID 1 for user ID 32 present and inactive. The
+  platform-admin page showed Access Denied.
+- The audit baseline was recorded at `prior_max_audit_id=58` before the
+  time-bounded staging-only reactivation.
+- The dashboard loaded with exact company counts. The company directory and
+  company detail loaded, including company profile, subscription, AI-credit
+  balance, usage, and charge sections.
+- No mutation, export, payment, subscription-change, credit-adjustment,
+  messaging, or impersonation control appeared.
+- Migration 026 did not interfere with normal audit INSERT operations. Events
+  after the baseline contained only approved action/resource pairs and approved
+  metadata fields, with no sensitive data.
+- The mapping was revoked again. Database verification confirmed
+  `is_active=false`, and the mapping remains present and inactive.
+- Refreshing company detail after revocation showed Access Denied. No stale
+  company, subscription, or AI-credit data remained visible.
+- No production SQL or deployment occurred. No tenant role or maintenance
+  bypass was changed or introduced.
 
-Do not use production credentials or data in rehearsal. Rehearsal completion
-does not itself approve production.
+Retain the redacted rehearsal evidence with the production change record.
+Production remains blocked until every production-specific approval gate is
+complete.
 
 ## Go/no-go rule
 

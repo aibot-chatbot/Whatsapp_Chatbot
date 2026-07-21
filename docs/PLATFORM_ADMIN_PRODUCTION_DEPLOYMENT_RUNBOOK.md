@@ -4,12 +4,31 @@
 
 **Prepared, not authorized, and not executed.** Production currently has no
 platform-admin migrations, bootstrap data, backend, or frontend deployment. The
-staging mapping remains inactive. This runbook is executable only after every
-gate in `docs/PLATFORM_ADMIN_PHASE_4_PRODUCTION_READINESS.md` is approved.
+final staging rehearsal completed successfully, and the staging mapping remains
+present and inactive after revocation. This runbook is executable only after
+every production-specific gate in
+`docs/PLATFORM_ADMIN_PHASE_4_PRODUCTION_READINESS.md` is approved.
 
 Do not modify `users.role`, create customer-tenant mappings, disable audit
 enforcement, change Flow Builder/Broadcast, or introduce endpoints/mutations
 during this window.
+
+### Final staging rehearsal evidence
+
+The completed rehearsal began with denial while mapping ID 1 was inactive,
+recorded audit baseline ID 58, temporarily reactivated the mapping in staging,
+and verified the dashboard, exact company counts, directory, company detail,
+subscription, AI-credit balance, usage, and charge displays. Unsupported
+mutation, export, payment, subscription-change, credit-adjustment, messaging,
+and impersonation controls were absent.
+
+Migration 026 allowed the expected audit INSERTs. Events after the baseline
+used only approved action/resource pairs and metadata fields and contained no
+sensitive data. Revocation restored `is_active=false`; a company-detail refresh
+showed Access Denied and cleared all company, subscription, and AI-credit data.
+The mapping remains present and inactive. No production SQL or deployment
+occurred. Retain this redacted evidence in the restricted production change
+record; it does not satisfy any production-specific approval gate by itself.
 
 ## Required change record
 
