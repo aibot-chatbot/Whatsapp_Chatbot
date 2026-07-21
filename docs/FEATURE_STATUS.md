@@ -305,12 +305,19 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Bootstrap mapping remains present and inactive after the browser verification
   revocation; no production deployment occurred and existing production gates
   remain open
+- Phase 4 production-readiness package prepared with preflight/approval gates,
+  deployment and rollback procedures, audit metadata/retention policy,
+  monitoring, final staging rehearsal, and emergency revocation runbook
+- Production remains blocked pending protected-company/bootstrap/executor
+  approvals, exact archive configuration, formal audit-policy approval, backup
+  restore evidence, monitoring activation, and the append-only enforcement
+  decision and any required staged migration
 
 ## Platform Limitations
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Backend, API, and read-only frontend verified in staging; mapping inactive; production blocked |
+| Platform-admin controls | Backend, API, and frontend verified in staging; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | PDF receipts | Open (HTML only) |

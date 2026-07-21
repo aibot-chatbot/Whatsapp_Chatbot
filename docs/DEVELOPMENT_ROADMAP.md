@@ -12,7 +12,7 @@
 > | 4I | Renewal, grace period, failed-payment recovery | Complete |
 > | 4J | Billing notifications and alerts | Complete |
 > | 4K | Advanced billing and AI-usage reporting | Complete |
-> | 4L | Platform-admin controls | **Verified complete in staging; production blocked** |
+> | 4L | Platform-admin controls | **Staging verified; production-readiness package prepared; production blocked** |
 > | 4M | Production launch audit and remediation | Complete |
 >
 > ---
@@ -38,6 +38,15 @@ staging browser. No stale platform data remained visible after revocation. The
 bootstrap mapping remains present and inactive. Production remains blocked by
 the documented Phase 1.5 approval gates and has not received any of these
 changes.
+
+Phase 4 production-readiness documentation now defines the production
+preflight and approval register, protected internal-company and bootstrap
+controls, exact 023–025/backend/frontend/bootstrap verification sequence,
+rollback and monitoring plans, final staging rehearsal, audit metadata and
+retention policy, and emergency revocation. An UPDATE/DELETE rejection trigger
+is recommended as the initial stronger append-only control, but no trigger,
+role, SQL, bootstrap, deployment, or production change has been applied. Formal
+approvals and any required staged append-only migration remain outstanding.
 
 ## Roadmap Principles
 
