@@ -31,7 +31,9 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
         self.addCleanup(self.secret.stop)
 
     def _request(self, user=None, mapping=None, user_error=None, mapping_error=None):
-        user = user if user is not None else {"id": 7, "status": "active", "role": "member"}
+        user = user if user is not None else {
+            "id": 7, "company_id": 99, "status": "active", "role": "member"
+        }
         user_patch = patch("app.database.user_repository.get_user_by_id")
         mapping_patch = patch(
             "app.decorators.platform_admin_decorator.get_active_platform_admin_by_user_id"
@@ -46,7 +48,7 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
 
     def test_tenant_admin_and_owner_without_mapping_are_denied(self):
         for role in ("admin", "owner"):
-            response, _ = self._request(user={"id": 7, "status": "active", "role": role})
+            response, _ = self._request(user={"id": 7, "company_id": 99, "status": "active", "role": role})
             self.assertEqual(response.status_code, 403)
             self.assertEqual(response.json["code"], "platform_admin_access_denied")
 
@@ -102,13 +104,15 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
     def test_role_changes_do_not_affect_access(self):
         for role in ("owner", "admin", "member"):
             response, _ = self._request(
-                user={"id": 7, "status": "active", "role": role},
+                user={"id": 7, "company_id": 99, "status": "active", "role": role},
                 mapping={"id": 12, "user_id": 7, "is_active": True},
             )
             self.assertEqual(response.status_code, 200)
 
     def test_mapping_is_refreshed_and_revocation_applies_next_request(self):
-        with patch("app.database.user_repository.get_user_by_id", return_value={"id": 7, "status": "active"}), patch(
+        with patch("app.database.user_repository.get_user_by_id", return_value={
+            "id": 7, "company_id": 99, "status": "active", "role": "member"
+        }), patch(
             "app.decorators.platform_admin_decorator.get_active_platform_admin_by_user_id",
             side_effect=[{"id": 12, "is_active": True}, None],
         ) as lookup:
@@ -126,14 +130,14 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
     def test_malformed_authenticated_user_ids_fail_before_mapping_lookup(self):
         for malformed_id in (True, 0, -1, "7", None):
             with self.subTest(user_id=malformed_id):
-                response, mapping = self._request(
-                    user={"id": malformed_id, "status": "active", "role": "member"},
-                    mapping={"id": 12, "is_active": True},
-                )
-                self.assertEqual(response.status_code, 500)
-                self.assertEqual(
-                    response.json["code"], "platform_admin_guard_misconfigured"
-                )
+                with self.app.test_request_context("/protected"):
+                    g.authenticated_user = {"id": malformed_id}
+                    with patch(
+                        "app.decorators.platform_admin_decorator.get_active_platform_admin_by_user_id"
+                    ) as mapping:
+                        response, status_code = self.protected.__wrapped__()
+                self.assertEqual(status_code, 500)
+                self.assertEqual(response.get_json()["code"], "platform_admin_guard_misconfigured")
                 mapping.assert_not_called()
 
 

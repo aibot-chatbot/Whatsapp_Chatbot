@@ -37,6 +37,8 @@ def get_testbot_context():
             }
         }), 200
 
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",

@@ -160,6 +160,8 @@ def connect_wasender():
             "message": str(e)
         }), 403
 
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Connect Wasender error: {e}")
         return jsonify({
@@ -191,6 +193,8 @@ def list_wasender_channels():
             "data": safe_channels
         }), 200
 
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"List Wasender channels error: {e}")
         return jsonify({

@@ -31,6 +31,8 @@ def fetch_settings():
             "status": "success",
             "data": settings
         }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -66,6 +68,8 @@ def save_settings():
             "status": "success",
             "data": updated_settings
         }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -102,6 +106,8 @@ def save_active_profile():
             "status": "success",
             "data": updated_settings
         }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",

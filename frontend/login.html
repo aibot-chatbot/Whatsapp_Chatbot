@@ -405,6 +405,7 @@
         </div>
     </div>
 
+    <script src="assets/js/auth.js"></script>
     <script>
         const loginForm = document.getElementById('login-form');
         const loginBtn = document.getElementById('login-btn');
@@ -446,10 +447,12 @@
                     return;
                 }
 
-                sessionStorage.setItem("isLoggedIn", "true");
-                sessionStorage.setItem("user", JSON.stringify(result.user));
-                if (result.token) {
-                    sessionStorage.setItem("token", result.token);
+                if (!establishAuthenticatedSession(result.user, result.token)) {
+                    var sessionError = document.getElementById("login-error");
+                    sessionError.textContent = "Login could not be completed. Please try again.";
+                    sessionError.style.display = "block";
+                    loginBtn.classList.remove('loading');
+                    return;
                 }
 
                 window.location.href = "bots.html";
@@ -513,9 +516,10 @@
                 }
 
                 if (result.status === 'success') {
-                    sessionStorage.setItem('isLoggedIn', 'true');
-                    sessionStorage.setItem('user', JSON.stringify(result.user));
-                    sessionStorage.setItem('token', result.token);
+                    if (!establishAuthenticatedSession(result.user, result.token)) {
+                        alert('Sign-in could not be completed. Please try again.');
+                        return;
+                    }
                     window.location.href = 'bots.html';
                 } else {
                     alert(result.message || 'Google sign-in failed. Please try again.');

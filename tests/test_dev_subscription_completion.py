@@ -45,7 +45,7 @@ with patch("app.database.db.supabase", _sb):
     from app.routes.dev_billing_routes import dev_billing_bp
     from flask import Flask
 
-MOCK_USER = {"id": 100, "full_name": "Test User", "email": "test@example.com", "phone": None, "status": "active"}
+MOCK_USER = {"id": 100, "company_id": 42, "full_name": "Test User", "email": "test@example.com", "phone": None, "status": "active"}
 
 
 def _make_app():

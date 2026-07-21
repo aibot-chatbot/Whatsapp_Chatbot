@@ -242,6 +242,8 @@ def complete_embedded_signup():
             "message": str(e)
         }), 403
 
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Complete WhatsApp Embedded Signup error: {e}")
         return jsonify({
@@ -299,6 +301,8 @@ def list_whatsapp_channels():
             "data": safe_channels
         }), 200
 
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"List WhatsApp channels error: {e}")
         return jsonify({

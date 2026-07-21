@@ -20,7 +20,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 "user_id": 7, "company_id": 100, "role": "member", "is_platform_admin": False,
             }),
             patch("app.database.user_repository.get_user_by_id", return_value={
-                "id": 7, "email": "internal@example.test", "status": "active", "role": "member",
+                "id": 7, "company_id": 100, "email": "internal@example.test", "status": "active", "role": "member",
             }),
             patch(
                 "app.decorators.platform_admin_decorator.get_active_platform_admin_by_user_id",

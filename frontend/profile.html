@@ -3546,19 +3546,30 @@ async function loadBillingInfo() {
             return div.innerHTML;
         }
 
-// Init
-        loadBillingNotifications();
-        loadBillingNotificationsUnreadCount();
-        restorePreferences();
-        loadProfile();
-        loadTeamInfo();
-        loadBillingInfo();
-        fetchAiCredit();
-        fetchAiCreditUsageSummary();
-        loadSubscriptionPaymentHistory();
-        fetchAiCreditTransactions();
-        handleToyyibpayReturn();
-        handleSubscriptionPaymentReturn();
+// Init only after an optional URL chatbot context has been authorized.
+        async function initializeProfilePage() {
+            const requestedBotId = new URLSearchParams(window.location.search).get("bot_id");
+            const storedBotId = sessionStorage.getItem("selectedBotId");
+            const chatbotContext = requestedBotId || storedBotId;
+            if (chatbotContext && !(await validateChatbotContext(chatbotContext))) {
+                return;
+            }
+
+            loadBillingNotifications();
+            loadBillingNotificationsUnreadCount();
+            restorePreferences();
+            loadProfile();
+            loadTeamInfo();
+            loadBillingInfo();
+            fetchAiCredit();
+            fetchAiCreditUsageSummary();
+            loadSubscriptionPaymentHistory();
+            fetchAiCreditTransactions();
+            handleToyyibpayReturn();
+            handleSubscriptionPaymentReturn();
+        }
+
+        initializeProfilePage();
     </script>
 </body>
 

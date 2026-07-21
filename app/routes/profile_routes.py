@@ -24,6 +24,8 @@ def fetch_profiles():
             "status": "success",
             "data": profiles
         }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -62,6 +64,8 @@ def create_profile():
             "status": "error",
             "message": str(e)
         }), 400
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         return jsonify({
             "status": "error",
