@@ -41,12 +41,14 @@ changes.
 
 Phase 4 production-readiness documentation now defines the production
 preflight and approval register, protected internal-company and bootstrap
-controls, exact 023–025/backend/frontend/bootstrap verification sequence,
+controls, exact 023–026/backend/frontend/bootstrap verification sequence,
 rollback and monitoring plans, final staging rehearsal, audit metadata and
-retention policy, and emergency revocation. An UPDATE/DELETE rejection trigger
-is recommended as the initial stronger append-only control, but no trigger,
-role, SQL, bootstrap, deployment, or production change has been applied. Formal
-approvals and any required staged append-only migration remain outstanding.
+retention policy, and emergency revocation. Migration 026 now implements the
+recommended UPDATE/DELETE rejection trigger and is verified in staging,
+including service-role mutation rejection and rollback cleanup. The mapping
+remains inactive. No production SQL, bootstrap, deployment, tenant-role change,
+or maintenance bypass has been applied; production approvals remain
+outstanding.
 
 ## Roadmap Principles
 

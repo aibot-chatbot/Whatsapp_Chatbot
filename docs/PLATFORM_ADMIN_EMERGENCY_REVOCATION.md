@@ -188,6 +188,25 @@ available.
   as security exposure. Repair only through an approved migration/reapplication
   plan and staging evidence.
 
+### Append-only trigger mismatch or rejection
+
+- Migration 026 and its expected trigger behavior are verified in staging only;
+  production remains undeployed and blocked by its separate approval gates.
+- Perform global mapping revocation if the migration 026 trigger is absent,
+  disabled, attached to the wrong table/events, owned unexpectedly, changed, or
+  returns anything other than the approved SQLSTATE 55000/message.
+- Capture function owner, SECURITY INVOKER flag, configuration, definition,
+  ACL, direct EXECUTE checks, trigger definition/enabled state, table owner,
+  grants, RLS, and policies using the SELECT-only inspection script.
+- Treat any successful audit UPDATE/DELETE as a critical integrity incident.
+  Preserve database statement logs, audit archive/manifests, actor/session
+  evidence, and affected ID/time ranges before repair.
+- Do not disable the trigger to annotate an incident, delete suspect events, or
+  restore service. Migration 026 has no maintenance bypass.
+- Owners/superusers can alter the trigger and remain privileged incident scope.
+  Repair only through an approved migration and repeat staging-equivalent
+  inspection/rejection tests before reactivation.
+
 ### Protected internal company deletion attempt
 
 - Stop the tenant deletion/offboarding workflow immediately.

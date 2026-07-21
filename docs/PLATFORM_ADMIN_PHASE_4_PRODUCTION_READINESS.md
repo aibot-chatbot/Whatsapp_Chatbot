@@ -5,12 +5,38 @@
 **Approval package prepared; production remains blocked.** Migrations 023, 024,
 and 025, the read-only backend, the five approved endpoints, audit behavior,
 bootstrap, immediate revocation, and the read-only frontend are verified in
-staging. The staging mapping remains present and inactive.
+staging. Migration 026 is also applied and verified in staging. The staging
+mapping remains present and inactive.
 
 This package does not authorize or perform SQL execution, deployment,
 bootstrap, mapping reactivation, tenant-role changes, or production access. It
 adds no endpoint or mutation feature and does not affect Flow Builder or
 Broadcast.
+
+Repository verification for migration 026 completed with 16 focused static
+tests passing, 87 platform-admin regression tests and 114 subtests passing, and
+the full safe suite at 1,437 passed, 1 skipped, and 125 subtests passed. Live
+staging inspection and rollback-only SQL verification also passed.
+
+### Verified migration 026 staging evidence
+
+- Function owner is `postgres`; SECURITY DEFINER is false and fixed
+  `search_path=pg_catalog` is present.
+- SQLSTATE `55000` and the stable
+  `platform_admin_audit_events is append-only` message were verified.
+- PUBLIC, anon, authenticated, and service_role have no direct EXECUTE on the
+  trigger function.
+- `platform_admin_audit_events_reject_mutation` is enabled, attached only to
+  `platform_admin_audit_events`, and fires BEFORE UPDATE OR DELETE FOR EACH ROW.
+- Table owner remains `postgres`; RLS remains enabled and not forced.
+- anon/authenticated retain no table privileges. service_role retains
+  SELECT/INSERT only, with UPDATE/DELETE denied.
+- RLS policies remain service-role SELECT and INSERT only.
+- The rollback-only test proved INSERT/SELECT success and stable trigger
+  rejection for UPDATE/DELETE while executing as service_role.
+- The temporary audit row and temporary UPDATE/DELETE grants were removed by
+  rollback. The platform-admin mapping remained inactive.
+- No production SQL or deployment occurred.
 
 Production may proceed only after every approval register item below has a
 named approver, dated decision, evidence link, and change ticket. A blank field
@@ -21,13 +47,13 @@ is a stop condition, not permission to use a default.
 | Gate | Required recorded decision | Owner | Approval state |
 |---|---|---|---|
 | Production Supabase identity | Project reference, organization, region, database name, endpoint hostname, and environment label independently matched | Database owner | Pending |
-| Release artifacts | Backend commit, frontend commit, migration commit, deploy artifact IDs, and SHA-256 hashes for 023–025 | Release manager | Pending |
+| Release artifacts | Backend commit, frontend commit, migration commit, deploy artifact IDs, and SHA-256 hashes for 023–026 | Release manager | Pending |
 | Migration executor and ownership | Named executor, execution method, expected `postgres` ownership, recovery operator, and approved window | Database owner | Pending |
 | Protected internal company | Approved production company, operational owner, backup, deletion exclusion, and lifecycle controls | SaaS operations owner | Pending |
 | Bootstrap identity | Exact internal user ID/email/company, active status, operator, approver, second verifier, and revocation owner | Security owner | Pending |
 | Audit metadata policy | Approve `docs/PLATFORM_ADMIN_AUDIT_POLICY.md` without unresolved exceptions | Security and privacy owners | Pending |
 | Retention and archive | Exact archive destination/KMS key, 13-month hot retention, seven-year archive, hold and deletion process | Security, legal, and data owners | Pending |
-| Append-only enforcement | Approve current grants, dedicated role, or rejection trigger; complete any required migration and staging verification | Database and security owners | Pending |
+| Append-only enforcement | Staging evidence accepted; approve migration 026 hash, owner, and inclusion in the production change | Database and security owners | Pending |
 | Backup and restore | Current backup/PITR state and successful isolated restoration evidence | Database owner | Pending |
 | Monitoring | Alert destinations, on-call owners, thresholds, and runbook links enabled before bootstrap | Operations owner | Pending |
 | Go/no-go | All evidence reviewed and a written production go decision recorded | Change approver | Pending |
@@ -51,8 +77,9 @@ is a stop condition, not permission to use a default.
 - [ ] Record the approved backend, frontend, migration, and release commit
       hashes. Require a clean, reviewed release commit; branch names are not
       evidence.
-- [ ] Compute SHA-256 hashes for migrations 023, 024, and 025 from the exact
-      checkout used for deployment and compare them with the approved hashes.
+- [ ] Compute SHA-256 hashes for migrations 023, 024, 025, and 026 from the
+      exact checkout used for deployment and compare them with the approved
+      hashes.
 - [ ] Confirm the deployment artifacts were built from the recorded commits and
       were not rebuilt from a mutable branch or uncommitted workspace.
 
@@ -119,8 +146,14 @@ active-mapping lookup on every request.
       RESTRICT ON DELETE RESTRICT`.
 - [ ] Non-blank action/resource checks and JSON-object metadata check exist.
 - [ ] Actor and resource timeline indexes match migration 024.
-- [ ] No timestamp-maintenance or unexpected table trigger exists unless the
-      separately approved append-only rejection-trigger option is selected.
+- [ ] No timestamp-maintenance or unexpected trigger exists. If migration 026
+      is approved/applied, the sole expected non-internal trigger is
+      `platform_admin_audit_events_reject_mutation`, enabled for row-level
+      BEFORE UPDATE OR DELETE.
+- [ ] The migration 026 function is owned by the approved executor/`postgres`,
+      is SECURITY INVOKER (`prosecdef = false`), has fixed
+      `search_path=pg_catalog`, contains the stable SQLSTATE 55000/message, and
+      grants no direct EXECUTE to PUBLIC or application-facing roles.
 - [ ] No policy exists for `anon` or `authenticated`; no DELETE policy exists;
       no audit UPDATE policy exists.
 
@@ -214,27 +247,62 @@ return exactly one row, and must not use conflict suppression or modify
 | Operational complexity | Low | High: role provisioning, credential/connection or controlled-RPC design, rotation, PostgREST/Supabase compatibility, and incident access | Medium: trigger/function ownership, deployment ordering, monitoring, and a controlled maintenance bypass |
 | Retention impact | Deletion remains possible after a later grant or privileged session; no built-in retention workflow | Retention worker needs a separately authorized role/path | Trigger rejects retention deletes until an approved owner maintenance procedure disables/bypasses it |
 | Recovery impact | Simple, but easiest to alter accidentally | Recovery must restore role memberships/grants and application connectivity | Restore must include trigger/function; emergency archive/delete needs an owner-run maintenance window |
-| Migration impact | None beyond 023–025 | New roles/grants plus an application database-access design and staging cycle | A new reviewed migration creating the rejection function/trigger and tests |
+| Migration impact | None beyond 023–025 | New roles/grants plus an application database-access design and staging cycle | Migration 026 creates the rejection function/trigger and is verified in staging only |
 | Drift surface | Direct/inherited grants, default ACLs, owner, superuser, BYPASSRLS | Role grants/memberships, controlled execution path, owner/superuser | Trigger existence/enabled state/function definition, owner/superuser |
 
 ### Recommendation
 
-Approve **Option C, an UPDATE/DELETE rejection trigger**, for the initial
-production release, subject to a separately reviewed migration and successful
-staging rehearsal. It materially strengthens append-only behavior under the
-current `service_role`/BYPASSRLS architecture without introducing a new backend
-database authentication path. The trigger must reject UPDATE and DELETE on
-`platform_admin_audit_events`, be owned by the approved database owner, and be
-covered by drift monitoring.
+Approve **Option C, the UPDATE/DELETE rejection trigger prepared in
+`data/026_enforce_platform_admin_audit_append_only.sql`**, for the initial
+production release. Its staging execution and rollback-only verification are
+complete; database/security approval for production remains required. It
+materially strengthens append-only behavior under the current
+`service_role`/BYPASSRLS architecture without introducing a new backend
+database authentication path.
+
+Migration 026 uses SECURITY INVOKER because the trigger function reads no
+database objects and needs no elevated rights; SECURITY DEFINER would add an
+unnecessary privilege boundary. It fixes `search_path` to `pg_catalog`, raises
+SQLSTATE `55000` with the stable non-sensitive message
+`platform_admin_audit_events is append-only`, fires BEFORE UPDATE OR DELETE for
+every row, and revokes direct function execution from PUBLIC, anon,
+authenticated, and service_role. It does not affect INSERT/SELECT, RLS,
+policies, table grants, existing rows, or retention logic.
+
+The function is owned by the migration executor; the approved production
+executor must produce and verify `postgres` ownership. Owners and superusers can
+still alter, disable, or drop the trigger. Migration 026 intentionally provides
+no maintenance bypass.
+
+### Migration 026 operational impact
+
+- **Retention and archival:** read-only export/archive SELECT remains available.
+  Scheduled retention DELETE is intentionally blocked; no purge may begin until
+  a separate maintenance design is approved and staging-tested.
+- **Recovery:** INSERT-based restoration into an isolated recovery database is
+  unaffected. Any process that expects to UPDATE or DELETE restored production
+  audit rows will fail and must not bypass the trigger ad hoc.
+- **Incident response:** investigators can SELECT/preserve events but cannot
+  annotate, correct, quarantine, or delete them in place. Case notes belong in
+  the restricted incident system.
+- **Privilege drift:** granting UPDATE/DELETE later does not make those
+  operations succeed while the trigger is enabled, but such a grant is still a
+  critical drift alert.
+- **Owner boundary:** table/function owners and superusers can change the
+  enforcement object. Their activity, ownership, trigger enabled state,
+  definition, and function ACL require continuous evidence and monitoring.
+- **Rollback:** do not remove migration 026 merely to restore application
+  service; INSERT/SELECT are unaffected. Trigger removal or change requires a
+  separate reviewed database migration and incident/retention justification.
 
 Option B is the preferred long-term least-privilege architecture if a future
 phase is authorized to change the database connection or controlled-RPC model.
 It is not safe to assume that merely creating a NOLOGIN role makes existing
 Supabase service-role requests execute as that role.
 
-Until the append-only option is approved, implemented if necessary, and tested
-in staging, production deployment remains blocked. No trigger or role change is
-implemented by this Phase 4 documentation task.
+Migration 026 is applied, inspected, and rollback-tested in staging. Production
+deployment remains blocked by production-specific approval of its hash/owner
+and all other Phase 4 gates; staging verification is not production approval.
 
 ## Production monitoring requirements
 
@@ -268,6 +336,16 @@ Run this once more from the exact release commit and migration files approved
 for production:
 
 - [ ] Confirm the existing staging mapping is present and inactive.
+- [ ] Confirm migration 026 remains applied from the approved hash and the
+      staging mapping remains inactive.
+- [ ] Rerun `docs/platform_admin_phase_4_append_only_inspection.sql` and verify
+      owner, SECURITY INVOKER, fixed search path, minimized function ACL,
+      enabled trigger events, unchanged table grants, RLS, and policies.
+- [ ] Rerun
+      `docs/platform_admin_phase_4_append_only_staging_verification.sql` as one
+      rollback-only session. Require INSERT/SELECT success, stable UPDATE/DELETE
+      rejection while executing as service_role, removal of the test row, and
+      rollback of temporary test grants.
 - [ ] Verify all five backend endpoints and all three frontend pages deny access
       without exposing stale platform data.
 - [ ] Obtain a time-bounded, two-person approval for temporary reactivation.
@@ -290,9 +368,9 @@ does not itself approve production.
 
 Production is **NO-GO** if any approval is missing, any preflight output differs
 from the expected matrix, a migration or artifact hash differs, backup restore
-has not been demonstrated, monitoring is not live, append-only enforcement is
-unresolved, the internal company is not protected, or the bootstrap identity
-has not passed two-person verification.
+has not been demonstrated, monitoring is not live, migration 026 is not approved
+for the production release, the internal company is not protected, or the
+bootstrap identity has not passed two-person verification.
 
 The detailed operator sequence is in
 `docs/PLATFORM_ADMIN_PRODUCTION_DEPLOYMENT_RUNBOOK.md`; audit requirements are

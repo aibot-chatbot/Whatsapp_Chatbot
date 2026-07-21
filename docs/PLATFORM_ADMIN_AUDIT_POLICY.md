@@ -157,10 +157,16 @@ automatically, or fall back to an unaudited response.
   sequence. It has no direct UPDATE/DELETE grant or corresponding policy.
 - Because `service_role` has BYPASSRLS, application authorization and stronger
   append-only enforcement remain mandatory.
-- The recommended Phase 4 control is an UPDATE/DELETE rejection trigger,
-  separately migrated and verified before production.
+- Migration 026 provides a row-level BEFORE UPDATE OR DELETE rejection trigger.
+  It uses SECURITY INVOKER, fixed `search_path=pg_catalog`, and SQLSTATE 55000;
+  its function, trigger, privileges, INSERT/SELECT behavior, mutation rejection,
+  and rollback cleanup are verified in staging only.
+- Direct EXECUTE on the trigger function is revoked from PUBLIC, anon,
+  authenticated, and service_role. INSERT and SELECT are unaffected.
 - Table owners and superusers are reserved for approved migrations, archive
   maintenance, recovery, or incident response under two-person control.
+- Owners and superusers can still alter/disable/drop the trigger; ownership,
+  definition, enabled-state, and ACL drift therefore require monitoring.
 - No routine application, support, analytics, or reporting workflow may update
   or delete an event.
 
@@ -217,9 +223,9 @@ automatically, or fall back to an unaudited response.
 - Deletion after both the hot-retention threshold and verified archive requires
   written approval from the data owner and security owner; legal/privacy must
   confirm no hold. Two operators must execute and verify the maintenance.
-- If a rejection trigger is adopted, any controlled bypass/disable must occur
-  only in the approved maintenance transaction/window, followed immediately by
-  trigger-definition and enabled-state verification.
+- Migration 026 intentionally provides no maintenance bypass. Retention DELETE
+  is blocked until a future separately designed, approved, and staging-tested
+  maintenance procedure exists. Do not disable the trigger ad hoc.
 - Record deleted ID/time ranges, row counts, archive manifest/checksum, hold
   check, SQL/change reference, operators, approvals, and post-delete checks.
 - Never delete mapping rows to enable audit deletion; actor FK preservation is
