@@ -320,6 +320,20 @@
             position: relative;
         }
         .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 8px 20px var(--primary-glow); }
+        @media (max-width: 480px) {
+            body {
+                overflow: auto;
+            }
+            .login-container {
+                padding: 24px 20px;
+                border-radius: 24px;
+                max-width: calc(100% - 24px);
+                margin: 16px auto;
+            }
+            .logo-area {
+                margin-bottom: 24px;
+            }
+        }
     </style>
 </head>
 <body>

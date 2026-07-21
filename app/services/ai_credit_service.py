@@ -231,6 +231,7 @@ def get_company_ai_credit_summary(company_id: int) -> dict:
 def list_credit_transactions(
     company_id: int,
     limit: int = 50,
+    offset: int = 0,
 ) -> list[dict]:
     """Return recent AI-credit transactions for a company.
 
@@ -241,11 +242,12 @@ def list_credit_transactions(
     Args:
         company_id: The company to look up.
         limit: Maximum number of records (capped at 200).
+        offset: Pagination offset.
 
     Returns:
         List of transaction record dictionaries.
     """
-    return _list_transactions(company_id, limit=limit)
+    return _list_transactions(company_id, limit=limit, offset=offset)
 
 
 # ---------------------------------------------------------------------------

@@ -127,6 +127,25 @@
         .resend-box { margin-top: 24px; font-size: 0.9rem; color: var(--text-dim); }
         .resend-box a { color: var(--primary); text-decoration: none; font-weight: 600; cursor: pointer; }
         .resend-box a.disabled { opacity: 0.5; pointer-events: none; }
+        @media (max-width: 480px) {
+            body {
+                overflow: auto;
+            }
+            .verify-container {
+                padding: 24px 20px;
+                border-radius: 24px;
+                max-width: calc(100% - 24px);
+                margin: 16px auto;
+            }
+            .otp-inputs {
+                gap: 6px;
+            }
+            .otp-inputs input {
+                width: 40px;
+                height: 50px;
+                font-size: 1.25rem;
+            }
+        }
     </style>
 </head>
 <body>

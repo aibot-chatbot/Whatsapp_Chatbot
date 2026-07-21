@@ -35,6 +35,21 @@ class ChatbotSidebar extends HTMLElement {
                 z-index: 100;
                 font-family: 'Outfit', sans-serif;
                 transition: width 0.28s ease, padding 0.28s ease;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+            .sidebar::-webkit-scrollbar {
+                width: 4px;
+            }
+            .sidebar::-webkit-scrollbar-track {
+                background: transparent;
+            }
+            .sidebar::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.15);
+                border-radius: 4px;
+            }
+            .sidebar::-webkit-scrollbar-thumb:hover {
+                background: rgba(255, 255, 255, 0.3);
             }
             .sidebar, .sidebar * {
                 font-family: 'Outfit', sans-serif;

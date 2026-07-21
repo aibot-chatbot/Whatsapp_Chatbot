@@ -1,4 +1,4 @@
-﻿"""ai_credit_repository.py -- Read-only and RPC-wrapper access for AI credit balances and transactions.
+"""ai_credit_repository.py -- Read-only and RPC-wrapper access for AI credit balances and transactions.
 
 This repository provides read access to the immutable credit-transaction ledger
 and the current company credit balance. All balance-changing operations are
@@ -55,12 +55,14 @@ def get_company_credit_balance(company_id: int) -> dict | None:
 def list_company_credit_transactions(
     company_id: int,
     limit: int = 50,
+    offset: int = 0,
 ) -> list[dict]:
     """Return recent credit transactions for a company, newest first.
 
     Args:
         company_id: The company to look up.
         limit: Maximum number of records to return (capped at 200).
+        offset: Pagination offset.
 
     Returns:
         List of immutable transaction record dictionaries.
@@ -71,6 +73,7 @@ def list_company_credit_transactions(
     _validate_company_id(company_id)
 
     safe_limit = max(1, min(int(limit), 200))
+    safe_offset = max(0, int(offset))
 
     response = (
         supabase
@@ -78,7 +81,7 @@ def list_company_credit_transactions(
         .select("id,transaction_type,included_delta_micro_myr,topup_delta_micro_myr,included_balance_after_micro_myr,topup_balance_after_micro_myr,customer_charge_micro_myr,uncovered_charge_micro_myr,provider_cost_micro_usd,fx_rate_micro_myr_per_usd,markup_basis_points,ai_usage_log_id,reversal_of_transaction_id,period_start,period_end,description,created_at")
         .eq("company_id", company_id)
         .order("created_at", desc=True)
-        .limit(safe_limit)
+        .range(safe_offset, safe_offset + safe_limit - 1)
         .execute()
     )
 
