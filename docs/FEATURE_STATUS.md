@@ -308,10 +308,16 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Phase 4 production-readiness package prepared with preflight/approval gates,
   deployment and rollback procedures, audit metadata/retention policy,
   monitoring, final staging rehearsal, and emergency revocation runbook
+- Migration 026 append-only trigger applied and verified in staging: postgres
+  owner, SECURITY INVOKER, fixed pg_catalog search path, minimized function
+  EXECUTE, enabled row-level UPDATE/DELETE rejection, and unchanged RLS/grants
+- Rollback-only staging verification proved INSERT/SELECT success, stable
+  UPDATE/DELETE rejection through service_role, temporary-row removal, and
+  rollback of temporary mutation grants; the mapping remained inactive
 - Production remains blocked pending protected-company/bootstrap/executor
   approvals, exact archive configuration, formal audit-policy approval, backup
-  restore evidence, monitoring activation, and the append-only enforcement
-  decision and any required staged migration
+  restore evidence, monitoring activation, migration 026 production approval,
+  and final go/no-go
 
 ## Platform Limitations
 

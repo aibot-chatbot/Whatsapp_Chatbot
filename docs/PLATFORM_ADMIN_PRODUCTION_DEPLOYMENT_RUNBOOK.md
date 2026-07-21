@@ -36,6 +36,7 @@ FRONTEND_ARTIFACT_ID=
 MIGRATION_023_SHA256=
 MIGRATION_024_SHA256=
 MIGRATION_025_SHA256=
+MIGRATION_026_SHA256=
 BACKUP_ID_AND_UTC_TIME=
 ISOLATED_RESTORE_EVIDENCE=
 PROTECTED_INTERNAL_COMPANY_ID=
@@ -63,11 +64,14 @@ git status --short
 git rev-parse HEAD
 git log -1 --format="%H %cI %s" -- app
 git log -1 --format="%H %cI %s" -- frontend
-git log -1 --format="%H %cI %s" -- data/023_create_platform_admin_users.sql data/024_create_platform_admin_audit_events.sql data/025_enable_platform_admin_rls.sql
+git log -1 --format="%H %cI %s" -- data/023_create_platform_admin_users.sql data/024_create_platform_admin_audit_events.sql data/025_enable_platform_admin_rls.sql data/026_enforce_platform_admin_audit_append_only.sql
 Get-FileHash data\023_create_platform_admin_users.sql -Algorithm SHA256
 Get-FileHash data\024_create_platform_admin_audit_events.sql -Algorithm SHA256
 Get-FileHash data\025_enable_platform_admin_rls.sql -Algorithm SHA256
+Get-FileHash data\026_enforce_platform_admin_audit_append_only.sql -Algorithm SHA256
 Get-FileHash docs\platform_admin_phase_1_5_security_inspection.sql -Algorithm SHA256
+Get-FileHash docs\platform_admin_phase_4_append_only_inspection.sql -Algorithm SHA256
+Get-FileHash docs\platform_admin_phase_4_append_only_staging_verification.sql -Algorithm SHA256
 ```
 
 Require an empty `git status --short`. Compare every hash with the approval
@@ -329,19 +333,32 @@ on users (SELECT/INSERT/UPDATE), exactly two on audit events (SELECT/INSERT), no
 client policies, no DELETE policies, and no audit UPDATE policy. Rerun the full
 inspection script and compare all output with the approved matrix.
 
-### 4. Apply the approved append-only decision
+### 4. Apply migration 026
 
-- If Option A was explicitly accepted, attach the signed risk acceptance and
-  proceed without a new object.
-- If recommended Option C was approved, apply only the separately reviewed,
-  hash-recorded rejection-trigger migration after it has passed staging. Verify
-  function owner/definition, trigger enabled state, and rejection tests.
-- If Option B was approved, do not proceed until the application execution path
-  actually uses the approved non-BYPASSRLS role and its complete staging suite
-  passes.
+Migration 026 passed the documented staging inspection and rollback-only
+verification. After production-specific hash/owner/change approval, run its
+exact hash-verified contents in one production transaction:
 
-No append-only choice or missing required migration is a stop condition. Do not
-write a trigger or role ad hoc in the production SQL Editor.
+```sql
+BEGIN;
+-- Exact, hash-verified contents of data/026_enforce_platform_admin_audit_append_only.sql
+COMMIT;
+```
+
+Run `docs/platform_admin_phase_4_append_only_inspection.sql` unchanged. Require:
+
+- function owner `postgres` from the approved executor;
+- SECURITY INVOKER (`security_definer = false`);
+- fixed `search_path=pg_catalog` and exact function definition;
+- no direct EXECUTE for PUBLIC, anon, authenticated, or service_role;
+- one enabled non-internal BEFORE UPDATE OR DELETE row trigger on
+  `platform_admin_audit_events`;
+- unchanged owner, RLS state, policies, direct/effective table grants, and
+  sequence privileges from migrations 023–025.
+
+Do not run the mutation-based rollback verification in production. Retain its
+successful staging evidence instead. Do not write a trigger, role, or
+maintenance bypass ad hoc in the production SQL Editor.
 
 ### 5. Deploy backend
 
