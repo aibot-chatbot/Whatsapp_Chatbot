@@ -307,13 +307,20 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   remain open
 - Phase 4 production-readiness package prepared with preflight/approval gates,
   deployment and rollback procedures, audit metadata/retention policy,
-  monitoring, final staging rehearsal, and emergency revocation runbook
+  monitoring, completed final staging rehearsal evidence, and emergency
+  revocation runbook
 - Migration 026 append-only trigger applied and verified in staging: postgres
   owner, SECURITY INVOKER, fixed pg_catalog search path, minimized function
   EXECUTE, enabled row-level UPDATE/DELETE rejection, and unchanged RLS/grants
 - Rollback-only staging verification proved INSERT/SELECT success, stable
   UPDATE/DELETE rejection through service_role, temporary-row removal, and
   rollback of temporary mutation grants; the mapping remained inactive
+- Final Phase 4 staging rehearsal completed successfully: inactive-state denial,
+  time-bounded reactivation, dashboard/directory/detail and exact-count checks,
+  approved audit INSERTs and metadata, and post-revocation state clearing passed
+- The rehearsal ended with the mapping present and inactive; refresh showed
+  Access Denied with no stale company, subscription, or AI-credit data, and no
+  production SQL or deployment occurred
 - Production remains blocked pending protected-company/bootstrap/executor
   approvals, exact archive configuration, formal audit-policy approval, backup
   restore evidence, monitoring activation, migration 026 production approval,
