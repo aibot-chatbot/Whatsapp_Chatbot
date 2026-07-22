@@ -831,7 +831,11 @@ Rules:
                 )
                 
         except Exception as e:
-            logging.error(f"[GraphRAG] Failed processing chunk index {i} via DeepSeek: {e}")
+            logging.error(f"[GraphRAG] Failed processing chunk index {i}: {e}")
+            err_msg = str(e)
+            is_billing = "402" in err_msg or "billing" in err_msg.lower() or "payment" in err_msg.lower() or "credit" in err_msg.lower()
+            if is_billing:
+                raise e
             continue
 
     logging.info(f"[GraphRAG] Finished graph extraction for file_id={file_id}.")
