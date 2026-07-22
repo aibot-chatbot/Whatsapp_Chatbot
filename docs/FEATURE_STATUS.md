@@ -20,7 +20,8 @@
 | Reset password | Implemented | Requires renewed end-to-end verification |
 | Password visibility controls | Implemented | Present in authentication flows |
 | Email verification / OTP | Implemented | Security review required for OTP logging and production behavior |
-| Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match; live external Google verification is still required |
+| Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match. `RATELIMIT_GOOGLE_AUTH=10/minute` covers Google login, registration, and invitation acceptance; live external Google verification is still required |
+| Auth and public-invitation rate limiting | Verified complete | Flask-Limiter decorators registered before `create_app()` are enforced during normal startup. Existing login, OTP, password-reset, checkout, retry, receipt, and export limits are active when enabled; invitation validation is 30/minute and password invitation acceptance is 5/minute by default |
 | User profile | Implemented | Profile viewing and update flow exists |
 | Password change | Implemented | Requires regression coverage |
 
@@ -31,7 +32,7 @@
 | Company creation | Implemented | Created during account onboarding |
 | Profile company/workspace summary | Verified complete | Uses only company lookup, exact active-user count, valid pending-invitation count, and the current subscription Team limit. It is independent of full billing, chatbot, channel, knowledge, storage, AI-usage, and payment metrics, so unrelated usage failures do not blank the cards |
 | Team member list | Verified complete | Company-scoped read-only access for members uses refreshed database company and role context; admin/owner management actions remain permission-gated |
-| Team invitations | Implemented | Onboarding is invitation-only and direct `POST /api/users` returns HTTP 410. Roles are limited to `admin`/`member`. Active members plus valid unexpired pending invitations count toward the limit. Stale rows are refreshed and resend rotates token/expiry. Resend submits invitation ID, blocks duplicate in-flight requests, disables the clicked button, and refreshes invitations and Team usage after success. Password/Google acceptance joins `invitation.company_id`. Transactional acceptance and public endpoint rate limiting remain deferred |
+| Team invitations | Implemented | Onboarding is invitation-only and direct `POST /api/users` returns HTTP 410. Roles are limited to `admin`/`member`. Active members plus valid unexpired pending invitations count toward the limit. Stale rows are refreshed and resend rotates token/expiry. Resend submits invitation ID, blocks duplicate in-flight requests, disables the clicked button, and refreshes invitations and Team usage after success. Password/Google acceptance joins `invitation.company_id`; transactional acceptance remains deferred |
 | Role management | Implemented | Writes are company-scoped; refreshed database roles are authoritative with no JWT fallback, and owner accounts are protected |
 | Member deactivation | Implemented | Status updates are company-scoped, owner accounts are protected, and reactivation checks the Team limit |
 
@@ -162,10 +163,11 @@
 Latest recorded full automated suite:
 
 ```text
-1524 passed, 1 skipped, 143 subtests passed
+1534 passed, 1 skipped, 143 subtests passed
 ```
 
 - Focused workspace, Team, invitation, Google configuration, and tenant-scoping tests passed.
+- Rate-limit tests verified normal-startup enforcement, same-IP blocking, independent IP and endpoint buckets, disabled mode, test-application isolation, and rejection before protected writes, invitation acceptance, excess password hashing, or external Google verification.
 - Python compilation passed.
 - Invitation-page and Team-page JavaScript syntax validation passed.
 - Diff validation passed.
@@ -186,7 +188,8 @@ Latest recorded full automated suite:
 - Transactional company registration
 - Transactional invitation acceptance
 - Database-level protection against concurrent duplicate pending invitations
-- Rate limiting for public invitation validation and acceptance endpoints
+- Trusted reverse-proxy/client-IP handling for public rate-limit keys
+- Redis or equivalent shared production limiter storage for multi-worker enforcement
 
 ## Document Maintenance
 
