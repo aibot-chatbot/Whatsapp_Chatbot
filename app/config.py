@@ -71,6 +71,9 @@ def load_configurations(app):
     app.config.setdefault("RATELIMIT_RETRY", os.getenv("RATELIMIT_RETRY", "5/minute"))
     app.config.setdefault("RATELIMIT_RECEIPT", os.getenv("RATELIMIT_RECEIPT", "30/minute"))
     app.config.setdefault("RATELIMIT_EXPORT", os.getenv("RATELIMIT_EXPORT", "20/minute"))
+    app.config.setdefault("RATELIMIT_INVITE_VALIDATE", os.getenv("RATELIMIT_INVITE_VALIDATE", "30/minute"))
+    app.config.setdefault("RATELIMIT_INVITE_ACCEPT", os.getenv("RATELIMIT_INVITE_ACCEPT", "5/minute"))
+    app.config.setdefault("RATELIMIT_GOOGLE_AUTH", os.getenv("RATELIMIT_GOOGLE_AUTH", "10/minute"))
 
     # ── Legacy config values ───────────────────────────────────────────
     app.config["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")

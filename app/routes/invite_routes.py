@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request, g
 import secrets
 from werkzeug.security import generate_password_hash
 
+from app.rate_limit import limiter
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
 from app.database.invite_repository import (
@@ -317,6 +318,7 @@ def cancel_invite(invite_id):
 
 
 @invite_bp.route("/validate", methods=["GET"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_INVITE_VALIDATE", "30/minute"))
 def validate_invite():
     """Check an invite token and return its details if valid."""
     try:
@@ -352,6 +354,7 @@ def validate_invite():
 
 
 @invite_bp.route("/accept", methods=["POST"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_INVITE_ACCEPT", "5/minute"))
 def accept_invite():
     """Accept an invite, creating the user account."""
     try:
