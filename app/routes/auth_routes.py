@@ -90,6 +90,7 @@ def google_config():
 
 
 @auth_bp.route("/google", methods=["POST"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_GOOGLE_AUTH", "10/minute"))
 def google_auth():
     """
     Verify a Google ID token and log in or create the user.

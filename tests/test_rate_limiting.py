@@ -4,6 +4,7 @@ Unit tests for rate-limiting configuration and enforcement.
 """
 
 import os
+from datetime import datetime, timedelta, timezone
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
@@ -59,15 +60,24 @@ class TestRateLimitConfig(unittest.TestCase):
         self.assertIn("RATELIMIT_RETRY", app.config)
         self.assertIn("RATELIMIT_RECEIPT", app.config)
         self.assertIn("RATELIMIT_EXPORT", app.config)
+        self.assertEqual(app.config["RATELIMIT_INVITE_VALIDATE"], "30/minute")
+        self.assertEqual(app.config["RATELIMIT_INVITE_ACCEPT"], "5/minute")
+        self.assertEqual(app.config["RATELIMIT_GOOGLE_AUTH"], "10/minute")
 
     def test_custom_rate_limit_config(self):
         """Test that custom rate-limit values are loaded from env."""
         app = self._make_app_with_config({
             "RATELIMIT_LOGIN": "5/minute",
             "RATELIMIT_CHECKOUT": "3/minute",
+            "RATELIMIT_INVITE_VALIDATE": "12/minute",
+            "RATELIMIT_INVITE_ACCEPT": "4/minute",
+            "RATELIMIT_GOOGLE_AUTH": "8/minute",
         })
         self.assertEqual(app.config["RATELIMIT_LOGIN"], "5/minute")
         self.assertEqual(app.config["RATELIMIT_CHECKOUT"], "3/minute")
+        self.assertEqual(app.config["RATELIMIT_INVITE_VALIDATE"], "12/minute")
+        self.assertEqual(app.config["RATELIMIT_INVITE_ACCEPT"], "4/minute")
+        self.assertEqual(app.config["RATELIMIT_GOOGLE_AUTH"], "8/minute")
 
     def test_rate_limit_disabled_in_test(self):
         """RATELIMIT_ENABLED should be configurable."""
@@ -130,7 +140,7 @@ class TestRateLimitLimiterInit(unittest.TestCase):
 class TestRateLimitNormalStartup(unittest.TestCase):
     """Enforcement tests using the normal create_app route-import order."""
 
-    def _make_app(self, enabled=True, login_limit="1/minute"):
+    def _make_app(self, enabled=True, login_limit="1/minute", overrides=None):
         from app import create_app
 
         environment = {
@@ -143,7 +153,12 @@ class TestRateLimitNormalStartup(unittest.TestCase):
             "RATELIMIT_ENABLED": "true" if enabled else "false",
             "RATELIMIT_STORAGE_URI": "memory://",
             "RATELIMIT_LOGIN": login_limit,
+            "RATELIMIT_INVITE_VALIDATE": "30/minute",
+            "RATELIMIT_INVITE_ACCEPT": "5/minute",
+            "RATELIMIT_GOOGLE_AUTH": "10/minute",
         }
+        if overrides:
+            environment.update(overrides)
         with patch.dict(os.environ, environment, clear=False):
             app = create_app()
         app.config["TESTING"] = True
@@ -154,6 +169,29 @@ class TestRateLimitNormalStartup(unittest.TestCase):
         return client.post(
             "/api/auth/login",
             json={},
+            environ_base={"REMOTE_ADDR": remote_addr},
+        )
+
+    @staticmethod
+    def _validate_invite(client, remote_addr):
+        return client.get(
+            "/api/invites/validate",
+            environ_base={"REMOTE_ADDR": remote_addr},
+        )
+
+    @staticmethod
+    def _accept_invite(client, remote_addr, payload=None):
+        return client.post(
+            "/api/invites/accept",
+            json={} if payload is None else payload,
+            environ_base={"REMOTE_ADDR": remote_addr},
+        )
+
+    @staticmethod
+    def _google_auth(client, remote_addr, payload=None):
+        return client.post(
+            "/api/auth/google",
+            json={} if payload is None else payload,
             environ_base={"REMOTE_ADDR": remote_addr},
         )
 
@@ -191,6 +229,139 @@ class TestRateLimitNormalStartup(unittest.TestCase):
         second_app = self._make_app(enabled=True, login_limit="1/minute")
         second_client = second_app.test_client()
         self.assertEqual(self._login(second_client, "198.51.100.14").status_code, 400)
+
+    def test_invitation_validation_limit_is_enforced(self):
+        app = self._make_app(overrides={"RATELIMIT_INVITE_VALIDATE": "1/minute"})
+        client = app.test_client()
+
+        self.assertEqual(self._validate_invite(client, "198.51.100.20").status_code, 400)
+        self.assertEqual(self._validate_invite(client, "198.51.100.20").status_code, 429)
+
+    def test_invitation_accept_limit_blocks_database_writes(self):
+        app = self._make_app(overrides={"RATELIMIT_INVITE_ACCEPT": "1/minute"})
+        client = app.test_client()
+        expiry = (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat()
+        invitation = {
+            "id": 7,
+            "company_id": 42,
+            "email": "invitee@example.test",
+            "role": "member",
+            "status": "pending",
+            "expires_at": expiry,
+        }
+        created_user = {
+            "id": 9,
+            "company_id": 42,
+            "email": "invitee@example.test",
+            "role": "member",
+        }
+        payload = {
+            "token": "valid-token",
+            "full_name": "Invitee User",
+            "password": "Strong1!",
+        }
+
+        with patch(
+            "app.services.invitation_service.get_invite_by_token",
+            return_value=invitation,
+        ), patch(
+            "app.services.invitation_service.get_user_by_email",
+            return_value=None,
+        ), patch(
+            "app.services.invitation_service.can_accept_team_invitation",
+            return_value=True,
+        ), patch(
+            "app.services.invitation_service.create_user",
+            return_value=created_user,
+        ) as create_user, patch(
+            "app.services.invitation_service.update_invite",
+            return_value=invitation,
+        ) as update_invite:
+            first = self._accept_invite(client, "198.51.100.21", payload)
+            blocked = self._accept_invite(client, "198.51.100.21", payload)
+
+        self.assertEqual(first.status_code, 201)
+        self.assertEqual(blocked.status_code, 429)
+        create_user.assert_called_once()
+        update_invite.assert_called_once()
+
+    def test_google_auth_limit_blocks_network_and_invitation_acceptance(self):
+        app = self._make_app(overrides={
+            "RATELIMIT_GOOGLE_AUTH": "1/minute",
+        })
+        client = app.test_client()
+        google_response = MagicMock()
+        google_response.status_code = 200
+        google_response.json.return_value = {
+            "aud": "configured-google-client",
+            "email": "invitee@example.test",
+            "email_verified": "true",
+            "name": "Invitee User",
+            "sub": "google-user-id",
+        }
+        accepted_user = {
+            "id": 9,
+            "company_id": 42,
+            "email": "invitee@example.test",
+            "role": "member",
+        }
+        payload = {"credential": "credential", "invite_token": "invite-token"}
+
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), patch(
+            "requests.get",
+            return_value=google_response,
+        ) as google_request, patch(
+            "app.routes.auth_routes.get_user_by_email",
+            return_value=None,
+        ), patch(
+            "app.routes.auth_routes.accept_pending_invitation",
+            return_value=accepted_user,
+        ) as accept_invitation:
+            first = self._google_auth(client, "198.51.100.22", payload)
+            blocked = self._google_auth(client, "198.51.100.22", payload)
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(blocked.status_code, 429)
+        google_request.assert_called_once()
+        accept_invitation.assert_called_once()
+
+    def test_public_invitation_and_google_limits_have_independent_buckets(self):
+        app = self._make_app(overrides={
+            "RATELIMIT_INVITE_VALIDATE": "1/minute",
+            "RATELIMIT_INVITE_ACCEPT": "1/minute",
+            "RATELIMIT_GOOGLE_AUTH": "1/minute",
+        })
+        client = app.test_client()
+        remote_addr = "198.51.100.23"
+
+        self.assertEqual(self._validate_invite(client, remote_addr).status_code, 400)
+        self.assertEqual(self._accept_invite(client, remote_addr).status_code, 400)
+        self.assertEqual(self._google_auth(client, remote_addr).status_code, 400)
+        self.assertEqual(self._validate_invite(client, remote_addr).status_code, 429)
+        self.assertEqual(self._accept_invite(client, remote_addr).status_code, 429)
+        self.assertEqual(self._google_auth(client, remote_addr).status_code, 429)
+
+    def test_invitation_validation_uses_independent_ip_buckets(self):
+        app = self._make_app(overrides={"RATELIMIT_INVITE_VALIDATE": "1/minute"})
+        client = app.test_client()
+
+        self.assertEqual(self._validate_invite(client, "198.51.100.24").status_code, 400)
+        self.assertEqual(self._validate_invite(client, "198.51.100.24").status_code, 429)
+        self.assertEqual(self._validate_invite(client, "198.51.100.25").status_code, 400)
+
+    def test_disabled_mode_does_not_limit_public_invitation_or_google_routes(self):
+        app = self._make_app(enabled=False, overrides={
+            "RATELIMIT_INVITE_VALIDATE": "1/minute",
+            "RATELIMIT_INVITE_ACCEPT": "1/minute",
+            "RATELIMIT_GOOGLE_AUTH": "1/minute",
+        })
+        client = app.test_client()
+        remote_addr = "198.51.100.26"
+
+        for _ in range(3):
+            self.assertEqual(self._validate_invite(client, remote_addr).status_code, 400)
+            self.assertEqual(self._accept_invite(client, remote_addr).status_code, 400)
+            self.assertEqual(self._google_auth(client, remote_addr).status_code, 400)
 
 
 class TestRateLimitBillingRoutes(unittest.TestCase):
