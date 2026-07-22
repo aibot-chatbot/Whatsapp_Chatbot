@@ -29,9 +29,9 @@
 | Feature | Status | Notes |
 |---|---|---|
 | Company creation | Implemented | Created during account onboarding |
-| Profile company/workspace summary | Verified complete | Authenticated-company fields, refreshed role, active/pending counts, plan limit, remaining seats, and admin-only company editing share the Team usage source |
+| Profile company/workspace summary | Verified complete | Uses only company lookup, exact active-user count, valid pending-invitation count, and the current subscription Team limit. It is independent of full billing, chatbot, channel, knowledge, storage, AI-usage, and payment metrics, so unrelated usage failures do not blank the cards |
 | Team member list | Verified complete | Company-scoped read-only access for members uses refreshed database company and role context; admin/owner management actions remain permission-gated |
-| Team invitations | Implemented | Onboarding is invitation-only and direct `POST /api/users` returns HTTP 410. Roles are limited to `admin`/`member`. Active members plus valid unexpired pending invitations count toward the limit. Stale rows are refreshed, resend rotates token/expiry, and password/Google acceptance joins `invitation.company_id`. Transactional acceptance and public endpoint rate limiting remain deferred |
+| Team invitations | Implemented | Onboarding is invitation-only and direct `POST /api/users` returns HTTP 410. Roles are limited to `admin`/`member`. Active members plus valid unexpired pending invitations count toward the limit. Stale rows are refreshed and resend rotates token/expiry. Resend submits invitation ID, blocks duplicate in-flight requests, disables the clicked button, and refreshes invitations and Team usage after success. Password/Google acceptance joins `invitation.company_id`. Transactional acceptance and public endpoint rate limiting remain deferred |
 | Role management | Implemented | Writes are company-scoped; refreshed database roles are authoritative with no JWT fallback, and owner accounts are protected |
 | Member deactivation | Implemented | Status updates are company-scoped, owner accounts are protected, and reactivation checks the Team limit |
 
@@ -162,13 +162,16 @@
 Latest recorded full automated suite:
 
 ```text
-1519 passed, 1 skipped, 143 subtests passed
+1524 passed, 1 skipped, 143 subtests passed
 ```
 
 - Focused workspace, Team, invitation, Google configuration, and tenant-scoping tests passed.
 - Python compilation passed.
-- Invitation-page JavaScript syntax validation passed.
+- Invitation-page and Team-page JavaScript syntax validation passed.
 - Diff validation passed.
+- Manual resend verification produced one POST request and one email.
+- Manual cancellation verification returned HTTP 200, removed the invitation, changed pending invitations from 1 to 0, and restored available seats from 2 to 3.
+- `/api/workspace` returned HTTP 200 after resend, cancellation, and Profile load.
 - Live visual browser verification and external Google verification are still required.
 
 ## Cross-Cutting Items Requiring Investigation
