@@ -603,6 +603,12 @@ def get_knowledge_graph_data():
                     extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
                 except Exception as ext_err:
                     logging.error(f"[GraphRAG] Auto-extraction failed for file_id={file_id}: {ext_err}")
+                    err_msg = str(ext_err)
+                    is_billing = "402" in err_msg or "billing" in err_msg.lower() or "payment" in err_msg.lower() or "credit" in err_msg.lower()
+                    return jsonify({
+                        "status": "error",
+                        "message": f"Auto-extraction of Knowledge Graph failed: {err_msg}"
+                    }), 402 if is_billing else 500
 
         # 4. Fetch graph elements ONLY for this active PDF file
         nodes_result = (

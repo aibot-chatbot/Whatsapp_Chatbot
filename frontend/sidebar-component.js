@@ -104,6 +104,17 @@ class ChatbotSidebar extends HTMLElement {
                 flex-direction: column;
                 gap: 6px;
             }
+            .nav-group-header {
+                font-size: 0.7rem;
+                font-weight: 700;
+                color: var(--text-dim, #94a3b8);
+                opacity: 0.55;
+                text-transform: uppercase;
+                letter-spacing: 0.8px;
+                margin: 20px 0 6px 12px;
+                white-space: nowrap;
+                transition: opacity 0.28s ease, margin 0.28s ease, height 0.28s ease;
+            }
             .nav-link {
                 text-decoration: none;
                 color: var(--text-dim, #94a3b8);
@@ -281,6 +292,13 @@ class ChatbotSidebar extends HTMLElement {
                 align-items: center;
                 gap: 14px;
             }
+            .sidebar.collapsed .nav-group-header {
+                opacity: 0;
+                margin: 12px 0 6px;
+                height: 1px;
+                background: rgba(255, 255, 255, 0.05);
+                overflow: hidden;
+            }
             .sidebar.collapsed {
                 width: 80px;
                 padding: 32px 12px;
@@ -379,94 +397,94 @@ class ChatbotSidebar extends HTMLElement {
                 </a>
 
                 ${!isBotsPage && botId ? `
-                    <div style="height: 1px; background: rgba(255,255,255,0.05); margin: 12px 0;"></div>
-
+                    <div class="nav-group-header">General Overview</div>
                     <a href="index.html${botQuery}" class="nav-link" title="Dashboard">
                         <i data-lucide="layout-dashboard"></i>
                         <span>Dashboard</span>
                     </a>
 
+                    ${isAdmin ? `
+                        <div class="nav-group-header">Build &amp; Configuration</div>
+                        <div class="dropdown-container" id="training-dropdown">
+                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')" title="Training Data">
+                                <div class="nav-link-content">
+                                    <i data-lucide="folder-open"></i>
+                                    <span>Training Data</span>
+                                </div>
+                                <i data-lucide="chevron-down" class="chevron"></i>
+                            </button>
+                            <div class="dropdown-content">
+                                <a href="new_linkdocs.html${botQuery}" class="nav-link sub-link" title="Documents">
+                                    <i data-lucide="file-text"></i>
+                                    <span>Documents</span>
+                                </a>
+                                <a href="new_prompt.html${botQuery}" class="nav-link sub-link" title="Bot Config">
+                                    <i data-lucide="terminal-square"></i>
+                                    <span>Bot Config</span>
+                                </a>
+                                <a href="media_attachments.html${botQuery}" class="nav-link sub-link" title="Media Attachments">
+                                    <i data-lucide="image-plus"></i>
+                                    <span>Media Attachments</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="dropdown-container" id="behaviour-dropdown">
+                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('behaviour-dropdown')" title="Behaviour">
+                                <div class="nav-link-content">
+                                    <i data-lucide="settings"></i>
+                                    <span>Behaviour</span>
+                                </div>
+                                <i data-lucide="chevron-down" class="chevron"></i>
+                            </button>
+                            <div class="dropdown-content">
+                                <a href="model_settings.html${botQuery}" class="nav-link sub-link" title="Tune AI">
+                                    <i data-lucide="sliders-horizontal"></i>
+                                    <span>Tune AI</span>
+                                </a>
+                                <a href="testbot.html${botQuery}" class="nav-link sub-link" title="Test Bot">
+                                    <i data-lucide="flask-conical"></i>
+                                    <span>Test Bot</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <a href="flows.html${botQuery}" class="nav-link" title="Flow Builder">
+                            <i data-lucide="workflow"></i>
+                            <span>Flow Builder</span>
+                        </a>
+
+                        <a href="integration.html${botQuery}" class="nav-link" title="Integration">
+                            <i data-lucide="plug"></i>
+                            <span>Integration</span>
+                        </a>
+                    ` : ""}
+
+                    <div class="nav-group-header">Operate &amp; Engage</div>
                     <a href="conversations.html${botQuery}" class="nav-link" title="Inbox & Conversations">
                         <i data-lucide="message-square"></i>
-                        <span>Inbox & Conversations</span>
+                        <span>Inbox &amp; Chat</span>
+                    </a>
+                    <a href="broadcast.html${botQuery}" class="nav-link" title="Broadcast / Campaigns">
+                        <i data-lucide="send"></i>
+                        <span>Campaigns</span>
                     </a>
 
+                    <div class="nav-group-header">CRM &amp; Analytics</div>
                     <a href="crm.html${botQuery}" class="nav-link" title="CRM / Leads">
                         <i data-lucide="users"></i>
                         <span>CRM / Leads</span>
                     </a>
-
-                    <a href="broadcast.html${botQuery}" class="nav-link" title="Broadcast / Campaigns">
-                        <i data-lucide="send"></i>
-                        <span>Broadcast / Campaigns</span>
-                    </a>
-
+                    ${isAdmin ? `
+                        <a href="customer_insights.html${botQuery}" class="nav-link" title="Customer Insights">
+                            <i data-lucide="target"></i>
+                            <span>Customer Insights</span>
+                        </a>
+                    ` : ""}
                     <a href="reports.html${botQuery}" class="nav-link" title="Reports">
                         <i data-lucide="bar-chart-3"></i>
                         <span>Reports</span>
                     </a>
-
-                    ${isAdmin ? `
-                    <a href="flows.html${botQuery}" class="nav-link" title="Flow Builder">
-                        <i data-lucide="workflow"></i>
-                        <span>Flow Builder</span>
-                    </a>
-
-                    <a href="customer_insights.html${botQuery}" class="nav-link" title="Customer Insights">
-                        <i data-lucide="target"></i>
-                        <span>Customer Insights</span>
-                    </a>
-
-
-                    <div class="dropdown-container" id="training-dropdown">
-                        <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')" title="Training Data">
-                            <div class="nav-link-content">
-                                <i data-lucide="folder-open"></i>
-                                <span>Training Data</span>
-                            </div>
-                            <i data-lucide="chevron-down" class="chevron"></i>
-                        </button>
-                        <div class="dropdown-content">
-                            <a href="new_linkdocs.html${botQuery}" class="nav-link sub-link" title="Documents">
-                                <i data-lucide="file-text"></i>
-                                <span>Documents</span>
-                            </a>
-                            <a href="new_prompt.html${botQuery}" class="nav-link sub-link" title="Bot Config">
-                                <i data-lucide="terminal-square"></i>
-                                <span>Bot Config</span>
-                            </a>
-                            <a href="media_attachments.html${botQuery}" class="nav-link sub-link" title="Media Attachments">
-                                <i data-lucide="image-plus"></i>
-                                <span>Media Attachments</span>
-                            </a>
-                        </div>
-                    </div>
-
-                    <div class="dropdown-container" id="behaviour-dropdown">
-                        <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('behaviour-dropdown')" title="Behaviour">
-                            <div class="nav-link-content">
-                                <i data-lucide="settings"></i>
-                                <span>Behaviour</span>
-                            </div>
-                            <i data-lucide="chevron-down" class="chevron"></i>
-                        </button>
-                        <div class="dropdown-content">
-                            <a href="model_settings.html${botQuery}" class="nav-link sub-link" title="Tune AI">
-                                <i data-lucide="sliders-horizontal"></i>
-                                <span>Tune AI</span>
-                            </a>
-                            <a href="testbot.html${botQuery}" class="nav-link sub-link" title="Test Bot">
-                                <i data-lucide="flask-conical"></i>
-                                <span>Test Bot</span>
-                            </a>
-                        </div>
-                    </div>
-
-                    <a href="integration.html${botQuery}" class="nav-link" title="Integration">
-                        <i data-lucide="plug"></i>
-                        <span>Integration</span>
-                    </a>
-                    ` : ""}
                 ` : ""}
             </nav>
 
