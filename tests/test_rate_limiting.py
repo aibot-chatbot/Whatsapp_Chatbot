@@ -7,13 +7,11 @@ import os
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
-os.environ.setdefault("RATELIMIT_ENABLED", "true")
 
 import sys
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
 
 import types
-from unittest.mock import patch, MagicMock, PropertyMock
+from unittest.mock import patch, MagicMock
 import unittest
 
 # Mock external modules
@@ -82,25 +80,14 @@ class TestRateLimitConfig(unittest.TestCase):
 
 
 class TestRateLimitLimiterInit(unittest.TestCase):
-    """Tests for the rate-limit init and proxy."""
+    """Tests for the stable rate-limit extension and key function."""
 
-    def test_limiter_proxy_before_init(self):
-        """The limiter proxy should return a no-op decorator before init."""
-        # Import only the module, don't trigger init_limiter
-        import importlib
-        import app.rate_limit as rl_mod
-        importlib.reload(rl_mod)
-        limiter = rl_mod.limiter
-        # Before init, limiter is a _LimiterProxy
-        decorator = limiter.limit("1/minute")
-        # It should be callable and return the function unchanged
-        def fake_func():
-            return 42
-        result = decorator(fake_func)
-        self.assertIs(result, fake_func, "No-op decorator should return original function")
-        self.assertEqual(result(), 42)
-        # Reload the module again to restore the real limiter from other imports
-        importlib.reload(rl_mod)
+    def test_limiter_is_a_stable_flask_extension(self):
+        """Routes imported before create_app must decorate a real Limiter."""
+        from flask_limiter import Limiter
+        from app.rate_limit import limiter
+
+        self.assertIsInstance(limiter, Limiter)
 
     def test_limiter_after_init(self):
         """After init_limiter, calling .limit should create a real limit."""
@@ -138,6 +125,72 @@ class TestRateLimitLimiterInit(unittest.TestCase):
             # Should return an IP string (e.g., "127.0.0.1")
             self.assertIsNotNone(key)
             self.assertNotIn("company:", key)
+
+
+class TestRateLimitNormalStartup(unittest.TestCase):
+    """Enforcement tests using the normal create_app route-import order."""
+
+    def _make_app(self, enabled=True, login_limit="1/minute"):
+        from app import create_app
+
+        environment = {
+            "SUPABASE_URL": "https://test.supabase.co",
+            "SUPABASE_SERVICE_ROLE_KEY": "test-service-role-key",
+            "SECRET_KEY": "test-secret-key",
+            "FLASK_DEBUG": "1",
+            "CORS_ORIGINS": "http://localhost:8000",
+            "FRONTEND_URL": "http://localhost:3000",
+            "RATELIMIT_ENABLED": "true" if enabled else "false",
+            "RATELIMIT_STORAGE_URI": "memory://",
+            "RATELIMIT_LOGIN": login_limit,
+        }
+        with patch.dict(os.environ, environment, clear=False):
+            app = create_app()
+        app.config["TESTING"] = True
+        return app
+
+    @staticmethod
+    def _login(client, remote_addr):
+        return client.post(
+            "/api/auth/login",
+            json={},
+            environ_base={"REMOTE_ADDR": remote_addr},
+        )
+
+    def test_normal_startup_enforces_login_limit(self):
+        app = self._make_app(enabled=True, login_limit="1/minute")
+        client = app.test_client()
+
+        self.assertEqual(self._login(client, "198.51.100.10").status_code, 400)
+        self.assertEqual(self._login(client, "198.51.100.10").status_code, 429)
+
+    def test_disabled_mode_does_not_limit_repeated_requests(self):
+        app = self._make_app(enabled=False, login_limit="1/minute")
+        client = app.test_client()
+
+        statuses = [
+            self._login(client, "198.51.100.11").status_code
+            for _ in range(3)
+        ]
+        self.assertEqual(statuses, [400, 400, 400])
+
+    def test_public_ip_addresses_have_independent_buckets(self):
+        app = self._make_app(enabled=True, login_limit="1/minute")
+        client = app.test_client()
+
+        self.assertEqual(self._login(client, "198.51.100.12").status_code, 400)
+        self.assertEqual(self._login(client, "198.51.100.12").status_code, 429)
+        self.assertEqual(self._login(client, "198.51.100.13").status_code, 400)
+
+    def test_separate_applications_do_not_share_counters(self):
+        first_app = self._make_app(enabled=True, login_limit="1/minute")
+        first_client = first_app.test_client()
+        self.assertEqual(self._login(first_client, "198.51.100.14").status_code, 400)
+        self.assertEqual(self._login(first_client, "198.51.100.14").status_code, 429)
+
+        second_app = self._make_app(enabled=True, login_limit="1/minute")
+        second_client = second_app.test_client()
+        self.assertEqual(self._login(second_client, "198.51.100.14").status_code, 400)
 
 
 class TestRateLimitBillingRoutes(unittest.TestCase):
