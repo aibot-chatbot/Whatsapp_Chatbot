@@ -242,14 +242,19 @@ Make major frontend workflows consistent and verifiable.
 - Password and Google invitation acceptance always join `invitation.company_id` and do not create another company.
 - Google frontend configuration is loaded from public `GET /api/auth/google-config`; the invitation page contains no hardcoded Google client ID.
 - Backend Google authentication requires a configured `GOOGLE_CLIENT_ID`, an exact token-audience match, a verified Google email, and an invitation-email match. Google unavailability does not prevent password invitation acceptance.
+- Flask-Limiter initialization now preserves decorators registered before `create_app()` and enforces them during normal startup. Existing login, OTP, password-reset, checkout, retry, receipt, and export limits are genuinely active when `RATELIMIT_ENABLED=true`.
+- Public invitation validation uses `RATELIMIT_INVITE_VALIDATE=30/minute`, password invitation acceptance uses `RATELIMIT_INVITE_ACCEPT=5/minute`, and Google authentication uses `RATELIMIT_GOOGLE_AUTH=10/minute`. Google login, registration, and invitation acceptance share the same Google endpoint limit.
+- Rate-limited requests are rejected before protected database writes, invitation acceptance, password hashing beyond the threshold, or external Google verification. Same-IP enforcement, independent IP and endpoint buckets, disabled mode, and test-application isolation were verified.
 - Focused workspace, Team, invitation, Google configuration, and tenant-scoping regression coverage is present.
-- Latest full automated evidence: 1524 passed, 1 skipped, 143 subtests passed. Python compilation, invitation-page and Team-page JavaScript syntax validation, and diff validation also passed.
+- Latest full automated evidence: 1534 passed, 1 skipped, 143 subtests passed. Python compilation, invitation-page and Team-page JavaScript syntax validation, and diff validation also passed.
 
 ### Deferred risks
 
 - Normal registration and invitation acceptance remain non-atomic multi-write operations. A transactional PostgreSQL/Supabase RPC or equivalent transaction remains required.
-- Rate limiting for public invitation validation and acceptance remains deferred.
 - Concurrent invitation creation still ultimately requires database-level uniqueness or transactional protection against duplicate pending invitations.
+- Trusted reverse-proxy/client-IP handling remains required so public rate-limit buckets use the intended client address.
+- Redis or equivalent shared production limiter storage remains required for consistent multi-worker enforcement.
+- Live external Google end-to-end verification remains required.
 - Full visual browser verification remains required before Phase 5 can be considered complete.
 
 ### Included work
