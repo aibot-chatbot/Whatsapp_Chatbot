@@ -94,6 +94,41 @@ class TestTeamMemberLimitFrontend(unittest.TestCase):
         )
         self.assertIn('confirmText: "Cancel Invite"', cancel_fn)
 
+    def test_resend_submits_invitation_id_instead_of_email(self):
+        self.assertIn('data-invite-id=\\"" + inviteId', self.html)
+        self.assertIn('onclick=\\"resendInvite(" + inviteId + ", this)\\"', self.html)
+        self.assertNotIn("data-invite-email", self.html)
+
+        resend_fn = re.search(
+            r"async function resendInvite\(inviteId, clickedButton\) \{.*?\n        \}\n\n        async function cancelInvite",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn("body: JSON.stringify({ invite_id: inviteId })", resend_fn)
+        self.assertNotIn("JSON.stringify({ email:", resend_fn)
+
+    def test_resend_blocks_duplicate_in_flight_requests_and_disables_button(self):
+        resend_fn = re.search(
+            r"async function resendInvite\(inviteId, clickedButton\) \{.*?\n        \}\n\n        async function cancelInvite",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn("var resendInviteInFlight = Object.create(null);", self.html)
+        self.assertIn("if (resendInviteInFlight[inviteKey])", resend_fn)
+        self.assertIn("resendInviteInFlight[inviteKey] = true;", resend_fn)
+        self.assertIn("clickedButton.disabled = true;", resend_fn)
+        self.assertIn("delete resendInviteInFlight[inviteKey];", resend_fn)
+        self.assertIn("clickedButton.disabled = false;", resend_fn)
+
+    def test_successful_resend_refreshes_invites_and_team_usage(self):
+        resend_fn = re.search(
+            r"async function resendInvite\(inviteId, clickedButton\) \{.*?\n        \}\n\n        async function cancelInvite",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn('showMessage("Invitation resent successfully.", "success");', resend_fn)
+        self.assertIn("await Promise.all([loadInvites(), loadTeamUsage()]);", resend_fn)
+
     def test_limit_message_matches_expected_copy(self):
         self.assertIn(
             "Team limit reached. Remove a member, cancel an invitation, or upgrade your plan.",

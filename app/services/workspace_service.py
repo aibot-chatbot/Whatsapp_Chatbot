@@ -1,7 +1,9 @@
 import re
 
 from app.database.company_repository import get_company_by_id, update_company
-from app.services.billing_service import get_company_usage
+from app.database.invite_repository import count_valid_pending_invitations
+from app.database.user_repository import count_active_users_by_company
+from app.services.billing_service import get_current_subscription
 
 
 MANAGEMENT_ROLES = frozenset({"admin", "owner"})
@@ -12,13 +14,13 @@ def _normalized_role(user):
     return str((user or {}).get("role") or "").strip().lower()
 
 
-def _format_workspace(company, user, usage):
+def _format_workspace(company, user, active_members, pending_invitations, subscription):
     role = _normalized_role(user)
     can_manage = role in MANAGEMENT_ROLES
-    team_usage = ((usage or {}).get("usage") or {}).get("team_members") or {}
-    active_members = int(team_usage.get("used") or 0)
-    pending_invitations = int(team_usage.get("pending_invitations") or 0)
-    plan_member_limit = team_usage.get("limit")
+    active_members = max(int(active_members or 0), 0)
+    pending_invitations = max(int(pending_invitations or 0), 0)
+    plan = (subscription or {}).get("plan") or {}
+    plan_member_limit = plan.get("team_member_limit")
     remaining_seats = None
     if plan_member_limit is not None:
         remaining_seats = max(
@@ -47,10 +49,16 @@ def get_workspace_summary(company_id, user):
     if not company:
         raise LookupError("Company not found")
 
-    usage = get_company_usage(company_id)
-    if usage is None:
-        raise RuntimeError("Unable to retrieve company team usage")
-    return _format_workspace(company, user, usage)
+    active_members = count_active_users_by_company(company_id)
+    pending_invitations = count_valid_pending_invitations(company_id)
+    subscription = get_current_subscription(company_id)
+    return _format_workspace(
+        company,
+        user,
+        active_members,
+        pending_invitations,
+        subscription,
+    )
 
 
 def update_workspace_company(company_id, user, data):
