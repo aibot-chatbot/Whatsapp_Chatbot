@@ -20,7 +20,7 @@
 | Reset password | Implemented | Requires renewed end-to-end verification |
 | Password visibility controls | Implemented | Present in authentication flows |
 | Email verification / OTP | Implemented | Security review required for OTP logging and production behavior |
-| Google authentication | Implemented | External verification required |
+| Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match; live external Google verification is still required |
 | User profile | Implemented | Profile viewing and update flow exists |
 | Password change | Implemented | Requires regression coverage |
 
@@ -29,10 +29,11 @@
 | Feature | Status | Notes |
 |---|---|---|
 | Company creation | Implemented | Created during account onboarding |
-| Team member list | Implemented | Company-scoped |
-| Team invitations | Implemented | Invite creation, validation, and acceptance flows exist |
-| Role management | Implemented | Owner/admin controls exist |
-| Member deactivation | Implemented | Requires permission regression tests |
+| Profile company/workspace summary | Verified complete | Authenticated-company fields, refreshed role, active/pending counts, plan limit, remaining seats, and admin-only company editing share the Team usage source |
+| Team member list | Verified complete | Company-scoped read-only access for members uses refreshed database company and role context; admin/owner management actions remain permission-gated |
+| Team invitations | Implemented | Onboarding is invitation-only and direct `POST /api/users` returns HTTP 410. Roles are limited to `admin`/`member`. Active members plus valid unexpired pending invitations count toward the limit. Stale rows are refreshed, resend rotates token/expiry, and password/Google acceptance joins `invitation.company_id`. Transactional acceptance and public endpoint rate limiting remain deferred |
+| Role management | Implemented | Writes are company-scoped; refreshed database roles are authoritative with no JWT fallback, and owner accounts are protected |
+| Member deactivation | Implemented | Status updates are company-scoped, owner accounts are protected, and reactivation checks the Team limit |
 
 ## Chatbots and Configuration
 
@@ -158,13 +159,17 @@
 
 ## Known Verification Evidence
 
-The latest recorded full automated suite after the ToyyibPay migration passed:
+Latest recorded full automated suite:
 
 ```text
-398+82 tests passed (knowledge graph, escalation, agent reply, silent-bot, subscription plan, AI-access enforcement, and model-tier enforcement tests added)
+1519 passed, 1 skipped, 143 subtests passed
 ```
 
-A later read-only Codex audit could not rerun the suite because its virtual environment referenced an unavailable Python installation. That environment limitation does not replace the previously recorded successful result.
+- Focused workspace, Team, invitation, Google configuration, and tenant-scoping tests passed.
+- Python compilation passed.
+- Invitation-page JavaScript syntax validation passed.
+- Diff validation passed.
+- Live visual browser verification and external Google verification are still required.
 
 ## Cross-Cutting Items Requiring Investigation
 
@@ -175,6 +180,10 @@ A later read-only Codex audit could not rerun the suite because its virtual envi
 - Full route-level tenant-isolation review
 - Frontend automated test strategy
 - Current removal readiness of legacy backup files
+- Transactional company registration
+- Transactional invitation acceptance
+- Database-level protection against concurrent duplicate pending invitations
+- Rate limiting for public invitation validation and acceptance endpoints
 
 ## Document Maintenance
 

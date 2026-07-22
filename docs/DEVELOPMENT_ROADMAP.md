@@ -223,6 +223,31 @@ Suitable for phase-level delegation with human diff review.
 
 Make major frontend workflows consistent and verifiable.
 
+### Progress recorded 2026-07-22
+
+- Profile Team & Workspace uses authenticated company data and presents compact Company Information and Team Summary cards. `team.html` remains the full Team management interface.
+- Members have company-scoped read-only access. Admins and owners may manage invitations, supported member roles, and member statuses.
+- Workspace and Team company context is resolved from the refreshed authenticated database user. Browser-supplied `company_id` and `bot_id` values do not determine workspace or Team authorization.
+- Refreshed database roles are authoritative. Missing, blank, or invalid database roles fail closed, and JWT roles are not used as an authorization fallback.
+- Direct `POST /api/users` account creation is disabled with HTTP 410. Team onboarding is invitation-only.
+- Invitation roles are restricted to `admin` and `member`; `owner` cannot be assigned through an invitation.
+- Role changes, status changes, invitation resend, and invitation cancellation use company-scoped fetches and writes.
+- Active members plus valid, unexpired pending invitations consume the Team limit. An already-reserved pending invitation may be accepted when usage is exactly at the limit, while acceptance is rejected if the company is already over the limit.
+- Expired or malformed pending invitations do not reserve seats. Stale pending invitation rows are refreshed rather than duplicated, and resending rotates the token and expiry.
+- Invitation URLs use `/accept-invite.html?token=<token>`.
+- Password and Google invitation acceptance always join `invitation.company_id` and do not create another company.
+- Google frontend configuration is loaded from public `GET /api/auth/google-config`; the invitation page contains no hardcoded Google client ID.
+- Backend Google authentication requires a configured `GOOGLE_CLIENT_ID`, an exact token-audience match, a verified Google email, and an invitation-email match. Google unavailability does not prevent password invitation acceptance.
+- Focused workspace, Team, invitation, Google configuration, and tenant-scoping regression coverage is present.
+- Latest full automated evidence: 1519 passed, 1 skipped, 143 subtests passed. Python compilation, invitation-page JavaScript syntax validation, and diff validation also passed.
+
+### Deferred risks
+
+- Normal registration and invitation acceptance remain non-atomic multi-write operations. A transactional PostgreSQL/Supabase RPC or equivalent transaction remains required.
+- Rate limiting for public invitation validation and acceptance remains deferred.
+- Concurrent invitation creation still ultimately requires database-level uniqueness or transactional protection against duplicate pending invitations.
+- Full visual browser verification remains required before Phase 5 can be considered complete.
+
 ### Included work
 
 - Authentication pages
@@ -365,5 +390,3 @@ For each phase:
 5. Review the diff.
 6. Update `FEATURE_STATUS.md`.
 7. Commit the phase with one or a small number of meaningful commits.
-I. Grace period and failed-payment recovery .. Implemented
-J. (future phases) .......................... Not started
