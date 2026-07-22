@@ -89,7 +89,58 @@ def test_token_required_refreshes_role_and_company_from_user_row(refreshed_tenan
 
     response = app.test_client().get("/context", headers=AUTH_HEADERS)
     assert response.status_code == 200
-    assert response.get_json() == {"company_id": 28, "role": "owner", "user_id": 31}
+    assert response.get_json() == {"company_id": 28, "role": "admin", "user_id": 31}
+
+
+@pytest.mark.parametrize("database_role", [None, "", "   ", "superadmin"])
+def test_token_required_fails_closed_for_missing_blank_or_invalid_database_role(database_role):
+    from flask import Flask, jsonify
+    from app.decorators.auth_decorator import token_required
+
+    app = Flask(__name__)
+
+    @app.get("/context")
+    @token_required
+    def context():
+        return jsonify({"unexpected": True})
+
+    user = {"id": 31, "company_id": 28, "status": "active"}
+    if database_role is not None:
+        user["role"] = database_role
+    with patch(
+        "app.decorators.auth_decorator.jwt.decode",
+        return_value={"user_id": 31, "company_id": 28, "role": "admin"},
+    ), patch("app.database.user_repository.get_user_by_id", return_value=user):
+        response = app.test_client().get("/context", headers=AUTH_HEADERS)
+
+    assert response.status_code == 503
+    assert response.get_json() == {
+        "status": "error",
+        "code": "authorization_context_invalid",
+        "message": "Unable to validate account authorization.",
+    }
+
+
+def test_token_required_normalizes_database_role_and_overrides_stale_jwt():
+    from flask import Flask, g, jsonify
+    from app.decorators.auth_decorator import token_required
+
+    app = Flask(__name__)
+
+    @app.get("/context")
+    @token_required
+    def context():
+        return jsonify({"role": g.role})
+
+    user = {"id": 31, "company_id": 28, "role": " Member ", "status": "active"}
+    with patch(
+        "app.decorators.auth_decorator.jwt.decode",
+        return_value={"user_id": 31, "company_id": 28, "role": "admin"},
+    ), patch("app.database.user_repository.get_user_by_id", return_value=user):
+        response = app.test_client().get("/context", headers=AUTH_HEADERS)
+
+    assert response.status_code == 200
+    assert response.get_json() == {"role": "member"}
 
 
 @pytest.mark.parametrize(
@@ -130,16 +181,20 @@ def test_account_session_changes_clear_cached_chatbot_state():
     assert register_source.count("establishAuthenticatedSession(result.user, result.token)") == 1
 
 
-def test_profile_authorizes_url_bot_before_loading_tenant_data():
+def test_profile_continues_loading_when_chatbot_navigation_context_is_stale():
     profile_source = Path("frontend/profile.html").read_text(encoding="utf-8")
-    gate = profile_source.index("await validateChatbotContext(chatbotContext)")
-    profile_load = profile_source.index("loadProfile();", gate)
-    billing_load = profile_source.index("loadBillingInfo();", gate)
+    refresh = profile_source.index("await refreshProfileChatbotContext(chatbotContext)")
+    profile_load = profile_source.index("loadProfile();", refresh)
+    team_load = profile_source.index("loadTeamInfo();", refresh)
+    billing_load = profile_source.index("loadBillingInfo();", refresh)
+    helper_start = profile_source.index("async function refreshProfileChatbotContext")
+    helper_end = profile_source.index("/* ===== Subscription Management", helper_start)
+    context_helper = profile_source[helper_start:helper_end]
 
-    assert gate < profile_load < billing_load
-    assert 'window.location.replace("bots.html")' in Path(
-        "frontend/assets/js/auth.js"
-    ).read_text(encoding="utf-8")
+    assert refresh < profile_load < team_load < billing_load
+    assert "clearChatbotContext();" in context_helper
+    assert "window.location" not in context_helper
+    assert "validateChatbotContext(chatbotContext)" not in profile_source
 
 
 def test_all_chatbot_access_helpers_scope_by_current_company():
