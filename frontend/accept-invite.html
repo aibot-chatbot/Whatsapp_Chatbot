@@ -342,6 +342,11 @@
             text-decoration: underline;
         }
 
+        .invite-divider { display:flex; align-items:center; gap:12px; margin:20px 0; color:var(--text-dim); font-size:0.8rem; }
+        .invite-divider::before, .invite-divider::after { content:""; height:1px; flex:1; background:var(--glass-border); }
+        .google-invite-section[hidden] { display: none; }
+        .google-invite-button { display: flex; justify-content: center; min-height: 44px; }
+
         .invalid-state {
             text-align: center;
             padding: 20px 0;
@@ -472,6 +477,11 @@
                 </button>
             </form>
 
+            <div id="googleInviteSection" class="google-invite-section" hidden>
+                <div class="invite-divider">or</div>
+                <div id="googleInviteButton" class="google-invite-button" aria-label="Continue with Google"></div>
+            </div>
+
             <div class="footer-text">
                 Already have an account? <a href="login.html">Sign in</a>
             </div>
@@ -486,7 +496,13 @@
         </div>
     </div>
 
+    <script src="assets/js/auth.js"></script>
     <script>
+        var inviteIsValid = false;
+        var googleLibraryLoaded = false;
+        var googleClientId = '';
+        var googleInitialized = false;
+
         // ── Helper: toggle password visibility ──
         function togglePwd(inputId, btn) {
             var input = document.getElementById(inputId);
@@ -519,6 +535,7 @@
         }
 
         function showForm(data) {
+            inviteIsValid = true;
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('invalidState').style.display = 'none';
             document.getElementById('formSection').style.display = 'block';
@@ -531,12 +548,13 @@
                 var roleLabel = data.role === 'admin' ? 'Admin' : 'Member';
                 document.getElementById('invitedRole').textContent = roleLabel;
             }
-            if (data.company_id) {
-                document.getElementById('companyDisplay').textContent = 'your organization';
-            }
+            document.getElementById('companyDisplay').textContent = 'your organization';
+            initializeGoogleInviteOption();
         }
 
         function showInvalid(title, message) {
+            inviteIsValid = false;
+            hideGoogleInviteOption();
             document.getElementById('loadingState').style.display = 'none';
             document.getElementById('invalidState').style.display = 'block';
             document.getElementById('formSection').style.display = 'none';
@@ -643,6 +661,89 @@
             return params.get('token') || '';
         }
 
+        function hideGoogleInviteOption() {
+            document.getElementById('googleInviteSection').hidden = true;
+        }
+
+        function initializeGoogleInviteOption() {
+            if (googleInitialized || !inviteIsValid || !googleLibraryLoaded || !googleClientId) {
+                return;
+            }
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+                hideGoogleInviteOption();
+                return;
+            }
+
+            try {
+                google.accounts.id.initialize({
+                    client_id: googleClientId,
+                    callback: onGoogleInviteCredential
+                });
+                google.accounts.id.renderButton(
+                    document.getElementById('googleInviteButton'),
+                    { theme: 'outline', size: 'large', width: 320 }
+                );
+                googleInitialized = true;
+                document.getElementById('googleInviteSection').hidden = false;
+            } catch (err) {
+                hideGoogleInviteOption();
+            }
+        }
+
+        function handleGoogleLibraryLoad() {
+            googleLibraryLoaded = typeof google !== 'undefined' && !!google.accounts && !!google.accounts.id;
+            initializeGoogleInviteOption();
+        }
+
+        function handleGoogleLibraryError() {
+            googleLibraryLoaded = false;
+            hideGoogleInviteOption();
+        }
+
+        async function loadGoogleConfiguration() {
+            try {
+                var res = await fetch('/api/auth/google-config');
+                var result = await res.json();
+                var runtimeClientId = result && result.data && result.data.client_id;
+                if (!res.ok || result.status !== 'success' || typeof runtimeClientId !== 'string' || !runtimeClientId.trim()) {
+                    hideGoogleInviteOption();
+                    return;
+                }
+                googleClientId = runtimeClientId.trim();
+                initializeGoogleInviteOption();
+            } catch (err) {
+                hideGoogleInviteOption();
+            }
+        }
+
+        async function onGoogleInviteCredential(response) {
+            if (!response || !response.credential) {
+                showMessage('error', 'Google sign-in could not be completed. You can continue with your name and password.');
+                return;
+            }
+
+            var button = document.getElementById('googleInviteButton');
+            button.style.pointerEvents = 'none';
+            button.setAttribute('aria-busy', 'true');
+            try {
+                var res = await fetch('/api/auth/google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credential: response.credential, invite_token: getTokenFromUrl() })
+                });
+                var result = await res.json();
+                if (!res.ok || result.status !== 'success') throw new Error('google_acceptance_failed');
+                if (!establishAuthenticatedSession(result.user, result.token)) throw new Error('Sign-in could not be completed.');
+                window.location.href = 'bots.html';
+            } catch (err) {
+                showMessage('error', 'Google invitation acceptance failed. You can continue with your name and password.');
+                button.style.pointerEvents = '';
+                button.removeAttribute('aria-busy');
+            }
+        }
+
+        loadGoogleConfiguration();
+
         // ── On page load: validate invite ──
         (async function() {
             var token = getTokenFromUrl();
@@ -674,5 +775,7 @@
             }
         })();
     </script>
+    <script src="https://accounts.google.com/gsi/client" async defer
+            onload="handleGoogleLibraryLoad()" onerror="handleGoogleLibraryError()"></script>
 </body>
 </html>

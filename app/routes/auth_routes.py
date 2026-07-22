@@ -71,6 +71,24 @@ def parse_otp_expiry(expiry_value):
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
 
+@auth_bp.route("/google-config", methods=["GET"])
+def google_config():
+    """Return the public Google OAuth client identifier used by the frontend."""
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    if not google_client_id:
+        return jsonify({
+            "status": "error",
+            "message": "Google sign-in is currently unavailable."
+        }), 503
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "client_id": google_client_id
+        }
+    })
+
+
 @auth_bp.route("/google", methods=["POST"])
 def google_auth():
     """
