@@ -28,7 +28,6 @@ if "_tools" not in sys.modules:
 
 with patch("app.database.db.supabase", MagicMock()):
     from app import create_app
-    from app.services.billing_guard import BillingLimitError
 
 
 CURRENT_USER = {
@@ -67,62 +66,39 @@ class TestDirectTeamMemberCreationLimit(unittest.TestCase):
             return_value=CURRENT_USER,
         )
 
-    def test_post_users_succeeds_below_team_member_limit(self):
-        created_user = {
-            "id": 99,
-            "company_id": 42,
-            "phone": None,
-            "full_name": "New Member",
-            "email": "new.member@example.com",
-            "role": "member",
-            "status": "active",
-            "is_verified": True,
-        }
-
-        with self._patch_auth(), self._patch_current_user(), \
-             patch("app.routes.user_routes.get_user_by_email", return_value=None), \
-             patch("app.routes.user_routes.can_add_team_member", return_value=True) as mock_guard, \
-             patch("app.routes.user_routes.create_user", return_value=created_user) as mock_create:
+    def test_post_users_returns_410_and_requires_email_invitations(self):
+        with self._patch_auth(), self._patch_current_user():
             response = self.client.post(
                 "/api/users",
                 json=VALID_MEMBER_PAYLOAD,
                 headers=self.headers,
             )
 
-        self.assertEqual(response.status_code, 201)
-        body = response.get_json()
-        self.assertEqual(body["status"], "success")
-        self.assertEqual(body["data"]["email"], "new.member@example.com")
-        mock_guard.assert_called_once_with(42)
-        mock_create.assert_called_once()
-
-    def test_post_users_returns_403_at_team_member_limit(self):
-        error = BillingLimitError(
-            "Team member limit reached for the current subscription plan.",
-            code="team_member_limit",
-            details={"used": 5, "limit": 5},
-        )
-
-        with self._patch_auth(), self._patch_current_user(), \
-             patch("app.routes.user_routes.get_user_by_email", return_value=None), \
-             patch("app.routes.user_routes.can_add_team_member", side_effect=error), \
-             patch("app.routes.user_routes.create_user") as mock_create:
-            response = self.client.post(
-                "/api/users",
-                json=VALID_MEMBER_PAYLOAD,
-                headers=self.headers,
-            )
-
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 410)
         body = response.get_json()
         self.assertEqual(body["status"], "error")
-        self.assertEqual(body["code"], "team_member_limit")
-        self.assertEqual(
-            body["message"],
-            "Team member limit reached for the current subscription plan.",
-        )
-        self.assertEqual(body["details"], {"used": 5, "limit": 5})
-        mock_create.assert_not_called()
+        self.assertIn("email invitations", body["message"].lower())
+
+    def test_post_users_does_not_invoke_direct_creation_dependencies(self):
+        with self._patch_auth(), self._patch_current_user(), \
+             patch("app.routes.user_routes.get_user_by_email", create=True) as lookup_user, \
+             patch("app.routes.user_routes.generate_password_hash") as hash_password, \
+             patch("app.routes.user_routes.create_user", create=True) as create_user, \
+             patch("app.routes.user_routes.can_add_team_member") as capacity_guard:
+            response = self.client.post(
+                "/api/users",
+                json=VALID_MEMBER_PAYLOAD,
+                headers=self.headers,
+            )
+
+        self.assertEqual(response.status_code, 410)
+        body = response.get_json()
+        self.assertEqual(body["status"], "error")
+        self.assertIn("email invitations", body["message"].lower())
+        lookup_user.assert_not_called()
+        hash_password.assert_not_called()
+        create_user.assert_not_called()
+        capacity_guard.assert_not_called()
 
 
 if __name__ == "__main__":
