@@ -148,6 +148,26 @@ def get_users_by_company(company_id):
 
     return response.data or []
 
+
+def count_active_users_by_company(company_id):
+    """Return an exact count of active users in a company without loading rows."""
+    if not company_id:
+        raise ValueError("Company ID is required")
+
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("id", count="exact", head=True)
+        .eq("company_id", company_id)
+        .eq("status", "active")
+        .execute()
+    )
+    try:
+        count = int(response.count or 0)
+    except (TypeError, ValueError):
+        count = 0
+    return max(count, 0)
+
+
 def count_active_admins_by_company(company_id):
     """Count active admin/owner users in a company."""
     response = (

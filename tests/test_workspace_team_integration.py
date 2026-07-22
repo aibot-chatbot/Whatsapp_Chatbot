@@ -18,7 +18,7 @@ from app.services.invitation_service import (
 )
 from app.services.workspace_service import get_workspace_summary, update_workspace_company
 from app.services.billing_guard import BillingLimitError, can_accept_team_invitation, can_add_team_member
-from app.database.user_repository import update_user_for_company
+from app.database.user_repository import count_active_users_by_company, update_user_for_company
 from app.database.invite_repository import (
     delete_invite,
     get_invite_by_id,
@@ -423,12 +423,30 @@ class InvitationRouteTests(unittest.TestCase):
 
 
 class WorkspaceServiceTests(unittest.TestCase):
-    @patch("app.services.workspace_service.get_company_usage")
-    @patch("app.services.workspace_service.get_company_by_id")
-    def test_summary_reports_role_counts_limit_and_remaining_seats(self, company, usage):
-        company.return_value = {"id": 42, "company_name": "Acme", "contact_email": "contact@acme.test", "contact_phone": "+60123456789"}
-        usage.return_value = {"usage": {"team_members": {"used": 2, "pending_invitations": 1, "limit": 5}}}
-        result = get_workspace_summary(42, ADMIN)
+    def test_summary_uses_only_lightweight_team_dependencies(self):
+        with patch(
+            "app.services.workspace_service.get_company_by_id",
+            return_value={"id": 42, "company_name": "Acme", "contact_email": "contact@acme.test", "contact_phone": "+60123456789"},
+        ) as company, patch(
+            "app.services.workspace_service.count_active_users_by_company",
+            return_value=2,
+        ) as active_users, patch(
+            "app.services.workspace_service.count_valid_pending_invitations",
+            return_value=1,
+        ) as pending_invites, patch(
+            "app.services.workspace_service.get_current_subscription",
+            return_value={"plan": {"team_member_limit": 5}},
+        ) as subscription, patch(
+            "app.services.billing_service.get_company_usage",
+            side_effect=RuntimeError("unrelated chatbot usage failed"),
+        ) as full_usage:
+            result = get_workspace_summary(42, ADMIN)
+
+        company.assert_called_once_with(42)
+        active_users.assert_called_once_with(42)
+        pending_invites.assert_called_once_with(42)
+        subscription.assert_called_once_with(42)
+        full_usage.assert_not_called()
         self.assertEqual(result["current_user_role"], "admin")
         self.assertEqual(result["active_member_count"], 2)
         self.assertEqual(result["pending_invitation_count"], 1)
@@ -451,6 +469,35 @@ class WorkspaceServiceTests(unittest.TestCase):
 
 
 class UserRepositoryTests(unittest.TestCase):
+    def test_active_user_count_uses_exact_head_query_scoped_by_company_and_status(self):
+        table = MagicMock()
+        select_query = MagicMock()
+        company_filter = MagicMock()
+        status_filter = MagicMock()
+        table.select.return_value = select_query
+        select_query.eq.return_value = company_filter
+        company_filter.eq.return_value = status_filter
+        status_filter.execute.return_value.count = 3
+
+        with patch("app.database.user_repository.supabase") as supabase:
+            supabase.table.return_value = table
+            result = count_active_users_by_company(42)
+
+        table.select.assert_called_once_with("id", count="exact", head=True)
+        select_query.eq.assert_called_once_with("company_id", 42)
+        company_filter.eq.assert_called_once_with("status", "active")
+        self.assertEqual(result, 3)
+
+    def test_active_user_count_requires_company_and_never_returns_negative(self):
+        with self.assertRaises(ValueError):
+            count_active_users_by_company(None)
+
+        table = MagicMock()
+        table.select.return_value.eq.return_value.eq.return_value.execute.return_value.count = -2
+        with patch("app.database.user_repository.supabase") as supabase:
+            supabase.table.return_value = table
+            self.assertEqual(count_active_users_by_company(42), 0)
+
     def test_company_scoped_update_filters_by_user_and_company(self):
         table = MagicMock()
         update_query = MagicMock()

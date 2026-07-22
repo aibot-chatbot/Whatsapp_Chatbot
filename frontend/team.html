@@ -975,6 +975,7 @@
         /* ===== Add Member Modal ===== */
         var currentUserRole = null;
         var currentUserId = null;
+        var resendInviteInFlight = Object.create(null);
         var teamMemberEntitlement = {
             loaded: false,
             used: 0,
@@ -1246,6 +1247,7 @@
                 var html = "";
                 for (var i = 0; i < invites.length; i++) {
                     var inv = invites[i];
+                    var inviteId = Number(inv.id);
                     var roleLabel = inv.role === "admin" ? "Admin" : "Member";
 
                     var isExpired = false;
@@ -1261,8 +1263,8 @@
                     var escapedEmail = escapeHtml(inv.email || "");
 
                     var actionsHtml = "";
-                    if (currentUserRole === "admin" || currentUserRole === "owner") {
-                        actionsHtml = "<button class=\"team-action-btn\" data-invite-email=\"" + escapedEmail + "\" onclick=\"resendInvite(this.getAttribute('data-invite-email'))\" title=\"Resend\"><i data-lucide=\"repeat\" style=\"width:13px;height:13px;\"></i> Resend</button>" +
+                    if ((currentUserRole === "admin" || currentUserRole === "owner") && Number.isInteger(inviteId) && inviteId > 0) {
+                        actionsHtml = "<button class=\"team-action-btn\" data-invite-id=\"" + inviteId + "\" onclick=\"resendInvite(" + inviteId + ", this)\" title=\"Resend\"><i data-lucide=\"repeat\" style=\"width:13px;height:13px;\"></i> Resend</button>" +
                             "<button class=\"team-action-btn danger\" onclick=\"cancelInvite(" + inv.id + ")\" title=\"Cancel\"><i data-lucide=\"x-circle\" style=\"width:13px;height:13px;\"></i> Cancel</button>";
                     }
 
@@ -1286,21 +1288,42 @@
             }
         }
 
-async function resendInvite(email) {
+        async function resendInvite(inviteId, clickedButton) {
+            inviteId = Number(inviteId);
+            if (!Number.isInteger(inviteId) || inviteId <= 0) {
+                showMessage("Unable to resend this invitation.", "error");
+                return;
+            }
+
+            var inviteKey = String(inviteId);
+            if (resendInviteInFlight[inviteKey]) {
+                return;
+            }
+            resendInviteInFlight[inviteKey] = true;
+            if (clickedButton) {
+                clickedButton.disabled = true;
+            }
+
             try {
                 var res = await authenticatedFetch("/api/invites/resend", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: email })
+                    body: JSON.stringify({ invite_id: inviteId })
                 });
                 var json = await res.json();
                 if (json.status === "success") {
                     showMessage("Invitation resent successfully.", "success");
+                    await Promise.all([loadInvites(), loadTeamUsage()]);
                 } else {
                     showMessage(json.message || "Failed to resend invitation.", "error");
                 }
             } catch (err) {
                 showMessage("Could not connect to server.", "error");
+            } finally {
+                delete resendInviteInFlight[inviteKey];
+                if (clickedButton && clickedButton.isConnected) {
+                    clickedButton.disabled = false;
+                }
             }
         }
 
