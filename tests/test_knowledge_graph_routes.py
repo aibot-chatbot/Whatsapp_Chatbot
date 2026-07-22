@@ -26,6 +26,7 @@ MOCK_USER = {
     "company_id": 42,
     "full_name": "Test User",
     "email": "test@example.com",
+    "role": "admin",
     "status": "active",
 }
 
@@ -41,10 +42,10 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
             return_value={"company_id": 42, "user_id": 1, "role": "admin"},
         )
 
-    def _patch_user_repo(self):
+    def _patch_user_repo(self, role="admin"):
         return patch(
             "app.database.user_repository.get_user_by_id",
-            return_value=MOCK_USER,
+            return_value={**MOCK_USER, "role": role},
         )
 
     @patch("app.routes.knowledge_routes.verify_chatbot_access")
@@ -188,8 +189,8 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
         mock_verify.return_value = {"id": 1, "company_id": 42}
         with patch(
             "app.decorators.auth_decorator.jwt.decode",
-            return_value={"company_id": 42, "user_id": 1, "role": "member"},
-        ), self._patch_user_repo():
+            return_value={"company_id": 42, "user_id": 1, "role": "admin"},
+        ), self._patch_user_repo(role="member"):
             resp = self.client.delete(
                 "/api/knowledge/graph/edge?chatbot_id=1",
                 json={"source_name": "src", "target_name": "tgt", "rel_type": "HAS_PRICE"},
