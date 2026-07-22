@@ -29,11 +29,10 @@ def token_required(f):
         try:
             data = jwt.decode(token, get_jwt_secret(), algorithms=["HS256"])
 
-            # Keep the claims for identity and existing role compatibility.
-            # Tenant authorization is refreshed from the database below.
+            # Keep claims for identity diagnostics only. Tenant and role
+            # authorization are refreshed from the database below.
             g.jwt_claims = data
             g.user_id = data.get("user_id")
-            g.role = data.get("role")
 
             if not _is_positive_integer(g.user_id):
                 return jsonify({"status": "error", "message": "Invalid token!"}), 401
@@ -84,10 +83,24 @@ def token_required(f):
                 "message": "Authentication service is temporarily unavailable."
             }), 503
 
+        database_role = current_user.get("role")
+        if not isinstance(database_role, str):
+            normalized_role = ""
+        else:
+            normalized_role = database_role.strip().lower()
+        if normalized_role not in {"owner", "admin", "member"}:
+            logger.error("Authentication backend returned invalid user authorization role")
+            return jsonify({
+                "status": "error",
+                "code": "authorization_context_invalid",
+                "message": "Unable to validate account authorization."
+            }), 503
+
         g.authenticated_user = current_user
         g.current_user = current_user
         g.user_id = refreshed_user_id
         g.company_id = refreshed_company_id
+        g.role = normalized_role
 
         return f(*args, **kwargs)
 

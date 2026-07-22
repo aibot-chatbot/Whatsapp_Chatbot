@@ -366,68 +366,34 @@
                 align-items: flex-start;
             }
         }
-            /* ===== Team / Workspace Info ===== */
-        .invite-row {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        /* ===== Team & Workspace ===== */
+        .workspace-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
         }
-        .invite-row input {
-            flex: 1;
+        .workspace-stat {
+            padding: 14px;
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 12px;
+            background: rgba(255,255,255,0.025);
         }
-        .copy-btn {
-            background: rgba(59, 130, 246, 0.12);
-            border: 1px solid rgba(59, 130, 246, 0.25);
-            color: var(--primary);
-            padding: 10px 18px;
-            border-radius: 10px;
+        .workspace-stat-label {
+            color: var(--text-dim);
+            font-size: 0.75rem;
             font-weight: 600;
-            font-size: 0.85rem;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            white-space: nowrap;
-            transition: all 0.2s ease;
-            font-family: inherit;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
-        .copy-btn:hover {
-            background: rgba(59, 130, 246, 0.2);
-            border-color: var(--primary);
-        }
-        .copy-btn.copied {
-            background: rgba(16, 185, 129, 0.15);
-            border-color: rgba(16, 185, 129, 0.3);
-            color: var(--accent);
-        }
-        .team-members-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        .team-members-row .members-avatars {
-            display: flex;
-        }
-        .team-members-row .member-avatar-mini {
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, var(--primary), #2563eb);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.65rem;
+        .workspace-stat-value {
+            color: var(--text-main);
+            display: block;
+            font-size: 1.05rem;
             font-weight: 700;
-            color: #fff;
-            border: 2px solid var(--card-bg);
-            margin-right: -8px;
+            margin-top: 5px;
         }
-        .team-members-row .member-avatar-mini:nth-child(2) {
-            background: linear-gradient(135deg, #10b981, #059669);
-        }
-        .team-members-row .member-avatar-mini:nth-child(3) {
-            background: linear-gradient(135deg, #f59e0b, #d97706);
-        }
+        .workspace-readonly-note { color: var(--text-dim); font-size: 0.8rem; margin-top: 4px; }
+        @media (max-width: 600px) { .workspace-summary-grid { grid-template-columns: 1fr; } }
 
         /* ===== Subscription Management ===== */
         .sub-action-btn {
@@ -829,56 +795,30 @@
         <!-- TAB 2: Workspace & Team -->
         <div id="profile-tab-organization" class="profile-tab-content" style="display: none;">
             <div class="profile-grid">
-                <!-- Team / Workspace Info - Pinned Action, Scrollable Fields -->
-                <div class="profile-section glass-card full-width" style="height: 450px; display: flex; flex-direction: column; overflow: hidden;">
-                    <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 12px;">
-                        <i data-lucide="users" style="width:17px;height:17px;"></i>
-                        Team / Workspace Info
+                <section class="profile-section glass-card" aria-labelledby="company-information-heading">
+                    <div class="profile-section-header" id="company-information-heading">
+                        <i data-lucide="building-2" style="width:17px;height:17px;"></i> Company Information
                     </div>
+                    <div class="form-row"><label for="company-name">Company Name</label><input type="text" id="company-name" maxlength="200" autocomplete="organization" disabled></div>
+                    <div class="form-row"><label for="company-contact-email">Company Contact Email</label><input type="email" id="company-contact-email" maxlength="320" autocomplete="email" disabled><span class="field-note">This is separate from your read-only login email.</span></div>
+                    <div class="form-row"><label for="company-contact-phone">Company Phone</label><input type="tel" id="company-contact-phone" maxlength="50" autocomplete="tel" disabled></div>
+                    <p class="workspace-readonly-note" id="company-readonly-note" hidden>Only company administrators can edit this information.</p>
+                    <div class="action-row"><button class="action-btn primary" id="btn-save-company" onclick="saveCompanyInformation()" disabled><i data-lucide="save" style="width:15px;height:15px;"></i> Save Company Information</button></div>
+                </section>
 
-                    <div style="flex: 1; overflow-y: scroll; padding-right: 6px; display: flex; flex-direction: column; gap: 14px;">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
-                            <div class="form-row" style="margin-bottom:0;">
-                                <label>Current Team Name</label>
-                                <input type="text" id="team-name" value="AI Chatbot Team" readonly disabled>
-                            </div>
-                            <div class="form-row" style="margin-bottom:0;">
-                                <label>Your Role</label>
-                                <input type="text" id="team-role" value="Admin" readonly disabled>
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <label>Members Count</label>
-                            <div class="team-members-row">
-                                <div class="members-avatars">
-                                    <div class="member-avatar-mini">A</div>
-                                    <div class="member-avatar-mini">J</div>
-                                    <div class="member-avatar-mini">M</div>
-                                </div>
-                                <span id="team-member-count" style="color:var(--text-main);font-weight:600;">3 Members</span>
-                            </div>
-                        </div>
-
-                        <div class="form-row" style="margin-bottom:0;">
-                            <label>Invite Link</label>
-                            <div class="invite-row">
-                                <input type="text" id="team-invite-link" value="https://your-app.com/invite/ABC123" readonly>
-                                <button class="copy-btn" id="btn-copy-invite" onclick="copyInviteLink()">
-                                    <i data-lucide="copy" style="width:15px;height:15px;"></i>
-                                    Copy
-                                </button>
-                            </div>
-                        </div>
+                <section class="profile-section glass-card" aria-labelledby="team-summary-heading">
+                    <div class="profile-section-header" id="team-summary-heading">
+                        <i data-lucide="users" style="width:17px;height:17px;"></i> Team Summary
                     </div>
-
-                    <div class="action-row" style="flex-shrink: 0; margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06);">
-                        <a href="team.html" class="action-btn primary" style="text-decoration:none;">
-                            <i data-lucide="users" style="width:15px;height:15px;"></i>
-                            Manage Team Members
-                        </a>
+                    <div class="workspace-summary-grid" aria-live="polite">
+                        <div class="workspace-stat"><span class="workspace-stat-label">Your Role</span><span class="workspace-stat-value" id="team-role">Loading&hellip;</span></div>
+                        <div class="workspace-stat"><span class="workspace-stat-label">Active Members</span><span class="workspace-stat-value" id="team-member-count">&mdash;</span></div>
+                        <div class="workspace-stat"><span class="workspace-stat-label">Pending Invitations</span><span class="workspace-stat-value" id="team-pending-count">&mdash;</span></div>
+                        <div class="workspace-stat"><span class="workspace-stat-label">Plan Team Limit</span><span class="workspace-stat-value" id="team-plan-limit">&mdash;</span></div>
+                        <div class="workspace-stat"><span class="workspace-stat-label">Available Seats</span><span class="workspace-stat-value" id="team-remaining-seats">&mdash;</span></div>
                     </div>
-                </div>
+                    <div class="action-row"><a href="team.html" id="manage-team-link" class="action-btn primary" style="text-decoration:none;"><i data-lucide="users" style="width:15px;height:15px;"></i> Manage Team Members</a></div>
+                </section>
             </div>
         </div>
 
@@ -1087,7 +1027,7 @@
                             Billing Notifications
                         </div>
                         <div class="section-subtext" style="flex-shrink: 0; margin-bottom: 12px; font-size:0.85rem; color:var(--text-dim);">
-                            Notifications for subscription expiry, payment and AI credit alerts.
+                            Company-wide notifications shared by all chatbots for subscription expiry, payment and AI credit alerts.
                         </div>
                         <div id="billing-notifications-loading" style="padding:12px 0;color:var(--text-dim);font-size:0.9rem;flex-shrink: 0;">
                             <div class="loading-spinner" style="display:inline-block;width:14px;height:14px;border:2px solid var(--border-color);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></div>
@@ -1379,31 +1319,79 @@
 
         /* ===== Load Team Info ===== */
         async function loadTeamInfo() {
-            var roleInput = document.getElementById("team-role");
-            var memberCountEl = document.getElementById("team-member-count");
 
             // Start with neutral values ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â never show fake placeholder defaults
-            if (roleInput) roleInput.value = "N/A";
-            if (memberCountEl) memberCountEl.textContent = "Unable to load";
 
             // Use the real role if loadProfile has already fetched it
-            if (roleInput && currentUser && currentUser.role) {
-                roleInput.value = currentUser.role.charAt(0).toUpperCase() + currentUser.role.slice(1);
-            }
 
             // Fetch live member count from the existing team endpoint
             try {
-                var res = await authenticatedFetch("/api/users");
+                var res = await authenticatedFetch("/api/workspace");
                 var json = await res.json();
-
-                if (res.ok && json.status === "success" && Array.isArray(json.data)) {
-                    var count = json.data.length;
-                    if (memberCountEl) {
-                        memberCountEl.textContent = count + " Member" + (count === 1 ? "" : "s");
-                    }
-                }
+                if (!res.ok || json.status !== "success") throw new Error(json.message || "Unable to load workspace information.");
+                renderWorkspace(json.data);
             } catch (err) {
+                document.getElementById("team-role").textContent = "Unable to load";
+                showMessage(err.message || "Unable to load workspace information.", "error");
                 // Silently fall back ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â neutral values already set
+            }
+        }
+
+        var workspaceData = null;
+        var profileNavigationBotId = null;
+
+        function formatRole(role) {
+            return role ? role.charAt(0).toUpperCase() + role.slice(1) : "Unknown";
+        }
+
+        function renderWorkspace(data) {
+            workspaceData = data;
+            var company = data.company || {};
+            document.getElementById("company-name").value = company.name || "";
+            document.getElementById("company-contact-email").value = company.contact_email || "";
+            document.getElementById("company-contact-phone").value = company.contact_phone || "";
+            document.getElementById("team-role").textContent = formatRole(data.current_user_role);
+            var active = Number(data.active_member_count || 0);
+            document.getElementById("team-member-count").textContent = active + " Member" + (active === 1 ? "" : "s");
+            document.getElementById("team-pending-count").textContent = String(Number(data.pending_invitation_count || 0));
+            document.getElementById("team-plan-limit").textContent = data.plan_member_limit == null ? "Unlimited" : String(data.plan_member_limit);
+            document.getElementById("team-remaining-seats").textContent = data.remaining_seats == null ? "Unlimited" : String(data.remaining_seats);
+            ["company-name", "company-contact-email", "company-contact-phone"].forEach(function(id) {
+                document.getElementById(id).disabled = !data.can_edit_company;
+            });
+            document.getElementById("btn-save-company").disabled = !data.can_edit_company;
+            document.getElementById("company-readonly-note").hidden = !!data.can_edit_company;
+            document.getElementById("manage-team-link").href = "team.html" + getBotQuery();
+            refreshIcons();
+        }
+
+        async function saveCompanyInformation() {
+            if (!workspaceData || !workspaceData.can_edit_company) return;
+            var companyName = document.getElementById("company-name").value.trim();
+            var contactEmail = document.getElementById("company-contact-email").value.trim().toLowerCase();
+            var contactPhone = document.getElementById("company-contact-phone").value.trim();
+            if (!companyName) { showMessage("Company name is required.", "error"); return; }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) { showMessage("Please enter a valid company contact email.", "error"); return; }
+            var btn = document.getElementById("btn-save-company");
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="spin" style="width:15px;height:15px;"></i> Saving...';
+            refreshIcons();
+            try {
+                var res = await authenticatedFetch("/api/workspace", {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ company_name: companyName, contact_email: contactEmail, contact_phone: contactPhone })
+                });
+                var json = await res.json();
+                if (!res.ok || json.status !== "success") throw new Error(json.message || "Unable to update company information.");
+                renderWorkspace(json.data);
+                showMessage(json.message || "Company information updated successfully.", "success");
+            } catch (err) {
+                showMessage(err.message || "Unable to update company information.", "error");
+            } finally {
+                btn.disabled = !workspaceData || !workspaceData.can_edit_company;
+                btn.innerHTML = '<i data-lucide="save" style="width:15px;height:15px;"></i> Save Company Information';
+                refreshIcons();
             }
         }
 
@@ -1620,34 +1608,6 @@
             }
         }
 
-        /* ===== Copy Invite Link ===== */
-        function copyInviteLink() {
-            var input = document.getElementById("team-invite-link");
-            if (!input) return;
-            var val = input.value || "";
-            input.select();
-            input.setSelectionRange(0, 99999);
-            try {
-                navigator.clipboard.writeText(val);
-            } catch (e) {
-                // Fallback: execCommand requires the text to be selected
-                input.select();
-                input.setSelectionRange(0, 99999);
-                document.execCommand("copy");
-            }
-            var btn = document.getElementById("btn-copy-invite");
-            if (btn) {
-                btn.classList.add("copied");
-                btn.innerHTML = '<i data-lucide="check" style="width:15px;height:15px;"></i> Copied!';
-                refreshIcons();
-                setTimeout(function() {
-                    btn.classList.remove("copied");
-                    btn.innerHTML = '<i data-lucide="copy" style="width:15px;height:15px;"></i> Copy';
-                    refreshIcons();
-                }, 2000);
-            }
-        }
-
         /* ===== Billing Info ===== */
         function formatBillingDate(dateStr) {
             if (!dateStr) return "\u2014";
@@ -1763,9 +1723,31 @@
         }
 
         function getBotQuery() {
-            var p = new URLSearchParams(window.location.search);
-            var bId = p.get("bot_id");
-            return bId ? "?bot_id=" + encodeURIComponent(bId) : "";
+            return profileNavigationBotId
+                ? "?bot_id=" + encodeURIComponent(profileNavigationBotId)
+                : "";
+        }
+
+        async function refreshProfileChatbotContext(botId) {
+            var normalizedBotId = parsePositiveSafeInteger(String(botId || ""));
+            if (!normalizedBotId) {
+                clearChatbotContext();
+                return false;
+            }
+
+            try {
+                var response = await authenticatedFetch("/api/bots/" + normalizedBotId);
+                if (!response.ok) {
+                    clearChatbotContext();
+                    return false;
+                }
+                profileNavigationBotId = normalizedBotId;
+                sessionStorage.setItem("selectedBotId", String(normalizedBotId));
+                return true;
+            } catch (_) {
+                clearChatbotContext();
+                return false;
+            }
         }
 
 
@@ -3793,14 +3775,12 @@ async function loadBillingInfo() {
             }
         }
 
-// Init only after an optional URL chatbot context has been authorized.
+        // Chatbot context affects navigation links only; Profile data is company-scoped.
         async function initializeProfilePage() {
             const requestedBotId = new URLSearchParams(window.location.search).get("bot_id");
             const storedBotId = sessionStorage.getItem("selectedBotId");
             const chatbotContext = requestedBotId || storedBotId;
-            if (chatbotContext && !(await validateChatbotContext(chatbotContext))) {
-                return;
-            }
+            if (chatbotContext) await refreshProfileChatbotContext(chatbotContext);
 
             loadBillingNotifications();
             loadBillingNotificationsUnreadCount();

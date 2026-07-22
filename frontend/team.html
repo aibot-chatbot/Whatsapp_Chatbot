@@ -367,6 +367,10 @@
         }
         .team-actions-wrap {
             display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            align-items: center;
+        }
         .team-role-select {
             background: rgba(15,23,42,0.6);
             border: 1px solid var(--glass-border);
@@ -385,10 +389,6 @@
         .team-role-select option {
             background: #1e293b;
             color: var(--text-main);
-        }
-            flex-wrap: wrap;
-            gap: 6px;
-            align-items: center;
         }
 
         .verified-yes {
@@ -711,58 +711,14 @@
     <script src="sidebar-component.js"></script>
     <script src="assets/js/auth.js"></script>
     <script>
+        function getBotQuery() { var p = new URLSearchParams(window.location.search); var bId = p.get("bot_id"); return bId ? "?bot_id=" + encodeURIComponent(bId) : ""; }
         document.addEventListener("DOMContentLoaded", function() {
-            function getBotQuery() { var p = new URLSearchParams(window.location.search); var bId = p.get("bot_id"); return bId ? "?bot_id=" + encodeURIComponent(bId) : ""; }
             var sidebar = document.querySelector("chatbot-sidebar");
             if (sidebar && typeof sidebar.initSidebar === "function") {
                 sidebar.initSidebar();
             }
         });
 
-        async function loadTeamUsage() {
-            var loading = document.getElementById("team-usage-loading");
-            var content = document.getElementById("team-usage-content");
-            var membersEl = document.getElementById("team-usage-members");
-            var pendingEl = document.getElementById("team-usage-pending");
-            var limitEl = document.getElementById("team-usage-limit");
-            var warnEl = document.getElementById("team-upgrade-warning");
-            if (!content) return;
-            try {
-                var subRes = await authenticatedFetch("/api/billing/subscription");
-                var subJson = await subRes.json();
-                var usageRes = await authenticatedFetch("/api/billing/usage");
-                var usageJson = await usageRes.json();
-                if (loading) loading.style.display = "none";
-                content.style.display = "block";
-
-                var subData = subJson.status === "success" ? subJson.data : null;
-                var usageData = usageJson.status === "success" ? usageJson.data : null;
-
-                var teamUsage = usageData && usageData.usage ? usageData.usage.team_members : null;
-                var plan = subData && subData.plan ? subData.plan : null;
-
-                var used = teamUsage ? (teamUsage.used || 0) : "?";
-                var pending = teamUsage ? (teamUsage.pending_invitations || 0) : "?";
-                var limit = plan ? (plan.team_member_limit != null ? plan.team_member_limit : "Unlimited") : "?";
-
-                if (membersEl) membersEl.textContent = used;
-                if (pendingEl) pendingEl.textContent = pending;
-                if (limitEl) limitEl.textContent = limit;
-
-                // Show warning if at or over limit
-                if (warnEl && limit !== "?" && limit !== "Unlimited" && limit !== null) {
-                    var total = (typeof used === "number" ? used : 0) + (typeof pending === "number" ? pending : 0);
-                    if (total >= limit) {
-                        var warnLink = document.getElementById("team-upgrade-href"); if (warnLink) warnLink.href = "pricing.html" + getBotQuery(); warnEl.style.display = "block";
-                        refreshIcons();
-                    }
-                }
-                refreshIcons();
-            } catch (e) {
-                console.error("Failed to load team usage:", e);
-                if (loading) { loading.textContent = "Unable to load usage information."; }
-            }
-        }
     </script>
 
     <div class="main-container">
@@ -774,7 +730,7 @@
                 </h1>
                 <p>View all users in your company workspace.</p>
             </div>
-                <button class="btn-add-member" id="btn-add-member" onclick="openAddMemberModal()" title="Send an invitation" style="display:none;">
+                <button class="btn-add-member" id="btn-add-member" onclick="openAddMemberModal()" title="Loading team entitlement" style="display:none;" disabled>
                 <i data-lucide="mail-plus" style="width:18px;height:18px;"></i> Send Invite
             </button>
         </div>
@@ -833,6 +789,7 @@
                         <th>Verified</th>
                         <th>Joined</th>
                         <th>Actions</th>
+                    </tr>
                 </thead>
                 <tbody id="team-tbody"></tbody>
             </table>
@@ -914,7 +871,6 @@
 
     <script>
         requireLogin();
-        requireAdminOrOwner();
         refreshIcons();
 
         function formatDate(dateStr) {
@@ -964,7 +920,8 @@
                 }
 
                 var rows = users.map(function(u) {
-                    var roleClass = u.role === "admin" ? "admin" : "member";
+                    var normalizedRole = String(u.role || "").trim().toLowerCase();
+                    var roleClass = normalizedRole === "admin" || normalizedRole === "owner" ? "admin" : "member";
                     var statusClass = u.status === "active" ? "active" : "inactive";
                     var verifiedHtml = u.is_verified
                         ? '<span class="verified-yes"><i data-lucide="badge-check" style="width:16px;height:16px;"></i> Verified</span>'
@@ -972,8 +929,9 @@
 
                     var isCurrentUser = currentUserId && u.id === currentUserId;
                     var isAdminView = currentUserRole === "admin" || currentUserRole === "owner";
+                    var isOwner = normalizedRole === "owner";
                     var actionsHtml = "";
-                    if (isAdminView && !isCurrentUser) {
+                    if (isAdminView && !isCurrentUser && !isOwner) {
                         var roleOpts = '<select class=\"team-role-select\" data-user-name=\"' + escapeHtml(u.full_name || 'User') + '\" onchange=\"changeUserRole(' + u.id + ', this)\" aria-label=\"Change role\">' +
                             "<option value=\"member\"" + (u.role === "member" ? " selected" : "") + ">Member</option>" +
                             "<option value=\"admin\"" + (u.role === "admin" ? " selected" : "") + ">Admin</option>" +
@@ -1011,7 +969,7 @@
 
         function escapeHtml(str) {
             if (!str) return "";
-            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
         }
 
         /* ===== Add Member Modal ===== */
@@ -1039,10 +997,11 @@
             var btn = document.getElementById("btn-add-member");
             var warnEl = document.getElementById("team-upgrade-warning");
             var limitReached = isTeamMemberLimitReached();
+            var canManage = currentUserRole === "admin" || currentUserRole === "owner";
 
             if (btn) {
-                btn.disabled = limitReached;
-                btn.title = limitReached ? getTeamLimitMessage() : "Send an invitation";
+                btn.disabled = !canManage || !teamMemberEntitlement.loaded || limitReached;
+                btn.title = limitReached ? getTeamLimitMessage() : (teamMemberEntitlement.loaded ? "Send an invitation" : "Loading team entitlement");
             }
 
             if (warnEl) {
@@ -1103,6 +1062,14 @@
         }
 
         function openAddMemberModal() {
+            if (currentUserRole !== "admin" && currentUserRole !== "owner") {
+                showMessage("You do not have permission to invite team members.", "error");
+                return;
+            }
+            if (!teamMemberEntitlement.loaded) {
+                showMessage("Team entitlement is still loading. Please try again.", "error");
+                return;
+            }
             if (isTeamMemberLimitReached()) {
                 showMessage(getTeamLimitMessage(), "error");
                 applyTeamInviteLimitState();
@@ -1155,6 +1122,14 @@
 
         
         async function submitAddMember() {
+            if (currentUserRole !== "admin" && currentUserRole !== "owner") {
+                showMemberFormError("You do not have permission to invite team members.");
+                return;
+            }
+            if (!teamMemberEntitlement.loaded) {
+                showMemberFormError("Team entitlement is still loading. Please try again.");
+                return;
+            }
             if (isTeamMemberLimitReached()) {
                 showMemberFormError(getTeamLimitMessage());
                 applyTeamInviteLimitState();
@@ -1234,15 +1209,13 @@
             }, 4000);
         }
 
-                async function loadInvites() {
-            console.log("loadInvites: function called");
+        async function loadInvites() {
             var loadingEl = document.getElementById("invites-loading");
             var emptyEl = document.getElementById("invites-empty");
             var listEl = document.getElementById("invites-list");
             var tbody = document.getElementById("invites-tbody");
 
             if (!loadingEl || !emptyEl || !listEl || !tbody) {
-                console.error("loadInvites: DOM elements missing", {loadingEl, emptyEl, listEl, tbody});
                 return;
             }
 
@@ -1251,17 +1224,12 @@
             listEl.style.display = "none";
 
             try {
-                console.log("loadInvites: fetching /api/invites?status=pending");
                 var res = await authenticatedFetch("/api/invites?status=pending");
-                console.log("loadInvites: status:", res.status);
-                
                 var json = await res.json();
-                console.log("loadInvites: full response:", JSON.stringify(json));
 
                 loadingEl.style.display = "none";
 
                 if (json.status !== "success") {
-                    console.warn("loadInvites: API returned status=", json.status, "msg=", json.message);
                     emptyEl.style.display = "block";
                     emptyEl.innerHTML = "<i data-lucide=\"alert-circle\" style=\"width:36px;height:36px;color:var(--danger);\"></i><p style=\"color:var(--danger);\">" + escapeHtml(json.message || "Failed to load invitations.") + "</p>";
                     refreshIcons();
@@ -1269,13 +1237,7 @@
                 }
 
                 var invites = json.data || [];
-                console.log("loadInvites: data array length:", invites.length);
-                if (invites.length > 0) {
-                    console.log("loadInvites: first invite:", JSON.stringify(invites[0]));
-                }
-
                 if (invites.length === 0) {
-                    console.log("loadInvites: no invites, showing empty state");
                     emptyEl.style.display = "block";
                     return;
                 }
@@ -1300,7 +1262,7 @@
 
                     var actionsHtml = "";
                     if (currentUserRole === "admin" || currentUserRole === "owner") {
-                        actionsHtml = "<button class=\"team-action-btn\" onclick=\"resendInvite('" + escapedEmail + "')\" title=\"Resend\"><i data-lucide=\"repeat\" style=\"width:13px;height:13px;\"></i> Resend</button>" +
+                        actionsHtml = "<button class=\"team-action-btn\" data-invite-email=\"" + escapedEmail + "\" onclick=\"resendInvite(this.getAttribute('data-invite-email'))\" title=\"Resend\"><i data-lucide=\"repeat\" style=\"width:13px;height:13px;\"></i> Resend</button>" +
                             "<button class=\"team-action-btn danger\" onclick=\"cancelInvite(" + inv.id + ")\" title=\"Cancel\"><i data-lucide=\"x-circle\" style=\"width:13px;height:13px;\"></i> Cancel</button>";
                     }
 
@@ -1314,7 +1276,6 @@
                         "</div>";
                 }
 
-                console.log("loadInvites: rendering", invites.length, "rows");
                 tbody.innerHTML = html;
                 listEl.style.display = "block";
                 refreshIcons();
@@ -1371,7 +1332,6 @@ async function resendInvite(email) {
         // Update loadTeam to capture current user role and control Add Member button visibility
         var originalLoadTeam = loadTeam;
         loadTeam = async function() {
-            console.log("loadTeam (overridden): starting");
             // First try to get current user role
             try {
                 var userRes = await authenticatedFetch("/api/user");
@@ -1387,16 +1347,15 @@ async function resendInvite(email) {
                             btn.style.display = "none";
                         }
                     }
+                    applyTeamInviteLimitState();
                 }
             } catch (_) {}
 
             // Then load the team
             await originalLoadTeam();
 
-            console.log("loadTeam: about to call loadInvites");
             // Also load pending invitations
             await loadInvites();
-            console.log("loadTeam: loadInvites completed");
         };
 
         // Hide add button initially until role is known
@@ -1420,29 +1379,23 @@ async function resendInvite(email) {
             var warnEl = document.getElementById("team-upgrade-warning");
             if (!content) return;
             try {
-                var subRes = await authenticatedFetch("/api/billing/subscription");
-                var subJson = await subRes.json();
-                var usageRes = await authenticatedFetch("/api/billing/usage");
+                var usageRes = await authenticatedFetch("/api/workspace");
                 var usageJson = await usageRes.json();
+                if (!usageRes.ok || usageJson.status !== "success") throw new Error(usageJson.message || "Unable to load team usage.");
                 if (loading) loading.style.display = "none";
                 content.style.display = "block";
 
-                var subData = subJson.status === "success" ? subJson.data : null;
-                var usageData = usageJson.status === "success" ? usageJson.data : null;
-
-                var teamUsage = usageData && usageData.usage ? usageData.usage.team_members : null;
-                var plan = subData && subData.plan ? subData.plan : null;
-
-                var used = teamUsage ? (teamUsage.used || 0) : "?";
-                var pending = teamUsage ? (teamUsage.pending_invitations || 0) : "?";
-                var rawLimit = teamUsage ? teamUsage.limit : (plan ? plan.team_member_limit : null);
+                var usageData = usageJson.data;
+                var used = Number(usageData.active_member_count || 0);
+                var pending = Number(usageData.pending_invitation_count || 0);
+                var rawLimit = usageData.plan_member_limit;
                 var limit = rawLimit != null ? rawLimit : "Unlimited";
                 var usedCount = Number(used || 0);
                 var pendingCount = Number(pending || 0);
                 var numericLimit = rawLimit != null ? Number(rawLimit) : null;
 
                 teamMemberEntitlement = {
-                    loaded: !!teamUsage,
+                    loaded: true,
                     used: Number.isFinite(usedCount) ? usedCount : 0,
                     pending: Number.isFinite(pendingCount) ? pendingCount : 0,
                     limit: numericLimit !== null && Number.isFinite(numericLimit) ? numericLimit : null

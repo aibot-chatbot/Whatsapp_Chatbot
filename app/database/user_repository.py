@@ -74,6 +74,21 @@ def get_user_by_id(user_id):
     return data[0]
 
 
+def get_user_by_id_for_company(user_id, company_id):
+    if not user_id or not company_id:
+        return None
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("*")
+        .eq("id", user_id)
+        .eq("company_id", company_id)
+        .limit(1)
+        .execute()
+    )
+    data = response.data or []
+    return data[0] if data else None
+
+
 def update_user(user_id, payload):
     if not user_id:
         raise ValueError("User ID is required")
@@ -92,6 +107,30 @@ def update_user(user_id, payload):
     if not rows:
         raise ValueError("Failed to update user")
 
+    return rows[0]
+
+
+def update_user_for_company(user_id, company_id, payload):
+    if not user_id:
+        raise ValueError("User ID is required")
+    if not company_id:
+        raise ValueError("Company ID is required")
+
+    scoped_payload = dict(payload or {})
+    if not scoped_payload:
+        raise ValueError("No fields to update")
+    scoped_payload["updated_at"] = _now_iso()
+
+    response = (
+        supabase.table(TABLE_NAME)
+        .update(scoped_payload)
+        .eq("id", user_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        raise ValueError("User not found or access denied")
     return rows[0]
 
 
