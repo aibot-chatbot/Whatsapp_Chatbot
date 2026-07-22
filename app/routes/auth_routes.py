@@ -12,6 +12,8 @@ from app.database.password_reset_repository import (
 )
 from app.services.email_service import send_otp_email
 from app.services.billing_service import ensure_default_company_subscription
+from app.services.invitation_service import InvitationValidationError, accept_pending_invitation
+from app.services.billing_guard import BillingLimitError
 from app.utils.jwt_utils import get_jwt_secret
 import logging
 logger = logging.getLogger(__name__)
@@ -80,24 +82,28 @@ def google_auth():
     data = request.get_json() or {}
     credential = (data.get("credential") or "").strip()
     company_name = (data.get("company_name") or "").strip()
+    invite_token = (data.get("invite_token") or "").strip()
 
     if not credential:
         return jsonify({"status": "error", "message": "Google credential token is required"}), 400
 
     # Verify the token with Google's tokeninfo endpoint
-    google_client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+    google_client_id = os.getenv("GOOGLE_CLIENT_ID", "").strip()
+    if not google_client_id:
+        logger.error("Google authentication requested without GOOGLE_CLIENT_ID")
+        return auth_config_error_response()
+
     verify_url = f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}"
     try:
         google_resp = http_requests.get(verify_url, timeout=10)
         token_info = google_resp.json()
-    except Exception as e:
+    except Exception:
         return jsonify({"status": "error", "message": "Failed to contact Google servers"}), 502
 
     if google_resp.status_code != 200 or token_info.get("error_description"):
         return jsonify({"status": "error", "message": "Invalid Google token. Please try again."}), 401
 
-    # Validate audience (aud) matches our client ID â€” skip if not configured yet
-    if google_client_id and token_info.get("aud") != google_client_id:
+    if token_info.get("aud") != google_client_id:
         return jsonify({"status": "error", "message": "Token audience mismatch"}), 401
 
     email = (token_info.get("email") or "").strip().lower()
@@ -106,11 +112,52 @@ def google_auth():
 
     if not email:
         return jsonify({"status": "error", "message": "Google did not return an email address"}), 400
+    if str(token_info.get("email_verified", "")).lower() not in ("true", "1"):
+        return jsonify({"status": "error", "message": "Google email address is not verified"}), 403
 
     from app.database.db import supabase
 
     # Check if user already exists
     existing_user = get_user_by_email(email)
+
+    if invite_token:
+        if existing_user:
+            return jsonify({"status": "error", "message": "This email is already registered."}), 409
+        try:
+            user = accept_pending_invitation(
+                invite_token,
+                full_name,
+                password_hash=None,
+                verified_email=email,
+            )
+            token = jwt.encode({
+                "user_id": user["id"],
+                "company_id": user.get("company_id"),
+                "email": user["email"],
+                "role": user["role"],
+                "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
+            }, get_jwt_secret(), algorithm="HS256")
+            return jsonify({
+                "status": "success",
+                "message": "Invitation accepted successfully!",
+                "token": token,
+                "user": {
+                    "id": user["id"],
+                    "company_id": user.get("company_id"),
+                    "full_name": user.get("full_name"),
+                    "email": user["email"],
+                    "role": user["role"],
+                },
+            })
+        except InvitationValidationError as e:
+            return jsonify({"status": "error", "message": str(e)}), e.status_code
+        except BillingLimitError as e:
+            return jsonify({"status": "error", "code": e.code, "message": str(e)}), 403
+        except RuntimeError:
+            return auth_config_error_response()
+        except Exception:
+            logger.exception("Failed to accept Google invitation")
+            return jsonify({"status": "error", "message": "Failed to accept invitation."}), 500
 
     if existing_user:
         # Check if user is deactivated
@@ -208,8 +255,9 @@ def google_auth():
             }
         })
 
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Failed to create account: {str(e)}"}), 500
+    except Exception:
+        logger.exception("Failed to create Google account")
+        return jsonify({"status": "error", "message": "Failed to create account."}), 500
 
 
 def is_password_valid(stored_password, input_password):

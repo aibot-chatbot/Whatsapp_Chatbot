@@ -14,23 +14,78 @@ def _expires_at_iso(hours=72):
     return (datetime.now(timezone.utc) + timedelta(hours=hours)).isoformat()
 
 
-def get_pending_invite_by_email(email, company_id):
-    """Check if a pending invite already exists for this email + company."""
+def build_invite_expiry(hours=72):
+    return _expires_at_iso(hours)
+
+
+def _positive_integer(value, field_name):
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a positive integer")
     try:
-        company_id = int(company_id)
+        normalized = int(value)
     except (ValueError, TypeError):
-        pass
+        raise ValueError(f"{field_name} must be a positive integer")
+    if normalized <= 0:
+        raise ValueError(f"{field_name} must be a positive integer")
+    return normalized
+
+
+def _parse_expiry(value):
+    if not value:
+        return None
+    try:
+        expiry = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    return expiry
+
+
+def get_pending_invite_by_email(email, company_id, valid_only=True):
+    """Fetch a company-scoped pending invite, optionally requiring valid expiry."""
+    normalized_email = str(email or "").strip().lower()
+    if not normalized_email:
+        return None
+    company_id = _positive_integer(company_id, "Company ID")
     response = (
         supabase.table(TABLE_NAME)
         .select("*")
-        .eq("email", email.strip().lower())
+        .eq("email", normalized_email)
         .eq("company_id", company_id)
         .eq("status", "pending")
-        .limit(1)
+        .order("id", desc=True)
         .execute()
     )
-    data = response.data
-    return data[0] if data else None
+    rows = response.data or []
+    if not valid_only:
+        return rows[0] if rows else None
+
+    now = datetime.now(timezone.utc)
+    for row in rows:
+        expiry = _parse_expiry(row.get("expires_at"))
+        if expiry is not None and expiry > now:
+            return row
+    return None
+
+
+def count_valid_pending_invitations(company_id):
+    """Count only pending invitations with a present, parseable future expiry."""
+    company_id = _positive_integer(company_id, "Company ID")
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("id,expires_at")
+        .eq("company_id", company_id)
+        .eq("status", "pending")
+        .execute()
+    )
+    now = datetime.now(timezone.utc)
+    count = 0
+    for row in response.data or []:
+        expiry = _parse_expiry(row.get("expires_at"))
+        if expiry is not None and expiry > now:
+            count += 1
+    return count
 
 
 def get_invite_by_token(token):
@@ -48,17 +103,22 @@ def get_invite_by_token(token):
     return data[0] if data else None
 
 
-def update_invite(token, payload):
-    """Update an invite record by token."""
+def update_invite(token, company_id, payload):
+    """Update an invitation by token within its validated company."""
     if not token:
         raise ValueError("Token is required")
+    company_id = _positive_integer(company_id, "Company ID")
 
-    payload["updated_at"] = _now_iso()
+    scoped_payload = dict(payload or {})
+    if not scoped_payload:
+        raise ValueError("No invitation fields to update")
+    scoped_payload["updated_at"] = _now_iso()
 
     response = (
         supabase.table(TABLE_NAME)
-        .update(payload)
+        .update(scoped_payload)
         .eq("token", token)
+        .eq("company_id", company_id)
         .execute()
     )
 
@@ -72,14 +132,20 @@ def update_invite(token, payload):
 
 def create_invite(email, company_id, role, token, created_by):
     """Insert a new invite record."""
-    try:
-        company_id = int(company_id)
-    except (ValueError, TypeError):
-        pass
+    company_id = _positive_integer(company_id, "Company ID")
+    created_by = _positive_integer(created_by, "Creator user ID")
+    normalized_email = str(email or "").strip().lower()
+    normalized_role = str(role or "").strip().lower()
+    if not normalized_email:
+        raise ValueError("Email is required")
+    if normalized_role not in ("admin", "member"):
+        raise ValueError("Role must be 'admin' or 'member'")
+    if not token:
+        raise ValueError("Token is required")
     payload = {
-        "email": email.strip().lower(),
+        "email": normalized_email,
         "company_id": company_id,
-        "role": role,
+        "role": normalized_role,
         "token": token,
         "status": "pending",
         "expires_at": _expires_at_iso(),
@@ -98,73 +164,23 @@ def create_invite(email, company_id, role, token, created_by):
 
 def get_invites_by_company(company_id, status=None):
     """List invites for a company, optionally filtered by status."""
-    import logging
-    try:
-        # Normalize company_id to int (Supabase stores this as int)
-        try:
-            company_id_int = int(company_id)
-        except (ValueError, TypeError):
-            company_id_int = company_id
-        company_id_str = str(company_id)
-
-        # Strategy 1: try int match first
-        query = supabase.table(TABLE_NAME).select("*").eq("company_id", company_id_int)
-        if status:
-            query = query.eq("status", status.lower())
-        response = query.order("id", desc=True).execute()
-        result = response.data or []
-
-        logging.warning(f"get_invites_by_company: int match for company_id={company_id_int!r} returned {len(result)} rows")
-
-        if not result:
-            # Strategy 2: try string match
-            query2 = supabase.table(TABLE_NAME).select("*").eq("company_id", company_id_str)
-            if status:
-                query2 = query2.eq("status", status.lower())
-            response2 = query2.order("id", desc=True).execute()
-            result = response2.data or []
-            logging.warning(f"get_invites_by_company: str match for company_id={company_id_str!r} returned {len(result)} rows")
-
-        if not result:
-            # Strategy 3: fetch all invites and filter in Python
-            all_resp = supabase.table(TABLE_NAME).select("*").order("id", desc=True).execute()
-            all_data = all_resp.data or []
-            logging.warning(f"get_invites_by_company: total invites in table: {len(all_data)}")
-            if all_data:
-                # Show distinct company_id values
-                distinct = set(r.get("company_id") for r in all_data)
-                logging.warning(f"get_invites_by_company: distinct company_ids in table: {distinct!r}")
-                logging.warning(f"get_invites_by_company: looking for company_id={company_id_int!r} or {company_id_str!r}")
-
-                # Filter by matching company_id (try both int and str)
-                result = []
-                for r in all_data:
-                    db_cid = r.get("company_id")
-                    if db_cid == company_id_int or db_cid == company_id_str:
-                        if status:
-                            if r.get("status") == status.lower():
-                                result.append(r)
-                        else:
-                            result.append(r)
-
-                logging.warning(f"get_invites_by_company: post-filter matched {len(result)} rows")
-
-        return result
-    except Exception as e:
-        logging.error(f"get_invites_by_company error: {e}")
-        import traceback
-        logging.error(traceback.format_exc())
-        return []
+    company_id = _positive_integer(company_id, "Company ID")
+    query = supabase.table(TABLE_NAME).select("*").eq("company_id", company_id)
+    if status:
+        query = query.eq("status", status.lower())
+    response = query.order("id", desc=True).execute()
+    return response.data or []
 
 
-def get_invite_by_id(invite_id):
-    """Fetch a single invite by its id."""
-    if not invite_id:
-        return None
+def get_invite_by_id(invite_id, company_id):
+    """Fetch one invitation using both its id and tenant company id."""
+    invite_id = _positive_integer(invite_id, "Invite ID")
+    company_id = _positive_integer(company_id, "Company ID")
     response = (
         supabase.table(TABLE_NAME)
         .select("*")
         .eq("id", invite_id)
+        .eq("company_id", company_id)
         .limit(1)
         .execute()
     )
@@ -172,14 +188,36 @@ def get_invite_by_id(invite_id):
     return data[0] if data else None
 
 
-def delete_invite(invite_id):
-    """Delete an invite record by id."""
-    if not invite_id:
-        raise ValueError("Invite id is required")
+def update_invite_for_company(invite_id, company_id, payload):
+    """Update an invitation using both its id and tenant company id."""
+    invite_id = _positive_integer(invite_id, "Invite ID")
+    company_id = _positive_integer(company_id, "Company ID")
+    scoped_payload = dict(payload or {})
+    if not scoped_payload:
+        raise ValueError("No invitation fields to update")
+    scoped_payload["updated_at"] = _now_iso()
+    response = (
+        supabase.table(TABLE_NAME)
+        .update(scoped_payload)
+        .eq("id", invite_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        raise ValueError("Failed to update invite")
+    return rows[0]
+
+
+def delete_invite(invite_id, company_id):
+    """Delete an invitation using both its id and tenant company id."""
+    invite_id = _positive_integer(invite_id, "Invite ID")
+    company_id = _positive_integer(company_id, "Company ID")
     response = (
         supabase.table(TABLE_NAME)
         .delete()
         .eq("id", invite_id)
+        .eq("company_id", company_id)
         .execute()
     )
     rows = response.data or []

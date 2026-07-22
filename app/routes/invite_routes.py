@@ -6,29 +6,31 @@ from werkzeug.security import generate_password_hash
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
 from app.database.invite_repository import (
+    build_invite_expiry,
     get_pending_invite_by_email,
-    get_invite_by_token,
-    update_invite,
     create_invite,
     get_invites_by_company,
     get_invite_by_id,
+    update_invite_for_company,
     delete_invite,
 )
-from app.database.user_repository import get_user_by_email, create_user
+from app.database.user_repository import get_user_by_email
 from app.services.billing_guard import can_add_team_member, BillingLimitError
+from app.services.invitation_service import (
+    InvitationValidationError,
+    accept_pending_invitation,
+    get_valid_pending_invitation,
+)
 from app.routes.auth_routes import validate_password_strength
 
 invite_bp = Blueprint("invite", __name__, url_prefix="/api/invites")
 
 
-def _now_iso():
-    return datetime.now(timezone.utc).isoformat()
-
 def _build_invite_url(token):
     """Build the full invite acceptance URL from the configured frontend URL."""
     from flask import current_app
-    base = current_app.config.get("FRONTEND_URL", "http://localhost:3000")
-    return f"{base}/accept-invite?token={token}"
+    base = current_app.config.get("FRONTEND_URL", "http://localhost:3000").rstrip("/")
+    return f"{base}/accept-invite.html?token={token}"
 
 
 
@@ -66,25 +68,50 @@ def create_invite_endpoint():
 
         company_id = g.company_id
 
-        # Check subscription limit before creating invitation
-        can_add_team_member(company_id)
+        if get_user_by_email(email):
+            return jsonify({
+                "status": "error",
+                "message": "A registered user already exists for this email."
+            }), 409
 
         existing = get_pending_invite_by_email(email, company_id)
         if existing:
             return jsonify({
                 "status": "error",
-                "message": "A pending invite already exists for this email."
+                "message": "A valid pending invite already exists for this email."
             }), 409
 
-        token = secrets.token_urlsafe(32)
+        # Check subscription limit before creating invitation
+        can_add_team_member(company_id)
 
-        invite = create_invite(
-            email=email,
-            company_id=company_id,
-            role=role,
-            token=token,
-            created_by=g.user_id
+        token = secrets.token_urlsafe(32)
+        expires_at = build_invite_expiry()
+        stale_invite = get_pending_invite_by_email(
+            email,
+            company_id,
+            valid_only=False,
         )
+
+        if stale_invite:
+            invite = update_invite_for_company(
+                stale_invite.get("id"),
+                company_id,
+                {
+                    "token": token,
+                    "expires_at": expires_at,
+                    "role": role,
+                    "status": "pending",
+                    "created_by": g.user_id,
+                },
+            )
+        else:
+            invite = create_invite(
+                email=email,
+                company_id=company_id,
+                role=role,
+                token=token,
+                created_by=g.user_id
+            )
 
         invite_link = _build_invite_url(token)
 
@@ -102,22 +129,19 @@ def create_invite_endpoint():
             "invite_link": invite_link
         }), 201
 
-    except ValueError as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 400
     except BillingLimitError as e:
         return jsonify({
             "status": "error",
             "code": e.code,
             "message": str(e)
         }), 403
-    except Exception as e:
-                return jsonify({
-            "status": "success",
-            "data": []
-        }), 200
+    except Exception:
+        import logging
+        logging.exception("Failed to create invitation")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to create invitation."
+        }), 500
 
 
 
@@ -126,16 +150,13 @@ def create_invite_endpoint():
 
 @invite_bp.route("", methods=["GET"])
 @token_required
-@role_required("admin", "owner")
 def list_company_invites():
     """List invites for the current company, optionally filtered by status."""
     try:
         status = (request.args.get("status") or "").strip().lower() or None
         company_id = g.company_id
 
-        import logging
         invites = get_invites_by_company(company_id, status=status)
-        logging.warning(f"list_company_invites: company_id={company_id!r} (type={type(company_id).__name__}), status={status!r}, result_count={len(invites)}")
 
         safe_invites = []
         for inv in invites:
@@ -153,12 +174,12 @@ def list_company_invites():
             "data": safe_invites
         }), 200
 
-    except Exception as e:
+    except Exception:
         import logging
-        logging.error(f"list_company_invites error: {e}")
+        logging.exception("Failed to list company invitations")
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": "Unable to load invitations."
         }), 500
 
 
@@ -179,48 +200,77 @@ def resend_invite():
                 "message": "No data provided."
             }), 400
 
+        company_id = g.company_id
+        invite_id = data.get("invite_id")
         email = (data.get("email") or "").strip().lower()
 
-        if not email:
+        if invite_id is None and not email:
             return jsonify({
                 "status": "error",
-                "message": "Email is required."
+                "message": "Invite ID or email is required."
             }), 400
 
-        company_id = g.company_id
+        if invite_id is None:
+            candidate = get_pending_invite_by_email(email, company_id, valid_only=False)
+            invite_id = candidate.get("id") if candidate else None
+        elif isinstance(invite_id, bool):
+            return jsonify({"status": "error", "message": "Invite ID must be a positive integer."}), 400
+        else:
+            try:
+                invite_id = int(invite_id)
+            except (TypeError, ValueError):
+                return jsonify({"status": "error", "message": "Invite ID must be a positive integer."}), 400
 
-        invite = get_pending_invite_by_email(email, company_id)
+        if not invite_id or invite_id <= 0:
+            return jsonify({
+                "status": "error",
+                "message": "No pending invite found."
+            }), 404
+
+        invite = get_invite_by_id(invite_id, company_id)
         if not invite:
             return jsonify({
                 "status": "error",
-                "message": "No pending invite found for this email."
+                "message": "No pending invite found."
             }), 404
 
-        token = invite.get("token")
+        if invite.get("status") != "pending":
+            return jsonify({
+                "status": "error",
+                "message": "Only pending invitations can be resent."
+            }), 400
+
+        invite_email = str(invite.get("email") or "").strip().lower()
+        if not invite_email:
+            return jsonify({"status": "error", "message": "Invitation email is missing."}), 400
+
+        token = secrets.token_urlsafe(32)
+        expires_at = build_invite_expiry()
+        update_invite_for_company(invite_id, company_id, {
+            "token": token,
+            "expires_at": expires_at,
+        })
         invite_link = _build_invite_url(token)
 
         # Send invite email (non-blocking)
         try:
             from app.services.email_service import send_invite_email
-            send_invite_email(email, invite_link, recipient_name=email.split("@")[0])
+            send_invite_email(invite_email, invite_link, recipient_name=invite_email.split("@")[0])
         except Exception as email_err:
             import logging
-            logging.error(f"Failed to resend invite email to {email}: {email_err}")
+            logging.error(f"Failed to resend invite email to {invite_email}: {email_err}")
 
         return jsonify({
             "status": "success",
             "message": "Invitation resent successfully."
         }), 200
 
-    except ValueError as e:
+    except Exception:
+        import logging
+        logging.exception("Failed to resend invitation")
         return jsonify({
             "status": "error",
-            "message": str(e)
-        }), 400
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
+            "message": "Unable to resend invitation."
         }), 500
 
 
@@ -235,14 +285,8 @@ def cancel_invite(invite_id):
     try:
         company_id = g.company_id
 
-        invite = get_invite_by_id(invite_id)
+        invite = get_invite_by_id(invite_id, company_id)
         if not invite:
-            return jsonify({
-                "status": "error",
-                "message": "Invite not found."
-            }), 404
-
-        if invite.get("company_id") != company_id:
             return jsonify({
                 "status": "error",
                 "message": "Invite not found."
@@ -254,22 +298,19 @@ def cancel_invite(invite_id):
                 "message": "Only pending invites can be cancelled."
             }), 400
 
-        delete_invite(invite_id)
+        delete_invite(invite_id, company_id)
 
         return jsonify({
             "status": "success",
             "message": "Invitation cancelled successfully."
         }), 200
 
-    except ValueError as e:
+    except Exception:
+        import logging
+        logging.exception("Failed to cancel invitation")
         return jsonify({
             "status": "error",
-            "message": str(e)
-        }), 400
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
+            "message": "Unable to cancel invitation."
         }), 500
 
 # ── Public: Validate Invite Token ─────────────────────────────────────
@@ -287,44 +328,23 @@ def validate_invite():
                 "message": "Token is required."
             }), 400
 
-        invite = get_invite_by_token(token)
-
-        if not invite:
-            return jsonify({
-                "status": "error",
-                "message": "Invalid invite token."
-            }), 404
-
-        if invite.get("status") != "pending":
-            return jsonify({
-                "status": "error",
-                "message": "This invite has already been used."
-            }), 410
-
-        expires_at = invite.get("expires_at")
-        if expires_at:
-            try:
-                expires_dt = datetime.fromisoformat(expires_at)
-                if expires_dt < datetime.now(timezone.utc):
-                    return jsonify({
-                        "status": "error",
-                        "message": "This invite has expired."
-                    }), 410
-            except (ValueError, TypeError):
-                pass
+        invite = get_valid_pending_invitation(token)
 
         return jsonify({
             "status": "success",
             "valid": True,
             "email": invite.get("email"),
-            "company_id": invite.get("company_id"),
             "role": invite.get("role")
         }), 200
 
-    except Exception as e:
+    except InvitationValidationError as e:
+        return jsonify({"status": "error", "message": str(e)}), e.status_code
+    except Exception:
+        import logging
+        logging.exception("Failed to validate invitation")
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": "Unable to validate invitation."
         }), 500
 
 
@@ -365,34 +385,6 @@ def accept_invite():
                 "message": "Password is required."
             }), 400
 
-        # ── Validate invite ──
-
-        invite = get_invite_by_token(token)
-
-        if not invite:
-            return jsonify({
-                "status": "error",
-                "message": "Invalid invite token."
-            }), 404
-
-        if invite.get("status") != "pending":
-            return jsonify({
-                "status": "error",
-                "message": "This invite has already been used."
-            }), 410
-
-        expires_at = invite.get("expires_at")
-        if expires_at:
-            try:
-                expires_dt = datetime.fromisoformat(expires_at)
-                if expires_dt < datetime.now(timezone.utc):
-                    return jsonify({
-                        "status": "error",
-                        "message": "This invite has expired."
-                    }), 410
-            except (ValueError, TypeError):
-                pass
-
         # ── Validate password strength ──
 
         is_strong, msg = validate_password_strength(password)
@@ -402,63 +394,28 @@ def accept_invite():
                 "message": msg
             }), 400
 
-        # ── Check email not already registered ──
-
-        email = invite.get("email")
-        existing_user = get_user_by_email(email)
-        if existing_user:
-            return jsonify({
-                "status": "error",
-                "message": "This email is already registered."
-            }), 409
-
-        # ── Check subscription limit before creating user ──
-        company_id_from_invite = invite.get("company_id")
-        can_add_team_member(company_id_from_invite)
-
-        # ── Create user ──
-
         password_hash = generate_password_hash(password)
-        company_id = invite.get("company_id")
-        role = invite.get("role")
-
-        user = create_user(
-            company_id=company_id,
-            full_name=full_name,
-            email=email,
-            password_hash=password_hash,
-            role=role,
-            status="active",
-            is_verified=True
-        )
-
-        # ── Mark invite as accepted ──
-
-        update_invite(token, {
-            "status": "accepted",
-            "accepted_at": _now_iso()
-        })
+        accept_pending_invitation(token, full_name, password_hash)
 
         return jsonify({
             "status": "success",
             "message": "Account created successfully. You can now log in."
         }), 201
 
-    except ValueError as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 400
+    except InvitationValidationError as e:
+        return jsonify({"status": "error", "message": str(e)}), e.status_code
     except BillingLimitError as e:
         return jsonify({
             "status": "error",
             "code": e.code,
             "message": str(e)
         }), 403
-    except Exception as e:
+    except Exception:
+        import logging
+        logging.exception("Failed to accept invitation")
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": "Unable to accept invitation."
         }), 500
 
 

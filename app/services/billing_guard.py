@@ -14,8 +14,23 @@ from app.services.billing_service import (
     get_current_subscription,
     ensure_default_company_subscription,
 )
+from app.database.invite_repository import count_valid_pending_invitations
 
 logger = logging.getLogger(__name__)
+
+
+def _strict_pending_invitation_count(company_id, reported_pending):
+    """Replace nonzero aggregate usage with an expiry-validated reservation count."""
+    if not reported_pending:
+        return 0
+    try:
+        return count_valid_pending_invitations(company_id)
+    except Exception as exc:
+        logger.exception("Unable to validate pending invitation reservations")
+        raise BillingLimitError(
+            "Unable to verify usage limits. Please try again.",
+            code="usage_unavailable",
+        ) from exc
 
 
 class BillingLimitError(Exception):
@@ -313,8 +328,39 @@ def can_add_team_member(company_id: int) -> bool:
             code="usage_unavailable",
         )
     used = usage.get("usage", {}).get("team_members", {}).get("used", 0) or 0
-    pending = usage.get("usage", {}).get("team_members", {}).get("pending_invitations", 0) or 0
+    reported_pending = usage.get("usage", {}).get("team_members", {}).get("pending_invitations", 0) or 0
+    pending = _strict_pending_invitation_count(company_id, reported_pending)
     return _check_limit(used + pending, limit, "Team member limit reached for the current subscription plan.", "team_member_limit")
+
+
+def can_accept_team_invitation(company_id: int) -> bool:
+    """Allow a valid pending invitation to consume its already-reserved seat."""
+    subscription = _resolve_company_subscription(company_id)
+    if subscription is None:
+        raise BillingLimitError(
+            "No active subscription plan. Please contact support.",
+            code="no_subscription",
+        )
+    plan = subscription.get("plan") or {}
+    limit = plan.get("team_member_limit")
+    if limit is None:
+        return True
+    usage = get_company_usage(company_id)
+    if usage is None:
+        raise BillingLimitError(
+            "Unable to verify usage limits. Please try again.",
+            code="usage_unavailable",
+        )
+    team_usage = usage.get("usage", {}).get("team_members", {})
+    used = team_usage.get("used", 0) or 0
+    reported_pending = team_usage.get("pending_invitations", 0) or 0
+    pending = _strict_pending_invitation_count(company_id, reported_pending)
+    if used + pending > limit:
+        raise BillingLimitError(
+            "Team member limit reached for the current subscription plan.",
+            code="team_member_limit",
+        )
+    return True
 
 
 # ---------------------------------------------------------------------------
