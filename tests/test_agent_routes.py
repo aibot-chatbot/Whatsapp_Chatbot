@@ -26,6 +26,7 @@ MOCK_USER = {
     "company_id": 42,
     "full_name": "Test User",
     "email": "test@example.com",
+    "role": "admin",
     "status": "active",
 }
 

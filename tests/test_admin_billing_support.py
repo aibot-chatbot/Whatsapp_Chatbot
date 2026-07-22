@@ -2,6 +2,7 @@
 from unittest.mock import patch
 
 from tests.test_phase_4f_tenant_isolation import (
+    MOCK_USER,
     TestBillingTenantIsolation as BaseAuthTest,
 )
 
@@ -13,6 +14,12 @@ class BaseAdminTest(BaseAuthTest):
         return patch(
             "app.decorators.auth_decorator.jwt.decode",
             return_value={"company_id": company_id, "user_id": 1, "role": role},
+        )
+
+    def _patch_user_repo(self, role="admin"):
+        return patch(
+            "app.database.user_repository.get_user_by_id",
+            return_value={**MOCK_USER, "role": role},
         )
 
 
@@ -34,7 +41,7 @@ class TestAdminAuthorization(BaseAdminTest):
 
     def test_member_cannot_list_orders(self):
         """Company member cannot access admin billing."""
-        with self._patch_jwt(company_id=42, role="member"), self._patch_user_repo():
+        with self._patch_jwt(company_id=42, role="admin"), self._patch_user_repo(role="member"):
             resp = self.client.get(
                 "/api/admin/billing/orders",
                 headers={"Authorization": "Bearer test-token"},
@@ -86,7 +93,7 @@ class TestAdminAuthorization(BaseAdminTest):
 
     def test_member_cannot_get_order_detail(self):
         """Member cannot get order detail."""
-        with self._patch_jwt(company_id=42, role="member"), self._patch_user_repo():
+        with self._patch_jwt(company_id=42, role="admin"), self._patch_user_repo(role="member"):
             resp = self.client.get(
                 "/api/admin/billing/orders/abc-123",
                 headers={"Authorization": "Bearer test-token"},
@@ -131,7 +138,7 @@ class TestAdminAuthorization(BaseAdminTest):
 
     def test_member_cannot_reconcile(self):
         """Company member cannot trigger reconciliation."""
-        with self._patch_jwt(company_id=42, role="member"), self._patch_user_repo():
+        with self._patch_jwt(company_id=42, role="admin"), self._patch_user_repo(role="member"):
             resp = self.client.post(
                 "/api/admin/billing/orders/abc-123/reconcile",
                 headers={"Authorization": "Bearer test-token"},
@@ -167,7 +174,7 @@ class TestAdminAICredit(BaseAdminTest):
 
     def test_credit_member_cannot_view_summary(self):
         """Company member cannot view AI credit summary."""
-        with self._patch_jwt(company_id=42, role="member"), self._patch_user_repo():
+        with self._patch_jwt(company_id=42, role="admin"), self._patch_user_repo(role="member"):
             resp = self.client.get(
                 "/api/admin/billing/ai-credit",
                 headers={"Authorization": "Bearer test-token"},
