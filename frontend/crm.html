@@ -96,6 +96,176 @@
             gap: 8px;
         }
 
+        /* ===== CRM Workspace Tabs ===== */
+        .workspace-tabs {
+            display: inline-flex;
+            align-self: flex-start;
+            gap: 6px;
+            margin-bottom: 24px;
+            padding: 5px;
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.55);
+        }
+
+        .workspace-tab {
+            border: 1px solid transparent;
+            border-radius: 10px;
+            padding: 9px 16px;
+            background: transparent;
+            color: var(--text-dim);
+            font: inherit;
+            font-size: 0.88rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .workspace-tab:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .workspace-tab.active {
+            color: #fff;
+            border-color: rgba(var(--primary-rgb), 0.35);
+            background: rgba(var(--primary-rgb), 0.18);
+            box-shadow: 0 6px 18px -10px var(--primary-glow);
+        }
+
+        .workspace-tab:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+        }
+
+        .workspace-tab-panel {
+            display: none;
+        }
+
+        .workspace-tab-panel.active {
+            display: block;
+        }
+
+        /* ===== AI Signals Tab ===== */
+        .signals-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .signal-summary-card {
+            padding: 20px;
+            min-height: 154px;
+        }
+
+        .signal-summary-label {
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            font-weight: 600;
+            letter-spacing: 0.7px;
+            text-transform: uppercase;
+        }
+
+        .signal-summary-value {
+            margin-top: 12px;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .signal-summary-helper {
+            margin-top: 8px;
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            line-height: 1.45;
+        }
+
+        .signals-panel {
+            padding: 24px;
+        }
+
+        .signals-panel-header {
+            margin-bottom: 18px;
+        }
+
+        .signals-panel-header h2 {
+            font-size: 1.2rem;
+        }
+
+        .signals-panel-header p {
+            margin-top: 5px;
+            color: var(--text-dim);
+            font-size: 0.86rem;
+        }
+
+        .customer-signals-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .customer-signal-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 20px;
+            padding: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.35);
+        }
+
+        .customer-signal-label {
+            font-weight: 600;
+        }
+
+        .customer-signal-next-step,
+        .customer-signal-time {
+            color: var(--text-dim);
+            font-size: 0.82rem;
+        }
+
+        .customer-signal-next-step {
+            margin-top: 5px;
+            line-height: 1.45;
+        }
+
+        .customer-signal-time {
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 1100px) {
+            .signals-summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            .workspace-tabs {
+                display: flex;
+                width: 100%;
+            }
+
+            .workspace-tab {
+                flex: 1;
+            }
+
+            .signals-summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .customer-signal-row {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .customer-signal-time {
+                white-space: normal;
+            }
+        }
+
         /* ===== Business Snapshot Bar ===== */
         .snapshot-bar {
             display: grid;
@@ -1036,6 +1206,12 @@
             </div>
         </div>
 
+        <div class="workspace-tabs" role="tablist" aria-label="CRM workspace">
+            <button type="button" class="workspace-tab active" id="workspace-tab-leads" data-workspace-tab="leads" role="tab" aria-selected="true" aria-controls="workspace-panel-leads">Leads</button>
+            <button type="button" class="workspace-tab" id="workspace-tab-ai-signals" data-workspace-tab="ai-signals" role="tab" aria-selected="false" aria-controls="workspace-panel-ai-signals" hidden>AI Signals</button>
+        </div>
+
+        <section class="workspace-tab-panel active" id="workspace-panel-leads" role="tabpanel" aria-labelledby="workspace-tab-leads">
         <div class="snapshot-bar">
             <div class="snapshot-item snapshot-highlight">
                 <div class="snapshot-header-row">
@@ -1187,6 +1363,47 @@
                 </table>
             </div>
         </div>
+        </section>
+
+        <section class="workspace-tab-panel" id="workspace-panel-ai-signals" role="tabpanel" aria-labelledby="workspace-tab-ai-signals">
+            <div class="signals-summary-grid">
+                <div class="glass-card signal-summary-card">
+                    <div class="signal-summary-label">Follow-up Opportunities</div>
+                    <div class="signal-summary-value" id="signal-follow-up-opportunities">...</div>
+                    <div class="signal-summary-helper">Messages that may need business follow-up or further assistance.</div>
+                </div>
+                <div class="glass-card signal-summary-card">
+                    <div class="signal-summary-label">Needs Staff Attention</div>
+                    <div class="signal-summary-value" id="signal-needs-staff-attention">...</div>
+                    <div class="signal-summary-helper">Customers who may need help from a team member.</div>
+                </div>
+                <div class="glass-card signal-summary-card">
+                    <div class="signal-summary-label">Negative Feedback</div>
+                    <div class="signal-summary-value" id="signal-negative-feedback">...</div>
+                    <div class="signal-summary-helper">Messages that may show dissatisfaction or service issues.</div>
+                </div>
+                <div class="glass-card signal-summary-card">
+                    <div class="signal-summary-label">Missing Answers</div>
+                    <div class="signal-summary-value" id="signal-missing-answers">...</div>
+                    <div class="signal-summary-helper">Questions the bot may not have enough knowledge to answer.</div>
+                </div>
+            </div>
+
+            <div class="glass-card signals-panel">
+                <div class="signals-panel-header">
+                    <h2>Recent Customer Signals</h2>
+                    <p>Friendly follow-up suggestions based on passive agent detection.</p>
+                </div>
+                <div class="customer-signals-list" id="customer-signals-list">
+                    <div class="customer-signal-row">
+                        <div>
+                            <div class="customer-signal-label">Open AI Signals to load customer insights.</div>
+                            <div class="customer-signal-next-step">Signals are loaded only when this tab is selected.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <div class="modal-backdrop" id="lead-details-modal" aria-hidden="true">
@@ -1216,11 +1433,13 @@
         const urlParams = new URLSearchParams(window.location.search);
         const urlBotId = urlParams.get("bot_id");
         const storedBotId = sessionStorage.getItem("selectedBotId");
+        const initialTabParam = urlParams.get("tab");
 
         let selectedBotId = urlBotId;
 
         if (!urlBotId && storedBotId) {
-            window.location.href = `crm.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            const preservedTab = initialTabParam === "ai-signals" ? "&tab=ai-signals" : "";
+            window.location.replace(`crm.html?bot_id=${encodeURIComponent(storedBotId)}${preservedTab}`);
             selectedBotId = storedBotId;
         }
 
@@ -1234,12 +1453,26 @@
 
         let currentCrmLeads = [];
         let selectedLeadForDetails = null;
+        let customerInsightsFetchAttempted = false;
+
+        function canViewAiSignals() {
+            try {
+                const user = JSON.parse(sessionStorage.getItem("user") || "null");
+                const role = String(user && user.role || "").toLowerCase();
+                return role === "owner" || role === "admin";
+            } catch (_) {
+                return false;
+            }
+        }
+
+        const aiSignalsAllowed = canViewAiSignals();
 
         document.addEventListener("DOMContentLoaded", () => {
             if (!selectedBotId) {
                 return;
             }
 
+            setupWorkspaceTabs();
             fetchSelectedBot();
             fetchCrmLeads();
             setupCrmFilters();
@@ -1251,6 +1484,87 @@
                 window.lucide.createIcons();
             }
         });
+
+        function normalizeWorkspaceTab(tab) {
+            if (tab === "ai-signals" && aiSignalsAllowed) {
+                return "ai-signals";
+            }
+            return "leads";
+        }
+
+        function getWorkspaceTabFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            return normalizeWorkspaceTab(params.get("tab"));
+        }
+
+        function updateWorkspaceTabUrl(tab, mode) {
+            const url = new URL(window.location.href);
+            url.searchParams.set("bot_id", selectedBotId);
+            url.searchParams.set("tab", tab);
+
+            if (mode === "replace") {
+                window.history.replaceState({ workspaceTab: tab }, "", url);
+            } else {
+                window.history.pushState({ workspaceTab: tab }, "", url);
+            }
+        }
+
+        function showWorkspaceTab(requestedTab, historyMode) {
+            const tab = normalizeWorkspaceTab(requestedTab);
+
+            document.querySelectorAll("[data-workspace-tab]").forEach(button => {
+                const isActive = button.getAttribute("data-workspace-tab") === tab;
+                button.classList.toggle("active", isActive);
+                button.setAttribute("aria-selected", String(isActive));
+                button.tabIndex = isActive ? 0 : -1;
+            });
+
+            document.querySelectorAll(".workspace-tab-panel").forEach(panel => {
+                panel.classList.toggle("active", panel.id === `workspace-panel-${tab}`);
+            });
+
+            if (historyMode) {
+                updateWorkspaceTabUrl(tab, historyMode);
+            }
+
+            if (tab === "ai-signals") {
+                fetchCustomerInsights();
+            }
+        }
+
+        function setupWorkspaceTabs() {
+            const aiSignalsTab = document.getElementById("workspace-tab-ai-signals");
+            if (aiSignalsAllowed && aiSignalsTab) {
+                aiSignalsTab.hidden = false;
+            }
+
+            document.querySelectorAll("[data-workspace-tab]").forEach(button => {
+                button.addEventListener("click", () => {
+                    const requestedTab = button.getAttribute("data-workspace-tab");
+                    const currentTab = getWorkspaceTabFromUrl();
+                    const normalizedTab = normalizeWorkspaceTab(requestedTab);
+                    if (normalizedTab !== currentTab) {
+                        showWorkspaceTab(normalizedTab, "push");
+                    } else {
+                        showWorkspaceTab(normalizedTab);
+                    }
+                });
+            });
+
+            const initialTab = getWorkspaceTabFromUrl();
+            const needsUrlCorrection = (
+                (initialTabParam && !["leads", "ai-signals"].includes(initialTabParam))
+                || (initialTabParam === "ai-signals" && !aiSignalsAllowed)
+            );
+            showWorkspaceTab(initialTab, needsUrlCorrection ? "replace" : null);
+
+            window.addEventListener("popstate", () => {
+                const requestedTab = new URLSearchParams(window.location.search).get("tab");
+                const normalizedTab = normalizeWorkspaceTab(requestedTab);
+                const memberNeedsFallback = requestedTab === "ai-signals" && !aiSignalsAllowed;
+                showWorkspaceTab(normalizedTab, memberNeedsFallback ? "replace" : null);
+            });
+        }
 
         function setText(id, value) {
             const el = document.getElementById(id);
@@ -1386,6 +1700,129 @@
                 console.error("CRM leads failed to fetch", err);
                 showCrmError();
             }
+        }
+
+        function setSignalText(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = String(value ?? "-");
+            }
+        }
+
+        function renderCustomerSignalsMessage(label, nextStep) {
+            const list = document.getElementById("customer-signals-list");
+            list.replaceChildren();
+
+            const row = document.createElement("div");
+            row.className = "customer-signal-row";
+
+            const textWrap = document.createElement("div");
+            const labelEl = document.createElement("div");
+            labelEl.className = "customer-signal-label";
+            labelEl.textContent = label;
+
+            const nextStepEl = document.createElement("div");
+            nextStepEl.className = "customer-signal-next-step";
+            nextStepEl.textContent = nextStep || "";
+
+            textWrap.appendChild(labelEl);
+            textWrap.appendChild(nextStepEl);
+            row.appendChild(textWrap);
+            list.appendChild(row);
+        }
+
+        function setCustomerInsightsLoading() {
+            setSignalText("signal-follow-up-opportunities", "...");
+            setSignalText("signal-needs-staff-attention", "...");
+            setSignalText("signal-negative-feedback", "...");
+            setSignalText("signal-missing-answers", "...");
+            renderCustomerSignalsMessage("Loading customer insights...", "Checking recent detected signals.");
+        }
+
+        function showCustomerInsightsError() {
+            setSignalText("signal-follow-up-opportunities", "-");
+            setSignalText("signal-needs-staff-attention", "-");
+            setSignalText("signal-negative-feedback", "-");
+            setSignalText("signal-missing-answers", "-");
+            renderCustomerSignalsMessage("Unable to load customer insights.", "Please try refreshing this page.");
+        }
+
+        function formatSignalDate(value) {
+            if (!value) {
+                return "";
+            }
+
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+        }
+
+        async function fetchCustomerInsights() {
+            if (!aiSignalsAllowed || customerInsightsFetchAttempted) {
+                return;
+            }
+
+            customerInsightsFetchAttempted = true;
+            setCustomerInsightsLoading();
+
+            try {
+                const response = await authenticatedFetch(`/api/agent/insights?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    showCustomerInsightsError();
+                    return;
+                }
+
+                renderCustomerInsights(result.data);
+            } catch (err) {
+                console.error("Customer insights failed to fetch", err);
+                showCustomerInsightsError();
+            }
+        }
+
+        function renderCustomerInsights(data) {
+            const summary = data.summary || {};
+            const recent = Array.isArray(data.recent) ? data.recent : [];
+
+            setSignalText("signal-follow-up-opportunities", summary.follow_up_opportunities || 0);
+            setSignalText("signal-needs-staff-attention", summary.needs_staff_attention || 0);
+            setSignalText("signal-negative-feedback", summary.negative_feedback || 0);
+            setSignalText("signal-missing-answers", summary.missing_answers || 0);
+
+            const list = document.getElementById("customer-signals-list");
+            list.replaceChildren();
+
+            if (!recent.length) {
+                renderCustomerSignalsMessage(
+                    "No follow-up signals detected yet.",
+                    "Important customer signals will appear here when the bot detects follow-up needs, staff attention, feedback, or missing answers."
+                );
+                return;
+            }
+
+            recent.forEach(item => {
+                const row = document.createElement("div");
+                row.className = "customer-signal-row";
+
+                const textWrap = document.createElement("div");
+                const labelEl = document.createElement("div");
+                labelEl.className = "customer-signal-label";
+                labelEl.textContent = item.label || "Customer signal detected";
+
+                const nextStepEl = document.createElement("div");
+                nextStepEl.className = "customer-signal-next-step";
+                nextStepEl.textContent = `Suggested next step: ${item.suggested_next_step || "Review this conversation"}`;
+
+                const timeEl = document.createElement("div");
+                timeEl.className = "customer-signal-time";
+                timeEl.textContent = formatSignalDate(item.created_at);
+
+                textWrap.appendChild(labelEl);
+                textWrap.appendChild(nextStepEl);
+                row.appendChild(textWrap);
+                row.appendChild(timeEl);
+                list.appendChild(row);
+            });
         }
 
         function renderCrmSummary(leads) {
