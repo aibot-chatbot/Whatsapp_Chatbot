@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
 from app.database.conversation_repository import get_conversation_by_id_and_chatbot
 from app.database.crm_lead_repository import (
