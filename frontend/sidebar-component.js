@@ -6,7 +6,8 @@ class ChatbotSidebar extends HTMLElement {
     connectedCallback() {
         const currentPath = window.location.pathname.split('/').pop() || 'index.html';
         const urlParams = new URLSearchParams(window.location.search);
-        const botId = urlParams.get("bot_id");
+        const rawBotId = urlParams.get("bot_id");
+        const botId = (rawBotId && rawBotId !== "null") ? rawBotId : (sessionStorage.getItem("selectedBotId") || null);
         const botQuery = botId ? `?bot_id=${botId}` : "";
         const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
         const isCollapsed = localStorage.getItem("sidebarCollapsed") === "true" && !isMobileViewport;
@@ -14,7 +15,7 @@ class ChatbotSidebar extends HTMLElement {
         const isBotsPage = currentPath === "bots.html";
         // Determine user role from sessionStorage
         var storedUser = null;
-        try { storedUser = JSON.parse(sessionStorage.getItem("user") || "null"); } catch(_) {}
+        try { storedUser = JSON.parse(sessionStorage.getItem("user") || "null"); } catch (_) { }
         var userRole = (storedUser && storedUser.role || "").toLowerCase();
         var isAdmin = userRole === "admin" || userRole === "owner";
 
@@ -422,10 +423,6 @@ class ChatbotSidebar extends HTMLElement {
                                     <i data-lucide="terminal-square"></i>
                                     <span>Bot Config</span>
                                 </a>
-                                <a href="media_attachments.html${botQuery}" class="nav-link sub-link" title="Media Attachments">
-                                    <i data-lucide="image-plus"></i>
-                                    <span>Media Attachments</span>
-                                </a>
                             </div>
                         </div>
 
@@ -469,6 +466,12 @@ class ChatbotSidebar extends HTMLElement {
                         <i data-lucide="send"></i>
                         <span>Campaigns</span>
                     </a>
+                    ${isAdmin ? `
+                    <a href="meta_templates.html${botQuery}" class="nav-link" title="Meta Templates">
+                        <i data-lucide="file-check"></i>
+                        <span>Meta Templates</span>
+                    </a>
+                    ` : ""}
 
                     <div class="nav-group-header">CRM &amp; Analytics</div>
                     <a href="crm.html${botQuery}" class="nav-link" title="CRM / Leads">
@@ -543,7 +546,7 @@ class ChatbotSidebar extends HTMLElement {
         this.initSidebar();
         this.initCollapseToggle();
 
-          // Check if lucide is available globally
+        // Check if lucide is available globally
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
             window.lucide.createIcons({ root: this });
         } else {
@@ -587,7 +590,7 @@ class ChatbotSidebar extends HTMLElement {
         var profileLinks = this.querySelectorAll(".profile-link");
 
         // Mark profile/team links active based on current page
-        profileLinks.forEach(function(pl) {
+        profileLinks.forEach(function (pl) {
             var h = pl.getAttribute("href");
             if (h) {
                 var p = h.split("?")[0];
@@ -619,6 +622,7 @@ class ChatbotSidebar extends HTMLElement {
                 drop.classList.add('open');
             }
         }
+
     }
 
     initCollapseToggle() {
@@ -664,7 +668,7 @@ class ChatbotSidebar extends HTMLElement {
 customElements.define('chatbot-sidebar', ChatbotSidebar);
 
 window.toggleSidebarDropdown = window.toggleSidebarDropdown || function (id) {
-        // We must find the dropdown inside the chatbot-sidebar shadow DOM or element
+    // We must find the dropdown inside the chatbot-sidebar shadow DOM or element
     const sb = document.querySelector('chatbot-sidebar');
     if (sb) {
         const insideEl = sb.querySelector('#' + id);

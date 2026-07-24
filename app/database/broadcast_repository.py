@@ -4,13 +4,16 @@ from app.database.db import supabase
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
-def create_campaign(company_id, chatbot_id, name, channel_type, message_template):
+def create_campaign(company_id, chatbot_id, name, channel_type, message_template, meta_template_name="", meta_language_code="en_US", media_attachment_id=None):
     payload = {
         "company_id": company_id,
         "chatbot_id": chatbot_id,
         "name": name,
         "channel_type": channel_type,
         "message_template": message_template,
+        "meta_template_name": meta_template_name,
+        "meta_language_code": meta_language_code,
+        "media_attachment_id": media_attachment_id,
         "status": "draft",
         "created_at": _now_iso(),
         "updated_at": _now_iso()
