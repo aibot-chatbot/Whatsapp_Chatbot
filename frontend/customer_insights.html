@@ -1,418 +1,55 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Customer Insights | AI Chatbot</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <script src="assets/js/shared-ui.js"></script>
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --bg: #050b18;
-            --sidebar-bg: rgba(15, 23, 42, 0.8);
-            --card-bg: rgba(30, 41, 59, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --accent: #10b981;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            overflow-x: hidden;
-        }
-
-        .main-container {
-            flex-grow: 1;
-            padding: 50px 60px;
-            max-width: 100%;
-            display: flex;
-            flex-direction: column;
-            overflow-x: hidden;
-        }
-
-        .header {
-            margin-bottom: 32px;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 20px;
-        }
-
-        .header h1 {
-            font-size: 2.2rem;
-            font-weight: 700;
-        }
-
-        .header p {
-            color: var(--text-dim);
-            margin-top: 8px;
-        }
-
-        /* ===== Glass Cards (from shared-glass.css) ===== */
-
-        .insights-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 18px;
-            margin-bottom: 24px;
-        }
-
-        .insight-card {
-            background: rgba(15, 23, 42, 0.42);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 18px;
-            min-height: 140px;
-        }
-
-        .insight-card-label {
-            color: var(--text-dim);
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 8px;
-        }
-
-        .insight-card-value {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }
-
-        .insight-card-helper {
-            color: var(--text-dim);
-            font-size: 0.86rem;
-            line-height: 1.45;
-        }
-
-        .section-header {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            margin-bottom: 18px;
-        }
-
-        .section-header h2 {
-            font-size: 1.2rem;
-            margin: 0;
-        }
-
-        .section-header p {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            margin: 0;
-        }
-
-        .signals-list {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .signal-row {
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            gap: 14px;
-            align-items: center;
-            background: rgba(15, 23, 42, 0.35);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 14px;
-            padding: 14px 16px;
-        }
-
-        .signal-label {
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        .signal-next-step {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-        }
-
-        .signal-time {
-            color: var(--text-dim);
-            font-size: 0.82rem;
-            white-space: nowrap;
-        }
-
-        .status-pill {
-            color: var(--accent);
-            font-weight: 600;
-            padding: 10px 20px;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-
-            .main-container {
-                padding: 30px 20px;
-            }
-
-            .header {
-                flex-direction: column;
-            }
-
-            .signal-row {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
 </head>
 
 <body>
-    <script src="sidebar-component.js"></script>
-    <chatbot-sidebar></chatbot-sidebar>
-
-    <main class="main-container">
-        <div class="header">
-            <div>
-                <h1 id="page-title">Customer Insights</h1>
-                <p>Business signals detected from recent customer messages.</p>
-            </div>
-            <div class="glass-card status-pill">
-                <span id="bot-name">Loading bot...</span>
-            </div>
-        </div>
-
-        <div class="insights-grid">
-            <div class="glass-card insight-card">
-                <div class="insight-card-label">Follow-up Opportunities</div>
-                <div class="insight-card-value" id="insight-follow-up-opportunities">...</div>
-                <div class="insight-card-helper">Messages that may need business follow-up or further assistance.</div>
-            </div>
-            <div class="glass-card insight-card">
-                <div class="insight-card-label">Needs Staff Attention</div>
-                <div class="insight-card-value" id="insight-needs-staff-attention">...</div>
-                <div class="insight-card-helper">Customers who may need help from a team member.</div>
-            </div>
-            <div class="glass-card insight-card">
-                <div class="insight-card-label">Negative Feedback</div>
-                <div class="insight-card-value" id="insight-negative-feedback">...</div>
-                <div class="insight-card-helper">Messages that may show dissatisfaction or service issues.</div>
-            </div>
-            <div class="glass-card insight-card">
-                <div class="insight-card-label">Missing Answers</div>
-                <div class="insight-card-value" id="insight-missing-answers">...</div>
-                <div class="insight-card-helper">Questions the bot may not have enough knowledge to answer.</div>
-            </div>
-        </div>
-
-        <div class="glass-card">
-            <div class="section-header">
-                <h2>Recent Customer Signals</h2>
-                <p>Friendly follow-up suggestions based on passive agent detection.</p>
-            </div>
-            <div class="signals-list" id="customer-signals-list">
-                <div class="signal-row">
-                    <div>
-                        <div class="signal-label">Loading customer insights...</div>
-                        <div class="signal-next-step">Checking recent detected signals.</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </main>
-
     <script src="assets/js/auth.js"></script>
     <script>
         requireLogin();
-        requireAdminOrOwner();
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlBotId = urlParams.get("bot_id");
-        const storedBotId = sessionStorage.getItem("selectedBotId");
+        (function redirectToCrmAiSignals() {
+            if (!sessionStorage.getItem("token")) {
+                return;
+            }
 
-        let selectedBotId = urlBotId;
+            let user = null;
+            try {
+                user = JSON.parse(sessionStorage.getItem("user") || "null");
+            } catch (_) {
+                user = null;
+            }
 
-        if (!urlBotId && storedBotId) {
-            window.location.href = `customer_insights.html?bot_id=${encodeURIComponent(storedBotId)}`;
-            selectedBotId = storedBotId;
-        }
+            const role = String(user && user.role || "").toLowerCase();
+            if (role !== "owner" && role !== "admin") {
+                sessionStorage.setItem("redirect_message", "You do not have permission to access that page.");
+                window.location.replace("bots.html");
+                return;
+            }
 
-        if (!selectedBotId) {
-            window.location.href = "bots.html";
-        }
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlBotId = parsePositiveSafeInteger(String(urlParams.get("bot_id") || ""));
+            const storedBotId = parsePositiveSafeInteger(String(sessionStorage.getItem("selectedBotId") || ""));
+            const selectedBotId = urlBotId || storedBotId;
 
-        if (selectedBotId) {
-            sessionStorage.setItem("selectedBotId", selectedBotId);
-        }
-
-        document.addEventListener("DOMContentLoaded", () => {
             if (!selectedBotId) {
+                clearChatbotContext();
+                window.location.replace("bots.html");
                 return;
             }
 
-            fetchSelectedBot();
-            fetchCustomerInsights();
-        });
-
-        function setInsightText(id, value) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.textContent = String(value ?? "-");
-            }
-        }
-
-        async function fetchSelectedBot() {
-            try {
-                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
-                const result = await response.json();
-
-                if (!response.ok || result.status !== "success" || !result.data) {
-                    alert("You do not have access to this bot.");
-                    window.location.href = "bots.html";
-                    return;
-                }
-
-                const botName = result.data.bot_name || "Selected Bot";
-                document.getElementById("page-title").textContent = `${botName} Customer Insights`;
-                document.getElementById("bot-name").textContent = botName;
-            } catch (err) {
-                console.error("Failed to fetch selected bot", err);
-                alert("Failed to load bot. Please select a bot again.");
-                window.location.href = "bots.html";
-            }
-        }
-
-        function setCustomerInsightsLoading() {
-            setInsightText("insight-follow-up-opportunities", "...");
-            setInsightText("insight-needs-staff-attention", "...");
-            setInsightText("insight-negative-feedback", "...");
-            setInsightText("insight-missing-answers", "...");
-            renderCustomerSignalsMessage("Loading customer insights...", "Checking recent detected signals.");
-        }
-
-        function showCustomerInsightsError() {
-            setInsightText("insight-follow-up-opportunities", "-");
-            setInsightText("insight-needs-staff-attention", "-");
-            setInsightText("insight-negative-feedback", "-");
-            setInsightText("insight-missing-answers", "-");
-            renderCustomerSignalsMessage("Unable to load customer insights.", "Please try refreshing this page.");
-        }
-
-        function renderCustomerSignalsMessage(label, nextStep) {
-            const list = document.getElementById("customer-signals-list");
-            list.replaceChildren();
-
-            const row = document.createElement("div");
-            row.className = "signal-row";
-
-            const textWrap = document.createElement("div");
-            const labelEl = document.createElement("div");
-            labelEl.className = "signal-label";
-            labelEl.textContent = label;
-
-            const nextStepEl = document.createElement("div");
-            nextStepEl.className = "signal-next-step";
-            nextStepEl.textContent = nextStep || "";
-
-            textWrap.appendChild(labelEl);
-            textWrap.appendChild(nextStepEl);
-            row.appendChild(textWrap);
-            list.appendChild(row);
-        }
-
-        function formatSignalDate(value) {
-            if (!value) {
-                return "";
-            }
-
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) {
-                return "";
-            }
-
-            return date.toLocaleString();
-        }
-
-        async function fetchCustomerInsights() {
-            setCustomerInsightsLoading();
-
-            try {
-                const response = await authenticatedFetch(`/api/agent/insights?chatbot_id=${selectedBotId}`);
-                const result = await response.json();
-
-                if (!response.ok || result.status !== "success" || !result.data) {
-                    showCustomerInsightsError();
-                    return;
-                }
-
-                renderCustomerInsights(result.data);
-            } catch (err) {
-                console.error("Customer insights failed to fetch", err);
-                showCustomerInsightsError();
-            }
-        }
-
-        function renderCustomerInsights(data) {
-            const summary = data.summary || {};
-            const recent = Array.isArray(data.recent) ? data.recent : [];
-
-            setInsightText("insight-follow-up-opportunities", summary.follow_up_opportunities || 0);
-            setInsightText("insight-needs-staff-attention", summary.needs_staff_attention || 0);
-            setInsightText("insight-negative-feedback", summary.negative_feedback || 0);
-            setInsightText("insight-missing-answers", summary.missing_answers || 0);
-
-            const list = document.getElementById("customer-signals-list");
-            list.replaceChildren();
-
-            if (!recent.length) {
-                renderCustomerSignalsMessage(
-                    "No follow-up signals detected yet.",
-                    "Important customer signals will appear here when the bot detects follow-up needs, staff attention, feedback, or missing answers."
-                );
-                return;
-            }
-
-            recent.forEach(item => {
-                const row = document.createElement("div");
-                row.className = "signal-row";
-
-                const textWrap = document.createElement("div");
-                const labelEl = document.createElement("div");
-                labelEl.className = "signal-label";
-                labelEl.textContent = item.label || "Customer signal detected";
-
-                const nextStepEl = document.createElement("div");
-                nextStepEl.className = "signal-next-step";
-                nextStepEl.textContent = `Suggested next step: ${item.suggested_next_step || "Review this conversation"}`;
-
-                textWrap.appendChild(labelEl);
-                textWrap.appendChild(nextStepEl);
-
-                const timeEl = document.createElement("div");
-                timeEl.className = "signal-time";
-                timeEl.textContent = formatSignalDate(item.created_at);
-
-                row.appendChild(textWrap);
-                row.appendChild(timeEl);
-                list.appendChild(row);
-            });
-        }
+            sessionStorage.setItem("selectedBotId", String(selectedBotId));
+            const destination = new URL("crm.html", window.location.href);
+            destination.search = "";
+            destination.searchParams.set("bot_id", String(selectedBotId));
+            destination.searchParams.set("tab", "ai-signals");
+            window.location.replace(destination.href);
+        })();
     </script>
 </body>
 
 </html>
-

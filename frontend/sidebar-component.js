@@ -475,12 +475,6 @@ class ChatbotSidebar extends HTMLElement {
                         <i data-lucide="users"></i>
                         <span>CRM / Leads</span>
                     </a>
-                    ${isAdmin ? `
-                        <a href="customer_insights.html${botQuery}" class="nav-link" title="Customer Insights">
-                            <i data-lucide="target"></i>
-                            <span>Customer Insights</span>
-                        </a>
-                    ` : ""}
                     <a href="reports.html${botQuery}" class="nav-link" title="Reports">
                         <i data-lucide="bar-chart-3"></i>
                         <span>Reports</span>
