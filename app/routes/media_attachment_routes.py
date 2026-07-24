@@ -36,6 +36,52 @@ def list_attachments():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@media_attachment_blueprint.route("/api/media-attachments/upload", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+def upload_attachment_file():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
+
+        verify_chatbot_access(chatbot_id)
+        
+        if "media_file" not in request.files:
+            return jsonify({"status": "error", "message": "No file part"}), 400
+            
+        file = request.files["media_file"]
+        if file.filename == "":
+            return jsonify({"status": "error", "message": "No selected file"}), 400
+            
+        import os
+        from werkzeug.utils import secure_filename
+        
+        # Save to media_uploads
+        MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "media_uploads"))
+        os.makedirs(MEDIA_DIR, exist_ok=True)
+        
+        original_name = secure_filename(file.filename)
+        safe_name = f"bot_{chatbot_id}_{original_name}"
+        
+        filepath = os.path.join(MEDIA_DIR, safe_name)
+        file.save(filepath)
+        
+        public_url = request.host_url.rstrip("/") + f"/media/{safe_name}"
+        
+        return jsonify({
+            "status": "success",
+            "message": "File uploaded successfully",
+            "data": {
+                "public_url": public_url
+            }
+        }), 201
+
+    except Exception as e:
+        logging.error(f"Upload media attachment error: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @media_attachment_blueprint.route("/api/media-attachments", methods=["POST"])
 @token_required
 @role_required("admin", "owner")

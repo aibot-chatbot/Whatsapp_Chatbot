@@ -77,40 +77,92 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
             err_msg = None
 
             try:
+                media_attachment_id = campaign.get("media_attachment_id")
+                
+                # Fetch media attachment if provided
+                attachment = None
+                if media_attachment_id:
+                    from app.database.bot_media_attachment_repository import get_attachment_by_id
+                    attachment = get_attachment_by_id(media_attachment_id, chatbot_id)
+
                 if channel_type == "whatsapp":
                     from app.utils.whatsapp_utils import send_message, get_text_message_input, get_interactive_button_message_input
                     import re
 
-                    button_matches = re.findall(r"\[BUTTON:\s*(.*?)\]", message_text, re.IGNORECASE)
-                    if button_matches:
-                        clean_text = re.sub(r"\[BUTTON:\s*(.*?)\]", "", message_text, flags=re.IGNORECASE).strip()
-                        button_labels = [b.strip() for b in button_matches[:3] if b.strip()]
-                        data = get_interactive_button_message_input(phone, clean_text, button_labels)
-                    else:
-                        data = get_text_message_input(phone, message_text)
+                    meta_template_name = campaign.get("meta_template_name")
+                    meta_language_code = campaign.get("meta_language_code", "en_US")
 
-                    res = send_message(data, channel_config)
-                    if isinstance(res, tuple):
-                        sent_ok = False
-                        try:
-                            flask_res = res[0]
-                            err_msg = flask_res.get_json().get("message", "Failed to send message")
-                        except Exception:
-                            err_msg = str(res[0])
-                    elif hasattr(res, "status_code") and res.status_code >= 400:
-                        sent_ok = False
-                        err_msg = f"HTTP {res.status_code}: {res.text}"
+                    if attachment and meta_template_name:
+                        from app.services.media_send_service import send_meta_media_template
+                        sent_ok = send_meta_media_template(channel_config, attachment, phone)
+                        if not sent_ok:
+                            err_msg = "Failed to send meta media template"
+                    elif meta_template_name:
+                        # Construct a Meta API Template JSON payload
+                        import json
+                        data = json.dumps({
+                            "messaging_product": "whatsapp",
+                            "to": phone,
+                            "type": "template",
+                            "template": {
+                                "name": meta_template_name,
+                                "language": { "code": meta_language_code }
+                            }
+                        })
+                        res = send_message(data, channel_config)
+                        if isinstance(res, tuple):
+                            sent_ok = False
+                            try:
+                                flask_res = res[0]
+                                err_msg = flask_res.get_json().get("message", "Failed to send message")
+                            except Exception:
+                                err_msg = str(res[0])
+                        elif hasattr(res, "status_code") and res.status_code >= 400:
+                            sent_ok = False
+                            err_msg = f"HTTP {res.status_code}: {res.text}"
+                        else:
+                            sent_ok = True
                     else:
-                        sent_ok = True
+                        button_matches = re.findall(r"\[BUTTON:\s*(.*?)\]", message_text, re.IGNORECASE)
+                        if button_matches:
+                            clean_text = re.sub(r"\[BUTTON:\s*(.*?)\]", "", message_text, flags=re.IGNORECASE).strip()
+                            button_labels = [b.strip() for b in button_matches[:3] if b.strip()]
+                            data = get_interactive_button_message_input(phone, clean_text, button_labels)
+                        else:
+                            data = get_text_message_input(phone, message_text)
+
+                        res = send_message(data, channel_config)
+                        if isinstance(res, tuple):
+                            sent_ok = False
+                            try:
+                                flask_res = res[0]
+                                err_msg = flask_res.get_json().get("message", "Failed to send message")
+                            except Exception:
+                                err_msg = str(res[0])
+                        elif hasattr(res, "status_code") and res.status_code >= 400:
+                            sent_ok = False
+                            err_msg = f"HTTP {res.status_code}: {res.text}"
+                        else:
+                            sent_ok = True
                 elif channel_type == "wasender":
                     from app.services.wasender_service import send_wasender_text_message
                     api_key = channel_config["api_key"]
-                    res = send_wasender_text_message(api_key, phone, message_text)
-                    if res and res.get("success"):
-                        sent_ok = True
+                    
+                    if attachment:
+                        from app.services.media_send_service import send_wasender_media
+                        # Override caption with the broadcast message text
+                        attachment_copy = attachment.copy()
+                        attachment_copy["caption"] = message_text
+                        sent_ok = send_wasender_media(api_key, phone, attachment_copy)
+                        if not sent_ok:
+                            err_msg = "Wasender API media failure"
                     else:
-                        sent_ok = False
-                        err_msg = res.get("error") if res else "WasenderAPI failure"
+                        res = send_wasender_text_message(api_key, phone, message_text)
+                        if res and res.get("success"):
+                            sent_ok = True
+                        else:
+                            sent_ok = False
+                            err_msg = res.get("error") if res else "WasenderAPI failure"
             except Exception as e:
                 sent_ok = False
                 err_msg = str(e)
@@ -162,12 +214,21 @@ def save_campaign():
         name = data.get("name", "").strip()
         channel_type = data.get("channel_type", "whatsapp").strip()
         message_template = data.get("message_template", "").strip()
+        meta_template_name = data.get("meta_template_name", "").strip()
+        meta_language_code = data.get("meta_language_code", "en_US").strip()
+        media_attachment_id = data.get("media_attachment_id")
         recipients = data.get("recipients", [])
 
         if not name or not message_template or not recipients:
             return jsonify({"status": "error", "message": "name, message_template, and recipients are required"}), 400
 
-        campaign = create_campaign(g.company_id, chatbot_id, name, channel_type, message_template)
+        try:
+            if media_attachment_id:
+                media_attachment_id = int(media_attachment_id)
+        except (ValueError, TypeError):
+            media_attachment_id = None
+
+        campaign = create_campaign(g.company_id, chatbot_id, name, channel_type, message_template, meta_template_name, meta_language_code, media_attachment_id)
         if not campaign:
             return jsonify({"status": "error", "message": "Failed to create campaign"}), 500
 

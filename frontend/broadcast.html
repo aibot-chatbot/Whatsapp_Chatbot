@@ -17,7 +17,7 @@
 
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
-    <script>requireLogin();requireAdminOrOwner();</script>
+    <script>requireLogin(); requireAdminOrOwner();</script>
     <script src="sidebar-component.js"></script>
 
     <style>
@@ -386,29 +386,59 @@
         }
 
         @keyframes scaleUp {
-            from { transform: scale(0.95); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+            from {
+                transform: scale(0.95);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         @keyframes slideLeft {
-            from { transform: translateX(100%); }
-            to { transform: translateX(0); }
+            from {
+                transform: translateX(100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
         }
 
         @media (max-width: 900px) {
-            body { flex-direction: column; }
-            .main-container { padding: 28px 20px; }
-            .stats-row { grid-template-columns: repeat(2, 1fr); }
-            .logs-sidebar { width: 100%; }
+            body {
+                flex-direction: column;
+            }
+
+            .main-container {
+                padding: 28px 20px;
+            }
+
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .logs-sidebar {
+                width: 100%;
+            }
         }
 
         @media (max-width: 500px) {
-            .stats-row { grid-template-columns: 1fr; }
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -456,6 +486,10 @@
             const [campName, setCampName] = useState("");
             const [channelType, setChannelType] = useState("whatsapp");
             const [templateText, setTemplateText] = useState("__use_bot_welcome_flow__");
+            const [metaTemplateName, setMetaTemplateName] = useState("");
+            const [metaLanguageCode, setMetaLanguageCode] = useState("en_US");
+            const [mediaAttachments, setMediaAttachments] = useState([]);
+            const [selectedMediaId, setSelectedMediaId] = useState("");
             const [recipientSource, setRecipientSource] = useState("csv"); // "csv" or "crm"
             const [parsedRecipients, setParsedRecipients] = useState([]); // [{"phone": "...", "name": "..."}]
             const [isSavingCampaign, setIsSavingCampaign] = useState(false);
@@ -469,9 +503,23 @@
                 const id = urlParams.get("bot_id");
                 setBotId(id);
                 if (id) {
+                    sessionStorage.setItem("selectedBotId", id);
                     fetchCampaigns(id);
+                    fetchMediaAttachments(id);
                 }
             }, []);
+
+            const fetchMediaAttachments = async (id) => {
+                try {
+                    const response = await authenticatedFetch(`/api/media-attachments?chatbot_id=${id}`);
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setMediaAttachments(result.data || []);
+                    }
+                } catch (e) {
+                    console.error("Failed to load media attachments", e);
+                }
+            };
 
             const fetchCampaigns = async (id) => {
                 setLoading(true);
@@ -684,6 +732,9 @@
                             name: campName,
                             channel_type: channelType,
                             message_template: templateText,
+                            meta_template_name: metaTemplateName,
+                            meta_language_code: metaLanguageCode,
+                            media_attachment_id: selectedMediaId || null,
                             recipients: parsedRecipients
                         })
                     });
@@ -691,7 +742,10 @@
                     if (response.ok && result.status === "success") {
                         // Reset wizard
                         setCampName("");
-                        setTemplateText("Hello! This is a broadcast message.");
+                        setTemplateText("__use_bot_welcome_flow__");
+                        setMetaTemplateName("");
+                        setMetaLanguageCode("en_US");
+                        setSelectedMediaId("");
                         setParsedRecipients([]);
                         setShowCreateModal(false);
                         fetchCampaigns(botId);
@@ -841,6 +895,45 @@
                                         <option value="wasender" style={{ background: "#0f172a" }}>WasenderAPI Connection</option>
                                     </select>
                                 </div>
+
+                                <div className="input-group">
+                                    <label>
+                                        Attach Media (Optional)
+                                        <InfoIcon title="Select a pre-configured Media Attachment to send with this broadcast. For Meta, it will use the attached template." />
+                                    </label>
+                                    <select className="modal-input" value={selectedMediaId} onChange={(e) => {
+                                        const selectedId = e.target.value;
+                                        setSelectedMediaId(selectedId);
+                                        const attachment = mediaAttachments.find(m => m.id == selectedId);
+                                        if (attachment && attachment.meta_template_name) {
+                                            setMetaTemplateName(attachment.meta_template_name);
+                                            setMetaLanguageCode(attachment.meta_language_code || "en_US");
+                                        }
+                                    }}>
+                                        <option value="" style={{ background: "#0f172a" }}>-- No Media --</option>
+                                        {mediaAttachments.map(m => (
+                                            <option key={m.id} value={m.id} style={{ background: "#0f172a" }}>
+                                                {m.label} ({m.media_type})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {channelType === "whatsapp" && (
+                                    <div style={{ display: "flex", gap: "10px", marginTop: "4px", background: "rgba(16, 185, 129, 0.05)", border: "1px solid rgba(16, 185, 129, 0.2)", padding: "14px", borderRadius: "12px", flexDirection: "row" }}>
+                                        <div className="input-group" style={{ flex: 2 }}>
+                                            <label>
+                                                Meta Template Name (Optional)
+                                                <InfoIcon title="Enter the name of a pre-approved Meta template if sending to users outside the 24-hour window." />
+                                            </label>
+                                            <input type="text" className="modal-input" placeholder="e.g. promo_campaign_v1" value={metaTemplateName} onChange={(e) => setMetaTemplateName(e.target.value)} />
+                                        </div>
+                                        <div className="input-group" style={{ flex: 1 }}>
+                                            <label>Language Code</label>
+                                            <input type="text" className="modal-input" placeholder="e.g. en_US" value={metaLanguageCode} onChange={(e) => setMetaLanguageCode(e.target.value)} />
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div className="input-group">
                                     <label>

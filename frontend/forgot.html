@@ -284,7 +284,10 @@
         <!-- STEP 2: Enter OTP & New Password (Hidden initially) -->
         <form id="step-2-form" style="display: none;">
             <div class="input-group">
-                <label>Verification Code (OTP)</label>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label style="margin-bottom: 0;">Verification Code (OTP)</label>
+                    <button type="button" id="resend-btn" onclick="resendCode()" style="background: none; border: none; color: var(--primary); font-size: 0.82rem; font-weight: 600; cursor: pointer; padding: 0; font-family: 'Outfit', sans-serif;">Resend Code</button>
+                </div>
                 <input type="text" id="reset-otp" placeholder="Enter 6-digit code" required autocomplete="off" maxlength="6" style="text-align: center; letter-spacing: 4px; font-weight: 700; font-size: 1.2rem;">
             </div>
 
@@ -375,6 +378,56 @@
         const alertBox = document.getElementById('alert-box');
 
         let userEmail = "";
+        let resendCooldown = null;
+
+        function startResendCooldown(seconds) {
+            const btn = document.getElementById('resend-btn');
+            if (!btn) return;
+            btn.disabled = true;
+            btn.style.opacity = '0.5';
+            btn.style.cursor = 'not-allowed';
+            let remaining = seconds;
+            btn.textContent = `Resend in ${remaining}s`;
+            resendCooldown = setInterval(() => {
+                remaining--;
+                if (remaining <= 0) {
+                    clearInterval(resendCooldown);
+                    btn.disabled = false;
+                    btn.style.opacity = '1';
+                    btn.style.cursor = 'pointer';
+                    btn.textContent = 'Resend Code';
+                } else {
+                    btn.textContent = `Resend in ${remaining}s`;
+                }
+            }, 1000);
+        }
+
+        async function resendCode() {
+            if (!userEmail) return;
+            const btn = document.getElementById('resend-btn');
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            try {
+                const response = await fetch('/api/auth/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: userEmail })
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    showAlert('A new verification code has been sent to your email.', 'success');
+                    startResendCooldown(60);
+                } else {
+                    showAlert(result.message || 'Failed to resend code.');
+                    btn.disabled = false;
+                    btn.textContent = 'Resend Code';
+                }
+            } catch (error) {
+                showAlert('Cannot connect to server. Please try again.');
+                btn.disabled = false;
+                btn.textContent = 'Resend Code';
+            }
+        }
 
         function showAlert(message, type = "error") {
             alertBox.innerText = message;
@@ -418,6 +471,7 @@
                 // Switch step forms
                 step1Form.style.display = "none";
                 step2Form.style.display = "block";
+                startResendCooldown(60);
 
             } catch (error) {
                 console.error("Forgot password error:", error);
