@@ -197,8 +197,8 @@ Expand automated coverage beyond billing.
 - Chatbot CRUD
 - Knowledge route validation
 - Conversation access
-- CRM updates
-- Analytics permissions
+- CRM updates, including lead assignment feature gating, assignment clearing, refreshed company context, and cross-tenant rejection
+- Analytics permissions, including database-refreshed owner/admin enforcement for AI Signals and chatbot-scope rejection
 - Billing guards
 - Integration route validation with external calls mocked
 

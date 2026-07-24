@@ -110,7 +110,7 @@
 | CRM lead list | Implemented | Company/chatbot scoped |
 | Lead status | Implemented | Status editing exists |
 | Lead priority | Implemented | Priority editing exists |
-| Lead assignment | Implemented | Gated by crm_lead_assignment feature flag (Advanced and Pro only); assignment clearing available to all plans |
+| Lead assignment | Verified complete | Non-empty assignment uses the authenticated database-backed company context and remains gated by crm_lead_assignment; assignment clearing remains available to all plans; focused route regression tests cover success and rejection paths |
 | Lead follow-up | Implemented | Follow-up fields and UI exist |
 | CRM filters | Implemented | Status, assignment, and related filtering exist |
 | CRM-to-conversation navigation | Implemented | Conversation ID linking was previously reviewed |
@@ -123,7 +123,7 @@
 | Message charts | Implemented | Data aggregation and frontend display exist |
 | Live workflow status | Implemented | Requires runtime verification |
 | Dashboard health | Implemented | Requires environment verification |
-| Agent insights | Implemented | Requires data-path tests |
+| Agent insights | Implemented | Server-side owner/admin access uses the database-refreshed role and preserves chatbot ownership checks; focused authorization coverage exists; broader data-path tests remain required |
 | AI-generated reports | Implemented | External model and feature-gate verification required |
 | Escalation handling | Implemented | Escalation detection, agent reply, resolution, email notification, and silent bot response; focused route tests exist |
 

@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request, g
 
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import verify_chatbot_access
+from app.utils.access_control import role_required, verify_chatbot_access
 from app.services.billing_guard import can_use_plan_feature, BillingLimitError
 from app.database.analytics_repository import (
     get_total_users,
@@ -237,6 +237,7 @@ def get_dashboard_health_summary():
 
 @analytics_blueprint.route("/api/agent/insights", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def get_agent_insights():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
