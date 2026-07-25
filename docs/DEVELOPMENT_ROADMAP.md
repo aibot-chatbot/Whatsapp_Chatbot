@@ -162,6 +162,13 @@ Make the repository a reliable source of truth for database behavior.
 - Schema and live environment differences are identified
 - No production SQL is applied without review
 
+### Progress recorded 2026-07-25
+
+- Staging migration 028 removed the exact approved set of 36 orphan Agent Actions and two orphan CRM leads. Verification found no remaining orphans and no change to valid rows.
+- Staging migration 027 then completed successfully with validated chatbot/conversation foreign keys and value checks, required Agent Action ownership, query and open-lead uniqueness indexes, RLS enabled without policies, and browser-role table and sequence privileges removed.
+- Backend access remains service-role-only. The permanent chatbot deletion RPC remains `SECURITY DEFINER`, executable only by `service_role` among the application roles reviewed.
+- Production has not been updated. Direct company foreign keys remain deferred until company-deletion semantics are approved.
+
 ### Risk
 
 High
@@ -198,7 +205,7 @@ Expand automated coverage beyond billing.
 - Knowledge route validation
 - Conversation access
 - CRM updates, including lead assignment feature gating, assignment clearing, refreshed company context, and cross-tenant rejection
-- Analytics permissions, including database-refreshed owner/admin enforcement for AI Signals and chatbot-scope rejection
+- Analytics permissions and signal ownership, including database-refreshed owner/admin enforcement, chatbot-scope rejection, and authoritative chatbot-derived company attribution for new agent actions
 - Billing guards
 - Integration route validation with external calls mocked
 

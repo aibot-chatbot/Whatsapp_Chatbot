@@ -1,6 +1,10 @@
 from app.database.db import supabase
 
 
+def _is_positive_integer(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
 def save_agent_action(
     chatbot_id,
     company_id=None,
@@ -12,6 +16,9 @@ def save_agent_action(
     reason="",
     payload=None,
 ):
+    if not _is_positive_integer(company_id):
+        raise ValueError("company_id is required to save an agent action")
+
     action_data = {
         "company_id": company_id,
         "chatbot_id": chatbot_id,

@@ -3,6 +3,7 @@ import logging
 from app.database.chat_history_repository import get_recent_chat_history
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.agent_action_repository import save_agent_action
+from app.database.bot_repository import get_bot_by_id
 from app.services.chat_logic_service import (
     detect_intent,
     handle_greeting,
@@ -16,6 +17,18 @@ from app.services.agent_decision_service import (
     build_safe_agent_action_payload,
 )
 from app.services.crm_lead_service import create_crm_lead_from_agent_signal
+
+
+def _resolve_chatbot_company_id(chatbot_id):
+    chatbot = get_bot_by_id(chatbot_id)
+    if not chatbot or chatbot.get("id") != chatbot_id:
+        raise ValueError("Authoritative chatbot ownership could not be resolved")
+
+    company_id = chatbot.get("company_id")
+    if not isinstance(company_id, int) or isinstance(company_id, bool) or company_id <= 0:
+        raise ValueError("Authoritative chatbot ownership could not be resolved")
+
+    return company_id
 
 
 def prepare_chat_prompt(
@@ -59,7 +72,9 @@ def prepare_chat_prompt(
         )
 
         try:
+            company_id = _resolve_chatbot_company_id(chatbot_id)
             save_agent_action(
+                company_id=company_id,
                 chatbot_id=chatbot_id,
                 conversation_id=conversation.get("id"),
                 intent=agent_decision.get("intent", "unknown"),
