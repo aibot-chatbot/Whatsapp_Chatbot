@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -222,7 +222,20 @@
                     featuresHtml += buildFeatureItem("Channels", plan.channel_limit, false);
                     featuresHtml += buildFeatureItem("Knowledge Files", plan.knowledge_file_limit, false);
                     featuresHtml += buildFeatureItem("Knowledge Storage", plan.knowledge_storage_limit_bytes, true);
-                    featuresHtml += '<li><span class="check"><i data-lucide="check" style="width:16px;height:16px;"></i></span> Model Tier: <span class="label">' + tier.charAt(0).toUpperCase() + tier.slice(1) + "</span></li>";
+                    if (code === 'free') {
+                        featuresHtml += '<li><span class="check"><i data-lucide="check" style="width:16px;height:16px;"></i></span> AI Models: <span class="label">DeepSeek Only</span></li>';
+                    } else {
+                        featuresHtml += '<li><span class="check"><i data-lucide="check" style="width:16px;height:16px;"></i></span> Model Tier: <span class="label">' + tier.charAt(0).toUpperCase() + tier.slice(1) + " (OpenRouter)</span></li>";
+                        
+                        let tierDesc = "";
+                        if (tier === "economy") tierDesc = "Gemini Flash, Qwen, Mistral Devstral";
+                        if (tier === "standard") tierDesc = "GPT-4.1, Claude Sonnet 4, Gemini Pro";
+                        if (tier === "premium") tierDesc = "GPT-5.5 Pro, Claude 4.7, Grok 4.3";
+                        
+                        if (tierDesc) {
+                            featuresHtml += '<li style="padding-left: 28px; font-size: 0.85em; color: #8b9bb4; margin-top: -8px; margin-bottom: 8px; list-style-type: none;">↳ Includes: ' + tierDesc + '</li>';
+                        }
+                    }
                     featuresHtml += "<li><span class='check'><i data-lucide='check' style='width:16px;height:16px;'></i></span> AI Credit: <span class='label'>" + formatAiCredit(plan.included_ai_credit_micro_myr) + "</span></li>";
 
                     // Feature flags

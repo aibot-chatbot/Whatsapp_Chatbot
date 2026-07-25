@@ -336,6 +336,7 @@
             const providerInfo = modelOptions[provider] || {};
             const options = providerInfo.models || [];
             options.forEach(opt => {
+                if (!isModelAllowedForAccess(opt)) return;
                 const el = document.createElement("option");
                 el.value = opt.value;
                 el.textContent = opt.label;
