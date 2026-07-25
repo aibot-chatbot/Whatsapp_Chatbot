@@ -126,7 +126,7 @@
             left: 0;
             right: 0;
             height: 100%;
-            background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
             opacity: 0;
             transition: opacity 0.3s ease;
             pointer-events: none;
@@ -158,12 +158,12 @@
             justify-content: center;
             color: var(--primary);
         }
-        
+
         .att-type-video .att-icon {
             background: rgba(139, 92, 246, 0.15);
             color: #8b5cf6;
         }
-        
+
         .att-type-document .att-icon {
             background: rgba(16, 185, 129, 0.15);
             color: #10b981;
@@ -194,7 +194,7 @@
             font-weight: 700;
             margin-bottom: 8px;
         }
-        
+
         .att-url {
             color: var(--primary);
             font-size: 0.85rem;
@@ -208,7 +208,7 @@
             padding: 6px 12px;
             border-radius: 8px;
         }
-        
+
         .att-url:hover {
             text-decoration: underline;
         }
@@ -220,23 +220,23 @@
             margin-bottom: 20px;
             flex-grow: 1;
         }
-        
+
         .meta-row {
             display: flex;
             margin-bottom: 8px;
             font-size: 0.9rem;
         }
-        
+
         .meta-row:last-child {
             margin-bottom: 0;
         }
-        
+
         .meta-label {
             color: var(--text-dim);
             width: 80px;
             flex-shrink: 0;
         }
-        
+
         .meta-value {
             color: var(--text-main);
             font-weight: 500;
@@ -247,7 +247,7 @@
             flex-wrap: wrap;
             gap: 6px;
         }
-        
+
         .keyword-tag {
             background: rgba(255, 255, 255, 0.1);
             padding: 2px 8px;
@@ -368,10 +368,11 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
-        
+
         .modal-card::-webkit-scrollbar {
             width: 8px;
         }
+
         .modal-card::-webkit-scrollbar-thumb {
             background: rgba(255, 255, 255, 0.2);
             border-radius: 10px;
@@ -421,27 +422,27 @@
             min-height: 80px;
             resize: vertical;
         }
-        
+
         .switch-container {
             display: flex;
             align-items: center;
             gap: 12px;
             margin-top: 20px;
         }
-        
+
         .switch {
             position: relative;
             display: inline-block;
             width: 50px;
             height: 26px;
         }
-        
+
         .switch input {
             opacity: 0;
             width: 0;
             height: 0;
         }
-        
+
         .slider {
             position: absolute;
             cursor: pointer;
@@ -453,7 +454,7 @@
             transition: .4s;
             border-radius: 34px;
         }
-        
+
         .slider:before {
             position: absolute;
             content: "";
@@ -465,12 +466,12 @@
             transition: .4s;
             border-radius: 50%;
         }
-        
-        input:checked + .slider {
+
+        input:checked+.slider {
             background-color: var(--primary);
         }
-        
-        input:checked + .slider:before {
+
+        input:checked+.slider:before {
             transform: translateX(24px);
         }
 
@@ -523,7 +524,7 @@
             color: var(--text-dim);
             font-size: 1.2rem;
         }
-        
+
         .help-text {
             font-size: 0.8rem;
             color: var(--text-dim);
@@ -547,6 +548,8 @@
             </button>
         </div>
 
+
+
         <div id="attachments-grid" class="attachments-grid">
             <div class="loading-state">
                 <i data-lucide="loader-2" class="lucide-spin" style="margin-right: 12px;"></i> Loading attachments...
@@ -559,7 +562,7 @@
                 <h2 id="modal-title">Add Attachment</h2>
 
                 <input type="hidden" id="att-id">
-                
+
                 <label>Label</label>
                 <input id="att-label" type="text" placeholder="e.g. Product Brochure">
 
@@ -570,21 +573,43 @@
                     <option value="document">Document / PDF</option>
                 </select>
 
+                <div style="margin-top: 15px; margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 2px;">Upload Media File</label>
+                    <div class="help-text" style="margin-top: 0px; margin-bottom: 10px;">Uploading a file will automatically generate a public URL link below.</div>
+                    <div id="att-dropzone" style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; background: rgba(255,255,255,0.05); transition: all 0.3s ease;">
+                        <i style="pointer-events: none;" class="fas fa-cloud-upload-alt" style="font-size: 2em; margin-bottom: 10px; color: var(--accent);"></i>
+                        <div style="pointer-events: none; font-weight: 500;">Drag and drop to upload</div>
+                        <div style="pointer-events: none; font-size: 0.9em; color: rgba(255,255,255,0.6);">Or click to choose files on your device</div>
+                        <input type="file" id="att-file-upload" style="display: none;" accept="image/*,video/*,application/pdf">
+                    </div>
+                </div>
+
                 <label>Public URL</label>
                 <input id="att-url" type="url" placeholder="https://example.com/image.jpg">
                 <div class="help-text">Must be a direct, publicly accessible HTTPS link.</div>
-                
+
                 <label>Trigger Keywords (comma separated)</label>
                 <input id="att-keywords" type="text" placeholder="e.g. price, pricing, menu, brochure">
                 <div class="help-text">Media sends when user message contains any of these words.</div>
-                
+
                 <label>Caption (Optional)</label>
                 <textarea id="att-caption" placeholder="Text sent alongside the media"></textarea>
 
-                <label>Meta Template Name (Optional, for WhatsApp)</label>
-                <input id="att-meta-template" type="text" placeholder="e.g. send_brochure_v1">
-                <div class="help-text">Required to send media to Meta WhatsApp users outside 24h window.</div>
                 
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label>Meta Template Name (Optional, for WhatsApp)</label>
+                    <a href="javascript:goToTab('meta_templates.html')" style="font-size: 12px; color: var(--primary); text-decoration: none;">Manage Templates</a>
+                </div>
+                <select id="att-meta-template">
+                    <option value="">-- None --</option>
+                </select>
+                <div class="help-text">Select an approved Meta template to send media outside the 24h window.</div>
+
+
+                <label>Meta Template Language (Optional)</label>
+                <input id="att-meta-language" type="text" placeholder="e.g. en_US" value="en_US">
+                <div class="help-text">Language code for the Meta template. Defaults to en_US.</div>
+
                 <div class="switch-container">
                     <label class="switch">
                         <input type="checkbox" id="att-active" checked>
@@ -618,28 +643,66 @@
     </main>
 
     <script src="assets/js/auth.js"></script>
+
+        <!-- Create Meta Template Modal (Secondary Popup) -->
+        <div id="meta-tpl-modal" class="modal-overlay" style="z-index: 1000;">
+            <div class="modal-card">
+                <h2>Create Meta Template</h2>
+                <div class="help-text" style="margin-bottom: 20px;">Creates a new approved template in your WhatsApp Business Manager.</div>
+
+                <label>Template Name</label>
+                <input id="meta-tpl-name" type="text" placeholder="e.g. send_brochure_v1">
+                <div class="help-text">Must be lowercase, alphanumeric, and underscores only.</div>
+
+                <label>Language</label>
+                <input id="meta-tpl-language" type="text" placeholder="e.g. en_US" value="en_US">
+
+                <label>Media Type</label>
+                <select id="meta-tpl-type">
+                    <option value="IMAGE">Image</option>
+                    <option value="VIDEO">Video</option>
+                    <option value="DOCUMENT">Document / PDF</option>
+                </select>
+
+                <label>Body Text</label>
+                <textarea id="meta-tpl-body" placeholder="Text sent alongside the media..."></textarea>
+                <div class="help-text">Meta requires body text to accompany the media attachment.</div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeMetaTemplateModal()">Cancel</button>
+                    <button class="btn btn-primary" id="meta-tpl-save-btn" onclick="saveNewMetaTemplate()">Submit to Meta</button>
+                </div>
+            </div>
+        </div>
+
     <script>
         lucide.createIcons();
         requireLogin();
 
         const urlParams = new URLSearchParams(window.location.search);
-        const chatbotId = urlParams.get("bot_id");
-        
-        if (!chatbotId) {
-            window.location.href = "bots.html";
-        }
-
+        const rawBotId = urlParams.get('bot_id');
+        const botId = (rawBotId && rawBotId !== 'null') ? rawBotId : (sessionStorage.getItem('selectedBotId') || "");
+        const botQuery = botId ? `?bot_id=${botId}` : "";
         let attachments = [];
 
-        document.addEventListener("DOMContentLoaded", () => {
+        // Always navigate with the correct bot_id regardless of URL state
+        function goToTab(page) {
+            const id = botId || sessionStorage.getItem('selectedBotId') || '';
+            window.location.href = id ? `${page}?bot_id=${id}` : page;
+        }
+
+        if (botId) {
             fetchAttachments();
-        });
+            fetchMetaTemplates();
+        } else {
+            document.getElementById('attachments-grid').innerHTML = '<div class="loading-state">No bot selected. Please go back and choose a bot.</div>';
+        }
 
         async function fetchAttachments() {
             try {
-                const response = await fetchWithAuth(\`/api/media-attachments?chatbot_id=\${chatbotId}\`);
+                const response = await authenticatedFetch(`/api/media-attachments?chatbot_id=${botId}`);
                 const data = await response.json();
-                
+
                 if (data.status === "success") {
                     attachments = data.data;
                     renderAttachments();
@@ -652,11 +715,55 @@
             }
         }
 
+        let metaTemplates = [];
+        
+        async function fetchMetaTemplates() {
+            try {
+                const response = await authenticatedFetch(`/api/meta-templates?chatbot_id=${botId}`);
+                const data = await response.json();
+                if (data.status === "success") {
+                    metaTemplates = data.data.filter(t => t.status === 'APPROVED');
+                    const select = document.getElementById('att-meta-template');
+                    
+                    // Keep the first empty option
+                    const firstOption = select.options[0];
+                    select.innerHTML = "";
+                    select.appendChild(firstOption);
+                    
+                    metaTemplates.forEach(t => {
+                        const opt = document.createElement('option');
+                        opt.value = t.name;
+                        opt.textContent = `${t.name} (${t.language})`;
+                        // Store language as a data attribute so we can auto-fill it
+                        opt.setAttribute('data-lang', t.language);
+                        select.appendChild(opt);
+                    });
+                }
+            } catch (e) {
+                console.error("Error fetching meta templates", e);
+            }
+        }
+        
+        // Auto-fill language when a template is selected
+        document.addEventListener('DOMContentLoaded', () => {
+            const select = document.getElementById('att-meta-template');
+            if (select) {
+                select.addEventListener('change', (e) => {
+                    const selectedOpt = e.target.options[e.target.selectedIndex];
+                    const lang = selectedOpt.getAttribute('data-lang');
+                    if (lang) {
+                        document.getElementById('att-meta-language').value = lang;
+                    }
+                });
+            }
+        });
+
+
         function renderAttachments() {
             const grid = document.getElementById("attachments-grid");
-            
+
             if (attachments.length === 0) {
-                grid.innerHTML = \`
+                grid.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon">
                             <i data-lucide="image-plus" style="width: 48px; height: 48px;"></i>
@@ -667,7 +774,7 @@
                             <i data-lucide="plus"></i> Add Attachment
                         </button>
                     </div>
-                \`;
+                `;
                 lucide.createIcons();
                 return;
             }
@@ -676,7 +783,7 @@
             
             attachments.forEach(att => {
                 const keywordTags = att.keywords 
-                    ? att.keywords.map(k => \`<span class="keyword-tag">\${k}</span>\`).join("") 
+                    ? att.keywords.map(k => `<span class="keyword-tag">${k}</span>`).join("") 
                     : "";
                     
                 let iconName = "image";
@@ -685,18 +792,18 @@
                 
                 const card = document.createElement("div");
                 card.className = "glass-card";
-                card.innerHTML = \`
+                card.innerHTML = `
                     <div class="att-header">
                         <div class="att-icon">
-                            <i data-lucide="\${iconName}"></i>
+                            <i data-lucide="${iconName}"></i>
                         </div>
-                        <span class="badge \${att.is_active ? 'active-badge' : 'inactive-badge'}">
-                            \${att.is_active ? 'Active' : 'Inactive'}
+                        <span class="badge ${att.is_active ? 'active-badge' : 'inactive-badge'}">
+                            ${att.is_active ? 'Active' : 'Inactive'}
                         </span>
                     </div>
                     
-                    <h3 class="att-title">\${escapeHtml(att.label)}</h3>
-                    <a href="\${escapeHtml(att.media_url)}" target="_blank" class="att-url" title="\${escapeHtml(att.media_url)}">
+                    <h3 class="att-title">${escapeHtml(att.label)}</h3>
+                    <a href="${escapeHtml(att.media_url)}" target="_blank" class="att-url" title="${escapeHtml(att.media_url)}">
                         <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
                         View Media
                     </a>
@@ -704,25 +811,25 @@
                     <div class="att-meta">
                         <div class="meta-row">
                             <span class="meta-label">Keywords</span>
-                            <span class="meta-value keywords-container">\${keywordTags || "<em>None</em>"}</span>
+                            <span class="meta-value keywords-container">${keywordTags || "<em>None</em>"}</span>
                         </div>
-                        \${att.meta_template_name ? \`
+                        ${att.meta_template_name ? `
                         <div class="meta-row" style="margin-top: 8px;">
                             <span class="meta-label">Template</span>
-                            <span class="meta-value">\${escapeHtml(att.meta_template_name)}</span>
+                            <span class="meta-value">${escapeHtml(att.meta_template_name)} (${escapeHtml(att.meta_language_code || 'en_US')})</span>
                         </div>
-                        \` : ""}
+                        ` : ""}
                     </div>
                     
                     <div class="att-actions">
-                        <button class="action-btn edit-btn" onclick="openModal('edit', \${att.id})">
+                        <button class="action-btn edit-btn" onclick="openModal('edit', ${att.id})">
                             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i> Edit
                         </button>
-                        <button class="action-btn delete-btn" onclick="openDeleteModal(\${att.id})">
+                        <button class="action-btn delete-btn" onclick="openDeleteModal(${att.id})">
                             <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> Delete
                         </button>
                     </div>
-                \`;
+                `;
                 
                 grid.appendChild(card);
             });
@@ -743,6 +850,7 @@
                 document.getElementById("att-keywords").value = "";
                 document.getElementById("att-caption").value = "";
                 document.getElementById("att-meta-template").value = "";
+                document.getElementById("att-meta-language").value = "en_US";
                 document.getElementById("att-active").checked = true;
             } else if (mode === "edit" && id) {
                 title.textContent = "Edit Attachment";
@@ -755,6 +863,7 @@
                     document.getElementById("att-keywords").value = (att.keywords || []).join(", ");
                     document.getElementById("att-caption").value = att.caption || "";
                     document.getElementById("att-meta-template").value = att.meta_template_name || "";
+                    document.getElementById("att-meta-language").value = att.meta_language_code || "en_US";
                     document.getElementById("att-active").checked = att.is_active;
                 }
             }
@@ -779,6 +888,7 @@
             const keywordsStr = document.getElementById("att-keywords").value;
             const caption = document.getElementById("att-caption").value.trim();
             const metaTemplate = document.getElementById("att-meta-template").value.trim();
+            const metaLanguage = document.getElementById("att-meta-language").value.trim() || "en_US";
             const isActive = document.getElementById("att-active").checked;
             
             if (!label || !mediaUrl) {
@@ -797,6 +907,7 @@
                 keywords,
                 caption,
                 meta_template_name: metaTemplate,
+                meta_language_code: metaLanguage,
                 is_active: isActive
             };
             
@@ -806,15 +917,15 @@
             lucide.createIcons();
             
             try {
-                let url = \`/api/media-attachments?chatbot_id=\${chatbotId}\`;
+                let url = `/api/media-attachments?chatbot_id=${botId}`;
                 let method = "POST";
                 
                 if (id) {
-                    url = \`/api/media-attachments/\${id}?chatbot_id=\${chatbotId}\`;
+                    url = `/api/media-attachments/${id}?chatbot_id=${botId}`;
                     method = "PUT";
                 }
                 
-                const response = await fetchWithAuth(url, {
+                const response = await authenticatedFetch(url, {
                     method: method,
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
@@ -826,6 +937,7 @@
                     showToast(id ? "Attachment updated!" : "Attachment created!");
                     closeModal("att-modal");
                     fetchAttachments();
+            fetchMetaTemplates();
                 } else {
                     showToast(data.message || "Failed to save", "error");
                 }
@@ -843,7 +955,7 @@
             if (!id) return;
             
             try {
-                const response = await fetchWithAuth(\`/api/media-attachments/\${id}?chatbot_id=\${chatbotId}\`, {
+                const response = await authenticatedFetch(`/ api / media - attachments / ${ id }?chatbot_id = ${ botId }`, {
                     method: "DELETE"
                 });
                 
@@ -853,6 +965,7 @@
                     showToast("Attachment deleted");
                     closeModal("delete-modal");
                     fetchAttachments();
+            fetchMetaTemplates();
                 } else {
                     showToast(data.message || "Failed to delete", "error");
                 }
@@ -871,6 +984,170 @@
                  .replace(/"/g, "&quot;")
                  .replace(/'/g, "&#039;");
         }
+        
+        // Drag and Drop Logic
+        const attDropzone = document.getElementById('att-dropzone');
+        const attFileInput = document.getElementById('att-file-upload');
+        
+        if (attDropzone && attFileInput) {
+            attDropzone.addEventListener('click', () => attFileInput.click());
+            
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                attDropzone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            
+            ['dragenter', 'dragover'].forEach(eventName => {
+                attDropzone.addEventListener(eventName, () => {
+                    attDropzone.style.background = 'rgba(255,255,255,0.1)';
+                    attDropzone.style.borderColor = 'var(--accent)';
+                }, false);
+            });
+            
+            ['dragleave', 'drop'].forEach(eventName => {
+                attDropzone.addEventListener(eventName, () => {
+                    attDropzone.style.background = 'rgba(255,255,255,0.05)';
+                    attDropzone.style.borderColor = 'rgba(255,255,255,0.2)';
+                }, false);
+            });
+            
+            attDropzone.addEventListener('drop', (e) => {
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    const file = e.dataTransfer.files[0];
+                    uploadMediaFile(file);
+                }
+            });
+            
+            attFileInput.addEventListener('change', function(e) {
+                if (e.target.files && e.target.files.length > 0) {
+                    uploadMediaFile(e.target.files[0]);
+                }
+            });
+            
+            async function uploadMediaFile(file) {
+                if (!file) return;
+                
+                const formData = new FormData();
+                formData.append('media_file', file);
+                
+                const originalHtml = attDropzone.innerHTML;
+                attDropzone.innerHTML = '<i data-lucide="loader-2" class="lucide-spin" style="font-size: 2em; margin-bottom: 10px; color: var(--accent);"></i><div style="font-weight: 500;">Uploading...</div>';
+                attDropzone.style.opacity = '0.7';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                
+                try {
+                    const botIdParam = typeof botId !== 'undefined' ? botId : currentChatbotId;
+                    const response = await authenticatedFetch(`/api/media-attachments/upload?chatbot_id=${botIdParam}`, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    if (data.status === 'success') {
+                        document.getElementById('att-url').value = data.data.public_url;
+                        showToast('File uploaded successfully!', 'success');
+                    } else {
+                        showToast(data.message || 'Upload failed', 'error');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast('Upload failed', 'error');
+                } finally {
+                    attDropzone.innerHTML = originalHtml;
+                    attDropzone.style.opacity = '1';
+                    attFileInput.value = ''; // Reset input
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            }
+        }
+
+        // Meta Template Popup Logic
+        function openMetaTemplateModal() {
+            // Pre-fill some fields based on the current attachment if possible
+            const currentName = document.getElementById('att-meta-template').value;
+            if (!currentName) {
+                const label = document.getElementById('att-label').value;
+                if (label) {
+                    document.getElementById('meta-tpl-name').value = label.toLowerCase().replace(/[^a-z0-9]/g, '_') + '_tpl';
+                }
+            }
+            
+            const currentMediaType = document.getElementById('att-type').value;
+            let metaType = "IMAGE";
+            if (currentMediaType === "video") metaType = "VIDEO";
+            if (currentMediaType === "document") metaType = "DOCUMENT";
+            document.getElementById('meta-tpl-type').value = metaType;
+            
+            const currentCaption = document.getElementById('att-caption').value;
+            document.getElementById('meta-tpl-body').value = currentCaption || "Here is your requested media attachment.";
+
+            document.getElementById('meta-tpl-modal').classList.add('show');
+        }
+
+        function closeMetaTemplateModal() {
+            document.getElementById('meta-tpl-modal').classList.remove('show');
+        }
+
+        async function saveNewMetaTemplate() {
+            const name = document.getElementById('meta-tpl-name').value.trim();
+            const language = document.getElementById('meta-tpl-language').value.trim() || 'en_US';
+            const mediaType = document.getElementById('meta-tpl-type').value;
+            const bodyText = document.getElementById('meta-tpl-body').value.trim();
+            
+            // Try to use the current media URL if one is uploaded
+            const mediaUrl = document.getElementById('att-url').value.trim();
+
+            if (!name || !bodyText) {
+                showToast("Template Name and Body Text are required.", "error");
+                return;
+            }
+
+            const btn = document.getElementById('meta-tpl-save-btn');
+            btn.innerHTML = '<i data-lucide="loader-2" class="lucide-spin"></i> Submitting...';
+            btn.disabled = true;
+            lucide.createIcons();
+
+            try {
+                const payload = {
+                    name: name,
+                    language: language,
+                    category: "MARKETING",
+                    media_type: mediaType,
+                    body_text: bodyText,
+                    media_url: mediaUrl || undefined
+                };
+
+                const response = await authenticatedFetch(`/api/meta-templates?chatbot_id=${botId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showToast("Template submitted to Meta successfully!", "success");
+                    closeMetaTemplateModal();
+                    
+                    // Refresh the dropdown and select the new one
+                    await fetchMetaTemplates();
+                    document.getElementById('att-meta-template').value = name;
+                } else {
+                    showToast(data.message || "Failed to submit template", "error");
+                }
+            } catch (error) {
+                console.error("Error submitting meta template:", error);
+                showToast("Connection error", "error");
+            } finally {
+                btn.innerHTML = "Submit to Meta";
+                btn.disabled = false;
+            }
+        }
+
     </script>
 </body>
+
 </html>

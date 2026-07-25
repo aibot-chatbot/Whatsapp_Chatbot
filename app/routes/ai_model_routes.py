@@ -24,7 +24,7 @@ def get_ai_models():
                 STATE_EXPIRED_TRIAL,
                 STATE_FREE_NO_TRIAL,
             )
-            from app.services.ai_access_policy import PLAN_CODE_FREE
+            from app.services.ai_access_policy import PLAN_CODE_FREE, ROUTE_OPENROUTER
             policy = resolve_ai_access(company_id)
 
             # All Free-plan states (valid trial, expired trial, active
@@ -52,6 +52,12 @@ def get_ai_models():
                 if not policy.allowed and policy.denial_reason:
                     response["denial_reason"] = policy.denial_reason
                 return jsonify(response), 200
+
+            import logging
+            logging.info(f"DEBUG AI MODELS: route={policy.api_route}, state={policy.access_state}")
+            if policy.api_route == ROUTE_OPENROUTER:
+                if "deepseek" in all_models:
+                    del all_models["deepseek"]
 
         return jsonify({
             "status": "success",

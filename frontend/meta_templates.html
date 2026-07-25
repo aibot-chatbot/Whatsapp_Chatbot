@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meta Templates | AI Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --danger: #ef4444;
+            --wa-green: #25d366;
+            --wa-bubble: #1a2a1a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 48px 40px;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* ===== Header ===== */
+        .page-header {
+            margin-bottom: 36px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .page-header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .page-header p { color: var(--text-dim); margin-top: 6px; font-size: 1rem; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+
+        /* ===== Layout: Tabs ===== */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: rgba(255,255,255,0.04);
+            border-radius: 14px;
+            padding: 4px;
+            margin-bottom: 28px;
+            width: fit-content;
+            border: 1px solid var(--glass-border);
+        }
+        .tab-btn {
+            padding: 10px 24px;
+            border-radius: 10px;
+            border: none;
+            background: none;
+            color: var(--text-dim);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Outfit', sans-serif;
+        }
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        /* ===== Template Grid (My Templates list) ===== */
+        .templates-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+            align-items: start;
+        }
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 22px;
+            transition: all 0.3s ease;
+        }
+        .glass-card:hover {
+            border-color: rgba(59,130,246,0.4);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+        .card-name { font-size: 1.1rem; font-weight: 700; word-break: break-all; }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+        .status-APPROVED { background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); }
+        .status-PENDING { background: rgba(245,158,11,0.15); color: #f59e0b; border: 1px solid rgba(245,158,11,0.3); }
+        .status-REJECTED { background: rgba(239,68,68,0.15); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); }
+        .status-PAUSED { background: rgba(148,163,184,0.15); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); }
+        .card-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+        .meta-chip {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 3px 10px;
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+        .card-body-preview {
+            color: var(--text-dim);
+            font-size: 0.88rem;
+            line-height: 1.5;
+            margin-bottom: 16px;
+            white-space: pre-wrap;
+            max-height: 60px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .card-actions { display: flex; gap: 10px; border-top: 1px solid var(--glass-border); padding-top: 14px; }
+        .action-btn {
+            flex: 1;
+            padding: 9px;
+            border-radius: 10px;
+            border: 1px solid transparent;
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+            font-family: 'Outfit', sans-serif;
+        }
+        .delete-btn { background: rgba(239,68,68,0.05); color: #ef4444; }
+        .delete-btn:hover { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); }
+
+        /* ===== Loading / Empty States ===== */
+        .loading-state, .empty-state {
+            grid-column: 1 / -1;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            padding: 80px 20px; text-align: center;
+            background: var(--card-bg); border: 1px dashed rgba(255,255,255,0.15); border-radius: 20px;
+            color: var(--text-dim); gap: 12px; font-size: 1rem;
+        }
+        .empty-icon { font-size: 3rem; }
+
+        /* ===== Builder Layout ===== */
+        .builder-layout {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 28px;
+            align-items: start;
+        }
+
+        .builder-form {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 32px;
+        }
+        .section-block {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 18px;
+        }
+        .section-title {
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section-optional {
+            font-weight: 400;
+            text-transform: none;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            letter-spacing: 0;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        input[type="text"], input[type="url"], textarea, select {
+            width: 100%;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+            font-size: 0.95rem;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+        }
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+            background: rgba(255,255,255,0.08);
+        }
+        textarea { resize: vertical; min-height: 90px; }
+        select option { background: #0f172a; color: var(--text-main); }
+        .help-text { font-size: 0.78rem; color: var(--text-dim); margin-top: 4px; margin-bottom: 12px; }
+        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+        /* Header type toggle */
+        .header-type-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+        .ht-btn {
+            padding: 7px 14px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(255,255,255,0.04);
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: 'Outfit', sans-serif;
+        }
+        .ht-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+
+        /* Buttons builder */
+        .btn-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+        .btn-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            padding: 10px 12px;
+        }
+        .btn-row select { flex: 0 0 130px; margin-bottom: 0; }
+        .btn-row input { flex: 1; margin-bottom: 0; }
+        .btn-row .remove-btn {
+            background: rgba(239,68,68,0.1);
+            border: none;
+            color: #ef4444;
+            border-radius: 8px;
+            width: 32px; height: 32px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+        .btn-row .remove-btn:hover { background: rgba(239,68,68,0.2); }
+
+        .add-btn {
+            background: rgba(59,130,246,0.08);
+            border: 1px dashed rgba(59,130,246,0.3);
+            color: var(--primary);
+            border-radius: 10px;
+            padding: 10px;
+            width: 100%;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+            transition: all 0.2s;
+            font-family: 'Outfit', sans-serif;
+        }
+        .add-btn:hover { background: rgba(59,130,246,0.15); border-color: rgba(59,130,246,0.6); }
+
+        /* Dropzone */
+        .dropzone {
+            border: 2px dashed rgba(255,255,255,0.2);
+            border-radius: 10px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            background: rgba(255,255,255,0.03);
+            transition: all 0.3s ease;
+            margin-bottom: 10px;
+        }
+        .dropzone:hover, .dropzone.dragover {
+            background: rgba(59,130,246,0.08);
+            border-color: var(--primary);
+        }
+        .dropzone i { color: var(--accent); margin-bottom: 8px; }
+        .dropzone .dz-text { font-weight: 500; font-size: 0.9rem; }
+        .dropzone .dz-hint { font-size: 0.8rem; color: var(--text-dim); margin-top: 4px; }
+
+        /* Form Submit Area */
+        .form-submit { margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end; }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px var(--primary-glow);
+            transition: all 0.3s ease;
+            font-family: 'Outfit', sans-serif;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 25px var(--primary-glow); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary {
+            background: rgba(255,255,255,0.06);
+            color: var(--text-main);
+            border: 1px solid rgba(255,255,255,0.12);
+            padding: 14px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+        /* ===== Preview Panel ===== */
+        .preview-panel {
+            position: sticky;
+            top: 20px;
+        }
+        .preview-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-dim);
+            margin-bottom: 14px;
+            padding-left: 4px;
+        }
+        .phone-frame {
+            background: #1a1a2e;
+            border-radius: 40px;
+            padding: 16px;
+            border: 2px solid rgba(255,255,255,0.1);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .phone-screen {
+            background: #0b141a;
+            border-radius: 28px;
+            overflow: hidden;
+            min-height: 520px;
+        }
+        .wa-header-bar {
+            background: #1f2c34;
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .wa-avatar {
+            width: 34px; height: 34px;
+            border-radius: 50%;
+            background: var(--wa-green);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; color: white; font-size: 0.9rem;
+        }
+        .wa-contact-name { font-size: 0.9rem; font-weight: 600; color: #e9edef; }
+        .wa-status { font-size: 0.72rem; color: var(--wa-green); }
+        .wa-chat-bg {
+            background: #0b141a;
+            min-height: 440px;
+            padding: 14px 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .wa-bubble-wrap { display: flex; justify-content: flex-end; }
+        .wa-bubble {
+            background: #005c4b;
+            border-radius: 12px 0 12px 12px;
+            max-width: 88%;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        .wa-bubble-header-media {
+            background: rgba(0,0,0,0.3);
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            color: rgba(255,255,255,0.7);
+            font-size: 0.82rem;
+            min-height: 70px;
+        }
+        .wa-bubble-header-text {
+            padding: 10px 12px 0;
+            font-weight: 700;
+            font-size: 0.9rem;
+            color: #e9edef;
+        }
+        .wa-bubble-body { padding: 10px 12px; font-size: 0.85rem; color: #e9edef; line-height: 1.5; white-space: pre-wrap; }
+        .wa-bubble-footer { padding: 0 12px 10px; font-size: 0.75rem; color: rgba(255,255,255,0.5); }
+        .wa-bubble-time { text-align: right; padding: 4px 10px 8px; font-size: 0.7rem; color: rgba(255,255,255,0.5); }
+        .wa-buttons-wrap { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; }
+        .wa-action-btn {
+            background: #005c4b;
+            text-align: center;
+            color: #53c8f4;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        /* ===== Library Modal ===== */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        .modal-overlay.show { opacity: 1; visibility: visible; }
+        .modal-card {
+            background: rgba(10, 18, 35, 0.97);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 24px;
+            padding: 32px;
+            width: 560px;
+            max-width: 94vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+            transform: translateY(20px) scale(0.96);
+            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+        .modal-card::-webkit-scrollbar { width: 6px; }
+        .modal-card::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 6px; }
+        .modal-overlay.show .modal-card { transform: translateY(0) scale(1); }
+        .modal-card h2 { font-size: 1.5rem; margin-bottom: 8px; }
+
+        .library-item {
+            padding: 16px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .library-item:hover { background: rgba(59,130,246,0.1); border-color: var(--primary); }
+        .library-icon {
+            width: 44px; height: 44px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+        }
+        .library-item-text .name { font-weight: 700; font-size: 0.95rem; margin-bottom: 2px; }
+        .library-item-text .desc { font-size: 0.8rem; color: var(--text-dim); }
+
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+        .cancel-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: var(--text-main);
+            padding: 11px 22px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.2s;
+        }
+        .cancel-btn:hover { background: rgba(255,255,255,0.1); }
+
+        /* Delete confirm modal */
+        .delete-confirm-modal .modal-card { max-width: 420px; }
+
+        @media (max-width: 960px) {
+            .builder-layout { grid-template-columns: 1fr; }
+            .preview-panel { position: static; }
+            .row-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+
+<body>
+    <script src="sidebar-component.js"></script>
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container">
+        <div class="page-header">
+            <div>
+                <h1>Meta Templates</h1>
+                <p>Design and submit WhatsApp Message Templates to Meta for approval.</p>
+            </div>
+            <div class="header-actions">
+                <button class="btn-secondary" onclick="openLibraryModal()" style="display: flex; align-items: center; gap: 8px;">
+                    <i data-lucide="library" style="width:16px;height:16px;"></i> Template Library
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" id="tab-builder" onclick="switchTab('builder')">
+                ✏️ Build New Template
+            </button>
+            <button class="tab-btn" id="tab-list" onclick="switchTab('list')">
+                📋 My Templates
+            </button>
+        </div>
+
+        <!-- ===== BUILDER TAB ===== -->
+        <div id="panel-builder">
+            <div class="builder-layout">
+                <!-- Form -->
+                <div class="builder-form">
+                    <h2 style="font-size: 1.3rem; margin-bottom: 24px;">New Template</h2>
+
+                    <!-- 1. Details -->
+                    <div class="section-block">
+                        <div class="section-title"><i data-lucide="info" style="width:14px;height:14px;"></i> Template Details</div>
+                        <div class="row-2">
+                            <div>
+                                <label>Template Name *</label>
+                                <input id="b-name" type="text" placeholder="e.g. promo_offer_v1" oninput="sanitizeName(this); updatePreview()">
+                                <div class="help-text">Lowercase, underscores only. No spaces or special chars.</div>
+                            </div>
+                            <div>
+                                <label>Language *</label>
+                                <select id="b-lang" onchange="updatePreview()">
+                                    <option value="en_US">English (US)</option>
+                                    <option value="en_GB">English (UK)</option>
+                                    <option value="ms">Malay</option>
+                                    <option value="zh_CN">Chinese (Simplified)</option>
+                                    <option value="zh_TW">Chinese (Traditional)</option>
+                                    <option value="ar">Arabic</option>
+                                    <option value="id">Indonesian</option>
+                                    <option value="th">Thai</option>
+                                    <option value="vi">Vietnamese</option>
+                                    <option value="fr">French</option>
+                                    <option value="de">German</option>
+                                    <option value="es">Spanish</option>
+                                    <option value="pt_BR">Portuguese (Brazil)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label>Category *</label>
+                            <select id="b-category" onchange="updatePreview()">
+                                <option value="MARKETING">Marketing — Promotions, offers, announcements</option>
+                                <option value="UTILITY">Utility — Order updates, receipts, alerts</option>
+                                <option value="AUTHENTICATION">Authentication — OTPs and verification codes</option>
+                            </select>
+                            <div class="help-text">Marketing templates require more strict Meta approval. Utility templates are approved faster.</div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Header -->
+                    <div class="section-block">
+                        <div class="section-title">
+                            <i data-lucide="layout-panel-top" style="width:14px;height:14px;"></i> Header
+                            <span class="section-optional">— Optional</span>
+                        </div>
+                        <div class="header-type-tabs">
+                            <button class="ht-btn active" id="ht-none" onclick="setHeaderType('none')">None</button>
+                            <button class="ht-btn" id="ht-text" onclick="setHeaderType('text')">Text</button>
+                            <button class="ht-btn" id="ht-IMAGE" onclick="setHeaderType('IMAGE')">📷 Image</button>
+                            <button class="ht-btn" id="ht-VIDEO" onclick="setHeaderType('VIDEO')">🎬 Video</button>
+                            <button class="ht-btn" id="ht-DOCUMENT" onclick="setHeaderType('DOCUMENT')">📄 Document</button>
+                        </div>
+                        <div id="header-text-field" style="display:none;">
+                            <input id="b-header-text" type="text" placeholder="e.g. 🔥 Limited Offer" maxlength="60" oninput="updatePreview()">
+                            <div class="help-text">Max 60 characters. Displayed in bold above the body.</div>
+                        </div>
+                        <div id="header-media-field" style="display:none;">
+                            <div class="dropzone" id="header-dropzone" onclick="document.getElementById('header-file-input').click()">
+                                <i data-lucide="upload-cloud" style="width:28px;height:28px;"></i>
+                                <div class="dz-text">Click or drag to upload media</div>
+                                <div class="dz-hint" id="media-format-hint">Supports JPG, PNG, MP4, PDF</div>
+                            </div>
+                            <input type="file" id="header-file-input" style="display:none;" onchange="uploadHeaderMedia(this.files[0])">
+                            <input id="b-header-url" type="url" placeholder="Or paste a public media URL directly" oninput="updatePreview()" style="margin-top: 8px;">
+                            <div class="help-text">Meta requires a sample media URL to review. You can upload here or paste a public URL.</div>
+                        </div>
+                    </div>
+
+                    <!-- 3. Body -->
+                    <div class="section-block">
+                        <div class="section-title"><i data-lucide="align-left" style="width:14px;height:14px;"></i> Body Text *</div>
+                        <textarea id="b-body" rows="4" placeholder="e.g. Hi! We have a special promo today. Shop now and get 20% off. Don't miss out!" oninput="updatePreview()"></textarea>
+                        <div class="help-text">Write the main message your customer will receive. This is required.</div>
+                    </div>
+
+                    <!-- 4. Footer -->
+                    <div class="section-block">
+                        <div class="section-title">
+                            <i data-lucide="align-justify" style="width:14px;height:14px;"></i> Footer
+                            <span class="section-optional">— Optional</span>
+                        </div>
+                        <input id="b-footer" type="text" placeholder="e.g. Reply STOP to unsubscribe" maxlength="60" oninput="updatePreview()">
+                        <div class="help-text">Appears as small grey text below the body. Max 60 chars.</div>
+                    </div>
+
+                    <!-- 5. Buttons -->
+                    <div class="section-block">
+                        <div class="section-title">
+                            <i data-lucide="mouse-pointer-click" style="width:14px;height:14px;"></i> Buttons
+                            <span class="section-optional">— Optional, max 3</span>
+                        </div>
+                        <div id="btn-list" class="btn-list"></div>
+                        <button class="add-btn" onclick="addButton()" id="add-btn-btn">
+                            <i data-lucide="plus" style="width:14px;height:14px;"></i> Add Button
+                        </button>
+                        <div class="help-text" style="margin-top: 8px;">Quick Reply buttons get typed back to the bot. URL and Phone buttons open links/call.</div>
+                    </div>
+
+                    <!-- Submit -->
+                    <div class="form-submit">
+                        <button class="btn-secondary" onclick="resetBuilder()">Reset</button>
+                        <button class="btn-primary" onclick="submitTemplate()" id="submit-btn">
+                            <i data-lucide="send" style="width:16px;height:16px;"></i> Submit to Meta
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview Panel -->
+                <div class="preview-panel">
+                    <div class="preview-title">📱 Live Preview</div>
+                    <div class="phone-frame">
+                        <div class="phone-screen">
+                            <div class="wa-header-bar">
+                                <div class="wa-avatar">B</div>
+                                <div>
+                                    <div class="wa-contact-name">Your Business</div>
+                                    <div class="wa-status">online</div>
+                                </div>
+                            </div>
+                            <div class="wa-chat-bg" id="preview-chat">
+                                <div class="wa-bubble-wrap">
+                                    <div>
+                                        <div class="wa-bubble" id="preview-bubble">
+                                            <div class="wa-bubble-body" id="preview-body-text" style="padding: 12px;">
+                                                Fill in the form to see your template preview here.
+                                            </div>
+                                        </div>
+                                        <div class="wa-buttons-wrap" id="preview-buttons"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; font-size: 0.78rem; color: var(--text-dim); text-align: center; line-height: 1.5;">
+                        Templates are sent to Meta for review.<br>Approval usually takes a few minutes to hours.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ===== MY TEMPLATES TAB ===== -->
+        <div id="panel-list" style="display: none;">
+            <div id="templates-grid" class="templates-grid">
+                <div class="loading-state">
+                    <i data-lucide="loader-2" style="width:28px;height:28px;" class="lucide-spin"></i>
+                    Loading your templates...
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Template Library Modal -->
+    <div id="library-modal" class="modal-overlay">
+        <div class="modal-card">
+            <h2>📚 Template Library</h2>
+            <p style="color: var(--text-dim); font-size: 0.9rem; margin-bottom: 20px;">Choose a pre-designed starter template and customise it.</p>
+
+            <div class="library-item" onclick="useLibrary('promo_offer_v1','MARKETING','IMAGE','🔥 Special Offer','Don\'t miss out! Get {{1}}% off your next purchase. Use code {{2}} at checkout.\n\nOffer valid until {{3}}. Shop now!','Reply STOP to unsubscribe')">
+                <div class="library-icon" style="background: rgba(59,130,246,0.15); color: var(--primary);">📢</div>
+                <div class="library-item-text">
+                    <div class="name">Promotional Offer (Image)</div>
+                    <div class="desc">Announce a discount with a header image, variable coupon code, and opt-out footer.</div>
+                </div>
+            </div>
+
+            <div class="library-item" onclick="useLibrary('order_confirmed_v1','UTILITY','DOCUMENT','Order Confirmation','Hi {{1}}, your order #{{2}} has been confirmed! 🎉\n\nEstimated delivery: {{3}}.\n\nPlease find your invoice attached.','For help, contact support.')">
+                <div class="library-icon" style="background: rgba(16,185,129,0.15); color: var(--accent);">📦</div>
+                <div class="library-item-text">
+                    <div class="name">Order Confirmed (PDF Invoice)</div>
+                    <div class="desc">Utility order confirmation with customer name, order ID, delivery date, and PDF attachment.</div>
+                </div>
+            </div>
+
+            <div class="library-item" onclick="useLibrary('welcome_video_v1','MARKETING','VIDEO','','Welcome to {{1}}! 👋\n\nWe\'re so happy to have you. Watch this short video to get started.\n\nFeel free to reply with any questions!','')">
+                <div class="library-icon" style="background: rgba(168,85,247,0.15); color: #a855f7;">🎬</div>
+                <div class="library-item-text">
+                    <div class="name">Welcome Video</div>
+                    <div class="desc">Onboard new contacts with a video greeting and variable business name.</div>
+                </div>
+            </div>
+
+            <div class="library-item" onclick="useLibrary('appointment_reminder_v1','UTILITY','none','📅 Reminder','Hi {{1}}, just a reminder about your appointment on {{2}} at {{3}}.\n\nPlease reply YES to confirm or NO to reschedule.','')">
+                <div class="library-icon" style="background: rgba(245,158,11,0.15); color: #f59e0b;">📅</div>
+                <div class="library-item-text">
+                    <div class="name">Appointment Reminder</div>
+                    <div class="desc">Utility template for reminding contacts of bookings, with name, date, and time variables.</div>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="cancel-btn" onclick="closeModal('library-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirm Modal -->
+    <div id="delete-modal" class="modal-overlay delete-confirm-modal">
+        <div class="modal-card">
+            <h2 style="margin-bottom: 12px;">Delete Template?</h2>
+            <input type="hidden" id="delete-name">
+            <p style="color: var(--text-dim); margin-bottom: 24px; line-height: 1.6;">
+                This will permanently delete the template from Meta. This action cannot be undone.
+            </p>
+            <div class="modal-actions">
+                <button class="cancel-btn" onclick="closeModal('delete-modal')">Cancel</button>
+                <button onclick="confirmDelete()" style="background: var(--danger); color: white; border: none; padding: 11px 24px; border-radius: 12px; font-weight: 700; cursor: pointer; font-family: 'Outfit', sans-serif; transition: all 0.2s;">
+                    Yes, Delete
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const botId = urlParams.get('bot_id') || sessionStorage.getItem('selectedBotId');
+        let currentHeaderType = 'none';
+        let buttonCount = 0;
+
+        // ============ TABS ============
+        function switchTab(tab) {
+            document.getElementById('panel-builder').style.display = tab === 'builder' ? 'block' : 'none';
+            document.getElementById('panel-list').style.display = tab === 'list' ? 'block' : 'none';
+            document.getElementById('tab-builder').classList.toggle('active', tab === 'builder');
+            document.getElementById('tab-list').classList.toggle('active', tab === 'list');
+            if (tab === 'list') loadTemplates();
+        }
+
+        // ============ HEADER TYPE ============
+        function setHeaderType(type) {
+            currentHeaderType = type;
+            document.querySelectorAll('.ht-btn').forEach(b => b.classList.remove('active'));
+            const btn = document.getElementById('ht-' + type);
+            if (btn) btn.classList.add('active');
+
+            document.getElementById('header-text-field').style.display = type === 'text' ? 'block' : 'none';
+            document.getElementById('header-media-field').style.display = ['IMAGE','VIDEO','DOCUMENT'].includes(type) ? 'block' : 'none';
+
+            if (type === 'IMAGE') document.getElementById('media-format-hint').textContent = 'JPG or PNG, max 5MB';
+            else if (type === 'VIDEO') document.getElementById('media-format-hint').textContent = 'MP4, max 16MB';
+            else if (type === 'DOCUMENT') document.getElementById('media-format-hint').textContent = 'PDF only, max 100MB';
+
+            // Update file input accept
+            const fi = document.getElementById('header-file-input');
+            if (type === 'IMAGE') fi.accept = 'image/jpeg,image/png';
+            else if (type === 'VIDEO') fi.accept = 'video/mp4';
+            else if (type === 'DOCUMENT') fi.accept = 'application/pdf';
+            else fi.accept = '*';
+
+            updatePreview();
+        }
+
+        // ============ BUTTONS ============
+        function addButton() {
+            if (buttonCount >= 3) { showToast('Maximum 3 buttons allowed', 'warning'); return; }
+            buttonCount++;
+            const idx = buttonCount;
+            const list = document.getElementById('btn-list');
+            const row = document.createElement('div');
+            row.className = 'btn-row';
+            row.id = 'btn-row-' + idx;
+            row.innerHTML = `
+                <select id="btn-type-${idx}" onchange="updateButtonRow(${idx}); updatePreview()">
+                    <option value="QUICK_REPLY">Custom</option>
+                    <option value="URL">Visit website</option>
+                    <option value="PHONE_NUMBER">Call Phone Number</option>
+                    <option value="COPY_CODE">Copy offer code</option>
+                </select>
+                <input id="btn-text-${idx}" type="text" placeholder="Button text" oninput="updatePreview()">
+                <input id="btn-val-${idx}" type="text" placeholder="(URL, Phone, or Code)" style="display:none;" oninput="updatePreview()">
+                <button class="remove-btn" onclick="removeButton(${idx})"><i data-lucide="x" style="width:14px;height:14px;"></i></button>
+            `;
+            list.appendChild(row);
+            if (window.lucide) lucide.createIcons({ root: row });
+            if (buttonCount >= 3) document.getElementById('add-btn-btn').style.display = 'none';
+            updatePreview();
+        }
+
+        function updateButtonRow(idx) {
+            const type = document.getElementById('btn-type-' + idx).value;
+            const valInput = document.getElementById('btn-val-' + idx);
+            if (type === 'QUICK_REPLY') {
+                valInput.style.display = 'none';
+                valInput.placeholder = '';
+            } else if (type === 'URL') {
+                valInput.style.display = 'block';
+                valInput.placeholder = 'https://yoursite.com/offer';
+            } else if (type === 'PHONE_NUMBER') {
+                valInput.style.display = 'block';
+                valInput.placeholder = 'e.g. +14155552671';
+            } else if (type === 'COPY_CODE') {
+                valInput.style.display = 'block';
+                valInput.placeholder = 'e.g. SUMMER20 (Offer code)';
+            }
+        }
+
+        function removeButton(idx) {
+            const row = document.getElementById('btn-row-' + idx);
+            if (row) row.remove();
+            buttonCount--;
+            document.getElementById('add-btn-btn').style.display = 'flex';
+            updatePreview();
+        }
+
+        // ============ NAME SANITISER ============
+        function sanitizeName(el) {
+            el.value = el.value.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+        }
+
+        // ============ UPLOAD HEADER MEDIA ============
+        async function uploadHeaderMedia(file) {
+            if (!file) return;
+            const dz = document.getElementById('header-dropzone');
+            const orig = dz.innerHTML;
+            dz.innerHTML = '<i data-lucide="loader-2" class="lucide-spin" style="width:28px;height:28px;"></i><div class="dz-text">Uploading...</div>';
+            if (lucide) lucide.createIcons({ root: dz });
+            try {
+                const fd = new FormData();
+                fd.append('media_file', file);
+                const res = await authenticatedFetch(`/api/media-attachments/upload?chatbot_id=${botId}`, { method: 'POST', body: fd });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    document.getElementById('b-header-url').value = data.data.public_url;
+                    showToast('File uploaded! URL pasted below.', 'success');
+                    updatePreview();
+                } else {
+                    showToast(data.message || 'Upload failed', 'error');
+                }
+            } catch (e) {
+                showToast('Upload failed', 'error');
+            } finally {
+                dz.innerHTML = orig;
+                if (lucide) lucide.createIcons({ root: dz });
+                document.getElementById('header-file-input').value = '';
+            }
+        }
+
+        // Drag-and-drop for header media
+        const dz = document.getElementById('header-dropzone');
+        ['dragenter','dragover','dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }));
+        dz.addEventListener('dragenter', () => dz.classList.add('dragover'));
+        dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+        dz.addEventListener('drop', e => { dz.classList.remove('dragover'); if (e.dataTransfer.files[0]) uploadHeaderMedia(e.dataTransfer.files[0]); });
+
+        // ============ LIVE PREVIEW ============
+        function updatePreview() {
+            const bubble = document.getElementById('preview-bubble');
+            const previewBtns = document.getElementById('preview-buttons');
+            bubble.innerHTML = '';
+
+            // Header
+            if (currentHeaderType === 'text') {
+                const ht = document.getElementById('b-header-text').value;
+                if (ht) {
+                    const d = document.createElement('div');
+                    d.className = 'wa-bubble-header-text';
+                    d.textContent = ht;
+                    bubble.appendChild(d);
+                }
+            } else if (['IMAGE','VIDEO','DOCUMENT'].includes(currentHeaderType)) {
+                const url = document.getElementById('b-header-url').value;
+                const icons = { IMAGE: '🖼️', VIDEO: '🎬', DOCUMENT: '📄' };
+                const labels = { IMAGE: 'Image', VIDEO: 'Video', DOCUMENT: 'Document' };
+                const d = document.createElement('div');
+                d.className = 'wa-bubble-header-media';
+                if (url && currentHeaderType === 'IMAGE') {
+                    d.innerHTML = `<img src="${url}" style="max-width:100%; max-height:120px; border-radius:6px; object-fit:cover;" onerror="this.outerHTML='${icons[currentHeaderType]} ${labels[currentHeaderType]}'">`;
+                } else {
+                    d.innerHTML = `<span style="font-size:2rem;">${icons[currentHeaderType]}</span><span>${labels[currentHeaderType]}</span>`;
+                }
+                bubble.appendChild(d);
+            }
+
+            // Body
+            const bodyText = document.getElementById('b-body').value || 'Fill in the form to see your template preview here.';
+            const bd = document.createElement('div');
+            bd.className = 'wa-bubble-body';
+            bd.textContent = bodyText;
+            bubble.appendChild(bd);
+
+            // Footer
+            const footerText = document.getElementById('b-footer').value;
+            if (footerText) {
+                const ft = document.createElement('div');
+                ft.className = 'wa-bubble-footer';
+                ft.textContent = footerText;
+                bubble.appendChild(ft);
+            }
+
+            // Time
+            const ti = document.createElement('div');
+            ti.className = 'wa-bubble-time';
+            ti.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' ✓✓';
+            bubble.appendChild(ti);
+
+            // Buttons
+            previewBtns.innerHTML = '';
+            const rows = document.querySelectorAll('[id^="btn-row-"]');
+            rows.forEach(r => {
+                const idx = r.id.replace('btn-row-', '');
+                const text = document.getElementById('btn-text-' + idx)?.value || 'Button';
+                const type = document.getElementById('btn-type-' + idx)?.value || 'QUICK_REPLY';
+                const icon = type === 'URL' ? '🔗 ' : type === 'PHONE_NUMBER' ? '📞 ' : type === 'COPY_CODE' ? '📋 ' : '↩️ ';
+                const d = document.createElement('div');
+                d.className = 'wa-action-btn';
+                d.textContent = icon + text;
+                previewBtns.appendChild(d);
+            });
+        }
+
+        // ============ SUBMIT ============
+        async function submitTemplate() {
+            const name = document.getElementById('b-name').value.trim();
+            const lang = document.getElementById('b-lang').value;
+            const category = document.getElementById('b-category').value;
+            const body = document.getElementById('b-body').value.trim();
+
+            if (!name) { showToast('Template Name is required', 'error'); return; }
+            if (!body) { showToast('Body Text is required', 'error'); return; }
+            if (!botId) { showToast('No bot selected. Please select a bot first.', 'error'); return; }
+
+            const components = [];
+
+            // Header component
+            if (currentHeaderType === 'text') {
+                const ht = document.getElementById('b-header-text').value.trim();
+                if (ht) components.push({ type: 'HEADER', format: 'TEXT', text: ht });
+            } else if (['IMAGE','VIDEO','DOCUMENT'].includes(currentHeaderType)) {
+                const mediaUrl = document.getElementById('b-header-url').value.trim();
+                const hComp = { type: 'HEADER', format: currentHeaderType };
+                if (mediaUrl) hComp.example = { header_url: [mediaUrl] };
+                components.push(hComp);
+            }
+
+            // Body component (with example variables if present)
+            const bodyComp = { type: 'BODY', text: body };
+            const vars = body.match(/\{\{(\d+)\}\}/g);
+            if (vars) {
+                const unique = [...new Set(vars)];
+                bodyComp.example = { body_text: [unique.map(v => `Sample_${v.replace(/[{}]/g, '')}`)] };
+            }
+            components.push(bodyComp);
+
+            // Footer component
+            const footer = document.getElementById('b-footer').value.trim();
+            if (footer) components.push({ type: 'FOOTER', text: footer });
+
+            // Buttons component
+            const btnRows = document.querySelectorAll('[id^="btn-row-"]');
+            if (btnRows.length > 0) {
+                const buttons = [];
+                for (const row of btnRows) {
+                    const idx = row.id.replace('btn-row-', '');
+                    const type = document.getElementById('btn-type-' + idx).value;
+                    const text = document.getElementById('btn-text-' + idx).value.trim();
+                    const val = document.getElementById('btn-val-' + idx)?.value.trim() || '';
+                    if (!text) continue;
+                    const btn = { type, text };
+                    if (type === 'URL') btn.url = val;
+                    else if (type === 'PHONE_NUMBER') btn.phone_number = val;
+                    else if (type === 'COPY_CODE') btn.example = [val]; // Meta API expects 'example' array for COPY_CODE
+                    buttons.push(btn);
+                }
+                if (buttons.length > 0) components.push({ type: 'BUTTONS', buttons });
+            }
+
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i data-lucide="loader-2" class="lucide-spin" style="width:16px;height:16px;"></i> Submitting...';
+            if (lucide) lucide.createIcons({ root: submitBtn });
+
+            try {
+                const res = await authenticatedFetch(`/api/meta-templates?chatbot_id=${botId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, language: lang, category, components })
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showToast('Template submitted to Meta! It will be reviewed shortly.', 'success');
+                    resetBuilder();
+                    switchTab('list');
+                } else {
+                    showToast(data.message || 'Submission failed', 'error');
+                }
+            } catch (e) {
+                showToast('Submission failed: ' + e.message, 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Submit to Meta';
+                if (lucide) lucide.createIcons({ root: submitBtn });
+            }
+        }
+
+        // ============ RESET ============
+        function resetBuilder() {
+            document.getElementById('b-name').value = '';
+            document.getElementById('b-lang').value = 'en_US';
+            document.getElementById('b-category').value = 'MARKETING';
+            document.getElementById('b-header-text').value = '';
+            document.getElementById('b-header-url').value = '';
+            document.getElementById('b-body').value = '';
+            document.getElementById('b-footer').value = '';
+            document.getElementById('btn-list').innerHTML = '';
+            buttonCount = 0;
+            document.getElementById('add-btn-btn').style.display = 'flex';
+            setHeaderType('none');
+            updatePreview();
+        }
+
+        // ============ LOAD MY TEMPLATES ============
+        async function loadTemplates() {
+            const grid = document.getElementById('templates-grid');
+            grid.innerHTML = '<div class="loading-state"><i data-lucide="loader-2" style="width:28px;height:28px;" class="lucide-spin"></i> Loading your templates...</div>';
+            if (lucide) lucide.createIcons({ root: grid });
+
+            if (!botId) {
+                grid.innerHTML = '<div class="empty-state"><div class="empty-icon">🤖</div><p>No bot selected. Please select a bot first.</p></div>';
+                return;
+            }
+
+            try {
+                const res = await authenticatedFetch(`/api/meta-templates?chatbot_id=${botId}`);
+                const data = await res.json();
+                if (data.status !== 'success') { grid.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><p>${data.message}</p></div>`; return; }
+                const tpls = data.data || [];
+                if (tpls.length === 0) {
+                    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><h3 style="font-size:1.2rem;margin-bottom:8px;">No templates yet</h3><p>Click "Build New Template" to create your first WhatsApp template.</p></div>';
+                    return;
+                }
+                grid.innerHTML = '';
+                tpls.forEach(t => {
+                    const statusClass = 'status-' + (t.status || 'PENDING');
+                    const bodyComp = (t.components || []).find(c => c.type === 'BODY');
+                    const bodyText = bodyComp ? bodyComp.text : '(No body text)';
+                    const card = document.createElement('div');
+                    card.className = 'glass-card';
+                    card.innerHTML = `
+                        <div class="card-header">
+                            <div class="card-name">${escHtml(t.name)}</div>
+                            <span class="status-badge ${statusClass}">${t.status || 'PENDING'}</span>
+                        </div>
+                        <div class="card-meta">
+                            <span class="meta-chip">${escHtml(t.language || 'en_US')}</span>
+                            <span class="meta-chip">${escHtml(t.category || 'MARKETING')}</span>
+                        </div>
+                        <div class="card-body-preview">${escHtml(bodyText)}</div>
+                        <div class="card-actions">
+                            <button class="action-btn delete-btn" onclick="openDeleteModal('${escHtml(t.name)}')">
+                                <i data-lucide="trash-2" style="width:14px;height:14px;"></i> Delete
+                            </button>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+                if (lucide) lucide.createIcons({ root: grid });
+            } catch (e) {
+                grid.innerHTML = '<div class="empty-state"><div class="empty-icon">⚠️</div><p>Failed to load templates: ' + e.message + '</p></div>';
+            }
+        }
+
+        // ============ DELETE ============
+        function openDeleteModal(name) {
+            document.getElementById('delete-name').value = name;
+            document.getElementById('delete-modal').classList.add('show');
+        }
+        async function confirmDelete() {
+            const name = document.getElementById('delete-name').value;
+            closeModal('delete-modal');
+            try {
+                const res = await authenticatedFetch(`/api/meta-templates/${encodeURIComponent(name)}?chatbot_id=${botId}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (data.status === 'success') { showToast('Template deleted', 'success'); loadTemplates(); }
+                else showToast(data.message || 'Delete failed', 'error');
+            } catch(e) { showToast('Delete failed', 'error'); }
+        }
+
+        // ============ LIBRARY ============
+        function openLibraryModal() { document.getElementById('library-modal').classList.add('show'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+
+        function useLibrary(name, category, headerType, headerText, body, footer) {
+            closeModal('library-modal');
+            switchTab('builder');
+            document.getElementById('b-name').value = name;
+            document.getElementById('b-category').value = category;
+            document.getElementById('b-body').value = body;
+            document.getElementById('b-footer').value = footer;
+            setHeaderType(headerType === 'none' ? 'none' : headerType);
+            if (headerType === 'text') document.getElementById('b-header-text').value = headerText;
+            // Reset buttons
+            document.getElementById('btn-list').innerHTML = '';
+            buttonCount = 0;
+            document.getElementById('add-btn-btn').style.display = 'flex';
+            updatePreview();
+            showToast('Template loaded! Customise and submit.', 'success');
+        }
+
+        function escHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+
+        // ============ TOAST NOTIFICATION ============
+        function showToast(msg, type='info') {
+            const toast = document.createElement('div');
+            toast.style.position = 'fixed';
+            toast.style.bottom = '20px';
+            toast.style.right = '20px';
+            toast.style.background = type === 'error' ? 'var(--danger, #ef4444)' : type === 'success' ? 'var(--accent, #10b981)' : 'var(--primary, #3b82f6)';
+            toast.style.color = '#fff';
+            toast.style.padding = '12px 24px';
+            toast.style.borderRadius = '8px';
+            toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+            toast.style.zIndex = '9999';
+            toast.style.fontFamily = 'Outfit, sans-serif';
+            toast.style.fontWeight = '500';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        // ============ INIT ============
+        document.addEventListener('DOMContentLoaded', () => {
+            requireLogin();
+            updatePreview();
+            if (lucide) lucide.createIcons();
+        });
+    </script>
+</body>
+</html>

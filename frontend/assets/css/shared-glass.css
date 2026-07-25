@@ -13,6 +13,12 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Fix dropdown options being white-on-white */
+select option {
+    background-color: var(--card-bg, #0f172a);
+    color: var(--text-color, #ffffff);
+}
+
 .glass-card:hover {
     transform: translateY(-2px);
     border-color: rgba(255, 255, 255, 0.15);
