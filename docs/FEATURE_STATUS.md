@@ -123,7 +123,7 @@
 | Message charts | Implemented | Data aggregation and frontend display exist |
 | Live workflow status | Implemented | Requires runtime verification |
 | Dashboard health | Implemented | Requires environment verification |
-| Agent insights | Implemented | Server-side owner/admin access uses the database-refreshed role and preserves chatbot ownership checks; focused authorization coverage exists; broader data-path tests remain required |
+| Agent insights | Implemented | Server-side owner/admin access uses the database-refreshed role and preserves chatbot ownership checks; new agent actions derive company ownership from the authoritative chatbot record. Staging migrations 028 and 027 removed only the approved orphans, enforced validated ownership/relationship/value constraints, added the pending-signal and open-lead indexes, and established service-role-only table access with RLS enabled. Production remains unchanged and direct company foreign keys remain deferred. |
 | AI-generated reports | Implemented | External model and feature-gate verification required |
 | Escalation handling | Implemented | Escalation detection, agent reply, resolution, email notification, and silent bot response; focused route tests exist |
 

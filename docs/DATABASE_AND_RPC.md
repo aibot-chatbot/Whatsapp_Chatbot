@@ -69,6 +69,29 @@ Rules:
 - For chatbot-owned records, verify that the chatbot belongs to the current company.
 - Add cross-company access tests for every high-risk repository.
 
+New `agent_actions` inserts resolve `company_id` from the authoritative chatbot
+record in the shared chat pipeline, and the repository rejects inserts without a
+valid company ID.
+
+On 2026-07-25, staging migration 028 removed only the approved 36 orphan
+`agent_actions` rows and two orphan `crm_leads` rows. Staging migration 027 then
+verified the following hardening:
+
+- `agent_actions.company_id` and `agent_actions.chatbot_id` are required;
+- chatbot foreign keys cascade deletion and nullable conversation foreign keys
+  use `ON DELETE SET NULL`;
+- compatible Agent Action and CRM lead value checks are validated;
+- the pending Agent Action query index and partial unique open-lead index exist;
+- RLS is enabled but not forced, with no policies;
+- `anon` and `authenticated` have no target-table or target-sequence privileges;
+- `service_role` has only `SELECT`, `INSERT`, and `UPDATE` on both target tables,
+  plus required sequence `USAGE`; and
+- the permanent chatbot deletion RPC remains `SECURITY DEFINER` and executable
+  by `service_role`, not browser roles or `PUBLIC`.
+
+Production remains unchanged. Direct company foreign keys are intentionally
+deferred until tenant/company deletion semantics are approved.
+
 ## Monetary Units
 
 Internal AI-credit and top-up amounts use integer micro-MYR.
