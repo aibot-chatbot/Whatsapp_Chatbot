@@ -123,9 +123,9 @@
 | Message charts | Implemented | Data aggregation and frontend display exist |
 | Live workflow status | Implemented | Requires runtime verification |
 | Dashboard health | Implemented | Requires environment verification |
-| Agent insights | Implemented | Server-side owner/admin access uses the database-refreshed role and preserves chatbot ownership checks; new agent actions derive company ownership from the authoritative chatbot record. Staging migrations 028 and 027 removed only the approved orphans, enforced validated ownership/relationship/value constraints, added the pending-signal and open-lead indexes, and established service-role-only table access with RLS enabled. Production remains unchanged and direct company foreign keys remain deferred. |
+| Agent insights | Implemented | Server-side owner/admin access uses the database-refreshed role and preserves chatbot ownership checks; new Agent Actions and automatic CRM leads derive company ownership from the authoritative chatbot record. Staging migrations 028 and 027 hardened stored data and service-role-only access. Expanded review/dismissal/linkage lifecycle fields and frontend actions remain deferred; production database migrations remain unapplied. |
 | AI-generated reports | Implemented | External model and feature-gate verification required |
-| Escalation handling | Implemented | Escalation detection, agent reply, resolution, email notification, and silent bot response; focused route tests exist |
+| Escalation handling | Implemented | Listing and exact-ID resolution require the current database-backed owner/admin role; resolution is compare-and-set idempotent and leaves unrelated signals unchanged. Same-action retries cannot repeat the AI-resumed notification; atomic deduplication across two different concurrently resolved final actions remains deferred to the lifecycle transaction/RPC phase. Focused regression tests are present; execution remains pending in a repaired test environment. |
 
 ## Subscription and AI Credit
 

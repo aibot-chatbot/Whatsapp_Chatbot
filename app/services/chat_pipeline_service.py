@@ -50,13 +50,15 @@ def prepare_chat_prompt(
     )
 
     from app.database.agent_action_repository import is_conversation_escalated
-    if is_conversation_escalated(conversation["id"]):
+    if is_conversation_escalated(conversation["id"], chatbot_id):
         logging.info(f"[ChatPipeline] Conversation {conversation['id']} is currently escalated to human staff. Skipping AI response.")
         return {
             "direct_reply": "<SILENT_BOT_RESPONSE>",
             "prompt": None,
             "intent": "escalated_to_human",
         }
+
+    authoritative_company_id = None
 
     try:
         agent_decision = analyze_agent_intent(
@@ -72,9 +74,9 @@ def prepare_chat_prompt(
         )
 
         try:
-            company_id = _resolve_chatbot_company_id(chatbot_id)
+            authoritative_company_id = _resolve_chatbot_company_id(chatbot_id)
             save_agent_action(
-                company_id=company_id,
+                company_id=authoritative_company_id,
                 chatbot_id=chatbot_id,
                 conversation_id=conversation.get("id"),
                 intent=agent_decision.get("intent", "unknown"),
@@ -90,29 +92,8 @@ def prepare_chat_prompt(
                 e,
             )
 
-        # Trigger email notification for handoff requests
-        if agent_decision.get("intent") == "handoff_request":
-            try:
-                from app.services.email_service import send_handoff_notification_email
-                # We need to run this asynchronously or just let it block briefly (SMTP takes ~1-2s)
-                # To keep it simple we just call it directly.
-                send_handoff_notification_email(
-                    company_id=conversation.get("company_id"),
-                    conversation=conversation,
-                    chatbot_id=chatbot_id
-                )
-            except Exception as e:
-                logging.warning(f"[AgentDecision] failed to send handoff email: {e}")
-            
-            return {
-                "direct_reply": "I'm transferring you to our Customer Service team now. Please hold on while I connect you. They will be with you shortly! \U0001f60a",
-                "prompt": None,
-                "intent": "handoff_request",
-            }
-
         try:
             create_crm_lead_from_agent_signal(
-                company_id=conversation.get("company_id"),
                 chatbot_id=chatbot_id,
                 conversation=conversation,
                 intent=agent_decision.get("intent", "unknown"),
@@ -126,6 +107,30 @@ def prepare_chat_prompt(
                 conversation.get("id"),
                 e,
             )
+
+        # Trigger email notification for handoff requests after the CRM attempt
+        # so staff-attention lead creation is not skipped by the early return.
+        if agent_decision.get("intent") == "handoff_request":
+            try:
+                if authoritative_company_id is None:
+                    raise ValueError(
+                        "Authoritative chatbot ownership could not be resolved"
+                    )
+
+                from app.services.email_service import send_handoff_notification_email
+                send_handoff_notification_email(
+                    company_id=authoritative_company_id,
+                    conversation=conversation,
+                    chatbot_id=chatbot_id
+                )
+            except Exception as e:
+                logging.warning(f"[AgentDecision] failed to send handoff email: {e}")
+
+            return {
+                "direct_reply": "I'm transferring you to our Customer Service team now. Please hold on while I connect you. They will be with you shortly! \U0001f60a",
+                "prompt": None,
+                "intent": "handoff_request",
+            }
     except Exception as e:
         logging.warning("[AgentDecision] analysis failed for chatbot_id=%s: %s", chatbot_id, e)
 

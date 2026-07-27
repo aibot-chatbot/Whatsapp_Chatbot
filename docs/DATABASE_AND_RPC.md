@@ -92,6 +92,33 @@ verified the following hardening:
 Production remains unchanged. Direct company foreign keys are intentionally
 deferred until tenant/company deletion semantics are approved.
 
+Application-level signal and CRM stabilization now also enforces:
+
+- escalation queries and exact-ID resolution include chatbot and company scope;
+- resolution updates require current `detected` status and repeated requests do
+  not repeat the customer-facing AI-resumed message;
+- automatic CRM conversion derives `company_id` from the chatbot and reloads
+  any referenced conversation by chatbot before using it;
+- handoff requests attempt a `staff_attention` lead before returning the
+  customer handoff response, and handoff email ownership uses the same
+  authoritative chatbot-derived company rather than conversation payload data;
+- manual and automatic conversion reuse only open leads, leaving closed leads
+  historical; and
+- PostgreSQL unique-violation code `23505` triggers a lookup of the winning open
+  CRM lead instead of message-text-based error handling.
+
+Exact-action retries do not repeat the AI-resumed notification. However, the
+remaining-escalation check and outbound notification are not one atomic
+conversation-level database operation. Two different final escalation actions
+resolved concurrently may both send the resume notification. Cross-action
+notification deduplication remains deferred to the lifecycle transaction/RPC
+phase.
+
+These are repository and service behavior changes only. Reviewed/actioned/
+dismissed states, reviewer and lifecycle timestamps, dispositions, transition
+history, direct signal-to-lead linkage, and frontend signal actions remain
+deferred.
+
 ## Monetary Units
 
 Internal AI-credit and top-up amounts use integer micro-MYR.

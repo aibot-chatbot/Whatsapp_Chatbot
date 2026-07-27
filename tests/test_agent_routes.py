@@ -34,6 +34,8 @@ MOCK_RESOLVED = {
     "id": 10,
     "conversation_id": 100,
     "chatbot_id": 1,
+    "company_id": 42,
+    "intent": "handoff_request",
     "status": "resolved",
 }
 
@@ -99,10 +101,14 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             return_value={"company_id": company_id, "user_id": 1, "role": role},
         )
 
-    def _patch_user_repo(self):
+    def _patch_user_repo(self, role="admin", company_id=42):
         return patch(
             "app.database.user_repository.get_user_by_id",
-            return_value=MOCK_USER,
+            return_value={
+                **MOCK_USER,
+                "role": role,
+                "company_id": company_id,
+            },
         )
 
     # ------------------------------------------------------------------ #
@@ -112,6 +118,7 @@ class TestAgentEscalationRoutes(unittest.TestCase):
     @patch("app.routes.agent_routes.get_pending_escalations")
     @patch("app.routes.agent_routes.verify_chatbot_access")
     def test_get_escalations_success(self, mock_verify, mock_get_esc):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
         mock_get_esc.return_value = MOCK_ESCALATIONS
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.get(
@@ -122,10 +129,12 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             data = resp.get_json()
             self.assertEqual(data["status"], "success")
             self.assertEqual(len(data["data"]), 2)
+            mock_get_esc.assert_called_once_with(1, 42)
 
     @patch("app.routes.agent_routes.get_pending_escalations")
     @patch("app.routes.agent_routes.verify_chatbot_access")
     def test_get_escalations_empty(self, mock_verify, mock_get_esc):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
         mock_get_esc.return_value = []
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.get(
@@ -155,6 +164,55 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             )
             self.assertEqual(resp.status_code, 403)
 
+    @patch("app.routes.agent_routes.get_pending_escalations")
+    @patch("app.routes.agent_routes.verify_chatbot_access")
+    def test_owner_can_list_escalations(self, mock_verify, mock_get_esc):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_get_esc.return_value = []
+        with self._patch_jwt_decode(role="member"), self._patch_user_repo(role="owner"):
+            resp = self.client.get(
+                "/api/agent/escalations?chatbot_id=1",
+                headers={"Authorization": "Bearer test-token"},
+            )
+        self.assertEqual(resp.status_code, 200)
+
+    @patch("app.routes.agent_routes.get_pending_escalations")
+    @patch("app.routes.agent_routes.verify_chatbot_access")
+    def test_current_database_admin_can_list_despite_stale_member_jwt(
+        self,
+        mock_verify,
+        mock_get_esc,
+    ):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_get_esc.return_value = []
+        with self._patch_jwt_decode(role="member"), self._patch_user_repo(role="admin"):
+            resp = self.client.get(
+                "/api/agent/escalations?chatbot_id=1",
+                headers={"Authorization": "Bearer test-token"},
+            )
+        self.assertEqual(resp.status_code, 200)
+        mock_get_esc.assert_called_once_with(1, 42)
+
+    @patch("app.routes.agent_routes.get_pending_escalations")
+    @patch("app.routes.agent_routes.verify_chatbot_access")
+    def test_database_member_cannot_list_escalations(
+        self,
+        mock_verify,
+        mock_get_esc,
+    ):
+        with self._patch_jwt_decode(role="owner"), self._patch_user_repo(role="member"):
+            resp = self.client.get(
+                "/api/agent/escalations?chatbot_id=1",
+                headers={"Authorization": "Bearer test-token"},
+            )
+        self.assertEqual(resp.status_code, 403)
+        mock_verify.assert_not_called()
+        mock_get_esc.assert_not_called()
+
+    def test_unauthenticated_user_cannot_list_escalations(self):
+        resp = self.client.get("/api/agent/escalations?chatbot_id=1")
+        self.assertEqual(resp.status_code, 401)
+
     # ------------------------------------------------------------------ #
     #  Escalation resolution (POST /api/agent/escalations/<id>/resolve)
     # ------------------------------------------------------------------ #
@@ -168,14 +226,14 @@ class TestAgentEscalationRoutes(unittest.TestCase):
     @patch("app.routes.agent_routes.get_whatsapp_channels_by_chatbot")
     @patch("app.routes.agent_routes.save_message")
     @patch("app.routes.agent_routes.get_conversation_by_id_and_chatbot")
-    @patch("app.database.agent_action_repository.resolve_all_escalations_for_conversation")
+    @patch("app.routes.agent_routes.is_conversation_escalated", return_value=False)
     @patch("app.routes.agent_routes.resolve_escalation")
     @patch("app.routes.agent_routes.verify_chatbot_access")
     def test_resolve_escalation_whatsapp(
         self,
         mock_verify,
         mock_resolve,
-        mock_resolve_all,
+        mock_is_escalated,
         mock_get_conv,
         mock_save_msg,
         mock_get_wa_channels,
@@ -186,7 +244,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
         mock_send_ws,
         mock_get_ws_channels,
     ):
-        mock_resolve.return_value = MOCK_RESOLVED
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_resolve.return_value = (MOCK_RESOLVED, True)
         mock_get_conv.return_value = MOCK_CONVERSATION_WHATSAPP
         mock_get_wa_channels.return_value = MOCK_WHATSAPP_CHANNELS
         mock_get_text_input.return_value = '{"messaging_product": "whatsapp", "to": "+60123456789", "type": "text", "text": {"body": "..."}}'
@@ -202,8 +261,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             self.assertEqual(data["status"], "success")
 
             # Verify resolution flow
-            mock_resolve.assert_called_once_with(10, 1)
-            mock_resolve_all.assert_called_once_with(100, 1)
+            mock_resolve.assert_called_once_with(10, 1, 42)
+            mock_is_escalated.assert_called_once_with(100, 1)
             mock_get_conv.assert_called_once_with(100, 1)
             mock_save_msg.assert_called_once()
             mock_get_text_input.assert_called_once()
@@ -218,14 +277,14 @@ class TestAgentEscalationRoutes(unittest.TestCase):
     @patch("app.routes.agent_routes.get_whatsapp_channels_by_chatbot")
     @patch("app.routes.agent_routes.save_message")
     @patch("app.routes.agent_routes.get_conversation_by_id_and_chatbot")
-    @patch("app.database.agent_action_repository.resolve_all_escalations_for_conversation")
+    @patch("app.routes.agent_routes.is_conversation_escalated", return_value=False)
     @patch("app.routes.agent_routes.resolve_escalation")
     @patch("app.routes.agent_routes.verify_chatbot_access")
     def test_resolve_escalation_telegram(
         self,
         mock_verify,
         mock_resolve,
-        mock_resolve_all,
+        mock_is_escalated,
         mock_get_conv,
         mock_save_msg,
         mock_get_wa_channels,
@@ -236,7 +295,11 @@ class TestAgentEscalationRoutes(unittest.TestCase):
         mock_send_ws,
         mock_get_ws_channels,
     ):
-        mock_resolve.return_value = {**MOCK_RESOLVED, "conversation_id": 101}
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_resolve.return_value = (
+            {**MOCK_RESOLVED, "conversation_id": 101},
+            True,
+        )
         mock_get_conv.return_value = MOCK_CONVERSATION_TELEGRAM
         mock_get_tg_channels.return_value = MOCK_TELEGRAM_CHANNELS
 
@@ -259,14 +322,14 @@ class TestAgentEscalationRoutes(unittest.TestCase):
     @patch("app.routes.agent_routes.get_whatsapp_channels_by_chatbot")
     @patch("app.routes.agent_routes.save_message")
     @patch("app.routes.agent_routes.get_conversation_by_id_and_chatbot")
-    @patch("app.database.agent_action_repository.resolve_all_escalations_for_conversation")
+    @patch("app.routes.agent_routes.is_conversation_escalated", return_value=False)
     @patch("app.routes.agent_routes.resolve_escalation")
     @patch("app.routes.agent_routes.verify_chatbot_access")
     def test_resolve_escalation_wasender(
         self,
         mock_verify,
         mock_resolve,
-        mock_resolve_all,
+        mock_is_escalated,
         mock_get_conv,
         mock_save_msg,
         mock_get_wa_channels,
@@ -277,7 +340,11 @@ class TestAgentEscalationRoutes(unittest.TestCase):
         mock_send_ws,
         mock_get_ws_channels,
     ):
-        mock_resolve.return_value = {**MOCK_RESOLVED, "conversation_id": 102}
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_resolve.return_value = (
+            {**MOCK_RESOLVED, "conversation_id": 102},
+            True,
+        )
         mock_get_conv.return_value = MOCK_CONVERSATION_WASENDER
         mock_get_ws_channels.return_value = MOCK_WASENDER_CHANNELS
 
@@ -293,9 +360,10 @@ class TestAgentEscalationRoutes(unittest.TestCase):
 
     @patch("app.routes.agent_routes.verify_chatbot_access")
     def test_resolve_escalation_not_found(self, mock_verify):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
         with patch(
             "app.routes.agent_routes.resolve_escalation",
-            return_value=None,
+            return_value=(None, False),
         ):
             with self._patch_jwt_decode(), self._patch_user_repo():
                 resp = self.client.post(
@@ -324,6 +392,48 @@ class TestAgentEscalationRoutes(unittest.TestCase):
                 headers={"Authorization": "Bearer test-token"},
             )
             self.assertEqual(resp.status_code, 403)
+
+    @patch("app.routes.agent_routes.resolve_escalation")
+    @patch("app.routes.agent_routes.verify_chatbot_access")
+    def test_database_member_cannot_resolve_escalation(
+        self,
+        mock_verify,
+        mock_resolve,
+    ):
+        with self._patch_jwt_decode(role="owner"), self._patch_user_repo(role="member"):
+            resp = self.client.post(
+                "/api/agent/escalations/10/resolve",
+                json={"chatbot_id": 1},
+                headers={"Authorization": "Bearer test-token"},
+            )
+        self.assertEqual(resp.status_code, 403)
+        mock_verify.assert_not_called()
+        mock_resolve.assert_not_called()
+
+    @patch("app.routes.agent_routes.resolve_escalation")
+    @patch("app.routes.agent_routes.verify_chatbot_access")
+    def test_database_owner_can_resolve_escalation(
+        self,
+        mock_verify,
+        mock_resolve,
+    ):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_resolve.return_value = (MOCK_RESOLVED, False)
+        with self._patch_jwt_decode(role="member"), self._patch_user_repo(role="owner"):
+            resp = self.client.post(
+                "/api/agent/escalations/10/resolve",
+                json={"chatbot_id": 1},
+                headers={"Authorization": "Bearer test-token"},
+            )
+        self.assertEqual(resp.status_code, 200)
+        mock_resolve.assert_called_once_with(10, 1, 42)
+
+    def test_unauthenticated_user_cannot_resolve_escalation(self):
+        resp = self.client.post(
+            "/api/agent/escalations/10/resolve",
+            json={"chatbot_id": 1},
+        )
+        self.assertEqual(resp.status_code, 401)
 
 
     # ------------------------------------------------------------------ #
@@ -510,18 +620,19 @@ class TestAgentEscalationRoutes(unittest.TestCase):
 
     @patch("app.routes.agent_routes.save_message")
     @patch("app.routes.agent_routes.get_conversation_by_id_and_chatbot")
-    @patch("app.database.agent_action_repository.resolve_all_escalations_for_conversation")
+    @patch("app.routes.agent_routes.is_conversation_escalated", return_value=False)
     @patch("app.routes.agent_routes.resolve_escalation")
     @patch("app.routes.agent_routes.verify_chatbot_access")
     def test_resolve_escalation_no_conversation_found(
         self,
         mock_verify,
         mock_resolve,
-        mock_resolve_all,
+        mock_is_escalated,
         mock_get_conv,
         mock_save_msg,
     ):
-        mock_resolve.return_value = MOCK_RESOLVED
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_resolve.return_value = (MOCK_RESOLVED, True)
         mock_get_conv.return_value = None
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.post(
@@ -530,24 +641,68 @@ class TestAgentEscalationRoutes(unittest.TestCase):
                 headers={"Authorization": "Bearer test-token"},
             )
             self.assertEqual(resp.status_code, 200)
-            mock_resolve_all.assert_called_once()
             mock_get_conv.assert_called_once()
             # save_message should NOT be called since conversation is None
             mock_save_msg.assert_not_called()
 
     @patch("app.routes.agent_routes.verify_chatbot_access")
     def test_resolve_escalation_already_resolved(self, mock_verify):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
         with patch(
             "app.routes.agent_routes.resolve_escalation",
-            return_value=None,
-        ):
+            return_value=(MOCK_RESOLVED, False),
+        ), patch(
+            "app.routes.agent_routes.save_message",
+        ) as save_message, patch(
+            "app.routes.agent_routes.get_conversation_by_id_and_chatbot",
+        ) as get_conversation, patch(
+            "app.routes.agent_routes.send_whatsapp_message",
+        ) as send_whatsapp, patch(
+            "app.routes.agent_routes.send_telegram_message",
+        ) as send_telegram, patch(
+            "app.routes.agent_routes.send_wasender_text_message",
+        ) as send_wasender:
             with self._patch_jwt_decode(), self._patch_user_repo():
                 resp = self.client.post(
                     "/api/agent/escalations/10/resolve",
                     json={"chatbot_id": 1},
                     headers={"Authorization": "Bearer test-token"},
                 )
-                self.assertEqual(resp.status_code, 404)
+                self.assertEqual(resp.status_code, 200)
+                self.assertTrue(resp.get_json()["data"]["already_resolved"])
+                save_message.assert_not_called()
+                get_conversation.assert_not_called()
+                send_whatsapp.assert_not_called()
+                send_telegram.assert_not_called()
+                send_wasender.assert_not_called()
+
+    @patch("app.routes.agent_routes.save_message")
+    @patch("app.routes.agent_routes.get_conversation_by_id_and_chatbot")
+    @patch("app.routes.agent_routes.is_conversation_escalated", return_value=True)
+    @patch("app.routes.agent_routes.resolve_escalation")
+    @patch("app.routes.agent_routes.verify_chatbot_access")
+    def test_resolving_one_action_does_not_resume_ai_when_another_escalation_remains(
+        self,
+        mock_verify,
+        mock_resolve,
+        mock_is_escalated,
+        mock_get_conversation,
+        mock_save_message,
+    ):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_resolve.return_value = (MOCK_RESOLVED, True)
+
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/agent/escalations/10/resolve",
+                json={"chatbot_id": 1},
+                headers={"Authorization": "Bearer test-token"},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        mock_is_escalated.assert_called_once_with(100, 1)
+        mock_get_conversation.assert_not_called()
+        mock_save_message.assert_not_called()
 
 
 

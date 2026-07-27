@@ -1,6 +1,9 @@
 from app.database.db import supabase
 
 
+ESCALATION_INTENTS = ["handoff_request", "complaint", "knowledge_gap"]
+
+
 def _is_positive_integer(value):
     return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
@@ -72,15 +75,16 @@ def get_agent_insights_by_chatbot(chatbot_id, limit=10):
         "recent": recent_result.data or [],
     }
 
-def get_pending_escalations(chatbot_id, limit=50):
+def get_pending_escalations(chatbot_id, company_id, limit=50):
     # Fetch escalations
     action_result = (
         supabase
         .table("agent_actions")
         .select("*")
         .eq("chatbot_id", chatbot_id)
+        .eq("company_id", company_id)
         .eq("status", "detected")
-        .in_("intent", ["handoff_request", "complaint", "knowledge_gap"])
+        .in_("intent", ESCALATION_INTENTS)
         .order("created_at", desc=False)
         .limit(limit)
         .execute()
@@ -100,37 +104,84 @@ def get_pending_escalations(chatbot_id, limit=50):
         .table("conversations")
         .select("*")
         .in_("id", conv_ids)
+        .eq("chatbot_id", chatbot_id)
         .execute()
     )
-    convs = {c["id"]: c for c in (conv_result.data or [])}
+    convs = {
+        conversation["id"]: conversation
+        for conversation in (conv_result.data or [])
+        if conversation.get("chatbot_id") == chatbot_id
+    }
     
     for action in actions:
         action["conversation"] = convs.get(action.get("conversation_id"))
         
     return actions
 
-def resolve_escalation(action_id, chatbot_id):
+def _get_escalation_by_id(action_id, chatbot_id, company_id):
+    result = (
+        supabase
+        .table("agent_actions")
+        .select("*")
+        .eq("id", action_id)
+        .eq("chatbot_id", chatbot_id)
+        .eq("company_id", company_id)
+        .in_("intent", ESCALATION_INTENTS)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
+def resolve_escalation(action_id, chatbot_id, company_id):
+    action = _get_escalation_by_id(action_id, chatbot_id, company_id)
+    if not action:
+        return None, False
+
+    if action.get("status") == "resolved":
+        return action, False
+
+    if action.get("status") != "detected":
+        return None, False
+
     result = (
         supabase
         .table("agent_actions")
         .update({"status": "resolved"})
         .eq("id", action_id)
         .eq("chatbot_id", chatbot_id)
+        .eq("company_id", company_id)
+        .eq("status", "detected")
+        .in_("intent", ESCALATION_INTENTS)
         .execute()
     )
-    return result.data[0] if result.data else None
+    rows = result.data or []
+    if rows:
+        return rows[0], True
 
-def resolve_all_escalations_for_conversation(conversation_id, chatbot_id):
-    supabase.table("agent_actions").update({"status": "resolved"}).eq("conversation_id", conversation_id).eq("chatbot_id", chatbot_id).eq("status", "detected").execute()
+    # Another request may have resolved the same action after our initial read.
+    current = _get_escalation_by_id(action_id, chatbot_id, company_id)
+    if current and current.get("status") == "resolved":
+        return current, False
 
-def is_conversation_escalated(conversation_id):
-    result = (
+    return None, False
+
+
+def is_conversation_escalated(conversation_id, chatbot_id=None):
+    query = (
         supabase
         .table("agent_actions")
         .select("id")
         .eq("conversation_id", conversation_id)
+    )
+    if chatbot_id is not None:
+        query = query.eq("chatbot_id", chatbot_id)
+
+    result = (
+        query
         .eq("status", "detected")
-        .in_("intent", ["handoff_request", "complaint", "knowledge_gap"])
+        .in_("intent", ESCALATION_INTENTS)
         .limit(1)
         .execute()
     )
