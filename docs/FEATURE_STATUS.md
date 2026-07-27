@@ -14,6 +14,7 @@
 | Feature | Status | Notes |
 |---|---|---|
 | Registration | Implemented | Backend and frontend flow exist; broader automated coverage is still needed |
+| Public Landing Page | Implemented | Clean, glassmorphic landing page introducing project features, pricing, FAQ, with dynamic login checks; served as root `/` |
 | Login | Implemented | JWT login flow exists |
 | Logout | Implemented | Client-side token removal; no server-side revocation |
 | Forgot password | Implemented | Requires renewed end-to-end verification |
@@ -63,6 +64,8 @@
 | RAG response flow | Implemented | Quality and adversarial testing remain |
 | Knowledge graph visualization | Implemented | Graph rendering and node/edge CRUD in new_linkdocs.html |
 | Knowledge graph editing | Implemented | Add, rename, delete nodes; add, delete edges; focused route tests exist |
+| Compiled README generation | Implemented | Automatically updates bot_<id>_readme.md on PDF uploads, graph mutations, and Q&A submissions |
+| README popup viewer | Implemented | Modal dialog next to the active PDF file in new_linkdocs.html showing parsed markdown structure |
 
 ## AI Providers
 

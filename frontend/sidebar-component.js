@@ -11,6 +11,7 @@ class ChatbotSidebar extends HTMLElement {
         const botQuery = botId ? `?bot_id=${botId}` : "";
         const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
         const isCollapsed = localStorage.getItem("sidebarCollapsed") === "true" && !isMobileViewport;
+        const initialIcon = isMobileViewport ? "☰" : (isCollapsed ? "☰" : "«");
 
         const isBotsPage = currentPath === "bots.html";
         // Determine user role from sessionStorage
@@ -353,30 +354,35 @@ class ChatbotSidebar extends HTMLElement {
                     width: 100%;
                     height: auto;
                     min-height: auto;
-                    position: relative;
-                    padding: 24px 20px;
+                    position: sticky;
+                    top: 0;
+                    z-index: 1000;
+                    padding: 16px 20px;
                 }
-                .sidebar.collapsed .sidebar-top {
-                    justify-content: space-between;
-                    margin-bottom: 28px;
+
+                .sidebar .sidebar-top {
+                    margin-bottom: 0;
                 }
-                .sidebar.collapsed .logo {
-                    display: flex;
+
+                .sidebar.mobile-open .sidebar-top {
+                    margin-bottom: 24px;
                 }
-                .sidebar.collapsed .nav-link,
-                .sidebar.collapsed .nav-link-content {
-                    justify-content: flex-start;
-                    gap: 14px;
+
+                /* Hide menu contents by default on small viewports */
+                .sidebar .nav-list,
+                .sidebar .sidebar-bottom-section {
+                    display: none !important;
                 }
-                .sidebar.collapsed .logout-link {
-                    justify-content: flex-start;
-                    padding: 12px 16px;
-                    gap: 14px;
+
+                /* Show when mobile-open is active */
+                .sidebar.mobile-open .nav-list,
+                .sidebar.mobile-open .sidebar-bottom-section {
+                    display: flex !important;
                 }
-                .sidebar.collapsed .nav-link span,
-                .sidebar.collapsed .logout-link span,
-                .sidebar.collapsed .chevron {
-                    display: none;
+
+                .sidebar.mobile-open {
+                    height: 100vh;
+                    overflow-y: auto;
                 }
             }
         </style>
@@ -387,7 +393,7 @@ class ChatbotSidebar extends HTMLElement {
                     <span>AI CHATBOT</span>
                 </div>
                 <button class="sidebar-toggle" type="button" aria-label="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}" title="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}">
-                    <span class="sidebar-toggle-icon">${isCollapsed ? "☰" : "«"}</span>
+                    <span class="sidebar-toggle-icon">${initialIcon}</span>
                 </button>
             </div>
 
@@ -630,20 +636,29 @@ class ChatbotSidebar extends HTMLElement {
 
         const syncToggleState = () => {
             const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
-            const shouldBeCollapsed = localStorage.getItem('sidebarCollapsed') === 'true' && !isMobileViewport;
-            sidebar.classList.toggle('collapsed', shouldBeCollapsed);
 
-            icon.textContent = shouldBeCollapsed ? '☰' : '«';
-            toggle.setAttribute('aria-label', shouldBeCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
-            toggle.setAttribute('title', shouldBeCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+            if (isMobileViewport) {
+                sidebar.classList.remove('collapsed');
+                const isOpen = sidebar.classList.contains('mobile-open');
+                icon.textContent = isOpen ? '✕' : '☰';
+                toggle.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
+                toggle.setAttribute('title', isOpen ? 'Close menu' : 'Open menu');
+            } else {
+                sidebar.classList.remove('mobile-open');
+                const shouldBeCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+                sidebar.classList.toggle('collapsed', shouldBeCollapsed);
+                icon.textContent = shouldBeCollapsed ? '☰' : '«';
+                toggle.setAttribute('aria-label', shouldBeCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+                toggle.setAttribute('title', shouldBeCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+            }
         };
 
         toggle.addEventListener('click', () => {
             const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
 
             if (isMobileViewport) {
-                localStorage.setItem('sidebarCollapsed', 'false');
-                sidebar.classList.remove('collapsed');
+                const isOpen = sidebar.classList.contains('mobile-open');
+                sidebar.classList.toggle('mobile-open', !isOpen);
                 syncToggleState();
                 return;
             }

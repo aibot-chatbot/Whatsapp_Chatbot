@@ -14,6 +14,7 @@
 > | 4K | Advanced billing and AI-usage reporting | Complete |
 > | 4L | Platform-admin controls | **Staging verified; production-readiness package prepared; production blocked** |
 > | 4M | Production launch audit and remediation | Complete |
+> | 4N | Knowledge Readme compilation & Pop-out viewer | Complete |
 >
 > ---
 
@@ -254,6 +255,12 @@ Make major frontend workflows consistent and verifiable.
 - Rate-limited requests are rejected before protected database writes, invitation acceptance, password hashing beyond the threshold, or external Google verification. Same-IP enforcement, independent IP and endpoint buckets, disabled mode, and test-application isolation were verified.
 - Focused workspace, Team, invitation, Google configuration, and tenant-scoping regression coverage is present.
 - Latest full automated evidence: 1534 passed, 1 skipped, 143 subtests passed. Python compilation, invitation-page and Team-page JavaScript syntax validation, and diff validation also passed.
+
+### Progress recorded 2026-07-28
+
+- Public landing page (`landing.html`) created to introduce the platform features, pricing, and FAQ. It utilizes the premium glassmorphic dark design of the dashboard and auth pages.
+- Dynamic session detection checks for authenticated user tokens and automatically updates CTAs to "Go to Dashboard" when logged in.
+- Backend routing configured in `app/views.py` and `app/__init__.py` to serve `landing.html` at the root path (`/`).
 
 ### Deferred risks
 

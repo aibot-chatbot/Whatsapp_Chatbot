@@ -20,7 +20,7 @@ FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "fr
 
 @webhook_blueprint.route("/", methods=["GET"])
 def serve_frontend_root():
-    return send_from_directory(FRONTEND_DIR, "login.html")
+    return send_from_directory(FRONTEND_DIR, "landing.html")
 
 
 def handle_message():

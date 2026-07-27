@@ -108,7 +108,7 @@ def create_app():
     def serve_frontend_fallback(error):
         path = request.path.lstrip("/")
         if not path:
-            path = "login.html"
+            path = "landing.html"
         if path.startswith("api/"):
             return {"status": "error", "message": "Not found"}, 404
         try:
