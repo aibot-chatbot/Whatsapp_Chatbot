@@ -11,6 +11,12 @@ Production deployment remains blocked by the approval gates recorded in the
 Phase 1.5 security and staging report. No platform-admin bootstrap data, APIs,
 frontend pages, or authentication middleware have been created.
 
+Historical clarification: this phase record describes migrations 023 through
+025 at the time they were designed and verified. Migration 026 later implemented
+Option C, a database trigger that rejects UPDATE and DELETE on
+`platform_admin_audit_events`; use the Phase 4 production-readiness document for
+the current append-only posture.
+
 This phase does not change production data or alter Flow Builder or Broadcast.
 
 ## Current behavior found
@@ -168,6 +174,10 @@ empty result from a truncated SQL Editor display.
 5. Decide whether append-only enforcement requires a dedicated database role or
    rejection trigger beyond the verified grants.
 6. Approve the production migration executor and expected object ownership.
+
+Historical clarification: item 5 was open during Phase 1. Migration 026 later
+implemented the approved staging-verified rejection trigger option, but
+production application remains blocked by the Phase 4 approval gates.
 
 Phase 2 must still enforce a valid application user plus an active
 `platform_admin_users` row. Tenant `users.role` must never grant platform access.
