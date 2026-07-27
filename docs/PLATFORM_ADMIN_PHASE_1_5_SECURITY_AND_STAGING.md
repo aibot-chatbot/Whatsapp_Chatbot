@@ -18,6 +18,11 @@ value—whether `owner`, `admin`, or `member`—must never grant platform access
 
 The completed staging inspection recorded all of the following:
 
+Historical clarification: this table describes the Phase 1.5 staging state for
+migrations 023 through 025. Migration 026 was added later and is documented in
+the Phase 4 production-readiness package as the expected append-only trigger on
+`platform_admin_audit_events`.
+
 | Area | Verified staging result |
 |---|---|
 | Migration 023 | Applied successfully |
@@ -111,6 +116,12 @@ For stronger enforcement, prefer a dedicated NOLOGIN/NO BYPASSRLS backend role
 with only the required table operations. A trigger that rejects UPDATE/DELETE is
 an alternative, but it complicates retention, archival, incident response, and
 schema ownership. Either option requires explicit approval.
+
+Historical clarification: this section reflects the Phase 1.5 decision point.
+Migration 026 later implemented Option C, a database trigger that rejects
+UPDATE and DELETE on `platform_admin_audit_events`. The current production
+approval, retention, and maintenance implications are tracked in
+`docs/PLATFORM_ADMIN_PHASE_4_PRODUCTION_READINESS.md`.
 
 ### Rerun and partial-migration safety
 

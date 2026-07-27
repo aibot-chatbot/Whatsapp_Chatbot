@@ -110,7 +110,9 @@ def get_current_platform_admin_identity(authenticated_user, platform_admin_user)
         },
     }
     _audit(actor_id, "platform_admin.identity.read", "platform_admin", str(actor_id), {
-        "outcome": "success", "endpoint": "/api/platform-admin/me", "http_method": "GET",
+        "outcome": "success",
+        "endpoint": platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["identity"],
+        "http_method": "GET",
     })
     return data
 
@@ -154,7 +156,8 @@ def list_companies(actor_id, *, limit=None, offset=None, search=None, status=Non
         "filters": {"search": normalized_search, "status": normalized_status},
     }
     _audit(actor_id, "platform_admin.company.list", "company", None, {
-        "outcome": "success", "endpoint": "/api/platform-admin/companies",
+        "outcome": "success",
+        "endpoint": platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_list"],
         "http_method": "GET", "limit": limit, "offset": offset,
         "sort_by": sort_by, "sort_order": sort_order,
         "search_applied": normalized_search is not None,
@@ -165,7 +168,7 @@ def list_companies(actor_id, *, limit=None, offset=None, search=None, status=Non
 
 def get_company_detail(company_id, actor_id):
     actor_id = _validated_actor_id(actor_id)
-    endpoint = "/api/platform-admin/companies/<company_id>"
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_detail"]
     company = _company_or_not_found(
         company_id, actor_id, "platform_admin.company.read", "company", endpoint
     )
@@ -177,7 +180,7 @@ def get_company_detail(company_id, actor_id):
 
 def get_company_subscription(company_id, actor_id):
     actor_id = _validated_actor_id(actor_id)
-    endpoint = "/api/platform-admin/companies/<company_id>/subscription"
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_subscription"]
     company = _company_or_not_found(
         company_id, actor_id, "platform_admin.company.subscription.read",
         "company_subscription", endpoint,
@@ -211,7 +214,7 @@ def _parse_period(value):
 
 def get_company_ai_credit_usage(company_id, actor_id):
     actor_id = _validated_actor_id(actor_id)
-    endpoint = "/api/platform-admin/companies/<company_id>/ai-credit-usage"
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_ai_credit_usage"]
     company = _company_or_not_found(
         company_id, actor_id, "platform_admin.company.ai_credit_usage.read",
         "company_ai_credit_usage", endpoint,

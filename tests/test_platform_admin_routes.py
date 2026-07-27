@@ -105,6 +105,24 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertNotIn("supabase", response_text)
         self.assertNotIn("secret details", response_text)
 
+    def test_audit_validation_failure_is_sanitized(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2, "company_name": "Sensitive Tenant"},
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=ValueError("Unsupported audit resource type"),
+        ):
+            response = self.client.get("/api/platform-admin/companies/2", headers=self.headers)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json["code"], "platform_admin_audit_unavailable")
+        self.assertNotIn("data", response.json)
+        response_text = response.get_data(as_text=True).lower()
+        self.assertNotIn("sensitive tenant", response_text)
+        self.assertNotIn("unsupported audit resource type", response_text)
+
     def test_authorized_missing_company_returns_audited_404(self):
         calls = []
         with patch.object(

@@ -72,6 +72,12 @@ ownership approval, protected-company lifecycle controls, production bootstrap
 approval, audit metadata/redaction rules, retention/archival policy, and the
 append-only enforcement decision beyond grants.
 
+Historical clarification: the append-only decision language reflects the Phase
+3 status at the time. Migration 026 later implemented Option C, a
+staging-verified database trigger that rejects UPDATE and DELETE on
+`platform_admin_audit_events`; see the Phase 4 production-readiness document
+for the current production gate.
+
 ## Current frontend findings
 
 ### Application structure and routing

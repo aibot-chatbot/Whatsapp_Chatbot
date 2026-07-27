@@ -569,6 +569,10 @@ matches the design with these concrete choices:
 - Audit actions and resource types are fixed allowlists. Metadata must be an
   object with allowlisted keys, passes a recursive prohibited-key check, and is
   limited to 8,192 bytes of canonical UTF-8 JSON.
+- Later hardening made the audit validation boundary stricter: each action now
+  has one exact resource type plus an explicit per-action metadata schema. The
+  authoritative current matrix is maintained in
+  `docs/PLATFORM_ADMIN_AUDIT_POLICY.md`.
 - Audit insertion remains the only platform write. A failed audit insert is
   returned as `platform_admin_audit_unavailable` and fetched tenant data is not
   placed in the response.
@@ -580,3 +584,8 @@ staging mapping remains inactive. Production remains blocked by the Phase 1.5
 gates, including production protected-company lifecycle approval, production
 bootstrap approval, metadata/retention decisions, append-only enforcement
 decision, and production executor/ownership approval.
+
+Historical clarification: the append-only decision language above reflects
+Phase 2 before the final Phase 4 database hardening. Migration 026 later
+implemented the staging-verified UPDATE/DELETE rejection trigger; production
+deployment still requires the Phase 4 approvals.

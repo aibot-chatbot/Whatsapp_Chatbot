@@ -23,24 +23,28 @@ Audit failure returns a sanitized 503 and withholds fetched tenant data.
 - Never use audit metadata to store customer content, secrets, or full personal
   records.
 
-## Approved actions and resources
+## Approved actions, resources, and metadata schemas
 
 No action or resource type outside this table is approved for Phase 4.
 
-| Action | Resource type | Resource ID | Required outcome | Endpoint |
-|---|---|---|---|---|
-| `platform_admin.identity.read` | `platform_admin` | Platform-admin mapping ID as text | `success` | `/api/platform-admin/me` |
-| `platform_admin.company.list` | `company` | `NULL` | `success` | `/api/platform-admin/companies` |
-| `platform_admin.company.read` | `company` | Requested company ID as text | `success` or `not_found` | `/api/platform-admin/companies/<company_id>` |
-| `platform_admin.company.subscription.read` | `company_subscription` | Requested company ID as text | `success` or `not_found` | `/api/platform-admin/companies/<company_id>/subscription` |
-| `platform_admin.company.ai_credit_usage.read` | `company_ai_credit_usage` | Requested company ID as text | `success` or `not_found` | `/api/platform-admin/companies/<company_id>/ai-credit-usage` |
+| Action | Resource type | Resource ID | Outcomes | Required metadata | Optional metadata | Endpoint |
+|---|---|---|---|---|---|---|
+| `platform_admin.identity.read` | `platform_admin` | Platform-admin mapping ID as positive integer text | `success` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/me` |
+| `platform_admin.company.list` | `company` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `status_filter`, `returned_count` | None | `/api/platform-admin/companies` |
+| `platform_admin.company.read` | `company` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>` |
+| `platform_admin.company.subscription.read` | `company_subscription` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>/subscription` |
+| `platform_admin.company.ai_credit_usage.read` | `company_ai_credit_usage` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `period_start` and `period_end` when `outcome = success` | None for `success`; no period fields for `not_found` | `/api/platform-admin/companies/<company_id>/ai-credit-usage` |
 
 `resource_id`, when present, must be a non-blank string no longer than 255
-characters. It contains only the canonical numeric ID for the implemented
+characters and must contain only the canonical positive numeric ID for the implemented
 resources—not a company name, email, URL, external payment ID, or composite
 payload.
 
-## Metadata allowlist
+The repository validation boundary enforces this exact action/resource-type
+matrix. An action paired with any other resource type is rejected even if both
+values are independently recognized.
+
+## Metadata schemas and allowlist
 
 The complete top-level allowlist is:
 
@@ -62,7 +66,11 @@ period_end
 No additional key is permitted without a code change, security/privacy review,
 tests, and a new policy approval.
 
-### Common fields
+Every action has an explicit schema. Unknown keys, missing required keys, wrong
+types, and keys allowed for a different action are rejected. New audit actions
+or metadata fields require an explicit schema and tests before use.
+
+### Common fields for every action
 
 | Field | Allowed value |
 |---|---|
@@ -80,17 +88,19 @@ tests, and a new policy approval.
 | `sort_order` | `asc` or `desc` |
 | `search_applied` | Boolean only; never the search value |
 | `status_filter` | `active`, `inactive`, or null |
-| `returned_count` | Non-negative count for this page |
+| `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
 
 ### AI-credit/usage fields
 
 | Field | Allowed value |
 |---|---|
-| `period_start` | Resolved ISO-8601 period boundary or null |
-| `period_end` | Resolved ISO-8601 period boundary or null |
+| `period_start` | Required for successful AI-credit/usage reads; resolved ISO-8601 period boundary or null |
+| `period_end` | Required for successful AI-credit/usage reads; resolved ISO-8601 period boundary or null |
 
-Other action types use only their common fields. Metadata must not duplicate
-actor IDs or resource IDs already represented by table columns.
+`period_start` and `period_end` are not allowed on not-found AI-credit/usage
+events because no tenant period has been read. Other action types use only
+their common fields. Metadata must not duplicate actor IDs or resource IDs
+already represented by table columns.
 
 ## Prohibited data
 
@@ -137,10 +147,20 @@ the top-level allowlist.
 - Metadata must be a JSON object. Arrays/scalars at the root are rejected.
 - Keys must be strings and all values must be valid finite JSON values. NaN,
   Infinity, non-serializable types, and malformed JSON are rejected.
+- Booleans are rejected anywhere an integer is expected, even though Python
+  treats `bool` as a subclass of `int`.
+- `limit` must be an integer from 1 through 100. `offset` and `returned_count`
+  must be non-negative integers, and `returned_count` must not exceed `limit`.
+- `sort_by` must be `created_at`, `company_name`, `status`, or `id`.
+  `sort_order` must be `asc` or `desc`. `status_filter` must be `active`,
+  `inactive`, or null.
+- Period strings, when present, must be non-blank and no longer than 64
+  characters.
 - Canonicalization uses UTF-8 JSON with sorted keys and compact separators.
 - The canonical metadata maximum is **8,192 bytes**. This is a byte limit after
   UTF-8 encoding, not a character estimate.
-- Action and resource type must be non-blank and exactly allowlisted.
+- Action and resource type must be non-blank and exactly paired by the approved
+  action/resource schema.
 - Actor ID must be a positive integer; booleans are not integers for this
   purpose.
 

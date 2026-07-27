@@ -18,6 +18,13 @@ tests passing, 87 platform-admin regression tests and 114 subtests passing, and
 the full safe suite at 1,437 passed, 1 skipped, and 125 subtests passed. Live
 staging inspection and rollback-only SQL verification also passed.
 
+The application audit validation boundary now enforces the authoritative
+Phase 4 action/resource matrix and per-action metadata schemas from
+`docs/PLATFORM_ADMIN_AUDIT_POLICY.md`. An action paired with the wrong resource
+type, missing required metadata, action-inappropriate metadata, wrong value
+type, boolean integer value, prohibited nested key, oversized canonical JSON, or
+non-finite JSON value is rejected before insert.
+
 ### Verified migration 026 staging evidence
 
 - Function owner is `postgres`; SECURITY DEFINER is false and fixed
