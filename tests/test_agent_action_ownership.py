@@ -56,7 +56,7 @@ def test_shared_pipeline_saves_action_with_authoritative_chatbot_company(
     ) as save_action, patch.object(
         chat_pipeline_service,
         "create_crm_lead_from_agent_signal",
-    ), patch.object(
+    ) as create_lead, patch.object(
         chat_pipeline_service,
         "detect_intent",
         return_value="greeting",
@@ -93,6 +93,13 @@ def test_shared_pipeline_saves_action_with_authoritative_chatbot_company(
         confidence=0.87,
         reason="Customer requested pricing details.",
         payload=SAFE_PAYLOAD,
+    )
+    create_lead.assert_called_once_with(
+        chatbot_id=29,
+        conversation=conversation,
+        intent="lead_interest",
+        suggested_action="create_lead",
+        reason="Customer requested pricing details.",
     )
 
 

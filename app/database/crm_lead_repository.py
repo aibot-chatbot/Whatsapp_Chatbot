@@ -13,16 +13,6 @@ SAFE_CRM_LEAD_FIELDS = (
 OPEN_CRM_LEAD_STATUSES = ["new", "in_progress", "contacted"]
 ALLOWED_CRM_LEAD_STATUSES = ["new", "in_progress", "contacted", "closed"]
 ALLOWED_CRM_LEAD_PRIORITIES = ["low", "medium", "high"]
-PRIORITY_RANK = {
-    "low": 1,
-    "medium": 2,
-    "high": 3,
-}
-SIGNAL_SEVERITY_RANK = {
-    "follow_up": 1,
-    "staff_attention": 2,
-    "negative_feedback": 3,
-}
 _MISSING = object()
 
 
@@ -74,12 +64,20 @@ def _normalize_follow_up_date(value):
     return text
 
 
-def _priority_rank(priority):
-    return PRIORITY_RANK.get((priority or "").lower(), 0)
+def _database_error_code(error):
+    code = getattr(error, "code", None)
+    if code:
+        return str(code)
+
+    for argument in getattr(error, "args", ()):
+        if isinstance(argument, dict) and argument.get("code"):
+            return str(argument["code"])
+
+    return None
 
 
-def _signal_severity_rank(lead_type):
-    return SIGNAL_SEVERITY_RANK.get((lead_type or "").lower(), 0)
+def _is_unique_violation(error):
+    return _database_error_code(error) == "23505"
 
 
 def get_crm_leads_by_chatbot(chatbot_id, status=None, limit=50, conversation_id=None):
@@ -107,16 +105,26 @@ def get_crm_leads_by_chatbot(chatbot_id, status=None, limit=50, conversation_id=
     return [_sanitize_crm_lead(row) for row in (result.data or [])]
 
 
-def get_open_crm_lead_by_conversation(chatbot_id, conversation_id):
+def get_open_crm_lead_by_conversation(
+    chatbot_id,
+    conversation_id,
+    company_id=None,
+):
     if not conversation_id:
         return None
 
-    result = (
+    query = (
         supabase.table("crm_leads")
         .select("*")
         .eq("chatbot_id", chatbot_id)
         .eq("conversation_id", conversation_id)
         .in_("status", OPEN_CRM_LEAD_STATUSES)
+    )
+    if company_id is not None:
+        query = query.eq("company_id", company_id)
+
+    result = (
+        query
         .order("created_at", desc=True)
         .limit(1)
         .execute()
@@ -175,7 +183,37 @@ def create_crm_lead(
     return result.data[0] if result.data else None
 
 
-def update_crm_lead_signal(lead_id, lead_type=None, priority=None, summary=None):
+def create_crm_lead_with_open_conflict_recovery(**lead_fields):
+    conversation_id = lead_fields.get("conversation_id")
+    chatbot_id = lead_fields.get("chatbot_id")
+
+    try:
+        return create_crm_lead(**lead_fields), True
+    except Exception as error:
+        if not conversation_id or not _is_unique_violation(error):
+            raise
+
+        winner = get_open_crm_lead_by_conversation(
+            chatbot_id,
+            conversation_id,
+            company_id=lead_fields.get("company_id"),
+        )
+        if winner:
+            return winner, False
+
+        raise RuntimeError(
+            "CRM open-lead conflict occurred but the winning lead could not be loaded."
+        ) from error
+
+
+def update_crm_lead_signal(
+    lead_id,
+    chatbot_id,
+    company_id,
+    lead_type=None,
+    priority=None,
+    summary=None,
+):
     update_data = {
         "updated_at": datetime.now(timezone.utc).isoformat()
     }
@@ -193,63 +231,12 @@ def update_crm_lead_signal(lead_id, lead_type=None, priority=None, summary=None)
         supabase.table("crm_leads")
         .update(update_data)
         .eq("id", lead_id)
+        .eq("chatbot_id", chatbot_id)
+        .eq("company_id", company_id)
         .execute()
     )
 
     return result.data[0] if result.data else None
-
-
-def create_or_update_crm_lead_from_signal(
-    company_id,
-    chatbot_id,
-    conversation_id=None,
-    customer_phone=None,
-    customer_name=None,
-    source_channel=None,
-    lead_type="follow_up",
-    priority="medium",
-    summary="",
-):
-    existing = get_open_crm_lead_by_conversation(chatbot_id, conversation_id)
-
-    if existing:
-        update_fields = {}
-        new_priority_rank = _priority_rank(priority)
-        existing_priority_rank = _priority_rank(existing.get("priority"))
-        new_signal_rank = _signal_severity_rank(lead_type)
-        existing_signal_rank = _signal_severity_rank(existing.get("lead_type"))
-
-        if (
-            new_priority_rank > existing_priority_rank
-            or (
-                new_priority_rank == existing_priority_rank
-                and new_signal_rank > existing_signal_rank
-            )
-        ):
-            update_fields = {
-                "lead_type": lead_type,
-                "priority": priority,
-                "summary": summary,
-            }
-
-        return update_crm_lead_signal(
-            existing["id"],
-            **update_fields,
-        )
-
-    return create_crm_lead(
-        company_id=company_id,
-        chatbot_id=chatbot_id,
-        conversation_id=conversation_id,
-        customer_phone=customer_phone,
-        customer_name=customer_name,
-        source_channel=source_channel,
-        lead_type=lead_type,
-        status="new",
-        priority=priority,
-        summary=summary,
-        notes="",
-    )
 
 
 def update_crm_lead_status_notes(
@@ -317,7 +304,11 @@ def upsert_crm_lead_by_conversation(
     if normalized_priority not in ALLOWED_CRM_LEAD_PRIORITIES:
         raise ValueError("Invalid CRM lead priority.")
 
-    existing = get_crm_lead_by_conversation(chatbot_id, conversation_id)
+    existing = get_open_crm_lead_by_conversation(
+        chatbot_id,
+        conversation_id,
+        company_id=company_id,
+    )
 
     if existing:
         update_data = {
@@ -341,13 +332,14 @@ def upsert_crm_lead_by_conversation(
             .update(update_data)
             .eq("id", existing["id"])
             .eq("chatbot_id", chatbot_id)
+            .eq("company_id", company_id)
             .execute()
         )
 
         rows = result.data or []
         return _sanitize_crm_lead(rows[0]) if rows else existing
 
-    lead = create_crm_lead(
+    lead, created = create_crm_lead_with_open_conflict_recovery(
         company_id=company_id,
         chatbot_id=chatbot_id,
         conversation_id=conversation_id,
@@ -363,6 +355,35 @@ def upsert_crm_lead_by_conversation(
 
     if not lead:
         return None
+
+    if not created:
+        # A concurrent request created the open lead after our initial lookup.
+        # Apply this request to that winner instead of surfacing a generic error.
+        existing = lead
+        update_data = {
+            "customer_name": customer_name or "",
+            "source_channel": source_channel or "",
+            "status": normalized_status,
+            "priority": normalized_priority,
+            "assigned_to": str(assigned_to or "").strip()[:100],
+            "notes": str(notes or "").strip()[:1000],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if follow_up_date is not _MISSING:
+            update_data["follow_up_date"] = _normalize_follow_up_date(follow_up_date)
+        if customer_phone:
+            update_data["customer_phone"] = customer_phone
+
+        result = (
+            supabase.table("crm_leads")
+            .update(update_data)
+            .eq("id", existing["id"])
+            .eq("chatbot_id", chatbot_id)
+            .eq("company_id", company_id)
+            .execute()
+        )
+        rows = result.data or []
+        return _sanitize_crm_lead(rows[0]) if rows else _sanitize_crm_lead(existing)
 
     return update_crm_lead_status_notes(
         chatbot_id=chatbot_id,

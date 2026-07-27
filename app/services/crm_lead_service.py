@@ -1,8 +1,9 @@
 import logging
 
 from app.database.bot_repository import get_bot_by_id
+from app.database.conversation_repository import get_conversation_by_id_and_chatbot
 from app.database.crm_lead_repository import (
-    create_crm_lead,
+    create_crm_lead_with_open_conflict_recovery,
     get_open_crm_lead_by_conversation,
     update_crm_lead_signal,
 )
@@ -47,16 +48,64 @@ def _signal_severity_rank(lead_type):
     return SIGNAL_SEVERITY_RANK.get((lead_type or "").lower(), 0)
 
 
-def _resolve_company_id(company_id, chatbot_id):
-    if company_id:
-        return company_id
+def _is_positive_integer(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
 
+
+def _resolve_authoritative_chatbot(chatbot_id):
     bot = get_bot_by_id(chatbot_id)
-    return bot.get("company_id") if bot else None
+    if not bot or bot.get("id") != chatbot_id:
+        raise ValueError("Authoritative chatbot ownership could not be resolved")
+
+    company_id = bot.get("company_id")
+    if not _is_positive_integer(company_id):
+        raise ValueError("Authoritative chatbot ownership could not be resolved")
+
+    return bot
+
+
+def _resolve_authoritative_conversation(conversation, chatbot_id):
+    conversation = conversation or {}
+    conversation_id = conversation.get("id")
+    if not conversation_id:
+        return conversation
+
+    authoritative = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
+    if not authoritative:
+        raise ValueError("Authoritative conversation ownership could not be resolved")
+
+    return authoritative
+
+
+def _update_open_lead_from_rule(lead, rule, chatbot_id, company_id):
+    update_fields = {}
+    new_priority_rank = _priority_rank(rule["priority"])
+    existing_priority_rank = _priority_rank(lead.get("priority"))
+    new_signal_rank = _signal_severity_rank(rule["lead_type"])
+    existing_signal_rank = _signal_severity_rank(lead.get("lead_type"))
+
+    if (
+        new_priority_rank > existing_priority_rank
+        or (
+            new_priority_rank == existing_priority_rank
+            and new_signal_rank > existing_signal_rank
+        )
+    ):
+        update_fields = {
+            "lead_type": rule["lead_type"],
+            "priority": rule["priority"],
+            "summary": rule["summary"],
+        }
+
+    return update_crm_lead_signal(
+        lead["id"],
+        chatbot_id=chatbot_id,
+        company_id=company_id,
+        **update_fields,
+    )
 
 
 def create_crm_lead_from_agent_signal(
-    company_id,
     chatbot_id,
     conversation,
     intent,
@@ -69,37 +118,24 @@ def create_crm_lead_from_agent_signal(
         logging.info("[CRM] Skipped lead creation for intent=%s", intent)
         return None
 
-    conversation = conversation or {}
+    bot = _resolve_authoritative_chatbot(chatbot_id)
+    company_id = bot["company_id"]
+    conversation = _resolve_authoritative_conversation(conversation, chatbot_id)
     conversation_id = conversation.get("id")
-    resolved_company_id = _resolve_company_id(company_id, chatbot_id)
 
-    if not resolved_company_id:
-        logging.warning("[CRM] Skipped lead creation because company_id was unavailable chatbot_id=%s", chatbot_id)
-        return None
-
-    existing = get_open_crm_lead_by_conversation(chatbot_id, conversation_id)
+    existing = get_open_crm_lead_by_conversation(
+        chatbot_id,
+        conversation_id,
+        company_id=company_id,
+    )
 
     if existing:
-        update_fields = {}
-        new_priority_rank = _priority_rank(rule["priority"])
-        existing_priority_rank = _priority_rank(existing.get("priority"))
-        new_signal_rank = _signal_severity_rank(rule["lead_type"])
-        existing_signal_rank = _signal_severity_rank(existing.get("lead_type"))
-
-        if (
-            new_priority_rank > existing_priority_rank
-            or (
-                new_priority_rank == existing_priority_rank
-                and new_signal_rank > existing_signal_rank
-            )
-        ):
-            update_fields = {
-                "lead_type": rule["lead_type"],
-                "priority": rule["priority"],
-                "summary": rule["summary"],
-            }
-
-        updated = update_crm_lead_signal(existing["id"], **update_fields)
+        updated = _update_open_lead_from_rule(
+            existing,
+            rule,
+            chatbot_id,
+            company_id,
+        )
         logging.info(
             "[CRM] Updated open lead id=%s chatbot_id=%s conversation_id=%s",
             existing.get("id"),
@@ -108,8 +144,8 @@ def create_crm_lead_from_agent_signal(
         )
         return updated
 
-    lead = create_crm_lead(
-        company_id=resolved_company_id,
+    lead, created = create_crm_lead_with_open_conflict_recovery(
+        company_id=company_id,
         chatbot_id=chatbot_id,
         conversation_id=conversation_id,
         customer_phone=conversation.get("customer_phone"),
@@ -121,6 +157,21 @@ def create_crm_lead_from_agent_signal(
         summary=rule["summary"],
         notes="",
     )
+
+    if not created:
+        lead = _update_open_lead_from_rule(
+            lead,
+            rule,
+            chatbot_id,
+            company_id,
+        )
+        logging.info(
+            "[CRM] Reused concurrently created lead id=%s chatbot_id=%s conversation_id=%s",
+            lead.get("id") if lead else None,
+            chatbot_id,
+            conversation_id,
+        )
+        return lead
 
     logging.info(
         "[CRM] Created lead chatbot_id=%s conversation_id=%s lead_type=%s",

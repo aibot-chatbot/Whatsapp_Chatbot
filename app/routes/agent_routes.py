@@ -2,8 +2,12 @@ from flask import Blueprint, jsonify, request
 import logging
 
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import verify_chatbot_access
-from app.database.agent_action_repository import get_pending_escalations, resolve_escalation
+from app.utils.access_control import role_required, verify_chatbot_access
+from app.database.agent_action_repository import (
+    get_pending_escalations,
+    is_conversation_escalated,
+    resolve_escalation,
+)
 from app.database.conversation_repository import get_conversation_by_id_and_chatbot
 from app.database.message_repository import save_message
 
@@ -20,15 +24,19 @@ agent_blueprint = Blueprint("agent", __name__)
 
 @agent_blueprint.route("/api/agent/escalations", methods=["GET"])
 @token_required
+@role_required("admin", "owner")
 def get_escalations():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
         if not chatbot_id:
             return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
 
-        verify_chatbot_access(chatbot_id)
+        access = verify_chatbot_access(chatbot_id)
 
-        escalations = get_pending_escalations(chatbot_id)
+        escalations = get_pending_escalations(
+            chatbot_id,
+            access["company_id"],
+        )
         return jsonify({"status": "success", "data": escalations}), 200
 
     except PermissionError as e:
@@ -40,6 +48,7 @@ def get_escalations():
 
 @agent_blueprint.route("/api/agent/escalations/<int:action_id>/resolve", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 def resolve_esc(action_id):
     try:
         data = request.get_json() or {}
@@ -48,18 +57,37 @@ def resolve_esc(action_id):
         if not chatbot_id:
             return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
 
-        verify_chatbot_access(chatbot_id)
-        resolved = resolve_escalation(action_id, chatbot_id)
+        access = verify_chatbot_access(chatbot_id)
+        resolved, changed = resolve_escalation(
+            action_id,
+            chatbot_id,
+            access["company_id"],
+        )
         if not resolved:
-            return jsonify({"status": "error", "message": "Escalation not found or already resolved."}), 404
+            return jsonify({"status": "error", "message": "Escalation not found."}), 404
+
+        if not changed:
+            return jsonify({
+                "status": "success",
+                "message": "Escalation was already resolved.",
+                "data": {
+                    "already_resolved": True,
+                },
+            }), 200
 
         # Let the user know the session has ended
         try:
             conversation_id = resolved.get("conversation_id")
-            if conversation_id:
-                from app.database.agent_action_repository import resolve_all_escalations_for_conversation
-                resolve_all_escalations_for_conversation(conversation_id, chatbot_id)
-                
+            if (
+                conversation_id
+                and not is_conversation_escalated(conversation_id, chatbot_id)
+            ):
+                # The exact-action transition is idempotent, but this separate
+                # remaining-action check and notification are not one atomic
+                # conversation-level operation. Two different final actions
+                # resolved concurrently can both observe no remaining action
+                # and notify. Atomic deduplication is deferred to the lifecycle
+                # transaction/RPC phase.
                 conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
                 if conversation:
                     source_channel = conversation.get("source_channel")
@@ -94,7 +122,13 @@ def resolve_esc(action_id):
         except Exception as e:
             logging.error(f"Failed to send end of service message: {e}")
 
-        return jsonify({"status": "success", "message": "Escalation resolved."}), 200
+        return jsonify({
+            "status": "success",
+            "message": "Escalation resolved.",
+            "data": {
+                "already_resolved": False,
+            },
+        }), 200
 
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
