@@ -910,6 +910,17 @@ def submit_refinement_answers():
                 )
                 saved_count += 1
 
+        if saved_count > 0:
+            from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
+            try:
+                generate_and_save_knowledge_readme(chatbot_id, file_id)
+            except Exception as readme_err:
+                logging.error(f"Failed to generate README inside submit_refinement_answers: {readme_err}")
+            try:
+                log_knowledge_modification(chatbot_id, file_id, f"Submitted {saved_count} refined knowledge Q&A clarifications.", "Q&A Submissions")
+            except Exception as log_err:
+                logging.error(f"Failed to log history inside submit_refinement_answers: {log_err}")
+
         return jsonify({
             "status": "success",
             "message": f"Successfully saved {saved_count} refined knowledge clarifications."
@@ -967,6 +978,19 @@ def save_graph_node():
         else:
             node_data = upsert_node(chatbot_id, file_id, name, label, properties)
 
+        from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
+        try:
+            generate_and_save_knowledge_readme(chatbot_id, file_id)
+        except Exception as readme_err:
+            logging.error(f"Failed to generate README inside save_graph_node: {readme_err}")
+        try:
+            if old_name and old_name.lower() != name.lower():
+                log_knowledge_modification(chatbot_id, file_id, f"Updated entity from '{old_name}' to '{name}' (Category: '{label}').", "Graph Modifications")
+            else:
+                log_knowledge_modification(chatbot_id, file_id, f"Saved entity '{name}' (Category: '{label}').", "Graph Modifications")
+        except Exception as log_err:
+            logging.error(f"Failed to log history inside save_graph_node: {log_err}")
+
         return jsonify({
             "status": "success",
             "data": node_data
@@ -1001,10 +1025,24 @@ def delete_graph_node_route():
 
         from app.database.knowledge_graph_repository import delete_node, delete_edges_by_node
 
+        from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+        active_file = get_active_pdf_knowledge_file(chatbot_id)
+        file_id = active_file["id"] if active_file else 0
+
         # Delete edges first
         delete_edges_by_node(chatbot_id, name)
         # Delete node
         delete_node(chatbot_id, name)
+
+        from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
+        try:
+            generate_and_save_knowledge_readme(chatbot_id, file_id)
+        except Exception as readme_err:
+            logging.error(f"Failed to generate README inside delete_graph_node_route: {readme_err}")
+        try:
+            log_knowledge_modification(chatbot_id, file_id, f"Deleted entity '{name}' and all its adjacent connections.", "Graph Modifications")
+        except Exception as log_err:
+            logging.error(f"Failed to log history inside delete_graph_node_route: {log_err}")
 
         return jsonify({
             "status": "success",
@@ -1064,6 +1102,16 @@ def save_graph_edge():
                 "message": "Failed to create relation. Self-referencing relationships are not allowed."
             }), 400
 
+        from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
+        try:
+            generate_and_save_knowledge_readme(chatbot_id, file_id)
+        except Exception as readme_err:
+            logging.error(f"Failed to generate README inside save_graph_edge: {readme_err}")
+        try:
+            log_knowledge_modification(chatbot_id, file_id, f"Created connection: '{source_name}' [{rel_type}] -> '{target_name}'.", "Graph Modifications")
+        except Exception as log_err:
+            logging.error(f"Failed to log history inside save_graph_edge: {log_err}")
+
         return jsonify({
             "status": "success",
             "data": edge_data
@@ -1100,9 +1148,22 @@ def delete_graph_edge_route():
                 "message": "source_name, target_name, and rel_type are required"
             }), 400
 
-        from app.database.knowledge_graph_repository import delete_edge
+        from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+        active_file = get_active_pdf_knowledge_file(chatbot_id)
+        file_id = active_file["id"] if active_file else 0
 
+        from app.database.knowledge_graph_repository import delete_edge
         delete_edge(chatbot_id, source_name, target_name, rel_type)
+
+        from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
+        try:
+            generate_and_save_knowledge_readme(chatbot_id, file_id)
+        except Exception as readme_err:
+            logging.error(f"Failed to generate README inside delete_graph_edge_route: {readme_err}")
+        try:
+            log_knowledge_modification(chatbot_id, file_id, f"Deleted connection: '{source_name}' [{rel_type}] -> '{target_name}'.", "Graph Modifications")
+        except Exception as log_err:
+            logging.error(f"Failed to log history inside delete_graph_edge_route: {log_err}")
 
         return jsonify({
             "status": "success",
@@ -1112,4 +1173,67 @@ def delete_graph_edge_route():
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Error deleting graph edge: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@knowledge_blueprint.route("/api/knowledge/readme", methods=["GET"])
+@token_required
+@role_required("admin", "owner")
+def get_knowledge_readme():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        file_id = request.args.get("file_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+
+        from app.services.knowledge_service import get_or_generate_readme
+        readme_content = get_or_generate_readme(chatbot_id, file_id)
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "content": readme_content
+            }
+        }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
+    except Exception as e:
+        logging.error(f"Error fetching knowledge readme: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@knowledge_blueprint.route("/api/knowledge/history", methods=["GET"])
+@token_required
+@role_required("admin", "owner")
+def get_knowledge_history():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        file_id = request.args.get("file_id", type=int)
+
+        if not chatbot_id or not file_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id and file_id are required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+
+        from app.services.knowledge_service import get_knowledge_history_logs
+        logs = get_knowledge_history_logs(chatbot_id, file_id)
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "logs": logs
+            }
+        }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
+    except Exception as e:
+        logging.error(f"Error fetching knowledge history: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
