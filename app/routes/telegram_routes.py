@@ -5,23 +5,6 @@ import requests
 
 from flask import Blueprint, request, jsonify
 
-
-def get_auto_ngrok_url():
-    """
-    Auto-detect the live ngrok public URL from the local ngrok API.
-    Returns None if ngrok is not running or no HTTPS tunnel found.
-    """
-    try:
-        response = requests.get("http://127.0.0.1:4040/api/tunnels", timeout=3)
-        data = response.json()
-        for tunnel in data.get("tunnels", []):
-            url = tunnel.get("public_url", "")
-            if url.startswith("https://"):
-                return url.rstrip("/")
-    except Exception:
-        pass
-    return None
-
 from app.decorators.auth_decorator import token_required
 from app.services.billing_guard import can_connect_channel, BillingLimitError
 from app.utils.access_control import verify_chatbot_access, role_required
@@ -77,9 +60,6 @@ def set_telegram_webhook(bot_token: str, webhook_url: str):
         json={
             "url": webhook_url,
             "drop_pending_updates": True,
-        },
-        headers={
-            "ngrok-skip-browser-warning": "true"
         },
         timeout=10,
     )
@@ -140,7 +120,7 @@ def connect_telegram():
 
     Optional:
     {
-        "webhook_base_url": "https://your-ngrok-url.ngrok-free.app"
+        "webhook_base_url": "https://api.example.com"
     }
     """
     try:
@@ -184,18 +164,16 @@ def connect_telegram():
         telegram_bot_id = str(bot_info.get("id"))
         bot_username = bot_info.get("username")
 
-        # Use request value first, then .env, then auto-detect from live ngrok
+        # Use the request value first, then the configured public deployment URL.
         public_base_url = clean_public_base_url(
             data.get("webhook_base_url")
             or os.getenv("PUBLIC_BASE_URL")
-            or os.getenv("NGROK_DOMAIN")
-            or get_auto_ngrok_url()
         )
 
         if not public_base_url:
             return jsonify({
                 "status": "error",
-                "message": "PUBLIC_BASE_URL is missing. Make sure ngrok is running or set PUBLIC_BASE_URL in .env."
+                "message": "PUBLIC_BASE_URL is missing. Configure a deployed public HTTPS server URL."
             }), 400
 
         webhook_secret = secrets.token_urlsafe(32)
@@ -438,14 +416,12 @@ def reconnect_telegram_channel(channel_id):
 
         public_base_url = clean_public_base_url(
             os.getenv("PUBLIC_BASE_URL")
-            or os.getenv("NGROK_DOMAIN")
-            or get_auto_ngrok_url()
         )
 
         if not public_base_url:
             return jsonify({
                 "status": "error",
-                "message": "PUBLIC_BASE_URL is missing. Make sure ngrok is running or set PUBLIC_BASE_URL in .env."
+                "message": "PUBLIC_BASE_URL is missing. Configure a deployed public HTTPS server URL."
             }), 400
 
         webhook_secret = secrets.token_urlsafe(32)

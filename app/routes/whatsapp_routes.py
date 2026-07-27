@@ -96,7 +96,7 @@ def calculate_token_expires_at(token_data: dict):
 
 def build_webhook_url():
     public_base_url = clean_public_base_url(
-        os.getenv("PUBLIC_BASE_URL") or os.getenv("NGROK_DOMAIN")
+        os.getenv("PUBLIC_BASE_URL")
     )
 
     if not public_base_url:

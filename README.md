@@ -40,6 +40,9 @@ limits and AI-credit billing with ToyyibPay top-ups.
 5. Start the application: `python run.py`
 6. Open `http://localhost:8000` in a browser.
 
+Local startup binds to localhost and does not start a public tunnel.
+External callbacks require a separately deployed public HTTPS server.
+
 ## Key Environment Variables
 
 ### Core
@@ -118,7 +121,7 @@ app/
   database/            # Supabase repository layer
   jobs/                # Background job entry points
   decorators/          # Auth and security decorators
-  utils/               # JWT, ngrok, Telegram, WhatsApp utilities
+  utils/               # JWT, Telegram, WhatsApp utilities
 data/                  # SQL migrations 003–014
 docs/                  # Documentation and runbooks
 frontend/              # HTML, JS, CSS (served by Flask)

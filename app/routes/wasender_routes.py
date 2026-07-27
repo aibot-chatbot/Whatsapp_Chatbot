@@ -64,7 +64,7 @@ def connect_wasender():
         "phone_number": "+60123456789",
         "session_id": "optional",
         "session_name": "optional",
-        "webhook_base_url": "optional ngrok url"
+        "webhook_base_url": "optional public deployment URL"
     }
     """
     try:
@@ -109,13 +109,12 @@ def connect_wasender():
         public_base_url = clean_public_base_url(
             data.get("webhook_base_url")
             or os.getenv("PUBLIC_BASE_URL")
-            or os.getenv("NGROK_DOMAIN")
         )
 
         if not public_base_url:
             return jsonify({
                 "status": "error",
-                "message": "PUBLIC_BASE_URL is missing. Set it in .env using your ngrok HTTPS URL."
+                "message": "PUBLIC_BASE_URL is missing. Configure a deployed public HTTPS server URL."
             }), 400
 
         webhook_secret = secrets.token_urlsafe(32)

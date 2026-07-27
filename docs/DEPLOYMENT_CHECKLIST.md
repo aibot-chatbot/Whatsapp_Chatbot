@@ -17,7 +17,7 @@
 | `TOYYIBPAY_ENV` | `production` | Switch from sandbox to production |
 | `TOYYIBPAY_CATEGORY_CODE` | Required | Production ToyyibPay category |
 | `TOYYIBPAY_USER_SECRET_KEY` | Required | Production ToyyibPay secret |
-| `TOYYIBPAY_CALLBACK_URL` | Required | Public HTTPS URL where ToyyibPay sends payment callbacks (`/api/billing/toyyibpay/callback`). Must be a production URL, not ngrok. |
+| `TOYYIBPAY_CALLBACK_URL` | Required | Public HTTPS URL where ToyyibPay sends payment callbacks (`/api/billing/toyyibpay/callback`). Must be a deployed production URL. |
 | `TOYYIBPAY_RETURN_URL` | Required | URL where customers are redirected after payment. Must be a production URL. |
 | `OPENROUTER_API_KEY` | Required | AI provider key |
 | `OPENAI_API_KEY` | Required | OpenAI API key (used for guide/RAG) |
@@ -55,8 +55,9 @@ pip install waitress
 waitress-serve --host 0.0.0.0 --port 8000 wsgi:app
 ```
 
-Do NOT use `python run.py` in production --- it enables the Werkzeug reloader
-and ngrok auto-start, which are unsafe for production traffic.
+Do NOT use `python run.py` in production; it is the local Flask development
+server. It binds to localhost by default and does not start a public tunnel.
+External callbacks require a separately deployed public HTTPS server.
 
 ### Security Verification Checklist
 
@@ -83,7 +84,6 @@ The following credential categories were found in Git history and should be rota
 - OpenRouter API key
 - SMTP credentials
 - Telegram bot tokens
-- ngrok auth tokens
 
 ### Database Migrations
 
