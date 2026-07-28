@@ -102,6 +102,8 @@ venv/
 .venv/
 
 node_modules/
-pnpm-lock.yaml
+.pnpm-store/
 npm-debug.log
+test-results/
+playwright-report/
 data/bot_*_*.pdf
