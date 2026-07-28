@@ -2,7 +2,8 @@
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {
-    "test:platform-admin-browser": "playwright test tests/browser/platform-admin.spec.js"
+    "test:platform-admin-browser": "playwright test platform-admin.spec.js",
+    "test:tenant-account-menu-browser": "playwright test tenant-account-menu.spec.js"
   },
   "devDependencies": {
     "@playwright/test": "1.62.0"
