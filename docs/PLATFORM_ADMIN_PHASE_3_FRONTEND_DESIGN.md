@@ -35,15 +35,41 @@ subscription changes remain out of scope.
 - Focused source-contract coverage is implemented in
   `tests/test_platform_admin_frontend.py`. The browser-based staging pass is
   also complete.
+- Executable local browser regression coverage now runs through Playwright
+  against the actual static frontend pages and JavaScript. The browser tests
+  serve `frontend/` locally, mock `/api/platform-admin/*` responses, and do not
+  require Supabase, real JWTs, staging data, or production data.
 
 ## Verification evidence
 
-- Focused platform-admin frontend suite: 31 passed, 6 subtests passed.
-- Combined platform-admin backend/frontend and authentication/security
-  regressions: 88 passed, 114 subtests passed.
-- Full safe suite: 1,421 passed, 1 skipped, 125 subtests passed.
+- Current local mocked Playwright platform-admin browser suite: 18 passed.
+  `tests/browser/platform-admin.spec.js` covers access gating, denial and
+  unavailable states, stale-data clearing, request lifecycle, dashboard counts,
+  directory controls, detail loading order, safe text rendering, navigation,
+  role-independence, and read-only boundary checks.
+- Current focused platform-admin frontend source-contract suite: 31 passed,
+  6 subtests passed.
+- Current focused platform-admin Python suite: 96 passed, 145 subtests passed.
+- Earlier recorded combined platform-admin backend/frontend and
+  authentication/security regressions: 88 passed, 114 subtests passed.
+- Earlier recorded full safe suite: 1,421 passed, 1 skipped, 125 subtests
+  passed.
 - All five dedicated platform-admin JavaScript files pass the available Node.js
   syntax check.
+
+Local browser command:
+
+```powershell
+& 'C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' node_modules\@playwright\test\cli.js test --reporter=line
+```
+
+In this repository, Playwright is configured to launch the locally installed
+Chrome channel and a test-owned static server. Browser binaries are not stored
+in the repository. pnpm is the recorded package manager for this test
+infrastructure. In a normal developer shell with Node on `PATH`,
+`pnpm run test:platform-admin-browser -- --reporter=line` can be used. CI still
+needs a Windows or Linux browser/runtime decision before these tests can be
+required in automated pipelines.
 
 ### Completed staging browser verification
 
@@ -531,11 +557,18 @@ stealing focus during ordinary loading.
   widths without clipped actions or inaccessible horizontal content.
 - Reduced-motion preferences disable nonessential transitions.
 
-The repository currently uses Python source-contract tests for frontend files
-and has no established browser-test dependency. The first implementation should
-add focused Python contract tests plus a recorded manual keyboard/responsive
-matrix. Introducing Playwright or another browser runner is a separate tooling
-decision rather than an implicit Phase 3 dependency.
+Historical note: the original Phase 3 plan assumed Python source-contract
+tests plus recorded manual keyboard/responsive verification, and treated
+Playwright or another browser runner as a separate tooling decision rather than
+an implicit Phase 3 dependency.
+
+Subsequent test-infrastructure hardening approved and added Playwright as the
+local executable browser regression layer. The browser suite complements, and
+does not replace, the Python source-contract tests or the recorded staging
+browser verification. It serves the real frontend files locally and mocks
+`/api/platform-admin/*` responses, so it proves local frontend behavior against
+controlled responses but does not prove staging or production behavior. CI
+enforcement remains deferred until a Node and browser runtime is selected.
 
 ## Exact expected implementation files
 
@@ -564,6 +597,18 @@ The test file should inspect the HTML/JS contracts and mock request outcomes for
 authorization ordering, endpoint allowlists, safe rendering, state clearing,
 read-only controls, and responsive/accessibility markers.
 
+### Subsequently added browser-test infrastructure
+
+- `package.json`
+- `pnpm-lock.yaml`
+- `playwright.config.js`
+- `tests/browser/platform-admin-static-server.js`
+- `tests/browser/platform-admin.spec.js`
+
+These files provide local mocked Playwright regressions for the existing
+read-only frontend. They are test infrastructure only and do not add platform
+routes, write controls, staging access, or production verification.
+
 ### Existing files expected to remain unchanged
 
 - `frontend/sidebar-component.js` — no platform link in ordinary tenant nav;
@@ -590,7 +635,7 @@ verification remains a separate approved activity.
 | Stale cross-tenant data after 503 | Clear the entire platform view before unavailable state |
 | Contact email/phone visibility | Confirm internal support need; fields are backend-approved but can be omitted from UI |
 | JavaScript integer precision for monetary micros | Validate safe integers; never silently round malformed/unsafe values |
-| No browser-test framework | Start with source-contract tests and manual QA; approve tooling separately |
+| Browser-test framework was originally deferred | Playwright was later approved and added for local mocked regressions; CI enforcement still needs a selected Node/browser runtime |
 | Staging mapping inactive | Browser verification is complete and the mapping was revoked again; any later access requires separate approval |
 | Production access | Remains blocked by all Phase 1.5 production gates |
 

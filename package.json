@@ -1,0 +1,10 @@
+{
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "scripts": {
+    "test:platform-admin-browser": "playwright test tests/browser/platform-admin.spec.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.0"
+  }
+}
