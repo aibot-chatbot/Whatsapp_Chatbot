@@ -197,7 +197,7 @@ class ChatbotSidebar extends HTMLElement {
                 height: 18px;
             }
 
-            /* ===== Bottom section: Profile + Logout ===== */
+            /* ===== Bottom section: tenant navigation only ===== */
             .sidebar-bottom-section {
                 margin-top: auto;
                 display: flex;
@@ -491,7 +491,7 @@ class ChatbotSidebar extends HTMLElement {
                 ` : ""}
             </nav>
 
-            <!-- Bottom section: Profile + Logout -->
+            <!-- Bottom section: tenant navigation only. Account actions live in <tenant-account-menu>. -->
             <div class="sidebar-bottom-section">
                 ${isAdmin ? `
                 <a href="team.html${botQuery}" class="profile-link" title="Team Members">
@@ -506,16 +506,6 @@ class ChatbotSidebar extends HTMLElement {
                         <i data-lucide="credit-card"></i>
                         <span>Billing</span>
                     </div>
-                </a>
-                <a href="profile.html${botQuery}" class="profile-link" title="Profile">
-                    <div class="profile-link-content">
-                        <i data-lucide="user-circle"></i>
-                        <span>Profile</span>
-                    </div>
-                </a>
-                <a href="login.html?logout=1" class="logout-link" title="Logout">
-                    <i data-lucide="log-out"></i>
-                    <span>Logout</span>
                 </a>
             </div>
 

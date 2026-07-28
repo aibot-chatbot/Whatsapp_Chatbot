@@ -39,6 +39,18 @@ subscription changes remain out of scope.
   against the actual static frontend pages and JavaScript. The browser tests
   serve `frontend/` locally, mock `/api/platform-admin/*` responses, and do not
   require Supabase, real JWTs, staging data, or production data.
+- A subsequent tenant-application UI hardening pass added a shared
+  `tenant-account-menu` component for authenticated tenant pages. It moves
+  Profile and Logout out of the ordinary tenant sidebar while preserving the
+  platform-admin console's own **Return to Tenant App** control. The optional
+  **Platform Administration** menu item is discovered lazily with a live
+  `GET /api/platform-admin/me` request when the menu opens; this visibility
+  check is convenience-only and does not replace the fresh `/me` gate on
+  `platform-admin.html`.
+- The previous `bots.html` Support menu item linked to `support.html`, but no
+  `frontend/support.html` file or app route currently implements that
+  destination. The shared menu therefore does not render Support yet, avoiding
+  a broken link until an approved support surface exists.
 
 ## Verification evidence
 
@@ -47,6 +59,12 @@ subscription changes remain out of scope.
   unavailable states, stale-data clearing, request lifecycle, dashboard counts,
   directory controls, detail loading order, safe text rendering, navigation,
   role-independence, and read-only boundary checks.
+- Current local mocked Playwright tenant account-menu browser suite: 15 passed.
+  `tests/browser/tenant-account-menu.spec.js` covers shared placement,
+  sidebar cleanup, keyboard and outside-click behavior, lazy platform-admin
+  discovery, 401/403/503/network outcomes, duplicate-request suppression,
+  reload rechecks, local-role/flag non-authority, navigation, and read-only
+  boundaries.
 - Current focused platform-admin frontend source-contract suite: 31 passed,
   6 subtests passed.
 - Current focused platform-admin Python suite: 96 passed, 145 subtests passed.
@@ -70,6 +88,15 @@ infrastructure. In a normal developer shell with Node on `PATH`,
 `pnpm run test:platform-admin-browser -- --reporter=line` can be used. CI still
 needs a Windows or Linux browser/runtime decision before these tests can be
 required in automated pipelines.
+
+Tenant account-menu browser command:
+
+```powershell
+& 'C:\Users\User\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' node_modules\@playwright\test\cli.js test tenant-account-menu.spec.js --reporter=line
+```
+
+In a normal developer shell with Node on `PATH`,
+`pnpm run test:tenant-account-menu-browser -- --reporter=line` can be used.
 
 ### Completed staging browser verification
 
@@ -390,6 +417,38 @@ Implement small dedicated modules rather than adding another large inline page:
 - read-only definition-list/detail card;
 - safe date, integer, micro-MYR, and micro-USD formatters.
 
+Subsequent shared tenant-account component:
+
+- `frontend/assets/js/shared-ui.js` defines `tenant-account-menu`.
+- `bots.html` renders the component in its existing top-right action area.
+- Confirmed sidebar-backed authenticated pages receive a top-right menu mounted
+  outside the sidebar: `index.html`, `crm.html`, `flows.html`,
+  `media_attachments.html`, `meta_templates.html`, `integration.html`,
+  `model_settings.html`, `new_linkdocs.html`, `broadcast.html`,
+  `conversations.html`, `pricing.html`, `profile.html`, `reports.html`,
+  `team.html`, `testbot.html`, and `new_prompt.html`.
+- `new_prompt.html` includes the required shared/auth/sidebar dependencies and
+  renders `<chatbot-sidebar>` through its React bundle; it is source-contract
+  verified. It is not part of the executable browser menu suite because the
+  current file depends on external React UMD scripts. Browser coverage includes
+  `bots.html`, `index.html`, and `profile.html`.
+- Bot-scoped pages preserve the previous Profile `bot_id` query behavior where
+  appropriate.
+- The menu renders user name/email with DOM text properties only. It may read
+  `sessionStorage.user` for display text, but never for platform-admin
+  authorization.
+- Support is intentionally omitted until an implemented destination exists; the
+  old `support.html` link was not backed by a frontend file or app route.
+- The **Platform Administration** item is hidden by default and appears only
+  after a live `GET /api/platform-admin/me` returns HTTP 200. HTTP 403, HTTP
+  503, network failure, tenant owner/admin/member roles, and forged storage
+  flags keep the item hidden. HTTP 401 uses the normal logout behavior.
+- The result is cached only in memory for the current page instance. It is not
+  written to `localStorage`, `sessionStorage`, URLs, analytics, or logs.
+- The ordinary tenant sidebar intentionally has no platform-admin link. Menu
+  visibility reduces clutter for authorized operators, but backend
+  authorization and the platform page's fresh `/me` gate remain mandatory.
+
 Use `textContent`, DOM property assignment, and fixed templates for API-derived
 values. Do not concatenate API fields into `innerHTML`, event-handler strings,
 URLs, CSS, or log messages. Links containing company IDs must be built from a
@@ -604,14 +663,29 @@ read-only controls, and responsive/accessibility markers.
 - `playwright.config.js`
 - `tests/browser/platform-admin-static-server.js`
 - `tests/browser/platform-admin.spec.js`
+- `tests/browser/tenant-account-menu.spec.js`
 
 These files provide local mocked Playwright regressions for the existing
-read-only frontend. They are test infrastructure only and do not add platform
-routes, write controls, staging access, or production verification.
+read-only frontend and shared tenant account menu. They are test infrastructure
+only and do not add platform routes, write controls, staging access, or
+production verification.
+
+### Subsequently added shared account-menu files
+
+- `frontend/assets/js/shared-ui.js` — shared `tenant-account-menu` custom
+  element and lazy platform-admin menu discovery.
+- `frontend/bots.html` — uses the shared component instead of the previous
+  page-local account dropdown.
+- `frontend/sidebar-component.js` — keeps Team and Billing tenant navigation,
+  but no longer renders Profile or Logout.
+- `tests/test_tenant_account_menu_frontend.py` — source-contract coverage for
+  the shared menu and sidebar cleanup.
 
 ### Existing files expected to remain unchanged
 
 - `frontend/sidebar-component.js` — no platform link in ordinary tenant nav;
+  later shared account-menu work also moved Profile and Logout out of the
+  sidebar while preserving Team and Billing navigation;
 - `frontend/assets/js/auth.js` — reuse the existing token/logout mechanism;
 - all backend routes, services, repositories, decorators, and migrations;
 - Flow Builder and Broadcast files.

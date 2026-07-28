@@ -30,6 +30,12 @@ shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
 client, in-memory request cancellation/state clearing, exact company counts,
 the server-paginated company directory, and safe company billing/AI-credit
 detail views. The ordinary tenant sidebar does not expose platform navigation.
+Authenticated tenant pages now use a shared top-right account menu for Profile
+and Logout; the previous Support item targeted missing `support.html` and is
+deferred until an approved destination exists. Active platform admins can
+discover a Platform Administration link only after a lazy live
+`/api/platform-admin/me` check. This menu visibility does not replace the
+platform page's fresh authorization gate.
 
 Migrations 023, 024, and 025 and all five read-only endpoints are verified in
 staging. The five expected audit events and immediate revocation were verified;

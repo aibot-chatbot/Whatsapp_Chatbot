@@ -313,6 +313,12 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
+- Tenant pages now use a shared top-right account menu for Profile and Logout.
+  The previous Support link targeted missing `support.html`, so Support is not
+  rendered until an approved destination exists. The optional Platform
+  Administration menu item is discovered lazily through a live
+  `/api/platform-admin/me` check and is not stored or placed in the tenant
+  sidebar.
 - Focused frontend source-contract tests cover endpoint restrictions, request
   cancellation, state clearing, safe rendering, accessibility, and responsive
   behavior
