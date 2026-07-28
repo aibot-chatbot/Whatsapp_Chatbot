@@ -104,6 +104,15 @@ def save_uploaded_pdf(file, chatbot_id):
         file_id=file_id
     )
 
+    try:
+        generate_and_save_knowledge_readme(chatbot_id, file_id)
+    except Exception as readme_err:
+        logging.error(f"Failed to generate README for PDF: {readme_err}")
+    try:
+        log_knowledge_modification(chatbot_id, file_id, "Document uploaded and chunks indexed.")
+    except Exception as log_err:
+        logging.error(f"Failed to log history for PDF upload: {log_err}")
+
     update_chatbot_runtime({
         "draft_pdf_file_name": safe_name,
         "draft_pdf_path": relative_pdf_path,
@@ -123,6 +132,7 @@ def list_uploaded_pdfs(chatbot_id):
 
     return [
         {
+            "id": file["id"],
             "file_name": file["file_name"],
             "name": file["file_name"],  # keep both for safety
             "size": file.get("file_size"),
@@ -198,6 +208,15 @@ def set_active_pdf(file_name, chatbot_id):
         chatbot_id=chatbot_id,
         file_id=file_id
     )
+
+    try:
+        generate_and_save_knowledge_readme(chatbot_id, file_id)
+    except Exception as readme_err:
+        logging.error(f"Failed to generate README when setting active PDF: {readme_err}")
+    try:
+        log_knowledge_modification(chatbot_id, file_id, "Document set as the active primary knowledge source.")
+    except Exception as log_err:
+        logging.error(f"Failed to log history when setting active PDF: {log_err}")
 
     relative_pdf_path = selected_path or os.path.join("data", secure_filename(selected_name))
 
@@ -839,3 +858,241 @@ Rules:
             continue
 
     logging.info(f"[GraphRAG] Finished graph extraction for file_id={file_id}.")
+
+
+def generate_and_save_knowledge_readme(chatbot_id: int, file_id: int = None):
+    import os
+    import logging
+    from datetime import datetime
+    from app.database.db import supabase
+    from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+    from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
+
+    if file_id is None:
+        active_file = get_active_pdf_knowledge_file(chatbot_id)
+        if not active_file:
+            readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_readme.md")
+            if os.path.exists(readme_path):
+                try:
+                    os.remove(readme_path)
+                except Exception:
+                    pass
+            return
+        file_id = active_file["id"]
+        file_name = active_file.get("file_name", "Primary Document")
+    else:
+        try:
+            res = supabase.table("knowledge_files").select("*").eq("chatbot_id", chatbot_id).eq("id", file_id).limit(1).execute()
+            file_record = res.data[0] if res.data else None
+        except Exception as err:
+            logging.error(f"Failed to fetch knowledge file record inside readme generation: {err}")
+            file_record = None
+        if not file_record:
+            return
+        file_name = file_record.get("file_name", "Primary Document")
+
+    # 1. Fetch chunks (original document text chunks)
+    chunks_data = get_chunks_by_file_for_chatbot(chatbot_id, file_id) or []
+    pdf_chunks = []
+    qa_list = []
+
+    for c in chunks_data:
+        meta = c.get("metadata") or {}
+        content = c.get("content", "").strip()
+        if meta.get("source_type") == "refinement":
+            question = meta.get("question", "").strip()
+            answer = ""
+            if "Answer:" in content:
+                parts = content.split("Answer:", 1)
+                answer = parts[1].strip()
+            if question and answer:
+                qa_list.append({"question": question, "answer": answer})
+        else:
+            if content:
+                pdf_chunks.append(content)
+
+    # 2. Fetch Graph Nodes
+    nodes = []
+    try:
+        nodes_res = (
+            supabase.table("knowledge_graph_nodes")
+            .select("*")
+            .eq("chatbot_id", chatbot_id)
+            .eq("file_id", file_id)
+            .execute()
+        )
+        nodes = nodes_res.data or []
+    except Exception as err:
+        logging.error(f"Failed to fetch graph nodes for readme: {err}")
+
+    # 3. Fetch Graph Edges
+    edges = []
+    try:
+        edges_res = (
+            supabase.table("knowledge_graph_edges")
+            .select("*")
+            .eq("chatbot_id", chatbot_id)
+            .eq("file_id", file_id)
+            .execute()
+        )
+        edges = edges_res.data or []
+    except Exception as err:
+        logging.error(f"Failed to fetch graph edges for readme: {err}")
+
+    # Build the README contents
+    md = []
+    md.append(f"# Knowledge Base README: {file_name}")
+    md.append(f"- **Generated Date**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    md.append(f"- **Chatbot ID**: {chatbot_id}")
+    md.append("")
+
+    md.append("## Document Overview")
+    md.append(f"This document represents the compiled knowledge base for Chatbot #{chatbot_id}, extracted from the primary document `{file_name}`.")
+    md.append(f"- Total Text Chunks: {len(pdf_chunks)}")
+    md.append(f"- Total Graph Nodes: {len(nodes)}")
+    md.append(f"- Total Graph Connections: {len(edges)}")
+    md.append(f"- Total Refined Q&As: {len(qa_list)}")
+    md.append("")
+
+    md.append("## Knowledge Graph")
+    md.append("### Entities (Nodes)")
+    if nodes:
+        md.append("| Name | Category | Description |")
+        md.append("| --- | --- | --- |")
+        for n in nodes:
+            name = n.get("name", "").title()
+            label = n.get("label", "")
+            desc = n.get("properties", {}).get("description", "") if isinstance(n.get("properties"), dict) else ""
+            md.append(f"| {name} | {label} | {desc} |")
+    else:
+        md.append("*No entities defined in the knowledge graph.*")
+    md.append("")
+
+    md.append("### Connections (Relationships)")
+    if edges:
+        for e in edges:
+            src = e.get("source_name", "").title()
+            tgt = e.get("target_name", "").title()
+            rel = e.get("rel_type", "").replace("_", " ")
+            md.append(f"- **{src}** [{rel}] -> **{tgt}**")
+    else:
+        md.append("*No connections defined in the knowledge graph.*")
+    md.append("")
+
+    md.append("## Knowledge Refinement Q&A")
+    if qa_list:
+        for idx, qa in enumerate(qa_list, 1):
+            md.append(f"### Q{idx}. {qa['question']}")
+            md.append(f"{qa['answer']}")
+            md.append("")
+    else:
+        md.append("*No custom refined Q&A clarifications have been added yet.*")
+    md.append("")
+
+    md.append("## Document Text Chunks")
+    if pdf_chunks:
+        for idx, chunk in enumerate(pdf_chunks, 1):
+            md.append(f"### Chunk {idx}")
+            md.append(chunk)
+            md.append("")
+    else:
+        md.append("*No raw document chunks available.*")
+
+    # Save to disk
+    readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_readme.md")
+    os.makedirs(DATA_FOLDER, exist_ok=True)
+    try:
+        with open(readme_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(md))
+        logging.info(f"Successfully generated and saved knowledge README for chatbot_id={chatbot_id}, file_id={file_id} to {readme_path}")
+
+        # Also copy/save to bot_{chatbot_id}_readme.md if this is the active file
+        from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+        active = get_active_pdf_knowledge_file(chatbot_id)
+        if active and active["id"] == file_id:
+            active_readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_readme.md")
+            with open(active_readme_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(md))
+    except Exception as e:
+        logging.error(f"Failed to save knowledge README to {readme_path}: {e}")
+
+
+def get_or_generate_readme(chatbot_id: int, file_id: int = None) -> str:
+    import os
+    from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+    if file_id is None:
+        active_file = get_active_pdf_knowledge_file(chatbot_id)
+        if not active_file:
+            return "No active primary PDF or knowledge sources available to generate README."
+        file_id = active_file["id"]
+
+    readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_readme.md")
+    if not os.path.exists(readme_path):
+        generate_and_save_knowledge_readme(chatbot_id, file_id)
+
+    if os.path.exists(readme_path):
+        try:
+            with open(readme_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            return f"Error reading README file: {e}"
+    else:
+        return "No active primary PDF or knowledge sources available to generate README."
+
+
+def log_knowledge_modification(chatbot_id: int, file_id: int, action: str, category: str = "Admin State Changes"):
+    import os
+    import json
+    from datetime import datetime
+
+    if not file_id:
+        return
+
+    log_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_history.json")
+    os.makedirs(DATA_FOLDER, exist_ok=True)
+
+    logs = []
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                logs = json.load(f)
+        except Exception:
+            logs = []
+
+    entry = {
+        "timestamp": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
+        "action": action,
+        "category": category
+    }
+    logs.append(entry)
+
+    try:
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(logs, f, indent=2)
+    except Exception as e:
+        import logging
+        logging.error(f"Failed to write history log to {log_path}: {e}")
+
+
+def get_knowledge_history_logs(chatbot_id: int, file_id: int) -> list:
+    import os
+    import json
+    log_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_history.json")
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, "r", encoding="utf-8") as f:
+                logs = json.load(f)
+            # Ensure every entry has a category
+            for entry in logs:
+                if "category" not in entry:
+                    act = entry.get("action", "").lower()
+                    if any(x in act for x in ("graph", "entity", "connection", "relationship", "node", "edge")):
+                        entry["category"] = "Graph Modifications"
+                    elif any(x in act for x in ("q&a", "refined", "clarification", "answers")):
+                        entry["category"] = "Q&A Submissions"
+                    else:
+                        entry["category"] = "Admin State Changes"
+            return logs
+        except Exception:
+            return []
+    return []
