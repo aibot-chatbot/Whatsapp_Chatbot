@@ -4,7 +4,10 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 import sys
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 import types
 
@@ -21,6 +24,13 @@ if "fitz" not in sys.modules:
 with patch("app.database.db.supabase", MagicMock()):
     from app import create_app
 
+
+def test_default_knowledge_data_folder_remains_repository_data_folder():
+    from app.services import knowledge_service
+
+    assert Path(knowledge_service.DATA_FOLDER).name == "data"
+
+
 MOCK_USER = {
     "id": 1,
     "company_id": 42,
@@ -35,6 +45,45 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
         app = create_app()
         app.config["TESTING"] = True
         self.client = app.test_client()
+        from app.services import knowledge_service
+        self.repo_data_dir = Path(__file__).resolve().parents[1] / "data"
+        self.repo_media_dir = Path(__file__).resolve().parents[1] / "media_uploads"
+        self.temp_data_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_data_dir.cleanup)
+        self.data_folder_patch = patch.object(
+            knowledge_service, "DATA_FOLDER", self.temp_data_dir.name
+        )
+        self.data_folder_patch.start()
+        self.addCleanup(self.data_folder_patch.stop)
+
+    def _assert_no_repo_generated_artifact(self, chatbot_id=1, file_id=100):
+        generated_names = {
+            f"bot_{chatbot_id}_{file_id}_history.json",
+            f"bot_{chatbot_id}_{file_id}_readme.md",
+            f"bot_{chatbot_id}_readme.md",
+        }
+        for directory in (self.repo_data_dir, self.repo_media_dir):
+            for name in generated_names:
+                self.assertFalse(
+                    (directory / name).exists(),
+                    f"Generated test artifact leaked into repository: {directory / name}",
+                )
+
+    def test_temporary_data_folder_cleans_up_after_exception(self):
+        from app.services import knowledge_service
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            with patch.object(knowledge_service, "DATA_FOLDER", temp_dir):
+                knowledge_service.log_knowledge_modification(
+                    1, 100, "Saved entity 'test_node'.", "Graph Modifications"
+                )
+                self.assertTrue((temp_path / "bot_1_100_history.json").exists())
+                with self.assertRaises(RuntimeError):
+                    raise RuntimeError("simulated test failure")
+
+        self.assertFalse(temp_path.exists())
+        self._assert_no_repo_generated_artifact()
 
     def _patch_jwt_decode(self):
         return patch(
@@ -65,6 +114,12 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
             data = resp.get_json()
             self.assertEqual(data["status"], "success")
             self.assertEqual(data["data"]["id"], "test_node")
+            history_path = Path(self.temp_data_dir.name) / "bot_1_100_history.json"
+            self.assertTrue(history_path.exists())
+            history = json.loads(history_path.read_text(encoding="utf-8"))
+            self.assertEqual(history[-1]["category"], "Graph Modifications")
+            self.assertIn("Saved entity 'test_node'", history[-1]["action"])
+            self._assert_no_repo_generated_artifact()
 
     @patch("app.routes.knowledge_routes.verify_chatbot_access")
     @patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file")
