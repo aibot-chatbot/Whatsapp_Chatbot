@@ -80,6 +80,11 @@
         return platformFetch("/me", config.signal);
     }
 
+    function getOverview(options) {
+        const config = options || {};
+        return platformFetch("/overview", config.signal);
+    }
+
     function listCompanies(options) {
         const config = options || {};
         const params = new URLSearchParams();
@@ -134,6 +139,7 @@
 
     window.PlatformAdminApi = Object.freeze({
         getMe: getMe,
+        getOverview: getOverview,
         listCompanies: listCompanies,
         getCompany: getCompany,
         getCompanySubscription: getCompanySubscription,

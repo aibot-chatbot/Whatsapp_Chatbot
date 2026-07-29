@@ -23,6 +23,7 @@ COMPANY_CHATBOT_STATE_FILTERS = {"current", "archived", "all"}
 AUDIT_OUTCOMES = {"success", "not_found"}
 PLATFORM_ADMIN_ENDPOINTS = {
     "identity": "/api/platform-admin/me",
+    "operations_overview": "/api/platform-admin/overview",
     "company_list": "/api/platform-admin/companies",
     "company_detail": "/api/platform-admin/companies/<company_id>",
     "company_subscription": "/api/platform-admin/companies/<company_id>/subscription",
@@ -56,6 +57,17 @@ AUDIT_EVENT_SCHEMAS = {
         "optional_metadata": set(),
         "outcomes": {"success"},
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["identity"],
+    },
+    "platform_admin.operations.overview.read": {
+        "resource_type": "platform_operations_overview",
+        "resource_id": _resource_id_none,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "attention_company_count",
+            "generated_at",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["operations_overview"],
     },
     "platform_admin.company.list": {
         "resource_type": "company",
@@ -254,6 +266,10 @@ def _validate_metadata_schema(action, schema, metadata):
         _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
         if metadata["returned_count"] > metadata["limit"]:
             raise ValueError("returned_count cannot exceed limit")
+
+    if action == "platform_admin.operations.overview.read":
+        _non_negative_integer(metadata["attention_company_count"], "attention_company_count", maximum=10)
+        _parse_timezone_aware_iso_datetime(metadata["generated_at"], "generated_at")
 
     if action == "platform_admin.company.ai_credit_usage.read":
         if metadata["outcome"] == "not_found":

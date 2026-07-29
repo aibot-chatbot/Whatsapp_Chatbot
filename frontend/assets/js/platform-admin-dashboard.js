@@ -2,103 +2,165 @@
     "use strict";
 
     const ui = PlatformAdminShell;
+    const STATUS_ORDER = ["trialing", "active", "past_due", "expired", "cancelled"];
 
-    function definitionItem(label, value) {
-        const wrapper = ui.element("div");
-        wrapper.append(
-            ui.element("dt", "", label),
-            ui.element("dd", "", value === null || value === undefined || value === "" ? "Not available" : value)
-        );
-        return wrapper;
+    function safeValue(value) {
+        return value === null || value === undefined || value === "" ? "Not available" : String(value);
     }
 
-    function metric(label) {
+    function metric(label, value) {
         const card = ui.element("article", "platform-metric");
-        const value = ui.element("strong", "platform-metric-value", "Loading");
-        card.append(ui.element("span", "platform-metric-label", label), value);
-        return { card: card, value: value };
+        card.append(
+            ui.element("span", "platform-metric-label", label),
+            ui.element("strong", "platform-metric-value", ui.formatInteger(value))
+        );
+        return card;
     }
 
-    function exactTotal(result) {
-        const total = result && result.pagination ? result.pagination.total : null;
-        if (!Number.isSafeInteger(total) || total < 0) {
-            const error = new Error("unavailable");
-            error.category = "unavailable";
-            throw error;
+    function companyLink(companyId, text) {
+        if (!Number.isSafeInteger(companyId) || companyId <= 0) {
+            return ui.element("span", "", safeValue(text));
         }
-        return total;
+        const params = new URLSearchParams();
+        params.set("company_id", String(companyId));
+        const link = ui.element("a", "", safeValue(text));
+        link.href = "platform-admin-company.html?" + params.toString();
+        return link;
     }
 
-    async function renderDashboard(identity) {
+    function renderTable(headers, rows, captionText) {
+        const wrap = ui.element("div", "platform-table-wrap");
+        const table = ui.element("table", "platform-table");
+        const caption = ui.element("caption", "platform-skip-link", captionText);
+        const head = ui.element("thead");
+        const headerRow = ui.element("tr");
+        headers.forEach(function (label) {
+            const th = ui.element("th", "", label);
+            th.scope = "col";
+            headerRow.append(th);
+        });
+        head.append(headerRow);
+        const body = ui.element("tbody");
+        rows.forEach(function (cells) {
+            const row = ui.element("tr");
+            cells.forEach(function (cell) {
+                const td = ui.element("td");
+                if (cell && cell.nodeType) td.append(cell);
+                else td.textContent = safeValue(cell);
+                row.append(td);
+            });
+            body.append(row);
+        });
+        table.append(caption, head, body);
+        wrap.append(table);
+        return wrap;
+    }
+
+    function renderStatusPanel(byStatus) {
+        const panel = ui.element("section", "platform-panel");
+        panel.append(ui.element("h2", "", "Subscription status"));
+        const rows = STATUS_ORDER.map(function (status) {
+            return [ui.statusBadge(status), ui.formatInteger(byStatus[status] || 0)];
+        });
+        panel.append(renderTable(["Status", "Companies"], rows, "Subscription status counts"));
+        return panel;
+    }
+
+    function renderPlanPanel(plans) {
+        const panel = ui.element("section", "platform-panel");
+        panel.append(ui.element("h2", "", "Plan distribution"));
+        if (!Array.isArray(plans) || plans.length === 0) {
+            panel.append(ui.element("p", "platform-empty", "No active plan subscriptions found."));
+            return panel;
+        }
+        panel.append(renderTable(
+            ["Plan", "Companies"],
+            plans.map(function (plan) {
+                return [plan.name || plan.code, ui.formatInteger(plan.count)];
+            }),
+            "Subscription plan distribution"
+        ));
+        return panel;
+    }
+
+    function renderAttentionPanel(companies) {
+        const panel = ui.element("section", "platform-panel");
+        panel.append(ui.element("h2", "", "Companies requiring attention"));
+        if (!Array.isArray(companies) || companies.length === 0) {
+            panel.append(ui.element("p", "platform-empty", "No past-due or expired companies found."));
+            return panel;
+        }
+        const rows = companies.map(function (company) {
+            return [
+                companyLink(company.company_id, company.company_name),
+                ui.statusBadge(company.subscription_status),
+                company.plan_name || company.plan_code,
+                ui.formatDate(company.current_period_end || company.status_updated_at)
+            ];
+        });
+        panel.append(renderTable(
+            ["Company", "Status", "Plan", "Period end or status update"],
+            rows,
+            "Companies requiring attention"
+        ));
+        return panel;
+    }
+
+    function renderDashboardOverview(overview) {
         const root = document.getElementById("platform-page-content");
         root.replaceChildren();
+
+        const companies = overview && overview.companies ? overview.companies : {};
+        const subscriptions = overview && overview.subscriptions ? overview.subscriptions : {};
+        const byStatus = subscriptions.by_status || {};
 
         const header = ui.element("header", "platform-page-header");
         const titleGroup = ui.element("div");
         titleGroup.append(
-            ui.element("h1", "", "Platform dashboard"),
-            ui.element("p", "", "Read-only visibility across tenant companies.")
+            ui.element("h1", "", "Platform operations"),
+            ui.element("p", "", "Read-only overview of tenant and subscription health.")
         );
         const directoryLink = ui.element("a", "platform-link-button", "Open company directory");
         directoryLink.href = "platform-admin-companies.html";
         header.append(titleGroup, directoryLink);
 
-        const metrics = ui.element("section", "platform-grid");
-        metrics.setAttribute("aria-label", "Company status summary");
-        const totalMetric = metric("Total companies");
-        const activeMetric = metric("Active companies");
-        const inactiveMetric = metric("Inactive companies");
-        metrics.append(totalMetric.card, activeMetric.card, inactiveMetric.card);
-
-        const user = identity && identity.user ? identity.user : {};
-        const platformAdmin = identity && identity.platform_admin ? identity.platform_admin : {};
-        const identityPanel = ui.element("section", "platform-panel");
-        identityPanel.append(ui.element("h2", "", "Current platform administrator"));
-        const identityList = ui.element("dl", "platform-definition-grid");
-        identityList.append(
-            definitionItem("Application user ID", user.id),
-            definitionItem("Name", user.full_name),
-            definitionItem("Email", user.email),
-            definitionItem("Application status", user.status),
-            definitionItem("Platform-admin mapping ID", platformAdmin.id),
-            definitionItem("Mapping active", platformAdmin.is_active === true ? "Yes" : "No"),
-            definitionItem("Mapping created", ui.formatDate(platformAdmin.created_at)),
-            definitionItem("Mapping updated", ui.formatDate(platformAdmin.updated_at))
+        const metrics = ui.element("section", "platform-grid platform-grid-large");
+        metrics.setAttribute("aria-label", "Platform operations summary");
+        metrics.append(
+            metric("Total companies", companies.total || 0),
+            metric("Active companies", companies.active || 0),
+            metric("Inactive companies", companies.inactive || 0),
+            metric("Trialing", byStatus.trialing || 0),
+            metric("Active subscriptions", byStatus.active || 0),
+            metric("Past due", byStatus.past_due || 0),
+            metric("Expired", byStatus.expired || 0)
         );
-        identityPanel.append(identityList);
 
-        const auditNote = ui.element(
+        const refreshed = ui.element(
             "p",
             "platform-note",
-            "These three exact count requests each create a platform-admin audit event."
+            "Overview generated " + ui.formatDate(overview.generated_at) + "."
         );
-        auditNote.id = "platform-dashboard-audit-note";
-        const refreshed = ui.element("p", "platform-note", "Counts are loading.");
         refreshed.setAttribute("aria-live", "polite");
-        root.append(header, metrics, auditNote, refreshed, identityPanel);
 
+        root.append(
+            header,
+            metrics,
+            refreshed,
+            renderStatusPanel(byStatus),
+            renderPlanPanel(subscriptions.by_plan || []),
+            renderAttentionPanel(overview.attention_companies || [])
+        );
+    }
+
+    async function renderDashboard() {
+        const root = document.getElementById("platform-page-content");
+        root.replaceChildren(ui.element("div", "platform-loading", "Loading platform operations overview..."));
         try {
-            const results = await Promise.all([
-                ui.runRequest("dashboard-count-total", function (signal) {
-                    return PlatformAdminApi.listCompanies({
-                        limit: 1, offset: 0, sortBy: "id", sortOrder: "asc", signal: signal
-                    });
-                }),
-                ui.runRequest("dashboard-count-active", function (signal) {
-                    return PlatformAdminApi.listCompanies({
-                        limit: 1, offset: 0, status: "active", sortBy: "id", sortOrder: "asc", signal: signal
-                    });
-                }),
-                ui.runRequest("dashboard-count-inactive", function (signal) {
-                    return PlatformAdminApi.listCompanies({
-                        limit: 1, offset: 0, status: "inactive", sortBy: "id", sortOrder: "asc", signal: signal
-                    });
-                })
-            ]);
-            totalMetric.value.textContent = ui.formatInteger(exactTotal(results[0]));
-            activeMetric.value.textContent = ui.formatInteger(exactTotal(results[1]));
-            inactiveMetric.value.textContent = ui.formatInteger(exactTotal(results[2]));
-            refreshed.textContent = "Counts refreshed " + ui.formatDate(new Date().toISOString()) + ".";
+            const overview = await ui.runRequest("operations-overview", function (signal) {
+                return PlatformAdminApi.getOverview({ signal: signal });
+            });
+            renderDashboardOverview(overview);
         } catch (error) {
             ui.handleError(error);
         }
