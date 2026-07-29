@@ -14,7 +14,7 @@
 | Feature | Status | Notes |
 |---|---|---|
 | Registration | Implemented | Backend and frontend flow exist; broader automated coverage is still needed |
-| Public Landing Page | Implemented | Clean, glassmorphic landing page introducing project features, pricing, FAQ, with dynamic login checks; served as root `/` |
+| Public Landing Page | Implemented | Clean, glassmorphic landing page introducing project features, FAQ, and subscription pricing aligned with the authoritative billing plan catalogue; dynamic login checks; served as root `/` |
 | Login | Implemented | JWT login flow exists |
 | Logout | Implemented | Client-side token removal; no server-side revocation |
 | Forgot password | Implemented | Requires renewed end-to-end verification |
@@ -24,6 +24,7 @@
 | Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match. `RATELIMIT_GOOGLE_AUTH=10/minute` covers Google login, registration, and invitation acceptance; live external Google verification is still required |
 | Auth and public-invitation rate limiting | Verified complete | Flask-Limiter decorators registered before `create_app()` are enforced during normal startup. Existing login, OTP, password-reset, checkout, retry, receipt, and export limits are active when enabled; invitation validation is 30/minute and password invitation acceptance is 5/minute by default |
 | User profile | Implemented | Profile viewing and update flow exists |
+| Authenticated tenant Support page | Implemented | Static authenticated help page exists at `support.html` and is reachable from the shared tenant account menu. It uses local self-service guidance and verified local links only; direct contact, ticket submission, email sending, and support intake remain deferred because no approved destination/backend exists |
 | Password change | Implemented | Requires regression coverage |
 
 ## Company and Team
@@ -134,7 +135,7 @@
 
 | Feature | Status | Notes |
 |---|---|---|
-| Subscription plans | Implemented | Plan catalogue seeded (Free, Essential, Advanced, Pro); commercial prices TBD |
+| Subscription plans | Implemented | Plan catalogue active for Free trial, Essential (RM39/month), Advanced (RM89/month), and Pro (RM169/month); included AI credits are RM1 Free trial, RM5 Essential, RM20 Advanced, and RM60 Pro. Free stores `model_access_tier=economy` for compatibility, but customer-facing trial access is DeepSeek Only and the active trial provider policy is direct DeepSeek only. Public landing pricing uses a tested duplicate catalogue; the Pro public description is application-only safe copy until `subscription_plans.description` is corrected through a reviewed data migration. |
 | Current subscription | Implemented | Company-scoped |
 | AI-access policy resolver | Implemented | Central resolve_ai_access() in ai_access_policy.py handles trial/paid/denied states |
 | Trial initialization | Implemented | New companies get Free plan + status=trialing + 7-day trial_ends_at |
@@ -317,9 +318,9 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
-- Tenant pages now use a shared top-right account menu for Profile and Logout.
-  The previous Support link targeted missing `support.html`, so Support is not
-  rendered until an approved destination exists. The optional Platform
+- Tenant pages now use a shared top-right account menu for Profile, Support,
+  and Logout. Support points to a static authenticated tenant help page with no
+  support-submission backend. The optional Platform
   Administration menu item is discovered lazily through a live
   `/api/platform-admin/me` check and is not stored or placed in the tenant
   sidebar.
@@ -361,5 +362,6 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging; users/chatbots extension locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
+| Direct tenant support contact/tickets | Deferred (no approved support contact destination or support-submission backend) |
 | PDF receipts | Open (HTML only) |
 | Cross-company dashboard | Deferred |

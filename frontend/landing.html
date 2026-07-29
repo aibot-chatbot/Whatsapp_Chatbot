@@ -1331,10 +1331,9 @@
                         <i data-lucide="cpu"></i>
                     </div>
                     <div class="feature-info">
-                        <h3>Flexible AI Model Routing</h3>
-                        <p>Route chats to your choice of LLM. Access economy, standard, or premium OpenRouter tiers
-                            (Gemini, Claude, GPT, Qwen) or cost-effective models like DeepSeek. Tailor the temperature,
-                            top-p, and system instructions.</p>
+                        <h3>Flexible AI Model Settings</h3>
+                        <p>Choose the customer-facing model tier that fits each workspace. Tune temperature, top-p, and
+                            system instructions without exposing internal provider routing to customers.</p>
                     </div>
                 </div>
                 <!-- Feature 4: CRM & Team Inbox -->
@@ -1390,88 +1389,7 @@
                 <p>Choose the workspace sizing that fits your client volume and requirements. Upgrade or downgrade
                     anytime.</p>
             </div>
-            <div class="pricing-grid">
-                <!-- Free Plan -->
-                <div class="price-card">
-                    <div class="price-header">
-                        <h3>Free</h3>
-                        <div class="price-val">RM 0.00<span>/ mo</span></div>
-                        <div class="price-desc">Perfect for testing configurations and small bot set ups.</div>
-                    </div>
-                    <ul class="price-features">
-                        <li><i data-lucide="check"></i> 1 Chatbot</li>
-                        <li><i data-lucide="check"></i> 2 Team Members</li>
-                        <li><i data-lucide="check"></i> 1 Channel</li>
-                        <li><i data-lucide="check"></i> 1 Knowledge File</li>
-                        <li><i data-lucide="check"></i> 5 MB Storage</li>
-                        <li><i data-lucide="check"></i> DeepSeek Access Only</li>
-                        <li class="disabled"><i data-lucide="x"></i> No included AI credits</li>
-                        <li class="disabled"><i data-lucide="x"></i> Basic Support</li>
-                    </ul>
-                    <a href="register.html" class="btn btn-outline price-btn">Get Started</a>
-                </div>
-
-                <!-- Essential Plan -->
-                <div class="price-card">
-                    <div class="price-header">
-                        <h3>Essential</h3>
-                        <div class="price-val">RM 29.00<span>/ mo</span></div>
-                        <div class="price-desc">Great for small businesses establishing AI outreach.</div>
-                    </div>
-                    <ul class="price-features">
-                        <li><i data-lucide="check"></i> 3 Chatbots</li>
-                        <li><i data-lucide="check"></i> 5 Team Members</li>
-                        <li><i data-lucide="check"></i> 3 Channels</li>
-                        <li><i data-lucide="check"></i> 5 Knowledge Files</li>
-                        <li><i data-lucide="check"></i> 20 MB Storage</li>
-                        <li><i data-lucide="check"></i> Economy Model Tier</li>
-                        <li><i data-lucide="check"></i> RM 5.00 AI Credit</li>
-                        <li><i data-lucide="check"></i> Email Support</li>
-                    </ul>
-                    <a href="register.html" class="btn btn-outline price-btn">Get Started</a>
-                </div>
-
-                <!-- Advanced Plan -->
-                <div class="price-card popular">
-                    <div class="price-header">
-                        <h3>Advanced</h3>
-                        <div class="price-val">RM 79.00<span>/ mo</span></div>
-                        <div class="price-desc">Ideal for growing teams with rich knowledge files and higher volume.
-                        </div>
-                    </div>
-                    <ul class="price-features">
-                        <li><i data-lucide="check"></i> 10 Chatbots</li>
-                        <li><i data-lucide="check"></i> 15 Team Members</li>
-                        <li><i data-lucide="check"></i> 10 Channels</li>
-                        <li><i data-lucide="check"></i> 20 Knowledge Files</li>
-                        <li><i data-lucide="check"></i> 100 MB Storage</li>
-                        <li><i data-lucide="check"></i> Standard Model Tier</li>
-                        <li><i data-lucide="check"></i> RM 15.00 AI Credit</li>
-                        <li><i data-lucide="check"></i> Priority Email Support</li>
-                    </ul>
-                    <a href="register.html" class="btn btn-primary price-btn">Get Started</a>
-                </div>
-
-                <!-- Pro Plan -->
-                <div class="price-card">
-                    <div class="price-header">
-                        <h3>Pro</h3>
-                        <div class="price-val">RM 199.00<span>/ mo</span></div>
-                        <div class="price-desc">Uncompromised limits and premium routing models.</div>
-                    </div>
-                    <ul class="price-features">
-                        <li><i data-lucide="check"></i> 30 Chatbots</li>
-                        <li><i data-lucide="check"></i> 50 Team Members</li>
-                        <li><i data-lucide="check"></i> 30 Channels</li>
-                        <li><i data-lucide="check"></i> 100 Knowledge Files</li>
-                        <li><i data-lucide="check"></i> 500 MB Storage</li>
-                        <li><i data-lucide="check"></i> Premium Model Tier</li>
-                        <li><i data-lucide="check"></i> RM 40.00 AI Credit</li>
-                        <li><i data-lucide="check"></i> 24/7 Dedicated Support</li>
-                    </ul>
-                    <a href="register.html" class="btn btn-outline price-btn">Get Started</a>
-                </div>
-            </div>
+            <div class="pricing-grid" id="landing-pricing-grid"></div>
         </section>
 
         <!-- FAQ Section -->
@@ -1561,7 +1479,132 @@
         </div>
     </footer>
 
+    <script src="assets/js/plan-catalog.js"></script>
     <script>
+        function pluralize(count, singular, plural) {
+            return count === 1 ? singular : plural;
+        }
+
+        function formatPlanPrice(plan) {
+            const price = Number(plan.price);
+            if (!Number.isFinite(price) || price <= 0) return "RM 0.00";
+            return "RM " + price.toFixed(2);
+        }
+
+        function formatStorage(bytes) {
+            if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(0) + " GB";
+            return (bytes / 1048576).toFixed(0) + " MB";
+        }
+
+        function formatAiCredit(microMyr) {
+            const myr = Number(microMyr || 0) / 1000000;
+            return "AI Credit: RM " + myr.toFixed(2);
+        }
+
+        function appendFeature(list, enabled, text, key) {
+            const item = document.createElement("li");
+            if (!enabled) item.className = "disabled";
+            if (key) {
+                item.dataset.featureKey = key;
+                item.dataset.enabled = enabled ? "true" : "false";
+            }
+            const icon = document.createElement("i");
+            icon.setAttribute("data-lucide", enabled ? "check" : "x");
+            item.append(icon, document.createTextNode(" " + text));
+            list.appendChild(item);
+        }
+
+        function renderLandingPricing() {
+            const grid = document.getElementById("landing-pricing-grid");
+            const catalogue = window.SubscriptionPlanCatalog;
+            if (!grid || !catalogue || !Array.isArray(catalogue.plans)) return;
+
+            catalogue.plans.forEach(plan => {
+                const card = document.createElement("div");
+                card.className = "price-card" + (plan.featured ? " popular" : "");
+                card.dataset.planCode = plan.code;
+
+                const header = document.createElement("div");
+                header.className = "price-header";
+
+                const title = document.createElement("h3");
+                title.textContent = plan.name;
+
+                const price = document.createElement("div");
+                price.className = "price-val";
+                price.textContent = formatPlanPrice(plan);
+                const interval = document.createElement("span");
+                interval.textContent = "/ mo";
+                price.appendChild(interval);
+
+                const desc = document.createElement("div");
+                desc.className = "price-desc";
+                desc.textContent = plan.description;
+                header.append(title, price, desc);
+
+                const features = document.createElement("ul");
+                features.className = "price-features";
+                appendFeature(features, true, plan.chatbot_limit + " " + pluralize(plan.chatbot_limit, "Chatbot", "Chatbots"), "chatbot_limit");
+                appendFeature(features, true, plan.team_member_limit + " " + pluralize(plan.team_member_limit, "Team Member", "Team Members"), "team_member_limit");
+                appendFeature(features, true, plan.channel_limit + " " + pluralize(plan.channel_limit, "Channel", "Channels"), "channel_limit");
+                appendFeature(features, true, plan.knowledge_file_limit + " " + pluralize(plan.knowledge_file_limit, "Knowledge File", "Knowledge Files"), "knowledge_file_limit");
+                appendFeature(features, true, formatStorage(plan.knowledge_storage_limit_bytes) + " Storage", "knowledge_storage_limit_bytes");
+                appendFeature(features, true, plan.model_access_label, "model_access_tier");
+                appendFeature(features, true, formatAiCredit(plan.included_ai_credit_micro_myr), "included_ai_credit_micro_myr");
+                appendFeature(features, plan.feature_flags.ai_assisted_menu_generation, "AI-Assisted Menu Generation", "ai_assisted_menu_generation");
+                appendFeature(features, plan.feature_flags.ai_generated_reports, "AI-Generated Reports", "ai_generated_reports");
+                appendFeature(features, plan.feature_flags.crm_lead_assignment, "CRM Lead Assignment", "crm_lead_assignment");
+                appendFeature(features, plan.feature_flags.single_website_scraping, "Single Website Scraping", "single_website_scraping");
+                appendFeature(features, plan.feature_flags.batch_website_scraping, "Batch Website Scraping", "batch_website_scraping");
+
+                const cta = document.createElement("a");
+                cta.href = "register.html";
+                cta.className = "btn " + (plan.featured ? "btn-primary" : "btn-outline") + " price-btn";
+                cta.dataset.planCta = plan.code;
+                cta.textContent = plan.trial_only ? "Start Free Trial" : "Get Started";
+
+                card.append(header, features, cta);
+                grid.appendChild(card);
+            });
+        }
+
+        renderLandingPricing();
+
+        function isAuthenticatedVisitor() {
+            return Boolean(sessionStorage.getItem("token") || localStorage.getItem("token"));
+        }
+
+        function updateLandingCtas() {
+            if (!isAuthenticatedVisitor()) return;
+
+            const navLogin = document.getElementById("nav-login");
+            const navRegister = document.getElementById("nav-register");
+            const heroPrimary = document.getElementById("hero-primary-cta");
+            const bottomCta = document.getElementById("bottom-cta-btn");
+
+            if (navLogin) {
+                navLogin.href = "bots.html";
+                navLogin.textContent = "Dashboard";
+            }
+            if (navRegister) {
+                navRegister.href = "pricing.html";
+                navRegister.textContent = "Billing";
+            }
+            if (heroPrimary) {
+                heroPrimary.href = "bots.html";
+                heroPrimary.textContent = "Go to Dashboard";
+            }
+            if (bottomCta) {
+                bottomCta.href = "bots.html";
+                bottomCta.textContent = "Go to Dashboard";
+            }
+            document.querySelectorAll("[data-plan-cta]").forEach(link => {
+                link.href = "pricing.html";
+                link.textContent = "View Billing Plans";
+            });
+        }
+
+        updateLandingCtas();
         // Initialize Lucide Icons
         lucide.createIcons();
 
@@ -1621,7 +1664,7 @@
                         // Step 3: Generating Response
                         const stepGen = document.getElementById("step-generating");
                         stepGen.classList.add("active");
-                        document.getElementById("sub-generating").innerText = "Calling standard LLM (Gemini 3.5 Flash)...";
+                        document.getElementById("sub-generating").innerText = "Calling the selected AI model tier...";
 
                         setTimeout(() => {
                             stepGen.classList.remove("active");

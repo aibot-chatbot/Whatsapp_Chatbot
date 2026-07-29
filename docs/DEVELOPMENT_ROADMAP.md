@@ -33,10 +33,10 @@ client, in-memory request cancellation/state clearing, exact company counts,
 the server-paginated company directory, safe company billing/AI-credit detail
 views, and lazy read-only company users/chatbots sections. The ordinary tenant
 sidebar does not expose platform navigation.
-Authenticated tenant pages now use a shared top-right account menu for Profile
-and Logout; the previous Support item targeted missing `support.html` and is
-deferred until an approved destination exists. Active platform admins can
-discover a Platform Administration link only after a lazy live
+Authenticated tenant pages now use a shared top-right account menu for Profile,
+Support, and Logout. Support points to a static authenticated tenant help page
+with local self-service guidance and no support-submission backend. Active
+platform admins can discover a Platform Administration link only after a lazy live
 `/api/platform-admin/me` check. This menu visibility does not replace the
 platform page's fresh authorization gate.
 
@@ -278,6 +278,12 @@ Make major frontend workflows consistent and verifiable.
 - Public landing page (`landing.html`) created to introduce the platform features, pricing, and FAQ. It utilizes the premium glassmorphic dark design of the dashboard and auth pages.
 - Dynamic session detection checks for authenticated user tokens and automatically updates CTAs to "Go to Dashboard" when logged in.
 - Backend routing configured in `app/views.py` and `app/__init__.py` to serve `landing.html` at the root path (`/`).
+
+### Progress recorded 2026-07-29
+
+- Static authenticated tenant Support page (`support.html`) added as a bounded frontend consistency improvement. It uses the ordinary tenant sidebar and shared account menu, requires login through the existing frontend auth helper, renders account display text safely from session storage, links only to existing local tenant pages, and does not add support forms, ticket creation, email sending, backend routes, configuration, staging changes, or production changes.
+- The shared tenant account menu now restores Support as a working destination while keeping Profile, Logout, and lazy live Platform Administration discovery behavior unchanged. Direct contact and support-ticket submission remain deferred until an approved contact destination and backend design exist.
+- Public landing-page pricing was aligned with the authoritative subscription plan catalogue used by authenticated Billing. The landing page now renders published plan values from a tested duplicate frontend catalogue module, removes unsupported support-level claims, and keeps logged-out/register plus logged-in/billing CTA behavior covered by local tests. The duplicate module must be updated whenever plan migrations, runtime plan rows, or commercial values change; a public-safe plan catalogue endpoint remains a possible later cleanup. Free stores the economy tier internally but is presented as DeepSeek Only because active trial provider access is direct DeepSeek only. The Pro public description uses neutral application copy because the current runtime database row still contains legacy example wording; correcting that row remains a separate reviewed data-migration decision.
 
 ### Deferred risks
 
