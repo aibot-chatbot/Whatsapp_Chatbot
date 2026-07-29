@@ -9,12 +9,17 @@ browser verification, then revoked again. The mapping row remains present and
 inactive. Production deployment remains blocked.
 
 A later application-only extension added two additional read-only company-detail
-inspection endpoints and lazy frontend sections for users and chatbots. That
-extension is locally tested only unless separately staged and recorded.
+inspection endpoints and lazy frontend sections for users and chatbots. A
+subsequent bounded application-only operations phase added
+`GET /api/platform-admin/overview` for read-only company counts,
+latest-subscription status counts, latest-subscription plan distribution, and
+at most 10 past-due/expired attention companies. These extensions are locally
+tested only unless separately staged and recorded.
 
-This phase provides a separate internal frontend for SaaS operators. It does
-not add endpoints, reactivate a mapping, change `users.role`, alter migrations,
-or deploy anything. Flow Builder, Broadcast, tenant administration,
+The original Phase 3 frontend pass did not add endpoints, reactivate a mapping,
+change users.role, alter migrations, or deploy anything. Subsequent
+application-only extensions added three GET-only endpoints for users, chatbots,
+and the operations overview. Flow Builder, Broadcast, tenant administration,
 impersonation, exports, messaging, reconciliation, credit adjustments, and
 subscription changes remain out of scope.
 
@@ -25,19 +30,21 @@ subscription changes remain out of scope.
 - A dedicated shell performs a fresh `/api/platform-admin/me` check before any
   page controller can request company data. Platform authorization is never
   inferred from tenant roles, JWT claims, cached users, or local UI flags.
-- The client originally exposed the five Phase 3 GET operations. A subsequent
-  application-only read-only extension added two lazy company-detail inspection
-  operations for company users and chatbots. All seven operations use the normal
-  authenticated session token mechanism.
+- The client originally exposed the five Phase 3 GET operations. Subsequent
+  application-only read-only extensions added the operations overview plus two
+  lazy company-detail inspection operations for company users and chatbots. All
+  eight operations use the normal authenticated session token mechanism.
 - An in-memory request registry, abort controllers, and a monotonically
   increasing page epoch prevent replaced or late requests from restoring
   cleared cross-tenant data.
 - API-derived values are rendered through DOM text properties. Platform data
   is not placed in browser storage, URLs, logs, or raw error messages; only the
   validated numeric company ID is used in detail-page navigation.
-- The dashboard performs three exact `limit=1` company-list calls for total,
-  active, and inactive counts. Each call creates its own backend audit event,
-  and the page states this explicitly.
+- The dashboard performs one audited `GET /api/platform-admin/overview` request
+  after `/me`. It reports company counts, latest-subscription status counts,
+  latest-subscription plan distribution, and past-due/expired attention
+  companies only. It does not include no-subscription counting, order review,
+  global activity, usage aggregation, charts, exports, or write controls.
 - Focused source-contract coverage is implemented in
   `tests/test_platform_admin_frontend.py`. The browser-based staging pass is
   also complete.
@@ -61,16 +68,18 @@ subscription changes remain out of scope.
 
 ## Verification evidence
 
-- Current local mocked Playwright platform-admin browser suite: 22 passed. It
+- Current local mocked Playwright platform-admin browser suite: 24 passed. It
   covers the
   original Phase 3 flows plus the later lazy read-only users/chatbots company
-  inspection extension, including safe rendering, child-list 404 stale-state
-  clearing, active sibling-request cancellation, and late-response suppression.
+  inspection extension and the operations overview dashboard, including safe
+  rendering, child-list 404 stale-state clearing, active sibling-request
+  cancellation, late-response suppression, one overview request after `/me`,
+  empty attention state, and stale overview clearing on denial/unavailability.
   These local mocked tests do not prove staging or production behavior.
 - Historical local mocked Playwright platform-admin browser suite result before
   the users/chatbots extension: 18 passed.
   `tests/browser/platform-admin.spec.js` covers access gating, denial and
-  unavailable states, stale-data clearing, request lifecycle, dashboard counts,
+  unavailable states, stale-data clearing, request lifecycle, dashboard overview,
   directory controls, detail loading order, safe text rendering, navigation,
   role-independence, and read-only boundary checks.
 - Current local mocked Playwright tenant account-menu browser suite: 25 passed.
@@ -84,7 +93,7 @@ subscription changes remain out of scope.
   closing, public/platform page exclusion, and read-only boundaries.
 - Current focused platform-admin frontend source-contract suite: 33 passed,
   6 subtests passed.
-- Current focused platform-admin Python suite: 110 passed, 207 subtests passed.
+- Current focused platform-admin Python suite: 119 passed, 212 subtests passed.
 - Earlier recorded combined platform-admin backend/frontend and
   authentication/security regressions: 88 passed, 114 subtests passed.
 - Earlier recorded full safe suite: 1,421 passed, 1 skipped, 125 subtests
@@ -239,7 +248,7 @@ Create a separate three-page static surface:
 
 | Frontend page | Purpose | Backend calls after authorization |
 |---|---|---|
-| `platform-admin.html` | Platform dashboard and operator identity | `/me`; three company-list count queries |
+| `platform-admin.html` | Platform operations dashboard | `/me`; `/overview` |
 | `platform-admin-companies.html` | Paginated company directory | `/me`; `/companies` |
 | `platform-admin-company.html?company_id=<id>` | Company, subscription, AI-credit detail, and lazy read-only users/chatbots inspection | `/me`; company detail; subscription; AI-credit usage; lazy users; lazy chatbots |
 
@@ -300,34 +309,31 @@ is persisted.
 
 ## Page designs
 
-### A. Platform dashboard
+### A. Platform operations dashboard
 
 Header:
 
-- **Platform Administration** and **Read Only**;
-- last successful refresh time;
-- Return to Tenant App and Logout actions.
+- **Platform operations**;
+- read-only overview of tenant and subscription health;
+- company directory navigation.
 
-Identity card, populated only from `/me`:
+Operations summary uses `GET /api/platform-admin/overview` only after `/me`.
+The backend counts latest subscriptions per company using the same latest-row
+semantics as company detail: `created_at DESC`, then `id DESC`. The dashboard
+renders total/active/inactive companies, trialing/active/past-due/expired
+subscription counts, plan distribution, and a past-due/expired attention list
+linking to existing company detail pages. Do not calculate revenue, order
+review, subscription-order reconciliation, no-subscription counts, AI-credit
+balances, resource-limit proximity, global audit activity, usage aggregation,
+charts, exports, or write controls.
 
-- application user ID, full name, email, and active status;
-- platform-admin mapping ID and active state;
-- mapping creation/update timestamps.
-
-Company summary uses only exact counts already returned by `/companies`:
-
-1. `limit=1&offset=0&sort_by=id&sort_order=asc` for total companies;
-2. the same query with `status=active` for active companies;
-3. the same query with `status=inactive` for inactive companies.
-
-The first unfiltered request may also render a small recent/directory preview
-only if its selected sort is clearly labelled. Do not calculate revenue,
-subscription distribution, AI cost across tenants, growth, or other unsupported
-aggregates. Do not assume total equals active plus inactive because the schema
-does not enforce a two-status check.
-
-Each count call is an audited endpoint request. The audit-volume cost of three
-count calls should be accepted explicitly before implementation.
+The original Phase 3 dashboard intentionally avoided adding a backend aggregate
+endpoint and used company-list requests for local UI counts. That behavior is
+historical. The current operations overview extension uses one audited
+read-only endpoint for the dashboard summary instead of three company-list count
+requests. Company totals remain explicit backend values; do not assume total
+equals active plus inactive because the schema does not enforce a two-status
+check.
 
 ### B. Company directory
 
@@ -501,13 +507,14 @@ staging verification record is added.
 ## API client design
 
 Create a dedicated platform API client that wraps the existing authenticated
-session mechanism but accepts only the seven GET operations. It must not expose a
+session mechanism but accepts only the eight GET operations. It must not expose a
 generic mutation method or arbitrary platform URL.
 
 Required operations:
 
 ```text
 getMe({ signal })
+getOverview({ signal })
 listCompanies({ limit, offset, search, status, sortBy, sortOrder, signal })
 getCompany(companyId, { signal })
 getCompanySubscription(companyId, { signal })
@@ -579,7 +586,7 @@ avoid leaving stale cross-tenant information visible.
    filters containing user input in local/session storage.
 4. Keep cross-tenant responses only in active-page memory and clear rendered
    data on denial, logout, 503, pagehide, and revoked-session detection.
-5. Use only the seven approved GET endpoint builders; no `/api/admin/billing`
+5. Use only the eight approved GET endpoint builders; no `/api/admin/billing`
    reuse.
 6. Validate the company query ID before constructing any API path.
 7. Render API values as text, not HTML.
@@ -636,7 +643,7 @@ stealing focus during ordinary loading.
 
 - Every platform request carries the existing session token in the Bearer
   header and never places it in a URL/body.
-- Only the seven approved GET endpoint builders exist.
+- Only the eight approved GET endpoint builders exist.
 - Detail, subscription, and AI usage all use the validated page company ID, not
   the JWT/cached company ID.
 - Invalid company IDs are rejected locally without an API call.
@@ -746,7 +753,11 @@ production verification.
   later shared account-menu work also moved Profile and Logout out of the
   sidebar while preserving Team and Billing navigation;
 - `frontend/assets/js/auth.js` — reuse the existing token/logout mechanism;
-- all backend routes, services, repositories, decorators, and migrations;
+- Phase 3's original frontend-only pass left backend routes, services,
+  repositories, decorators, and migrations unchanged. The later operations
+  overview extension changed backend routes, services, and repositories only to
+  add the audited GET-only `/api/platform-admin/overview`; decorators,
+  migrations, SQL, staging, and production remain unchanged;
 - Flow Builder and Broadcast files.
 
 `docs/FEATURE_STATUS.md`, `docs/DEVELOPMENT_ROADMAP.md`, and this design
@@ -760,7 +771,7 @@ verification remains a separate approved activity.
 | Local tenant role mistaken for platform access | Dedicated `/me` gate; never call `requireAdminOrOwner()` |
 | Discoverable static platform URL | Accept discovery; backend gate protects data and UI stays hidden before 200 |
 | Platform link in tenant sidebar | Omit initially; reconsider only with live access confirmation and audit-volume review |
-| Dashboard count audit volume | Approve three list requests or remove status cards; do not invent aggregates |
+| Dashboard count audit volume | Current dashboard uses one audited `/api/platform-admin/overview` request; do not add extra aggregate endpoints without approval |
 | Concurrent response after revocation | Abort registry plus session epoch before clearing state |
 | Search text in browser history/storage | Keep search in page memory only |
 | API string injection | DOM text rendering and validated numeric URL construction |

@@ -76,6 +76,10 @@ def _audit(actor_id, action, resource_type, resource_id, metadata):
         _audit_unavailable()
 
 
+def _now_utc_iso():
+    return datetime.now(timezone.utc).isoformat()
+
+
 def _company_or_not_found(company_id, actor_id, action, resource_type, endpoint):
     _positive_id(company_id)
     try:
@@ -117,6 +121,80 @@ def get_current_platform_admin_identity(authenticated_user, platform_admin_user)
         "http_method": "GET",
     })
     return data
+
+
+def get_operations_overview(actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    generated_at = _now_utc_iso()
+    try:
+        company_counts = platform_company_repository.get_company_counts_for_platform_admin()
+        subscription_overview = (
+            platform_billing_repository.get_latest_subscription_overview_for_platform_admin()
+        )
+        attention_subscriptions = subscription_overview.get("attention_subscriptions") or []
+        companies_by_id = platform_company_repository.get_companies_by_ids_for_platform_admin(
+            row.get("company_id") for row in attention_subscriptions
+        )
+    except Exception:
+        logger.error("Platform operations overview lookup failed")
+        _data_unavailable()
+
+    def _safe_count(value):
+        return int(value) if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+    by_status = subscription_overview.get("by_status") or {}
+    attention = []
+    for row in attention_subscriptions[:10]:
+        company_id = row.get("company_id")
+        company = companies_by_id.get(company_id) or {}
+        if not isinstance(company_id, int) or isinstance(company_id, bool) or company_id <= 0:
+            continue
+        attention.append({
+            "company_id": company_id,
+            "company_name": company.get("company_name"),
+            "company_status": company.get("status"),
+            "subscription_status": row.get("subscription_status"),
+            "plan_code": row.get("plan_code"),
+            "plan_name": row.get("plan_name"),
+            "status_updated_at": row.get("status_updated_at"),
+            "current_period_end": row.get("current_period_end"),
+        })
+
+    result = {
+        "generated_at": generated_at,
+        "companies": {
+            "total": _safe_count(company_counts.get("total")),
+            "active": _safe_count(company_counts.get("active")),
+            "inactive": _safe_count(company_counts.get("inactive")),
+        },
+        "subscriptions": {
+            "by_status": {
+                "trialing": _safe_count(by_status.get("trialing")),
+                "active": _safe_count(by_status.get("active")),
+                "past_due": _safe_count(by_status.get("past_due")),
+                "expired": _safe_count(by_status.get("expired")),
+                "cancelled": _safe_count(by_status.get("cancelled")),
+            },
+            "by_plan": [
+                {
+                    "code": str(plan.get("code") or ""),
+                    "name": str(plan.get("name") or ""),
+                    "count": _safe_count(plan.get("count")),
+                }
+                for plan in (subscription_overview.get("by_plan") or [])
+                if plan.get("code")
+            ],
+        },
+        "attention_companies": attention,
+    }
+    _audit(actor_id, "platform_admin.operations.overview.read", "platform_operations_overview", None, {
+        "outcome": "success",
+        "endpoint": platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["operations_overview"],
+        "http_method": "GET",
+        "attention_company_count": len(attention),
+        "generated_at": generated_at,
+    })
+    return result
 
 
 def list_companies(actor_id, *, limit=None, offset=None, search=None, status=None,

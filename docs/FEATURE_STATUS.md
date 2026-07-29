@@ -302,7 +302,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
-- Seven GET-only endpoints for platform identity, company directory/detail,
+- Eight GET-only endpoints for platform identity, operations overview, company directory/detail,
   subscription summary, current-period AI-credit/usage summary, and lazy
   read-only company users/chatbots inspection. The original five endpoints were
   verified in staging; the users/chatbots extension is application-only and
@@ -314,7 +314,11 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   events, including metadata redaction and immediate revocation
 - Separate read-only frontend implemented for platform identity, exact company
   counts, server-paginated company search, company billing/AI-credit detail, and
-  lazy read-only company users/chatbots sections
+  lazy read-only company users/chatbots sections. A bounded application-only
+  Platform Operations overview now adds one GET-only locally tested dashboard
+  endpoint for company counts, latest-subscription status counts, latest-plan
+  distribution, and at most 10 past-due/expired attention companies using
+  `created_at DESC, id DESC` latest-subscription semantics.
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
@@ -359,7 +363,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; users/chatbots extension locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
+| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; users/chatbots and operations-overview extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | Direct tenant support contact/tickets | Deferred (no approved support contact destination or support-submission backend) |

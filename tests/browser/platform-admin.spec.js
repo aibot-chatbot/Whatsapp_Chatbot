@@ -82,6 +82,40 @@ const aiCreditSummary = {
   }
 };
 
+const operationsOverview = {
+  generated_at: "2026-07-29T00:00:00+00:00",
+  companies: {
+    total: 2,
+    active: 1,
+    inactive: 1
+  },
+  subscriptions: {
+    by_status: {
+      trialing: 1,
+      active: 1,
+      past_due: 1,
+      expired: 1,
+      cancelled: 0
+    },
+    by_plan: [
+      { code: "free", name: "Free", count: 1 },
+      { code: "pro", name: "Pro <img src=x onerror=window.__planXss=true>", count: 1 }
+    ]
+  },
+  attention_companies: [
+    {
+      company_id: 42,
+      company_name: "Example Tenant <script>window.__xss = true</script>",
+      company_status: "active",
+      subscription_status: "past_due",
+      plan_code: "pro",
+      plan_name: "Pro <img src=x onerror=window.__planXss=true>",
+      status_updated_at: "2026-07-29T00:00:00+00:00",
+      current_period_end: "2026-07-28T00:00:00+00:00"
+    }
+  ]
+};
+
 const userList = {
   users: [
     {
@@ -186,6 +220,7 @@ async function openPlatformPage(page, path, handler, user) {
 
 function defaultHandler({ url }) {
   if (url.pathname === "/api/platform-admin/me") return success(identity);
+  if (url.pathname === "/api/platform-admin/overview") return success(operationsOverview);
   if (url.pathname === "/api/platform-admin/companies") {
     if (url.searchParams.get("status") === "active") {
       return success(companyList(1, [], { limit: 1, status: "active" }));
@@ -211,6 +246,12 @@ function defaultHandler({ url }) {
   return failure(404, "company_not_found");
 }
 
+function metricCard(page, label) {
+  return page.locator(".platform-metric").filter({
+    has: page.locator(".platform-metric-label", { hasText: new RegExp(`^${label}$`) })
+  });
+}
+
 test.describe("platform-admin access gate", () => {
   test("hides platform content while /me is pending and starts page data only after success", async ({ page }) => {
     let releaseMe;
@@ -230,9 +271,9 @@ test.describe("platform-admin access gate", () => {
     expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me"]);
 
     releaseMe();
-    await expect(page.getByRole("heading", { name: "Platform dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Platform operations" })).toBeVisible();
     await expect(page.getByText("Platform Administration")).toBeVisible();
-    expect(calls.filter(call => call.path === "/api/platform-admin/companies")).toHaveLength(3);
+    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
     expect(calls.every(call => call.method === "GET")).toBe(true);
     expect(calls.every(call => call.authorization === "Bearer fake-platform-token")).toBe(true);
   });
@@ -280,9 +321,9 @@ test.describe("platform-admin access gate", () => {
 
     await expect(page.getByRole("heading", { name: "Temporarily Unavailable" })).toBeVisible();
     await page.getByRole("button", { name: "Retry" }).click();
-    await expect(page.getByRole("heading", { name: "Platform dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Platform operations" })).toBeVisible();
     expect(calls[1].path).toBe("/api/platform-admin/me");
-    expect(calls.slice(2).every(call => call.path === "/api/platform-admin/companies")).toBe(true);
+    expect(calls[2].path).toBe("/api/platform-admin/overview");
   });
 });
 
@@ -360,14 +401,61 @@ test.describe("platform-admin state clearing and lifecycle", () => {
 });
 
 test.describe("platform-admin dashboard and directory", () => {
-  test("dashboard loads intended counts and no write controls", async ({ page }) => {
+  test("dashboard loads operations overview and no write controls", async ({ page }) => {
     await openPlatformPage(page, "/platform-admin.html", ({ url }) => defaultHandler({ url }));
-    await expect(page.getByText("Total companies").locator("..").getByText("2")).toBeVisible();
-    await expect(page.getByText("Active companies").locator("..").getByText("1")).toBeVisible();
-    await expect(page.getByText("Inactive companies").locator("..").getByText("0")).toBeVisible();
+    await expect(metricCard(page, "Total companies")).toContainText("2");
+    await expect(metricCard(page, "Active companies")).toContainText("1");
+    await expect(metricCard(page, "Inactive companies")).toContainText("1");
+    await expect(metricCard(page, "Trialing")).toContainText("1");
+    await expect(metricCard(page, "Past due")).toContainText("1");
+    await expect(page.getByRole("heading", { name: "Subscription status" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Plan distribution" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Companies requiring attention" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Pro <img src=x onerror=window.__planXss=true>" }).first()).toBeVisible();
+    await expect(page.getByRole("link", { name: "Example Tenant <script>window.__xss = true</script>" })).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
+    await expect(page.locator("script", { hasText: "window.__xss = true" })).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.__xss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__planXss)).toBeUndefined();
     await expect(page.getByText("Internal / Read Only")).toBeVisible();
-    await expect(page.getByRole("main").getByText("Test Operator")).toBeVisible();
     await assertReadOnlyBoundary(page);
+  });
+
+  test("dashboard performs one overview request after authorization and handles empty attention", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/overview") {
+        return success({ ...operationsOverview, attention_companies: [] });
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByText("No past-due or expired companies found.")).toBeVisible();
+    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
+    expect(calls.filter(call => call.path === "/api/platform-admin/companies")).toHaveLength(0);
+  });
+
+  test("dashboard unavailable and denied refreshes clear previously rendered overview data", async ({ page }) => {
+    for (const scenario of [
+      { status: 503, code: "platform_admin_data_unavailable", heading: "Temporarily Unavailable" },
+      { status: 403, code: "platform_admin_access_denied", heading: "Access Denied" }
+    ]) {
+      let overviewCount = 0;
+      await openPlatformPage(page, "/platform-admin.html", ({ url }) => {
+        if (url.pathname === "/api/platform-admin/overview") {
+          overviewCount += 1;
+          return overviewCount === 1
+            ? success(operationsOverview)
+            : failure(scenario.status, scenario.code, "raw backend detail");
+        }
+        return defaultHandler({ url });
+      });
+      await expect(page.getByRole("heading", { name: "Platform operations" })).toBeVisible();
+      await expect(page.getByText("Example Tenant")).toBeVisible();
+
+      await page.reload();
+      await expect(page.getByRole("heading", { name: scenario.heading })).toBeVisible();
+      await expect(page.getByText("Example Tenant")).toHaveCount(0);
+      await expect(page.getByText("Total companies")).toHaveCount(0);
+      await expect(page.getByText("raw backend detail")).toHaveCount(0);
+    }
   });
 
   test("directory renders safe text and sends expected query parameters", async ({ page }) => {
@@ -552,7 +640,7 @@ test.describe("platform-admin navigation and role independence", () => {
       ({ url }) => defaultHandler({ url }),
       { role: "member", platformAdminFlag: true }
     );
-    await expect(page.getByRole("heading", { name: "Platform dashboard" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Platform operations" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Return to Tenant App" }).first()).toHaveAttribute("href", "bots.html");
     expect(calls[0].path).toBe("/api/platform-admin/me");
   });

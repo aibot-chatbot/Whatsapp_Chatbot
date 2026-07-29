@@ -152,7 +152,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         cls.api = read(API)
         cls.auth = read(FRONTEND / "assets" / "js" / "auth.js")
 
-    def test_public_client_exposes_only_seven_approved_methods(self):
+    def test_public_client_exposes_only_eight_approved_methods(self):
         exported = re.search(
             r"window\.PlatformAdminApi = Object\.freeze\(\{(.*?)\}\);",
             self.api,
@@ -163,6 +163,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             keys,
             [
                 "getMe",
+                "getOverview",
                 "listCompanies",
                 "getCompany",
                 "getCompanySubscription",
@@ -231,12 +232,15 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         cls.companies = read(COMPANIES)
         cls.company = read(COMPANY)
 
-    def test_dashboard_uses_three_exact_audited_count_requests(self):
-        self.assertEqual(self.dashboard.count("PlatformAdminApi.listCompanies({"), 3)
-        self.assertGreaterEqual(self.dashboard.count("limit: 1, offset: 0"), 3)
-        self.assertIn('status: "active"', self.dashboard)
-        self.assertIn('status: "inactive"', self.dashboard)
-        self.assertIn("each create a platform-admin audit event", self.dashboard)
+    def test_dashboard_uses_single_operations_overview_request(self):
+        self.assertEqual(self.dashboard.count("PlatformAdminApi.getOverview({"), 1)
+        self.assertNotIn("PlatformAdminApi.listCompanies({", self.dashboard)
+        self.assertIn('ui.runRequest("operations-overview"', self.dashboard)
+        self.assertIn("Platform operations", self.dashboard)
+        self.assertIn("Read-only overview of tenant and subscription health", self.dashboard)
+        self.assertIn("Companies requiring attention", self.dashboard)
+        api_source = read(API)
+        self.assertIn('return platformFetch("/overview"', api_source)
 
     def test_directory_debounces_aborts_and_resets_pagination(self):
         self.assertIn("}, 350);", self.companies)

@@ -5,6 +5,7 @@ from app.database.db import supabase
 
 LIST_FIELDS = "id,company_name,business_type,status,contact_email,created_at,updated_at"
 DETAIL_FIELDS = LIST_FIELDS + ",contact_phone"
+COUNT_FIELDS = "id"
 ALLOWED_STATUSES = {"active", "inactive"}
 ALLOWED_SORT_FIELDS = {"created_at", "company_name", "status", "id"}
 ALLOWED_SORT_ORDERS = {"asc", "desc"}
@@ -70,3 +71,40 @@ def get_company_for_platform_admin(company_id):
     )
     rows = response.data or []
     return rows[0] if rows else None
+
+
+def get_company_counts_for_platform_admin():
+    """Return exact company counts by public company status."""
+
+    def _count(status=None):
+        query = supabase.table("companies").select(COUNT_FIELDS, count="exact")
+        if status is not None:
+            query = query.eq("status", status)
+        response = query.limit(1).execute()
+        return int(response.count or 0)
+
+    return {
+        "total": _count(),
+        "active": _count("active"),
+        "inactive": _count("inactive"),
+    }
+
+
+def get_companies_by_ids_for_platform_admin(company_ids):
+    """Return safe company fields for a set of positive company IDs."""
+    valid_ids = sorted({
+        company_id for company_id in company_ids
+        if isinstance(company_id, int) and not isinstance(company_id, bool) and company_id > 0
+    })
+    if not valid_ids:
+        return {}
+    response = (
+        supabase.table("companies")
+        .select("id,company_name,status")
+        .in_("id", valid_ids)
+        .execute()
+    )
+    return {
+        row["id"]: row for row in (response.data or [])
+        if isinstance(row.get("id"), int)
+    }

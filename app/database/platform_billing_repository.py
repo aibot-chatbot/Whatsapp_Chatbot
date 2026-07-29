@@ -13,6 +13,15 @@ BALANCE_FIELDS = (
     "company_id,subscription_id,period_start,period_end,included_balance_micro_myr,"
     "topup_balance_micro_myr,created_at,updated_at"
 )
+OVERVIEW_SUBSCRIPTION_FIELDS = (
+    "id,company_id,plan_id,status,status_updated_at,current_period_end,created_at"
+)
+OVERVIEW_PLAN_FIELDS = "id,code,name"
+OVERVIEW_STATUSES = ("trialing", "active", "past_due", "expired", "cancelled")
+ATTENTION_STATUSES = {"past_due", "expired"}
+PLAN_ORDER = {"free": 0, "essential": 1, "advanced": 2, "pro": 3}
+SUBSCRIPTION_SCAN_PAGE_SIZE = 1000
+SUBSCRIPTION_SCAN_MAX_ROWS = 10000
 
 
 def _validate_company_id(company_id):
@@ -114,3 +123,113 @@ def get_ai_credit_charge_summary_for_platform_admin(company_id, period_start, pe
         for key in result.keys() - {"transaction_count"}:
             result[key] += int(row.get(key) or 0)
     return result
+
+
+def _scan_latest_subscriptions_for_platform_admin():
+    latest = {}
+    offset = 0
+    scanned = 0
+    while True:
+        response = (
+            supabase.table("company_subscriptions")
+            .select(OVERVIEW_SUBSCRIPTION_FIELDS)
+            .order("created_at", desc=True)
+            .order("id", desc=True)
+            .range(offset, offset + SUBSCRIPTION_SCAN_PAGE_SIZE - 1)
+            .execute()
+        )
+        rows = response.data or []
+        scanned += len(rows)
+        if scanned > SUBSCRIPTION_SCAN_MAX_ROWS:
+            raise RuntimeError("subscription overview scan exceeded bounded row limit")
+        for row in rows:
+            company_id = row.get("company_id")
+            if (
+                isinstance(company_id, int)
+                and not isinstance(company_id, bool)
+                and company_id > 0
+                and company_id not in latest
+            ):
+                latest[company_id] = row
+        if len(rows) < SUBSCRIPTION_SCAN_PAGE_SIZE:
+            break
+        offset += SUBSCRIPTION_SCAN_PAGE_SIZE
+    return latest
+
+
+def _plans_by_id_for_platform_admin(plan_ids):
+    valid_ids = sorted({
+        plan_id for plan_id in plan_ids
+        if isinstance(plan_id, int) and not isinstance(plan_id, bool) and plan_id > 0
+    })
+    if not valid_ids:
+        return {}
+    response = (
+        supabase.table("subscription_plans")
+        .select(OVERVIEW_PLAN_FIELDS)
+        .in_("id", valid_ids)
+        .execute()
+    )
+    return {
+        row["id"]: {
+            "code": row.get("code"),
+            "name": row.get("name"),
+        }
+        for row in (response.data or [])
+        if isinstance(row.get("id"), int)
+    }
+
+
+def _plan_sort_key(item):
+    code = str(item.get("code") or "").strip().lower()
+    return (PLAN_ORDER.get(code, 99), code)
+
+
+def get_latest_subscription_overview_for_platform_admin():
+    """Aggregate latest subscription rows using created_at DESC, id DESC."""
+    latest_by_company = _scan_latest_subscriptions_for_platform_admin()
+    plans_by_id = _plans_by_id_for_platform_admin(
+        row.get("plan_id") for row in latest_by_company.values()
+    )
+
+    by_status = {status: 0 for status in OVERVIEW_STATUSES}
+    plan_counts = {}
+    attention_rows = []
+    for company_id, row in latest_by_company.items():
+        status = str(row.get("status") or "").strip().lower()
+        if status in by_status:
+            by_status[status] += 1
+
+        plan = plans_by_id.get(row.get("plan_id"))
+        if plan:
+            code = str(plan.get("code") or "").strip().lower()
+            name = str(plan.get("name") or "").strip() or code
+            if code:
+                if code not in plan_counts:
+                    plan_counts[code] = {"code": code, "name": name, "count": 0}
+                plan_counts[code]["count"] += 1
+
+        if status in ATTENTION_STATUSES:
+            attention_rows.append({
+                "company_id": company_id,
+                "subscription_status": status,
+                "plan_code": (plan or {}).get("code"),
+                "plan_name": (plan or {}).get("name"),
+                "status_updated_at": row.get("status_updated_at"),
+                "current_period_end": row.get("current_period_end"),
+                "created_at": row.get("created_at"),
+                "id": row.get("id"),
+            })
+
+    attention_rows.sort(
+        key=lambda row: (
+            row.get("status_updated_at") or row.get("current_period_end") or row.get("created_at") or "",
+            row.get("id") or 0,
+        ),
+        reverse=True,
+    )
+    return {
+        "by_status": by_status,
+        "by_plan": sorted(plan_counts.values(), key=_plan_sort_key),
+        "attention_subscriptions": attention_rows[:10],
+    }

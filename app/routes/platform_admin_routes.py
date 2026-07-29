@@ -51,6 +51,11 @@ def current_platform_admin():
     ))
 
 
+@platform_admin_bp.get("/overview")
+def operations_overview():
+    return _execute(lambda: platform_admin_service.get_operations_overview(_actor_id()))
+
+
 @platform_admin_bp.get("/companies")
 def companies():
     return _execute(lambda: platform_admin_service.list_companies(
