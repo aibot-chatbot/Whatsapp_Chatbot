@@ -516,7 +516,6 @@
                     <button class="create-btn" onclick="openCreateModal()" data-create-bot-trigger="true" disabled title="Checking chatbot limit...">
                         <i data-lucide="plus"></i> Create Bot
                     </button>
-                    <div id="chatbot-limit-helper" style="display:none;max-width:280px;text-align:right;color:#f59e0b;font-size:0.82rem;line-height:1.35;"></div>
                 </div>
                 <tenant-account-menu></tenant-account-menu>
             </div>
@@ -560,7 +559,7 @@
 
                 <div class="modal-actions">
                     <button class="cancel-btn" onclick="closeCreateModal()">Cancel</button>
-                    <button class="create-btn" onclick="createBot()" style="margin: 0;">Create</button>
+                    <button id="submit-create-btn" class="create-btn" onclick="createBot()" style="margin: 0;">Create</button>
                 </div>
             </div>
         </div>
@@ -626,18 +625,26 @@
         lucide.createIcons();
 
         requireLogin();
+        
+        function showToast(msg, duration = 4000) {
+            const toast = document.getElementById("redirect-toast");
+            if (toast) {
+                toast.textContent = msg;
+                toast.classList.add("show");
+                if (window.toastTimeout) clearTimeout(window.toastTimeout);
+                window.toastTimeout = setTimeout(() => {
+                    toast.classList.remove("show");
+                }, duration);
+                toast.onclick = () => { toast.classList.remove("show"); };
+            }
+        }
+
         // Show redirect permission message as toast
         (function() {
             var msg = sessionStorage.getItem("redirect_message");
             if (msg) {
                 sessionStorage.removeItem("redirect_message");
-                var toast = document.getElementById("redirect-toast");
-                if (toast) {
-                    toast.textContent = msg;
-                    toast.classList.add("show");
-                    setTimeout(function() { toast.classList.remove("show"); }, 4000);
-                    toast.addEventListener("click", function() { toast.classList.remove("show"); });
-                }
+                showToast(msg);
             }
         })();
 
@@ -680,16 +687,13 @@
         function applyChatbotLimitState() {
             const loading = !chatbotEntitlement.loaded;
             const limitReached = isChatbotLimitReached();
-            const blocked = loading || limitReached;
+            // Button is only disabled if we're still loading the usage details.
+            // When limit is reached, we keep it enabled so the user can click it
+            // and see the custom red toast warning block.
             document.querySelectorAll('[data-create-bot-trigger="true"]').forEach((button) => {
-                button.disabled = blocked;
-                button.title = loading ? "Checking chatbot limit..." : (blocked ? getChatbotLimitMessage() : "Create Bot");
+                button.disabled = loading;
+                button.title = loading ? "Checking chatbot limit..." : "Create Bot";
             });
-            const helper = document.getElementById("chatbot-limit-helper");
-            if (helper) {
-                helper.textContent = limitReached ? getChatbotLimitMessage() : "";
-                helper.style.display = limitReached ? "block" : "none";
-            }
         }
 
         async function loadChatbotUsage() {
@@ -927,7 +931,7 @@
 
         function openCreateModal() {
             if (!canCreateChatbot()) {
-                alert(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");
+                showToast(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");
                 applyChatbotLimitState();
                 return;
             }
@@ -952,7 +956,7 @@
 
         async function createBot() {
             if (!canCreateChatbot()) {
-                alert(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");
+                showToast(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");
                 applyChatbotLimitState();
                 return;
             }
@@ -963,33 +967,48 @@
             const botTone = document.getElementById("bot-tone").value;
 
             if (!botName) {
-                alert("Bot name is required");
+                showToast("Bot name is required");
                 return;
             }
 
-            const response = await authenticatedFetch("/api/bots", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    bot_name: botName,
-                    bot_description: botDescription,
-                    language: botLanguage,
-                    tone: botTone
-                })
-            });
+            const submitBtn = document.getElementById("submit-create-btn");
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="lucide-spin" data-lucide="loader-2"></i> Creating...';
+            if (window.lucide) window.lucide.createIcons();
 
-            const result = await response.json();
+            try {
+                const response = await authenticatedFetch("/api/bots", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        bot_name: botName,
+                        bot_description: botDescription,
+                        language: botLanguage,
+                        tone: botTone
+                    })
+                });
 
-            if (result.status === "success") {
-                document.getElementById("bot-name").value = "";
-                document.getElementById("bot-description").value = "";
-                document.getElementById("bot-language").value = "English";
-                document.getElementById("bot-tone").value = "Friendly";
+                const result = await response.json();
 
-                closeCreateModal();
-                window.location.href = `index.html?bot_id=${result.data.id}`;
-            } else {
-                alert(result.message || "Failed to create bot");
+                if (result.status === "success") {
+                    document.getElementById("bot-name").value = "";
+                    document.getElementById("bot-description").value = "";
+                    document.getElementById("bot-language").value = "English";
+                    document.getElementById("bot-tone").value = "Friendly";
+
+                    closeCreateModal();
+                    window.location.href = `index.html?bot_id=${result.data.id}`;
+                } else {
+                    showToast(result.message || "Failed to create bot");
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error("Error creating bot:", error);
+                showToast("An error occurred. Please try again.");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
             }
         }
 
