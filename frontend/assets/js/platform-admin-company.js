@@ -61,6 +61,385 @@
         return panel;
     }
 
+    function makeInitialListState(extra) {
+        return Object.assign({
+            loaded: false,
+            loading: false,
+            limit: 25,
+            offset: 0,
+            search: "",
+            sortBy: "created_at",
+            sortOrder: "desc"
+        }, extra || {});
+    }
+
+    function boundedSearch(value) {
+        return String(value || "").slice(0, 100);
+    }
+
+    function listToolbar(config) {
+        const toolbar = ui.element("div", "platform-toolbar");
+
+        const searchField = ui.element("div", "platform-field");
+        const searchLabel = ui.element("label", "", "Search");
+        searchLabel.setAttribute("for", config.prefix + "-search");
+        const search = ui.element("input", "platform-input");
+        search.id = config.prefix + "-search";
+        search.type = "search";
+        search.maxLength = 100;
+        search.value = config.state.search;
+        search.placeholder = config.searchPlaceholder;
+        search.addEventListener("input", function () {
+            config.state.search = boundedSearch(search.value);
+        });
+        search.addEventListener("keydown", function (event) {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                config.state.offset = 0;
+                config.load();
+            }
+        });
+        searchField.append(searchLabel, search);
+        toolbar.append(searchField);
+
+        if (config.stateOptions) {
+            const stateField = ui.element("div", "platform-field");
+            const stateLabel = ui.element("label", "", "State");
+            stateLabel.setAttribute("for", config.prefix + "-state");
+            const stateSelect = ui.element("select", "platform-select");
+            stateSelect.id = config.prefix + "-state";
+            config.stateOptions.forEach(function (item) {
+                const option = ui.element("option", "", item.label);
+                option.value = item.value;
+                if (config.state.state === item.value) option.selected = true;
+                stateSelect.append(option);
+            });
+            stateSelect.addEventListener("change", function () {
+                config.state.state = stateSelect.value;
+                config.state.offset = 0;
+                config.load();
+            });
+            stateField.append(stateLabel, stateSelect);
+            toolbar.append(stateField);
+        }
+
+        const sortField = ui.element("div", "platform-field");
+        const sortLabel = ui.element("label", "", "Sort by");
+        sortLabel.setAttribute("for", config.prefix + "-sort-by");
+        const sortSelect = ui.element("select", "platform-select");
+        sortSelect.id = config.prefix + "-sort-by";
+        config.sortOptions.forEach(function (item) {
+            const option = ui.element("option", "", item.label);
+            option.value = item.value;
+            if (config.state.sortBy === item.value) option.selected = true;
+            sortSelect.append(option);
+        });
+        sortSelect.addEventListener("change", function () {
+            config.state.sortBy = sortSelect.value;
+            config.state.offset = 0;
+            config.load();
+        });
+        sortField.append(sortLabel, sortSelect);
+        toolbar.append(sortField);
+
+        const orderField = ui.element("div", "platform-field");
+        const orderLabel = ui.element("label", "", "Sort order");
+        orderLabel.setAttribute("for", config.prefix + "-sort-order");
+        const orderSelect = ui.element("select", "platform-select");
+        orderSelect.id = config.prefix + "-sort-order";
+        [["desc", "Descending"], ["asc", "Ascending"]].forEach(function (item) {
+            const option = ui.element("option", "", item[1]);
+            option.value = item[0];
+            if (config.state.sortOrder === item[0]) option.selected = true;
+            orderSelect.append(option);
+        });
+        orderSelect.addEventListener("change", function () {
+            config.state.sortOrder = orderSelect.value;
+            config.state.offset = 0;
+            config.load();
+        });
+        orderField.append(orderLabel, orderSelect);
+        toolbar.append(orderField);
+
+        const limitField = ui.element("div", "platform-field");
+        const limitLabel = ui.element("label", "", "Page size");
+        limitLabel.setAttribute("for", config.prefix + "-limit");
+        const limitSelect = ui.element("select", "platform-select");
+        limitSelect.id = config.prefix + "-limit";
+        [25, 50, 100].forEach(function (value) {
+            const option = ui.element("option", "", String(value));
+            option.value = String(value);
+            if (config.state.limit === value) option.selected = true;
+            limitSelect.append(option);
+        });
+        limitSelect.addEventListener("change", function () {
+            config.state.limit = Number(limitSelect.value);
+            config.state.offset = 0;
+            config.load();
+        });
+        limitField.append(limitLabel, limitSelect);
+        toolbar.append(limitField);
+
+        const searchButton = ui.element("button", "platform-button platform-button-primary", "Apply search");
+        searchButton.type = "button";
+        searchButton.addEventListener("click", function () {
+            config.state.search = boundedSearch(search.value).trim();
+            config.state.offset = 0;
+            config.load();
+        });
+        toolbar.append(searchButton);
+
+        return toolbar;
+    }
+
+    function paginationControls(pagination, state, load) {
+        const wrapper = ui.element("div", "platform-pagination");
+        const summary = ui.element(
+            "span", "",
+            "Showing " + ui.formatInteger(pagination.returned) + " of " + ui.formatInteger(pagination.total)
+        );
+        const actions = ui.element("div", "platform-pagination-actions");
+        const previous = ui.element("button", "platform-button", "Previous");
+        previous.type = "button";
+        previous.disabled = state.offset <= 0;
+        previous.addEventListener("click", function () {
+            state.offset = Math.max(0, state.offset - state.limit);
+            load();
+        });
+        const next = ui.element("button", "platform-button", "Next");
+        next.type = "button";
+        next.disabled = !pagination.has_more;
+        next.addEventListener("click", function () {
+            state.offset += state.limit;
+            load();
+        });
+        actions.append(previous, next);
+        wrapper.append(summary, actions);
+        return wrapper;
+    }
+
+    function sectionStateCard(message, retryLabel, retry) {
+        const wrapper = ui.element("div", "platform-empty");
+        wrapper.append(ui.element("p", "", message));
+        if (retry) {
+            const button = ui.element("button", "platform-button", retryLabel || "Retry");
+            button.type = "button";
+            button.addEventListener("click", retry);
+            wrapper.append(button);
+        }
+        return wrapper;
+    }
+
+    function renderTable(headers, rows, cardBuilder) {
+        const fragment = document.createDocumentFragment();
+        const wrap = ui.element("div", "platform-table-wrap");
+        const table = ui.element("table", "platform-table");
+        const thead = ui.element("thead");
+        const headerRow = ui.element("tr");
+        headers.forEach(function (label) {
+            headerRow.append(ui.element("th", "", label));
+        });
+        thead.append(headerRow);
+        const tbody = ui.element("tbody");
+        rows.forEach(function (cells) {
+            const tr = ui.element("tr");
+            cells.forEach(function (cell) {
+                const td = ui.element("td");
+                if (cell && cell.nodeType) td.append(cell);
+                else td.textContent = safeValue(cell);
+                tr.append(td);
+            });
+            tbody.append(tr);
+        });
+        table.append(thead, tbody);
+        wrap.append(table);
+        fragment.append(wrap);
+
+        const cards = ui.element("div", "platform-company-cards");
+        rows.forEach(function (cells) {
+            cards.append(cardBuilder(cells));
+        });
+        fragment.append(cards);
+        return fragment;
+    }
+
+    function rowCard(labels, cells) {
+        const card = ui.element("article", "platform-company-card");
+        labels.forEach(function (label, index) {
+            const item = ui.element("p");
+            const strong = ui.element("strong", "", label + ": ");
+            item.append(strong);
+            const value = cells[index];
+            if (value && value.nodeType) item.append(value.cloneNode(true));
+            else item.append(document.createTextNode(safeValue(value)));
+            card.append(item);
+        });
+        return card;
+    }
+
+    function userRows(users) {
+        return users.map(function (user) {
+            return [
+                user.id,
+                user.full_name,
+                user.email,
+                user.role,
+                ui.statusBadge(user.status),
+                ui.formatDate(user.created_at),
+                ui.formatDate(user.updated_at)
+            ];
+        });
+    }
+
+    function chatbotRows(chatbots) {
+        return chatbots.map(function (bot) {
+            return [
+                bot.id,
+                bot.bot_name,
+                String(bot.is_active === true),
+                ui.statusBadge(bot.status),
+                bot.language,
+                bot.tone,
+                bot.ai_provider,
+                bot.model_name,
+                ui.formatDate(bot.created_at),
+                ui.formatDate(bot.updated_at)
+            ];
+        });
+    }
+
+    function lazyListPanel(config) {
+        const panel = ui.element("section", "platform-panel");
+        const header = ui.element("header", "platform-page-header");
+        const title = ui.element("div");
+        title.append(ui.element("h2", "", config.title), ui.element("p", "", config.description));
+        const toggle = ui.element("button", "platform-button", "Load " + config.title.toLowerCase());
+        toggle.type = "button";
+        header.append(title, toggle);
+        const body = ui.element("div");
+        body.hidden = true;
+        panel.append(header, body);
+
+        function renderLoaded(data) {
+            body.replaceChildren();
+            body.append(listToolbar(Object.assign({}, config, { load: load })));
+            const items = data[config.itemsKey] || [];
+            if (!items.length) {
+                body.append(sectionStateCard(config.emptyText));
+            } else {
+                const rows = config.rowBuilder(items);
+                body.append(renderTable(config.headers, rows, function (cells) {
+                    return rowCard(config.headers, cells);
+                }));
+            }
+            body.append(paginationControls(data.pagination || {}, config.state, load));
+        }
+
+        async function load() {
+            config.state.loaded = true;
+            config.state.loading = true;
+            body.hidden = false;
+            body.replaceChildren(ui.element("div", "platform-loading", "Loading " + config.title.toLowerCase() + "…"));
+            toggle.textContent = "Hide " + config.title.toLowerCase();
+            try {
+                const data = await ui.runRequest(config.operationKey, function (signal) {
+                    return config.fetch(signal);
+                });
+                renderLoaded(data);
+            } catch (error) {
+                if (error && (error.category === "unauthenticated" || error.category === "access_denied")) {
+                    ui.handleError(error);
+                } else if (error && error.category === "not_found") {
+                    showCompanyNotFoundState();
+                } else if (!error || error.category !== "aborted") {
+                    body.replaceChildren(sectionStateCard(
+                        config.unavailableText,
+                        "Retry",
+                        load
+                    ));
+                }
+            } finally {
+                config.state.loading = false;
+            }
+        }
+
+        toggle.addEventListener("click", function () {
+            if (!config.state.loaded) {
+                load();
+                return;
+            }
+            body.hidden = !body.hidden;
+            toggle.textContent = (body.hidden ? "Show " : "Hide ") + config.title.toLowerCase();
+        });
+        return panel;
+    }
+
+    function usersPanel(companyId) {
+        const state = makeInitialListState();
+        return lazyListPanel({
+            title: "Users",
+            description: "Read-only users belonging to this company.",
+            prefix: "platform-users",
+            state: state,
+            operationKey: "company-users",
+            itemsKey: "users",
+            emptyText: "No users found for this company.",
+            unavailableText: "Users could not be loaded safely.",
+            searchPlaceholder: "Search email or full name",
+            sortOptions: [
+                { value: "created_at", label: "Created" },
+                { value: "email", label: "Email" },
+                { value: "full_name", label: "Full name" },
+                { value: "id", label: "ID" }
+            ],
+            headers: ["ID", "Full name", "Email", "Role", "Status", "Created", "Updated"],
+            rowBuilder: userRows,
+            fetch: function (signal) {
+                return PlatformAdminApi.listCompanyUsers(companyId, {
+                    limit: state.limit, offset: state.offset,
+                    search: state.search.trim(), sortBy: state.sortBy,
+                    sortOrder: state.sortOrder, signal: signal,
+                });
+            }
+        });
+    }
+
+    function chatbotsPanel(companyId) {
+        const state = makeInitialListState({ state: "current" });
+        return lazyListPanel({
+            title: "Chatbots",
+            description: "Read-only chatbots belonging to this company.",
+            prefix: "platform-chatbots",
+            state: state,
+            operationKey: "company-chatbots",
+            itemsKey: "chatbots",
+            emptyText: "No chatbots found for this company state.",
+            unavailableText: "Chatbots could not be loaded safely.",
+            searchPlaceholder: "Search bot name",
+            stateOptions: [
+                { value: "current", label: "Current" },
+                { value: "archived", label: "Archived" },
+                { value: "all", label: "All" }
+            ],
+            sortOptions: [
+                { value: "created_at", label: "Created" },
+                { value: "updated_at", label: "Updated" },
+                { value: "bot_name", label: "Bot name" },
+                { value: "id", label: "ID" }
+            ],
+            headers: ["ID", "Bot name", "Active", "Status", "Language", "Tone", "Provider", "Model", "Created", "Updated"],
+            rowBuilder: chatbotRows,
+            fetch: function (signal) {
+                return PlatformAdminApi.listCompanyChatbots(companyId, {
+                    limit: state.limit, offset: state.offset,
+                    search: state.search.trim(), state: state.state,
+                    sortBy: state.sortBy, sortOrder: state.sortOrder,
+                    signal: signal,
+                });
+            }
+        });
+    }
+
     function formatPlanPrice(plan) {
         if (!plan || plan.price === null || plan.price === undefined || plan.price === "") {
             return "Not available";
@@ -160,6 +539,15 @@
         heading.focus();
     }
 
+    function showCompanyNotFoundState() {
+        ui.clearPlatformState();
+        const accessState = document.getElementById("platform-access-state");
+        const app = document.getElementById("platform-app");
+        if (accessState) accessState.hidden = true;
+        if (app) app.hidden = false;
+        showLocalState("Company Not Found", "The requested company does not exist or is unavailable.");
+    }
+
     async function initializeCompanyDetail() {
         const root = document.getElementById("platform-page-content");
         const companyId = parseCompanyId();
@@ -197,7 +585,9 @@
                 pageHeader(company),
                 companyPanel(company),
                 subscriptionPanel(summaries[0] ? summaries[0].subscription : null),
-                aiCreditPanel(summaries[1])
+                aiCreditPanel(summaries[1]),
+                usersPanel(companyId),
+                chatbotsPanel(companyId)
             );
         } catch (error) {
             if (!ui.handleError(error) && (!error || error.category !== "aborted")) {

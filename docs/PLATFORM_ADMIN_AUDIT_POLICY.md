@@ -3,9 +3,10 @@
 ## Status and authority
 
 **Production policy candidate; formal security, privacy, legal, and data-owner
-approval remains required.** This policy matches the implemented Phase 2
-validation and the Phase 3 read-only endpoint set. It does not authorize a
-deployment, schema change, retention deletion, or mapping activation.
+approval remains required.** This policy matches the implemented read-only
+platform-admin endpoint set, including the application-only company user and
+chatbot inspection extension. It does not authorize a deployment, schema
+change, retention deletion, or mapping activation.
 
 The platform-admin service is fail closed: a successful or not-found platform
 response must not be returned unless its audit event is inserted successfully.
@@ -34,6 +35,8 @@ No action or resource type outside this table is approved for Phase 4.
 | `platform_admin.company.read` | `company` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>` |
 | `platform_admin.company.subscription.read` | `company_subscription` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>/subscription` |
 | `platform_admin.company.ai_credit_usage.read` | `company_ai_credit_usage` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `period_start` and `period_end` when `outcome = success` | None for `success`; no period fields for `not_found` | `/api/platform-admin/companies/<company_id>/ai-credit-usage` |
+| `platform_admin.company.users.read` | `company_users` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/users` |
+| `platform_admin.company.chatbots.read` | `company_chatbots` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `state_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/chatbots` |
 
 `resource_id`, when present, must be a non-blank string no longer than 255
 characters and must contain only the canonical positive numeric ID for the implemented
@@ -58,6 +61,7 @@ sort_by
 sort_order
 search_applied
 status_filter
+state_filter
 returned_count
 period_start
 period_end
@@ -101,6 +105,37 @@ or metadata fields require an explicit schema and tests before use.
 events because no tenant period has been read. Other action types use only
 their common fields. Metadata must not duplicate actor IDs or resource IDs
 already represented by table columns.
+
+### Company-user list fields
+
+These fields are present only when `platform_admin.company.users.read` has
+`outcome = success`. A missing company emits `outcome = not_found` with only
+the common fields.
+
+| Field | Allowed value |
+|---|---|
+| `limit` | Validated integer 1-100 |
+| `offset` | Validated non-negative integer |
+| `sort_by` | `created_at`, `email`, `full_name`, or `id` |
+| `sort_order` | `asc` or `desc` |
+| `search_applied` | Boolean only; never the search value |
+| `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
+
+### Company-chatbot list fields
+
+These fields are present only when `platform_admin.company.chatbots.read` has
+`outcome = success`. A missing company emits `outcome = not_found` with only
+the common fields.
+
+| Field | Allowed value |
+|---|---|
+| `limit` | Validated integer 1-100 |
+| `offset` | Validated non-negative integer |
+| `sort_by` | `created_at`, `updated_at`, `bot_name`, or `id` |
+| `sort_order` | `asc` or `desc` |
+| `search_applied` | Boolean only; never the search value |
+| `state_filter` | `current`, `archived`, or `all` |
+| `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
 
 ## Prohibited data
 
@@ -151,9 +186,15 @@ the top-level allowlist.
   treats `bool` as a subclass of `int`.
 - `limit` must be an integer from 1 through 100. `offset` and `returned_count`
   must be non-negative integers, and `returned_count` must not exceed `limit`.
-- `sort_by` must be `created_at`, `company_name`, `status`, or `id`.
-  `sort_order` must be `asc` or `desc`. `status_filter` must be `active`,
-  `inactive`, or null.
+- `sort_by` is action-specific: `platform_admin.company.list` allows
+  `created_at`, `company_name`, `status`, or `id`;
+  `platform_admin.company.users.read` allows `created_at`, `email`,
+  `full_name`, or `id`; and `platform_admin.company.chatbots.read` allows
+  `created_at`, `updated_at`, `bot_name`, or `id`.
+- `sort_order` must be `asc` or `desc`. `status_filter` is allowed only on
+  `platform_admin.company.list` and must be `active`, `inactive`, or null.
+  `state_filter` is allowed only on `platform_admin.company.chatbots.read` and
+  must be `current`, `archived`, or `all`.
 - Period strings, when present, must be non-blank and no longer than 64
   characters.
 - Canonicalization uses UTF-8 JSON with sorted keys and compact separators.

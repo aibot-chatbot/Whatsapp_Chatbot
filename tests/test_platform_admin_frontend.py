@@ -152,7 +152,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         cls.api = read(API)
         cls.auth = read(FRONTEND / "assets" / "js" / "auth.js")
 
-    def test_public_client_exposes_only_five_approved_methods(self):
+    def test_public_client_exposes_only_seven_approved_methods(self):
         exported = re.search(
             r"window\.PlatformAdminApi = Object\.freeze\(\{(.*?)\}\);",
             self.api,
@@ -167,6 +167,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "getCompany",
                 "getCompanySubscription",
                 "getCompanyAiCreditUsage",
+                "listCompanyUsers",
+                "listCompanyChatbots",
             ],
         )
 
@@ -195,6 +197,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             "getCompany",
             "getCompanySubscription",
             "getCompanyAiCreditUsage",
+            "listCompanyUsers",
+            "listCompanyChatbots",
         ]:
             body = re.search(
                 rf"function {function_name}\(companyId, options\) \{{(.*?)\n    \}}",
@@ -269,11 +273,61 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("PlatformAdminApi.getCompany(companyId", self.company)
         self.assertIn("PlatformAdminApi.getCompanySubscription(companyId", self.company)
         self.assertIn("PlatformAdminApi.getCompanyAiCreditUsage(companyId", self.company)
+        self.assertIn("PlatformAdminApi.listCompanyUsers(companyId", self.company)
+        self.assertIn("PlatformAdminApi.listCompanyChatbots(companyId", self.company)
         company_fetch = self.company.index("PlatformAdminApi.getCompany(companyId")
         subscription_fetch = self.company.index("PlatformAdminApi.getCompanySubscription(companyId")
         ai_fetch = self.company.index("PlatformAdminApi.getCompanyAiCreditUsage(companyId")
         self.assertLess(company_fetch, subscription_fetch)
         self.assertLess(company_fetch, ai_fetch)
+
+    def test_users_and_chatbots_are_lazy_loaded_after_company_detail(self):
+        initialize = re.search(
+            r"async function initializeCompanyDetail\(\) \{(.*?)\n    \}",
+            self.company,
+            flags=re.S,
+        ).group(1)
+        company_fetch = initialize.index("PlatformAdminApi.getCompany(companyId")
+        users_panel = initialize.index("usersPanel(companyId)")
+        chatbots_panel = initialize.index("chatbotsPanel(companyId)")
+        self.assertLess(company_fetch, users_panel)
+        self.assertLess(company_fetch, chatbots_panel)
+        self.assertIn('"Load " + config.title.toLowerCase()', self.company)
+        self.assertIn('title: "Users"', self.company)
+        self.assertIn('title: "Chatbots"', self.company)
+        self.assertIn('operationKey: "company-users"', self.company)
+        self.assertIn('operationKey: "company-chatbots"', self.company)
+        api_source = read(API)
+        self.assertIn('params.set("search", config.search)', api_source)
+        self.assertNotIn('"search": normalized_search', self.company)
+
+    def test_users_and_chatbots_have_read_only_safe_fields_and_filters(self):
+        for marker in [
+            "Search email or full name",
+            "Search bot name",
+            "Full name",
+            "Email",
+            "Role",
+            "Provider",
+            "Model",
+            "Current",
+            "Archived",
+            "All",
+            "bot_name",
+            "created_at",
+            "updated_at",
+        ]:
+            self.assertIn(marker, self.company)
+        for forbidden in [
+            "password_hash",
+            "is_verified",
+            "deleted_at",
+            "bot_description",
+            "welcome_message",
+            "fallback_message",
+            "temperature",
+        ]:
+            self.assertNotIn(forbidden, self.company)
 
     def test_invalid_path_id_returns_before_company_api_call(self):
         initialize = re.search(

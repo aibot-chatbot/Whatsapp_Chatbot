@@ -13,6 +13,7 @@
         "invalid_offset",
         "invalid_search",
         "invalid_status",
+        "invalid_state",
         "invalid_sort_by",
         "invalid_sort_order"
     ]);
@@ -106,11 +107,38 @@
         return platformFetch("/companies/" + id + "/ai-credit-usage", (options || {}).signal);
     }
 
+    function listCompanyUsers(companyId, options) {
+        const id = requireCompanyId(companyId);
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit));
+        params.set("offset", String(config.offset));
+        params.set("sort_by", config.sortBy);
+        params.set("sort_order", config.sortOrder);
+        if (config.search) params.set("search", config.search);
+        return platformFetch("/companies/" + id + "/users?" + params.toString(), config.signal);
+    }
+
+    function listCompanyChatbots(companyId, options) {
+        const id = requireCompanyId(companyId);
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit));
+        params.set("offset", String(config.offset));
+        params.set("sort_by", config.sortBy);
+        params.set("sort_order", config.sortOrder);
+        params.set("state", config.state);
+        if (config.search) params.set("search", config.search);
+        return platformFetch("/companies/" + id + "/chatbots?" + params.toString(), config.signal);
+    }
+
     window.PlatformAdminApi = Object.freeze({
         getMe: getMe,
         listCompanies: listCompanies,
         getCompany: getCompany,
         getCompanySubscription: getCompanySubscription,
-        getCompanyAiCreditUsage: getCompanyAiCreditUsage
+        getCompanyAiCreditUsage: getCompanyAiCreditUsage,
+        listCompanyUsers: listCompanyUsers,
+        listCompanyChatbots: listCompanyChatbots
     });
 }());

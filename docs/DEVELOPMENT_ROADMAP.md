@@ -22,14 +22,17 @@
 
 The initial read-only backend is implemented with a separate database-backed
 platform-admin allowlist, per-request fail-closed authorization, dedicated
-cross-tenant repositories, five GET-only endpoints, and audit-before-response
-enforcement. Tenant roles and JWT claims do not grant platform access.
+cross-tenant repositories, seven GET-only endpoints, and audit-before-response
+enforcement. Tenant roles and JWT claims do not grant platform access. The
+later users/chatbots company-inspection endpoints are application-only and
+locally tested unless separately staged later.
 
 The separate read-only frontend is also implemented with a dedicated platform
 shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
 client, in-memory request cancellation/state clearing, exact company counts,
-the server-paginated company directory, and safe company billing/AI-credit
-detail views. The ordinary tenant sidebar does not expose platform navigation.
+the server-paginated company directory, safe company billing/AI-credit detail
+views, and lazy read-only company users/chatbots sections. The ordinary tenant
+sidebar does not expose platform navigation.
 Authenticated tenant pages now use a shared top-right account menu for Profile
 and Logout; the previous Support item targeted missing `support.html` and is
 deferred until an approved destination exists. Active platform admins can

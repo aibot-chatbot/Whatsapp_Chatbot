@@ -301,15 +301,19 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
-- Five GET-only endpoints for platform identity, company directory/detail,
-  subscription summary, and current-period AI-credit/usage summary
+- Seven GET-only endpoints for platform identity, company directory/detail,
+  subscription summary, current-period AI-credit/usage summary, and lazy
+  read-only company users/chatbots inspection. The original five endpoints were
+  verified in staging; the users/chatbots extension is application-only and
+  locally tested unless separately staged later.
 - Cross-tenant reads isolated in dedicated platform repositories with explicit
   safe projections and mandatory audit-before-response behavior
 - Automated authorization, repository, route, and audit tests added
 - Manual staging verification passed for all five endpoints and expected audit
   events, including metadata redaction and immediate revocation
 - Separate read-only frontend implemented for platform identity, exact company
-  counts, server-paginated company search, and company billing/AI-credit detail
+  counts, server-paginated company search, company billing/AI-credit detail, and
+  lazy read-only company users/chatbots sections
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
@@ -354,7 +358,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Backend, API, and frontend verified in staging; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
+| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; users/chatbots extension locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | PDF receipts | Open (HTML only) |

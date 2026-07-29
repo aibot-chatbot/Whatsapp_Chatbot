@@ -128,6 +128,67 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "http_method": "GET",
             },
         ),
+        (
+            "company_users_success",
+            2,
+            "platform_admin.company.users.read",
+            "company_users",
+            "9",
+            {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/companies/<company_id>/users",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "sort_by": "created_at",
+                "sort_order": "desc",
+                "search_applied": False,
+                "returned_count": 0,
+            },
+        ),
+        (
+            "company_users_not_found",
+            2,
+            "platform_admin.company.users.read",
+            "company_users",
+            "9",
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/users",
+                "http_method": "GET",
+            },
+        ),
+        (
+            "company_chatbots_success",
+            2,
+            "platform_admin.company.chatbots.read",
+            "company_chatbots",
+            "9",
+            {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/companies/<company_id>/chatbots",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "sort_by": "created_at",
+                "sort_order": "desc",
+                "search_applied": False,
+                "state_filter": "current",
+                "returned_count": 0,
+            },
+        ),
+        (
+            "company_chatbots_not_found",
+            2,
+            "platform_admin.company.chatbots.read",
+            "company_chatbots",
+            "9",
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/chatbots",
+                "http_method": "GET",
+            },
+        ),
     )
 
     def test_valid_event_is_inserted(self):
@@ -256,6 +317,8 @@ class PlatformAdminAuditTests(unittest.TestCase):
             ("platform_admin.company.list", "company_subscription", None),
             ("platform_admin.company.subscription.read", "company", "1"),
             ("platform_admin.company.ai_credit_usage.read", "company_subscription", "1"),
+            ("platform_admin.company.users.read", "company", "1"),
+            ("platform_admin.company.chatbots.read", "company_users", "1"),
         )
         for action, resource_type, resource_id in invalid_pairs:
             with self.subTest(action=action, resource_type=resource_type), self.assertRaises(ValueError):
@@ -277,9 +340,210 @@ class PlatformAdminAuditTests(unittest.TestCase):
                     })
                 if action == "platform_admin.company.ai_credit_usage.read":
                     metadata.update({"period_start": None, "period_end": None})
+                if action == "platform_admin.company.users.read":
+                    metadata.update({
+                        "limit": 25,
+                        "offset": 0,
+                        "sort_by": "created_at",
+                        "sort_order": "desc",
+                        "search_applied": False,
+                        "returned_count": 0,
+                    })
+                if action == "platform_admin.company.chatbots.read":
+                    metadata.update({
+                        "limit": 25,
+                        "offset": 0,
+                        "sort_by": "created_at",
+                        "sort_order": "desc",
+                        "search_applied": False,
+                        "state_filter": "current",
+                        "returned_count": 0,
+                    })
                 platform_admin_repository.validate_audit_event(
                     1, action, resource_type, resource_id, metadata
                 )
+
+    def test_child_list_not_found_events_reject_list_metadata(self):
+        for action, resource_type, endpoint, extra in (
+            (
+                "platform_admin.company.users.read",
+                "company_users",
+                "/api/platform-admin/companies/<company_id>/users",
+                {"limit": 25},
+            ),
+            (
+                "platform_admin.company.chatbots.read",
+                "company_chatbots",
+                "/api/platform-admin/companies/<company_id>/chatbots",
+                {"state_filter": "current"},
+            ),
+        ):
+            metadata = {"outcome": "not_found", "endpoint": endpoint, "http_method": "GET"}
+            metadata.update(extra)
+            with self.subTest(action=action), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1, action, resource_type, "9", metadata
+                )
+
+    def test_child_list_returned_count_bounds_are_rejected(self):
+        base_cases = (
+            (
+                "users",
+                "platform_admin.company.users.read",
+                "company_users",
+                "/api/platform-admin/companies/<company_id>/users",
+                {},
+            ),
+            (
+                "chatbots",
+                "platform_admin.company.chatbots.read",
+                "company_chatbots",
+                "/api/platform-admin/companies/<company_id>/chatbots",
+                {"state_filter": "current"},
+            ),
+        )
+        for name, action, resource_type, endpoint, extra in base_cases:
+            for returned_count, limit in ((26, 25), (101, 100)):
+                metadata = {
+                    "outcome": "success",
+                    "endpoint": endpoint,
+                    "http_method": "GET",
+                    "limit": limit,
+                    "offset": 0,
+                    "sort_by": "created_at",
+                    "sort_order": "desc",
+                    "search_applied": False,
+                    "returned_count": returned_count,
+                }
+                metadata.update(extra)
+                with self.subTest(name=name, returned_count=returned_count, limit=limit), self.assertRaises(ValueError):
+                    platform_admin_repository.validate_audit_event(
+                        1, action, resource_type, "9", metadata
+                    )
+
+    def test_child_list_invalid_sort_state_and_boolean_integers_are_rejected(self):
+        invalid_cases = (
+            (
+                "users_invalid_sort_by",
+                "platform_admin.company.users.read",
+                "company_users",
+                {
+                    "outcome": "success",
+                    "endpoint": "/api/platform-admin/companies/<company_id>/users",
+                    "http_method": "GET",
+                    "limit": 25,
+                    "offset": 0,
+                    "sort_by": "role",
+                    "sort_order": "desc",
+                    "search_applied": False,
+                    "returned_count": 0,
+                },
+            ),
+            (
+                "chatbots_invalid_sort_by",
+                "platform_admin.company.chatbots.read",
+                "company_chatbots",
+                {
+                    "outcome": "success",
+                    "endpoint": "/api/platform-admin/companies/<company_id>/chatbots",
+                    "http_method": "GET",
+                    "limit": 25,
+                    "offset": 0,
+                    "sort_by": "status",
+                    "sort_order": "desc",
+                    "search_applied": False,
+                    "state_filter": "current",
+                    "returned_count": 0,
+                },
+            ),
+            (
+                "chatbots_invalid_state_filter",
+                "platform_admin.company.chatbots.read",
+                "company_chatbots",
+                {
+                    "outcome": "success",
+                    "endpoint": "/api/platform-admin/companies/<company_id>/chatbots",
+                    "http_method": "GET",
+                    "limit": 25,
+                    "offset": 0,
+                    "sort_by": "created_at",
+                    "sort_order": "desc",
+                    "search_applied": False,
+                    "state_filter": "deleted",
+                    "returned_count": 0,
+                },
+            ),
+        )
+        for name, action, resource_type, metadata in invalid_cases:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1, action, resource_type, "9", metadata
+                )
+
+        for field in ("limit", "offset", "returned_count"):
+            metadata = {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/companies/<company_id>/users",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "sort_by": "created_at",
+                "sort_order": "desc",
+                "search_applied": False,
+                "returned_count": 0,
+            }
+            metadata[field] = True
+            with self.subTest(boolean_field=field), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1, "platform_admin.company.users.read", "company_users", "9", metadata
+                )
+
+    def test_successful_child_list_events_require_every_list_field(self):
+        cases = (
+            (
+                "users",
+                "platform_admin.company.users.read",
+                "company_users",
+                {
+                    "outcome": "success",
+                    "endpoint": "/api/platform-admin/companies/<company_id>/users",
+                    "http_method": "GET",
+                    "limit": 25,
+                    "offset": 0,
+                    "sort_by": "created_at",
+                    "sort_order": "desc",
+                    "search_applied": False,
+                    "returned_count": 0,
+                },
+                ("limit", "offset", "sort_by", "sort_order", "search_applied", "returned_count"),
+            ),
+            (
+                "chatbots",
+                "platform_admin.company.chatbots.read",
+                "company_chatbots",
+                {
+                    "outcome": "success",
+                    "endpoint": "/api/platform-admin/companies/<company_id>/chatbots",
+                    "http_method": "GET",
+                    "limit": 25,
+                    "offset": 0,
+                    "sort_by": "created_at",
+                    "sort_order": "desc",
+                    "search_applied": False,
+                    "state_filter": "current",
+                    "returned_count": 0,
+                },
+                ("limit", "offset", "sort_by", "sort_order", "search_applied", "state_filter", "returned_count"),
+            ),
+        )
+        for name, action, resource_type, metadata, required_fields in cases:
+            for field in required_fields:
+                invalid = dict(metadata)
+                invalid.pop(field)
+                with self.subTest(name=name, missing=field), self.assertRaises(ValueError):
+                    platform_admin_repository.validate_audit_event(
+                        1, action, resource_type, "9", invalid
+                    )
 
     def test_unknown_action_and_resource_type_are_rejected(self):
         with self.assertRaises(ValueError):

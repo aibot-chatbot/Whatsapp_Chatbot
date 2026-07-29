@@ -5,7 +5,9 @@ from unittest.mock import MagicMock, patch
 
 from app.database import platform_admin_repository
 from app.database import platform_billing_repository
+from app.database import platform_chatbot_repository
 from app.database import platform_company_repository
+from app.database import platform_company_user_repository
 from app.database import ai_credit_repository
 from app.database import billing_usage_repository
 from app.database import company_repository
@@ -15,7 +17,7 @@ from app.services import platform_admin_service
 
 def fluent_query(data=None, count=None):
     query = MagicMock()
-    for method in ("select", "eq", "limit", "order", "range", "or_", "gte", "lt"):
+    for method in ("select", "eq", "limit", "order", "range", "or_", "gte", "lt", "is_"):
         getattr(query, method).return_value = query
     query.execute.return_value = SimpleNamespace(data=data or [], count=count)
     return query
@@ -75,10 +77,100 @@ class PlatformAdminRepositoryTests(unittest.TestCase):
             platform_admin_repository,
             platform_company_repository,
             platform_billing_repository,
+            platform_company_user_repository,
+            platform_chatbot_repository,
         ):
             source = inspect.getsource(module)
             self.assertNotIn('.select("*")', source)
             self.assertNotIn(".select('*')", source)
+
+    def test_company_user_and_chatbot_list_projections_are_exact_and_safe(self):
+        self.assertEqual(
+            platform_company_user_repository.LIST_FIELDS,
+            "id,full_name,email,role,status,created_at,updated_at",
+        )
+        for excluded in (
+            "password_hash",
+            "phone",
+            "is_verified",
+            "company_id",
+            "token",
+            "otp",
+        ):
+            with self.subTest(repository="users", excluded=excluded):
+                self.assertNotIn(excluded, platform_company_user_repository.LIST_FIELDS)
+
+        self.assertEqual(
+            platform_chatbot_repository.LIST_FIELDS,
+            "id,bot_name,is_active,status,language,tone,ai_provider,model_name,created_at,updated_at",
+        )
+        for excluded in (
+            "deleted_at",
+            "bot_description",
+            "welcome_message",
+            "fallback_message",
+            "temperature",
+            "prompt",
+            "credential",
+            "webhook",
+            "conversation",
+            "knowledge",
+        ):
+            with self.subTest(repository="chatbots", excluded=excluded):
+                self.assertNotIn(excluded, platform_chatbot_repository.LIST_FIELDS)
+
+    def test_company_user_list_uses_safe_projection_company_scope_and_search(self):
+        query = fluent_query([{"id": 4}], count=1)
+        with patch.object(platform_company_user_repository.supabase, "table", return_value=query):
+            rows, count = platform_company_user_repository.list_company_users_for_platform_admin(
+                company_id=9, limit=25, offset=0, search='User_%',
+                sort_by="email", sort_order="asc",
+            )
+        query.select.assert_called_once_with(platform_company_user_repository.LIST_FIELDS, count="exact")
+        query.eq.assert_called_once_with("company_id", 9)
+        expression = query.or_.call_args.args[0]
+        self.assertIn("email.ilike", expression)
+        self.assertIn("full_name.ilike", expression)
+        self.assertIn(r"\%", expression)
+        self.assertIn(r"\_", expression)
+        query.range.assert_called_once_with(0, 24)
+        self.assertEqual(query.order.call_args_list[0].args[0], "email")
+        self.assertEqual(query.order.call_args_list[1].args[0], "id")
+        self.assertEqual((rows, count), ([{"id": 4}], 1))
+
+    def test_company_chatbot_list_uses_safe_projection_and_current_null_semantics(self):
+        query = fluent_query([{"id": 29}], count=1)
+        with patch.object(platform_chatbot_repository.supabase, "table", return_value=query):
+            rows, count = platform_chatbot_repository.list_company_chatbots_for_platform_admin(
+                company_id=9, limit=10, offset=5, search="Support",
+                state="current", sort_by="created_at", sort_order="desc",
+            )
+        query.select.assert_called_once_with(platform_chatbot_repository.LIST_FIELDS, count="exact")
+        query.eq.assert_called_once_with("company_id", 9)
+        query.is_.assert_called_once_with("deleted_at", "null")
+        query.or_.assert_any_call("bot_name.ilike.\"*Support*\"")
+        query.or_.assert_any_call("status.is.null,status.neq.archived")
+        query.range.assert_called_once_with(5, 14)
+        self.assertEqual(query.order.call_args_list[1].args[0], "id")
+        self.assertEqual((rows, count), ([{"id": 29}], 1))
+
+    def test_company_chatbot_archived_and_all_state_filters(self):
+        archived_query = fluent_query([], count=0)
+        all_query = fluent_query([], count=0)
+        with patch.object(
+            platform_chatbot_repository.supabase, "table",
+            side_effect=[archived_query, all_query],
+        ):
+            platform_chatbot_repository.list_company_chatbots_for_platform_admin(
+                company_id=9, limit=25, offset=0, state="archived"
+            )
+            platform_chatbot_repository.list_company_chatbots_for_platform_admin(
+                company_id=9, limit=25, offset=0, state="all"
+            )
+        archived_query.eq.assert_any_call("status", "archived")
+        all_eq_calls = [call.args for call in all_query.eq.call_args_list]
+        self.assertEqual(all_eq_calls, [("company_id", 9)])
+        all_query.is_.assert_not_called()
 
     def test_repository_errors_propagate(self):
         query = fluent_query()

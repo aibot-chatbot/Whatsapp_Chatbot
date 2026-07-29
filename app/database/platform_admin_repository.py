@@ -17,6 +17,9 @@ MAX_AUDIT_METADATA_BYTES = 8192
 COMPANY_LIST_SORT_FIELDS = {"created_at", "company_name", "status", "id"}
 COMPANY_LIST_SORT_ORDERS = {"asc", "desc"}
 COMPANY_STATUS_FILTERS = {None, "active", "inactive"}
+COMPANY_USER_LIST_SORT_FIELDS = {"created_at", "email", "full_name", "id"}
+COMPANY_CHATBOT_LIST_SORT_FIELDS = {"created_at", "updated_at", "bot_name", "id"}
+COMPANY_CHATBOT_STATE_FILTERS = {"current", "archived", "all"}
 AUDIT_OUTCOMES = {"success", "not_found"}
 PLATFORM_ADMIN_ENDPOINTS = {
     "identity": "/api/platform-admin/me",
@@ -24,6 +27,8 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "company_detail": "/api/platform-admin/companies/<company_id>",
     "company_subscription": "/api/platform-admin/companies/<company_id>/subscription",
     "company_ai_credit_usage": "/api/platform-admin/companies/<company_id>/ai-credit-usage",
+    "company_users": "/api/platform-admin/companies/<company_id>/users",
+    "company_chatbots": "/api/platform-admin/companies/<company_id>/chatbots",
 }
 
 
@@ -89,6 +94,39 @@ AUDIT_EVENT_SCHEMAS = {
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["company_ai_credit_usage"],
         "required_metadata_by_outcome": {
             "success": {"period_start", "period_end"},
+            "not_found": set(),
+        },
+    },
+    "platform_admin.company.users.read": {
+        "resource_type": "company_users",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": {
+            "limit", "offset", "sort_by", "sort_order", "search_applied",
+            "returned_count",
+        },
+        "outcomes": AUDIT_OUTCOMES,
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["company_users"],
+        "required_metadata_by_outcome": {
+            "success": {"limit", "offset", "sort_by", "sort_order", "search_applied", "returned_count"},
+            "not_found": set(),
+        },
+    },
+    "platform_admin.company.chatbots.read": {
+        "resource_type": "company_chatbots",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": {
+            "limit", "offset", "sort_by", "sort_order", "search_applied",
+            "state_filter", "returned_count",
+        },
+        "outcomes": AUDIT_OUTCOMES,
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["company_chatbots"],
+        "required_metadata_by_outcome": {
+            "success": {
+                "limit", "offset", "sort_by", "sort_order", "search_applied",
+                "state_filter", "returned_count",
+            },
             "not_found": set(),
         },
     },
@@ -223,6 +261,40 @@ def _validate_metadata_schema(action, schema, metadata):
                 raise ValueError("Period metadata is not allowed for not_found events")
             return
         _validate_ai_credit_usage_period_pair(metadata)
+
+    if action == "platform_admin.company.users.read":
+        if metadata["outcome"] == "not_found":
+            list_keys = {"limit", "offset", "sort_by", "sort_order", "search_applied", "returned_count"}
+            if any(key in metadata for key in list_keys):
+                raise ValueError("List metadata is not allowed for not_found events")
+            return
+        _bounded_integer(metadata["limit"], "limit", 1, 100)
+        _non_negative_integer(metadata["offset"], "offset")
+        _member(metadata["sort_by"], "sort_by", COMPANY_USER_LIST_SORT_FIELDS)
+        _member(metadata["sort_order"], "sort_order", COMPANY_LIST_SORT_ORDERS)
+        _boolean(metadata["search_applied"], "search_applied")
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
+        if metadata["returned_count"] > metadata["limit"]:
+            raise ValueError("returned_count cannot exceed limit")
+
+    if action == "platform_admin.company.chatbots.read":
+        if metadata["outcome"] == "not_found":
+            list_keys = {
+                "limit", "offset", "sort_by", "sort_order", "search_applied",
+                "state_filter", "returned_count",
+            }
+            if any(key in metadata for key in list_keys):
+                raise ValueError("List metadata is not allowed for not_found events")
+            return
+        _bounded_integer(metadata["limit"], "limit", 1, 100)
+        _non_negative_integer(metadata["offset"], "offset")
+        _member(metadata["sort_by"], "sort_by", COMPANY_CHATBOT_LIST_SORT_FIELDS)
+        _member(metadata["sort_order"], "sort_order", COMPANY_LIST_SORT_ORDERS)
+        _boolean(metadata["search_applied"], "search_applied")
+        _member(metadata["state_filter"], "state_filter", COMPANY_CHATBOT_STATE_FILTERS)
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
+        if metadata["returned_count"] > metadata["limit"]:
+            raise ValueError("returned_count cannot exceed limit")
 
 
 def validate_audit_event(
