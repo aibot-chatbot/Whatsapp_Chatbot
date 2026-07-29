@@ -72,6 +72,17 @@ def test_sidebar_pages_auto_mount_account_menu_outside_sidebar():
     assert "tenant-account-menu-floating" in shared
     assert 'document.body.appendChild(host)' in shared
     assert 'menu.setAttribute("preserve-bot-query", "")' in shared
+    assert "MutationObserver" in shared
+    assert "watchForSidebarAccountMenuMount" in shared
+    assert "stopTenantAccountMenuObserver" in shared
+
+
+def test_floating_account_menu_layers_above_mobile_sidebar_toggle():
+    shared = read(SHARED_UI)
+    sidebar = read(SIDEBAR)
+
+    assert ".tenant-account-menu-floating{position:fixed;top:24px;right:32px;z-index:1001;width:max-content;" in shared
+    assert "z-index: 1000;" in sidebar
 
 
 def test_all_authenticated_sidebar_pages_load_shared_menu_dependencies():

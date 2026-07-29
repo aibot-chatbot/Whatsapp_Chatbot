@@ -195,8 +195,8 @@ function formatTimeSimple(dateStr) {
         var style = document.createElement("style");
         style.id = "tenant-account-menu-host-style";
         style.textContent = [
-            ".tenant-account-menu-floating{position:fixed;top:24px;right:32px;z-index:900;}",
-            "@media (max-width:768px){.tenant-account-menu-floating{top:14px;right:14px;}}",
+            ".tenant-account-menu-floating{position:fixed;top:24px;right:32px;z-index:1001;width:max-content;max-width:calc(100vw - 20px);}",
+            "@media (max-width:768px){.tenant-account-menu-floating{top:76px;right:14px;}}",
             "@media (max-width:420px){.tenant-account-menu-floating{right:10px;}}"
         ].join("");
         document.head.appendChild(style);
@@ -442,6 +442,15 @@ function formatTimeSimple(dateStr) {
 
     window.customElements.define("tenant-account-menu", TenantAccountMenu);
 
+    var sidebarAccountMenuObserver = null;
+
+    function stopTenantAccountMenuObserver() {
+        if (sidebarAccountMenuObserver) {
+            sidebarAccountMenuObserver.disconnect();
+            sidebarAccountMenuObserver = null;
+        }
+    }
+
     function installTenantAccountMenu() {
         if (document.querySelector("tenant-account-menu")) return;
         if (!document.querySelector("chatbot-sidebar")) return;
@@ -452,11 +461,34 @@ function formatTimeSimple(dateStr) {
         menu.setAttribute("preserve-bot-query", "");
         host.appendChild(menu);
         document.body.appendChild(host);
+        stopTenantAccountMenuObserver();
+    }
+
+    function watchForSidebarAccountMenuMount() {
+        if (document.querySelector("tenant-account-menu")) return;
+        if (document.querySelector("chatbot-sidebar")) {
+            installTenantAccountMenu();
+            return;
+        }
+        if (sidebarAccountMenuObserver || typeof MutationObserver !== "function") return;
+        sidebarAccountMenuObserver = new MutationObserver(function () {
+            installTenantAccountMenu();
+        });
+        sidebarAccountMenuObserver.observe(document.documentElement, {
+            childList: true,
+            subtree: true
+        });
+        window.addEventListener("pagehide", stopTenantAccountMenuObserver, { once: true });
+    }
+
+    function initializeTenantAccountMenuMount() {
+        installTenantAccountMenu();
+        watchForSidebarAccountMenuMount();
     }
 
     if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", installTenantAccountMenu);
+        document.addEventListener("DOMContentLoaded", initializeTenantAccountMenuMount);
     } else {
-        installTenantAccountMenu();
+        initializeTenantAccountMenuMount();
     }
 })();

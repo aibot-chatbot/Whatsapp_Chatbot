@@ -75,6 +75,21 @@ async function openAccountMenu(page) {
   await page.getByRole("button", { name: "Open account menu" }).click();
 }
 
+async function accountMenuRect(page) {
+  return page.locator("tenant-account-menu").evaluate(element => {
+    const menu = element.shadowRoot.querySelector(".menu");
+    const rect = menu.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height
+    };
+  });
+}
+
 test.describe("tenant account menu shared placement", () => {
   test("bots page uses the shared account menu with Profile and Logout", async ({ page }) => {
     const calls = await openTenantPage(page, "/bots.html");
@@ -123,6 +138,64 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.getByRole("menu")).toBeVisible();
     await page.mouse.click(5, 5);
     await expect(page.getByRole("menu")).toBeHidden();
+  });
+
+  test("mobile sidebar does not block the floating account menu", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 760 });
+    await openTenantPage(page, "/index.html?bot_id=42");
+
+    await openAccountMenu(page);
+    await expect(page.getByRole("menu")).toBeVisible();
+    let rect = await accountMenuRect(page);
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.right).toBeLessThanOrEqual(390);
+    expect(rect.top).toBeGreaterThanOrEqual(0);
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
+    await openAccountMenu(page);
+    await expect(page.getByRole("menu")).toBeVisible();
+    rect = await accountMenuRect(page);
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.right).toBeLessThanOrEqual(390);
+  });
+
+  test("late-rendered sidebar pages receive exactly one floating account menu", async ({ page }) => {
+    await installTenantSession(page);
+    await mockTenantPageApis(page, () => ({
+      status: 403,
+      body: { status: "error", code: "platform_admin_access_denied" }
+    }));
+    await page.goto("/new_linkdocs.html?bot_id=42");
+    await expect(page.locator("tenant-account-menu")).toHaveCount(0);
+
+    await page.evaluate(() => {
+      const sidebar = document.createElement("chatbot-sidebar");
+      document.body.appendChild(sidebar);
+    });
+    await expect(page.locator("tenant-account-menu")).toHaveCount(1);
+
+    await page.evaluate(() => {
+      const sidebar = document.createElement("chatbot-sidebar");
+      document.body.appendChild(sidebar);
+    });
+    await expect(page.locator("tenant-account-menu")).toHaveCount(1);
+    await openAccountMenu(page);
+    await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
+  });
+
+  test("public and platform pages do not receive the tenant account menu", async ({ page }) => {
+    await installTenantSession(page);
+    await mockTenantPageApis(page, () => ({
+      status: 403,
+      body: { status: "error", code: "platform_admin_access_denied" }
+    }));
+
+    for (const path of ["/landing.html", "/login.html", "/platform-admin.html"]) {
+      await page.goto(path);
+      await expect(page.locator("tenant-account-menu")).toHaveCount(0);
+    }
   });
 });
 
