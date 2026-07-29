@@ -212,7 +212,7 @@ function formatTimeSimple(dateStr) {
             this.platformController = null;
             this.boundDocumentClick = this.handleDocumentClick.bind(this);
             this.boundKeydown = this.handleKeydown.bind(this);
-            this.boundPageHide = this.abortPlatformCheck.bind(this);
+            this.boundPageHide = this.handlePageHide.bind(this);
         }
 
         connectedCallback() {
@@ -226,6 +226,8 @@ function formatTimeSimple(dateStr) {
             document.removeEventListener("click", this.boundDocumentClick);
             document.removeEventListener("keydown", this.boundKeydown);
             window.removeEventListener("pagehide", this.boundPageHide);
+            this.closeMenu();
+            this.publishOpenState(false);
             this.abortPlatformCheck();
         }
 
@@ -308,6 +310,7 @@ function formatTimeSimple(dateStr) {
             identity.append(identityName, identityEmail);
 
             var profile = this.linkItem("profile.html" + this.profileQuery(), "Profile", "user-circle");
+            var support = this.linkItem("support.html", "Support", "circle-help");
             this.platformLink = this.linkItem("platform-admin.html", "Platform Administration", "shield", "platform-item");
             this.platformLink.hidden = true;
             var divider = document.createElement("div");
@@ -323,7 +326,7 @@ function formatTimeSimple(dateStr) {
                 window.logout();
             });
 
-            menu.append(identity, profile, this.platformLink, divider, logoutButton);
+            menu.append(identity, profile, support, this.platformLink, divider, logoutButton);
             this.shadowRoot.append(style, button, menu);
             this.button = button;
             this.menu = menu;
@@ -362,6 +365,7 @@ function formatTimeSimple(dateStr) {
             this.isOpen = true;
             this.menu.hidden = false;
             this.button.setAttribute("aria-expanded", "true");
+            this.publishOpenState(true);
             if (this.platformState === "unknown" || this.platformState === "unavailable") {
                 this.checkPlatformAccess();
             }
@@ -372,6 +376,26 @@ function formatTimeSimple(dateStr) {
             this.isOpen = false;
             this.menu.hidden = true;
             this.button.setAttribute("aria-expanded", "false");
+            this.publishOpenState(false);
+        }
+
+        publishOpenState(isOpen) {
+            var root = document.documentElement;
+            var menuBottom = 0;
+            if (isOpen && this.menu) {
+                menuBottom = Math.ceil(this.menu.getBoundingClientRect().bottom);
+                root.dataset.tenantAccountMenuOpen = "true";
+                root.style.setProperty("--tenant-account-menu-bottom", menuBottom + "px");
+            } else {
+                delete root.dataset.tenantAccountMenuOpen;
+                root.style.removeProperty("--tenant-account-menu-bottom");
+            }
+            window.dispatchEvent(new CustomEvent("tenant-account-menu-toggle", {
+                detail: {
+                    open: isOpen,
+                    menuBottom: menuBottom
+                }
+            }));
         }
 
         handleDocumentClick(event) {
@@ -386,6 +410,12 @@ function formatTimeSimple(dateStr) {
             if (!this.isOpen || event.key !== "Escape") return;
             this.closeMenu();
             this.button.focus();
+        }
+
+        handlePageHide() {
+            this.closeMenu();
+            this.publishOpenState(false);
+            this.abortPlatformCheck();
         }
 
         abortPlatformCheck() {

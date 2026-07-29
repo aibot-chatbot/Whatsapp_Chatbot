@@ -90,13 +90,77 @@ async function accountMenuRect(page) {
   });
 }
 
+async function accountButtonRect(page) {
+  return page.locator("tenant-account-menu").evaluate(element => {
+    const button = element.shadowRoot.querySelector(".account-button");
+    const rect = button.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height
+    };
+  });
+}
+
+async function elementRect(page, selector) {
+  return page.locator(selector).evaluate(element => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left,
+      right: rect.right,
+      top: rect.top,
+      bottom: rect.bottom,
+      width: rect.width,
+      height: rect.height
+    };
+  });
+}
+
+function intersects(a, b) {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+function expectInsideViewport(rect, viewport) {
+  expect(rect.left).toBeGreaterThanOrEqual(0);
+  expect(rect.top).toBeGreaterThanOrEqual(0);
+  expect(rect.right).toBeLessThanOrEqual(viewport.width);
+  expect(rect.bottom).toBeLessThanOrEqual(viewport.height);
+}
+
+async function datePillReadability(page) {
+  return page.locator("#dashboard-date-pill").evaluate(pill => {
+    const text = pill.querySelector("#date-display");
+    const textRect = text.getBoundingClientRect();
+    return {
+      width: pill.getBoundingClientRect().width,
+      clientWidth: pill.clientWidth,
+      scrollWidth: pill.scrollWidth,
+      textWidth: textRect.width,
+      textHeight: textRect.height,
+      lineCount: text.getClientRects().length,
+      text: text.textContent
+    };
+  });
+}
+
+function expectReadableDate(metrics, width) {
+  expect(metrics.width, `date pill is too narrow to read at ${width}px`).toBeGreaterThanOrEqual(90);
+  expect(metrics.scrollWidth, `date text is clipped at ${width}px`).toBeLessThanOrEqual(metrics.clientWidth + 1);
+  expect(metrics.textWidth, `date text collapsed into one-character lines at ${width}px`).toBeGreaterThanOrEqual(70);
+  expect(metrics.lineCount, `date text wraps too aggressively at ${width}px`).toBeLessThanOrEqual(2);
+  expect(metrics.text, `date text is empty at ${width}px`).toMatch(/\S/);
+}
+
 test.describe("tenant account menu shared placement", () => {
-  test("bots page uses the shared account menu with Profile and Logout", async ({ page }) => {
+  test("bots page uses the shared account menu with Profile, Support, and Logout", async ({ page }) => {
     const calls = await openTenantPage(page, "/bots.html");
 
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
-    await expect(page.getByRole("menuitem", { name: "Support" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Support" })).toHaveAttribute("href", /support\.html$/);
     await expect(page.getByRole("menuitem", { name: "Logout" })).toBeVisible();
     expect(calls.filter(call => call.path === "/api/platform-admin/me")).toHaveLength(1);
     await expect(page.getByRole("menuitem", { name: "Platform Administration", includeHidden: true })).toBeHidden();
@@ -118,6 +182,7 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.locator("chatbot-sidebar tenant-account-menu")).toHaveCount(0);
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Logout" })).toBeVisible();
     await expect(page.locator("chatbot-sidebar")).not.toContainText("Profile");
     await expect(page.locator("chatbot-sidebar")).not.toContainText("Logout");
@@ -161,6 +226,62 @@ test.describe("tenant account menu shared placement", () => {
     expect(rect.right).toBeLessThanOrEqual(390);
   });
 
+  test("dashboard date pill and account menu do not overlap across responsive widths", async ({ page }) => {
+    for (const width of [1440, 1280, 1024, 768, 390, 320]) {
+      const height = width <= 390 ? 760 : 720;
+      await page.setViewportSize({ width, height });
+      await openTenantPage(page, "/index.html?bot_id=42");
+      await expect(page.getByRole("heading", { name: /Dashboard/ })).toBeVisible();
+      await expect(page.locator("#dashboard-date-pill")).toBeVisible();
+
+      const viewport = page.viewportSize();
+      const accountButton = await accountButtonRect(page);
+      const datePill = await elementRect(page, "#dashboard-date-pill");
+      const title = await elementRect(page, "#dashboard-title");
+      const subtitle = await elementRect(page, "#dashboard-subtitle");
+      const dateMetrics = await datePillReadability(page);
+      const subtitleToDateGap = datePill.top - subtitle.bottom;
+      const titleToDateOffset = datePill.top - title.top;
+
+      expectInsideViewport(accountButton, viewport);
+      expectInsideViewport(datePill, viewport);
+      expectInsideViewport(title, viewport);
+      expectInsideViewport(subtitle, viewport);
+      expect(subtitleToDateGap, `date pill has excessive subtitle gap at ${width}px`).toBeGreaterThanOrEqual(0);
+      expect(subtitleToDateGap, `date pill has excessive subtitle gap at ${width}px`).toBeLessThanOrEqual(48);
+      expect(titleToDateOffset, `date pill is displaced too far from dashboard title at ${width}px`).toBeLessThanOrEqual(180);
+      expectReadableDate(dateMetrics, width);
+      expect(intersects(accountButton, datePill), `closed account button overlaps date pill at ${width}px`).toBe(false);
+
+      await openAccountMenu(page);
+      const accountMenu = await accountMenuRect(page);
+      const openDatePill = await elementRect(page, "#dashboard-date-pill");
+      const openTitle = await elementRect(page, "#dashboard-title");
+      const openSubtitle = await elementRect(page, "#dashboard-subtitle");
+      const openDateMetrics = await datePillReadability(page);
+      expectInsideViewport(accountMenu, viewport);
+      expectInsideViewport(openDatePill, viewport);
+      expectInsideViewport(openTitle, viewport);
+      expectInsideViewport(openSubtitle, viewport);
+      expectReadableDate(openDateMetrics, width);
+      expect(intersects(accountMenu, openDatePill), `open account menu overlaps date pill at ${width}px`).toBe(false);
+      await page.keyboard.press("Escape");
+      const closedAgainDatePill = await elementRect(page, "#dashboard-date-pill");
+      const closedAgainSubtitle = await elementRect(page, "#dashboard-subtitle");
+      const closedAgainGap = closedAgainDatePill.top - closedAgainSubtitle.bottom;
+      expect(closedAgainGap, `header stays displaced after menu closes at ${width}px`).toBeGreaterThanOrEqual(0);
+      expect(closedAgainGap, `header stays displaced after menu closes at ${width}px`).toBeLessThanOrEqual(48);
+
+      if (width <= 768) {
+        await page.getByRole("button", { name: "Open menu" }).click();
+        await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
+        await expect(page.getByRole("button", { name: "Open account menu" })).toBeVisible();
+        const mobileAccountButton = await accountButtonRect(page);
+        expectInsideViewport(mobileAccountButton, viewport);
+      }
+    }
+  });
+
   test("late-rendered sidebar pages receive exactly one floating account menu", async ({ page }) => {
     await installTenantSession(page);
     await mockTenantPageApis(page, () => ({
@@ -195,6 +316,92 @@ test.describe("tenant account menu shared placement", () => {
     for (const path of ["/landing.html", "/login.html", "/platform-admin.html"]) {
       await page.goto(path);
       await expect(page.locator("tenant-account-menu")).toHaveCount(0);
+    }
+  });
+});
+
+test.describe("tenant support page", () => {
+  test("opens from the shared account menu and renders static help content", async ({ page }) => {
+    await openTenantPage(page, "/bots.html");
+
+    await openAccountMenu(page);
+    await page.getByRole("menuitem", { name: "Support" }).click();
+    await expect(page).toHaveURL(/support\.html$/);
+    await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
+    await expect(page.getByText("Common Help Topics")).toBeVisible();
+    await expect(page.getByText("Billing And AI Credits")).toBeVisible();
+    await expect(page.getByText("Direct support contact is not configured yet.")).toBeVisible();
+    await expect(page.locator("tenant-account-menu")).toHaveCount(1);
+    await expect(page.locator("form")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /submit|send|ticket|contact/i })).toHaveCount(0);
+  });
+
+  test("direct authenticated navigation works and renders safe account context", async ({ page }) => {
+    await openTenantPage(page, "/support.html", undefined, {
+      full_name: "Tenant Operator",
+      email: "tenant@example.test",
+      role: "member"
+    });
+
+    await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
+    await expect(page.locator("#support-account-name")).toHaveText("Tenant Operator");
+    await expect(page.locator("#support-account-email")).toHaveText("tenant@example.test");
+    await openAccountMenu(page);
+    await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
+  });
+
+  test("unauthenticated direct navigation redirects to login", async ({ page }) => {
+    await mockTenantPageApis(page, () => ({
+      status: 403,
+      body: { status: "error", code: "platform_admin_access_denied" }
+    }));
+
+    await page.goto("/support.html");
+    await expect(page).toHaveURL(/login\.html$/);
+  });
+
+  test("account name and email with HTML-like text render as text only", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__supportInjected = false;
+    });
+    await openTenantPage(page, "/support.html", undefined, {
+      full_name: "<img src=x onerror=window.__supportInjected=true>",
+      email: "<script>window.__supportInjected=true</script>",
+      role: "owner"
+    });
+
+    await expect(page.locator("#support-account-name")).toHaveText("<img src=x onerror=window.__supportInjected=true>");
+    await expect(page.locator("#support-account-email")).toHaveText("<script>window.__supportInjected=true</script>");
+    await expect(page.locator("#support-account-name img")).toHaveCount(0);
+    await expect(page.locator("#support-account-email script")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.__supportInjected)).toBe(false);
+  });
+
+  test("support page remains usable at mobile width with no duplicate menu", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 760 });
+    await openTenantPage(page, "/support.html");
+
+    await expect(page.locator("tenant-account-menu")).toHaveCount(1);
+    await openAccountMenu(page);
+    await expect(page.getByRole("menu")).toBeVisible();
+    const rect = await accountMenuRect(page);
+    expect(rect.left).toBeGreaterThanOrEqual(0);
+    expect(rect.right).toBeLessThanOrEqual(390);
+    await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
+  });
+
+  test("all rendered Support quick links resolve to local static pages", async ({ page }) => {
+    await openTenantPage(page, "/support.html");
+    const hrefs = await page.locator("[data-support-link]").evaluateAll(links =>
+      links.map(link => link.getAttribute("href"))
+    );
+
+    expect(hrefs.length).toBeGreaterThan(0);
+    expect(new Set(hrefs).size).toBe(hrefs.length);
+    for (const href of hrefs) {
+      expect(href).toMatch(/^[a-z_]+\.html$/);
+      const response = await page.request.get(new URL(href, page.url()).toString());
+      expect(response.status(), href).toBe(200);
     }
   });
 });
@@ -312,7 +519,7 @@ test.describe("tenant account menu navigation and read-only boundary", () => {
 
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toHaveAttribute("href", /profile\.html$/);
-    await expect(page.getByRole("menuitem", { name: "Support" })).toHaveCount(0);
+    await expect(page.getByRole("menuitem", { name: "Support" })).toHaveAttribute("href", /support\.html$/);
     await page.getByRole("menuitem", { name: "Logout" }).click();
     await expect(page).toHaveURL(/login\.html$/);
   });
