@@ -55,8 +55,11 @@
         .header {
             margin-bottom: 40px;
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
+            justify-content: flex-start;
             align-items: flex-start;
+            gap: 14px;
+            max-width: min(760px, calc(100vw - 132px));
         }
 
         .header h1 {
@@ -68,6 +71,17 @@
         .header p {
             color: var(--text-dim);
             margin-top: 8px;
+        }
+
+        .dashboard-date-pill {
+            padding: 10px 20px;
+            color: var(--accent);
+            font-weight: 600;
+            width: fit-content;
+            min-width: 190px;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            text-align: center;
         }
 
         /* ===== Glass Cards (from shared-glass.css) ===== */
@@ -282,9 +296,19 @@
             }
 
             .header {
-                flex-direction: column;
                 gap: 16px;
                 align-items: stretch;
+                max-width: 100%;
+            }
+
+            .dashboard-date-pill {
+                align-self: flex-start;
+                min-width: min(190px, 100%);
+                max-width: min(260px, 100%);
+                padding: 8px 12px;
+                font-size: 0.82rem;
+                line-height: 1.25;
+                white-space: nowrap;
             }
 
             .stats-grid {
@@ -301,6 +325,12 @@
                 display: none;
             }
         }
+
+        @media (max-width: 360px) {
+            .dashboard-date-pill {
+                font-size: 0.72rem;
+            }
+        }
     </style>
 </head>
 
@@ -313,9 +343,10 @@
         <div class="header">
             <div>
                 <h1 id="dashboard-title">Dashboard</h1>
-                <p>Welcome back! Here's the live overview of your Chatbot's configuration and usage.</p>
+                <p id="dashboard-subtitle">Welcome back! Here's the live overview of your Chatbot's configuration and
+                    usage.</p>
             </div>
-            <div class="glass-card" style="padding: 10px 20px; color: var(--accent); font-weight: 600;">
+            <div class="glass-card dashboard-date-pill" id="dashboard-date-pill">
                 <span id="date-display">--</span>
             </div>
         </div>
@@ -520,6 +551,11 @@
             }
 
             updateDate();
+            window.addEventListener('resize', () => {
+                updateDate();
+                updateAccountMenuHeaderOffset();
+            });
+            window.addEventListener('tenant-account-menu-toggle', updateAccountMenuHeaderOffset);
             fetchSelectedBot();
             fetchBotHealth();
             fetchDashboardData();
@@ -531,9 +567,34 @@
         function updateDate() {
             const dateEl = document.getElementById('date-display');
             if (dateEl) {
-                const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-                dateEl.innerText = new Date().toLocaleDateString(undefined, options);
+                const now = new Date();
+                const isNarrow = window.matchMedia('(max-width: 420px)').matches;
+                const options = isNarrow
+                    ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+                    : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+                const formatted = now.toLocaleDateString(undefined, options);
+                dateEl.textContent = formatted;
             }
+        }
+
+        function updateAccountMenuHeaderOffset(event) {
+            const header = document.querySelector('.header');
+            if (!header) return;
+            const isNarrow = window.matchMedia('(max-width: 768px)').matches;
+            const isOpen = event?.detail?.open ?? document.documentElement.dataset.tenantAccountMenuOpen === 'true';
+            if (!isNarrow || !isOpen) {
+                header.style.removeProperty('margin-top');
+                return;
+            }
+            const menuBottom = Number(event?.detail?.menuBottom || getComputedStyle(document.documentElement)
+                .getPropertyValue('--tenant-account-menu-bottom').replace('px', ''));
+            if (!Number.isFinite(menuBottom) || menuBottom <= 0) {
+                header.style.removeProperty('margin-top');
+                return;
+            }
+            const headerTop = header.getBoundingClientRect().top;
+            const offset = Math.max(0, Math.ceil(menuBottom - headerTop + 16));
+            header.style.marginTop = `${offset}px`;
         }
 
         async function fetchSelectedBot() {
