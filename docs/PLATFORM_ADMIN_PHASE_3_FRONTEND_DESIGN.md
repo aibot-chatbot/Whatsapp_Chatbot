@@ -59,12 +59,13 @@ subscription changes remain out of scope.
   unavailable states, stale-data clearing, request lifecycle, dashboard counts,
   directory controls, detail loading order, safe text rendering, navigation,
   role-independence, and read-only boundary checks.
-- Current local mocked Playwright tenant account-menu browser suite: 15 passed.
+- Current local mocked Playwright tenant account-menu browser suite: 18 passed.
   `tests/browser/tenant-account-menu.spec.js` covers shared placement,
   sidebar cleanup, keyboard and outside-click behavior, lazy platform-admin
   discovery, 401/403/503/network outcomes, duplicate-request suppression,
-  reload rechecks, local-role/flag non-authority, navigation, and read-only
-  boundaries.
+  reload rechecks, local-role/flag non-authority, navigation, mobile
+  sidebar/menu collision prevention, late-rendered sidebar mounting,
+  public/platform page exclusion, and read-only boundaries.
 - Current focused platform-admin frontend source-contract suite: 31 passed,
   6 subtests passed.
 - Current focused platform-admin Python suite: 96 passed, 145 subtests passed.
