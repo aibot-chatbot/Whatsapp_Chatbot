@@ -134,13 +134,16 @@
         refreshIcons();
 
         function formatPrice(price, currency, interval) {
-            if (price === null || price === undefined) return '<span class="free-text">Free</span>';
+            if (price === null || price === undefined) return "Free";
             var num = parseFloat(price);
-            if (isNaN(num) || num <= 0) return '<span class="free-text">Free</span>';
+            if (isNaN(num) || num <= 0) return "Free";
             var curr = currency || "MYR";
             var intv = interval || "monthly";
             var label = intv.charAt(0).toUpperCase() + intv.slice(1);
-            return "RM " + num.toFixed(2) + ' <span class="interval">/ ' + label + "</span>";
+            return {
+                amount: "RM " + num.toFixed(2),
+                interval: "/ " + label
+            };
         }
 
         function formatLimit(val, isStorage) {
@@ -161,16 +164,134 @@
             return "RM " + myr;
         }
 
-        function buildFeatureItem(label, value, isStorage) {
+        function pluralize(value, singular, plural) {
+            return value === 1 ? singular : plural;
+        }
+
+        function appendIcon(parent, icon, className) {
+            var span = document.createElement("span");
+            span.className = className || icon;
+            var i = document.createElement("i");
+            i.setAttribute("data-lucide", icon);
+            i.style.width = "16px";
+            i.style.height = "16px";
+            span.appendChild(i);
+            parent.appendChild(span);
+        }
+
+        function appendText(parent, text) {
+            parent.appendChild(document.createTextNode(text));
+        }
+
+        function appendLabel(parent, text) {
+            var label = document.createElement("span");
+            label.className = "label";
+            label.textContent = text;
+            parent.appendChild(label);
+        }
+
+        function appendPrice(priceNode, price, currency, interval) {
+            var formatted = formatPrice(price, currency, interval);
+            if (formatted === "Free") {
+                var free = document.createElement("span");
+                free.className = "free-text";
+                free.textContent = "Free";
+                priceNode.appendChild(free);
+                return;
+            }
+            appendText(priceNode, formatted.amount + " ");
+            var intv = document.createElement("span");
+            intv.className = "interval";
+            intv.textContent = formatted.interval;
+            priceNode.appendChild(intv);
+        }
+
+        function buildFeatureItem(singularLabel, pluralLabel, value, isStorage, key) {
             var display = formatLimit(value, isStorage);
+            var label = isStorage ? singularLabel : pluralize(value, singularLabel, pluralLabel);
             var icon = (value !== null && value !== undefined && value > 0) ? "check" : "cross";
-            return '<li><span class="' + icon + '"><i data-lucide="' + icon + '" style="width:16px;height:16px;"></i></span> ' + display + ' <span class="label">' + label + "</span></li>";
+            var item = document.createElement("li");
+            item.dataset.featureKey = key;
+            item.dataset.enabled = icon === "check" ? "true" : "false";
+            appendIcon(item, icon);
+            appendText(item, " " + display + " ");
+            appendLabel(item, label);
+            return item;
         }
 
         function buildFlagItem(key, enabled) {
-            var label = key.replace(/_/g, " ").replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+            var labels = {
+                "ai_assisted_menu_generation": "AI-Assisted Menu Generation",
+                "ai_generated_reports": "AI-Generated Reports",
+                "crm_lead_assignment": "CRM Lead Assignment",
+                "single_website_scraping": "Single Website Scraping",
+                "batch_website_scraping": "Batch Website Scraping"
+            };
+            var label = labels[key];
             var icon = enabled ? "check" : "cross";
-            return '<li><span class="' + icon + '"><i data-lucide="' + icon + '" style="width:16px;height:16px;"></i></span> ' + label + "</li>";
+            var item = document.createElement("li");
+            item.dataset.featureKey = key;
+            item.dataset.enabled = enabled ? "true" : "false";
+            appendIcon(item, icon);
+            appendText(item, " " + label);
+            return item;
+        }
+
+        var CUSTOMER_FEATURE_FLAGS = [
+            "ai_assisted_menu_generation",
+            "ai_generated_reports",
+            "crm_lead_assignment",
+            "single_website_scraping",
+            "batch_website_scraping"
+        ];
+
+        function buildModelItem(code, tier) {
+            var item = document.createElement("li");
+            item.dataset.featureKey = "model_access_tier";
+            item.dataset.enabled = "true";
+            appendIcon(item, "check");
+            if (code === "free") {
+                appendText(item, " AI Models: ");
+                appendLabel(item, "DeepSeek Only");
+            } else {
+                var safeTier = tier || "economy";
+                appendText(item, " " + safeTier.charAt(0).toUpperCase() + safeTier.slice(1) + " Model Tier");
+            }
+            return item;
+        }
+
+        function buildAiCreditItem(microMyr) {
+            var item = document.createElement("li");
+            item.dataset.featureKey = "included_ai_credit_micro_myr";
+            item.dataset.enabled = "true";
+            appendIcon(item, "check");
+            appendText(item, " AI Credit: ");
+            appendLabel(item, formatAiCredit(microMyr));
+            return item;
+        }
+
+        function buildButton(className, text, icon, onClick) {
+            var button = document.createElement("button");
+            button.className = className;
+            button.type = "button";
+            if (icon) {
+                var i = document.createElement("i");
+                i.setAttribute("data-lucide", icon);
+                i.setAttribute("size", "18");
+                button.appendChild(i);
+                appendText(button, " ");
+            }
+            appendText(button, text);
+            if (onClick) button.addEventListener("click", onClick);
+            return button;
+        }
+
+        function buildStaticAction(className, text, compact) {
+            var node = document.createElement("div");
+            node.className = className;
+            if (compact) node.style.fontSize = "0.8rem";
+            node.textContent = text;
+            return node;
         }
 
         function getBotQuery() { var p = new URLSearchParams(window.location.search); var bId = p.get("bot_id"); return bId ? "?bot_id=" + encodeURIComponent(bId) : ""; }
@@ -201,51 +322,65 @@
 
                 // Sort plans: Free first, then Essential, Advanced, Pro
                 var order = { "free": 0, "essential": 1, "advanced": 2, "pro": 3 };
-                plans.sort(function(a, b) { return (order[a.code] || 99) - (order[b.code] || 99); });
+                plans.sort(function(a, b) {
+                    var aCode = (a.code || "").toLowerCase();
+                    var bCode = (b.code || "").toLowerCase();
+                    var aRank = Object.prototype.hasOwnProperty.call(order, aCode) ? order[aCode] : 99;
+                    var bRank = Object.prototype.hasOwnProperty.call(order, bCode) ? order[bCode] : 99;
+                    return aRank - bRank;
+                });
 
-                var html = "";
+                grid.replaceChildren();
                 plans.forEach(function(plan) {
                     var code = (plan.code || "").toLowerCase();
                     var isCurrent = code === currentPlanCode;
                     var name = plan.name || code.charAt(0).toUpperCase() + code.slice(1);
-                    var priceHtml = formatPrice(plan.price, plan.currency, plan.billing_interval);
                     var desc = plan.description || "";
                     var features = plan.feature_flags || {};
                     var tier = plan.model_access_tier || "economy";
 
-                    var cardClass = "plan-card" + (isCurrent ? " current-plan" : "");
-                    var badgeHtml = isCurrent ? '<div class="plan-badge">Current</div>' : "";
-
-                    var featuresHtml = "";
-                    featuresHtml += buildFeatureItem("Chatbots", plan.chatbot_limit, false);
-                    featuresHtml += buildFeatureItem("Team Members", plan.team_member_limit, false);
-                    featuresHtml += buildFeatureItem("Channels", plan.channel_limit, false);
-                    featuresHtml += buildFeatureItem("Knowledge Files", plan.knowledge_file_limit, false);
-                    featuresHtml += buildFeatureItem("Knowledge Storage", plan.knowledge_storage_limit_bytes, true);
-                    if (code === 'free') {
-                        featuresHtml += '<li><span class="check"><i data-lucide="check" style="width:16px;height:16px;"></i></span> AI Models: <span class="label">DeepSeek Only</span></li>';
-                    } else {
-                        featuresHtml += '<li><span class="check"><i data-lucide="check" style="width:16px;height:16px;"></i></span> Model Tier: <span class="label">' + tier.charAt(0).toUpperCase() + tier.slice(1) + " (OpenRouter)</span></li>";
-                        
-                        let tierDesc = "";
-                        if (tier === "economy") tierDesc = "Gemini Flash, Qwen, Mistral Devstral";
-                        if (tier === "standard") tierDesc = "GPT-4.1, Claude Sonnet 4, Gemini Pro";
-                        if (tier === "premium") tierDesc = "GPT-5.5 Pro, Claude 4.7, Grok 4.3";
-                        
-                        if (tierDesc) {
-                            featuresHtml += '<li style="padding-left: 28px; font-size: 0.85em; color: #8b9bb4; margin-top: -8px; margin-bottom: 8px; list-style-type: none;">↳ Includes: ' + tierDesc + '</li>';
-                        }
-                    }
-                    featuresHtml += "<li><span class='check'><i data-lucide='check' style='width:16px;height:16px;'></i></span> AI Credit: <span class='label'>" + formatAiCredit(plan.included_ai_credit_micro_myr) + "</span></li>";
-
-                    // Feature flags
-                    if (typeof features === "object" && features !== null) {
-                        Object.keys(features).forEach(function(key) {
-                            featuresHtml += buildFlagItem(key, features[key] === true);
-                        });
+                    var card = document.createElement("div");
+                    card.className = "plan-card" + (isCurrent ? " current-plan" : "");
+                    if (isCurrent) {
+                        var badge = document.createElement("div");
+                        badge.className = "plan-badge";
+                        badge.textContent = "Current";
+                        card.appendChild(badge);
                     }
 
-                    var btnHtml = "";
+                    var nameNode = document.createElement("div");
+                    nameNode.className = "plan-name";
+                    nameNode.textContent = name;
+                    card.appendChild(nameNode);
+
+                    var priceNode = document.createElement("div");
+                    priceNode.className = "plan-price";
+                    appendPrice(priceNode, plan.price, plan.currency, plan.billing_interval);
+                    card.appendChild(priceNode);
+
+                    var descNode = document.createElement("div");
+                    descNode.className = "plan-desc";
+                    descNode.textContent = desc;
+                    card.appendChild(descNode);
+
+                    var featuresList = document.createElement("ul");
+                    featuresList.className = "plan-features";
+                    featuresList.appendChild(buildFeatureItem("Chatbot", "Chatbots", plan.chatbot_limit, false, "chatbot_limit"));
+                    featuresList.appendChild(buildFeatureItem("Team Member", "Team Members", plan.team_member_limit, false, "team_member_limit"));
+                    featuresList.appendChild(buildFeatureItem("Channel", "Channels", plan.channel_limit, false, "channel_limit"));
+                    featuresList.appendChild(buildFeatureItem("Knowledge File", "Knowledge Files", plan.knowledge_file_limit, false, "knowledge_file_limit"));
+                    featuresList.appendChild(buildFeatureItem("Storage", "Storage", plan.knowledge_storage_limit_bytes, true, "knowledge_storage_limit_bytes"));
+                    featuresList.appendChild(buildModelItem(code, tier));
+                    featuresList.appendChild(buildAiCreditItem(plan.included_ai_credit_micro_myr));
+
+                    CUSTOMER_FEATURE_FLAGS.forEach(function(key) {
+                        var enabled = typeof features === "object" && features !== null && features[key] === true;
+                        featuresList.appendChild(buildFlagItem(key, enabled));
+                    });
+                    card.appendChild(featuresList);
+
+                    var footer = document.createElement("div");
+                    footer.className = "plan-footer";
                     var subStatus = subscription ? (subscription.status || "").toLowerCase() : "";
                     var planRank = { "free": 0, "essential": 1, "advanced": 2, "pro": 3 };
                     var currentRank = isCurrent ? (planRank[code] ?? -1) : -1;
@@ -261,46 +396,44 @@
                     if (isCurrent) {
                         // Current plan card
                         if (code === "free" && subStatus === "trialing") {
-                            btnHtml = "<div class=\"btn-upgrade current\">Current Trial</div>";
+                            footer.appendChild(buildStaticAction("btn-upgrade current", "Current Trial"));
                         } else if (isDowngradeTarget) {
-                            btnHtml = "<div class=\"btn-upgrade current\">Scheduled</div>";
+                            footer.appendChild(buildStaticAction("btn-upgrade current", "Scheduled"));
                         } else if (hasCancellationScheduled) {
-                            btnHtml = "<div class=\"btn-upgrade current\" style=\"font-size:0.8rem;\">Cancelling at period end</div>";
+                            footer.appendChild(buildStaticAction("btn-upgrade current", "Cancelling at period end", true));
                         } else {
-                            btnHtml = "<div class=\"btn-upgrade current\">Current Plan</div>";
+                            footer.appendChild(buildStaticAction("btn-upgrade current", "Current Plan"));
                         }
                     } else if (isFree) {
                         // Free card - only relevant for non-free current users
                         if (isTrialOrNoSub) {
-                            btnHtml = '<div class="btn-upgrade coming-soon">Free Plan</div>';
+                            footer.appendChild(buildStaticAction("btn-upgrade coming-soon", "Free Plan"));
                         } else {
-                            btnHtml = '<div class="btn-upgrade coming-soon" style="font-size:0.8rem;">Trial plan for new accounts only</div>';
+                            footer.appendChild(buildStaticAction("btn-upgrade coming-soon", "Trial plan for new accounts only", true));
                         }
                     } else if (subStatus === "past_due" || subStatus === "expired") {
                         // Expired/past due paid user
                         if (thisRank > prevCurrentRank) {
-                            btnHtml = '<button class="btn-upgrade primary-bg" onclick="handleUpgrade(\u0027' + code + '\u0027)"><i data-lucide="zap" size="18"></i> Renew &amp; Upgrade</button>';
+                            footer.appendChild(buildButton("btn-upgrade primary-bg", "Renew & Upgrade", "zap", function() { handleUpgrade(code); }));
                         } else if (thisRank < prevCurrentRank) {
-                            btnHtml = '<button class="btn-upgrade" style="background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;" onclick="handleDowngrade(\u0027' + code + '\u0027)">Change on Renewal</button>';
+                            var changeButton = buildButton("btn-upgrade", "Change on Renewal", null, function() { handleDowngrade(code); });
+                            changeButton.style.cssText = "background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;";
+                            footer.appendChild(changeButton);
                         } else {
-                            btnHtml = '<button class="btn-upgrade primary-bg" onclick="handleUpgrade(\u0027' + code + '\u0027)"><i data-lucide="zap" size="18"></i> Renew Plan</button>';
+                            footer.appendChild(buildButton("btn-upgrade primary-bg", "Renew Plan", "zap", function() { handleUpgrade(code); }));
                         }
                     } else if (prevCurrentRank > 0 && thisRank < prevCurrentRank) {
                         // Paid user looking at lower paid plan
-                        btnHtml = '<button class="btn-upgrade" style="background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;" onclick="handleDowngrade(\u0027' + code + '\u0027)"><i data-lucide="arrow-down" size="18"></i> Downgrade</button>';
+                        var downgradeButton = buildButton("btn-upgrade", "Downgrade", "arrow-down", function() { handleDowngrade(code); });
+                        downgradeButton.style.cssText = "background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;";
+                        footer.appendChild(downgradeButton);
                     } else {
                         // Upgrade (trial, free without trial, or paid user looking at higher plan)
-                        btnHtml = '<button class="btn-upgrade primary-bg" onclick="handleUpgrade(\u0027' + code + '\u0027)"><i data-lucide="zap" size="18"></i> Upgrade</button>';
+                        footer.appendChild(buildButton("btn-upgrade primary-bg", "Upgrade", "zap", function() { handleUpgrade(code); }));
                     }
-                    html += '<div class="' + cardClass + '">' + badgeHtml +
-                        '<div class="plan-name">' + name + "</div>" +
-                        '<div class="plan-price">' + priceHtml + "</div>" +
-                        '<div class="plan-desc">' + desc + "</div>" +
-                        '<ul class="plan-features">' + featuresHtml + "</ul>" +
-                        '<div class="plan-footer">' + btnHtml + "</div>" +
-                        "</div>";
+                    card.appendChild(footer);
+                    grid.appendChild(card);
                 });
-                grid.innerHTML = html;
                 refreshIcons();
             } catch (e) {
                 console.error("Failed to load pricing:", e);
@@ -313,7 +446,29 @@
         function subConfirmModal(title, msg, confirmLabel, confirmColor, onConfirm) {
             var overlay = document.createElement("div");
             overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;";
-            overlay.innerHTML = '<div style=\"background:var(--card-bg);border:1px solid var(--glass-border);border-radius:16px;padding:28px;max-width:420px;width:90%;box-shadow:0 25px 50px rgba(0,0,0,0.5);\"><h3 style=\"font-size:1.1rem;font-weight:600;color:var(--text-main);margin:0 0 12px 0;\">' + title + '</h3><p style=\"font-size:0.9rem;color:var(--text-dim);line-height:1.5;margin:0 0 20px 0;\">' + msg + '</p><div style=\"display:flex;gap:10px;justify-content:flex-end;\"><button id=\"pricing-modal-cancel\" style=\"padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer;border:none;background:rgba(255,255,255,0.08);color:var(--text-main);\">Cancel</button><button id=\"pricing-modal-confirm\" style=\"padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer;border:none;background:' + (confirmColor || 'var(--danger,#ef4444)') + ';color:white;\">' + confirmLabel + '</button></div></div>';
+            var modal = document.createElement("div");
+            modal.style.cssText = "background:var(--card-bg);border:1px solid var(--glass-border);border-radius:16px;padding:28px;max-width:420px;width:90%;box-shadow:0 25px 50px rgba(0,0,0,0.5);";
+            var heading = document.createElement("h3");
+            heading.style.cssText = "font-size:1.1rem;font-weight:600;color:var(--text-main);margin:0 0 12px 0;";
+            heading.textContent = title;
+            var body = document.createElement("p");
+            body.style.cssText = "font-size:0.9rem;color:var(--text-dim);line-height:1.5;margin:0 0 20px 0;white-space:pre-line;";
+            body.textContent = msg;
+            var actions = document.createElement("div");
+            actions.style.cssText = "display:flex;gap:10px;justify-content:flex-end;";
+            var cancel = document.createElement("button");
+            cancel.id = "pricing-modal-cancel";
+            cancel.type = "button";
+            cancel.style.cssText = "padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer;border:none;background:rgba(255,255,255,0.08);color:var(--text-main);";
+            cancel.textContent = "Cancel";
+            var confirm = document.createElement("button");
+            confirm.id = "pricing-modal-confirm";
+            confirm.type = "button";
+            confirm.style.cssText = "padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer;border:none;background:" + (confirmColor || 'var(--danger,#ef4444)') + ";color:white;";
+            confirm.textContent = confirmLabel;
+            actions.append(cancel, confirm);
+            modal.append(heading, body, actions);
+            overlay.appendChild(modal);
             document.body.appendChild(overlay);
             document.getElementById("pricing-modal-confirm").addEventListener("click", function() {
                 document.body.removeChild(overlay); if (onConfirm) onConfirm();

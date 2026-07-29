@@ -51,8 +51,8 @@ MOCK_PLANS = [
         "billing_interval": "monthly",
         "chatbot_limit": 1,
         "team_member_limit": 1,
-        "knowledge_file_limit": 10,
-        "knowledge_storage_limit_bytes": 10485760,
+        "knowledge_file_limit": 3,
+        "knowledge_storage_limit_bytes": 52428800,
         "channel_limit": 1,
         "feature_flags": {
             "single_website_scraping": False,
@@ -61,7 +61,7 @@ MOCK_PLANS = [
             "ai_assisted_menu_generation": False,
             "crm_lead_assignment": False,
         },
-        "included_ai_credit_micro_myr": 0,
+        "included_ai_credit_micro_myr": 1000000,
         "model_access_tier": "economy",
         "is_active": True,
     },
@@ -132,8 +132,8 @@ SERIALIZED_PLANS = [
         "billing_interval": "monthly",
         "chatbot_limit": 1,
         "team_member_limit": 1,
-        "knowledge_file_limit": 10,
-        "knowledge_storage_limit_bytes": 10485760,
+        "knowledge_file_limit": 3,
+        "knowledge_storage_limit_bytes": 52428800,
         "channel_limit": 1,
         "feature_flags": {
             "single_website_scraping": False,
@@ -142,7 +142,7 @@ SERIALIZED_PLANS = [
             "ai_assisted_menu_generation": False,
             "crm_lead_assignment": False,
         },
-        "included_ai_credit_micro_myr": 0,
+        "included_ai_credit_micro_myr": 1000000,
         "model_access_tier": "economy",
     },
     {
@@ -221,8 +221,8 @@ MOCK_SUBSCRIPTION = {
         "billing_interval": "monthly",
         "chatbot_limit": 1,
         "team_member_limit": 1,
-        "knowledge_file_limit": 10,
-        "knowledge_storage_limit_bytes": 10485760,
+        "knowledge_file_limit": 3,
+        "knowledge_storage_limit_bytes": 52428800,
         "channel_limit": 1,
         "feature_flags": {
             "single_website_scraping": False,
@@ -231,7 +231,7 @@ MOCK_SUBSCRIPTION = {
             "ai_assisted_menu_generation": False,
             "crm_lead_assignment": False,
         },
-        "included_ai_credit_micro_myr": 0,
+        "included_ai_credit_micro_myr": 1000000,
         "model_access_tier": "economy",
     },
 }
@@ -246,8 +246,8 @@ MOCK_USAGE = {
     "usage": {
         "chatbots": {"used": 1, "limit": 1},
         "team_members": {"used": 1, "limit": 1},
-        "knowledge_files": {"used": 0, "limit": 10},
-        "knowledge_storage_bytes": {"used": 0, "limit": 10485760},
+        "knowledge_files": {"used": 0, "limit": 3},
+        "knowledge_storage_bytes": {"used": 0, "limit": 52428800},
         "ai_tokens": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
         "channels": {"used": 1, "limit": 1},
     },
@@ -474,8 +474,8 @@ FREE_PLAN_WITH_LIMITS = {
         "code": "free",
         "chatbot_limit": 1,
         "team_member_limit": 1,
-        "knowledge_file_limit": 10,
-        "knowledge_storage_limit_bytes": 10485760,
+        "knowledge_file_limit": 3,
+        "knowledge_storage_limit_bytes": 52428800,
         "channel_limit": 1,
         "feature_flags": {"batch_website_scraping": False},
     },
@@ -499,8 +499,8 @@ FREE_USAGE_AT_LIMIT = {
     "usage": {
         "chatbots": {"used": 1, "limit": 1},
         "team_members": {"used": 1, "limit": 1},
-        "knowledge_files": {"used": 10, "limit": 10},
-        "knowledge_storage_bytes": {"used": 10485760, "limit": 10485760},
+        "knowledge_files": {"used": 3, "limit": 3},
+        "knowledge_storage_bytes": {"used": 52428800, "limit": 52428800},
         "channels": {"used": 1, "limit": 1},
     },
 }
@@ -509,8 +509,8 @@ FREE_USAGE_BELOW_LIMIT = {
     "usage": {
         "chatbots": {"used": 0, "limit": 1},
         "team_members": {"used": 0, "limit": 1},
-        "knowledge_files": {"used": 0, "limit": 10},
-        "knowledge_storage_bytes": {"used": 0, "limit": 10485760},
+        "knowledge_files": {"used": 0, "limit": 3},
+        "knowledge_storage_bytes": {"used": 0, "limit": 52428800},
         "channels": {"used": 0, "limit": 1},
     },
 }
@@ -736,7 +736,7 @@ class TestBillingGuard(unittest.TestCase):
 class TestMissingSubscriptionGuard(unittest.TestCase):
     """Tests that missing subscriptions fail closed or recover to Free plan."""
 
-    # Missing subscription — no recovery possible
+    # Missing subscription â€” no recovery possible
     @patch("app.services.billing_guard.get_current_subscription")
     @patch("app.services.billing_guard.ensure_default_company_subscription")
     def test_no_subscription_denies_chatbot(self, mock_ensure, mock_sub):
@@ -791,7 +791,7 @@ class TestMissingSubscriptionGuard(unittest.TestCase):
             can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
         self.assertEqual(ctx.exception.code, "no_subscription")
 
-    # Free-plan recovery — subscription missing but creatable
+    # Free-plan recovery â€” subscription missing but creatable
     @patch("app.services.billing_guard.get_current_subscription")
     @patch("app.services.billing_guard.ensure_default_company_subscription")
     @patch("app.services.billing_guard.get_company_usage")
@@ -835,7 +835,7 @@ class TestMissingSubscriptionGuard(unittest.TestCase):
         self.assertTrue(result1)
         self.assertTrue(result2)
 
-    # Missing Free plan — deny
+    # Missing Free plan â€” deny
     @patch("app.services.billing_guard.get_current_subscription")
     @patch("app.services.billing_guard.ensure_default_company_subscription")
     def test_missing_free_plan_denies(self, mock_ensure, mock_sub):
@@ -845,7 +845,7 @@ class TestMissingSubscriptionGuard(unittest.TestCase):
             can_create_chatbot(COMPANY_ID)
         self.assertEqual(ctx.exception.code, "no_subscription")
 
-    # Subscription creation failure — deny
+    # Subscription creation failure â€” deny
     @patch("app.services.billing_guard.get_current_subscription")
     @patch("app.services.billing_guard.ensure_default_company_subscription")
     def test_subscription_creation_failure_denies(self, mock_ensure, mock_sub):
@@ -855,7 +855,7 @@ class TestMissingSubscriptionGuard(unittest.TestCase):
             can_create_chatbot(COMPANY_ID)
         self.assertEqual(ctx.exception.code, "no_subscription")
 
-    # Repository exception — deny
+    # Repository exception â€” deny
     @patch("app.services.billing_guard.get_current_subscription")
     def test_repository_exception_denies(self, mock_sub):
         mock_sub.side_effect = Exception("Connection error")
@@ -863,7 +863,7 @@ class TestMissingSubscriptionGuard(unittest.TestCase):
             can_create_chatbot(COMPANY_ID)
         self.assertEqual(ctx.exception.code, "no_subscription")
 
-    # Subscription row without plan — deny
+    # Subscription row without plan â€” deny
     @patch("app.services.billing_guard.get_current_subscription")
     @patch("app.services.billing_guard.ensure_default_company_subscription")
     def test_subscription_without_plan_denies(self, mock_ensure, mock_sub):
@@ -873,7 +873,7 @@ class TestMissingSubscriptionGuard(unittest.TestCase):
             can_create_chatbot(COMPANY_ID)
         self.assertEqual(ctx.exception.code, "no_subscription")
 
-    # Invalid plan data — deny
+    # Invalid plan data â€” deny
     @patch("app.services.billing_guard.get_current_subscription")
     def test_invalid_plan_data_handled_safely(self, mock_sub):
         mock_sub.return_value = {"id": 1, "plan": {"chatbot_limit": None}}
@@ -1054,8 +1054,8 @@ class TestPlanSeedData(unittest.TestCase):
         free = [p for p in MOCK_PLANS if p["code"] == "free"][0]
         self.assertEqual(free["chatbot_limit"], 1)
         self.assertEqual(free["team_member_limit"], 1)
-        self.assertEqual(free["knowledge_file_limit"], 10)
-        self.assertEqual(free["knowledge_storage_limit_bytes"], 10485760)
+        self.assertEqual(free["knowledge_file_limit"], 3)
+        self.assertEqual(free["knowledge_storage_limit_bytes"], 52428800)
         self.assertEqual(free["channel_limit"], 1)
         self.assertEqual(free["model_access_tier"], "economy")
         self.assertIsNotNone(free["feature_flags"])
@@ -1064,6 +1064,16 @@ class TestPlanSeedData(unittest.TestCase):
         self.assertFalse(free["feature_flags"]["ai_generated_reports"])
         self.assertFalse(free["feature_flags"]["ai_assisted_menu_generation"])
         self.assertFalse(free["feature_flags"]["crm_lead_assignment"])
+
+    def test_free_plan_current_catalogue_includes_rm1_ai_credit(self):
+        """Current Free catalogue fixtures include RM1 of trial AI credit."""
+        free = [p for p in MOCK_PLANS if p["code"] == "free"][0]
+        serialized_free = [p for p in SERIALIZED_PLANS if p["code"] == "free"][0]
+        subscription_free = MOCK_SUBSCRIPTION["plan"]
+
+        self.assertEqual(free["included_ai_credit_micro_myr"], 1000000)
+        self.assertEqual(serialized_free["included_ai_credit_micro_myr"], 1000000)
+        self.assertEqual(subscription_free["included_ai_credit_micro_myr"], 1000000)
 
     def test_serialization_all_expected_keys(self):
         """Each serialized plan has all keys expected by the frontend."""
@@ -1181,22 +1191,22 @@ class TestPriceAndCreditSerialization(unittest.TestCase):
 
     @patch("app.services.billing_service._get_active_plans")
     def test_free_plan_price_in_plans_is_string(self, mock_get_plans):
-        """Free plan with price=0 serializes as string '0', not int 0."""
+        """Current Free plan price serializes as string and keeps RM1 credit."""
         mock_get_plans.return_value = [
             {"id": 1, "name": "Free", "code": "free", "price": 0,
-             "included_ai_credit_micro_myr": 0}
+             "included_ai_credit_micro_myr": 1000000}
         ]
         from app.services.billing_service import list_active_plans
         plans = list_active_plans()
         self.assertEqual(plans[0]["price"], "0")
-        self.assertEqual(plans[0]["included_ai_credit_micro_myr"], 0)
+        self.assertEqual(plans[0]["included_ai_credit_micro_myr"], 1000000)
         self.assertIsInstance(plans[0]["price"], str)
 
 
 
 
 # ==============================================================================
-# Phase 2A — New feature flags: single_website_scraping, crm_lead_assignment
+# Phase 2A â€” New feature flags: single_website_scraping, crm_lead_assignment
 # ==============================================================================
 
 class TestPhase2AFeatureFlagData(unittest.TestCase):
@@ -1274,7 +1284,7 @@ class TestPhase2AFeatureFlagData(unittest.TestCase):
         self.assertEqual(merged["batch_website_scraping"], True)
         self.assertEqual(merged["single_website_scraping"], False)
 
-# Raw seed data used by TestPlanSeedData — also include the new keys
+# Raw seed data used by TestPlanSeedData â€” also include the new keys
 MOCK_PLANS_WITH_NEW = [
     {
         "code": "free",

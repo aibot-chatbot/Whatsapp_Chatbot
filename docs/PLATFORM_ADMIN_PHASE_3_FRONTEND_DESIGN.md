@@ -53,10 +53,11 @@ subscription changes remain out of scope.
   `GET /api/platform-admin/me` request when the menu opens; this visibility
   check is convenience-only and does not replace the fresh `/me` gate on
   `platform-admin.html`.
-- The previous `bots.html` Support menu item linked to `support.html`, but no
-  `frontend/support.html` file or app route currently implements that
-  destination. The shared menu therefore does not render Support yet, avoiding
-  a broken link until an approved support surface exists.
+- The shared account menu now includes **Support**, pointing to
+  `frontend/support.html`. This destination is a static authenticated tenant
+  help page with self-service guidance and local account/product links only. It
+  has no support-submission backend, ticket creation, email sending, external
+  contact link, platform-admin authorization behavior, or cross-tenant data.
 
 ## Verification evidence
 
@@ -72,14 +73,16 @@ subscription changes remain out of scope.
   unavailable states, stale-data clearing, request lifecycle, dashboard counts,
   directory controls, detail loading order, safe text rendering, navigation,
   role-independence, and read-only boundary checks.
-- Current local mocked Playwright tenant account-menu browser suite: 18 passed.
+- Current local mocked Playwright tenant account-menu browser suite: 25 passed.
   `tests/browser/tenant-account-menu.spec.js` covers shared placement,
   sidebar cleanup, keyboard and outside-click behavior, lazy platform-admin
   discovery, 401/403/503/network outcomes, duplicate-request suppression,
   reload rechecks, local-role/flag non-authority, navigation, mobile
   sidebar/menu collision prevention, late-rendered sidebar mounting,
-  public/platform page exclusion, and read-only boundaries.
-- Current focused platform-admin frontend source-contract suite: 31 passed,
+  dashboard date/account-menu responsive overlap prevention, readable mobile
+  date display, temporary open-state layout adjustment and restoration after
+  closing, public/platform page exclusion, and read-only boundaries.
+- Current focused platform-admin frontend source-contract suite: 33 passed,
   6 subtests passed.
 - Current focused platform-admin Python suite: 110 passed, 207 subtests passed.
 - Earlier recorded combined platform-admin backend/frontend and
@@ -451,8 +454,10 @@ Subsequent shared tenant-account component:
 - The menu renders user name/email with DOM text properties only. It may read
   `sessionStorage.user` for display text, but never for platform-admin
   authorization.
-- Support is intentionally omitted until an implemented destination exists; the
-  old `support.html` link was not backed by a frontend file or app route.
+- Support points to `support.html`, a static authenticated tenant help page.
+  It is available to authenticated tenant users independently of tenant role,
+  contains no support-submission backend, and remains unrelated to
+  platform-admin authorization.
 - The **Platform Administration** item is hidden by default and appears only
   after a live `GET /api/platform-admin/me` returns HTTP 200. HTTP 403, HTTP
   503, network failure, tenant owner/admin/member roles, and forged storage
