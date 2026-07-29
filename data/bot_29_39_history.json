@@ -18,5 +18,24 @@
     "timestamp": "2026-07-27 17:48:01 UTC",
     "action": "Updated entity from 'tmc/bmoc bookstorellll' to 'tmc/bmoc bookstorellllnjjnjnjnjnj' (Category: 'Branch').",
     "category": "Graph Modifications"
+  },
+  {
+    "timestamp": "2026-07-29 00:51:00 UTC",
+    "action": "Submitted 3 refined knowledge Q&A clarifications.",
+    "category": "Q&A Submissions",
+    "details": [
+      {
+        "question": "What is the entry fee for the Tiger Maths Competition?",
+        "answer": "The entry fee is RM 50 per student."
+      },
+      {
+        "question": "Where will the competition be held?",
+        "answer": "It will be held at the main campus hall."
+      },
+      {
+        "question": "Who is eligible to participate?",
+        "answer": "Students aged 7 to 12 from all registered primary schools."
+      }
+    ]
   }
 ]
