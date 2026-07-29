@@ -82,6 +82,43 @@ const aiCreditSummary = {
   }
 };
 
+const userList = {
+  users: [
+    {
+      id: 32,
+      full_name: "Operator <img src=x onerror=window.__userXss=true>",
+      email: "operator@example.test",
+      role: "admin",
+      status: "active",
+      created_at: "2026-07-01T00:00:00+00:00",
+      updated_at: "2026-07-02T00:00:00+00:00"
+    }
+  ],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 1, has_more: false },
+  sort: { by: "created_at", order: "desc" },
+  filters: { search_applied: false }
+};
+
+const chatbotList = {
+  chatbots: [
+    {
+      id: 29,
+      bot_name: "Bot <svg onload=window.__botXss=true>",
+      is_active: true,
+      status: "active",
+      language: "English",
+      tone: "Friendly",
+      ai_provider: "openrouter",
+      model_name: "deepseek-v4-flash",
+      created_at: "2026-07-01T00:00:00+00:00",
+      updated_at: "2026-07-02T00:00:00+00:00"
+    }
+  ],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 1, has_more: false },
+  sort: { by: "created_at", order: "desc" },
+  filters: { search_applied: false, state: "current" }
+};
+
 function success(data) {
   return { status: 200, body: { status: "success", data } };
 }
@@ -164,6 +201,12 @@ function defaultHandler({ url }) {
   }
   if (url.pathname === "/api/platform-admin/companies/42/ai-credit-usage") {
     return success(aiCreditSummary);
+  }
+  if (url.pathname === "/api/platform-admin/companies/42/users") {
+    return success(userList);
+  }
+  if (url.pathname === "/api/platform-admin/companies/42/chatbots") {
+    return success(chatbotList);
   }
   return failure(404, "company_not_found");
 }
@@ -382,6 +425,105 @@ test.describe("platform-admin company detail", () => {
     expect(paths.indexOf("/api/platform-admin/companies/42")).toBeGreaterThan(paths.indexOf("/api/platform-admin/me"));
     expect(paths.indexOf("/api/platform-admin/companies/42/subscription")).toBeGreaterThan(paths.indexOf("/api/platform-admin/companies/42"));
     expect(paths.indexOf("/api/platform-admin/companies/42/ai-credit-usage")).toBeGreaterThan(paths.indexOf("/api/platform-admin/companies/42"));
+    expect(paths).not.toContain("/api/platform-admin/companies/42/users");
+    expect(paths).not.toContain("/api/platform-admin/companies/42/chatbots");
+  });
+
+  test("lazy users and chatbots sections load safe fields with query parameters", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => defaultHandler({ url }));
+    await expect(page.getByRole("heading", { name: "Users" })).toBeVisible();
+    expect(calls.map(call => call.path)).not.toContain("/api/platform-admin/companies/42/users");
+    expect(calls.map(call => call.path)).not.toContain("/api/platform-admin/companies/42/chatbots");
+
+    await page.getByRole("button", { name: "Load users" }).click();
+    await expect(page.getByRole("cell", { name: "Operator <img src=x onerror=window.__userXss=true>" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__userXss)).toBeUndefined();
+    await page.getByLabel("Search").fill("operator");
+    await page.getByRole("button", { name: "Apply search" }).click();
+
+    await page.getByRole("button", { name: "Load chatbots" }).click();
+    await expect(page.getByRole("cell", { name: "Bot <svg onload=window.__botXss=true>" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__botXss)).toBeUndefined();
+    await page.getByLabel("State").selectOption("archived");
+    await page.getByLabel("Sort by").last().selectOption("bot_name");
+    await page.getByLabel("Page size").last().selectOption("50");
+
+    const userUrls = calls
+      .filter(call => call.path === "/api/platform-admin/companies/42/users")
+      .map(call => new URL("http://test" + call.search));
+    expect(userUrls.some(url => url.searchParams.get("search") === "operator")).toBe(true);
+    expect(userUrls.every(url => url.searchParams.get("sort_by"))).toBe(true);
+
+    const chatbotUrls = calls
+      .filter(call => call.path === "/api/platform-admin/companies/42/chatbots")
+      .map(call => new URL("http://test" + call.search));
+    expect(chatbotUrls.some(url => url.searchParams.get("state") === "archived")).toBe(true);
+    expect(chatbotUrls.some(url => url.searchParams.get("sort_by") === "bot_name")).toBe(true);
+    expect(chatbotUrls.some(url => url.searchParams.get("limit") === "50")).toBe(true);
+  });
+
+  test("child list empty and unavailable states are fixed and sanitized", async ({ page }) => {
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/users") {
+        return success({ ...userList, users: [], pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false } });
+      }
+      if (url.pathname === "/api/platform-admin/companies/42/chatbots") {
+        return failure(503, "platform_admin_data_unavailable", "raw Supabase details");
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Load users" }).click();
+    await expect(page.getByText("No users found for this company.")).toBeVisible();
+    await page.getByRole("button", { name: "Load chatbots" }).click();
+    await expect(page.getByText("Chatbots could not be loaded safely.")).toBeVisible();
+    await expect(page.getByText("raw Supabase details")).toHaveCount(0);
+  });
+
+  test("child list 404 clears stale company detail instead of showing section unavailable", async ({ page }) => {
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/users") {
+        return failure(404, "company_not_found", "raw deleted company details");
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "AI-credit and usage" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Load users" }).click();
+    await expect(page.getByRole("heading", { name: "Company Not Found" })).toBeVisible();
+    await expect(page.getByText("Example Tenant")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Company profile" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Subscription" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "AI-credit and usage" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Users" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Chatbots" })).toHaveCount(0);
+    await expect(page.getByText("Users could not be loaded safely.")).toHaveCount(0);
+    await expect(page.getByText("raw deleted company details")).toHaveCount(0);
+  });
+
+  test("child list 404 aborts active sibling requests and late responses do not restore stale content", async ({ page }) => {
+    let releaseUsers;
+    const delayedUsers = new Promise(resolve => {
+      releaseUsers = () => resolve(success(userList));
+    });
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/users") return delayedUsers;
+      if (url.pathname === "/api/platform-admin/companies/42/chatbots") {
+        return failure(404, "company_not_found", "raw deleted company details");
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Load users" }).click();
+    await expect(page.getByText("Loading users")).toBeVisible();
+    await page.getByRole("button", { name: "Load chatbots" }).click();
+    await expect(page.getByRole("heading", { name: "Company Not Found" })).toBeVisible();
+
+    releaseUsers();
+    await page.waitForTimeout(100);
+    await expect(page.getByText("Operator <img src=x onerror=window.__userXss=true>")).toHaveCount(0);
+    await expect(page.getByText("Example Tenant")).toHaveCount(0);
+    await expect(page.getByText("Chatbots could not be loaded safely.")).toHaveCount(0);
+    await expect(page.getByText("raw deleted company details")).toHaveCount(0);
   });
 
   test("404 and secondary failures use fixed states without raw details", async ({ page }) => {
@@ -426,6 +568,13 @@ async function assertReadOnlyBoundary(page) {
   for (const forbidden of [
     "Suspend Company",
     "Manage Users",
+    "Edit User",
+    "Deactivate User",
+    "Reset Password",
+    "Invite User",
+    "Edit Chatbot",
+    "Delete Chatbot",
+    "Restore Chatbot",
     "Change Plan",
     "Cancel Subscription",
     "Adjust Credit",

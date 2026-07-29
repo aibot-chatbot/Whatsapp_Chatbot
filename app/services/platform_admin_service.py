@@ -5,7 +5,9 @@ from datetime import datetime, timezone
 
 from app.database import platform_admin_repository
 from app.database import platform_billing_repository
+from app.database import platform_chatbot_repository
 from app.database import platform_company_repository
+from app.database import platform_company_user_repository
 
 
 logger = logging.getLogger(__name__)
@@ -271,5 +273,111 @@ def get_company_ai_credit_usage(company_id, actor_id):
     _audit(actor_id, "platform_admin.company.ai_credit_usage.read", "company_ai_credit_usage", str(company_id), {
         "outcome": "success", "endpoint": endpoint, "http_method": "GET",
         "period_start": result["period"]["start"], "period_end": result["period"]["end"],
+    })
+    return result
+
+
+def _list_search_parameter(search):
+    if search is None:
+        return None
+    if not isinstance(search, str):
+        _validation("invalid_search", "search must be text.")
+    normalized_search = search.strip()
+    if not 1 <= len(normalized_search) <= 100:
+        _validation("invalid_search", "search must contain 1 to 100 characters.")
+    return normalized_search
+
+
+def get_company_users(company_id, actor_id, *, limit=None, offset=None,
+                      search=None, sort_by=None, sort_order=None):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_users"]
+    _positive_id(company_id)
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    normalized_search = _list_search_parameter(search)
+    sort_by = "created_at" if sort_by is None else sort_by.strip().lower()
+    sort_order = "desc" if sort_order is None else sort_order.strip().lower()
+    if sort_by not in platform_company_user_repository.ALLOWED_SORT_FIELDS:
+        _validation("invalid_sort_by", "Unsupported sort field.")
+    if sort_order not in platform_company_user_repository.ALLOWED_SORT_ORDERS:
+        _validation("invalid_sort_order", "Sort order must be asc or desc.")
+    _company_or_not_found(
+        company_id, actor_id, "platform_admin.company.users.read",
+        "company_users", endpoint,
+    )
+    try:
+        users, total = platform_company_user_repository.list_company_users_for_platform_admin(
+            company_id=company_id, limit=limit, offset=offset,
+            search=normalized_search, sort_by=sort_by, sort_order=sort_order,
+        )
+    except Exception:
+        logger.error("Platform company-user listing failed")
+        _data_unavailable()
+    result = {
+        "users": users,
+        "pagination": {
+            "limit": limit, "offset": offset, "returned": len(users), "total": total,
+            "has_more": offset + len(users) < total,
+        },
+        "sort": {"by": sort_by, "order": sort_order},
+        "filters": {"search_applied": normalized_search is not None},
+    }
+    _audit(actor_id, "platform_admin.company.users.read", "company_users", str(company_id), {
+        "outcome": "success", "endpoint": endpoint, "http_method": "GET",
+        "limit": limit, "offset": offset, "sort_by": sort_by,
+        "sort_order": sort_order, "search_applied": normalized_search is not None,
+        "returned_count": len(users),
+    })
+    return result
+
+
+def get_company_chatbots(company_id, actor_id, *, limit=None, offset=None,
+                         search=None, state=None, sort_by=None, sort_order=None):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_chatbots"]
+    _positive_id(company_id)
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    normalized_search = _list_search_parameter(search)
+    normalized_state = "current" if state is None else state.strip().lower() if isinstance(state, str) else state
+    if normalized_state not in platform_chatbot_repository.ALLOWED_STATES:
+        _validation("invalid_state", "state must be current, archived, or all.")
+    sort_by = "created_at" if sort_by is None else sort_by.strip().lower()
+    sort_order = "desc" if sort_order is None else sort_order.strip().lower()
+    if sort_by not in platform_chatbot_repository.ALLOWED_SORT_FIELDS:
+        _validation("invalid_sort_by", "Unsupported sort field.")
+    if sort_order not in platform_chatbot_repository.ALLOWED_SORT_ORDERS:
+        _validation("invalid_sort_order", "Sort order must be asc or desc.")
+    _company_or_not_found(
+        company_id, actor_id, "platform_admin.company.chatbots.read",
+        "company_chatbots", endpoint,
+    )
+    try:
+        chatbots, total = platform_chatbot_repository.list_company_chatbots_for_platform_admin(
+            company_id=company_id, limit=limit, offset=offset,
+            search=normalized_search, state=normalized_state,
+            sort_by=sort_by, sort_order=sort_order,
+        )
+    except Exception:
+        logger.error("Platform company-chatbot listing failed")
+        _data_unavailable()
+    result = {
+        "chatbots": chatbots,
+        "pagination": {
+            "limit": limit, "offset": offset, "returned": len(chatbots), "total": total,
+            "has_more": offset + len(chatbots) < total,
+        },
+        "sort": {"by": sort_by, "order": sort_order},
+        "filters": {
+            "search_applied": normalized_search is not None,
+            "state": normalized_state,
+        },
+    }
+    _audit(actor_id, "platform_admin.company.chatbots.read", "company_chatbots", str(company_id), {
+        "outcome": "success", "endpoint": endpoint, "http_method": "GET",
+        "limit": limit, "offset": offset, "sort_by": sort_by,
+        "sort_order": sort_order, "search_applied": normalized_search is not None,
+        "state_filter": normalized_state, "returned_count": len(chatbots),
     })
     return result

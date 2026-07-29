@@ -8,6 +8,10 @@ are verified in staging. The approved mapping was temporarily reactivated for
 browser verification, then revoked again. The mapping row remains present and
 inactive. Production deployment remains blocked.
 
+A later application-only extension added two additional read-only company-detail
+inspection endpoints and lazy frontend sections for users and chatbots. That
+extension is locally tested only unless separately staged and recorded.
+
 This phase provides a separate internal frontend for SaaS operators. It does
 not add endpoints, reactivate a mapping, change `users.role`, alter migrations,
 or deploy anything. Flow Builder, Broadcast, tenant administration,
@@ -21,7 +25,9 @@ subscription changes remain out of scope.
 - A dedicated shell performs a fresh `/api/platform-admin/me` check before any
   page controller can request company data. Platform authorization is never
   inferred from tenant roles, JWT claims, cached users, or local UI flags.
-- The client exposes only the five approved GET operations and uses the normal
+- The client originally exposed the five Phase 3 GET operations. A subsequent
+  application-only read-only extension added two lazy company-detail inspection
+  operations for company users and chatbots. All seven operations use the normal
   authenticated session token mechanism.
 - An in-memory request registry, abort controllers, and a monotonically
   increasing page epoch prevent replaced or late requests from restoring
@@ -54,7 +60,14 @@ subscription changes remain out of scope.
 
 ## Verification evidence
 
-- Current local mocked Playwright platform-admin browser suite: 18 passed.
+- Current local mocked Playwright platform-admin browser suite: 22 passed. It
+  covers the
+  original Phase 3 flows plus the later lazy read-only users/chatbots company
+  inspection extension, including safe rendering, child-list 404 stale-state
+  clearing, active sibling-request cancellation, and late-response suppression.
+  These local mocked tests do not prove staging or production behavior.
+- Historical local mocked Playwright platform-admin browser suite result before
+  the users/chatbots extension: 18 passed.
   `tests/browser/platform-admin.spec.js` covers access gating, denial and
   unavailable states, stale-data clearing, request lifecycle, dashboard counts,
   directory controls, detail loading order, safe text rendering, navigation,
@@ -68,7 +81,7 @@ subscription changes remain out of scope.
   public/platform page exclusion, and read-only boundaries.
 - Current focused platform-admin frontend source-contract suite: 31 passed,
   6 subtests passed.
-- Current focused platform-admin Python suite: 96 passed, 145 subtests passed.
+- Current focused platform-admin Python suite: 110 passed, 207 subtests passed.
 - Earlier recorded combined platform-admin backend/frontend and
   authentication/security regressions: 88 passed, 114 subtests passed.
 - Earlier recorded full safe suite: 1,421 passed, 1 skipped, 125 subtests
@@ -225,7 +238,7 @@ Create a separate three-page static surface:
 |---|---|---|
 | `platform-admin.html` | Platform dashboard and operator identity | `/me`; three company-list count queries |
 | `platform-admin-companies.html` | Paginated company directory | `/me`; `/companies` |
-| `platform-admin-company.html?company_id=<id>` | Company, subscription, and AI-credit detail | `/me`; company detail; subscription; AI-credit usage |
+| `platform-admin-company.html?company_id=<id>` | Company, subscription, AI-credit detail, and lazy read-only users/chatbots inspection | `/me`; company detail; subscription; AI-credit usage; lazy users; lazy chatbots |
 
 Every page independently runs the `/api/platform-admin/me` authorization gate
 before revealing the platform shell or making any company request. A static
@@ -458,10 +471,32 @@ validated integer with `URLSearchParams`.
 No modal is required in the initial read-only surface. A dedicated detail page
 is clearer, keyboard-friendlier, and avoids implying an edit workflow.
 
+### Subsequent read-only company users/chatbots extension
+
+After Phase 3 staging verification, the platform-admin company-detail page was
+extended locally with two lazy read-only sections:
+
+- **Users** calls `GET /api/platform-admin/companies/<company_id>/users` only
+  after `/me` succeeds and the company detail request confirms the requested
+  company exists. It renders only ID, full name, email, tenant role, status, and
+  created/updated timestamps.
+- **Chatbots** calls `GET /api/platform-admin/companies/<company_id>/chatbots`
+  only after the same authorization and company validation path. It renders only
+  ID, bot name, active flag, status, language, tone, AI provider, model name,
+  and created/updated timestamps.
+
+Both sections are lazy-loaded by explicit operator action, have independent
+loading/empty/unavailable states, use server-side pagination and allowlisted
+sorting, keep search text in page memory only, and provide no mutation, export,
+impersonation, messaging, user-management, role/status-change, chatbot-edit,
+delete/restore, subscription-change, payment, or credit-adjustment controls.
+This extension is application-only and locally tested unless a later approved
+staging verification record is added.
+
 ## API client design
 
 Create a dedicated platform API client that wraps the existing authenticated
-session mechanism but accepts only the five GET operations. It must not expose a
+session mechanism but accepts only the seven GET operations. It must not expose a
 generic mutation method or arbitrary platform URL.
 
 Required operations:
@@ -472,6 +507,23 @@ listCompanies({ limit, offset, search, status, sortBy, sortOrder, signal })
 getCompany(companyId, { signal })
 getCompanySubscription(companyId, { signal })
 getCompanyAiCreditUsage(companyId, { signal })
+listCompanyUsers(companyId, {
+  limit,
+  offset,
+  search,
+  sortBy,
+  sortOrder,
+  signal
+})
+listCompanyChatbots(companyId, {
+  limit,
+  offset,
+  search,
+  state,
+  sortBy,
+  sortOrder,
+  signal
+})
 ```
 
 Every operation:
@@ -522,7 +574,8 @@ avoid leaving stale cross-tenant information visible.
    filters containing user input in local/session storage.
 4. Keep cross-tenant responses only in active-page memory and clear rendered
    data on denial, logout, 503, pagehide, and revoked-session detection.
-5. Use only the five approved GET endpoints; no `/api/admin/billing` reuse.
+5. Use only the seven approved GET endpoint builders; no `/api/admin/billing`
+   reuse.
 6. Validate the company query ID before constructing any API path.
 7. Render API values as text, not HTML.
 8. Map fixed error messages from status/code; never display raw API messages,
@@ -578,7 +631,7 @@ stealing focus during ordinary loading.
 
 - Every platform request carries the existing session token in the Bearer
   header and never places it in a URL/body.
-- Only the five approved GET endpoint builders exist.
+- Only the seven approved GET endpoint builders exist.
 - Detail, subscription, and AI usage all use the validated page company ID, not
   the JWT/cached company ID.
 - Invalid company IDs are rejected locally without an API call.

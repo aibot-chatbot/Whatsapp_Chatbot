@@ -31,7 +31,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
 
-    def test_only_five_approved_get_routes_exist(self):
+    def test_only_seven_approved_get_routes_exist(self):
         rules = [rule for rule in self.app.url_map.iter_rules() if rule.rule.startswith("/api/platform-admin")]
         self.assertEqual({rule.rule for rule in rules}, {
             "/api/platform-admin/me",
@@ -39,6 +39,8 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/<int:company_id>",
             "/api/platform-admin/companies/<int:company_id>/subscription",
             "/api/platform-admin/companies/<int:company_id>/ai-credit-usage",
+            "/api/platform-admin/companies/<int:company_id>/users",
+            "/api/platform-admin/companies/<int:company_id>/chatbots",
         })
         self.assertTrue(all((rule.methods - {"HEAD", "OPTIONS"}) == {"GET"} for rule in rules))
 
@@ -47,7 +49,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 5)
+        self.assertEqual(len(rules), 7)
         for rule in rules:
             path = rule.rule.replace("<int:company_id>", "2")
             with self.subTest(path=path):
@@ -78,6 +80,22 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 response = self.client.get(
                     f"/api/platform-admin/companies?{query}", headers=self.headers
                 )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json["code"], code)
+
+    def test_invalid_user_and_chatbot_list_parameters_have_stable_400_codes(self):
+        cases = {
+            "/api/platform-admin/companies/2/users?limit=0": "invalid_limit",
+            "/api/platform-admin/companies/2/users?offset=-1": "invalid_offset",
+            "/api/platform-admin/companies/2/users?sort_by=status": "invalid_sort_by",
+            "/api/platform-admin/companies/2/users?sort_order=sideways": "invalid_sort_order",
+            f"/api/platform-admin/companies/2/users?search={'x' * 101}": "invalid_search",
+            "/api/platform-admin/companies/2/chatbots?state=deleted": "invalid_state",
+            "/api/platform-admin/companies/2/chatbots?sort_by=status": "invalid_sort_by",
+        }
+        for path, code in cases.items():
+            with self.subTest(path=path):
+                response = self.client.get(path, headers=self.headers)
                 self.assertEqual(response.status_code, 400)
                 self.assertEqual(response.json["code"], code)
 
@@ -142,6 +160,40 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(response.json["code"], "company_not_found")
         self.assertEqual(calls, ["read", "audit", "response"])
         self.assertEqual(audit.call_args.args[4]["outcome"], "not_found")
+
+    def test_missing_company_for_child_lists_does_not_query_child_repository(self):
+        for path, action in (
+            ("/api/platform-admin/companies/404/users", "platform_admin.company.users.read"),
+            ("/api/platform-admin/companies/404/chatbots", "platform_admin.company.chatbots.read"),
+        ):
+            with self.subTest(path=path), patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_for_platform_admin",
+                return_value=None,
+            ), patch.object(
+                platform_admin_service.platform_company_user_repository,
+                "list_company_users_for_platform_admin",
+            ) as users, patch.object(
+                platform_admin_service.platform_chatbot_repository,
+                "list_company_chatbots_for_platform_admin",
+            ) as chatbots, patch.object(
+                platform_admin_service.platform_admin_repository,
+                "insert_platform_admin_audit_event",
+                return_value={"id": 1},
+            ) as audit:
+                response = self.client.get(path, headers=self.headers)
+                self.assertEqual(response.status_code, 404)
+                self.assertEqual(response.json["code"], "company_not_found")
+                users.assert_not_called()
+                chatbots.assert_not_called()
+                self.assertEqual(audit.call_args.args[1], action)
+                self.assertEqual(audit.call_args.args[4], {
+                    "outcome": "not_found",
+                    "endpoint": platform_admin_service.platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS[
+                        "company_users" if path.endswith("/users") else "company_chatbots"
+                    ],
+                    "http_method": "GET",
+                })
 
     def test_successful_company_audit_precedes_http_response(self):
         calls = []
@@ -211,6 +263,14 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 "/api/platform-admin/companies/2/ai-credit-usage",
                 "platform_admin.company.ai_credit_usage.read",
             ),
+            (
+                "/api/platform-admin/companies/2/users",
+                "platform_admin.company.users.read",
+            ),
+            (
+                "/api/platform-admin/companies/2/chatbots",
+                "platform_admin.company.chatbots.read",
+            ),
         )
         for path, expected_action in cases:
             with self.subTest(path=path), patch.object(
@@ -226,6 +286,12 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 platform_admin_service.platform_billing_repository,
                 "get_ai_credit_balance_for_platform_admin", return_value=None,
             ), patch.object(
+                platform_admin_service.platform_company_user_repository,
+                "list_company_users_for_platform_admin", return_value=([], 0),
+            ), patch.object(
+                platform_admin_service.platform_chatbot_repository,
+                "list_company_chatbots_for_platform_admin", return_value=([], 0),
+            ), patch.object(
                 platform_admin_service.platform_admin_repository,
                 "insert_platform_admin_audit_event", return_value={"id": 1},
             ) as audit:
@@ -233,6 +299,62 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 audit.assert_called_once()
                 self.assertEqual(audit.call_args.args[1], expected_action)
+
+    def test_child_lists_return_empty_success_without_company_or_search_echo(self):
+        for path, key in (
+            ("/api/platform-admin/companies/2/users?search=operator", "users"),
+            ("/api/platform-admin/companies/2/chatbots?search=support&state=all", "chatbots"),
+        ):
+            with self.subTest(path=path), patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_for_platform_admin", return_value={"id": 2},
+            ), patch.object(
+                platform_admin_service.platform_company_user_repository,
+                "list_company_users_for_platform_admin", return_value=([], 0),
+            ), patch.object(
+                platform_admin_service.platform_chatbot_repository,
+                "list_company_chatbots_for_platform_admin", return_value=([], 0),
+            ), patch.object(
+                platform_admin_service.platform_admin_repository,
+                "insert_platform_admin_audit_event", return_value={"id": 1},
+            ):
+                response = self.client.get(path, headers=self.headers)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.json["data"][key], [])
+                self.assertNotIn("company", response.json["data"])
+                self.assertNotIn("search", response.json["data"]["filters"])
+                self.assertTrue(response.json["data"]["filters"]["search_applied"])
+
+    def test_child_data_failure_and_audit_failure_are_sanitized(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin", return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_company_user_repository,
+            "list_company_users_for_platform_admin",
+            side_effect=RuntimeError("Supabase secret detail"),
+        ):
+            response = self.client.get("/api/platform-admin/companies/2/users", headers=self.headers)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json["code"], "platform_admin_data_unavailable")
+        self.assertNotIn("supabase", response.get_data(as_text=True).lower())
+
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin", return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_chatbot_repository,
+            "list_company_chatbots_for_platform_admin",
+            return_value=([{"bot_name": "Sensitive Bot"}], 1),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=RuntimeError("audit secret"),
+        ):
+            audit_response = self.client.get("/api/platform-admin/companies/2/chatbots", headers=self.headers)
+        self.assertEqual(audit_response.status_code, 503)
+        self.assertEqual(audit_response.json["code"], "platform_admin_audit_unavailable")
+        self.assertNotIn("Sensitive Bot", audit_response.get_data(as_text=True))
 
     def test_missing_ai_credit_balance_is_read_only_and_uninitialized(self):
         with patch.object(

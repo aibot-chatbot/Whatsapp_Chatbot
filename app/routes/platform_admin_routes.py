@@ -77,3 +77,30 @@ def company_subscription(company_id):
 @platform_admin_bp.get("/companies/<int:company_id>/ai-credit-usage")
 def company_ai_credit_usage(company_id):
     return _execute(lambda: platform_admin_service.get_company_ai_credit_usage(company_id, _actor_id()))
+
+
+@platform_admin_bp.get("/companies/<int:company_id>/users")
+def company_users(company_id):
+    return _execute(lambda: platform_admin_service.get_company_users(
+        company_id,
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        search=request.args.get("search"),
+        sort_by=request.args.get("sort_by"),
+        sort_order=request.args.get("sort_order"),
+    ))
+
+
+@platform_admin_bp.get("/companies/<int:company_id>/chatbots")
+def company_chatbots(company_id):
+    return _execute(lambda: platform_admin_service.get_company_chatbots(
+        company_id,
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        search=request.args.get("search"),
+        state=request.args.get("state"),
+        sort_by=request.args.get("sort_by"),
+        sort_order=request.args.get("sort_order"),
+    ))
