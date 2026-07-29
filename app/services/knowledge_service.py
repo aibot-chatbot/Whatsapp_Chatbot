@@ -1040,7 +1040,7 @@ def get_or_generate_readme(chatbot_id: int, file_id: int = None) -> str:
         return "No active primary PDF or knowledge sources available to generate README."
 
 
-def log_knowledge_modification(chatbot_id: int, file_id: int, action: str, category: str = "Admin State Changes"):
+def log_knowledge_modification(chatbot_id: int, file_id: int, action: str, category: str = "Admin State Changes", details=None):
     import os
     import json
     from datetime import datetime
@@ -1064,6 +1064,8 @@ def log_knowledge_modification(chatbot_id: int, file_id: int, action: str, categ
         "action": action,
         "category": category
     }
+    if details is not None:
+        entry["details"] = details
     logs.append(entry)
 
     try:
