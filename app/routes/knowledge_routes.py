@@ -888,6 +888,7 @@ def submit_refinement_answers():
 
         # 2. Save each answer as a new chunk with embeddings
         saved_count = 0
+        saved_qa_pairs = []
         for item in answers:
             question = item.get("question", "").strip()
             answer = item.get("answer", "").strip()
@@ -909,6 +910,7 @@ def submit_refinement_answers():
                     }
                 )
                 saved_count += 1
+                saved_qa_pairs.append({"question": question, "answer": answer})
 
         if saved_count > 0:
             from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
@@ -917,7 +919,12 @@ def submit_refinement_answers():
             except Exception as readme_err:
                 logging.error(f"Failed to generate README inside submit_refinement_answers: {readme_err}")
             try:
-                log_knowledge_modification(chatbot_id, file_id, f"Submitted {saved_count} refined knowledge Q&A clarifications.", "Q&A Submissions")
+                log_knowledge_modification(
+                    chatbot_id, file_id,
+                    f"Submitted {saved_count} refined knowledge Q&A clarifications.",
+                    "Q&A Submissions",
+                    details=saved_qa_pairs
+                )
             except Exception as log_err:
                 logging.error(f"Failed to log history inside submit_refinement_answers: {log_err}")
 
