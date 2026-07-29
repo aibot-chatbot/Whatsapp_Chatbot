@@ -2243,6 +2243,7 @@
             const [historyLogs, setHistoryLogs] = useState([]);
             const [loadingHistory, setLoadingHistory] = useState(false);
             const [activeHistoryFilter, setActiveHistoryFilter] = useState("All");
+            const [expandedHistoryIdx, setExpandedHistoryIdx] = useState(null);
 
             const urlParams = new URLSearchParams(window.location.search);
             const urlBotId = urlParams.get("bot_id");
@@ -2386,6 +2387,7 @@
                 setIsHistoryOpen(true);
                 setHistoryLogs([]);
                 setActiveHistoryFilter("All");
+                setExpandedHistoryIdx(null);
                 try {
                     const response = await authenticatedFetch(`/api/knowledge/history${botQuery}&file_id=${fileId}`);
                     const result = await response.json();
@@ -3472,19 +3474,143 @@
 
                                         return (
                                             <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                                                {filteredLogs.map((log, idx) => (
-                                                    <div key={idx} style={{ padding: "12px 16px", borderRadius: "12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)", display: "flex", flexDirection: "column", gap: "6px" }}>
-                                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                                            <span style={{ fontSize: "0.78rem", color: "var(--primary)", fontWeight: "600", letterSpacing: "0.5px" }}>
-                                                                {log.category?.toUpperCase() || "ADMIN STATE CHANGES"}
-                                                            </span>
-                                                            <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>{log.timestamp}</span>
+                                                {filteredLogs.map((log, idx) => {
+                                                    const isQA = log.category === "Q&A Submissions";
+                                                    const hasDetails = isQA && Array.isArray(log.details) && log.details.length > 0;
+                                                    const isExpanded = expandedHistoryIdx === idx;
+
+                                                    return (
+                                                        <div
+                                                            key={idx}
+                                                            onClick={() => {
+                                                                if (hasDetails) {
+                                                                    setExpandedHistoryIdx(isExpanded ? null : idx);
+                                                                }
+                                                            }}
+                                                            style={{
+                                                                padding: "12px 16px",
+                                                                borderRadius: "12px",
+                                                                background: isExpanded ? "rgba(16, 185, 129, 0.04)" : "rgba(255,255,255,0.02)",
+                                                                border: isExpanded ? "1px solid rgba(16, 185, 129, 0.2)" : "1px solid rgba(255,255,255,0.05)",
+                                                                display: "flex",
+                                                                flexDirection: "column",
+                                                                gap: "6px",
+                                                                cursor: hasDetails ? "pointer" : "default",
+                                                                transition: "all 0.25s ease"
+                                                            }}
+                                                        >
+                                                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                                    <span style={{ fontSize: "0.78rem", color: isQA ? "var(--accent)" : "var(--primary)", fontWeight: "600", letterSpacing: "0.5px" }}>
+                                                                        {log.category?.toUpperCase() || "ADMIN STATE CHANGES"}
+                                                                    </span>
+                                                                    {hasDetails && (
+                                                                        <span style={{
+                                                                            fontSize: "0.65rem",
+                                                                            background: "rgba(16, 185, 129, 0.12)",
+                                                                            color: "var(--accent)",
+                                                                            padding: "2px 7px",
+                                                                            borderRadius: "6px",
+                                                                            fontWeight: "700",
+                                                                            letterSpacing: "0.3px"
+                                                                        }}>
+                                                                            {log.details.length} PAIR{log.details.length !== 1 ? "S" : ""}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                                                                    <span style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>{log.timestamp}</span>
+                                                                    {hasDetails && (
+                                                                        <span style={{
+                                                                            fontSize: "0.7rem",
+                                                                            color: "var(--accent)",
+                                                                            transition: "transform 0.25s ease",
+                                                                            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                                                                            display: "inline-block"
+                                                                        }}>▼</span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div style={{ fontSize: "0.88rem", color: "#f8fafc", lineHeight: "1.4" }}>
+                                                                {log.action}
+                                                            </div>
+                                                            {hasDetails && (
+                                                                <div style={{
+                                                                    maxHeight: isExpanded ? `${log.details.length * 120 + 40}px` : "0px",
+                                                                    overflow: "hidden",
+                                                                    transition: "max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease",
+                                                                    opacity: isExpanded ? 1 : 0
+                                                                }}>
+                                                                    <div style={{
+                                                                        marginTop: "10px",
+                                                                        borderRadius: "10px",
+                                                                        background: "rgba(0, 0, 0, 0.25)",
+                                                                        border: "1px solid rgba(16, 185, 129, 0.12)",
+                                                                        overflow: "hidden"
+                                                                    }}>
+                                                                        {/* Header */}
+                                                                        <div style={{
+                                                                            padding: "8px 14px",
+                                                                            background: "rgba(16, 185, 129, 0.06)",
+                                                                            borderBottom: "1px solid rgba(16, 185, 129, 0.1)",
+                                                                            display: "flex",
+                                                                            alignItems: "center",
+                                                                            gap: "8px"
+                                                                        }}>
+                                                                            <span style={{ fontSize: "0.72rem", fontWeight: "700", color: "var(--accent)", letterSpacing: "0.8px", textTransform: "uppercase" }}>Q&A Diff — Additions</span>
+                                                                            <span style={{ fontSize: "0.68rem", color: "var(--text-dim)" }}>({log.details.length} entr{log.details.length !== 1 ? "ies" : "y"})</span>
+                                                                        </div>
+                                                                        {/* Q&A Pairs */}
+                                                                        {log.details.map((pair, pIdx) => (
+                                                                            <div key={pIdx} style={{
+                                                                                padding: "10px 14px",
+                                                                                borderBottom: pIdx < log.details.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                                                                                borderLeft: "3px solid rgba(16, 185, 129, 0.5)",
+                                                                                display: "flex",
+                                                                                flexDirection: "column",
+                                                                                gap: "6px"
+                                                                            }}>
+                                                                                <div style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                                                                                    <span style={{
+                                                                                        fontSize: "0.72rem",
+                                                                                        fontWeight: "800",
+                                                                                        color: "#34d399",
+                                                                                        fontFamily: "'Consolas', 'Monaco', monospace",
+                                                                                        lineHeight: "1.5",
+                                                                                        flexShrink: 0,
+                                                                                        userSelect: "none"
+                                                                                    }}>+ Q:</span>
+                                                                                    <span style={{
+                                                                                        fontSize: "0.82rem",
+                                                                                        color: "#a7f3d0",
+                                                                                        fontWeight: "600",
+                                                                                        lineHeight: "1.5"
+                                                                                    }}>{pair.question}</span>
+                                                                                </div>
+                                                                                <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", paddingLeft: "4px" }}>
+                                                                                    <span style={{
+                                                                                        fontSize: "0.72rem",
+                                                                                        fontWeight: "800",
+                                                                                        color: "rgba(52, 211, 153, 0.6)",
+                                                                                        fontFamily: "'Consolas', 'Monaco', monospace",
+                                                                                        lineHeight: "1.5",
+                                                                                        flexShrink: 0,
+                                                                                        userSelect: "none"
+                                                                                    }}>  A:</span>
+                                                                                    <span style={{
+                                                                                        fontSize: "0.82rem",
+                                                                                        color: "var(--text-dim)",
+                                                                                        lineHeight: "1.5"
+                                                                                    }}>{pair.answer}</span>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                        <div style={{ fontSize: "0.88rem", color: "#f8fafc", lineHeight: "1.4" }}>
-                                                            {log.action}
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         );
                                     })()}
