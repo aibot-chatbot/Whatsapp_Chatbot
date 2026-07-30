@@ -17,8 +17,15 @@ OVERVIEW_SUBSCRIPTION_FIELDS = (
     "id,company_id,plan_id,status,status_updated_at,current_period_end,created_at"
 )
 OVERVIEW_PLAN_FIELDS = "id,code,name"
+SUBSCRIPTION_HISTORY_FIELDS = (
+    "id,plan_id,pending_plan_id,status,starts_at,current_period_start,current_period_end,"
+    "trial_ends_at,cancelled_at,ends_at,plan_change_effective_at,"
+    "cancellation_scheduled_at,cancellation_effective_at,status_updated_at,created_at,updated_at"
+)
+SUBSCRIPTION_HISTORY_PLAN_FIELDS = "id,code,name"
 OVERVIEW_STATUSES = ("trialing", "active", "past_due", "expired", "cancelled")
 ATTENTION_STATUSES = {"past_due", "expired"}
+SUBSCRIPTION_HISTORY_STATUSES = set(OVERVIEW_STATUSES)
 PLAN_ORDER = {"free": 0, "essential": 1, "advanced": 2, "pro": 3}
 SUBSCRIPTION_SCAN_PAGE_SIZE = 1000
 SUBSCRIPTION_SCAN_MAX_ROWS = 10000
@@ -123,6 +130,99 @@ def get_ai_credit_charge_summary_for_platform_admin(company_id, period_start, pe
         for key in result.keys() - {"transaction_count"}:
             result[key] += int(row.get(key) or 0)
     return result
+
+
+def _safe_plan_ref(row):
+    if not isinstance(row, dict):
+        return None
+    return {
+        "code": row.get("code"),
+        "name": row.get("name"),
+    }
+
+
+def _positive_plan_ids(rows):
+    plan_ids = set()
+    for row in rows:
+        for key in ("plan_id", "pending_plan_id"):
+            value = row.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+                plan_ids.add(value)
+    return sorted(plan_ids)
+
+
+def _plans_by_id_for_subscription_history(plan_ids):
+    if not plan_ids:
+        return {}
+    response = (
+        supabase.table("subscription_plans")
+        .select(SUBSCRIPTION_HISTORY_PLAN_FIELDS)
+        .in_("id", plan_ids)
+        .execute()
+    )
+    return {
+        row["id"]: _safe_plan_ref(row)
+        for row in (response.data or [])
+        if isinstance(row, dict)
+        and isinstance(row.get("id"), int)
+        and not isinstance(row.get("id"), bool)
+        and row.get("id") > 0
+    }
+
+
+def _safe_subscription_history_row(row, plans_by_id):
+    if not isinstance(row, dict):
+        row = {}
+    plan_id = row.get("plan_id")
+    pending_plan_id = row.get("pending_plan_id")
+    return {
+        "id": row.get("id"),
+        "status": row.get("status"),
+        "plan": plans_by_id.get(plan_id),
+        "pending_plan": plans_by_id.get(pending_plan_id),
+        "starts_at": row.get("starts_at"),
+        "current_period_start": row.get("current_period_start"),
+        "current_period_end": row.get("current_period_end"),
+        "trial_ends_at": row.get("trial_ends_at"),
+        "cancelled_at": row.get("cancelled_at"),
+        "ends_at": row.get("ends_at"),
+        "plan_change_effective_at": row.get("plan_change_effective_at"),
+        "cancellation_scheduled_at": row.get("cancellation_scheduled_at"),
+        "cancellation_effective_at": row.get("cancellation_effective_at"),
+        "status_updated_at": row.get("status_updated_at"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+def list_subscription_history_for_platform_admin(company_id, *, limit, offset, status=None):
+    """List historical subscription rows for one company, newest first.
+
+    This returns persisted ``company_subscriptions`` rows. It is not an
+    event-sourced transition timeline and does not infer missing transitions.
+    """
+    _validate_company_id(company_id)
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
+    if status is not None and status not in SUBSCRIPTION_HISTORY_STATUSES:
+        raise ValueError("unsupported subscription status")
+
+    query = (
+        supabase.table("company_subscriptions")
+        .select(SUBSCRIPTION_HISTORY_FIELDS, count="exact")
+        .eq("company_id", company_id)
+        .order("created_at", desc=True)
+        .order("id", desc=True)
+    )
+    if status is not None:
+        query = query.eq("status", status)
+    response = query.range(offset, offset + limit - 1).execute()
+    rows = response.data or []
+    plans_by_id = _plans_by_id_for_subscription_history(_positive_plan_ids(rows))
+    subscriptions = [_safe_subscription_history_row(row, plans_by_id) for row in rows]
+    return subscriptions, int(response.count or 0)
 
 
 def _scan_latest_subscriptions_for_platform_admin():

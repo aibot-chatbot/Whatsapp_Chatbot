@@ -107,6 +107,16 @@
         return platformFetch("/companies/" + id + "/subscription", (options || {}).signal);
     }
 
+    function listCompanySubscriptionHistory(companyId, options) {
+        const id = requireCompanyId(companyId);
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit));
+        params.set("offset", String(config.offset));
+        if (config.status) params.set("status", config.status);
+        return platformFetch("/companies/" + id + "/subscription-history?" + params.toString(), config.signal);
+    }
+
     function getCompanyAiCreditUsage(companyId, options) {
         const id = requireCompanyId(companyId);
         return platformFetch("/companies/" + id + "/ai-credit-usage", (options || {}).signal);
@@ -143,6 +153,7 @@
         listCompanies: listCompanies,
         getCompany: getCompany,
         getCompanySubscription: getCompanySubscription,
+        listCompanySubscriptionHistory: listCompanySubscriptionHistory,
         getCompanyAiCreditUsage: getCompanyAiCreditUsage,
         listCompanyUsers: listCompanyUsers,
         listCompanyChatbots: listCompanyChatbots

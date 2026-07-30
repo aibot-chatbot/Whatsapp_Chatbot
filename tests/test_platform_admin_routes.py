@@ -31,7 +31,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
 
-    def test_only_eight_approved_get_routes_exist(self):
+    def test_only_nine_approved_get_routes_exist(self):
         rules = [rule for rule in self.app.url_map.iter_rules() if rule.rule.startswith("/api/platform-admin")]
         self.assertEqual({rule.rule for rule in rules}, {
             "/api/platform-admin/me",
@@ -39,6 +39,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies",
             "/api/platform-admin/companies/<int:company_id>",
             "/api/platform-admin/companies/<int:company_id>/subscription",
+            "/api/platform-admin/companies/<int:company_id>/subscription-history",
             "/api/platform-admin/companies/<int:company_id>/ai-credit-usage",
             "/api/platform-admin/companies/<int:company_id>/users",
             "/api/platform-admin/companies/<int:company_id>/chatbots",
@@ -50,7 +51,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 8)
+        self.assertEqual(len(rules), 9)
         for rule in rules:
             path = rule.rule.replace("<int:company_id>", "2")
             with self.subTest(path=path):
@@ -93,6 +94,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
             f"/api/platform-admin/companies/2/users?search={'x' * 101}": "invalid_search",
             "/api/platform-admin/companies/2/chatbots?state=deleted": "invalid_state",
             "/api/platform-admin/companies/2/chatbots?sort_by=status": "invalid_sort_by",
+            "/api/platform-admin/companies/2/subscription-history?limit=0": "invalid_limit",
+            "/api/platform-admin/companies/2/subscription-history?offset=-1": "invalid_offset",
+            "/api/platform-admin/companies/2/subscription-history?status=paused": "invalid_status",
         }
         for path, code in cases.items():
             with self.subTest(path=path):
@@ -166,6 +170,10 @@ class PlatformAdminRouteTests(unittest.TestCase):
         for path, action in (
             ("/api/platform-admin/companies/404/users", "platform_admin.company.users.read"),
             ("/api/platform-admin/companies/404/chatbots", "platform_admin.company.chatbots.read"),
+            (
+                "/api/platform-admin/companies/404/subscription-history",
+                "platform_admin.company.subscription_history.read",
+            ),
         ):
             with self.subTest(path=path), patch.object(
                 platform_admin_service.platform_company_repository,
@@ -178,6 +186,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 platform_admin_service.platform_chatbot_repository,
                 "list_company_chatbots_for_platform_admin",
             ) as chatbots, patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_subscription_history_for_platform_admin",
+            ) as history, patch.object(
                 platform_admin_service.platform_admin_repository,
                 "insert_platform_admin_audit_event",
                 return_value={"id": 1},
@@ -187,12 +198,16 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 self.assertEqual(response.json["code"], "company_not_found")
                 users.assert_not_called()
                 chatbots.assert_not_called()
+                history.assert_not_called()
                 self.assertEqual(audit.call_args.args[1], action)
+                endpoint_key = (
+                    "company_users" if path.endswith("/users")
+                    else "company_chatbots" if path.endswith("/chatbots")
+                    else "company_subscription_history"
+                )
                 self.assertEqual(audit.call_args.args[4], {
                     "outcome": "not_found",
-                    "endpoint": platform_admin_service.platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS[
-                        "company_users" if path.endswith("/users") else "company_chatbots"
-                    ],
+                    "endpoint": platform_admin_service.platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS[endpoint_key],
                     "http_method": "GET",
                 })
 
@@ -266,6 +281,10 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 "platform_admin.company.ai_credit_usage.read",
             ),
             (
+                "/api/platform-admin/companies/2/subscription-history",
+                "platform_admin.company.subscription_history.read",
+            ),
+            (
                 "/api/platform-admin/companies/2/users",
                 "platform_admin.company.users.read",
             ),
@@ -306,6 +325,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 platform_admin_service.platform_billing_repository,
                 "get_ai_credit_balance_for_platform_admin", return_value=None,
             ), patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_subscription_history_for_platform_admin", return_value=([], 0),
+            ), patch.object(
                 platform_admin_service.platform_company_user_repository,
                 "list_company_users_for_platform_admin", return_value=([], 0),
             ), patch.object(
@@ -319,6 +341,175 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 audit.assert_called_once()
                 self.assertEqual(audit.call_args.args[1], expected_action)
+
+    def test_subscription_history_success_shape_and_audit_metadata(self):
+        calls = []
+        rows = [{
+            "id": 123,
+            "status": "past_due",
+            "plan": {
+                "code": "pro",
+                "name": "Pro",
+                "price": 16900,
+                "is_active": False,
+                "gateway_reference": "gateway-secret",
+                "included_ai_credit_micro_myr": 60000000,
+            },
+            "pending_plan": {
+                "code": "advanced",
+                "name": "Advanced",
+                "price": 8900,
+                "is_active": True,
+                "gateway_reference": "gateway-pending",
+                "included_ai_credit_micro_myr": 20000000,
+            },
+            "starts_at": None,
+            "current_period_start": None,
+            "current_period_end": None,
+            "trial_ends_at": None,
+            "cancelled_at": None,
+            "ends_at": None,
+            "plan_change_effective_at": None,
+            "cancellation_scheduled_at": None,
+            "cancellation_effective_at": None,
+            "status_updated_at": None,
+            "created_at": "2026-07-01T00:00:00+00:00",
+            "updated_at": "2026-07-02T00:00:00+00:00",
+            "company_id": 2,
+            "plan_id": 3,
+        }]
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            side_effect=lambda company_id: calls.append("company") or {"id": company_id},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_subscription_history_for_platform_admin",
+            side_effect=lambda **kwargs: calls.append("history") or (rows, 4),
+        ) as history, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=lambda *args: calls.append("audit") or {"id": 1},
+        ) as audit:
+            response = self.client.get(
+                "/api/platform-admin/companies/2/subscription-history?limit=1&offset=1&status=past_due",
+                headers=self.headers,
+            )
+            calls.append("response")
+        self.assertEqual(response.status_code, 200)
+        data = response.json["data"]
+        self.assertEqual(calls, ["company", "history", "audit", "response"])
+        history.assert_called_once_with(company_id=2, limit=1, offset=1, status="past_due")
+        self.assertEqual(data["pagination"], {
+            "limit": 1,
+            "offset": 1,
+            "returned": 1,
+            "total": 4,
+            "has_more": True,
+        })
+        self.assertEqual(data["filters"], {"status": "past_due", "status_applied": True})
+        self.assertEqual(data["ordering"], {
+            "by": "created_at",
+            "order": "desc",
+            "tie_breaker": "id desc",
+        })
+        self.assertNotIn("company", data)
+        self.assertNotIn("company_id", data["subscriptions"][0])
+        self.assertNotIn("plan_id", data["subscriptions"][0])
+        self.assertEqual(
+            set(data["subscriptions"][0]["plan"]),
+            {"code", "name"},
+        )
+        self.assertEqual(
+            data["subscriptions"][0]["plan"],
+            {"code": "pro", "name": "Pro"},
+        )
+        self.assertEqual(
+            set(data["subscriptions"][0]["pending_plan"]),
+            {"code", "name"},
+        )
+        self.assertEqual(
+            data["subscriptions"][0]["pending_plan"],
+            {"code": "advanced", "name": "Advanced"},
+        )
+        self.assertEqual(audit.call_args.args[1], "platform_admin.company.subscription_history.read")
+        self.assertEqual(audit.call_args.args[2], "company_subscription_history")
+        self.assertEqual(audit.call_args.args[3], "2")
+        self.assertEqual(audit.call_args.args[4], {
+            "outcome": "success",
+            "endpoint": platform_admin_service.platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS[
+                "company_subscription_history"
+            ],
+            "http_method": "GET",
+            "limit": 1,
+            "offset": 1,
+            "status_filter": "past_due",
+            "returned_count": 1,
+        })
+
+    def test_subscription_history_empty_and_null_optional_values(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_subscription_history_for_platform_admin",
+            return_value=([], 0),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ):
+            response = self.client.get(
+                "/api/platform-admin/companies/2/subscription-history",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["subscriptions"], [])
+        self.assertEqual(response.json["data"]["pagination"]["returned"], 0)
+        self.assertFalse(response.json["data"]["pagination"]["has_more"])
+
+    def test_subscription_history_data_and_audit_failures_are_sanitized(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_subscription_history_for_platform_admin",
+            side_effect=RuntimeError("Supabase service_role secret"),
+        ):
+            response = self.client.get(
+                "/api/platform-admin/companies/2/subscription-history",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json["code"], "platform_admin_data_unavailable")
+        self.assertNotIn("supabase", response.get_data(as_text=True).lower())
+        self.assertNotIn("data", response.json)
+
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_subscription_history_for_platform_admin",
+            return_value=([{"id": 123, "status": "past_due"}], 1),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=RuntimeError("audit secret"),
+        ):
+            audit_response = self.client.get(
+                "/api/platform-admin/companies/2/subscription-history",
+                headers=self.headers,
+            )
+        self.assertEqual(audit_response.status_code, 503)
+        self.assertEqual(audit_response.json["code"], "platform_admin_audit_unavailable")
+        self.assertNotIn("past_due", audit_response.get_data(as_text=True))
+        self.assertNotIn("data", audit_response.json)
 
     def test_child_lists_return_empty_success_without_company_or_search_echo(self):
         for path, key in (

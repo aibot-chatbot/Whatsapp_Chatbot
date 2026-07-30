@@ -79,6 +79,17 @@ def company_subscription(company_id):
     return _execute(lambda: platform_admin_service.get_company_subscription(company_id, _actor_id()))
 
 
+@platform_admin_bp.get("/companies/<int:company_id>/subscription-history")
+def company_subscription_history(company_id):
+    return _execute(lambda: platform_admin_service.get_company_subscription_history(
+        company_id,
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        status=request.args.get("status"),
+    ))
+
+
 @platform_admin_bp.get("/companies/<int:company_id>/ai-credit-usage")
 def company_ai_credit_usage(company_id):
     return _execute(lambda: platform_admin_service.get_company_ai_credit_usage(company_id, _actor_id()))

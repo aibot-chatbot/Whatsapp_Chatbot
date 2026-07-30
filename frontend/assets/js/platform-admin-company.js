@@ -308,6 +308,178 @@
         });
     }
 
+    function planName(plan) {
+        if (!plan) return "Not available";
+        return safeValue(plan.name || plan.code);
+    }
+
+    function periodText(start, end) {
+        const startText = ui.formatDate(start);
+        const endText = ui.formatDate(end);
+        if (startText === "Not available" && endText === "Not available") {
+            return "Not available";
+        }
+        return startText + " to " + endText;
+    }
+
+    function cancellationText(subscription) {
+        const values = [
+            ["Scheduled", subscription.cancellation_scheduled_at],
+            ["Effective", subscription.cancellation_effective_at],
+            ["Cancelled", subscription.cancelled_at],
+            ["Ends", subscription.ends_at]
+        ].map(function (item) {
+            const formatted = ui.formatDate(item[1]);
+            return formatted === "Not available" ? null : item[0] + ": " + formatted;
+        }).filter(Boolean);
+        return values.length ? values.join("; ") : "Not available";
+    }
+
+    function subscriptionHistoryRows(subscriptions) {
+        return subscriptions.map(function (subscription) {
+            return [
+                ui.statusBadge(subscription.status),
+                planName(subscription.plan),
+                periodText(subscription.current_period_start, subscription.current_period_end),
+                ui.formatDate(subscription.trial_ends_at),
+                planName(subscription.pending_plan),
+                cancellationText(subscription),
+                ui.formatDate(subscription.status_updated_at),
+                ui.formatDate(subscription.created_at)
+            ];
+        });
+    }
+
+    function subscriptionHistoryToolbar(state, load) {
+        const toolbar = ui.element("div", "platform-toolbar");
+
+        const statusField = ui.element("div", "platform-field");
+        const statusLabel = ui.element("label", "", "Status");
+        statusLabel.setAttribute("for", "platform-subscription-history-status");
+        const statusSelect = ui.element("select", "platform-select");
+        statusSelect.id = "platform-subscription-history-status";
+        [
+            ["", "All statuses"],
+            ["trialing", "Trialing"],
+            ["active", "Active"],
+            ["past_due", "Past due"],
+            ["expired", "Expired"],
+            ["cancelled", "Cancelled"]
+        ].forEach(function (item) {
+            const option = ui.element("option", "", item[1]);
+            option.value = item[0];
+            if (state.status === item[0]) option.selected = true;
+            statusSelect.append(option);
+        });
+        statusSelect.addEventListener("change", function () {
+            state.status = statusSelect.value;
+            state.offset = 0;
+            load();
+        });
+        statusField.append(statusLabel, statusSelect);
+        toolbar.append(statusField);
+
+        const limitField = ui.element("div", "platform-field");
+        const limitLabel = ui.element("label", "", "Page size");
+        limitLabel.setAttribute("for", "platform-subscription-history-limit");
+        const limitSelect = ui.element("select", "platform-select");
+        limitSelect.id = "platform-subscription-history-limit";
+        [25, 50, 100].forEach(function (value) {
+            const option = ui.element("option", "", String(value));
+            option.value = String(value);
+            if (state.limit === value) option.selected = true;
+            limitSelect.append(option);
+        });
+        limitSelect.addEventListener("change", function () {
+            state.limit = Number(limitSelect.value);
+            state.offset = 0;
+            load();
+        });
+        limitField.append(limitLabel, limitSelect);
+        toolbar.append(limitField);
+
+        return toolbar;
+    }
+
+    function subscriptionHistoryPanel(companyId) {
+        const state = { loaded: false, loading: false, limit: 25, offset: 0, status: "" };
+        const panel = ui.element("section", "platform-panel");
+        const header = ui.element("header", "platform-page-header");
+        const title = ui.element("div");
+        title.append(
+            ui.element("h2", "", "Subscription history"),
+            ui.element("p", "", "Historical subscription records. This is not a complete event-level transition timeline.")
+        );
+        const toggle = ui.element("button", "platform-button", "Load subscription history");
+        toggle.type = "button";
+        header.append(title, toggle);
+        const body = ui.element("div");
+        body.hidden = true;
+        panel.append(header, body);
+
+        function renderLoaded(data) {
+            body.replaceChildren();
+            body.append(subscriptionHistoryToolbar(state, load));
+            const subscriptions = data.subscriptions || [];
+            if (!subscriptions.length) {
+                body.append(sectionStateCard("No subscription history recorded."));
+            } else {
+                const headers = [
+                    "Status", "Plan", "Current period", "Trial ends",
+                    "Pending plan", "Cancellation", "Status updated", "Created"
+                ];
+                const rows = subscriptionHistoryRows(subscriptions);
+                body.append(renderTable(headers, rows, function (cells) {
+                    return rowCard(headers, cells);
+                }));
+            }
+            body.append(paginationControls(data.pagination || {}, state, load));
+        }
+
+        async function load() {
+            state.loaded = true;
+            state.loading = true;
+            body.hidden = false;
+            body.replaceChildren(ui.element("div", "platform-loading", "Loading subscription history..."));
+            toggle.textContent = "Hide subscription history";
+            try {
+                const data = await ui.runRequest("company-subscription-history", function (signal) {
+                    return PlatformAdminApi.listCompanySubscriptionHistory(companyId, {
+                        limit: state.limit,
+                        offset: state.offset,
+                        status: state.status,
+                        signal: signal,
+                    });
+                });
+                renderLoaded(data);
+            } catch (error) {
+                if (error && (error.category === "unauthenticated" || error.category === "access_denied")) {
+                    ui.handleError(error);
+                } else if (error && error.category === "not_found") {
+                    showCompanyNotFoundState();
+                } else if (!error || error.category !== "aborted") {
+                    body.replaceChildren(sectionStateCard(
+                        "Subscription history could not be loaded safely.",
+                        "Retry",
+                        load
+                    ));
+                }
+            } finally {
+                state.loading = false;
+            }
+        }
+
+        toggle.addEventListener("click", function () {
+            if (!state.loaded) {
+                load();
+                return;
+            }
+            body.hidden = !body.hidden;
+            toggle.textContent = body.hidden ? "Show subscription history" : "Hide subscription history";
+        });
+        return panel;
+    }
+
     function lazyListPanel(config) {
         const panel = ui.element("section", "platform-panel");
         const header = ui.element("header", "platform-page-header");
@@ -585,6 +757,7 @@
                 pageHeader(company),
                 companyPanel(company),
                 subscriptionPanel(summaries[0] ? summaries[0].subscription : null),
+                subscriptionHistoryPanel(companyId),
                 aiCreditPanel(summaries[1]),
                 usersPanel(companyId),
                 chatbotsPanel(companyId)

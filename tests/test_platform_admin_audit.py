@@ -203,6 +203,34 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "http_method": "GET",
             },
         ),
+        (
+            "subscription_history_success",
+            2,
+            "platform_admin.company.subscription_history.read",
+            "company_subscription_history",
+            "9",
+            {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/companies/<company_id>/subscription-history",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "status_filter": None,
+                "returned_count": 0,
+            },
+        ),
+        (
+            "subscription_history_not_found",
+            2,
+            "platform_admin.company.subscription_history.read",
+            "company_subscription_history",
+            "9",
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/subscription-history",
+                "http_method": "GET",
+            },
+        ),
     )
 
     def test_valid_event_is_inserted(self):
@@ -333,6 +361,7 @@ class PlatformAdminAuditTests(unittest.TestCase):
             ("platform_admin.company.ai_credit_usage.read", "company_subscription", "1"),
             ("platform_admin.company.users.read", "company", "1"),
             ("platform_admin.company.chatbots.read", "company_users", "1"),
+            ("platform_admin.company.subscription_history.read", "company_subscription", "1"),
         )
         for action, resource_type, resource_id in invalid_pairs:
             with self.subTest(action=action, resource_type=resource_type), self.assertRaises(ValueError):
@@ -373,6 +402,13 @@ class PlatformAdminAuditTests(unittest.TestCase):
                         "state_filter": "current",
                         "returned_count": 0,
                     })
+                if action == "platform_admin.company.subscription_history.read":
+                    metadata.update({
+                        "limit": 25,
+                        "offset": 0,
+                        "status_filter": None,
+                        "returned_count": 0,
+                    })
                 platform_admin_repository.validate_audit_event(
                     1, action, resource_type, resource_id, metadata
                 )
@@ -390,6 +426,12 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "company_chatbots",
                 "/api/platform-admin/companies/<company_id>/chatbots",
                 {"state_filter": "current"},
+            ),
+            (
+                "platform_admin.company.subscription_history.read",
+                "company_subscription_history",
+                "/api/platform-admin/companies/<company_id>/subscription-history",
+                {"limit": 25},
             ),
         ):
             metadata = {"outcome": "not_found", "endpoint": endpoint, "http_method": "GET"}
@@ -414,6 +456,13 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "company_chatbots",
                 "/api/platform-admin/companies/<company_id>/chatbots",
                 {"state_filter": "current"},
+            ),
+            (
+                "subscription_history",
+                "platform_admin.company.subscription_history.read",
+                "company_subscription_history",
+                "/api/platform-admin/companies/<company_id>/subscription-history",
+                {"status_filter": None},
             ),
         )
         for name, action, resource_type, endpoint, extra in base_cases:
@@ -493,6 +542,64 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 platform_admin_repository.validate_audit_event(
                     1, action, resource_type, "9", metadata
                 )
+
+    def test_subscription_history_audit_metadata_validation_is_strict(self):
+        valid_base = {
+            "outcome": "success",
+            "endpoint": "/api/platform-admin/companies/<company_id>/subscription-history",
+            "http_method": "GET",
+            "limit": 25,
+            "offset": 0,
+            "status_filter": "past_due",
+            "returned_count": 1,
+        }
+        platform_admin_repository.validate_audit_event(
+            1,
+            "platform_admin.company.subscription_history.read",
+            "company_subscription_history",
+            "9",
+            valid_base,
+        )
+        invalid_cases = []
+        for key in ("limit", "offset", "status_filter", "returned_count"):
+            metadata = dict(valid_base)
+            metadata.pop(key)
+            invalid_cases.append((f"missing_{key}", metadata))
+        invalid_cases.extend([
+            ("unknown_key", dict(valid_base, plan_code="pro")),
+            ("invalid_status_filter", dict(valid_base, status_filter="paused")),
+            ("boolean_limit", dict(valid_base, limit=True)),
+            ("boolean_offset", dict(valid_base, offset=True)),
+            ("boolean_returned_count", dict(valid_base, returned_count=True)),
+            ("returned_count_exceeds_limit", dict(valid_base, limit=1, returned_count=2)),
+            ("returned_count_exceeds_max", dict(valid_base, limit=100, returned_count=101)),
+            ("payment_identifier", dict(valid_base, payment_reference="txn-1")),
+        ])
+        for name, metadata in invalid_cases:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1,
+                    "platform_admin.company.subscription_history.read",
+                    "company_subscription_history",
+                    "9",
+                    metadata,
+                )
+
+    def test_subscription_history_not_found_rejects_list_metadata(self):
+        metadata = {
+            "outcome": "not_found",
+            "endpoint": "/api/platform-admin/companies/<company_id>/subscription-history",
+            "http_method": "GET",
+            "limit": 25,
+        }
+        with self.assertRaises(ValueError):
+            platform_admin_repository.validate_audit_event(
+                1,
+                "platform_admin.company.subscription_history.read",
+                "company_subscription_history",
+                "9",
+                metadata,
+            )
 
         for field in ("limit", "offset", "returned_count"):
             metadata = {
