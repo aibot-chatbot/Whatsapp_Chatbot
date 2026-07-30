@@ -37,15 +37,18 @@ def auto_generate_welcome_menu(chatbot_id):
 
     prompt = (
         f"You are an expert conversational designer. Based on the following PDF knowledge base for '{company_name}', generate:\n"
-        f"1. A friendly 'Welcome Message' for a WhatsApp chatbot.\n"
+        f"1. A friendly 'Welcome Message' for a WhatsApp chatbot (include a short footer sentence at the end offering human customer service, e.g. '💬 Or reply AGENT to connect with human staff', in the PDF's language).\n"
         f"2. Exactly 1 to 3 short interactive button options representing the main services, products, or most common questions.\n\n"
+        f"CRITICAL LANGUAGE RULE:\n"
+        f"- You MUST strictly generate the Welcome Message, button labels, reasons, and facts in the EXACT SAME LANGUAGE as the provided PDF Content!\n"
+        f"- If the PDF content is written in English, your entire response MUST be written in English. Do NOT switch to Malay, Indonesian, or any other language.\n\n"
         f"For each button you MUST also provide:\n"
-        f"- \"label\": The short button text shown to the customer (max 20 characters)\n"
+        f"- \"label\": The short button text shown to the customer (max 20 characters, in the PDF's language)\n"
         f"- \"reason\": A short explanation (1-2 sentences) of why this button was chosen and what topic or section of the PDF it covers.\n"
-        f"- \"data_points\": A list of 2 to 5 short factual bullet points extracted DIRECTLY from the PDF that are relevant to this button topic. Each point should be a concrete fact, figure, price, discount, policy, or key detail a staff member would need to verify (e.g. '20% discount for members', 'Free delivery above RM50'). Do NOT invent information — only include facts that appear in the PDF content.\n\n"
+        f"- \"data_points\": A list of 2 to 5 short factual bullet points extracted DIRECTLY from the PDF that are relevant to this button topic. Do NOT invent information — only include facts that appear in the PDF content.\n\n"
         f"CRITICAL: Format your response EXACTLY as valid JSON:\n"
         f'{{\n'
-        f'    "welcome_text": "Hello! Welcome to {company_name}. How can I help you today?",\n'
+        f'    "welcome_text": "Hello! Welcome to {company_name}. How can I help you today?\\n\\n💬 Reply AGENT anytime to speak with human staff.",\n'
         f'    "buttons": [\n'
         f'        {{\n'
         f'            "label": "Our Services",\n'
