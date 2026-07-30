@@ -95,6 +95,17 @@ def company_ai_credit_usage(company_id):
     return _execute(lambda: platform_admin_service.get_company_ai_credit_usage(company_id, _actor_id()))
 
 
+@platform_admin_bp.get("/companies/<int:company_id>/ai-credit-transactions")
+def company_ai_credit_transactions(company_id):
+    return _execute(lambda: platform_admin_service.get_company_ai_credit_transactions(
+        company_id,
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        transaction_type=request.args.get("transaction_type"),
+    ))
+
+
 @platform_admin_bp.get("/companies/<int:company_id>/users")
 def company_users(company_id):
     return _execute(lambda: platform_admin_service.get_company_users(

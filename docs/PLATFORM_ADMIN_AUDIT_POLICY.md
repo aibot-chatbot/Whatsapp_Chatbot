@@ -5,7 +5,8 @@
 **Production policy candidate; formal security, privacy, legal, and data-owner
 approval remains required.** This policy matches the implemented read-only
 platform-admin endpoint set, including the application-only operations overview,
-company-user, chatbot, and subscription-history extensions. It does not
+company-user, chatbot, subscription-history, and AI-credit transaction-history
+extensions. It does not
 authorize a deployment, schema change, retention deletion, or mapping
 activation.
 
@@ -37,6 +38,7 @@ No action or resource type outside this table is approved for Phase 4.
 | `platform_admin.company.subscription.read` | `company_subscription` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>/subscription` |
 | `platform_admin.company.subscription_history.read` | `company_subscription_history` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `status_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/subscription-history` |
 | `platform_admin.company.ai_credit_usage.read` | `company_ai_credit_usage` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `period_start` and `period_end` when `outcome = success` | None for `success`; no period fields for `not_found` | `/api/platform-admin/companies/<company_id>/ai-credit-usage` |
+| `platform_admin.company.ai_credit_transactions.read` | `company_ai_credit_transactions` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `transaction_type_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/ai-credit-transactions` |
 | `platform_admin.company.users.read` | `company_users` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/users` |
 | `platform_admin.company.chatbots.read` | `company_chatbots` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `state_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/chatbots` |
 | `platform_admin.operations.overview.read` | `platform_operations_overview` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `attention_company_count`, `generated_at` | None | `/api/platform-admin/overview` |
@@ -72,6 +74,7 @@ sort_order
 search_applied
 status_filter
 state_filter
+transaction_type_filter
 returned_count
 period_start
 period_end
@@ -139,6 +142,28 @@ row.
 Metadata for this action must not include company names, plan names, plan
 codes, subscription IDs, timestamps, payment or gateway identifiers, raw
 errors, or response bodies.
+
+### Company AI-credit transaction-history fields
+
+These fields are present only when
+`platform_admin.company.ai_credit_transactions.read` has `outcome = success`.
+A missing company emits `outcome = not_found` with only the common fields.
+
+The endpoint lists persisted `ai_credit_transactions` ledger records for one
+company using safe operational fields only. It does not expose provider
+economics, payment references, idempotency keys, AI-usage-log links,
+subscription IDs, descriptions, or raw ledger row payloads.
+
+| Field | Allowed value |
+|---|---|
+| `limit` | Validated integer 1-100 |
+| `offset` | Validated non-negative integer |
+| `transaction_type_filter` | `included_credit_grant`, `trial_credit_grant`, `usage_debit`, `topup_purchase`, `refund`, `manual_adjustment`, `expiry`, `reversal`, or null |
+| `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
+
+Metadata for this action must not include transaction IDs, monetary values,
+company names, subscription IDs, timestamps, provider details, payment
+references, idempotency keys, descriptions, raw errors, or response bodies.
 
 ### Company-user list fields
 
@@ -230,6 +255,11 @@ the top-level allowlist.
   `platform_admin.company.list` allows `active`, `inactive`, or null;
   `platform_admin.company.subscription_history.read` allows `trialing`,
   `active`, `past_due`, `expired`, `cancelled`, or null.
+  `transaction_type_filter` is allowed only on
+  `platform_admin.company.ai_credit_transactions.read` and must be
+  `included_credit_grant`, `trial_credit_grant`, `usage_debit`,
+  `topup_purchase`, `refund`, `manual_adjustment`, `expiry`, `reversal`, or
+  null.
   `state_filter` is allowed only on `platform_admin.company.chatbots.read` and
   must be `current`, `archived`, or `all`.
 - Period strings, when present, must be non-blank and no longer than 64

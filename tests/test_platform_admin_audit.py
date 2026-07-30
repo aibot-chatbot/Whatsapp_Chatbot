@@ -231,6 +231,34 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "http_method": "GET",
             },
         ),
+        (
+            "ai_credit_transactions_success",
+            2,
+            "platform_admin.company.ai_credit_transactions.read",
+            "company_ai_credit_transactions",
+            "9",
+            {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "transaction_type_filter": None,
+                "returned_count": 0,
+            },
+        ),
+        (
+            "ai_credit_transactions_not_found",
+            2,
+            "platform_admin.company.ai_credit_transactions.read",
+            "company_ai_credit_transactions",
+            "9",
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
+                "http_method": "GET",
+            },
+        ),
     )
 
     def test_valid_event_is_inserted(self):
@@ -362,6 +390,7 @@ class PlatformAdminAuditTests(unittest.TestCase):
             ("platform_admin.company.users.read", "company", "1"),
             ("platform_admin.company.chatbots.read", "company_users", "1"),
             ("platform_admin.company.subscription_history.read", "company_subscription", "1"),
+            ("platform_admin.company.ai_credit_transactions.read", "company_ai_credit_usage", "1"),
         )
         for action, resource_type, resource_id in invalid_pairs:
             with self.subTest(action=action, resource_type=resource_type), self.assertRaises(ValueError):
@@ -409,6 +438,13 @@ class PlatformAdminAuditTests(unittest.TestCase):
                         "status_filter": None,
                         "returned_count": 0,
                     })
+                if action == "platform_admin.company.ai_credit_transactions.read":
+                    metadata.update({
+                        "limit": 25,
+                        "offset": 0,
+                        "transaction_type_filter": None,
+                        "returned_count": 0,
+                    })
                 platform_admin_repository.validate_audit_event(
                     1, action, resource_type, resource_id, metadata
                 )
@@ -431,6 +467,12 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "platform_admin.company.subscription_history.read",
                 "company_subscription_history",
                 "/api/platform-admin/companies/<company_id>/subscription-history",
+                {"limit": 25},
+            ),
+            (
+                "platform_admin.company.ai_credit_transactions.read",
+                "company_ai_credit_transactions",
+                "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
                 {"limit": 25},
             ),
         ):
@@ -463,6 +505,13 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "company_subscription_history",
                 "/api/platform-admin/companies/<company_id>/subscription-history",
                 {"status_filter": None},
+            ),
+            (
+                "ai_credit_transactions",
+                "platform_admin.company.ai_credit_transactions.read",
+                "company_ai_credit_transactions",
+                "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
+                {"transaction_type_filter": None},
             ),
         )
         for name, action, resource_type, endpoint, extra in base_cases:
@@ -617,6 +666,77 @@ class PlatformAdminAuditTests(unittest.TestCase):
             with self.subTest(boolean_field=field), self.assertRaises(ValueError):
                 platform_admin_repository.validate_audit_event(
                     1, "platform_admin.company.users.read", "company_users", "9", metadata
+                )
+
+    def test_ai_credit_transaction_history_audit_metadata_validation_is_strict(self):
+        valid_base = {
+            "outcome": "success",
+            "endpoint": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
+            "http_method": "GET",
+            "limit": 25,
+            "offset": 0,
+            "transaction_type_filter": "usage_debit",
+            "returned_count": 1,
+        }
+        for transaction_type in platform_admin_repository.AI_CREDIT_TRANSACTION_TYPE_FILTERS:
+            with self.subTest(transaction_type=transaction_type):
+                metadata = dict(valid_base, transaction_type_filter=transaction_type)
+                platform_admin_repository.validate_audit_event(
+                    1,
+                    "platform_admin.company.ai_credit_transactions.read",
+                    "company_ai_credit_transactions",
+                    "9",
+                    metadata,
+                )
+
+        invalid_cases = []
+        for key in ("limit", "offset", "transaction_type_filter", "returned_count"):
+            metadata = dict(valid_base)
+            metadata.pop(key)
+            invalid_cases.append((f"missing_{key}", metadata))
+        invalid_cases.extend([
+            ("unknown_key", dict(valid_base, transaction_id=123)),
+            ("invalid_transaction_type_filter", dict(valid_base, transaction_type_filter="provider_cost")),
+            ("boolean_limit", dict(valid_base, limit=True)),
+            ("boolean_offset", dict(valid_base, offset=True)),
+            ("boolean_returned_count", dict(valid_base, returned_count=True)),
+            ("returned_count_exceeds_limit", dict(valid_base, limit=1, returned_count=2)),
+            ("returned_count_exceeds_max", dict(valid_base, limit=100, returned_count=101)),
+            ("payment_reference", dict(valid_base, payment_reference="pay-1")),
+            ("description", dict(valid_base, description="raw detail")),
+        ])
+        for name, metadata in invalid_cases:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1,
+                    "platform_admin.company.ai_credit_transactions.read",
+                    "company_ai_credit_transactions",
+                    "9",
+                    metadata,
+                )
+
+    def test_ai_credit_transaction_history_not_found_rejects_list_metadata(self):
+        for metadata in (
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
+                "http_method": "GET",
+                "limit": 25,
+            },
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
+                "http_method": "GET",
+                "transaction_type_filter": "usage_debit",
+            },
+        ):
+            with self.subTest(metadata=metadata), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1,
+                    "platform_admin.company.ai_credit_transactions.read",
+                    "company_ai_credit_transactions",
+                    "9",
+                    metadata,
                 )
 
     def test_successful_child_list_events_require_every_list_field(self):

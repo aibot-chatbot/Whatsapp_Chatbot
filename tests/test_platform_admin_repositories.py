@@ -271,6 +271,92 @@ class PlatformAdminRepositoryTests(unittest.TestCase):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 platform_billing_repository.list_subscription_history_for_platform_admin(**kwargs)
 
+    def test_ai_credit_transactions_use_exact_projection_count_scope_and_ordering(self):
+        rows = [{
+            "id": 9,
+            "transaction_type": "usage_debit",
+            "included_delta_micro_myr": -5,
+            "topup_delta_micro_myr": 0,
+            "included_balance_after_micro_myr": 95,
+            "topup_balance_after_micro_myr": 20,
+            "customer_charge_micro_myr": None,
+            "uncovered_charge_micro_myr": 0,
+            "period_start": None,
+            "period_end": None,
+            "created_at": "2026-07-29T00:00:00+00:00",
+            "company_id": 2,
+            "provider_cost_micro_usd": 7,
+            "fx_rate_micro_myr_per_usd": 8,
+            "markup_basis_points": 9,
+            "description": "secret",
+            "payment_reference": "payment",
+            "idempotency_key": "idem",
+            "ai_usage_log_id": 10,
+            "subscription_id": 11,
+            "reversal_of_transaction_id": 12,
+        }]
+        query = fluent_query(rows, count=6)
+        with patch.object(platform_billing_repository.supabase, "table", return_value=query) as table:
+            transactions, count = platform_billing_repository.list_ai_credit_transactions_for_platform_admin(
+                company_id=2, limit=1, offset=3, transaction_type="usage_debit",
+            )
+        table.assert_called_once_with("ai_credit_transactions")
+        query.select.assert_called_once_with(
+            platform_billing_repository.AI_CREDIT_TRANSACTION_HISTORY_FIELDS,
+            count="exact",
+        )
+        self.assertNotIn("*", platform_billing_repository.AI_CREDIT_TRANSACTION_HISTORY_FIELDS)
+        for prohibited in (
+            "company_id", "provider_cost_micro_usd", "fx_rate_micro_myr_per_usd",
+            "markup_basis_points", "description", "payment_reference",
+            "idempotency_key", "ai_usage_log_id", "subscription_id",
+            "reversal_of_transaction_id",
+        ):
+            self.assertNotIn(prohibited, platform_billing_repository.AI_CREDIT_TRANSACTION_HISTORY_FIELDS)
+            self.assertNotIn(prohibited, transactions[0])
+        query.eq.assert_any_call("company_id", 2)
+        query.eq.assert_any_call("transaction_type", "usage_debit")
+        query.order.assert_any_call("created_at", desc=True)
+        query.order.assert_any_call("id", desc=True)
+        query.range.assert_called_once_with(3, 3)
+        self.assertEqual(count, 6)
+        self.assertEqual(transactions, [{
+            "id": 9,
+            "transaction_type": "usage_debit",
+            "included_delta_micro_myr": -5,
+            "topup_delta_micro_myr": 0,
+            "included_balance_after_micro_myr": 95,
+            "topup_balance_after_micro_myr": 20,
+            "customer_charge_micro_myr": None,
+            "uncovered_charge_micro_myr": 0,
+            "period_start": None,
+            "period_end": None,
+            "created_at": "2026-07-29T00:00:00+00:00",
+        }])
+
+    def test_ai_credit_transactions_accept_all_checked_transaction_types_and_reject_invalid_args(self):
+        allowed = sorted(platform_billing_repository.AI_CREDIT_TRANSACTION_TYPES)
+        for transaction_type in allowed:
+            with self.subTest(transaction_type=transaction_type):
+                query = fluent_query([], count=0)
+                with patch.object(platform_billing_repository.supabase, "table", return_value=query):
+                    rows, count = platform_billing_repository.list_ai_credit_transactions_for_platform_admin(
+                        company_id=2, limit=25, offset=0, transaction_type=transaction_type,
+                    )
+                self.assertEqual((rows, count), ([], 0))
+                query.eq.assert_any_call("transaction_type", transaction_type)
+
+        for kwargs in (
+            {"company_id": 0, "limit": 25, "offset": 0},
+            {"company_id": 2, "limit": 0, "offset": 0},
+            {"company_id": 2, "limit": True, "offset": 0},
+            {"company_id": 2, "limit": 25, "offset": -1},
+            {"company_id": 2, "limit": 25, "offset": True},
+            {"company_id": 2, "limit": 25, "offset": 0, "transaction_type": "provider_cost"},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                platform_billing_repository.list_ai_credit_transactions_for_platform_admin(**kwargs)
+
     def test_latest_subscription_overview_scan_bound_raises_instead_of_partial_counts(self):
         first_page = fluent_query([
             {"id": 4, "company_id": 4, "plan_id": 2, "status": "active", "created_at": "2026-07-29T00:00:00+00:00"},

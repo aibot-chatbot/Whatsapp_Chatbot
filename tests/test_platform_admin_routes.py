@@ -31,7 +31,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
 
-    def test_only_nine_approved_get_routes_exist(self):
+    def test_only_ten_approved_get_routes_exist(self):
         rules = [rule for rule in self.app.url_map.iter_rules() if rule.rule.startswith("/api/platform-admin")]
         self.assertEqual({rule.rule for rule in rules}, {
             "/api/platform-admin/me",
@@ -41,6 +41,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/<int:company_id>/subscription",
             "/api/platform-admin/companies/<int:company_id>/subscription-history",
             "/api/platform-admin/companies/<int:company_id>/ai-credit-usage",
+            "/api/platform-admin/companies/<int:company_id>/ai-credit-transactions",
             "/api/platform-admin/companies/<int:company_id>/users",
             "/api/platform-admin/companies/<int:company_id>/chatbots",
         })
@@ -51,7 +52,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 9)
+        self.assertEqual(len(rules), 10)
         for rule in rules:
             path = rule.rule.replace("<int:company_id>", "2")
             with self.subTest(path=path):
@@ -97,6 +98,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/2/subscription-history?limit=0": "invalid_limit",
             "/api/platform-admin/companies/2/subscription-history?offset=-1": "invalid_offset",
             "/api/platform-admin/companies/2/subscription-history?status=paused": "invalid_status",
+            "/api/platform-admin/companies/2/ai-credit-transactions?limit=0": "invalid_limit",
+            "/api/platform-admin/companies/2/ai-credit-transactions?offset=-1": "invalid_offset",
+            "/api/platform-admin/companies/2/ai-credit-transactions?transaction_type=provider_cost": "invalid_transaction_type",
         }
         for path, code in cases.items():
             with self.subTest(path=path):
@@ -174,6 +178,10 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 "/api/platform-admin/companies/404/subscription-history",
                 "platform_admin.company.subscription_history.read",
             ),
+            (
+                "/api/platform-admin/companies/404/ai-credit-transactions",
+                "platform_admin.company.ai_credit_transactions.read",
+            ),
         ):
             with self.subTest(path=path), patch.object(
                 platform_admin_service.platform_company_repository,
@@ -189,6 +197,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 platform_admin_service.platform_billing_repository,
                 "list_subscription_history_for_platform_admin",
             ) as history, patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_ai_credit_transactions_for_platform_admin",
+            ) as transactions, patch.object(
                 platform_admin_service.platform_admin_repository,
                 "insert_platform_admin_audit_event",
                 return_value={"id": 1},
@@ -199,10 +210,12 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 users.assert_not_called()
                 chatbots.assert_not_called()
                 history.assert_not_called()
+                transactions.assert_not_called()
                 self.assertEqual(audit.call_args.args[1], action)
                 endpoint_key = (
                     "company_users" if path.endswith("/users")
                     else "company_chatbots" if path.endswith("/chatbots")
+                    else "company_ai_credit_transactions" if path.endswith("/ai-credit-transactions")
                     else "company_subscription_history"
                 )
                 self.assertEqual(audit.call_args.args[4], {
@@ -281,6 +294,10 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 "platform_admin.company.ai_credit_usage.read",
             ),
             (
+                "/api/platform-admin/companies/2/ai-credit-transactions",
+                "platform_admin.company.ai_credit_transactions.read",
+            ),
+            (
                 "/api/platform-admin/companies/2/subscription-history",
                 "platform_admin.company.subscription_history.read",
             ),
@@ -327,6 +344,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
             ), patch.object(
                 platform_admin_service.platform_billing_repository,
                 "list_subscription_history_for_platform_admin", return_value=([], 0),
+            ), patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_ai_credit_transactions_for_platform_admin", return_value=([], 0),
             ), patch.object(
                 platform_admin_service.platform_company_user_repository,
                 "list_company_users_for_platform_admin", return_value=([], 0),
@@ -510,6 +530,256 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(audit_response.json["code"], "platform_admin_audit_unavailable")
         self.assertNotIn("past_due", audit_response.get_data(as_text=True))
         self.assertNotIn("data", audit_response.json)
+
+    def test_ai_credit_transactions_success_shape_and_audit_metadata(self):
+        calls = []
+        rows = [{
+            "id": 321,
+            "transaction_type": "usage_debit",
+            "included_delta_micro_myr": -500000,
+            "topup_delta_micro_myr": 0,
+            "included_balance_after_micro_myr": 9500000,
+            "topup_balance_after_micro_myr": 2000000,
+            "customer_charge_micro_myr": None,
+            "uncovered_charge_micro_myr": 0,
+            "period_start": None,
+            "period_end": None,
+            "created_at": "2026-07-15T12:00:00+00:00",
+            "provider_cost_micro_usd": 123,
+            "fx_rate_micro_myr_per_usd": 456,
+            "markup_basis_points": 2500,
+            "description": "sensitive",
+            "payment_reference": "payment-secret",
+            "idempotency_key": "idem-secret",
+            "company_id": 2,
+            "subscription_id": 4,
+            "ai_usage_log_id": 5,
+            "reversal_of_transaction_id": 6,
+        }]
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            side_effect=lambda company_id: calls.append("company") or {"id": company_id},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_ai_credit_transactions_for_platform_admin",
+            side_effect=lambda **kwargs: calls.append("transactions") or (rows, 4),
+        ) as transactions, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=lambda *args: calls.append("audit") or {"id": 1},
+        ) as audit:
+            response = self.client.get(
+                "/api/platform-admin/companies/2/ai-credit-transactions?limit=1&offset=1&transaction_type=usage_debit",
+                headers=self.headers,
+            )
+            calls.append("response")
+        self.assertEqual(response.status_code, 200)
+        data = response.json["data"]
+        self.assertEqual(calls, ["company", "transactions", "audit", "response"])
+        transactions.assert_called_once_with(
+            company_id=2, limit=1, offset=1, transaction_type="usage_debit"
+        )
+        self.assertEqual(data["pagination"], {
+            "limit": 1,
+            "offset": 1,
+            "returned": 1,
+            "total": 4,
+            "has_more": True,
+        })
+        self.assertEqual(data["filters"], {"transaction_type": "usage_debit"})
+        self.assertEqual(data["ordering"], {
+            "by": "created_at",
+            "order": "desc",
+            "tie_breaker": "id desc",
+        })
+        transaction = data["transactions"][0]
+        self.assertEqual(set(transaction), {
+            "id",
+            "transaction_type",
+            "included_delta_micro_myr",
+            "topup_delta_micro_myr",
+            "included_balance_after_micro_myr",
+            "topup_balance_after_micro_myr",
+            "customer_charge_micro_myr",
+            "uncovered_charge_micro_myr",
+            "period_start",
+            "period_end",
+            "created_at",
+        })
+        self.assertIsNone(transaction["customer_charge_micro_myr"])
+        self.assertIsNone(transaction["period_start"])
+        self.assertIsNone(transaction["period_end"])
+        self.assertEqual(transaction["included_delta_micro_myr"], -500000)
+        response_text = response.get_data(as_text=True)
+        for prohibited in (
+            "provider_cost_micro_usd", "fx_rate_micro_myr_per_usd",
+            "markup_basis_points", "description", "payment_reference",
+            "idempotency_key", "company_id", "subscription_id",
+            "ai_usage_log_id", "reversal_of_transaction_id", "payment-secret",
+        ):
+            self.assertNotIn(prohibited, response_text)
+        self.assertEqual(audit.call_args.args[1], "platform_admin.company.ai_credit_transactions.read")
+        self.assertEqual(audit.call_args.args[2], "company_ai_credit_transactions")
+        self.assertEqual(audit.call_args.args[3], "2")
+        self.assertEqual(audit.call_args.args[4], {
+            "outcome": "success",
+            "endpoint": platform_admin_service.platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS[
+                "company_ai_credit_transactions"
+            ],
+            "http_method": "GET",
+            "limit": 1,
+            "offset": 1,
+            "transaction_type_filter": "usage_debit",
+            "returned_count": 1,
+        })
+
+    def test_ai_credit_transactions_empty_and_failures_are_sanitized(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_ai_credit_transactions_for_platform_admin",
+            return_value=([], 0),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ):
+            response = self.client.get(
+                "/api/platform-admin/companies/2/ai-credit-transactions",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["transactions"], [])
+        self.assertEqual(response.json["data"]["pagination"]["returned"], 0)
+        self.assertFalse(response.json["data"]["pagination"]["has_more"])
+
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_ai_credit_transactions_for_platform_admin",
+            side_effect=RuntimeError("Supabase service_role secret"),
+        ):
+            data_response = self.client.get(
+                "/api/platform-admin/companies/2/ai-credit-transactions",
+                headers=self.headers,
+            )
+        self.assertEqual(data_response.status_code, 503)
+        self.assertEqual(data_response.json["code"], "platform_admin_data_unavailable")
+        self.assertNotIn("supabase", data_response.get_data(as_text=True).lower())
+        self.assertNotIn("data", data_response.json)
+
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_ai_credit_transactions_for_platform_admin",
+            return_value=([{"id": 123, "transaction_type": "usage_debit"}], 1),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=RuntimeError("audit secret"),
+        ):
+            audit_response = self.client.get(
+                "/api/platform-admin/companies/2/ai-credit-transactions",
+                headers=self.headers,
+            )
+        self.assertEqual(audit_response.status_code, 503)
+        self.assertEqual(audit_response.json["code"], "platform_admin_audit_unavailable")
+        self.assertNotIn("usage_debit", audit_response.get_data(as_text=True))
+        self.assertNotIn("data", audit_response.json)
+
+    def test_ai_credit_transactions_accept_all_approved_type_filters(self):
+        for transaction_type in sorted(platform_admin_service.platform_billing_repository.AI_CREDIT_TRANSACTION_TYPES):
+            with self.subTest(transaction_type=transaction_type), patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_for_platform_admin",
+                return_value={"id": 2},
+            ), patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_ai_credit_transactions_for_platform_admin",
+                return_value=([], 0),
+            ) as transactions, patch.object(
+                platform_admin_service.platform_admin_repository,
+                "insert_platform_admin_audit_event",
+                return_value={"id": 1},
+            ) as audit:
+                response = self.client.get(
+                    f"/api/platform-admin/companies/2/ai-credit-transactions?transaction_type={transaction_type}",
+                    headers=self.headers,
+                )
+                self.assertEqual(response.status_code, 200)
+                transactions.assert_called_once_with(
+                    company_id=2, limit=25, offset=0, transaction_type=transaction_type
+                )
+                self.assertEqual(
+                    audit.call_args.args[4]["transaction_type_filter"],
+                    transaction_type,
+                )
+
+    def test_ai_credit_transaction_type_blank_is_rejected_but_omitted_is_unfiltered(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_ai_credit_transactions_for_platform_admin",
+            return_value=([], 0),
+        ) as transactions, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ) as audit:
+            response = self.client.get(
+                "/api/platform-admin/companies/2/ai-credit-transactions",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        transactions.assert_called_once_with(
+            company_id=2, limit=25, offset=0, transaction_type=None
+        )
+        self.assertEqual(response.json["data"]["filters"], {"transaction_type": None})
+        self.assertIsNone(audit.call_args.args[4]["transaction_type_filter"])
+
+        for query in ("transaction_type=", "transaction_type=%20%20"):
+            with self.subTest(query=query):
+                response = self.client.get(
+                    f"/api/platform-admin/companies/2/ai-credit-transactions?{query}",
+                    headers=self.headers,
+                )
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.json["code"], "invalid_transaction_type")
+
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_ai_credit_transactions_for_platform_admin",
+            return_value=([], 0),
+        ) as trimmed_transactions, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ):
+            response = self.client.get(
+                "/api/platform-admin/companies/2/ai-credit-transactions?transaction_type=%20usage_debit%20",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        trimmed_transactions.assert_called_once_with(
+            company_id=2, limit=25, offset=0, transaction_type="usage_debit"
+        )
 
     def test_child_lists_return_empty_success_without_company_or_search_echo(self):
         for path, key in (
