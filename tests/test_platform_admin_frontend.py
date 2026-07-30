@@ -152,7 +152,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         cls.api = read(API)
         cls.auth = read(FRONTEND / "assets" / "js" / "auth.js")
 
-    def test_public_client_exposes_only_nine_approved_methods(self):
+    def test_public_client_exposes_only_ten_approved_methods(self):
         exported = re.search(
             r"window\.PlatformAdminApi = Object\.freeze\(\{(.*?)\}\);",
             self.api,
@@ -169,6 +169,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "getCompanySubscription",
                 "listCompanySubscriptionHistory",
                 "getCompanyAiCreditUsage",
+                "listCompanyAiCreditTransactions",
                 "listCompanyUsers",
                 "listCompanyChatbots",
             ],
@@ -200,6 +201,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             "getCompanySubscription",
             "listCompanySubscriptionHistory",
             "getCompanyAiCreditUsage",
+            "listCompanyAiCreditTransactions",
             "listCompanyUsers",
             "listCompanyChatbots",
         ]:
@@ -280,6 +282,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("PlatformAdminApi.getCompanySubscription(companyId", self.company)
         self.assertIn("PlatformAdminApi.listCompanySubscriptionHistory(companyId", self.company)
         self.assertIn("PlatformAdminApi.getCompanyAiCreditUsage(companyId", self.company)
+        self.assertIn("PlatformAdminApi.listCompanyAiCreditTransactions(companyId", self.company)
         self.assertIn("PlatformAdminApi.listCompanyUsers(companyId", self.company)
         self.assertIn("PlatformAdminApi.listCompanyChatbots(companyId", self.company)
         initialize = re.search(
@@ -330,6 +333,60 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertNotIn("order_reference", self.company)
         self.assertNotIn("gateway_order_id", self.company)
         self.assertNotIn("payment_reference", self.company)
+
+    def test_ai_credit_transactions_are_lazy_read_only_and_use_bounded_contract(self):
+        initialize = re.search(
+            r"async function initializeCompanyDetail\(\) \{(.*?)\n    \}",
+            self.company,
+            flags=re.S,
+        ).group(1)
+        company_fetch = initialize.index("PlatformAdminApi.getCompany(companyId")
+        ai_usage_fetch = initialize.index("PlatformAdminApi.getCompanyAiCreditUsage(companyId")
+        transactions_panel = initialize.index("aiCreditTransactionsPanel(companyId)")
+        self.assertLess(company_fetch, transactions_panel)
+        self.assertLess(ai_usage_fetch, transactions_panel)
+        self.assertIn("Load AI-credit transactions", self.company)
+        self.assertIn("Loading AI-credit transactions...", self.company)
+        self.assertNotIn("â€¦", self.company)
+        self.assertIn('ui.runRequest("company-ai-credit-transactions"', self.company)
+        self.assertIn("PlatformAdminApi.listCompanyAiCreditTransactions(companyId", self.company)
+        self.assertIn("All transaction types", self.company)
+        for transaction_type in [
+            "included_credit_grant",
+            "trial_credit_grant",
+            "usage_debit",
+            "topup_purchase",
+            "refund",
+            "manual_adjustment",
+            "expiry",
+            "reversal",
+        ]:
+            self.assertIn(transaction_type, self.company)
+        for label in [
+            "Included delta",
+            "Top-up delta",
+            "Customer charge",
+            "Uncovered",
+            "Included balance after",
+            "Top-up balance after",
+            "Period",
+        ]:
+            self.assertIn(label, self.company)
+        api_source = read(API)
+        self.assertIn('"/ai-credit-transactions?"', api_source)
+        self.assertIn('params.set("limit", String(config.limit))', api_source)
+        self.assertIn('params.set("offset", String(config.offset))', api_source)
+        self.assertIn('if (config.transactionType) params.set("transaction_type", config.transactionType)', api_source)
+        for prohibited in [
+            "fx_rate_micro_myr_per_usd",
+            "markup_basis_points",
+            "payment_reference",
+            "idempotency_key",
+            "ai_usage_log_id",
+            "subscription_id",
+            "reversal_of_transaction_id",
+        ]:
+            self.assertNotIn(prohibited, self.company)
 
     def test_users_and_chatbots_are_lazy_loaded_after_company_detail(self):
         initialize = re.search(

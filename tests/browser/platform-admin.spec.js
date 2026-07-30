@@ -182,6 +182,48 @@ const subscriptionHistory = {
   ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" }
 };
 
+const aiCreditTransactions = {
+  transactions: [
+    {
+      id: 701,
+      transaction_type: "usage_debit<script>window.__transactionTypeXss=true</script>",
+      included_delta_micro_myr: -500000,
+      topup_delta_micro_myr: null,
+      included_balance_after_micro_myr: 9500000,
+      topup_balance_after_micro_myr: 2000000,
+      customer_charge_micro_myr: null,
+      uncovered_charge_micro_myr: 0,
+      period_start: null,
+      period_end: null,
+      created_at: "2026-07-15T12:00:00+00:00"
+    }
+  ],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 2, has_more: true },
+  filters: { transaction_type: null },
+  ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" }
+};
+
+const filteredAiCreditTransactions = {
+  transactions: [
+    {
+      id: 702,
+      transaction_type: "usage_debit<img src=x onerror=window.__lateTransactionXss=true>",
+      included_delta_micro_myr: -250000,
+      topup_delta_micro_myr: 0,
+      included_balance_after_micro_myr: 9250000,
+      topup_balance_after_micro_myr: 2000000,
+      customer_charge_micro_myr: 250000,
+      uncovered_charge_micro_myr: 0,
+      period_start: "2026-07-01T00:00:00+00:00",
+      period_end: "2026-08-01T00:00:00+00:00",
+      created_at: "2026-07-16T12:00:00+00:00"
+    }
+  ],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 1, has_more: false },
+  filters: { transaction_type: "usage_debit" },
+  ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" }
+};
+
 function success(data) {
   return { status: 200, body: { status: "success", data } };
 }
@@ -268,6 +310,9 @@ function defaultHandler({ url }) {
   }
   if (url.pathname === "/api/platform-admin/companies/42/ai-credit-usage") {
     return success(aiCreditSummary);
+  }
+  if (url.pathname === "/api/platform-admin/companies/42/ai-credit-transactions") {
+    return success(aiCreditTransactions);
   }
   if (url.pathname === "/api/platform-admin/companies/42/users") {
     return success(userList);
@@ -546,6 +591,7 @@ test.describe("platform-admin company detail", () => {
     expect(paths.indexOf("/api/platform-admin/companies/42/subscription")).toBeGreaterThan(paths.indexOf("/api/platform-admin/companies/42"));
     expect(paths.indexOf("/api/platform-admin/companies/42/ai-credit-usage")).toBeGreaterThan(paths.indexOf("/api/platform-admin/companies/42"));
     expect(paths).not.toContain("/api/platform-admin/companies/42/subscription-history");
+    expect(paths).not.toContain("/api/platform-admin/companies/42/ai-credit-transactions");
     expect(paths).not.toContain("/api/platform-admin/companies/42/users");
     expect(paths).not.toContain("/api/platform-admin/companies/42/chatbots");
   });
@@ -611,6 +657,140 @@ test.describe("platform-admin company detail", () => {
     await expect(page.getByRole("heading", { name: "Subscription history" })).toHaveCount(0);
     await expect(page.getByText("Subscription history could not be loaded safely.")).toHaveCount(0);
     await expect(page.getByText("raw deleted company details")).toHaveCount(0);
+  });
+
+  test("lazy AI-credit transactions load with filtering pagination and safe null rendering", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => defaultHandler({ url }));
+    await expect(page.getByRole("heading", { name: "AI-credit transactions" })).toBeVisible();
+    expect(calls.map(call => call.path)).not.toContain("/api/platform-admin/companies/42/ai-credit-transactions");
+
+    await page.getByRole("button", { name: "Load AI-credit transactions" }).click();
+    await expect(page.getByRole("cell", { name: /Usage Debit<script>window.*TransactionTypeXss=true/ })).toBeVisible();
+    await expect(page.getByText("Not available").first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__transactionTypeXss)).toBeUndefined();
+
+    await page.locator("#platform-ai-credit-transactions-type").selectOption("usage_debit");
+    await page.locator("#platform-ai-credit-transactions-limit").selectOption("50");
+    await page.locator("section.platform-panel")
+      .filter({ has: page.getByRole("heading", { name: "AI-credit transactions" }) })
+      .getByRole("button", { name: "Next" })
+      .click();
+
+    const transactionUrls = calls
+      .filter(call => call.path === "/api/platform-admin/companies/42/ai-credit-transactions")
+      .map(call => new URL("http://test" + call.search));
+    expect(transactionUrls.length).toBeGreaterThanOrEqual(3);
+    expect(transactionUrls.some(url => url.searchParams.get("transaction_type") === "usage_debit")).toBe(true);
+    expect(transactionUrls.some(url => url.searchParams.get("limit") === "50")).toBe(true);
+    expect(transactionUrls.every(url => !url.searchParams.has("sort_by"))).toBe(true);
+    expect(transactionUrls.every(url => !url.searchParams.has("search"))).toBe(true);
+    await assertReadOnlyBoundary(page);
+  });
+
+  test("AI-credit transaction empty unavailable retry and child 404 states are sanitized", async ({ page }) => {
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/ai-credit-transactions") {
+        return success({
+          ...aiCreditTransactions,
+          transactions: [],
+          pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false }
+        });
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Load AI-credit transactions" }).click();
+    await expect(page.getByText("No AI-credit transactions recorded.")).toBeVisible();
+
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/ai-credit-transactions") {
+        return failure(503, "platform_admin_data_unavailable", "raw Supabase details");
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Load AI-credit transactions" }).click();
+    await expect(page.getByText("AI-credit transactions could not be loaded safely.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByText("raw Supabase details")).toHaveCount(0);
+
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/ai-credit-transactions") {
+        return failure(404, "company_not_found", "raw deleted company details");
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "AI-credit and usage" })).toBeVisible();
+    await page.getByRole("button", { name: "Load AI-credit transactions" }).click();
+    await expect(page.getByRole("heading", { name: "Company Not Found" })).toBeVisible();
+    await expect(page.getByText("Example Tenant")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "AI-credit transactions" })).toHaveCount(0);
+    await expect(page.getByText("AI-credit transactions could not be loaded safely.")).toHaveCount(0);
+    await expect(page.getByText("raw deleted company details")).toHaveCount(0);
+  });
+
+  test("AI-credit transaction filter replaces pending request and suppresses late obsolete response", async ({ page }) => {
+    let releaseUnfiltered;
+    const slowObsolete = new Promise(resolve => {
+      releaseUnfiltered = () => resolve(success({
+        ...aiCreditTransactions,
+        transactions: [{
+          ...aiCreditTransactions.transactions[0],
+          transaction_type: "refund<script>window.__obsoleteTransactionXss=true</script>"
+        }]
+      }));
+    });
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/ai-credit-transactions") {
+        if (url.searchParams.get("transaction_type") === "refund") {
+          return slowObsolete;
+        }
+        if (url.searchParams.get("transaction_type") === "usage_debit") {
+          return success(filteredAiCreditTransactions);
+        }
+        return success(aiCreditTransactions);
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Load AI-credit transactions" }).click();
+    await expect(page.getByRole("cell", { name: /Usage Debit<script>window.*TransactionTypeXss=true/ })).toBeVisible();
+    await page.evaluate(() => {
+      window.__obsoleteTransactionRenderState = "pending";
+      PlatformAdminShell.runRequest("company-ai-credit-transactions", signal => (
+        PlatformAdminApi.listCompanyAiCreditTransactions(42, {
+          limit: 25,
+          offset: 0,
+          transactionType: "refund",
+          signal
+        })
+      )).then(data => {
+        const marker = document.createElement("div");
+        marker.id = "obsolete-transaction-render";
+        marker.textContent = data.transactions[0].transaction_type;
+        document.body.append(marker);
+        window.__obsoleteTransactionRenderState = "rendered";
+      }).catch(error => {
+        window.__obsoleteTransactionRenderState = error && error.category ? error.category : "rejected";
+      });
+    });
+    await page.locator("#platform-ai-credit-transactions-type").selectOption("usage_debit");
+
+    await expect(page.getByRole("cell", { name: /Usage Debit<img src=x onerror=window.*LateTransactionXss=true/ })).toBeVisible();
+    await expect(page.getByText("MYR 0.25").first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__lateTransactionXss)).toBeUndefined();
+
+    releaseUnfiltered();
+    await page.waitForTimeout(100);
+    await expect.poll(() => page.evaluate(() => window.__obsoleteTransactionRenderState)).toBe("aborted");
+    await expect(page.locator("#obsolete-transaction-render")).toHaveCount(0);
+    await expect(page.getByText("refund<script>window.__obsoleteTransactionXss=true</script>")).toHaveCount(0);
+    await expect(page.getByText("MYR 0.25").first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__obsoleteTransactionXss)).toBeUndefined();
+
+    const transactionUrls = calls
+      .filter(call => call.path === "/api/platform-admin/companies/42/ai-credit-transactions")
+      .map(call => new URL("http://test" + call.search));
+    expect(transactionUrls.some(url => !url.searchParams.has("transaction_type"))).toBe(true);
+    expect(transactionUrls.some(url => url.searchParams.get("transaction_type") === "usage_debit")).toBe(true);
   });
 
   test("lazy users and chatbots sections load safe fields with query parameters", async ({ page }) => {

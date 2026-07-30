@@ -546,3 +546,85 @@ def get_company_subscription_history(company_id, actor_id, *, limit=None, offset
                "returned_count": len(subscriptions or []),
            })
     return result
+
+
+def _safe_ai_credit_transaction_response_row(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "id": row.get("id"),
+        "transaction_type": row.get("transaction_type"),
+        "included_delta_micro_myr": row.get("included_delta_micro_myr"),
+        "topup_delta_micro_myr": row.get("topup_delta_micro_myr"),
+        "included_balance_after_micro_myr": row.get("included_balance_after_micro_myr"),
+        "topup_balance_after_micro_myr": row.get("topup_balance_after_micro_myr"),
+        "customer_charge_micro_myr": row.get("customer_charge_micro_myr"),
+        "uncovered_charge_micro_myr": row.get("uncovered_charge_micro_myr"),
+        "period_start": row.get("period_start"),
+        "period_end": row.get("period_end"),
+        "created_at": row.get("created_at"),
+    }
+
+
+def get_company_ai_credit_transactions(
+    company_id, actor_id, *, limit=None, offset=None, transaction_type=None
+):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_ai_credit_transactions"]
+    _positive_id(company_id)
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    normalized_type = transaction_type
+    if isinstance(transaction_type, str):
+        normalized_type = transaction_type.strip().lower()
+        if normalized_type == "":
+            _validation("invalid_transaction_type", "transaction_type is not supported.")
+    if normalized_type not in platform_billing_repository.AI_CREDIT_TRANSACTION_TYPES | {None}:
+        _validation("invalid_transaction_type", "transaction_type is not supported.")
+    _company_or_not_found(
+        company_id, actor_id, "platform_admin.company.ai_credit_transactions.read",
+        "company_ai_credit_transactions", endpoint,
+    )
+    try:
+        transactions, total = platform_billing_repository.list_ai_credit_transactions_for_platform_admin(
+            company_id=company_id,
+            limit=limit,
+            offset=offset,
+            transaction_type=normalized_type,
+        )
+    except Exception:
+        logger.error("Platform AI-credit transaction history lookup failed")
+        _data_unavailable()
+
+    safe_transactions = [
+        _safe_ai_credit_transaction_response_row(row) for row in (transactions or [])
+    ]
+    result = {
+        "transactions": safe_transactions,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(safe_transactions),
+            "total": int(total or 0),
+            "has_more": offset + len(safe_transactions) < int(total or 0),
+        },
+        "filters": {
+            "transaction_type": normalized_type,
+        },
+        "ordering": {
+            "by": "created_at",
+            "order": "desc",
+            "tie_breaker": "id desc",
+        },
+    }
+    _audit(actor_id, "platform_admin.company.ai_credit_transactions.read",
+           "company_ai_credit_transactions", str(company_id), {
+               "outcome": "success",
+               "endpoint": endpoint,
+               "http_method": "GET",
+               "limit": limit,
+               "offset": offset,
+               "transaction_type_filter": normalized_type,
+               "returned_count": len(safe_transactions),
+           })
+    return result

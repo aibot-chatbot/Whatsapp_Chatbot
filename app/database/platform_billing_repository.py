@@ -23,9 +23,24 @@ SUBSCRIPTION_HISTORY_FIELDS = (
     "cancellation_scheduled_at,cancellation_effective_at,status_updated_at,created_at,updated_at"
 )
 SUBSCRIPTION_HISTORY_PLAN_FIELDS = "id,code,name"
+AI_CREDIT_TRANSACTION_HISTORY_FIELDS = (
+    "id,transaction_type,included_delta_micro_myr,topup_delta_micro_myr,"
+    "included_balance_after_micro_myr,topup_balance_after_micro_myr,"
+    "customer_charge_micro_myr,uncovered_charge_micro_myr,period_start,period_end,created_at"
+)
 OVERVIEW_STATUSES = ("trialing", "active", "past_due", "expired", "cancelled")
 ATTENTION_STATUSES = {"past_due", "expired"}
 SUBSCRIPTION_HISTORY_STATUSES = set(OVERVIEW_STATUSES)
+AI_CREDIT_TRANSACTION_TYPES = {
+    "included_credit_grant",
+    "trial_credit_grant",
+    "usage_debit",
+    "topup_purchase",
+    "refund",
+    "manual_adjustment",
+    "expiry",
+    "reversal",
+}
 PLAN_ORDER = {"free": 0, "essential": 1, "advanced": 2, "pro": 3}
 SUBSCRIPTION_SCAN_PAGE_SIZE = 1000
 SUBSCRIPTION_SCAN_MAX_ROWS = 10000
@@ -223,6 +238,50 @@ def list_subscription_history_for_platform_admin(company_id, *, limit, offset, s
     plans_by_id = _plans_by_id_for_subscription_history(_positive_plan_ids(rows))
     subscriptions = [_safe_subscription_history_row(row, plans_by_id) for row in rows]
     return subscriptions, int(response.count or 0)
+
+
+def _safe_ai_credit_transaction_row(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "id": row.get("id"),
+        "transaction_type": row.get("transaction_type"),
+        "included_delta_micro_myr": row.get("included_delta_micro_myr"),
+        "topup_delta_micro_myr": row.get("topup_delta_micro_myr"),
+        "included_balance_after_micro_myr": row.get("included_balance_after_micro_myr"),
+        "topup_balance_after_micro_myr": row.get("topup_balance_after_micro_myr"),
+        "customer_charge_micro_myr": row.get("customer_charge_micro_myr"),
+        "uncovered_charge_micro_myr": row.get("uncovered_charge_micro_myr"),
+        "period_start": row.get("period_start"),
+        "period_end": row.get("period_end"),
+        "created_at": row.get("created_at"),
+    }
+
+
+def list_ai_credit_transactions_for_platform_admin(
+    company_id, *, limit, offset, transaction_type=None
+):
+    """List safe AI-credit ledger rows for one company, newest first."""
+    _validate_company_id(company_id)
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
+    if transaction_type is not None and transaction_type not in AI_CREDIT_TRANSACTION_TYPES:
+        raise ValueError("unsupported AI-credit transaction type")
+
+    query = (
+        supabase.table("ai_credit_transactions")
+        .select(AI_CREDIT_TRANSACTION_HISTORY_FIELDS, count="exact")
+        .eq("company_id", company_id)
+        .order("created_at", desc=True)
+        .order("id", desc=True)
+    )
+    if transaction_type is not None:
+        query = query.eq("transaction_type", transaction_type)
+    response = query.range(offset, offset + limit - 1).execute()
+    transactions = [_safe_ai_credit_transaction_row(row) for row in (response.data or [])]
+    return transactions, int(response.count or 0)
 
 
 def _scan_latest_subscriptions_for_platform_admin():

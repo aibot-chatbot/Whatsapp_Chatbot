@@ -302,11 +302,11 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
-- Nine GET-only endpoints for platform identity, operations overview, company directory/detail,
+- Ten GET-only endpoints for platform identity, operations overview, company directory/detail,
   subscription summary, current-period AI-credit/usage summary, and lazy
-  read-only subscription-history, company users, and company chatbots
+  read-only subscription-history, AI-credit transaction history, company users, and company chatbots
   inspection. The original five endpoints were verified in staging; the
-  operations-overview, users/chatbots, and subscription-history extensions are
+  operations-overview, users/chatbots, subscription-history, and AI-credit transaction-history extensions are
   application-only and locally tested unless separately staged later.
 - Cross-tenant reads isolated in dedicated platform repositories with explicit
   safe projections and mandatory audit-before-response behavior
@@ -315,7 +315,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   events, including metadata redaction and immediate revocation
 - Separate read-only frontend implemented for platform identity, exact company
   counts, server-paginated company search, company billing/AI-credit detail, and
-  lazy read-only subscription-history and company users/chatbots sections. A bounded application-only
+  lazy read-only subscription-history, AI-credit transaction-history, and company users/chatbots sections. A bounded application-only
   Platform Operations overview now adds one GET-only locally tested dashboard
   endpoint for company counts, latest-subscription status counts, latest-plan
   distribution, and at most 10 past-due/expired attention companies using
@@ -364,7 +364,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, users/chatbots, and subscription-history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
+| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, users/chatbots, subscription-history, and AI-credit transaction-history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | Direct tenant support contact/tickets | Deferred (no approved support contact destination or support-submission backend) |

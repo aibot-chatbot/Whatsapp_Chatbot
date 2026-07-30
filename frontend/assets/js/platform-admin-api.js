@@ -14,6 +14,7 @@
         "invalid_search",
         "invalid_status",
         "invalid_state",
+        "invalid_transaction_type",
         "invalid_sort_by",
         "invalid_sort_order"
     ]);
@@ -122,6 +123,16 @@
         return platformFetch("/companies/" + id + "/ai-credit-usage", (options || {}).signal);
     }
 
+    function listCompanyAiCreditTransactions(companyId, options) {
+        const id = requireCompanyId(companyId);
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit));
+        params.set("offset", String(config.offset));
+        if (config.transactionType) params.set("transaction_type", config.transactionType);
+        return platformFetch("/companies/" + id + "/ai-credit-transactions?" + params.toString(), config.signal);
+    }
+
     function listCompanyUsers(companyId, options) {
         const id = requireCompanyId(companyId);
         const config = options || {};
@@ -155,6 +166,7 @@
         getCompanySubscription: getCompanySubscription,
         listCompanySubscriptionHistory: listCompanySubscriptionHistory,
         getCompanyAiCreditUsage: getCompanyAiCreditUsage,
+        listCompanyAiCreditTransactions: listCompanyAiCreditTransactions,
         listCompanyUsers: listCompanyUsers,
         listCompanyChatbots: listCompanyChatbots
     });

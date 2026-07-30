@@ -480,6 +480,165 @@
         return panel;
     }
 
+    function transactionTypeLabel(value) {
+        if (value === null || value === undefined || value === "") {
+            return "Not available";
+        }
+        return String(value).split("_").map(function (part) {
+            return part ? part.charAt(0).toUpperCase() + part.slice(1) : "";
+        }).join(" ");
+    }
+
+    function aiCreditTransactionRows(transactions) {
+        return transactions.map(function (transaction) {
+            return [
+                ui.formatDate(transaction.created_at),
+                transactionTypeLabel(transaction.transaction_type),
+                ui.formatMicroMyr(transaction.included_delta_micro_myr),
+                ui.formatMicroMyr(transaction.topup_delta_micro_myr),
+                ui.formatMicroMyr(transaction.customer_charge_micro_myr),
+                ui.formatMicroMyr(transaction.uncovered_charge_micro_myr),
+                ui.formatMicroMyr(transaction.included_balance_after_micro_myr),
+                ui.formatMicroMyr(transaction.topup_balance_after_micro_myr),
+                periodText(transaction.period_start, transaction.period_end)
+            ];
+        });
+    }
+
+    function aiCreditTransactionToolbar(state, load) {
+        const toolbar = ui.element("div", "platform-toolbar");
+
+        const typeField = ui.element("div", "platform-field");
+        const typeLabel = ui.element("label", "", "Transaction type");
+        typeLabel.setAttribute("for", "platform-ai-credit-transactions-type");
+        const typeSelect = ui.element("select", "platform-select");
+        typeSelect.id = "platform-ai-credit-transactions-type";
+        [
+            ["", "All transaction types"],
+            ["included_credit_grant", "Included credit grant"],
+            ["trial_credit_grant", "Trial credit grant"],
+            ["usage_debit", "Usage debit"],
+            ["topup_purchase", "Top-up purchase"],
+            ["refund", "Refund"],
+            ["manual_adjustment", "Manual adjustment"],
+            ["expiry", "Expiry"],
+            ["reversal", "Reversal"]
+        ].forEach(function (item) {
+            const option = ui.element("option", "", item[1]);
+            option.value = item[0];
+            if (state.transactionType === item[0]) option.selected = true;
+            typeSelect.append(option);
+        });
+        typeSelect.addEventListener("change", function () {
+            state.transactionType = typeSelect.value;
+            state.offset = 0;
+            load();
+        });
+        typeField.append(typeLabel, typeSelect);
+        toolbar.append(typeField);
+
+        const limitField = ui.element("div", "platform-field");
+        const limitLabel = ui.element("label", "", "Page size");
+        limitLabel.setAttribute("for", "platform-ai-credit-transactions-limit");
+        const limitSelect = ui.element("select", "platform-select");
+        limitSelect.id = "platform-ai-credit-transactions-limit";
+        [25, 50, 100].forEach(function (value) {
+            const option = ui.element("option", "", String(value));
+            option.value = String(value);
+            if (state.limit === value) option.selected = true;
+            limitSelect.append(option);
+        });
+        limitSelect.addEventListener("change", function () {
+            state.limit = Number(limitSelect.value);
+            state.offset = 0;
+            load();
+        });
+        limitField.append(limitLabel, limitSelect);
+        toolbar.append(limitField);
+
+        return toolbar;
+    }
+
+    function aiCreditTransactionsPanel(companyId) {
+        const state = { loaded: false, loading: false, limit: 25, offset: 0, transactionType: "" };
+        const panel = ui.element("section", "platform-panel");
+        const header = ui.element("header", "platform-page-header");
+        const title = ui.element("div");
+        title.append(
+            ui.element("h2", "", "AI-credit transactions"),
+            ui.element("p", "", "Read-only credit ledger rows for this company. Provider economics and payment references are excluded.")
+        );
+        const toggle = ui.element("button", "platform-button", "Load AI-credit transactions");
+        toggle.type = "button";
+        header.append(title, toggle);
+        const body = ui.element("div");
+        body.hidden = true;
+        panel.append(header, body);
+
+        function renderLoaded(data) {
+            body.replaceChildren();
+            body.append(aiCreditTransactionToolbar(state, load));
+            const transactions = data.transactions || [];
+            if (!transactions.length) {
+                body.append(sectionStateCard("No AI-credit transactions recorded."));
+            } else {
+                const headers = [
+                    "Created", "Type", "Included delta", "Top-up delta",
+                    "Customer charge", "Uncovered", "Included balance after",
+                    "Top-up balance after", "Period"
+                ];
+                const rows = aiCreditTransactionRows(transactions);
+                body.append(renderTable(headers, rows, function (cells) {
+                    return rowCard(headers, cells);
+                }));
+            }
+            body.append(paginationControls(data.pagination || {}, state, load));
+        }
+
+        async function load() {
+            state.loaded = true;
+            state.loading = true;
+            body.hidden = false;
+            body.replaceChildren(ui.element("div", "platform-loading", "Loading AI-credit transactions..."));
+            toggle.textContent = "Hide AI-credit transactions";
+            try {
+                const data = await ui.runRequest("company-ai-credit-transactions", function (signal) {
+                    return PlatformAdminApi.listCompanyAiCreditTransactions(companyId, {
+                        limit: state.limit,
+                        offset: state.offset,
+                        transactionType: state.transactionType,
+                        signal: signal,
+                    });
+                });
+                renderLoaded(data);
+            } catch (error) {
+                if (error && (error.category === "unauthenticated" || error.category === "access_denied")) {
+                    ui.handleError(error);
+                } else if (error && error.category === "not_found") {
+                    showCompanyNotFoundState();
+                } else if (!error || error.category !== "aborted") {
+                    body.replaceChildren(sectionStateCard(
+                        "AI-credit transactions could not be loaded safely.",
+                        "Retry",
+                        load
+                    ));
+                }
+            } finally {
+                state.loading = false;
+            }
+        }
+
+        toggle.addEventListener("click", function () {
+            if (!state.loaded) {
+                load();
+                return;
+            }
+            body.hidden = !body.hidden;
+            toggle.textContent = body.hidden ? "Show AI-credit transactions" : "Hide AI-credit transactions";
+        });
+        return panel;
+    }
+
     function lazyListPanel(config) {
         const panel = ui.element("section", "platform-panel");
         const header = ui.element("header", "platform-page-header");
@@ -511,7 +670,7 @@
             config.state.loaded = true;
             config.state.loading = true;
             body.hidden = false;
-            body.replaceChildren(ui.element("div", "platform-loading", "Loading " + config.title.toLowerCase() + "…"));
+            body.replaceChildren(ui.element("div", "platform-loading", "Loading " + config.title.toLowerCase() + "..."));
             toggle.textContent = "Hide " + config.title.toLowerCase();
             try {
                 const data = await ui.runRequest(config.operationKey, function (signal) {
@@ -728,7 +887,7 @@
             return;
         }
 
-        root.replaceChildren(ui.element("div", "platform-loading", "Loading company…"));
+        root.replaceChildren(ui.element("div", "platform-loading", "Loading company..."));
         let company;
         try {
             company = await ui.runRequest("company-detail", function (signal) {
@@ -743,7 +902,7 @@
             return;
         }
 
-        root.replaceChildren(pageHeader(company), companyPanel(company), ui.element("div", "platform-loading", "Loading billing summaries…"));
+        root.replaceChildren(pageHeader(company), companyPanel(company), ui.element("div", "platform-loading", "Loading billing summaries..."));
         try {
             const summaries = await Promise.all([
                 ui.runRequest("company-subscription", function (signal) {
@@ -759,6 +918,7 @@
                 subscriptionPanel(summaries[0] ? summaries[0].subscription : null),
                 subscriptionHistoryPanel(companyId),
                 aiCreditPanel(summaries[1]),
+                aiCreditTransactionsPanel(companyId),
                 usersPanel(companyId),
                 chatbotsPanel(companyId)
             );
