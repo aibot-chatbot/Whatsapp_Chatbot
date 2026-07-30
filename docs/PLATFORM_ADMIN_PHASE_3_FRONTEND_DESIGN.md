@@ -14,12 +14,17 @@ subsequent bounded application-only operations phase added
 `GET /api/platform-admin/overview` for read-only company counts,
 latest-subscription status counts, latest-subscription plan distribution, and
 at most 10 past-due/expired attention companies. These extensions are locally
-tested only unless separately staged and recorded.
+tested only unless separately staged and recorded. A later bounded
+application-only investigation phase added one lazy read-only subscription
+history endpoint and frontend section. It lists persisted
+`company_subscriptions` records only; it is not an event-sourced timeline and
+does not claim every status transition is preserved as a separate row.
 
 The original Phase 3 frontend pass did not add endpoints, reactivate a mapping,
 change users.role, alter migrations, or deploy anything. Subsequent
-application-only extensions added three GET-only endpoints for users, chatbots,
-and the operations overview. Flow Builder, Broadcast, tenant administration,
+application-only extensions added four GET-only endpoints for users, chatbots,
+the operations overview, and subscription history. Flow Builder, Broadcast,
+tenant administration,
 impersonation, exports, messaging, reconciliation, credit adjustments, and
 subscription changes remain out of scope.
 
@@ -32,8 +37,9 @@ subscription changes remain out of scope.
   inferred from tenant roles, JWT claims, cached users, or local UI flags.
 - The client originally exposed the five Phase 3 GET operations. Subsequent
   application-only read-only extensions added the operations overview plus two
-  lazy company-detail inspection operations for company users and chatbots. All
-  eight operations use the normal authenticated session token mechanism.
+  lazy company-detail inspection operations for company users and chatbots, and
+  one lazy subscription-history operation. All nine operations use the normal
+  authenticated session token mechanism.
 - An in-memory request registry, abort controllers, and a monotonically
   increasing page epoch prevent replaced or late requests from restoring
   cleared cross-tenant data.
@@ -68,13 +74,15 @@ subscription changes remain out of scope.
 
 ## Verification evidence
 
-- Current local mocked Playwright platform-admin browser suite: 24 passed. It
+- Current local mocked Playwright platform-admin browser suite: 26 passed after
+  the subscription-history extension. It
   covers the
   original Phase 3 flows plus the later lazy read-only users/chatbots company
-  inspection extension and the operations overview dashboard, including safe
-  rendering, child-list 404 stale-state clearing, active sibling-request
-  cancellation, late-response suppression, one overview request after `/me`,
-  empty attention state, and stale overview clearing on denial/unavailability.
+  inspection extension, the lazy read-only subscription-history section, and
+  the operations overview dashboard, including safe rendering, child-list 404
+  stale-state clearing, active sibling-request cancellation, late-response
+  suppression, one overview request after `/me`, empty attention state, and
+  stale overview clearing on denial/unavailability.
   These local mocked tests do not prove staging or production behavior.
 - Historical local mocked Playwright platform-admin browser suite result before
   the users/chatbots extension: 18 passed.
@@ -91,9 +99,9 @@ subscription changes remain out of scope.
   dashboard date/account-menu responsive overlap prevention, readable mobile
   date display, temporary open-state layout adjustment and restoration after
   closing, public/platform page exclusion, and read-only boundaries.
-- Current focused platform-admin frontend source-contract suite: 33 passed,
+- Current focused platform-admin frontend source-contract suite: 34 passed,
   6 subtests passed.
-- Current focused platform-admin Python suite: 119 passed, 212 subtests passed.
+- Current focused platform-admin Python suite: 129 passed, 242 subtests passed.
 - Earlier recorded combined platform-admin backend/frontend and
   authentication/security regressions: 88 passed, 114 subtests passed.
 - Earlier recorded full safe suite: 1,421 passed, 1 skipped, 125 subtests
@@ -250,7 +258,7 @@ Create a separate three-page static surface:
 |---|---|---|
 | `platform-admin.html` | Platform operations dashboard | `/me`; `/overview` |
 | `platform-admin-companies.html` | Paginated company directory | `/me`; `/companies` |
-| `platform-admin-company.html?company_id=<id>` | Company, subscription, AI-credit detail, and lazy read-only users/chatbots inspection | `/me`; company detail; subscription; AI-credit usage; lazy users; lazy chatbots |
+| `platform-admin-company.html?company_id=<id>` | Company, subscription, AI-credit detail, lazy subscription-history inspection, and lazy read-only users/chatbots inspection | `/me`; company detail; subscription; AI-credit usage; lazy subscription history; lazy users; lazy chatbots |
 
 Every page independently runs the `/api/platform-admin/me` authorization gate
 before revealing the platform shell or making any company request. A static
@@ -504,10 +512,34 @@ delete/restore, subscription-change, payment, or credit-adjustment controls.
 This extension is application-only and locally tested unless a later approved
 staging verification record is added.
 
+### Subsequent read-only subscription-history extension
+
+After the users/chatbots and operations-overview additions, a bounded
+application-only extension added
+`GET /api/platform-admin/companies/<company_id>/subscription-history` and a
+lazy **Subscription history** section below the current subscription summary.
+The section loads only after `/me` succeeds and company detail confirms the
+company exists, and only when the operator opens the section. It supports
+server pagination and an optional status filter for `trialing`, `active`,
+`past_due`, `expired`, and `cancelled`.
+
+The response lists persisted `company_subscriptions` records ordered by
+`created_at DESC, id DESC`. It is not an event-sourced audit timeline and must
+not be described as proof that every individual status transition is preserved
+as a separate row. Plan enrichment exposes only plan code and name for the
+current and pending plan references on the historical row. It intentionally
+omits current plan price, currency, billing interval, included AI credit,
+feature flags, and model tier because current plan-table commercial values are
+not guaranteed to represent historical terms.
+
+Billing orders, AI-credit transaction history, exports, charts, reconciliation,
+activation, refund, retry-payment, plan-change, cancellation, renewal, and
+credit-adjustment controls remain deferred and out of scope.
+
 ## API client design
 
 Create a dedicated platform API client that wraps the existing authenticated
-session mechanism but accepts only the eight GET operations. It must not expose a
+session mechanism but accepts only the nine GET operations. It must not expose a
 generic mutation method or arbitrary platform URL.
 
 Required operations:
@@ -518,6 +550,12 @@ getOverview({ signal })
 listCompanies({ limit, offset, search, status, sortBy, sortOrder, signal })
 getCompany(companyId, { signal })
 getCompanySubscription(companyId, { signal })
+listCompanySubscriptionHistory(companyId, {
+  limit,
+  offset,
+  status,
+  signal
+})
 getCompanyAiCreditUsage(companyId, { signal })
 listCompanyUsers(companyId, {
   limit,
@@ -586,7 +624,7 @@ avoid leaving stale cross-tenant information visible.
    filters containing user input in local/session storage.
 4. Keep cross-tenant responses only in active-page memory and clear rendered
    data on denial, logout, 503, pagehide, and revoked-session detection.
-5. Use only the eight approved GET endpoint builders; no `/api/admin/billing`
+5. Use only the nine approved GET endpoint builders; no `/api/admin/billing`
    reuse.
 6. Validate the company query ID before constructing any API path.
 7. Render API values as text, not HTML.
@@ -643,7 +681,7 @@ stealing focus during ordinary loading.
 
 - Every platform request carries the existing session token in the Bearer
   header and never places it in a URL/body.
-- Only the eight approved GET endpoint builders exist.
+- Only the nine approved GET endpoint builders exist.
 - Detail, subscription, and AI usage all use the validated page company ID, not
   the JWT/cached company ID.
 - Invalid company IDs are rejected locally without an API call.

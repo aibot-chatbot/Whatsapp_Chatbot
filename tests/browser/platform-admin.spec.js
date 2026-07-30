@@ -153,6 +153,35 @@ const chatbotList = {
   filters: { search_applied: false, state: "current" }
 };
 
+const subscriptionHistory = {
+  subscriptions: [
+    {
+      id: 501,
+      status: "past_due",
+      plan: {
+        code: "pro",
+        name: "Pro <img src=x onerror=window.__historyPlanXss=true>"
+      },
+      pending_plan: null,
+      starts_at: null,
+      current_period_start: "2026-07-01T00:00:00+00:00",
+      current_period_end: "2026-08-01T00:00:00+00:00",
+      trial_ends_at: null,
+      cancelled_at: null,
+      ends_at: null,
+      plan_change_effective_at: null,
+      cancellation_scheduled_at: null,
+      cancellation_effective_at: null,
+      status_updated_at: "2026-07-29T00:00:00+00:00",
+      created_at: "2026-07-01T00:00:00+00:00",
+      updated_at: "2026-07-29T00:00:00+00:00"
+    }
+  ],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 2, has_more: true },
+  filters: { status: null, status_applied: false },
+  ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" }
+};
+
 function success(data) {
   return { status: 200, body: { status: "success", data } };
 }
@@ -233,6 +262,9 @@ function defaultHandler({ url }) {
   if (url.pathname === "/api/platform-admin/companies/42") return success(company);
   if (url.pathname === "/api/platform-admin/companies/42/subscription") {
     return success(subscriptionSummary);
+  }
+  if (url.pathname === "/api/platform-admin/companies/42/subscription-history") {
+    return success(subscriptionHistory);
   }
   if (url.pathname === "/api/platform-admin/companies/42/ai-credit-usage") {
     return success(aiCreditSummary);
@@ -505,7 +537,7 @@ test.describe("platform-admin company detail", () => {
   test("loads company first, then subscription and AI-credit summaries", async ({ page }) => {
     const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => defaultHandler({ url }));
     await expect(page.getByRole("heading", { name: "Example Tenant <script>window.__xss = true</script>" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Subscription" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Subscription", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "AI-credit and usage" })).toBeVisible();
     await expect(page.locator("script", { hasText: "window.__xss = true" })).toHaveCount(0);
 
@@ -513,8 +545,72 @@ test.describe("platform-admin company detail", () => {
     expect(paths.indexOf("/api/platform-admin/companies/42")).toBeGreaterThan(paths.indexOf("/api/platform-admin/me"));
     expect(paths.indexOf("/api/platform-admin/companies/42/subscription")).toBeGreaterThan(paths.indexOf("/api/platform-admin/companies/42"));
     expect(paths.indexOf("/api/platform-admin/companies/42/ai-credit-usage")).toBeGreaterThan(paths.indexOf("/api/platform-admin/companies/42"));
+    expect(paths).not.toContain("/api/platform-admin/companies/42/subscription-history");
     expect(paths).not.toContain("/api/platform-admin/companies/42/users");
     expect(paths).not.toContain("/api/platform-admin/companies/42/chatbots");
+  });
+
+  test("lazy subscription history loads with status filtering pagination and safe rendering", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => defaultHandler({ url }));
+    await expect(page.getByRole("heading", { name: "Subscription history" })).toBeVisible();
+    expect(calls.map(call => call.path)).not.toContain("/api/platform-admin/companies/42/subscription-history");
+
+    await page.getByRole("button", { name: "Load subscription history" }).click();
+    await expect(page.getByRole("cell", { name: "Pro <img src=x onerror=window.__historyPlanXss=true>" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__historyPlanXss)).toBeUndefined();
+
+    await page.getByLabel("Status").selectOption("past_due");
+    await page.getByLabel("Page size").first().selectOption("50");
+    await page.getByRole("button", { name: "Next" }).first().click();
+
+    const historyUrls = calls
+      .filter(call => call.path === "/api/platform-admin/companies/42/subscription-history")
+      .map(call => new URL("http://test" + call.search));
+    expect(historyUrls.length).toBeGreaterThanOrEqual(3);
+    expect(historyUrls.some(url => url.searchParams.get("status") === "past_due")).toBe(true);
+    expect(historyUrls.some(url => url.searchParams.get("limit") === "50")).toBe(true);
+    expect(historyUrls.every(url => !url.searchParams.has("sort_by"))).toBe(true);
+    expect(historyUrls.every(url => !url.searchParams.has("search"))).toBe(true);
+  });
+
+  test("subscription history empty unavailable retry and child 404 states are sanitized", async ({ page }) => {
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/subscription-history") {
+        return success({
+          ...subscriptionHistory,
+          subscriptions: [],
+          pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false }
+        });
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Load subscription history" }).click();
+    await expect(page.getByText("No subscription history recorded.")).toBeVisible();
+
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/subscription-history") {
+        return failure(503, "platform_admin_data_unavailable", "raw Supabase details");
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Load subscription history" }).click();
+    await expect(page.getByText("Subscription history could not be loaded safely.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByText("raw Supabase details")).toHaveCount(0);
+
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/subscription-history") {
+        return failure(404, "company_not_found", "raw deleted company details");
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "AI-credit and usage" })).toBeVisible();
+    await page.getByRole("button", { name: "Load subscription history" }).click();
+    await expect(page.getByRole("heading", { name: "Company Not Found" })).toBeVisible();
+    await expect(page.getByText("Example Tenant")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Subscription history" })).toHaveCount(0);
+    await expect(page.getByText("Subscription history could not be loaded safely.")).toHaveCount(0);
+    await expect(page.getByText("raw deleted company details")).toHaveCount(0);
   });
 
   test("lazy users and chatbots sections load safe fields with query parameters", async ({ page }) => {

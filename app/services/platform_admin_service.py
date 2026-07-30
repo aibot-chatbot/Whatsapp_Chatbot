@@ -459,3 +459,90 @@ def get_company_chatbots(company_id, actor_id, *, limit=None, offset=None,
         "state_filter": normalized_state, "returned_count": len(chatbots),
     })
     return result
+
+
+def _safe_subscription_history_response_row(row):
+    if not isinstance(row, dict):
+        row = {}
+
+    def safe_plan(value):
+        if not isinstance(value, dict):
+            return None
+        return {
+            "code": value.get("code"),
+            "name": value.get("name"),
+        }
+
+    return {
+        "id": row.get("id"),
+        "status": row.get("status"),
+        "plan": safe_plan(row.get("plan")),
+        "pending_plan": safe_plan(row.get("pending_plan")),
+        "starts_at": row.get("starts_at"),
+        "current_period_start": row.get("current_period_start"),
+        "current_period_end": row.get("current_period_end"),
+        "trial_ends_at": row.get("trial_ends_at"),
+        "cancelled_at": row.get("cancelled_at"),
+        "ends_at": row.get("ends_at"),
+        "plan_change_effective_at": row.get("plan_change_effective_at"),
+        "cancellation_scheduled_at": row.get("cancellation_scheduled_at"),
+        "cancellation_effective_at": row.get("cancellation_effective_at"),
+        "status_updated_at": row.get("status_updated_at"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+    }
+
+
+def get_company_subscription_history(company_id, actor_id, *, limit=None, offset=None,
+                                     status=None):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_subscription_history"]
+    _positive_id(company_id)
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    normalized_status = status.strip().lower() if isinstance(status, str) else status
+    if normalized_status not in platform_billing_repository.SUBSCRIPTION_HISTORY_STATUSES | {None}:
+        _validation("invalid_status", "status must be trialing, active, past_due, expired, or cancelled.")
+    _company_or_not_found(
+        company_id, actor_id, "platform_admin.company.subscription_history.read",
+        "company_subscription_history", endpoint,
+    )
+    try:
+        subscriptions, total = platform_billing_repository.list_subscription_history_for_platform_admin(
+            company_id=company_id, limit=limit, offset=offset, status=normalized_status,
+        )
+    except Exception:
+        logger.error("Platform subscription history lookup failed")
+        _data_unavailable()
+    result = {
+        "subscriptions": [
+            _safe_subscription_history_response_row(row) for row in (subscriptions or [])
+        ],
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(subscriptions or []),
+            "total": total,
+            "has_more": offset + len(subscriptions or []) < total,
+        },
+        "filters": {
+            "status": normalized_status,
+            "status_applied": normalized_status is not None,
+        },
+        "ordering": {
+            "by": "created_at",
+            "order": "desc",
+            "tie_breaker": "id desc",
+        },
+    }
+    _audit(actor_id, "platform_admin.company.subscription_history.read",
+           "company_subscription_history", str(company_id), {
+               "outcome": "success",
+               "endpoint": endpoint,
+               "http_method": "GET",
+               "limit": limit,
+               "offset": offset,
+               "status_filter": normalized_status,
+               "returned_count": len(subscriptions or []),
+           })
+    return result

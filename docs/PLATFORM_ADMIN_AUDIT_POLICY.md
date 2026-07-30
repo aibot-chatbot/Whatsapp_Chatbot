@@ -4,9 +4,10 @@
 
 **Production policy candidate; formal security, privacy, legal, and data-owner
 approval remains required.** This policy matches the implemented read-only
-platform-admin endpoint set, including the application-only company user and
-chatbot inspection extension. It does not authorize a deployment, schema
-change, retention deletion, or mapping activation.
+platform-admin endpoint set, including the application-only operations overview,
+company-user, chatbot, and subscription-history extensions. It does not
+authorize a deployment, schema change, retention deletion, or mapping
+activation.
 
 The platform-admin service is fail closed: a successful or not-found platform
 response must not be returned unless its audit event is inserted successfully.
@@ -34,9 +35,18 @@ No action or resource type outside this table is approved for Phase 4.
 | `platform_admin.company.list` | `company` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `status_filter`, `returned_count` | None | `/api/platform-admin/companies` |
 | `platform_admin.company.read` | `company` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>` |
 | `platform_admin.company.subscription.read` | `company_subscription` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>/subscription` |
+| `platform_admin.company.subscription_history.read` | `company_subscription_history` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `status_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/subscription-history` |
 | `platform_admin.company.ai_credit_usage.read` | `company_ai_credit_usage` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `period_start` and `period_end` when `outcome = success` | None for `success`; no period fields for `not_found` | `/api/platform-admin/companies/<company_id>/ai-credit-usage` |
 | `platform_admin.company.users.read` | `company_users` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/users` |
 | `platform_admin.company.chatbots.read` | `company_chatbots` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `state_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/chatbots` |
+| `platform_admin.operations.overview.read` | `platform_operations_overview` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `attention_company_count`, `generated_at` | None | `/api/platform-admin/overview` |
+
+### Operations-overview fields
+
+| Field | Allowed value |
+|---|---|
+| `attention_company_count` | Integer from 0 through 10; booleans are rejected |
+| `generated_at` | Valid timezone-aware ISO-8601 timestamp |
 
 `resource_id`, when present, must be a non-blank string no longer than 255
 characters and must contain only the canonical positive numeric ID for the implemented
@@ -65,6 +75,8 @@ state_filter
 returned_count
 period_start
 period_end
+attention_company_count
+generated_at
 ```
 
 No additional key is permitted without a code change, security/privacy review,
@@ -105,6 +117,28 @@ or metadata fields require an explicit schema and tests before use.
 events because no tenant period has been read. Other action types use only
 their common fields. Metadata must not duplicate actor IDs or resource IDs
 already represented by table columns.
+
+### Company subscription-history fields
+
+These fields are present only when
+`platform_admin.company.subscription_history.read` has `outcome = success`.
+A missing company emits `outcome = not_found` with only the common fields.
+
+The subscription-history endpoint lists persisted `company_subscriptions`
+records. It is not an event-sourced audit timeline and must not be interpreted
+as proof that every individual status transition is preserved as a separate
+row.
+
+| Field | Allowed value |
+|---|---|
+| `limit` | Validated integer 1-100 |
+| `offset` | Validated non-negative integer |
+| `status_filter` | `trialing`, `active`, `past_due`, `expired`, `cancelled`, or null |
+| `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
+
+Metadata for this action must not include company names, plan names, plan
+codes, subscription IDs, timestamps, payment or gateway identifiers, raw
+errors, or response bodies.
 
 ### Company-user list fields
 
@@ -191,8 +225,11 @@ the top-level allowlist.
   `platform_admin.company.users.read` allows `created_at`, `email`,
   `full_name`, or `id`; and `platform_admin.company.chatbots.read` allows
   `created_at`, `updated_at`, `bot_name`, or `id`.
-- `sort_order` must be `asc` or `desc`. `status_filter` is allowed only on
-  `platform_admin.company.list` and must be `active`, `inactive`, or null.
+- `sort_order` must be `asc` or `desc`.
+- `status_filter` is action-specific:
+  `platform_admin.company.list` allows `active`, `inactive`, or null;
+  `platform_admin.company.subscription_history.read` allows `trialing`,
+  `active`, `past_due`, `expired`, `cancelled`, or null.
   `state_filter` is allowed only on `platform_admin.company.chatbots.read` and
   must be `current`, `archived`, or `all`.
 - Period strings, when present, must be non-blank and no longer than 64

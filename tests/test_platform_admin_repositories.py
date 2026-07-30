@@ -161,6 +161,116 @@ class PlatformAdminRepositoryTests(unittest.TestCase):
         plans.in_.assert_called_once_with("id", [91])
         plans.eq.assert_not_called()
 
+    def test_subscription_history_uses_exact_projection_count_scope_and_ordering(self):
+        subscriptions = fluent_query([
+            {
+                "id": 8,
+                "plan_id": 3,
+                "pending_plan_id": 4,
+                "status": "past_due",
+                "starts_at": None,
+                "current_period_start": None,
+                "current_period_end": None,
+                "trial_ends_at": None,
+                "cancelled_at": None,
+                "ends_at": None,
+                "plan_change_effective_at": None,
+                "cancellation_scheduled_at": None,
+                "cancellation_effective_at": None,
+                "status_updated_at": None,
+                "created_at": "2026-07-02T00:00:00+00:00",
+                "updated_at": "2026-07-02T00:00:00+00:00",
+                "company_id": 2,
+                "price": 9900,
+            }
+        ], count=7)
+        plans = fluent_query([
+            {"id": 3, "code": "pro", "name": "Pro", "price": 9900, "is_active": False},
+            {"id": 4, "code": "advanced", "name": "Advanced", "price": 5900},
+        ])
+        with patch.object(platform_billing_repository.supabase, "table", side_effect=[subscriptions, plans]) as table:
+            rows, count = platform_billing_repository.list_subscription_history_for_platform_admin(
+                company_id=2, limit=1, offset=3, status="past_due",
+            )
+        self.assertEqual(table.call_args_list[0].args[0], "company_subscriptions")
+        self.assertEqual(table.call_args_list[1].args[0], "subscription_plans")
+        subscriptions.select.assert_called_once_with(
+            platform_billing_repository.SUBSCRIPTION_HISTORY_FIELDS,
+            count="exact",
+        )
+        self.assertNotIn("company_id", platform_billing_repository.SUBSCRIPTION_HISTORY_FIELDS)
+        self.assertNotIn("price", platform_billing_repository.SUBSCRIPTION_HISTORY_FIELDS)
+        subscriptions.eq.assert_any_call("company_id", 2)
+        subscriptions.eq.assert_any_call("status", "past_due")
+        subscriptions.order.assert_any_call("created_at", desc=True)
+        subscriptions.order.assert_any_call("id", desc=True)
+        subscriptions.range.assert_called_once_with(3, 3)
+        plans.select.assert_called_once_with(platform_billing_repository.SUBSCRIPTION_HISTORY_PLAN_FIELDS)
+        plans.in_.assert_called_once_with("id", [3, 4])
+        plans.eq.assert_not_called()
+        self.assertEqual(count, 7)
+        self.assertEqual(rows, [{
+            "id": 8,
+            "status": "past_due",
+            "plan": {"code": "pro", "name": "Pro"},
+            "pending_plan": {"code": "advanced", "name": "Advanced"},
+            "starts_at": None,
+            "current_period_start": None,
+            "current_period_end": None,
+            "trial_ends_at": None,
+            "cancelled_at": None,
+            "ends_at": None,
+            "plan_change_effective_at": None,
+            "cancellation_scheduled_at": None,
+            "cancellation_effective_at": None,
+            "status_updated_at": None,
+            "created_at": "2026-07-02T00:00:00+00:00",
+            "updated_at": "2026-07-02T00:00:00+00:00",
+        }])
+
+    def test_subscription_history_batches_current_and_pending_plan_lookup_once(self):
+        subscriptions = fluent_query([
+            {"id": 3, "plan_id": 9, "pending_plan_id": 10},
+            {"id": 2, "plan_id": 9, "pending_plan_id": None},
+            {"id": 1, "plan_id": True, "pending_plan_id": -1},
+        ], count=3)
+        plans = fluent_query([
+            {"id": 9, "code": "legacy", "name": "Legacy"},
+            {"id": 10, "code": "next", "name": "Next"},
+        ])
+        with patch.object(platform_billing_repository.supabase, "table", side_effect=[subscriptions, plans]) as table:
+            rows, count = platform_billing_repository.list_subscription_history_for_platform_admin(
+                company_id=2, limit=25, offset=0,
+            )
+        self.assertEqual(count, 3)
+        self.assertEqual(table.call_count, 2)
+        plans.in_.assert_called_once_with("id", [9, 10])
+        self.assertEqual(rows[0]["plan"], {"code": "legacy", "name": "Legacy"})
+        self.assertEqual(rows[0]["pending_plan"], {"code": "next", "name": "Next"})
+
+    def test_subscription_history_without_plan_ids_does_not_query_plans(self):
+        subscriptions = fluent_query([{"id": 1, "plan_id": None, "pending_plan_id": None}], count=1)
+        with patch.object(platform_billing_repository.supabase, "table", return_value=subscriptions) as table:
+            rows, count = platform_billing_repository.list_subscription_history_for_platform_admin(
+                company_id=2, limit=25, offset=0,
+            )
+        self.assertEqual(table.call_count, 1)
+        self.assertEqual(count, 1)
+        self.assertIsNone(rows[0]["plan"])
+        self.assertIsNone(rows[0]["pending_plan"])
+
+    def test_subscription_history_rejects_invalid_repository_arguments(self):
+        for kwargs in (
+            {"company_id": 0, "limit": 25, "offset": 0},
+            {"company_id": 2, "limit": 0, "offset": 0},
+            {"company_id": 2, "limit": True, "offset": 0},
+            {"company_id": 2, "limit": 25, "offset": -1},
+            {"company_id": 2, "limit": 25, "offset": True},
+            {"company_id": 2, "limit": 25, "offset": 0, "status": "paused"},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                platform_billing_repository.list_subscription_history_for_platform_admin(**kwargs)
+
     def test_latest_subscription_overview_scan_bound_raises_instead_of_partial_counts(self):
         first_page = fluent_query([
             {"id": 4, "company_id": 4, "plan_id": 2, "status": "active", "created_at": "2026-07-29T00:00:00+00:00"},
