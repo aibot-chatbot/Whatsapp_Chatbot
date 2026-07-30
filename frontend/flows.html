@@ -1032,10 +1032,38 @@
             }
         }
 
-        function parseWelcomeMessage(msg) {
-            welcomeText = msg;
+        function parseWelcomeMessage(rawText) {
             buttons = [];
             buttonsDataPoints = [];
+
+            if (!rawText) {
+                welcomeText = "";
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(rawText);
+                if (typeof parsed === 'object' && parsed !== null) {
+                    welcomeText = parsed.welcome_text || "";
+                    buttons = Array.isArray(parsed.buttons) ? [...parsed.buttons] : [];
+                    if (botData && Array.isArray(botData.flow_buttons_data_points)) {
+                        buttonsDataPoints = botData.flow_buttons_data_points.map(b => Array.isArray(b.data_points) ? [...b.data_points] : []);
+                    }
+                    return;
+                }
+            } catch (e) {}
+
+            // Legacy format: [BUTTON: Name]
+            const regex = /\[BUTTON:\s*(.*?)\]/gi;
+            let match;
+            while ((match = regex.exec(rawText)) !== null) {
+                buttons.push(match[1].trim());
+            }
+            welcomeText = rawText.replace(/\[BUTTON:\s*(.*?)\]/gi, "").trim();
+
+            if (botData && Array.isArray(botData.flow_buttons_data_points)) {
+                buttonsDataPoints = botData.flow_buttons_data_points.map(b => Array.isArray(b.data_points) ? [...b.data_points] : []);
+            }
         }
 
         function renderEditor() {
