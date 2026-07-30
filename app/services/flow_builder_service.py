@@ -37,18 +37,15 @@ def auto_generate_welcome_menu(chatbot_id):
 
     prompt = (
         f"You are an expert conversational designer. Based on the following PDF knowledge base for '{company_name}', generate:\n"
-        f"1. A friendly 'Welcome Message' for a WhatsApp chatbot (include a short footer sentence at the end offering human customer service, e.g. '💬 Or reply AGENT to connect with human staff', in the PDF's language).\n"
+        f"1. A friendly 'Welcome Message' for a WhatsApp chatbot.\n"
         f"2. Exactly 1 to 3 short interactive button options representing the main services, products, or most common questions.\n\n"
-        f"CRITICAL LANGUAGE RULE:\n"
-        f"- You MUST strictly generate the Welcome Message, button labels, reasons, and facts in the EXACT SAME LANGUAGE as the provided PDF Content!\n"
-        f"- If the PDF content is written in English, your entire response (welcome text, button labels, and facts) MUST be written in English. Do NOT switch to Malay, Indonesian, or any other language.\n\n"
-        f"For each button you MUST provide:\n"
-        f"- \"label\": The short button text shown to the customer (max 20 characters, in the PDF's language)\n"
+        f"For each button you MUST also provide:\n"
+        f"- \"label\": The short button text shown to the customer (max 20 characters)\n"
         f"- \"reason\": A short explanation (1-2 sentences) of why this button was chosen and what topic or section of the PDF it covers.\n"
-        f"- \"data_points\": A list of 2 to 5 short factual bullet points extracted DIRECTLY from the PDF that are relevant to this button topic. Each point should be a concrete fact, figure, price, discount, policy, or key detail. Do NOT invent information — only include facts that appear in the PDF content.\n\n"
+        f"- \"data_points\": A list of 2 to 5 short factual bullet points extracted DIRECTLY from the PDF that are relevant to this button topic. Each point should be a concrete fact, figure, price, discount, policy, or key detail a staff member would need to verify (e.g. '20% discount for members', 'Free delivery above RM50'). Do NOT invent information — only include facts that appear in the PDF content.\n\n"
         f"CRITICAL: Format your response EXACTLY as valid JSON:\n"
         f'{{\n'
-        f'    "welcome_text": "Hello! Welcome to {company_name}. How can I help you today?\\n\\n💬 Reply AGENT anytime to speak with human staff.",\n'
+        f'    "welcome_text": "Hello! Welcome to {company_name}. How can I help you today?",\n'
         f'    "buttons": [\n'
         f'        {{\n'
         f'            "label": "Our Services",\n'
@@ -102,21 +99,17 @@ def auto_generate_welcome_menu(chatbot_id):
             "buttons_detail": buttons_detail,
         }
 
-    except ValueError:
-        raise
     except Exception as e:
         logging.error(f"[AutoGenerate] AI Error: {e}")
         raise ValueError("Failed to generate menu using AI. The service might be temporarily unavailable.")
 
 
-_EXTRACTION_CACHE = {}
-
-
-def extract_pdf_data_points(chatbot_id, force_refresh=False):
+def extract_pdf_data_points(chatbot_id):
     """
-    Scans the active PDF for the chatbot and asks the AI to extract facts
-    grouped into logical business categories. Cached per (chatbot_id, file_id)
-    for instant 0-second responses.
+    Scans the active PDF for the chatbot and asks the AI to extract a flat list
+    of 10-15 short factual data points (prices, discounts, policies, key facts).
+    These are returned as draggable chips for staff to assign to manual buttons.
+    All AI calls go through ai_router.generate_system_response for billing enforcement.
     """
     bot = get_bot_by_id(chatbot_id)
     if not bot:
@@ -127,12 +120,6 @@ def extract_pdf_data_points(chatbot_id, force_refresh=False):
         raise ValueError("No active PDF found for this chatbot. Please upload and deploy a PDF in the Training Data tab first.")
 
     file_id = active_pdf.get("id")
-    cache_key = (chatbot_id, file_id)
-
-    if not force_refresh and cache_key in _EXTRACTION_CACHE:
-        logging.info(f"[ExtractDataPoints] Returning cached extraction for chatbot {chatbot_id}, file {file_id}")
-        return _EXTRACTION_CACHE[cache_key]
-
     chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
 
     if not chunks:
@@ -144,27 +131,22 @@ def extract_pdf_data_points(chatbot_id, force_refresh=False):
     company_name = bot.get("bot_name", "our business")
 
     prompt = (
-        f"You are a business intelligence analyst. Analyze the following document for '{company_name}' and dynamically organize its contents into 3 to 6 custom business categories tailored specifically to what this document is about.\n\n"
-        f"IMPORTANT: Do NOT use fixed or hardcoded category names. Dynamically invent the most fitting category titles based on the actual topics found in the uploaded document (for example: if it's a restaurant document use menu categories; if real estate use property categories; if education/events use event/course categories).\n\n"
-        f"Each category title should begin with a fitting emoji (e.g. 🍕, 🏠, 💰, 📅, 🏆, 📦, 📞) followed by a short descriptive category name.\n"
-        f"Each category must contain 3 to 8 short, concrete factual bullet points extracted directly from the document text.\n\n"
-        f"Each fact must:\n"
-        f"- Be a single short sentence or phrase (under 100 characters)\n"
-        f"- State a concrete fact, price, date, rule, feature, item, contact, or policy\n"
-        f"- Come DIRECTLY from the text — do NOT invent or assume\n\n"
-        f"CRITICAL: Format your response EXACTLY as valid JSON:\n"
+        f"You are a business analyst. Extract the most important factual information from the following PDF knowledge base for '{company_name}'.\\n\\n"
+        f"Return ONLY a JSON object with a single key \\\"data_points\\\" containing a list of 10 to 15 short, concrete factual bullet points.\\n"
+        f"Each point must:\\n"
+        f"- Be a single short sentence or phrase (under 80 characters)\\n"
+        f"- State a concrete fact, figure, price, discount, policy, product name, or key detail\\n"
+        f"- Come DIRECTLY from the PDF — do NOT invent or infer\\n"
+        f"- Be useful for a staff member verifying chatbot content accuracy\\n\\n"
+        f"CRITICAL: Format your response EXACTLY as valid JSON:\\n"
         f'{{\n'
-        f'    "categories": [\n'
-        f'        {{\n'
-        f'            "category_name": "Emoji & Suitable Category Name Based On Document",\n'
-        f'            "data_points": [\n'
-        f'                "Fact bullet point 1",\n'
-        f'                "Fact bullet point 2"\n'
-        f'            ]\n'
-        f'        }}\n'
+        f'    \"data_points\": [\n'
+        f'        \"20% discount for registered members\",\n'
+        f'        \"Free delivery on orders above RM50\",\n'
+        f'        \"Operating hours: Mon-Fri 9am-6pm\"\n'
         f'    ]\n'
         f'}}\n\n'
-        f"Document Content:\n{pdf_text}"
+        f"PDF Content:\n{pdf_text}"
     )
 
     logging.info(f"[ExtractDataPoints] Querying AI for chatbot {chatbot_id}")
@@ -179,43 +161,11 @@ def extract_pdf_data_points(chatbot_id, force_refresh=False):
         )
 
         data = json.loads(reply)
-        raw_cats = data.get("categories", [])
+        raw = data.get("data_points", [])
+        data_points = [str(p).strip() for p in raw if isinstance(p, str) and str(p).strip()][:15]
 
-        categories = []
-        flat_chips = []
+        return {"data_points": data_points}
 
-        if isinstance(raw_cats, list) and len(raw_cats) > 0:
-            for cat in raw_cats:
-                if isinstance(cat, dict):
-                    name = str(cat.get("category_name", "General Info")).strip()
-                    dps = [str(p).strip() for p in cat.get("data_points", []) if isinstance(p, str) and str(p).strip()][:8]
-                    if dps:
-                        categories.append({
-                            "category_name": name,
-                            "data_points": dps
-                        })
-                        flat_chips.extend(dps)
-
-        # Fallback if flat data_points array returned
-        if not categories:
-            raw_flat = data.get("data_points", [])
-            flat_chips = [str(p).strip() for p in raw_flat if isinstance(p, str) and str(p).strip()][:15]
-            if flat_chips:
-                categories = [{
-                    "category_name": "📋 Key Extracted Facts",
-                    "data_points": flat_chips
-                }]
-
-        result = {
-            "categories": categories,
-            "data_points": flat_chips
-        }
-
-        _EXTRACTION_CACHE[cache_key] = result
-        return result
-
-    except ValueError:
-        raise
     except Exception as e:
         logging.error(f"[ExtractDataPoints] AI Error: {e}")
         raise ValueError("Failed to extract data points using AI. The service might be temporarily unavailable.")
