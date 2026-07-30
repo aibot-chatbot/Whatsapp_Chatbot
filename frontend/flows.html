@@ -1291,8 +1291,6 @@
 
                 displayCats.forEach((cat) => {
                     const originalIdx = extractedCategories.indexOf(cat);
-                    const cleanName = cat.category_name.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
-                    const escapedCatName = cat.category_name.replace(/'/g, "&apos;").replace(/"/g, '&quot;');
                     html += `
                         <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(234,179,8,0.25); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1310,8 +1308,8 @@
                                 ${cat.data_points.map((chip, i) => `
                                     <span class="info-chip"
                                         draggable="true"
-                                        ondragstart="onChipDragStart(event, '${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}')"
-                                        onclick="openChipDetailModal('${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}', '${escapedCatName}')"
+                                        ondragstart="onChipDragStart(event, ${originalIdx}, ${i})"
+                                        onclick="openChipDetailModal(${originalIdx}, ${i})"
                                         title="Click for full details, or drag to button">
                                         📄 ${chip}
                                     </span>
@@ -1330,8 +1328,8 @@
                             <span class="info-chip"
                                 draggable="true"
                                 data-chip-idx="${i}"
-                                ondragstart="onChipDragStart(event, '${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}')"
-                                onclick="openChipDetailModal('${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}', 'PDF Fact')"
+                                ondragstart="onChipDragStart(event, ${i})"
+                                onclick="openChipDetailModal(${i})"
                                 title="Click for details or drag to button">
                                 📄 ${chip}
                             </span>`).join('')}
@@ -1342,7 +1340,18 @@
 
         let activeModalChipText = "";
 
-        function openChipDetailModal(chipText, catName = "Topic Category") {
+        function openChipDetailModal(catIdx, chipIdx) {
+            let chipText = "";
+            let catName = "Topic Category";
+
+            if (typeof catIdx === 'number' && typeof chipIdx === 'number' && extractedCategories[catIdx]) {
+                catName = extractedCategories[catIdx].category_name;
+                chipText = extractedCategories[catIdx].data_points[chipIdx] || "";
+            } else if (typeof catIdx === 'number') {
+                chipText = extractedChips[catIdx] || "";
+                catName = "PDF Fact";
+            }
+
             activeModalChipText = chipText;
             document.getElementById('chip-modal-cat').textContent = catName;
             document.getElementById('chip-modal-text').textContent = chipText;
@@ -1361,7 +1370,7 @@
                 buttons.forEach((btnName, bIdx) => {
                     const cleanLabel = btnName.trim() || `Button ${bIdx + 1}`;
                     listContainer.innerHTML += `
-                        <button onclick="assignChipToButtonFromModal(${bIdx})" style="background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s;">
+                        <button onclick="assignChipToButtonFromModal(${bIdx})" style="background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s; width: 100%;">
                             <span>🔘 Add to "${cleanLabel}"</span>
                             <span style="font-size:11px; opacity:0.8;">+ Assign</span>
                         </button>
@@ -1444,7 +1453,13 @@
         }
 
         // Drag & Drop handlers
-        function onChipDragStart(e, chipText) {
+        function onChipDragStart(e, catIdx, chipIdx) {
+            let chipText = "";
+            if (typeof catIdx === 'number' && typeof chipIdx === 'number' && extractedCategories[catIdx]) {
+                chipText = extractedCategories[catIdx].data_points[chipIdx] || "";
+            } else if (typeof catIdx === 'number') {
+                chipText = extractedChips[catIdx] || "";
+            }
             e.dataTransfer.setData('text/plain', chipText);
             e.dataTransfer.effectAllowed = 'copy';
         }
