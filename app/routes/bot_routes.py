@@ -340,9 +340,12 @@ def extract_data_points(bot_id):
         # Reuse same subscription feature gate as auto-generate
         can_use_plan_feature(company_id, "ai_assisted_menu_generation")
 
+        data = request.get_json(silent=True) or {}
+        force_refresh = bool(data.get("force_refresh", False))
+
         from app.services.flow_builder_service import extract_pdf_data_points
 
-        result = extract_pdf_data_points(bot_id)
+        result = extract_pdf_data_points(bot_id, force_refresh=force_refresh)
 
         return jsonify({
             "status": "success",
