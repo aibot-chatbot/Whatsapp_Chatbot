@@ -1308,11 +1308,11 @@
                     ? dps.map((dp, dpIdx) => `
                         <div class="btn-card-dp-row">
                             <input type="text" class="btn-card-dp-input" value="${dp.replace(/"/g, '&quot;')}"
-                                placeholder="Info point..."
+                                placeholder="e.g. Reply with phone +6012345678 and office hours 9am-6pm..."
                                 oninput="updateEditorDataPoint(${index}, ${dpIdx}, this.value)">
                             <button class="btn-card-dp-remove" onclick="removeEditorDataPoint(${index}, ${dpIdx})" title="Remove">✕</button>
                         </div>`).join('')
-                    : `<div class="btn-card-dp-empty">Drop a chip here or type manually.</div>`;
+                    : `<div class="btn-card-dp-empty" style="color:#64748b; font-style:italic; font-size:11px;">Type specific answer details (e.g. "Reply with phone +6012345678"), or drop an AI info chip.</div>`;
 
                 const card = document.createElement('div');
                 card.className = 'editor-btn-card';
@@ -1325,10 +1325,14 @@
                         </button>
                     </div>
                     <div class="btn-card-datapoints">
-                        <div class="btn-card-datapoints-header">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                            <span class="btn-card-datapoints-label">Key Info</span>
-                            <span style="font-size:10px;color:#64748b;">(type or drag a chip)</span>
+                        <div class="btn-card-datapoints-header" style="flex-direction: column; align-items: flex-start; gap: 2px;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                <span class="btn-card-datapoints-label">🤖 WHAT SHOULD THE AI SAY OR DO WHEN THIS BUTTON IS TAPPED?</span>
+                            </div>
+                            <span style="font-size:11px; color:#64748b; font-style:italic; margin-top:2px;">
+                                Type specific answer details (e.g. "Reply with phone +6012345678 and office hours 9am-6pm"), or drop an AI info chip.
+                            </span>
                         </div>
                         <div class="editor-dp-drop-zone"
                             data-btn-index="${index}"
@@ -1337,7 +1341,7 @@
                             ondrop="onDpDrop(event, ${index})">
                             ${dpRowsHtml}
                         </div>
-                        <button class="btn-card-add-dp" onclick="addEditorDataPoint(${index})">+ Add Info</button>
+                        <button class="btn-card-add-dp" onclick="addEditorDataPoint(${index})">+ Add Info / Instruction</button>
                     </div>
                 `;
                 container.appendChild(card);
