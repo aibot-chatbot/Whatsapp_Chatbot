@@ -5,8 +5,8 @@
 **Production policy candidate; formal security, privacy, legal, and data-owner
 approval remains required.** This policy matches the implemented read-only
 platform-admin endpoint set, including the application-only operations overview,
-company-user, chatbot, subscription-history, AI-credit transaction-history, and
-audit-log viewer extensions. It does not
+company-user, chatbot, subscription-history, AI-credit transaction-history,
+billing-order history, and audit-log viewer extensions. It does not
 authorize a deployment, schema change, retention deletion, or mapping
 activation.
 
@@ -39,6 +39,7 @@ No action or resource type outside this table is approved for Phase 4.
 | `platform_admin.company.subscription_history.read` | `company_subscription_history` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `status_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/subscription-history` |
 | `platform_admin.company.ai_credit_usage.read` | `company_ai_credit_usage` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `period_start` and `period_end` when `outcome = success` | None for `success`; no period fields for `not_found` | `/api/platform-admin/companies/<company_id>/ai-credit-usage` |
 | `platform_admin.company.ai_credit_transactions.read` | `company_ai_credit_transactions` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `transaction_type_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/ai-credit-transactions` |
+| `platform_admin.company.billing_orders.read` | `company_billing_orders` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `status_filter_applied`, `created_after_filter_applied`, `created_before_filter_applied`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/billing-orders` |
 | `platform_admin.company.users.read` | `company_users` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/users` |
 | `platform_admin.company.chatbots.read` | `company_chatbots` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `state_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/chatbots` |
 | `platform_admin.operations.overview.read` | `platform_operations_overview` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `attention_company_count`, `generated_at` | None | `/api/platform-admin/overview` |
@@ -76,6 +77,7 @@ search_applied
 status_filter
 state_filter
 transaction_type_filter
+status_filter_applied
 returned_count
 period_start
 period_end
@@ -171,6 +173,32 @@ subscription IDs, descriptions, or raw ledger row payloads.
 Metadata for this action must not include transaction IDs, monetary values,
 company names, subscription IDs, timestamps, provider details, payment
 references, idempotency keys, descriptions, raw errors, or response bodies.
+
+### Company billing-order history fields
+
+These fields are present only when
+`platform_admin.company.billing_orders.read` has `outcome = success`. A missing
+company emits `outcome = not_found` with only the common fields.
+
+The billing-order endpoint lists mutable operational
+`company_subscription_orders` records for one company. It is not an
+event-sourced payment lifecycle timeline and must not be interpreted as proof
+that every checkout, callback, reconciliation, activation, or status transition
+is preserved as a separate event row.
+
+| Field | Allowed value |
+|---|---|
+| `limit` | Validated integer 1-100 |
+| `offset` | Validated non-negative integer |
+| `status_filter_applied` | Boolean only; never the raw status value |
+| `created_after_filter_applied` | Boolean only; never the raw timestamp |
+| `created_before_filter_applied` | Boolean only; never the raw timestamp |
+| `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
+
+Metadata for this action must not include raw status values, raw timestamps,
+order IDs, amount values, currency, company names, plan names, plan codes,
+subscription IDs, payment or gateway identifiers, checkout URLs, idempotency
+keys, reconciliation errors, raw errors, or response bodies.
 
 ### Company-user list fields
 
@@ -291,6 +319,8 @@ the top-level allowlist.
   `platform_admin.company.list` allows `active`, `inactive`, or null;
   `platform_admin.company.subscription_history.read` allows `trialing`,
   `active`, `past_due`, `expired`, `cancelled`, or null.
+  Billing-order history uses `status_filter_applied` as a boolean only and
+  never records the raw status value.
   `transaction_type_filter` is allowed only on
   `platform_admin.company.ai_credit_transactions.read` and must be
   `included_credit_grant`, `trial_credit_grant`, `usage_debit`,

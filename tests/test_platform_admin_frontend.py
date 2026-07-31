@@ -161,7 +161,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         cls.api = read(API)
         cls.auth = read(FRONTEND / "assets" / "js" / "auth.js")
 
-    def test_public_client_exposes_only_eleven_approved_methods(self):
+    def test_public_client_exposes_only_twelve_approved_methods(self):
         exported = re.search(
             r"window\.PlatformAdminApi = Object\.freeze\(\{(.*?)\}\);",
             self.api,
@@ -180,6 +180,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "listCompanySubscriptionHistory",
                 "getCompanyAiCreditUsage",
                 "listCompanyAiCreditTransactions",
+                "listCompanyBillingOrders",
                 "listCompanyUsers",
                 "listCompanyChatbots",
             ],
@@ -233,6 +234,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             "listCompanySubscriptionHistory",
             "getCompanyAiCreditUsage",
             "listCompanyAiCreditTransactions",
+            "listCompanyBillingOrders",
             "listCompanyUsers",
             "listCompanyChatbots",
         ]:
@@ -397,6 +399,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("PlatformAdminApi.listCompanySubscriptionHistory(companyId", self.company)
         self.assertIn("PlatformAdminApi.getCompanyAiCreditUsage(companyId", self.company)
         self.assertIn("PlatformAdminApi.listCompanyAiCreditTransactions(companyId", self.company)
+        self.assertIn("PlatformAdminApi.listCompanyBillingOrders(companyId", self.company)
         self.assertIn("PlatformAdminApi.listCompanyUsers(companyId", self.company)
         self.assertIn("PlatformAdminApi.listCompanyChatbots(companyId", self.company)
         initialize = re.search(
@@ -407,9 +410,11 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         company_fetch = initialize.index("PlatformAdminApi.getCompany(companyId")
         subscription_fetch = initialize.index("PlatformAdminApi.getCompanySubscription(companyId")
         subscription_history_panel = initialize.index("subscriptionHistoryPanel(companyId)")
+        billing_orders_panel = initialize.index("billingOrdersPanel(companyId)")
         ai_fetch = initialize.index("PlatformAdminApi.getCompanyAiCreditUsage(companyId")
         self.assertLess(company_fetch, subscription_fetch)
         self.assertLess(company_fetch, subscription_history_panel)
+        self.assertLess(company_fetch, billing_orders_panel)
         self.assertLess(company_fetch, ai_fetch)
 
     def test_subscription_history_is_lazy_read_only_and_uses_bounded_contract(self):
@@ -501,6 +506,68 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             "reversal_of_transaction_id",
         ]:
             self.assertNotIn(prohibited, self.company)
+
+    def test_billing_orders_are_lazy_read_only_and_use_bounded_contract(self):
+        initialize = re.search(
+            r"async function initializeCompanyDetail\(\) \{(.*?)\n    \}",
+            self.company,
+            flags=re.S,
+        ).group(1)
+        company_fetch = initialize.index("PlatformAdminApi.getCompany(companyId")
+        history_panel = initialize.index("subscriptionHistoryPanel(companyId)")
+        billing_orders_panel = initialize.index("billingOrdersPanel(companyId)")
+        self.assertLess(company_fetch, billing_orders_panel)
+        self.assertLess(history_panel, billing_orders_panel)
+        self.assertIn("Load billing orders", self.company)
+        self.assertIn("Loading billing orders...", self.company)
+        self.assertIn('ui.runRequest("company-billing-orders"', self.company)
+        self.assertIn("PlatformAdminApi.listCompanyBillingOrders(companyId", self.company)
+        self.assertIn("Amounts are shown as integer sen as stored; currency is not returned or inferred.", self.company)
+        self.assertIn('String(value) + " sen"', self.company)
+        for label in [
+            "Billing orders",
+            "Status",
+            "Created after",
+            "Created before",
+            "Amount",
+            "New plan",
+            "Source plan",
+            "Activation status",
+            "Activation type",
+            "Reconciliation required",
+            "Paid",
+            "Credited",
+            "Expires",
+            "Activation claimed",
+            "Activation completed",
+            "Credit granted",
+        ]:
+            self.assertIn(label, self.company)
+        api_source = read(API)
+        self.assertIn('"/billing-orders?"', api_source)
+        self.assertIn('params.set("limit", String(config.limit))', api_source)
+        self.assertIn('params.set("offset", String(config.offset))', api_source)
+        self.assertIn('if (config.status) params.set("status", config.status)', api_source)
+        self.assertIn('if (config.createdAfter) params.set("created_after", config.createdAfter)', api_source)
+        self.assertIn('if (config.createdBefore) params.set("created_before", config.createdBefore)', api_source)
+        for forbidden in [
+            "order_reference",
+            "gateway_order_id",
+            "checkout_url",
+            "payment_reference",
+            "payment_gateway",
+            "idempotency_key",
+            "activation_error_message",
+            "last_reconciliation_error",
+            "reconciliation_attempt_count",
+            "subscription_id",
+            "created_by_user_id",
+            "RM",
+            "export",
+            "download",
+            "reconcile",
+        ]:
+            self.assertNotIn(forbidden, self.company)
 
     def test_users_and_chatbots_are_lazy_loaded_after_company_detail(self):
         initialize = re.search(

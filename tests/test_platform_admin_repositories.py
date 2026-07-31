@@ -420,6 +420,147 @@ class PlatformAdminRepositoryTests(unittest.TestCase):
             with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
                 platform_billing_repository.list_ai_credit_transactions_for_platform_admin(**kwargs)
 
+    def test_billing_orders_use_exact_projection_count_scope_ordering_and_filters(self):
+        rows = [{
+            "id": 9,
+            "status": "credited",
+            "amount_sen": 3900,
+            "new_plan_id": 3,
+            "source_plan_id": 4,
+            "activation_status": "completed",
+            "activation_type": "upgrade",
+            "reconciliation_required": False,
+            "created_at": "2026-07-29T00:00:00+00:00",
+            "updated_at": "2026-07-29T00:03:00+00:00",
+            "paid_at": "2026-07-29T00:01:00+00:00",
+            "credited_at": None,
+            "expires_at": None,
+            "activation_claimed_at": None,
+            "activation_completed_at": None,
+            "credit_granted_at": None,
+            "company_id": 2,
+            "subscription_id": 5,
+            "order_reference": "secret-ref",
+            "gateway_order_id": "gateway-secret",
+            "checkout_url": "https://pay.example/secret",
+            "payment_reference": "payment-secret",
+            "payment_gateway": "toyyibpay",
+            "idempotency_key": "idem-secret",
+            "activation_error_message": "raw error",
+            "last_reconciliation_error": "stack trace",
+            "reconciliation_attempt_count": 3,
+        }]
+        orders = fluent_query(rows, count=6)
+        plans = fluent_query([
+            {"id": 3, "code": "pro", "name": "Pro", "price": 16900, "is_active": False},
+            {"id": 4, "code": "advanced", "name": "Advanced", "currency": "MYR"},
+        ])
+        created_after = platform_admin_service.datetime.fromisoformat("2026-07-01T00:00:00+00:00")
+        created_before = platform_admin_service.datetime.fromisoformat("2026-08-01T00:00:00+00:00")
+        with patch.object(platform_billing_repository.supabase, "table", side_effect=[orders, plans]) as table:
+            result, count = platform_billing_repository.list_billing_orders_for_platform_admin(
+                company_id=2,
+                limit=1,
+                offset=3,
+                status="credited",
+                created_after=created_after,
+                created_before=created_before,
+            )
+        self.assertEqual(table.call_args_list[0].args[0], "company_subscription_orders")
+        self.assertEqual(table.call_args_list[1].args[0], "subscription_plans")
+        orders.select.assert_called_once_with(
+            platform_billing_repository.BILLING_ORDER_HISTORY_FIELDS,
+            count="exact",
+        )
+        self.assertNotIn("*", platform_billing_repository.BILLING_ORDER_HISTORY_FIELDS)
+        for excluded in (
+            "company_id", "subscription_id", "created_by_user_id",
+            "order_reference", "gateway_order_id", "checkout_url",
+            "payment_reference", "payment_gateway", "idempotency_key",
+            "billing_period_key", "activation_sequence_key",
+            "activation_error_code", "activation_error_message",
+            "last_reconciliation_error", "last_reconciliation_at",
+            "reconciliation_attempt_count",
+        ):
+            self.assertNotIn(excluded, platform_billing_repository.BILLING_ORDER_HISTORY_FIELDS)
+            self.assertNotIn(excluded, result[0])
+        orders.eq.assert_any_call("company_id", 2)
+        orders.eq.assert_any_call("status", "credited")
+        orders.gte.assert_called_once_with("created_at", "2026-07-01T00:00:00+00:00")
+        orders.lt.assert_called_once_with("created_at", "2026-08-01T00:00:00+00:00")
+        orders.order.assert_any_call("created_at", desc=True)
+        orders.order.assert_any_call("id", desc=True)
+        orders.range.assert_called_once_with(3, 3)
+        plans.select.assert_called_once_with(platform_billing_repository.BILLING_ORDER_PLAN_FIELDS)
+        plans.in_.assert_called_once_with("id", [3, 4])
+        plans.eq.assert_not_called()
+        self.assertEqual(count, 6)
+        self.assertEqual(result, [{
+            "id": 9,
+            "status": "credited",
+            "amount_sen": 3900,
+            "new_plan": {"code": "pro", "name": "Pro"},
+            "source_plan": {"code": "advanced", "name": "Advanced"},
+            "activation_status": "completed",
+            "activation_type": "upgrade",
+            "reconciliation_required": False,
+            "created_at": "2026-07-29T00:00:00+00:00",
+            "updated_at": "2026-07-29T00:03:00+00:00",
+            "paid_at": "2026-07-29T00:01:00+00:00",
+            "credited_at": None,
+            "expires_at": None,
+            "activation_claimed_at": None,
+            "activation_completed_at": None,
+            "credit_granted_at": None,
+        }])
+
+    def test_billing_orders_batch_plan_lookup_and_missing_plan_is_null(self):
+        orders = fluent_query([
+            {"id": 3, "new_plan_id": 9, "source_plan_id": 10},
+            {"id": 2, "new_plan_id": 9, "source_plan_id": 999},
+            {"id": 1, "new_plan_id": True, "source_plan_id": -1},
+        ], count=3)
+        plans = fluent_query([
+            {"id": 9, "code": "legacy", "name": "Legacy"},
+            {"id": 10, "code": "source", "name": "Source"},
+        ])
+        with patch.object(platform_billing_repository.supabase, "table", side_effect=[orders, plans]) as table:
+            rows, count = platform_billing_repository.list_billing_orders_for_platform_admin(
+                company_id=2, limit=25, offset=0,
+            )
+        self.assertEqual(count, 3)
+        self.assertEqual(table.call_count, 2)
+        plans.in_.assert_called_once_with("id", [9, 10, 999])
+        self.assertEqual(rows[0]["new_plan"], {"code": "legacy", "name": "Legacy"})
+        self.assertEqual(rows[0]["source_plan"], {"code": "source", "name": "Source"})
+        self.assertIsNone(rows[1]["source_plan"])
+        self.assertIsNone(rows[2]["new_plan"])
+
+    def test_billing_orders_without_plan_ids_does_not_query_plans(self):
+        orders = fluent_query([{"id": 1, "new_plan_id": None, "source_plan_id": None}], count=1)
+        with patch.object(platform_billing_repository.supabase, "table", return_value=orders) as table:
+            rows, count = platform_billing_repository.list_billing_orders_for_platform_admin(
+                company_id=2, limit=25, offset=0,
+            )
+        self.assertEqual(table.call_count, 1)
+        self.assertEqual(count, 1)
+        self.assertIsNone(rows[0]["new_plan"])
+        self.assertIsNone(rows[0]["source_plan"])
+
+    def test_billing_orders_reject_invalid_repository_arguments(self):
+        for kwargs in (
+            {"company_id": 0, "limit": 25, "offset": 0},
+            {"company_id": 2, "limit": 0, "offset": 0},
+            {"company_id": 2, "limit": 101, "offset": 0},
+            {"company_id": 2, "limit": True, "offset": 0},
+            {"company_id": 2, "limit": 25, "offset": -1},
+            {"company_id": 2, "limit": 25, "offset": True},
+            {"company_id": 2, "limit": 25, "offset": 0, "status": ""},
+            {"company_id": 2, "limit": 25, "offset": 0, "status": "x" * 21},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                platform_billing_repository.list_billing_orders_for_platform_admin(**kwargs)
+
     def test_latest_subscription_overview_scan_bound_raises_instead_of_partial_counts(self):
         first_page = fluent_query([
             {"id": 4, "company_id": 4, "plan_id": 2, "status": "active", "created_at": "2026-07-29T00:00:00+00:00"},

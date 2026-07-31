@@ -260,6 +260,36 @@ class PlatformAdminAuditTests(unittest.TestCase):
             },
         ),
         (
+            "billing_orders_success",
+            2,
+            "platform_admin.company.billing_orders.read",
+            "company_billing_orders",
+            "9",
+            {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/companies/<company_id>/billing-orders",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "status_filter_applied": False,
+                "created_after_filter_applied": False,
+                "created_before_filter_applied": False,
+                "returned_count": 0,
+            },
+        ),
+        (
+            "billing_orders_not_found",
+            2,
+            "platform_admin.company.billing_orders.read",
+            "company_billing_orders",
+            "9",
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/billing-orders",
+                "http_method": "GET",
+            },
+        ),
+        (
             "audit_events_list_success",
             2,
             "platform_admin.audit_events.list",
@@ -412,6 +442,7 @@ class PlatformAdminAuditTests(unittest.TestCase):
             ("platform_admin.company.chatbots.read", "company_users", "1"),
             ("platform_admin.company.subscription_history.read", "company_subscription", "1"),
             ("platform_admin.company.ai_credit_transactions.read", "company_ai_credit_usage", "1"),
+            ("platform_admin.company.billing_orders.read", "company_subscription_history", "1"),
             ("platform_admin.audit_events.list", "company", None),
         )
         for action, resource_type, resource_id in invalid_pairs:
@@ -467,6 +498,15 @@ class PlatformAdminAuditTests(unittest.TestCase):
                         "transaction_type_filter": None,
                         "returned_count": 0,
                     })
+                if action == "platform_admin.company.billing_orders.read":
+                    metadata.update({
+                        "limit": 25,
+                        "offset": 0,
+                        "status_filter_applied": False,
+                        "created_after_filter_applied": False,
+                        "created_before_filter_applied": False,
+                        "returned_count": 0,
+                    })
                 if action == "platform_admin.audit_events.list":
                     metadata.update({
                         "limit": 25,
@@ -509,6 +549,12 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
                 {"limit": 25},
             ),
+            (
+                "platform_admin.company.billing_orders.read",
+                "company_billing_orders",
+                "/api/platform-admin/companies/<company_id>/billing-orders",
+                {"status_filter_applied": True},
+            ),
         ):
             metadata = {"outcome": "not_found", "endpoint": endpoint, "http_method": "GET"}
             metadata.update(extra)
@@ -547,6 +593,17 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
                 {"transaction_type_filter": None},
             ),
+            (
+                "billing_orders",
+                "platform_admin.company.billing_orders.read",
+                "company_billing_orders",
+                "/api/platform-admin/companies/<company_id>/billing-orders",
+                {
+                    "status_filter_applied": False,
+                    "created_after_filter_applied": False,
+                    "created_before_filter_applied": False,
+                },
+            ),
         )
         for name, action, resource_type, endpoint, extra in base_cases:
             for returned_count, limit in ((26, 25), (101, 100)):
@@ -556,11 +613,14 @@ class PlatformAdminAuditTests(unittest.TestCase):
                     "http_method": "GET",
                     "limit": limit,
                     "offset": 0,
-                    "sort_by": "created_at",
-                    "sort_order": "desc",
-                    "search_applied": False,
                     "returned_count": returned_count,
                 }
+                if name in ("users", "chatbots"):
+                    metadata.update({
+                        "sort_by": "created_at",
+                        "sort_order": "desc",
+                        "search_applied": False,
+                    })
                 metadata.update(extra)
                 with self.subTest(name=name, returned_count=returned_count, limit=limit), self.assertRaises(ValueError):
                     platform_admin_repository.validate_audit_event(
@@ -825,6 +885,94 @@ class PlatformAdminAuditTests(unittest.TestCase):
                     metadata,
                 )
 
+    def test_billing_order_history_audit_metadata_validation_is_strict(self):
+        valid_base = {
+            "outcome": "success",
+            "endpoint": "/api/platform-admin/companies/<company_id>/billing-orders",
+            "http_method": "GET",
+            "limit": 25,
+            "offset": 0,
+            "status_filter_applied": True,
+            "created_after_filter_applied": True,
+            "created_before_filter_applied": True,
+            "returned_count": 1,
+        }
+        platform_admin_repository.validate_audit_event(
+            1,
+            "platform_admin.company.billing_orders.read",
+            "company_billing_orders",
+            "9",
+            valid_base,
+        )
+        invalid_cases = []
+        for key in (
+            "limit",
+            "offset",
+            "status_filter_applied",
+            "created_after_filter_applied",
+            "created_before_filter_applied",
+            "returned_count",
+        ):
+            metadata = dict(valid_base)
+            metadata.pop(key)
+            invalid_cases.append((f"missing_{key}", metadata))
+        invalid_cases.extend([
+            ("raw_status_filter", dict(valid_base, status_filter="credited")),
+            ("raw_created_after", dict(valid_base, created_after="2026-07-01T00:00:00+00:00")),
+            ("raw_created_before", dict(valid_base, created_before="2026-08-01T00:00:00+00:00")),
+            ("order_id", dict(valid_base, order_id=123)),
+            ("amount", dict(valid_base, amount_sen=3900)),
+            ("plan", dict(valid_base, plan_code="pro")),
+            ("payment_reference", dict(valid_base, payment_reference="pay-1")),
+            ("gateway_order_id", dict(valid_base, gateway_order_id="gw-1")),
+            ("idempotency_key", dict(valid_base, idempotency_key="idem-1")),
+            ("boolean_limit", dict(valid_base, limit=True)),
+            ("boolean_offset", dict(valid_base, offset=True)),
+            ("boolean_returned_count", dict(valid_base, returned_count=True)),
+            ("non_boolean_status_flag", dict(valid_base, status_filter_applied="true")),
+            ("returned_count_exceeds_limit", dict(valid_base, limit=1, returned_count=2)),
+            ("returned_count_exceeds_max", dict(valid_base, limit=100, returned_count=101)),
+        ])
+        for name, metadata in invalid_cases:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1,
+                    "platform_admin.company.billing_orders.read",
+                    "company_billing_orders",
+                    "9",
+                    metadata,
+                )
+
+    def test_billing_order_history_not_found_rejects_list_metadata(self):
+        for metadata in (
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/billing-orders",
+                "http_method": "GET",
+                "limit": 25,
+            },
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/billing-orders",
+                "http_method": "GET",
+                "status_filter_applied": True,
+            },
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/companies/<company_id>/billing-orders",
+                "http_method": "GET",
+                "created_after_filter_applied": True,
+            },
+        ):
+            with self.subTest(metadata=metadata), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1,
+                    "platform_admin.company.billing_orders.read",
+                    "company_billing_orders",
+                    "9",
+                    metadata,
+                )
+
     def test_successful_child_list_events_require_every_list_field(self):
         cases = (
             (
@@ -861,6 +1009,30 @@ class PlatformAdminAuditTests(unittest.TestCase):
                     "returned_count": 0,
                 },
                 ("limit", "offset", "sort_by", "sort_order", "search_applied", "state_filter", "returned_count"),
+            ),
+            (
+                "billing_orders",
+                "platform_admin.company.billing_orders.read",
+                "company_billing_orders",
+                {
+                    "outcome": "success",
+                    "endpoint": "/api/platform-admin/companies/<company_id>/billing-orders",
+                    "http_method": "GET",
+                    "limit": 25,
+                    "offset": 0,
+                    "status_filter_applied": False,
+                    "created_after_filter_applied": False,
+                    "created_before_filter_applied": False,
+                    "returned_count": 0,
+                },
+                (
+                    "limit",
+                    "offset",
+                    "status_filter_applied",
+                    "created_after_filter_applied",
+                    "created_before_filter_applied",
+                    "returned_count",
+                ),
             ),
         )
         for name, action, resource_type, metadata, required_fields in cases:

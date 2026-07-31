@@ -27,13 +27,18 @@ descriptions, and raw ledger row payloads. A later application-only audit-log
 viewer phase added one read-only audit-log endpoint and page for safe
 platform-admin audit event summaries only; it returns actor mapping IDs only
 and omits raw metadata, tenant records, exports, downloads, charts, audit
-editing, and audit deletion.
+editing, and audit deletion. The current application-only billing-order
+history phase adds one lazy company-detail investigation section and one
+GET-only endpoint for safe `company_subscription_orders` fields. Billing orders
+are mutable operational records rather than an event-sourced payment timeline;
+the section shows `amount_sen` as integer sen only and does not return or infer
+currency.
 
 The original Phase 3 frontend pass did not add endpoints, reactivate a mapping,
 change users.role, alter migrations, or deploy anything. Subsequent
-application-only extensions added six GET-only endpoints for users, chatbots,
+application-only extensions added seven GET-only endpoints for users, chatbots,
 the operations overview, subscription history, AI-credit transaction history,
-and audit-log viewing. Flow Builder, Broadcast,
+audit-log viewing, and billing-order history. Flow Builder, Broadcast,
 tenant administration,
 impersonation, exports, messaging, reconciliation, credit adjustments, and
 subscription changes remain out of scope.
@@ -48,8 +53,8 @@ subscription changes remain out of scope.
 - The client originally exposed the five Phase 3 GET operations. Subsequent
   application-only read-only extensions added the operations overview plus two
   lazy company-detail inspection operations for company users and chatbots, and
-  lazy subscription-history and AI-credit transaction-history operations. All
-  ten operations use the normal
+  lazy subscription-history, AI-credit transaction-history, and billing-order
+  history operations. All twelve operations use the normal
   authenticated session token mechanism.
 - An in-memory request registry, abort controllers, and a monotonically
   increasing page epoch prevent replaced or late requests from restoring
@@ -101,21 +106,33 @@ subscription changes remain out of scope.
   inventory at eleven GET-only routes. It adds no audit editing, deletion,
   export, download, charts, raw metadata viewer, platform-admin user
   management, or other write controls.
+- The current bounded read-only platform-admin extension adds **Billing
+  orders** as a lazy company-detail section backed by
+  `GET /api/platform-admin/companies/<company_id>/billing-orders`, bringing the
+  platform-admin backend inventory to exactly twelve GET-only routes. It is
+  company-context only, support-investigation oriented, and application-only
+  unless later staged. It returns `amount_sen` as integer sen only, never
+  returns or infers currency, and excludes payment/gateway/checkout/reference,
+  idempotency, raw-error, reconciliation, retry, activation, manual-credit,
+  export, download, chart, and write behavior.
 
 ## Verification evidence
 
-- Current local mocked Playwright platform-admin browser suite: 42 passed after
-  the audit-log viewer extension. It
+- Current local mocked Playwright platform-admin browser suite: 45 passed after
+  the billing-order history extension. It
   covers the
   original Phase 3 flows plus the later lazy read-only users/chatbots company
   inspection extension, the lazy read-only subscription-history section, and
-  the lazy read-only AI-credit transaction-history section, the operations
-  overview dashboard, the Support Workspace, and the Audit Logs page, including
+  the lazy read-only AI-credit transaction-history section, the lazy read-only
+  billing-order history section, the operations overview dashboard, the Support
+  Workspace, and the Audit Logs page, including
   safe rendering, child-list 404 stale-state clearing, active sibling-request
   cancellation, late-response suppression, one overview request after `/me`,
   empty attention state, stale overview clearing on denial/unavailability,
   `/me` before audit-event reads, audit-log pagination and filters, metadata
-  allowlist rendering, and stale audit-row clearing.
+  allowlist rendering, stale audit-row clearing, sen-only amount display,
+  billing-order filter/pagination requests, child 404 stale-state clearing, and
+  stale billing-order response suppression.
   These local mocked tests do not prove staging or production behavior.
 - Historical local mocked Playwright platform-admin browser suite result before
   the users/chatbots extension: 18 passed.
@@ -132,9 +149,9 @@ subscription changes remain out of scope.
   dashboard date/account-menu responsive overlap prevention, readable mobile
   date display, temporary open-state layout adjustment and restoration after
   closing, public/platform page exclusion, and read-only boundaries.
-- Current focused platform-admin frontend source-contract suite: 36 passed,
-  6 subtests passed.
-- Current focused platform-admin Python suite: 150 passed, 336 subtests passed.
+- Current focused platform-admin frontend source-contract suite: 41 passed,
+  10 subtests passed.
+- Current focused platform-admin Python suite: 159 passed, 396 subtests passed.
 - Earlier recorded combined platform-admin backend/frontend and
   authentication/security regressions: 88 passed, 114 subtests passed.
 - Earlier recorded full safe suite: 1,421 passed, 1 skipped, 125 subtests
@@ -567,9 +584,12 @@ omits current plan price, currency, billing interval, included AI credit,
 feature flags, and model tier because current plan-table commercial values are
 not guaranteed to represent historical terms.
 
-Billing orders, exports, charts, reconciliation, activation, refund,
-retry-payment, plan-change, cancellation, renewal, and credit-adjustment
-controls remain deferred and out of scope.
+At the time of the subscription-history extension, billing orders, exports,
+charts, reconciliation, activation, refund, retry-payment, plan-change,
+cancellation, renewal, and credit-adjustment controls remained deferred and out
+of scope. A later billing-order history phase added only the read-only,
+company-scoped list described below; all write and recovery controls remain
+deferred.
 
 ### Subsequent read-only AI-credit transaction-history extension
 
@@ -599,10 +619,35 @@ domain, and existing `(company_id, created_at DESC)` index; the endpoint itself
 is application-only and locally tested unless a later approved staging
 verification record is added. No migration was added.
 
+### Subsequent read-only billing-order history extension
+
+After the audit-log viewer addition, a bounded application-only extension added
+`GET /api/platform-admin/companies/<company_id>/billing-orders` and a lazy
+**Billing orders** section near the subscription investigation area on
+`platform-admin-company.html`.
+
+The section loads only after `/me` succeeds, company detail confirms the company
+exists, and the operator clicks **Load billing orders**. It supports server
+pagination, optional exact length-bounded status filtering without a stored
+status enum assumption, optional timezone-aware created-after/created-before
+filters, request cancellation, late-response suppression, independent
+empty/unavailable/validation states, and full-page stale-data clearing when a
+child request returns `company_not_found`.
+
+The response is reconstructed from safe `company_subscription_orders` fields
+only. It includes `id`, `status`, `amount_sen`, safe `new_plan` and
+`source_plan` `{code, name}` objects where resolvable, activation state/type,
+the reconciliation-required boolean, and safe lifecycle timestamps. It does not
+return `company_id`, subscription/user IDs, order references, gateway IDs,
+checkout URLs, payment references, payment gateway, idempotency keys, billing
+period keys, activation sequence keys, reconciliation attempts, raw errors,
+payloads, or currency. The UI displays amounts as integer sen (for example,
+`3900 sen`) and must not display RM/MYR or infer any currency.
+
 ## API client design
 
 Create a dedicated platform API client that wraps the existing authenticated
-session mechanism but accepts only the eleven GET operations. It must not expose a
+session mechanism but accepts only the twelve GET operations. It must not expose a
 generic mutation method or arbitrary platform URL.
 
 Required operations:
@@ -624,6 +669,14 @@ listCompanyAiCreditTransactions(companyId, {
   limit,
   offset,
   transactionType,
+  signal
+})
+listCompanyBillingOrders(companyId, {
+  limit,
+  offset,
+  status,
+  createdAfter,
+  createdBefore,
   signal
 })
 listCompanyUsers(companyId, {
@@ -704,7 +757,7 @@ avoid leaving stale cross-tenant information visible.
    filters containing user input in local/session storage.
 4. Keep cross-tenant responses only in active-page memory and clear rendered
    data on denial, logout, 503, pagehide, and revoked-session detection.
-5. Use only the ten approved GET endpoint builders; no `/api/admin/billing`
+5. Use only the twelve approved GET endpoint builders; no `/api/admin/billing`
    reuse.
 6. Validate the company query ID before constructing any API path.
 7. Render API values as text, not HTML.
@@ -761,7 +814,7 @@ stealing focus during ordinary loading.
 
 - Every platform request carries the existing session token in the Bearer
   header and never places it in a URL/body.
-- Only the ten approved GET endpoint builders exist.
+- Only the twelve approved GET endpoint builders exist.
 - Detail, subscription, and AI usage all use the validated page company ID, not
   the JWT/cached company ID.
 - Invalid company IDs are rejected locally without an API call.

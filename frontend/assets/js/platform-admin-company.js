@@ -480,6 +480,208 @@
         return panel;
     }
 
+    function formatSen(value) {
+        return Number.isSafeInteger(value) ? String(value) + " sen" : "Not available";
+    }
+
+    function billingOrderPlanText(plan) {
+        if (!plan) return "Not available";
+        if (plan.code && plan.name) return String(plan.code) + " - " + String(plan.name);
+        return safeValue(plan.code || plan.name);
+    }
+
+    function billingOrderRows(orders) {
+        return orders.map(function (order) {
+            return [
+                ui.formatDate(order.created_at),
+                safeValue(order.status),
+                formatSen(order.amount_sen),
+                billingOrderPlanText(order.new_plan),
+                billingOrderPlanText(order.source_plan),
+                safeValue(order.activation_status),
+                safeValue(order.activation_type),
+                order.reconciliation_required === true ? "Yes" : "No",
+                ui.formatDate(order.paid_at),
+                ui.formatDate(order.credited_at),
+                ui.formatDate(order.expires_at),
+                ui.formatDate(order.activation_claimed_at),
+                ui.formatDate(order.activation_completed_at),
+                ui.formatDate(order.credit_granted_at)
+            ];
+        });
+    }
+
+    function billingOrdersToolbar(state, load) {
+        const toolbar = ui.element("div", "platform-toolbar");
+
+        const statusField = ui.element("div", "platform-field");
+        const statusLabel = ui.element("label", "", "Status");
+        statusLabel.setAttribute("for", "platform-billing-orders-status");
+        const statusInput = ui.element("input", "platform-input");
+        statusInput.id = "platform-billing-orders-status";
+        statusInput.type = "text";
+        statusInput.maxLength = 20;
+        statusInput.value = state.status;
+        statusInput.placeholder = "Exact status";
+        statusField.append(statusLabel, statusInput);
+        toolbar.append(statusField);
+
+        const afterField = ui.element("div", "platform-field");
+        const afterLabel = ui.element("label", "", "Created after");
+        afterLabel.setAttribute("for", "platform-billing-orders-created-after");
+        const afterInput = ui.element("input", "platform-input");
+        afterInput.id = "platform-billing-orders-created-after";
+        afterInput.type = "text";
+        afterInput.value = state.createdAfter;
+        afterInput.placeholder = "2026-07-01T00:00:00+00:00";
+        afterField.append(afterLabel, afterInput);
+        toolbar.append(afterField);
+
+        const beforeField = ui.element("div", "platform-field");
+        const beforeLabel = ui.element("label", "", "Created before");
+        beforeLabel.setAttribute("for", "platform-billing-orders-created-before");
+        const beforeInput = ui.element("input", "platform-input");
+        beforeInput.id = "platform-billing-orders-created-before";
+        beforeInput.type = "text";
+        beforeInput.value = state.createdBefore;
+        beforeInput.placeholder = "2026-08-01T00:00:00+00:00";
+        beforeField.append(beforeLabel, beforeInput);
+        toolbar.append(beforeField);
+
+        const limitField = ui.element("div", "platform-field");
+        const limitLabel = ui.element("label", "", "Page size");
+        limitLabel.setAttribute("for", "platform-billing-orders-limit");
+        const limitSelect = ui.element("select", "platform-select");
+        limitSelect.id = "platform-billing-orders-limit";
+        [25, 50, 100].forEach(function (value) {
+            const option = ui.element("option", "", String(value));
+            option.value = String(value);
+            if (state.limit === value) option.selected = true;
+            limitSelect.append(option);
+        });
+        limitField.append(limitLabel, limitSelect);
+        toolbar.append(limitField);
+
+        const apply = ui.element("button", "platform-button platform-button-primary", "Apply filters");
+        apply.type = "button";
+        apply.addEventListener("click", function () {
+            state.status = statusInput.value.trim();
+            state.createdAfter = afterInput.value.trim();
+            state.createdBefore = beforeInput.value.trim();
+            state.limit = Number(limitSelect.value);
+            state.offset = 0;
+            load();
+        });
+        toolbar.append(apply);
+
+        const clear = ui.element("button", "platform-button", "Clear filters");
+        clear.type = "button";
+        clear.addEventListener("click", function () {
+            state.status = "";
+            state.createdAfter = "";
+            state.createdBefore = "";
+            state.limit = 25;
+            state.offset = 0;
+            load();
+        });
+        toolbar.append(clear);
+
+        return toolbar;
+    }
+
+    function billingOrdersPanel(companyId) {
+        const state = {
+            loaded: false,
+            loading: false,
+            limit: 25,
+            offset: 0,
+            status: "",
+            createdAfter: "",
+            createdBefore: ""
+        };
+        const panel = ui.element("section", "platform-panel");
+        const header = ui.element("header", "platform-page-header");
+        const title = ui.element("div");
+        title.append(
+            ui.element("h2", "", "Billing orders"),
+            ui.element("p", "", "Read-only subscription checkout records. Amounts are shown as integer sen as stored; currency is not returned or inferred.")
+        );
+        const toggle = ui.element("button", "platform-button", "Load billing orders");
+        toggle.type = "button";
+        header.append(title, toggle);
+        const body = ui.element("div");
+        body.hidden = true;
+        panel.append(header, body);
+
+        function renderLoaded(data) {
+            body.replaceChildren();
+            body.append(billingOrdersToolbar(state, load));
+            const orders = data.billing_orders || [];
+            if (!orders.length) {
+                body.append(sectionStateCard("No billing orders recorded."));
+            } else {
+                const headers = [
+                    "Created", "Status", "Amount", "New plan", "Source plan",
+                    "Activation status", "Activation type", "Reconciliation required",
+                    "Paid", "Credited", "Expires", "Activation claimed",
+                    "Activation completed", "Credit granted"
+                ];
+                const rows = billingOrderRows(orders);
+                body.append(renderTable(headers, rows, function (cells) {
+                    return rowCard(headers, cells);
+                }));
+            }
+            body.append(paginationControls(data.pagination || {}, state, load));
+        }
+
+        async function load() {
+            state.loaded = true;
+            state.loading = true;
+            body.hidden = false;
+            body.replaceChildren(ui.element("div", "platform-loading", "Loading billing orders..."));
+            toggle.textContent = "Hide billing orders";
+            try {
+                const data = await ui.runRequest("company-billing-orders", function (signal) {
+                    return PlatformAdminApi.listCompanyBillingOrders(companyId, {
+                        limit: state.limit,
+                        offset: state.offset,
+                        status: state.status,
+                        createdAfter: state.createdAfter,
+                        createdBefore: state.createdBefore,
+                        signal: signal,
+                    });
+                });
+                renderLoaded(data);
+            } catch (error) {
+                if (error && (error.category === "unauthenticated" || error.category === "access_denied")) {
+                    ui.handleError(error);
+                } else if (error && error.category === "not_found") {
+                    showCompanyNotFoundState();
+                } else if (!error || error.category !== "aborted") {
+                    body.replaceChildren(sectionStateCard(
+                        error && error.category === "validation"
+                            ? "Billing order filters could not be validated."
+                            : "Billing orders could not be loaded safely.",
+                        "Retry",
+                        load
+                    ));
+                }
+            } finally {
+                state.loading = false;
+            }
+        }
+
+        toggle.addEventListener("click", function () {
+            if (!state.loaded) {
+                load();
+                return;
+            }
+            body.hidden = !body.hidden;
+            toggle.textContent = body.hidden ? "Show billing orders" : "Hide billing orders";
+        });
+        return panel;
+    }
+
     function transactionTypeLabel(value) {
         if (value === null || value === undefined || value === "") {
             return "Not available";
@@ -917,6 +1119,7 @@
                 companyPanel(company),
                 subscriptionPanel(summaries[0] ? summaries[0].subscription : null),
                 subscriptionHistoryPanel(companyId),
+                billingOrdersPanel(companyId),
                 aiCreditPanel(summaries[1]),
                 aiCreditTransactionsPanel(companyId),
                 usersPanel(companyId),

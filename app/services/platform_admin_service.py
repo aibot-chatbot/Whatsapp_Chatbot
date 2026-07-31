@@ -88,6 +88,17 @@ def _optional_resource_id_parameter(value):
     return normalized
 
 
+def _optional_billing_status_parameter(value):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        _validation("invalid_status", "status must be text.")
+    normalized = value.strip()
+    if not normalized or len(normalized) > 20:
+        _validation("invalid_status", "status must contain 1 to 20 characters.")
+    return normalized
+
+
 def _optional_positive_integer_parameter(value, *, name):
     if value is None:
         return None
@@ -138,6 +149,7 @@ SAFE_AUDIT_METADATA_KEYS = {
     "status_filter",
     "state_filter",
     "transaction_type_filter",
+    "status_filter_applied",
     "returned_count",
     "attention_company_count",
     "generated_at",
@@ -818,5 +830,114 @@ def get_company_ai_credit_transactions(
                "offset": offset,
                "transaction_type_filter": normalized_type,
                "returned_count": len(safe_transactions),
+           })
+    return result
+
+
+def _safe_billing_order_plan(plan):
+    if not isinstance(plan, dict):
+        return None
+    return {
+        "code": plan.get("code"),
+        "name": plan.get("name"),
+    }
+
+
+def _safe_billing_order_response_row(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "id": row.get("id"),
+        "status": row.get("status"),
+        "amount_sen": row.get("amount_sen"),
+        "new_plan": _safe_billing_order_plan(row.get("new_plan")),
+        "source_plan": _safe_billing_order_plan(row.get("source_plan")),
+        "activation_status": row.get("activation_status"),
+        "activation_type": row.get("activation_type"),
+        "reconciliation_required": row.get("reconciliation_required"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "paid_at": row.get("paid_at"),
+        "credited_at": row.get("credited_at"),
+        "expires_at": row.get("expires_at"),
+        "activation_claimed_at": row.get("activation_claimed_at"),
+        "activation_completed_at": row.get("activation_completed_at"),
+        "credit_granted_at": row.get("credit_granted_at"),
+    }
+
+
+def get_company_billing_orders(
+    company_id, actor_id, *, limit=None, offset=None, status=None,
+    created_after=None, created_before=None,
+):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_billing_orders"]
+    _positive_id(company_id)
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    normalized_status = _optional_billing_status_parameter(status)
+    parsed_after = _optional_datetime_parameter(created_after, name="created_after")
+    parsed_before = _optional_datetime_parameter(created_before, name="created_before")
+    if parsed_after is not None and parsed_before is not None and parsed_after >= parsed_before:
+        _validation("invalid_created_before", "created_after must be earlier than created_before.")
+
+    _company_or_not_found(
+        company_id, actor_id, "platform_admin.company.billing_orders.read",
+        "company_billing_orders", endpoint,
+    )
+    try:
+        orders, total = platform_billing_repository.list_billing_orders_for_platform_admin(
+            company_id=company_id,
+            limit=limit,
+            offset=offset,
+            status=normalized_status,
+            created_after=parsed_after,
+            created_before=parsed_before,
+        )
+    except Exception:
+        logger.error("Platform billing order history lookup failed")
+        _data_unavailable()
+
+    safe_orders = [
+        _safe_billing_order_response_row(row) for row in (orders or [])
+    ]
+    total = int(total or 0)
+    result = {
+        "billing_orders": safe_orders,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(safe_orders),
+            "total": total,
+            "has_more": offset + len(safe_orders) < total,
+        },
+        "filters": {
+            "status": normalized_status,
+            "status_applied": normalized_status is not None,
+            "created_after": parsed_after.isoformat() if parsed_after else None,
+            "created_after_applied": parsed_after is not None,
+            "created_before": parsed_before.isoformat() if parsed_before else None,
+            "created_before_applied": parsed_before is not None,
+        },
+        "ordering": {
+            "by": "created_at",
+            "order": "desc",
+            "tie_breaker": "id desc",
+        },
+        "amount_units": {
+            "amount_sen": "integer sen as stored; currency is not returned or inferred",
+        },
+    }
+    _audit(actor_id, "platform_admin.company.billing_orders.read",
+           "company_billing_orders", str(company_id), {
+               "outcome": "success",
+               "endpoint": endpoint,
+               "http_method": "GET",
+               "limit": limit,
+               "offset": offset,
+               "status_filter_applied": normalized_status is not None,
+               "created_after_filter_applied": parsed_after is not None,
+               "created_before_filter_applied": parsed_before is not None,
+               "returned_count": len(safe_orders),
            })
     return result

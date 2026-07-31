@@ -224,6 +224,84 @@ const filteredAiCreditTransactions = {
   ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" }
 };
 
+const billingOrders = {
+  billing_orders: [
+    {
+      id: 901,
+      status: "credited<script>window.__billingStatusXss=true</script>",
+      amount_sen: 3900,
+      new_plan: {
+        code: "pro",
+        name: "Pro <img src=x onerror=window.__billingPlanXss=true>"
+      },
+      source_plan: null,
+      activation_status: "completed",
+      activation_type: "upgrade",
+      reconciliation_required: false,
+      created_at: "2026-07-01T00:00:00+00:00",
+      updated_at: "2026-07-01T00:03:00+00:00",
+      paid_at: "2026-07-01T00:01:00+00:00",
+      credited_at: null,
+      expires_at: "2026-07-02T00:00:00+00:00",
+      activation_claimed_at: "2026-07-01T00:01:10+00:00",
+      activation_completed_at: "2026-07-01T00:02:00+00:00",
+      credit_granted_at: null
+    }
+  ],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 2, has_more: true },
+  filters: {
+    status: null,
+    status_applied: false,
+    created_after: null,
+    created_after_applied: false,
+    created_before: null,
+    created_before_applied: false
+  },
+  ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" },
+  amount_units: {
+    amount_sen: "integer sen as stored; currency is not returned or inferred"
+  }
+};
+
+const filteredBillingOrders = {
+  billing_orders: [
+    {
+      id: 902,
+      status: "pending<img src=x onerror=window.__lateBillingXss=true>",
+      amount_sen: null,
+      new_plan: null,
+      source_plan: {
+        code: "advanced",
+        name: "Advanced"
+      },
+      activation_status: null,
+      activation_type: null,
+      reconciliation_required: true,
+      created_at: "2026-07-02T00:00:00+00:00",
+      updated_at: null,
+      paid_at: null,
+      credited_at: null,
+      expires_at: null,
+      activation_claimed_at: null,
+      activation_completed_at: null,
+      credit_granted_at: null
+    }
+  ],
+  pagination: { limit: 50, offset: 25, returned: 1, total: 26, has_more: false },
+  filters: {
+    status: "pending",
+    status_applied: true,
+    created_after: "2026-07-01T00:00:00+00:00",
+    created_after_applied: true,
+    created_before: "2026-08-01T00:00:00+00:00",
+    created_before_applied: true
+  },
+  ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" },
+  amount_units: {
+    amount_sen: "integer sen as stored; currency is not returned or inferred"
+  }
+};
+
 const auditEvents = {
   audit_events: [
     {
@@ -381,6 +459,9 @@ function defaultHandler({ url }) {
   }
   if (url.pathname === "/api/platform-admin/companies/42/ai-credit-transactions") {
     return success(aiCreditTransactions);
+  }
+  if (url.pathname === "/api/platform-admin/companies/42/billing-orders") {
+    return success(billingOrders);
   }
   if (url.pathname === "/api/platform-admin/companies/42/users") {
     return success(userList);
@@ -964,6 +1045,7 @@ test.describe("platform-admin company detail", () => {
     expect(paths.indexOf("/api/platform-admin/companies/42/ai-credit-usage")).toBeGreaterThan(paths.indexOf("/api/platform-admin/companies/42"));
     expect(paths).not.toContain("/api/platform-admin/companies/42/subscription-history");
     expect(paths).not.toContain("/api/platform-admin/companies/42/ai-credit-transactions");
+    expect(paths).not.toContain("/api/platform-admin/companies/42/billing-orders");
     expect(paths).not.toContain("/api/platform-admin/companies/42/users");
     expect(paths).not.toContain("/api/platform-admin/companies/42/chatbots");
   });
@@ -1029,6 +1111,159 @@ test.describe("platform-admin company detail", () => {
     await expect(page.getByRole("heading", { name: "Subscription history" })).toHaveCount(0);
     await expect(page.getByText("Subscription history could not be loaded safely.")).toHaveCount(0);
     await expect(page.getByText("raw deleted company details")).toHaveCount(0);
+  });
+
+  test("lazy billing orders load with filters pagination sen amounts and safe rendering", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => defaultHandler({ url }));
+    await expect(page.getByRole("heading", { name: "Billing orders" })).toBeVisible();
+    expect(calls.map(call => call.path)).not.toContain("/api/platform-admin/companies/42/billing-orders");
+
+    await page.getByRole("button", { name: "Load billing orders" }).click();
+    const billingSection = page.locator("section.platform-panel")
+      .filter({ has: page.getByRole("heading", { name: "Billing orders" }) });
+    await expect(billingSection.getByRole("cell", { name: "credited<script>window.__billingStatusXss=true</script>" })).toBeVisible();
+    await expect(billingSection.getByRole("cell", { name: "3900 sen" })).toBeVisible();
+    await expect(billingSection.getByRole("cell", { name: "Pro <img src=x onerror=window.__billingPlanXss=true>" })).toBeVisible();
+    await expect(billingSection.getByText("RM39.00")).toHaveCount(0);
+    await expect(billingSection.getByText("MYR")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.__billingStatusXss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__billingPlanXss)).toBeUndefined();
+
+    await page.locator("#platform-billing-orders-status").fill("pending");
+    await page.locator("#platform-billing-orders-created-after").fill("2026-07-01T00:00:00+00:00");
+    await page.locator("#platform-billing-orders-created-before").fill("2026-08-01T00:00:00+00:00");
+    await page.locator("#platform-billing-orders-limit").selectOption("50");
+    await page.locator("section.platform-panel")
+      .filter({ has: page.getByRole("heading", { name: "Billing orders" }) })
+      .getByRole("button", { name: "Apply filters" })
+      .click();
+    await page.locator("section.platform-panel")
+      .filter({ has: page.getByRole("heading", { name: "Billing orders" }) })
+      .getByRole("button", { name: "Next" })
+      .click();
+
+    const orderUrls = calls
+      .filter(call => call.path === "/api/platform-admin/companies/42/billing-orders")
+      .map(call => new URL("http://test" + call.search));
+    expect(orderUrls.length).toBeGreaterThanOrEqual(3);
+    expect(orderUrls.some(url => url.searchParams.get("status") === "pending")).toBe(true);
+    expect(orderUrls.some(url => url.searchParams.get("created_after") === "2026-07-01T00:00:00+00:00")).toBe(true);
+    expect(orderUrls.some(url => url.searchParams.get("created_before") === "2026-08-01T00:00:00+00:00")).toBe(true);
+    expect(orderUrls.some(url => url.searchParams.get("limit") === "50")).toBe(true);
+    expect(orderUrls.every(url => !url.searchParams.has("sort_by"))).toBe(true);
+    expect(orderUrls.every(url => !url.searchParams.has("search"))).toBe(true);
+    expect(orderUrls.every(url => !url.searchParams.has("export"))).toBe(true);
+    await assertReadOnlyBoundary(page);
+  });
+
+  test("billing orders empty unavailable validation and child 404 states are sanitized", async ({ page }) => {
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/billing-orders") {
+        return success({
+          ...billingOrders,
+          billing_orders: [],
+          pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false }
+        });
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Load billing orders" }).click();
+    await expect(page.getByText("No billing orders recorded.")).toBeVisible();
+
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/billing-orders") {
+        return failure(400, "invalid_status", "raw validation detail");
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Load billing orders" }).click();
+    await expect(page.getByText("Billing order filters could not be validated.")).toBeVisible();
+    await expect(page.getByText("raw validation detail")).toHaveCount(0);
+
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/billing-orders") {
+        return failure(503, "platform_admin_data_unavailable", "raw Supabase details");
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Load billing orders" }).click();
+    await expect(page.getByText("Billing orders could not be loaded safely.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByText("raw Supabase details")).toHaveCount(0);
+
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/billing-orders") {
+        return failure(404, "company_not_found", "raw deleted company details");
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "AI-credit and usage" })).toBeVisible();
+    await page.getByRole("button", { name: "Load billing orders" }).click();
+    await expect(page.getByRole("heading", { name: "Company Not Found" })).toBeVisible();
+    await expect(page.getByText("Example Tenant")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Billing orders" })).toHaveCount(0);
+    await expect(page.getByText("Billing orders could not be loaded safely.")).toHaveCount(0);
+    await expect(page.getByText("raw deleted company details")).toHaveCount(0);
+  });
+
+  test("billing order filter replaces pending request and suppresses late obsolete response", async ({ page }) => {
+    let releasePending;
+    const slowObsolete = new Promise(resolve => {
+      releasePending = () => resolve(success({
+        ...billingOrders,
+        billing_orders: [{
+          ...billingOrders.billing_orders[0],
+          status: "obsolete<script>window.__obsoleteBillingXss=true</script>"
+        }]
+      }));
+    });
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/billing-orders") {
+        if (url.searchParams.get("status") === "obsolete") return slowObsolete;
+        if (url.searchParams.get("status") === "pending") return success(filteredBillingOrders);
+        return success(billingOrders);
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Load billing orders" }).click();
+    await expect(page.getByRole("cell", { name: "credited<script>window.__billingStatusXss=true</script>" })).toBeVisible();
+    await page.evaluate(() => {
+      window.__obsoleteBillingRenderState = "pending";
+      PlatformAdminShell.runRequest("company-billing-orders", signal => (
+        PlatformAdminApi.listCompanyBillingOrders(42, {
+          limit: 25,
+          offset: 0,
+          status: "obsolete",
+          signal
+        })
+      )).then(data => {
+        const marker = document.createElement("div");
+        marker.id = "obsolete-billing-render";
+        marker.textContent = data.billing_orders[0].status;
+        document.body.append(marker);
+        window.__obsoleteBillingRenderState = "rendered";
+      }).catch(error => {
+        window.__obsoleteBillingRenderState = error && error.category ? error.category : "rejected";
+      });
+    });
+    await page.locator("#platform-billing-orders-status").fill("pending");
+    await page.locator("section.platform-panel")
+      .filter({ has: page.getByRole("heading", { name: "Billing orders" }) })
+      .getByRole("button", { name: "Apply filters" })
+      .click();
+
+    await expect(page.getByRole("cell", { name: "pending<img src=x onerror=window.__lateBillingXss=true>" })).toBeVisible();
+    await expect(page.getByText("Not available").first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__lateBillingXss)).toBeUndefined();
+
+    releasePending();
+    await page.waitForTimeout(100);
+    await expect.poll(() => page.evaluate(() => window.__obsoleteBillingRenderState)).toBe("aborted");
+    await expect(page.locator("#obsolete-billing-render")).toHaveCount(0);
+    await expect(page.getByText("obsolete<script>window.__obsoleteBillingXss=true</script>")).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: "pending<img src=x onerror=window.__lateBillingXss=true>" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__obsoleteBillingXss)).toBeUndefined();
   });
 
   test("lazy AI-credit transactions load with filtering pagination and safe null rendering", async ({ page }) => {

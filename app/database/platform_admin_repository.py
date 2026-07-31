@@ -47,6 +47,7 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "company_chatbots": "/api/platform-admin/companies/<company_id>/chatbots",
     "company_subscription_history": "/api/platform-admin/companies/<company_id>/subscription-history",
     "company_ai_credit_transactions": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
+    "company_billing_orders": "/api/platform-admin/companies/<company_id>/billing-orders",
     "audit_events": "/api/platform-admin/audit-events",
 }
 
@@ -185,6 +186,26 @@ AUDIT_EVENT_SCHEMAS = {
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["company_ai_credit_transactions"],
         "required_metadata_by_outcome": {
             "success": {"limit", "offset", "transaction_type_filter", "returned_count"},
+            "not_found": set(),
+        },
+    },
+    "platform_admin.company.billing_orders.read": {
+        "resource_type": "company_billing_orders",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": {
+            "limit", "offset", "status_filter_applied",
+            "created_after_filter_applied", "created_before_filter_applied",
+            "returned_count",
+        },
+        "outcomes": AUDIT_OUTCOMES,
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["company_billing_orders"],
+        "required_metadata_by_outcome": {
+            "success": {
+                "limit", "offset", "status_filter_applied",
+                "created_after_filter_applied", "created_before_filter_applied",
+                "returned_count",
+            },
             "not_found": set(),
         },
     },
@@ -398,6 +419,28 @@ def _validate_metadata_schema(action, schema, metadata):
             "transaction_type_filter",
             AI_CREDIT_TRANSACTION_TYPE_FILTERS,
         )
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
+        if metadata["returned_count"] > metadata["limit"]:
+            raise ValueError("returned_count cannot exceed limit")
+
+    if action == "platform_admin.company.billing_orders.read":
+        if metadata["outcome"] == "not_found":
+            list_keys = {
+                "limit", "offset", "status_filter_applied",
+                "created_after_filter_applied", "created_before_filter_applied",
+                "returned_count",
+            }
+            if any(key in metadata for key in list_keys):
+                raise ValueError("List metadata is not allowed for not_found events")
+            return
+        _bounded_integer(metadata["limit"], "limit", 1, 100)
+        _non_negative_integer(metadata["offset"], "offset")
+        for key in (
+            "status_filter_applied",
+            "created_after_filter_applied",
+            "created_before_filter_applied",
+        ):
+            _boolean(metadata[key], key)
         _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
         if metadata["returned_count"] > metadata["limit"]:
             raise ValueError("returned_count cannot exceed limit")

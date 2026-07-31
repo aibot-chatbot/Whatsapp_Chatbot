@@ -28,6 +28,13 @@ AI_CREDIT_TRANSACTION_HISTORY_FIELDS = (
     "included_balance_after_micro_myr,topup_balance_after_micro_myr,"
     "customer_charge_micro_myr,uncovered_charge_micro_myr,period_start,period_end,created_at"
 )
+BILLING_ORDER_HISTORY_FIELDS = (
+    "id,status,amount_sen,new_plan_id,source_plan_id,activation_status,"
+    "activation_type,reconciliation_required,created_at,updated_at,paid_at,"
+    "credited_at,expires_at,activation_claimed_at,activation_completed_at,"
+    "credit_granted_at"
+)
+BILLING_ORDER_PLAN_FIELDS = "id,code,name"
 OVERVIEW_STATUSES = ("trialing", "active", "past_due", "expired", "cancelled")
 ATTENTION_STATUSES = {"past_due", "expired"}
 SUBSCRIPTION_HISTORY_STATUSES = set(OVERVIEW_STATUSES)
@@ -185,6 +192,29 @@ def _plans_by_id_for_subscription_history(plan_ids):
     }
 
 
+def _plans_by_id_for_billing_orders(plan_ids):
+    valid_ids = sorted({
+        plan_id for plan_id in plan_ids
+        if isinstance(plan_id, int) and not isinstance(plan_id, bool) and plan_id > 0
+    })
+    if not valid_ids:
+        return {}
+    response = (
+        supabase.table("subscription_plans")
+        .select(BILLING_ORDER_PLAN_FIELDS)
+        .in_("id", valid_ids)
+        .execute()
+    )
+    return {
+        row["id"]: _safe_plan_ref(row)
+        for row in (response.data or [])
+        if isinstance(row, dict)
+        and isinstance(row.get("id"), int)
+        and not isinstance(row.get("id"), bool)
+        and row.get("id") > 0
+    }
+
+
 def _safe_subscription_history_row(row, plans_by_id):
     if not isinstance(row, dict):
         row = {}
@@ -282,6 +312,83 @@ def list_ai_credit_transactions_for_platform_admin(
     response = query.range(offset, offset + limit - 1).execute()
     transactions = [_safe_ai_credit_transaction_row(row) for row in (response.data or [])]
     return transactions, int(response.count or 0)
+
+
+def _billing_order_plan_ids(rows):
+    plan_ids = set()
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        for key in ("new_plan_id", "source_plan_id"):
+            value = row.get(key)
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+                plan_ids.add(value)
+    return sorted(plan_ids)
+
+
+def _safe_billing_order_row(row, plans_by_id):
+    if not isinstance(row, dict):
+        row = {}
+    new_plan_id = row.get("new_plan_id")
+    source_plan_id = row.get("source_plan_id")
+    return {
+        "id": row.get("id"),
+        "status": row.get("status"),
+        "amount_sen": row.get("amount_sen"),
+        "new_plan": plans_by_id.get(new_plan_id),
+        "source_plan": plans_by_id.get(source_plan_id),
+        "activation_status": row.get("activation_status"),
+        "activation_type": row.get("activation_type"),
+        "reconciliation_required": row.get("reconciliation_required"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "paid_at": row.get("paid_at"),
+        "credited_at": row.get("credited_at"),
+        "expires_at": row.get("expires_at"),
+        "activation_claimed_at": row.get("activation_claimed_at"),
+        "activation_completed_at": row.get("activation_completed_at"),
+        "credit_granted_at": row.get("credit_granted_at"),
+    }
+
+
+def list_billing_orders_for_platform_admin(
+    company_id, *, limit, offset, status=None, created_after=None, created_before=None
+):
+    """List safe subscription billing-order rows for one company, newest first.
+
+    Billing orders are mutable operational records, not an event-sourced
+    payment or activation timeline. This read never invokes reconciliation,
+    checkout, callback, or activation logic.
+    """
+    _validate_company_id(company_id)
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
+    if status is not None and (
+        not isinstance(status, str) or not status.strip() or len(status.strip()) > 20
+    ):
+        raise ValueError("unsupported billing order status")
+
+    query = (
+        supabase.table("company_subscription_orders")
+        .select(BILLING_ORDER_HISTORY_FIELDS, count="exact")
+        .eq("company_id", company_id)
+        .order("created_at", desc=True)
+        .order("id", desc=True)
+    )
+    if status is not None:
+        query = query.eq("status", status.strip())
+    if created_after is not None:
+        query = query.gte("created_at", _period_iso(created_after))
+    if created_before is not None:
+        query = query.lt("created_at", _period_iso(created_before))
+
+    response = query.range(offset, offset + limit - 1).execute()
+    rows = response.data or []
+    plans_by_id = _plans_by_id_for_billing_orders(_billing_order_plan_ids(rows))
+    orders = [_safe_billing_order_row(row, plans_by_id) for row in rows]
+    return orders, int(response.count or 0)
 
 
 def _scan_latest_subscriptions_for_platform_admin():

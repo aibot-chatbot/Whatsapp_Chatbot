@@ -22,24 +22,28 @@
 
 The initial read-only backend is implemented with a separate database-backed
 platform-admin allowlist, per-request fail-closed authorization, dedicated
-cross-tenant repositories, eleven GET-only endpoints, and audit-before-response
+cross-tenant repositories, twelve GET-only endpoints, and audit-before-response
 enforcement. Tenant roles and JWT claims do not grant platform access. The
 later users/chatbots company-inspection endpoints and Platform Operations
 overview endpoint, plus the subscription-history and AI-credit transaction-history
-investigation endpoints and Audit Logs viewer, are
+investigation endpoints, Audit Logs viewer, and billing-order history endpoint are
 application-only and locally tested unless separately staged later. The overview
 uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
 subscription history lists persisted `company_subscriptions` records and is not
-an event-sourced status-transition timeline. Order review, no-subscription
-counting, global activity, usage aggregation, charts, exports, audit export,
-audit editing/deletion, and write controls remain deferred.
+an event-sourced status-transition timeline. Billing-order history lists mutable
+`company_subscription_orders` records for company-scoped investigation, displays
+`amount_sen` as integer sen as stored, and does not return or infer currency.
+Payment reconciliation, checkout recovery, retry payment, manual crediting,
+subscription activation, plan changes, no-subscription counting, global
+activity, usage aggregation, charts, exports, audit export, audit
+editing/deletion, and write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
 shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
 client, in-memory request cancellation/state clearing, the Platform Operations
 overview, the server-paginated company directory, safe company billing/AI-credit
 detail views, and lazy read-only subscription-history, AI-credit transaction-history,
-and company users/chatbots sections. A later bounded frontend-only platform-admin
+billing-order history, and company users/chatbots sections. A later bounded frontend-only platform-admin
 Support Workspace adds a read-only investigation hub that reuses the existing
 operations overview and company directory APIs, highlights attention companies,
 and links into the existing company detail investigation page without adding a
@@ -52,6 +56,11 @@ endpoint for safe platform-admin audit event summaries. It returns actor mapping
 IDs only, omits raw metadata and tenant records, and does not add audit
 editing, deletion, export, download, charts, platform-admin user management, or
 other write controls.
+The Billing Order History section adds a lazy read-only company-detail
+investigation surface for safe order status, amount_sen, plan code/name, and
+lifecycle timestamp fields only. It excludes payment/gateway/checkout/reference,
+idempotency, raw-error, reconciliation, retry, activation, manual-credit,
+export/download, chart, and write behavior.
 Authenticated tenant pages now use a shared top-right account menu for Profile,
 Support, and Logout. Support points to a static authenticated tenant help page
 with local self-service guidance and no support-submission backend. Active

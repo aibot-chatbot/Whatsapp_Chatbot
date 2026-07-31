@@ -31,7 +31,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
 
-    def test_only_eleven_approved_get_routes_exist(self):
+    def test_only_twelve_approved_get_routes_exist(self):
         rules = [rule for rule in self.app.url_map.iter_rules() if rule.rule.startswith("/api/platform-admin")]
         self.assertEqual({rule.rule for rule in rules}, {
             "/api/platform-admin/me",
@@ -43,6 +43,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/<int:company_id>/subscription-history",
             "/api/platform-admin/companies/<int:company_id>/ai-credit-usage",
             "/api/platform-admin/companies/<int:company_id>/ai-credit-transactions",
+            "/api/platform-admin/companies/<int:company_id>/billing-orders",
             "/api/platform-admin/companies/<int:company_id>/users",
             "/api/platform-admin/companies/<int:company_id>/chatbots",
         })
@@ -53,7 +54,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 11)
+        self.assertEqual(len(rules), 12)
         for rule in rules:
             path = rule.rule.replace("<int:company_id>", "2")
             with self.subTest(path=path):
@@ -102,6 +103,19 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/2/ai-credit-transactions?limit=0": "invalid_limit",
             "/api/platform-admin/companies/2/ai-credit-transactions?offset=-1": "invalid_offset",
             "/api/platform-admin/companies/2/ai-credit-transactions?transaction_type=provider_cost": "invalid_transaction_type",
+            "/api/platform-admin/companies/2/billing-orders?limit=0": "invalid_limit",
+            "/api/platform-admin/companies/2/billing-orders?limit=101": "invalid_limit",
+            "/api/platform-admin/companies/2/billing-orders?limit=true": "invalid_limit",
+            "/api/platform-admin/companies/2/billing-orders?offset=-1": "invalid_offset",
+            "/api/platform-admin/companies/2/billing-orders?offset=false": "invalid_offset",
+            "/api/platform-admin/companies/2/billing-orders?status=": "invalid_status",
+            "/api/platform-admin/companies/2/billing-orders?status=%20%20": "invalid_status",
+            f"/api/platform-admin/companies/2/billing-orders?status={'x' * 21}": "invalid_status",
+            "/api/platform-admin/companies/2/billing-orders?created_after=not-a-date": "invalid_created_after",
+            "/api/platform-admin/companies/2/billing-orders?created_after=2026-07-31T00:00:00": "invalid_created_after",
+            "/api/platform-admin/companies/2/billing-orders?created_before=not-a-date": "invalid_created_before",
+            "/api/platform-admin/companies/2/billing-orders?created_before=2026-07-31T00:00:00": "invalid_created_before",
+            "/api/platform-admin/companies/2/billing-orders?created_after=2026-08-01T00:00:00%2B00:00&created_before=2026-07-31T00:00:00%2B00:00": "invalid_created_before",
             "/api/platform-admin/audit-events?limit=0": "invalid_limit",
             "/api/platform-admin/audit-events?offset=-1": "invalid_offset",
             "/api/platform-admin/audit-events?action=unknown": "invalid_action",
@@ -192,6 +206,10 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 "/api/platform-admin/companies/404/ai-credit-transactions",
                 "platform_admin.company.ai_credit_transactions.read",
             ),
+            (
+                "/api/platform-admin/companies/404/billing-orders",
+                "platform_admin.company.billing_orders.read",
+            ),
         ):
             with self.subTest(path=path), patch.object(
                 platform_admin_service.platform_company_repository,
@@ -210,6 +228,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 platform_admin_service.platform_billing_repository,
                 "list_ai_credit_transactions_for_platform_admin",
             ) as transactions, patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_billing_orders_for_platform_admin",
+            ) as billing_orders, patch.object(
                 platform_admin_service.platform_admin_repository,
                 "insert_platform_admin_audit_event",
                 return_value={"id": 1},
@@ -221,11 +242,13 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 chatbots.assert_not_called()
                 history.assert_not_called()
                 transactions.assert_not_called()
+                billing_orders.assert_not_called()
                 self.assertEqual(audit.call_args.args[1], action)
                 endpoint_key = (
                     "company_users" if path.endswith("/users")
                     else "company_chatbots" if path.endswith("/chatbots")
                     else "company_ai_credit_transactions" if path.endswith("/ai-credit-transactions")
+                    else "company_billing_orders" if path.endswith("/billing-orders")
                     else "company_subscription_history"
                 )
                 self.assertEqual(audit.call_args.args[4], {
@@ -309,6 +332,10 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 "platform_admin.company.ai_credit_transactions.read",
             ),
             (
+                "/api/platform-admin/companies/2/billing-orders",
+                "platform_admin.company.billing_orders.read",
+            ),
+            (
                 "/api/platform-admin/companies/2/subscription-history",
                 "platform_admin.company.subscription_history.read",
             ),
@@ -362,6 +389,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
             ), patch.object(
                 platform_admin_service.platform_billing_repository,
                 "list_ai_credit_transactions_for_platform_admin", return_value=([], 0),
+            ), patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_billing_orders_for_platform_admin", return_value=([], 0),
             ), patch.object(
                 platform_admin_service.platform_company_user_repository,
                 "list_company_users_for_platform_admin", return_value=([], 0),
@@ -788,11 +818,15 @@ class PlatformAdminRouteTests(unittest.TestCase):
             platform_admin_service.platform_company_repository,
             "get_company_for_platform_admin",
             return_value={"id": 2},
-        ), patch.object(
-            platform_admin_service.platform_billing_repository,
-            "list_ai_credit_transactions_for_platform_admin",
-            return_value=([], 0),
-        ), patch.object(
+            ), patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_ai_credit_transactions_for_platform_admin",
+                return_value=([], 0),
+            ), patch.object(
+                platform_admin_service.platform_billing_repository,
+                "list_billing_orders_for_platform_admin",
+                return_value=([], 0),
+            ), patch.object(
             platform_admin_service.platform_admin_repository,
             "insert_platform_admin_audit_event",
             return_value={"id": 1},
@@ -929,6 +963,192 @@ class PlatformAdminRouteTests(unittest.TestCase):
         trimmed_transactions.assert_called_once_with(
             company_id=2, limit=25, offset=0, transaction_type="usage_debit"
         )
+
+    def test_billing_orders_success_shape_filters_and_audit_metadata(self):
+        calls = []
+        rows = [{
+            "id": 901,
+            "status": "credited",
+            "amount_sen": 3900,
+            "new_plan": {
+                "code": "pro",
+                "name": "Pro",
+                "price": 16900,
+                "currency": "MYR",
+                "is_active": False,
+            },
+            "source_plan": {
+                "code": "advanced",
+                "name": "Advanced",
+                "billing_interval": "monthly",
+            },
+            "activation_status": "completed",
+            "activation_type": "upgrade",
+            "reconciliation_required": False,
+            "created_at": "2026-07-01T00:00:00+00:00",
+            "updated_at": "2026-07-01T00:03:00+00:00",
+            "paid_at": "2026-07-01T00:01:00+00:00",
+            "credited_at": None,
+            "expires_at": "2026-07-02T00:00:00+00:00",
+            "activation_claimed_at": "2026-07-01T00:01:10+00:00",
+            "activation_completed_at": "2026-07-01T00:02:00+00:00",
+            "credit_granted_at": None,
+            "company_id": 2,
+            "subscription_id": 4,
+            "order_reference": "11111111-1111-4111-8111-111111111111",
+            "gateway_order_id": "gateway-secret",
+            "checkout_url": "https://pay.example/secret",
+            "payment_reference": "payment-secret",
+            "payment_gateway": "toyyibpay",
+            "idempotency_key": "idem-secret",
+            "activation_error_message": "raw error",
+            "last_reconciliation_error": "stack trace",
+        }]
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            side_effect=lambda company_id: calls.append("company") or {"id": company_id},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_billing_orders_for_platform_admin",
+            side_effect=lambda **kwargs: calls.append("orders") or (rows, 4),
+        ) as orders, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=lambda *args: calls.append("audit") or {"id": 1},
+        ) as audit:
+            response = self.client.get(
+                "/api/platform-admin/companies/2/billing-orders?limit=1&offset=1&status=credited&created_after=2026-07-01T00:00:00%2B00:00&created_before=2026-08-01T00:00:00%2B00:00",
+                headers=self.headers,
+            )
+            calls.append("response")
+        self.assertEqual(response.status_code, 200)
+        data = response.json["data"]
+        self.assertEqual(calls, ["company", "orders", "audit", "response"])
+        called_kwargs = orders.call_args.kwargs
+        self.assertEqual(called_kwargs["company_id"], 2)
+        self.assertEqual(called_kwargs["limit"], 1)
+        self.assertEqual(called_kwargs["offset"], 1)
+        self.assertEqual(called_kwargs["status"], "credited")
+        self.assertEqual(called_kwargs["created_after"].isoformat(), "2026-07-01T00:00:00+00:00")
+        self.assertEqual(called_kwargs["created_before"].isoformat(), "2026-08-01T00:00:00+00:00")
+        self.assertEqual(data["pagination"], {
+            "limit": 1,
+            "offset": 1,
+            "returned": 1,
+            "total": 4,
+            "has_more": True,
+        })
+        self.assertEqual(data["filters"]["status"], "credited")
+        self.assertTrue(data["filters"]["status_applied"])
+        self.assertEqual(data["ordering"], {
+            "by": "created_at",
+            "order": "desc",
+            "tie_breaker": "id desc",
+        })
+        self.assertEqual(data["amount_units"], {
+            "amount_sen": "integer sen as stored; currency is not returned or inferred",
+        })
+        order = data["billing_orders"][0]
+        self.assertEqual(set(order), {
+            "id", "status", "amount_sen", "new_plan", "source_plan",
+            "activation_status", "activation_type", "reconciliation_required",
+            "created_at", "updated_at", "paid_at", "credited_at", "expires_at",
+            "activation_claimed_at", "activation_completed_at", "credit_granted_at",
+        })
+        self.assertEqual(order["amount_sen"], 3900)
+        self.assertIsNone(order["credited_at"])
+        self.assertEqual(order["new_plan"], {"code": "pro", "name": "Pro"})
+        self.assertEqual(order["source_plan"], {"code": "advanced", "name": "Advanced"})
+        response_text = response.get_data(as_text=True).lower()
+        for prohibited in (
+            "company_id", "subscription_id", "order_reference", "gateway_order_id",
+            "checkout_url", "payment_reference", "payment_gateway",
+            "idempotency_key", "activation_error_message",
+            "last_reconciliation_error", "gateway-secret", "payment-secret",
+            "myr", "price", "billing_interval",
+        ):
+            self.assertNotIn(prohibited, response_text)
+        self.assertEqual(audit.call_args.args[1], "platform_admin.company.billing_orders.read")
+        self.assertEqual(audit.call_args.args[2], "company_billing_orders")
+        self.assertEqual(audit.call_args.args[3], "2")
+        self.assertEqual(audit.call_args.args[4], {
+            "outcome": "success",
+            "endpoint": platform_admin_service.platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS[
+                "company_billing_orders"
+            ],
+            "http_method": "GET",
+            "limit": 1,
+            "offset": 1,
+            "status_filter_applied": True,
+            "created_after_filter_applied": True,
+            "created_before_filter_applied": True,
+            "returned_count": 1,
+        })
+
+    def test_billing_orders_empty_and_failures_are_sanitized(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_billing_orders_for_platform_admin",
+            return_value=([], 0),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ):
+            response = self.client.get(
+                "/api/platform-admin/companies/2/billing-orders",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["billing_orders"], [])
+        self.assertEqual(response.json["data"]["pagination"]["returned"], 0)
+        self.assertFalse(response.json["data"]["pagination"]["has_more"])
+        self.assertIsNone(response.json["data"]["filters"]["status"])
+
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_billing_orders_for_platform_admin",
+            side_effect=RuntimeError("Supabase service_role secret"),
+        ):
+            data_response = self.client.get(
+                "/api/platform-admin/companies/2/billing-orders",
+                headers=self.headers,
+            )
+        self.assertEqual(data_response.status_code, 503)
+        self.assertEqual(data_response.json["code"], "platform_admin_data_unavailable")
+        self.assertNotIn("supabase", data_response.get_data(as_text=True).lower())
+        self.assertNotIn("data", data_response.json)
+
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 2},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "list_billing_orders_for_platform_admin",
+            return_value=([{"id": 123, "status": "credited"}], 1),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=RuntimeError("audit secret"),
+        ):
+            audit_response = self.client.get(
+                "/api/platform-admin/companies/2/billing-orders",
+                headers=self.headers,
+            )
+        self.assertEqual(audit_response.status_code, 503)
+        self.assertEqual(audit_response.json["code"], "platform_admin_audit_unavailable")
+        self.assertNotIn("credited", audit_response.get_data(as_text=True))
+        self.assertNotIn("data", audit_response.json)
 
     def test_child_lists_return_empty_success_without_company_or_search_echo(self):
         for path, key in (
