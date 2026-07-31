@@ -31,7 +31,7 @@ class ChatbotSidebar extends HTMLElement {
                 height: 100vh;
                 display: flex;
                 flex-direction: column;
-                padding: 40px 24px;
+                padding: 24px 18px;
                 position: sticky;
                 top: 0;
                 z-index: 100;
@@ -61,7 +61,7 @@ class ChatbotSidebar extends HTMLElement {
                 align-items: center;
                 justify-content: space-between;
                 gap: 10px;
-                margin-bottom: 40px;
+                margin-bottom: 24px;
             }
             .logo {
                 font-size: 1.6rem;
@@ -104,37 +104,37 @@ class ChatbotSidebar extends HTMLElement {
                 padding: 0;
                 display: flex;
                 flex-direction: column;
-                gap: 6px;
+                gap: 4px;
             }
             .nav-group-header {
-                font-size: 0.7rem;
+                font-size: 0.68rem;
                 font-weight: 700;
                 color: var(--text-dim, #94a3b8);
                 opacity: 0.55;
                 text-transform: uppercase;
                 letter-spacing: 0.8px;
-                margin: 20px 0 6px 12px;
+                margin: 14px 0 4px 10px;
                 white-space: nowrap;
                 transition: opacity 0.28s ease, margin 0.28s ease, height 0.28s ease;
             }
             .nav-link {
                 text-decoration: none;
                 color: var(--text-dim, #94a3b8);
-                padding: 12px 16px;
+                padding: 9px 12px;
                 border-radius: 14px;
                 display: flex;
                 align-items: center;
-                gap: 14px;
+                gap: 10px;
                 transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 font-weight: 500;
-                font-size: 1rem;
+                font-size: 0.92rem;
                 cursor: pointer;
                 border: 1px solid transparent;
                 white-space: nowrap;
             }
             .nav-link i, .nav-link svg {
-                width: 20px;
-                height: 20px;
+                width: 18px;
+                height: 18px;
                 color: var(--text-dim, #94a3b8);
                 transition: color 0.3s;
             }
@@ -171,30 +171,30 @@ class ChatbotSidebar extends HTMLElement {
                 display: flex;
                 flex-direction: column;
                 gap: 4px;
-                padding-left: 10px;
+                padding-left: 8px;
             }
             .dropdown-container.open .dropdown-content {
                 max-height: 500px;
-                margin-top: 6px;
-                padding-bottom: 8px;
+                margin-top: 4px;
+                padding-bottom: 6px;
             }
             .dropdown-container .chevron {
                 transition: transform 0.3s ease;
-                width: 18px;
-                height: 18px;
+                width: 16px;
+                height: 16px;
             }
             .dropdown-container.open .chevron {
                 transform: rotate(180deg);
                 color: var(--text-main, #f8fafc);
             }
             .sub-link {
-                font-size: 0.95rem;
-                padding: 10px 16px;
-                gap: 12px;
+                font-size: 0.86rem;
+                padding: 8px 12px;
+                gap: 10px;
             }
             .sub-link i, .sub-link svg {
-                width: 18px;
-                height: 18px;
+                width: 16px;
+                height: 16px;
             }
 
             /* ===== Bottom section: tenant navigation only ===== */
@@ -203,27 +203,27 @@ class ChatbotSidebar extends HTMLElement {
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
-                padding-top: 8px;
+                padding-top: 6px;
                 border-top: 1px solid rgba(255, 255, 255, 0.04);
             }
 
             .profile-link {
                 text-decoration: none;
                 color: var(--text-dim, #94a3b8);
-                padding: 10px 16px;
+                padding: 8px 12px;
                 border-radius: 12px;
                 display: flex;
                 align-items: center;
-                gap: 14px;
+                gap: 10px;
                 transition: all 0.25s ease;
                 font-weight: 500;
-                font-size: 1rem;
+                font-size: 0.92rem;
                 white-space: nowrap;
                 cursor: pointer;
             }
             .profile-link i, .profile-link svg {
-                width: 20px;
-                height: 20px;
+                width: 18px;
+                height: 18px;
                 color: var(--text-dim, #94a3b8);
                 flex-shrink: 0;
                 transition: color 0.25s;
@@ -247,25 +247,25 @@ class ChatbotSidebar extends HTMLElement {
             .profile-link-content {
                 display: flex;
                 align-items: center;
-                gap: 14px;
+                gap: 10px;
             }
 
             .logout-link {
                 text-decoration: none;
                 color: #ef4444;
-                padding: 10px 16px;
+                padding: 8px 12px;
                 border-radius: 12px;
                 display: flex;
                 align-items: center;
-                gap: 14px;
+                gap: 10px;
                 transition: all 0.25s ease;
                 font-weight: 600;
-                font-size: 1rem;
+                font-size: 0.92rem;
                 white-space: nowrap;
             }
             .logout-link i, .logout-link svg {
-                width: 20px;
-                height: 20px;
+                width: 18px;
+                height: 18px;
                 color: #ef4444;
                 flex-shrink: 0;
             }
@@ -463,31 +463,58 @@ class ChatbotSidebar extends HTMLElement {
                         </a>
                     ` : ""}
 
-                    <div class="nav-group-header">Operate &amp; Engage</div>
+                    <div class="nav-group-header">Operate &amp; CRM</div>
                     <a href="conversations.html${botQuery}" class="nav-link" title="Inbox & Conversations">
                         <i data-lucide="message-square"></i>
                         <span>Inbox &amp; Chat</span>
                     </a>
-                    <a href="broadcast.html${botQuery}" class="nav-link" title="Broadcast / Campaigns">
-                        <i data-lucide="send"></i>
-                        <span>Campaigns</span>
-                    </a>
-                    ${isAdmin ? `
-                    <a href="meta_templates.html${botQuery}" class="nav-link" title="Meta Templates">
-                        <i data-lucide="file-check"></i>
-                        <span>Meta Templates</span>
-                    </a>
-                    ` : ""}
 
-                    <div class="nav-group-header">CRM &amp; Analytics</div>
-                    <a href="crm.html${botQuery}" class="nav-link" title="CRM / Leads">
-                        <i data-lucide="users"></i>
-                        <span>CRM / Leads</span>
-                    </a>
-                    <a href="reports.html${botQuery}" class="nav-link" title="Reports">
-                        <i data-lucide="bar-chart-3"></i>
-                        <span>Reports</span>
-                    </a>
+                    ${isAdmin ? `
+                        <div class="dropdown-container" id="campaigns-dropdown">
+                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('campaigns-dropdown')" title="Campaigns">
+                                <div class="nav-link-content">
+                                    <i data-lucide="send"></i>
+                                    <span>Campaigns</span>
+                                </div>
+                                <i data-lucide="chevron-down" class="chevron"></i>
+                            </button>
+                            <div class="dropdown-content">
+                                <a href="broadcast.html${botQuery}" class="nav-link sub-link" title="Broadcast / Campaigns">
+                                    <i data-lucide="send"></i>
+                                    <span>Broadcast</span>
+                                </a>
+                                <a href="meta_templates.html${botQuery}" class="nav-link sub-link" title="Meta Templates">
+                                    <i data-lucide="file-check"></i>
+                                    <span>Templates</span>
+                                </a>
+                            </div>
+                        </div>
+                    ` : `
+                        <a href="broadcast.html${botQuery}" class="nav-link" title="Broadcast / Campaigns">
+                            <i data-lucide="send"></i>
+                            <span>Campaigns</span>
+                        </a>
+                    `}
+
+                    <div class="dropdown-container" id="crm-analytics-dropdown">
+                        <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('crm-analytics-dropdown')" title="CRM &amp; Analytics">
+                            <div class="nav-link-content">
+                                <i data-lucide="bar-chart-3"></i>
+                                <span>CRM &amp; Analytics</span>
+                            </div>
+                            <i data-lucide="chevron-down" class="chevron"></i>
+                        </button>
+                        <div class="dropdown-content">
+                            <a href="crm.html${botQuery}" class="nav-link sub-link" title="CRM / Leads">
+                                <i data-lucide="users"></i>
+                                <span>CRM / Leads</span>
+                            </a>
+                            <a href="reports.html${botQuery}" class="nav-link sub-link" title="Reports">
+                                <i data-lucide="bar-chart-3"></i>
+                                <span>Reports</span>
+                            </a>
+                        </div>
+                    </div>
                 ` : ""}
             </nav>
 
@@ -608,6 +635,18 @@ class ChatbotSidebar extends HTMLElement {
         }
         if (['model_settings.html', 'testbot.html'].includes(currentPath)) {
             const drop = this.querySelector('#behaviour-dropdown');
+            if (drop) {
+                drop.classList.add('open');
+            }
+        }
+        if (['broadcast.html', 'meta_templates.html'].includes(currentPath)) {
+            const drop = this.querySelector('#campaigns-dropdown');
+            if (drop) {
+                drop.classList.add('open');
+            }
+        }
+        if (['crm.html', 'reports.html'].includes(currentPath)) {
+            const drop = this.querySelector('#crm-analytics-dropdown');
             if (drop) {
                 drop.classList.add('open');
             }
