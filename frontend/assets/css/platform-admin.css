@@ -365,6 +365,25 @@ a {
     margin-bottom: 1rem;
 }
 
+.platform-support-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.platform-support-search {
+    display: grid;
+    grid-template-columns: minmax(14rem, 1fr) auto;
+    align-items: end;
+    gap: 0.85rem;
+    margin: 1rem 0;
+}
+
+.platform-support-results {
+    min-height: 5rem;
+}
+
 .platform-field {
     display: grid;
     gap: 0.35rem;
@@ -531,7 +550,8 @@ a {
 @media (max-width: 767px) {
     .platform-grid,
     .platform-definition-grid,
-    .platform-toolbar {
+    .platform-toolbar,
+    .platform-support-search {
         grid-template-columns: 1fr;
     }
 

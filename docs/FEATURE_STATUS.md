@@ -320,6 +320,13 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   endpoint for company counts, latest-subscription status counts, latest-plan
   distribution, and at most 10 past-due/expired attention companies using
   `created_at DESC, id DESC` latest-subscription semantics.
+- A separate platform-admin Support Workspace is implemented as a read-only
+  investigation hub. It is distinct from tenant `support.html`, reuses only
+  existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
+  links operators into existing company investigation pages. It adds no backend
+  endpoint, ticketing, case notes, billing-order history, audit-log viewer, or
+  write controls; the platform-admin backend inventory remains exactly ten
+  GET-only routes.
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
@@ -365,6 +372,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 | Limitation | Status |
 |---|---|
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, users/chatbots, subscription-history, and AI-credit transaction-history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
+| Platform-admin Support Workspace | Implemented locally as a read-only investigation hub using existing overview and company-directory APIs only; no backend endpoint, ticketing, case management, billing-order history, audit-log viewer, or write controls |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | Direct tenant support contact/tickets | Deferred (no approved support contact destination or support-submission backend) |

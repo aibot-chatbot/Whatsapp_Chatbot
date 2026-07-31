@@ -78,6 +78,17 @@ subscription changes remain out of scope.
   help page with self-service guidance and local account/product links only. It
   has no support-submission backend, ticket creation, email sending, external
   contact link, platform-admin authorization behavior, or cross-tenant data.
+- A later bounded frontend-only platform-admin extension added a distinct
+  **Support Workspace** at `frontend/platform-admin-support.html`. It is not the
+  tenant Support page. It runs through the same fresh `/api/platform-admin/me`
+  page gate, reuses only the existing `GET /api/platform-admin/overview` and
+  `GET /api/platform-admin/companies` APIs, highlights attention companies, and
+  links to `platform-admin-company.html?company_id=<id>` for existing read-only
+  company investigation. It adds no backend endpoint, keeps the platform-admin
+  backend inventory at ten GET-only routes, and does not add ticketing, case
+  notes, assignment, billing-order history, audit-log viewing, messaging,
+  impersonation, reconciliation, subscription changes, AI-credit adjustments,
+  exports, or other write controls.
 
 ## Verification evidence
 
@@ -267,6 +278,7 @@ Create a separate three-page static surface:
 | `platform-admin.html` | Platform operations dashboard | `/me`; `/overview` |
 | `platform-admin-companies.html` | Paginated company directory | `/me`; `/companies` |
 | `platform-admin-company.html?company_id=<id>` | Company, subscription, AI-credit detail, lazy subscription-history and AI-credit transaction inspection, and lazy read-only users/chatbots inspection | `/me`; company detail; subscription; AI-credit usage; lazy subscription history; lazy AI-credit transactions; lazy users; lazy chatbots |
+| `platform-admin-support.html` | Read-only Support Workspace investigation hub | `/me`; `/overview`; bounded `/companies` lookup |
 
 Every page independently runs the `/api/platform-admin/me` authorization gate
 before revealing the platform shell or making any company request. A static
