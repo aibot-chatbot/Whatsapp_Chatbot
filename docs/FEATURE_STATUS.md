@@ -302,11 +302,13 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
-- Ten GET-only endpoints for platform identity, operations overview, company directory/detail,
+- Twelve GET-only endpoints for platform identity, operations overview, company directory/detail,
   subscription summary, current-period AI-credit/usage summary, and lazy
-  read-only subscription-history, AI-credit transaction history, company users, and company chatbots
+  read-only subscription-history, AI-credit transaction history, billing-order history,
+  company users, company chatbots, and audit-log
   inspection. The original five endpoints were verified in staging; the
-  operations-overview, users/chatbots, subscription-history, and AI-credit transaction-history extensions are
+  operations-overview, users/chatbots, subscription-history, AI-credit transaction-history,
+  billing-order history, and audit-log viewer extensions are
   application-only and locally tested unless separately staged later.
 - Cross-tenant reads isolated in dedicated platform repositories with explicit
   safe projections and mandatory audit-before-response behavior
@@ -334,6 +336,15 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   exports, downloads, charts, audit editing, audit deletion, or platform-admin
   user management. The platform-admin backend inventory is now exactly eleven
   GET-only routes.
+- A bounded platform-admin Billing Order History section is implemented as a
+  read-only, application-only local extension on company detail. It adds one
+  audited GET-only endpoint,
+  `GET /api/platform-admin/companies/<company_id>/billing-orders`, lists safe
+  mutable `company_subscription_orders` records only, displays `amount_sen` as
+  integer sen as stored, returns no currency and infers no MYR, and excludes
+  payment/gateway/checkout/reference, idempotency, raw-error, reconciliation,
+  retry, activation, manual-credit, export/download, chart, and write behavior.
+  The platform-admin backend inventory is now exactly twelve GET-only routes.
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
@@ -378,7 +389,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, users/chatbots, subscription-history, AI-credit transaction-history, and audit-log viewer extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
+| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Platform-admin Support Workspace | Implemented locally as a read-only investigation hub using existing overview and company-directory APIs only; no backend endpoint, ticketing, case management, billing-order history, audit-log viewer, or write controls |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |

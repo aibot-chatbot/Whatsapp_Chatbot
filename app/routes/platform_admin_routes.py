@@ -121,6 +121,19 @@ def company_ai_credit_transactions(company_id):
     ))
 
 
+@platform_admin_bp.get("/companies/<int:company_id>/billing-orders")
+def company_billing_orders(company_id):
+    return _execute(lambda: platform_admin_service.get_company_billing_orders(
+        company_id,
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        status=request.args.get("status"),
+        created_after=request.args.get("created_after"),
+        created_before=request.args.get("created_before"),
+    ))
+
+
 @platform_admin_bp.get("/companies/<int:company_id>/users")
 def company_users(company_id):
     return _execute(lambda: platform_admin_service.get_company_users(

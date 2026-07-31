@@ -153,6 +153,18 @@
         return platformFetch("/companies/" + id + "/ai-credit-transactions?" + params.toString(), config.signal);
     }
 
+    function listCompanyBillingOrders(companyId, options) {
+        const id = requireCompanyId(companyId);
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit));
+        params.set("offset", String(config.offset));
+        if (config.status) params.set("status", config.status);
+        if (config.createdAfter) params.set("created_after", config.createdAfter);
+        if (config.createdBefore) params.set("created_before", config.createdBefore);
+        return platformFetch("/companies/" + id + "/billing-orders?" + params.toString(), config.signal);
+    }
+
     function listCompanyUsers(companyId, options) {
         const id = requireCompanyId(companyId);
         const config = options || {};
@@ -188,6 +200,7 @@
         listCompanySubscriptionHistory: listCompanySubscriptionHistory,
         getCompanyAiCreditUsage: getCompanyAiCreditUsage,
         listCompanyAiCreditTransactions: listCompanyAiCreditTransactions,
+        listCompanyBillingOrders: listCompanyBillingOrders,
         listCompanyUsers: listCompanyUsers,
         listCompanyChatbots: listCompanyChatbots
     });
