@@ -377,6 +377,8 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("does not expose raw metadata or tenant records", self.audit_events)
         self.assertIn("Safe metadata summary", self.audit_events)
         self.assertIn("METADATA_KEYS", self.audit_events)
+        self.assertIn("platform_admin.company.billing_orders.read", self.audit_events)
+        self.assertIn("company_billing_orders", self.audit_events)
         self.assertNotIn("JSON.stringify", self.audit_events)
         self.assertNotIn("textarea", self.audit_events)
         for forbidden in [
