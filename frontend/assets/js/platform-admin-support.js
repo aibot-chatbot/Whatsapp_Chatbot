@@ -1,0 +1,305 @@
+(function () {
+    "use strict";
+
+    const ui = PlatformAdminShell;
+    const state = {
+        results: null,
+        error: null,
+        searchInput: null,
+        searchButton: null,
+        loadSequence: 0
+    };
+
+    function safeValue(value) {
+        return value === null || value === undefined || value === "" ? "Not available" : String(value);
+    }
+
+    function companyLink(companyId, label) {
+        if (!Number.isSafeInteger(companyId) || companyId <= 0) {
+            return ui.element("span", "", safeValue(label || "Unavailable"));
+        }
+        const params = new URLSearchParams();
+        params.set("company_id", String(companyId));
+        const link = ui.element("a", "platform-link-button", label || "Investigate");
+        link.href = "platform-admin-company.html?" + params.toString();
+        return link;
+    }
+
+    function panel(title, description) {
+        const section = ui.element("section", "platform-panel");
+        section.append(ui.element("h2", "", title));
+        if (description) section.append(ui.element("p", "platform-note", description));
+        return section;
+    }
+
+    function renderQuickNavigation() {
+        const nav = ui.element("nav", "platform-support-actions");
+        nav.setAttribute("aria-label", "Support workspace quick navigation");
+        const companies = ui.element("a", "platform-link-button", "View all companies");
+        companies.href = "platform-admin-companies.html";
+        const dashboard = ui.element("a", "platform-link-button", "Return to dashboard");
+        dashboard.href = "platform-admin.html";
+        nav.append(companies, dashboard);
+        return nav;
+    }
+
+    function attentionReason(company) {
+        const status = company && company.subscription_status;
+        if (status === "past_due") return "Past due subscription";
+        if (status === "expired") return "Expired subscription";
+        return "Requires review";
+    }
+
+    function table(headers, rows, captionText) {
+        const wrap = ui.element("div", "platform-table-wrap");
+        const tableNode = ui.element("table", "platform-table");
+        const caption = ui.element("caption", "platform-skip-link", captionText);
+        const head = ui.element("thead");
+        const headerRow = ui.element("tr");
+        headers.forEach(function (label) {
+            const th = ui.element("th", "", label);
+            th.scope = "col";
+            headerRow.append(th);
+        });
+        head.append(headerRow);
+        const body = ui.element("tbody");
+        rows.forEach(function (cells) {
+            const row = ui.element("tr");
+            cells.forEach(function (cell) {
+                const td = ui.element("td");
+                if (cell && cell.nodeType) td.append(cell);
+                else td.textContent = safeValue(cell);
+                row.append(td);
+            });
+            body.append(row);
+        });
+        tableNode.append(caption, head, body);
+        wrap.append(tableNode);
+        return wrap;
+    }
+
+    function cardLine(label, value) {
+        const line = ui.element("div");
+        line.append(ui.element("dt", "", label));
+        const dd = ui.element("dd");
+        if (value && value.nodeType) dd.append(value);
+        else dd.textContent = safeValue(value);
+        line.append(dd);
+        return line;
+    }
+
+    function mobileCards(items, type) {
+        const cards = ui.element("div", "platform-company-cards");
+        cards.setAttribute("aria-label", type + " cards");
+        items.forEach(function (item) {
+            const article = ui.element("article", "platform-company-card");
+            article.append(ui.element("h3", "", safeValue(item.company_name || item.name)));
+            const details = ui.element("dl", "platform-definition-grid");
+            if (type === "attention company") {
+                details.append(
+                    cardLine("Company ID", item.company_id),
+                    cardLine("Subscription status", item.subscription_status),
+                    cardLine("Plan", item.plan_name || item.plan_code),
+                    cardLine("Reason", attentionReason(item)),
+                    cardLine("Investigate", companyLink(item.company_id, "Open investigation"))
+                );
+            } else {
+                details.append(
+                    cardLine("Company ID", item.id),
+                    cardLine("Business type", item.business_type),
+                    cardLine("Status", item.status),
+                    cardLine("Contact email", item.contact_email),
+                    cardLine("Investigate", companyLink(item.id, "Open investigation"))
+                );
+            }
+            article.append(details);
+            cards.append(article);
+        });
+        return cards;
+    }
+
+    function renderAttention(overview) {
+        const section = panel(
+            "Companies requiring attention",
+            "Read-only signals from the platform operations overview. Open a company to inspect details before deciding next steps."
+        );
+        const companies = overview && Array.isArray(overview.attention_companies)
+            ? overview.attention_companies
+            : [];
+        if (companies.length === 0) {
+            section.append(ui.element("p", "platform-empty", "No companies currently require attention."));
+            return section;
+        }
+        const rows = companies.map(function (company) {
+            return [
+                company.company_id,
+                company.company_name,
+                ui.statusBadge(company.subscription_status),
+                company.plan_name || company.plan_code,
+                attentionReason(company),
+                companyLink(company.company_id, "Investigate")
+            ];
+        });
+        section.append(table(
+            ["Company ID", "Company", "Subscription", "Plan", "Reason", "Action"],
+            rows,
+            "Companies requiring support attention"
+        ));
+        section.append(mobileCards(companies, "attention company"));
+        return section;
+    }
+
+    function renderLookupEmpty(message) {
+        if (!state.results) return;
+        state.results.replaceChildren(ui.element("p", "platform-empty", message));
+        state.results.setAttribute("aria-busy", "false");
+    }
+
+    function renderLookupResults(data) {
+        const companies = data && Array.isArray(data.companies) ? data.companies : [];
+        const pagination = data && data.pagination ? data.pagination : {};
+        if (companies.length === 0) {
+            renderLookupEmpty("No company search results found.");
+            return;
+        }
+        const rows = companies.map(function (company) {
+            return [
+                company.id,
+                company.company_name,
+                company.business_type,
+                ui.statusBadge(company.status),
+                company.contact_email,
+                ui.formatDate(company.created_at),
+                companyLink(company.id, "Investigate")
+            ];
+        });
+        const fragment = document.createDocumentFragment();
+        fragment.append(table(
+            ["ID", "Company", "Business type", "Status", "Contact email", "Created", "Action"],
+            rows,
+            "Company lookup results"
+        ));
+        fragment.append(mobileCards(companies, "company result"));
+        fragment.append(ui.element(
+            "p",
+            "platform-note",
+            "Showing " + safeValue(pagination.returned) + " of " + safeValue(pagination.total) + " matching companies."
+        ));
+        state.results.replaceChildren(fragment);
+        state.results.setAttribute("aria-busy", "false");
+    }
+
+    async function searchCompanies() {
+        const sequence = ++state.loadSequence;
+        const search = state.searchInput ? state.searchInput.value.trim() : "";
+        if (!search) {
+            if (state.error) state.error.textContent = "Enter a company name or ID before searching.";
+            renderLookupEmpty("Company results will appear after an intentional search.");
+            return;
+        }
+        if (search.length > 100) {
+            if (state.error) state.error.textContent = "Search must contain 100 characters or fewer.";
+            return;
+        }
+        if (state.error) state.error.textContent = "";
+        state.results.replaceChildren(ui.element("div", "platform-loading", "Loading company results..."));
+        state.results.setAttribute("aria-busy", "true");
+        try {
+            const data = await ui.runRequest("support-company-lookup", function (signal) {
+                return PlatformAdminApi.listCompanies({
+                    limit: 25,
+                    offset: 0,
+                    search: search,
+                    status: undefined,
+                    sortBy: "company_name",
+                    sortOrder: "asc",
+                    signal: signal
+                });
+            });
+            if (sequence === state.loadSequence) renderLookupResults(data);
+        } catch (error) {
+            if (error && error.category === "validation") {
+                state.results.replaceChildren();
+                state.results.setAttribute("aria-busy", "false");
+                if (state.error) state.error.textContent = "The company lookup could not be validated.";
+            } else if (!ui.handleError(error) && (!error || error.category !== "aborted")) {
+                state.results.replaceChildren(ui.element("p", "platform-empty", "Company lookup is temporarily unavailable."));
+                state.results.setAttribute("aria-busy", "false");
+            }
+        } finally {
+            if (sequence === state.loadSequence && state.results) {
+                state.results.setAttribute("aria-busy", "false");
+            }
+        }
+    }
+
+    function renderLookup() {
+        const section = panel(
+            "Company lookup",
+            "Search for one tenant company, then open the existing read-only company investigation page."
+        );
+        const form = ui.element("form", "platform-support-search");
+        form.setAttribute("role", "search");
+        const field = ui.element("div", "platform-field");
+        const label = ui.element("label", "", "Company name or ID");
+        label.htmlFor = "platform-support-company-search";
+        state.searchInput = ui.element("input", "platform-input");
+        state.searchInput.id = "platform-support-company-search";
+        state.searchInput.type = "search";
+        state.searchInput.maxLength = 100;
+        state.searchInput.autocomplete = "off";
+        field.append(label, state.searchInput);
+        state.searchButton = ui.element("button", "platform-button platform-button-primary", "Search companies");
+        state.searchButton.type = "submit";
+        form.append(field, state.searchButton);
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            searchCompanies();
+        });
+        state.error = ui.element("p", "platform-inline-error");
+        state.error.setAttribute("aria-live", "polite");
+        state.results = ui.element("div", "platform-support-results");
+        state.results.setAttribute("aria-live", "polite");
+        renderLookupEmpty("Company results will appear after an intentional search.");
+        section.append(form, state.error, state.results);
+        return section;
+    }
+
+    function renderWorkspaceSkeleton() {
+        const root = document.getElementById("platform-page-content");
+        const header = ui.element("header", "platform-page-header");
+        const titleGroup = ui.element("div");
+        titleGroup.append(
+            ui.element("h1", "", "Support Workspace"),
+            ui.element("p", "", "Read-only tenant investigation for platform administrators. Use existing company views to inspect context; this workspace does not submit tickets, message tenants, or change data.")
+        );
+        header.append(titleGroup, renderQuickNavigation());
+        root.replaceChildren(
+            header,
+            ui.element("div", "platform-loading", "Loading support workspace...")
+        );
+    }
+
+    async function initializeSupportWorkspace() {
+        renderWorkspaceSkeleton();
+        const root = document.getElementById("platform-page-content");
+        try {
+            const overview = await ui.runRequest("support-overview", function (signal) {
+                return PlatformAdminApi.getOverview({ signal: signal });
+            });
+            root.replaceChildren(
+                root.firstChild,
+                renderAttention(overview),
+                renderLookup()
+            );
+        } catch (error) {
+            if (!ui.handleError(error) && (!error || error.category !== "aborted")) {
+                root.replaceChildren(ui.element("p", "platform-empty", "Support workspace data is temporarily unavailable."));
+            }
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        PlatformAdminShell.start({ onAuthorized: initializeSupportWorkspace });
+    });
+}());

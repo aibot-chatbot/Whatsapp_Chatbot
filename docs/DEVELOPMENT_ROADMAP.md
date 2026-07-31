@@ -39,7 +39,13 @@ shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
 client, in-memory request cancellation/state clearing, the Platform Operations
 overview, the server-paginated company directory, safe company billing/AI-credit
 detail views, and lazy read-only subscription-history, AI-credit transaction-history,
-and company users/chatbots sections. The ordinary
+and company users/chatbots sections. A later bounded frontend-only platform-admin
+Support Workspace adds a read-only investigation hub that reuses the existing
+operations overview and company directory APIs, highlights attention companies,
+and links into the existing company detail investigation page without adding a
+backend endpoint. It is separate from tenant `support.html` and does not add
+ticketing, support-case records, notes, assignment, billing-order history,
+audit-log viewing, or write controls. The ordinary
 tenant sidebar does not expose platform navigation.
 Authenticated tenant pages now use a shared top-right account menu for Profile,
 Support, and Logout. Support points to a static authenticated tenant help page

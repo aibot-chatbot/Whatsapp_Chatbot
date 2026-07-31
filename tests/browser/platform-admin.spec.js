@@ -572,6 +572,149 @@ test.describe("platform-admin dashboard and directory", () => {
   });
 });
 
+test.describe("platform-admin support workspace", () => {
+  test("support navigation and page data appear only after platform authorization", async ({ page }) => {
+    let releaseMe;
+    const meGate = new Promise(resolve => {
+      releaseMe = resolve;
+    });
+    const calls = await openPlatformPage(page, "/platform-admin-support.html", async ({ url }) => {
+      if (url.pathname === "/api/platform-admin/me") {
+        await meGate;
+        return success(identity);
+      }
+      return defaultHandler({ url });
+    });
+
+    await expect(page.getByRole("heading", { name: "Checking access" })).toBeVisible();
+    await expect(page.locator("#platform-app")).toBeHidden();
+    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me"]);
+
+    releaseMe();
+    await expect(page.getByRole("heading", { name: "Support Workspace" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Support" })).toHaveAttribute("href", "platform-admin-support.html");
+    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
+    expect(calls.every(call => call.method === "GET")).toBe(true);
+  });
+
+  test("renders attention companies safely and links to existing investigation page", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-support.html", ({ url }) => defaultHandler({ url }));
+
+    await expect(page.getByRole("heading", { name: "Support Workspace" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Companies requiring attention" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Example Tenant <script>window" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Pro <img src=x onerror=window.__planXss=true>" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Past due subscription" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Investigate" }).first()).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
+    expect(await page.evaluate(() => window.__xss || window.__planXss || false)).toBe(false);
+    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
+  });
+
+  test("shows empty attention and bounded company lookup states", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-support.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/overview") {
+        return success({ ...operationsOverview, attention_companies: [] });
+      }
+      if (url.pathname === "/api/platform-admin/companies") {
+        return success(companyList(0, []));
+      }
+      return defaultHandler({ url });
+    });
+
+    await expect(page.getByText("No companies currently require attention.")).toBeVisible();
+    await expect(page.getByText("Company results will appear after an intentional search.")).toBeVisible();
+    await page.getByLabel("Company name or ID").fill("missing tenant");
+    await page.getByRole("button", { name: "Search companies" }).click();
+    await expect(page.getByText("No company search results found.")).toBeVisible();
+    const companyCalls = calls.filter(call => call.path === "/api/platform-admin/companies");
+    expect(companyCalls).toHaveLength(1);
+    expect(companyCalls[0].search).toContain("limit=25");
+    expect(companyCalls[0].search).toContain("offset=0");
+    expect(companyCalls[0].search).toContain("sort_by=company_name");
+    expect(companyCalls[0].search).toContain("sort_order=asc");
+  });
+
+  test("company lookup renders safe results and investigate navigates to company detail", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-support.html", ({ url }) => defaultHandler({ url }));
+
+    await page.getByLabel("Company name or ID").fill("Example <img src=x onerror=window.__lookupXss=true>");
+    await page.getByRole("button", { name: "Search companies" }).click();
+    await expect(page.getByRole("cell", { name: "Example Tenant <script>window" }).nth(1)).toBeVisible();
+    await expect(page.getByText("Showing 1 of 2 matching companies.")).toBeVisible();
+    expect(await page.evaluate(() => window.__lookupXss || window.__xss || false)).toBe(false);
+    const lookupCall = calls.find(call => call.path === "/api/platform-admin/companies");
+    expect(lookupCall.search).toContain("search=Example");
+    await page.getByRole("link", { name: "Investigate" }).last().click();
+    await expect(page).toHaveURL(/platform-admin-company\.html\?company_id=42$/);
+  });
+
+  test("replaced support lookup requests suppress late stale results", async ({ page }) => {
+    let releaseOldSearch;
+    const oldSearch = new Promise(resolve => {
+      releaseOldSearch = resolve;
+    });
+    const newCompany = {
+      ...company,
+      id: 43,
+      company_name: "Newest Tenant",
+      contact_email: "newest@example.test"
+    };
+    await openPlatformPage(page, "/platform-admin-support.html", async ({ url }) => {
+      if (url.pathname === "/api/platform-admin/companies" && url.searchParams.get("search") === "old") {
+        await oldSearch;
+        return success(companyList(1, [{ ...company, company_name: "Old Tenant" }]));
+      }
+      if (url.pathname === "/api/platform-admin/companies" && url.searchParams.get("search") === "new") {
+        return success(companyList(1, [newCompany]));
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByLabel("Company name or ID").fill("old");
+    await page.getByRole("button", { name: "Search companies" }).click();
+    await expect(page.getByText("Loading company results...")).toBeVisible();
+    await page.getByLabel("Company name or ID").fill("new");
+    await page.getByRole("button", { name: "Search companies" }).click();
+    await expect(page.getByRole("cell", { name: "Newest Tenant" })).toBeVisible();
+    releaseOldSearch();
+    await page.waitForTimeout(100);
+    await expect(page.getByText("Old Tenant")).toHaveCount(0);
+    await expect(page.getByRole("cell", { name: "Newest Tenant" })).toBeVisible();
+  });
+
+  test("support access failures clear content and no write request or controls exist", async ({ page }) => {
+    for (const scenario of [
+      { status: 403, code: "platform_admin_access_denied", heading: "Access Denied" },
+      { status: 503, code: "platform_admin_data_unavailable", heading: "Temporarily Unavailable" }
+    ]) {
+      const calls = await openPlatformPage(page, "/platform-admin-support.html", ({ url }) => {
+        if (url.pathname === "/api/platform-admin/overview") return failure(scenario.status, scenario.code, "raw backend stack trace");
+        return defaultHandler({ url });
+      });
+      await expect(page.getByRole("heading", { name: scenario.heading })).toBeVisible();
+      await expect(page.getByText("raw backend stack trace")).toHaveCount(0);
+      await expect(page.getByText("Support Workspace")).toHaveCount(0);
+      expect(calls.every(call => call.method === "GET")).toBe(true);
+    }
+
+    await openPlatformPage(page, "/platform-admin-support.html", ({ url }) => defaultHandler({ url }));
+    for (const label of ["Suspend", "Reactivate", "Impersonate", "Reset Password", "Adjust Credit", "Reconcile", "Export", "Create Ticket"]) {
+      await expect(page.getByRole("button", { name: label })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: label })).toHaveCount(0);
+    }
+  });
+
+  test("support workspace remains usable on mobile viewport", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openPlatformPage(page, "/platform-admin-support.html", ({ url }) => defaultHandler({ url }));
+    await expect(page.getByRole("heading", { name: "Support Workspace" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "View all companies" })).toBeVisible();
+    await page.getByLabel("Company name or ID").fill("Example");
+    await page.getByRole("button", { name: "Search companies" }).click();
+    await expect(page.getByLabel("company result cards")).toBeVisible();
+  });
+});
+
 test.describe("platform-admin company detail", () => {
   test("invalid or missing company ID returns before protected detail calls", async ({ page }) => {
     const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=0", ({ url }) => defaultHandler({ url }));

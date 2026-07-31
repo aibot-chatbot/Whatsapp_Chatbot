@@ -11,14 +11,17 @@ PAGES = [
     FRONTEND / "platform-admin.html",
     FRONTEND / "platform-admin-companies.html",
     FRONTEND / "platform-admin-company.html",
+    FRONTEND / "platform-admin-support.html",
 ]
 API = FRONTEND / "assets" / "js" / "platform-admin-api.js"
 SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
 DASHBOARD = FRONTEND / "assets" / "js" / "platform-admin-dashboard.js"
 COMPANIES = FRONTEND / "assets" / "js" / "platform-admin-companies.js"
 COMPANY = FRONTEND / "assets" / "js" / "platform-admin-company.js"
+SUPPORT = FRONTEND / "assets" / "js" / "platform-admin-support.js"
 CSS = FRONTEND / "assets" / "css" / "platform-admin.css"
 SIDEBAR = FRONTEND / "sidebar-component.js"
+TENANT_SUPPORT = FRONTEND / "support.html"
 
 
 def read(path):
@@ -45,6 +48,7 @@ class TestPlatformAdminPageGate(unittest.TestCase):
             "platform-admin.html": "platform-admin-dashboard.js",
             "platform-admin-companies.html": "platform-admin-companies.js",
             "platform-admin-company.html": "platform-admin-company.js",
+            "platform-admin-support.html": "platform-admin-support.js",
         }
         for name, html in self.pages.items():
             with self.subTest(page=name):
@@ -96,6 +100,7 @@ class TestPlatformAdminShell(unittest.TestCase):
             "Internal / Read Only",
             "Dashboard",
             "Companies",
+            "Support",
             "Return to Tenant App",
             "Logout",
         ]:
@@ -235,6 +240,17 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         cls.dashboard = read(DASHBOARD)
         cls.companies = read(COMPANIES)
         cls.company = read(COMPANY)
+        cls.support = read(SUPPORT)
+
+    def test_tenant_support_remains_tenant_facing_static_help(self):
+        page = read(TENANT_SUPPORT)
+        self.assertIn("<h1>Support</h1>", page)
+        self.assertIn("Direct support contact is not configured yet.", page)
+        self.assertIn("<chatbot-sidebar></chatbot-sidebar>", page)
+        self.assertIn("requireLogin();", page)
+        self.assertNotIn("Platform Administration", page)
+        self.assertNotIn("PlatformAdminShell", page)
+        self.assertNotIn("/api/platform-admin", page)
 
     def test_dashboard_uses_single_operations_overview_request(self):
         self.assertEqual(self.dashboard.count("PlatformAdminApi.getOverview({"), 1)
@@ -245,6 +261,56 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("Companies requiring attention", self.dashboard)
         api_source = read(API)
         self.assertIn('return platformFetch("/overview"', api_source)
+
+    def test_support_workspace_reuses_only_overview_and_company_directory(self):
+        self.assertIn("Support Workspace", read(FRONTEND / "platform-admin-support.html"))
+        self.assertIn("PlatformAdminShell.start({ onAuthorized: initializeSupportWorkspace })", self.support)
+        self.assertIn('ui.runRequest("support-overview"', self.support)
+        self.assertIn("PlatformAdminApi.getOverview({ signal: signal })", self.support)
+        self.assertIn('ui.runRequest("support-company-lookup"', self.support)
+        self.assertIn("PlatformAdminApi.listCompanies({", self.support)
+        for forbidden_call in [
+            "PlatformAdminApi.getCompany(",
+            "PlatformAdminApi.getCompanySubscription(",
+            "PlatformAdminApi.listCompanySubscriptionHistory(",
+            "PlatformAdminApi.getCompanyAiCreditUsage(",
+            "PlatformAdminApi.listCompanyAiCreditTransactions(",
+            "PlatformAdminApi.listCompanyUsers(",
+            "PlatformAdminApi.listCompanyChatbots(",
+        ]:
+            self.assertNotIn(forbidden_call, self.support)
+        self.assertIn("platform-admin-company.html?", self.support)
+
+    def test_support_workspace_is_read_only_and_has_safe_states(self):
+        for marker in [
+            "Read-only tenant investigation",
+            "does not submit tickets",
+            "Loading support workspace...",
+            "No companies currently require attention.",
+            "No company search results found.",
+            "Company lookup is temporarily unavailable.",
+            "Search companies",
+            "Investigate",
+        ]:
+            self.assertIn(marker, self.support)
+        for forbidden in [
+            "ticket",
+            "case notes",
+            "Assign",
+            "Impersonate",
+            "Reset Password",
+            "Suspend",
+            "Reactivate",
+            "Adjust Credit",
+            "Reconcile",
+            "Checkout",
+            "Payment link",
+            "Export",
+        ]:
+            if forbidden == "ticket":
+                self.assertIn("does not submit tickets", self.support)
+            else:
+                self.assertNotIn(forbidden, self.support)
 
     def test_directory_debounces_aborts_and_resets_pagination(self):
         self.assertIn("}, 350);", self.companies)
@@ -454,19 +520,19 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             self.assertIn(status, read(SHELL))
 
     def test_api_values_are_rendered_as_text_not_html(self):
-        sources = "\n".join([read(API), read(SHELL), self.dashboard, self.companies, self.company])
+        sources = "\n".join([read(API), read(SHELL), self.dashboard, self.companies, self.company, self.support])
         self.assertNotIn("innerHTML", sources)
         self.assertIn("textContent", sources)
 
     def test_no_raw_error_logging_or_unsupported_routes(self):
-        sources = "\n".join([read(API), read(SHELL), self.dashboard, self.companies, self.company])
+        sources = "\n".join([read(API), read(SHELL), self.dashboard, self.companies, self.company, self.support])
         self.assertNotIn("console.", sources)
         self.assertNotIn("/api/admin/billing", sources)
         for method in ["POST", "PUT", "PATCH", "DELETE"]:
             self.assertNotIn(f'method: "{method}"', sources)
 
     def test_no_mutation_or_impersonation_controls_exist(self):
-        pages_and_controllers = "\n".join(read(path) for path in PAGES) + self.dashboard + self.companies + self.company
+        pages_and_controllers = "\n".join(read(path) for path in PAGES) + self.dashboard + self.companies + self.company + self.support
         for label in [
             "Change Plan",
             "Cancel Subscription",
@@ -478,6 +544,8 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             "Adjust Credit",
             "Reconcile",
             "Send Message",
+            "Case notes",
+            "Create Ticket",
         ]:
             self.assertNotIn(label, pages_and_controllers)
 
@@ -501,7 +569,7 @@ class TestPlatformAdminResponsiveIsolation(unittest.TestCase):
         self.assertNotIn("platform administration", sidebar)
 
     def test_flow_builder_and_broadcast_files_are_not_referenced(self):
-        sources = "\n".join(read(path) for path in PAGES + [API, SHELL, DASHBOARD, COMPANIES, COMPANY])
+        sources = "\n".join(read(path) for path in PAGES + [API, SHELL, DASHBOARD, COMPANIES, COMPANY, SUPPORT])
         self.assertNotIn("flow-builder", sources.lower())
         self.assertNotIn("broadcast", sources.lower())
 

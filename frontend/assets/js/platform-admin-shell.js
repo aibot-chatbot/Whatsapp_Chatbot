@@ -231,10 +231,13 @@
             dashboard.href = "platform-admin.html";
             const companies = element("a", "", "Companies");
             companies.href = "platform-admin-companies.html";
+            const support = element("a", "", "Support");
+            support.href = "platform-admin-support.html";
             const active = this.getAttribute("active-page");
             if (active === "dashboard") dashboard.setAttribute("aria-current", "page");
             if (active === "companies") companies.setAttribute("aria-current", "page");
-            nav.append(dashboard, companies);
+            if (active === "support") support.setAttribute("aria-current", "page");
+            nav.append(dashboard, companies, support);
 
             const footer = element("div", "platform-shell-footer");
             this.operator = element("div", "platform-operator");
