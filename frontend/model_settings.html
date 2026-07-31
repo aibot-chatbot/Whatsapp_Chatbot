@@ -164,6 +164,43 @@
         .status-error {
             color: #ef4444;
         }
+
+        /* ===== Tabs Navigation ===== */
+        .tabs-nav {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .tab-item {
+            padding-bottom: 12px;
+            color: var(--text-dim);
+            font-weight: 600;
+            position: relative;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .tab-item:hover {
+            color: var(--text-main);
+        }
+
+        .tab-item.active {
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .tab-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--primary);
+            border-radius: 4px;
+        }
     </style>
 </head>
 
@@ -177,50 +214,103 @@
             <p>Configure the brain of your chatbot. Select the best model for your needs.</p>
         </div>
 
-                <div id="plan-info" class="glass-card" style="margin-bottom:20px;padding:16px 20px;display:none;">
-            <div style="display:flex;align-items:center;gap:10px;font-size:0.9rem;color:var(--text-dim);">
-                <span id="plan-info-text"></span>
+        <!-- Tabs Navigation -->
+        <div class="tabs-nav">
+            <div class="tab-item active" onclick="switchTab('config-tab')" id="config-tab-btn">AI Model Configuration</div>
+            <div class="tab-item" onclick="switchTab('plan-tab')" id="plan-tab-btn">Plan &amp; Access Details</div>
+        </div>
+
+        <!-- Tab Content 1: Configuration -->
+        <div id="config-tab-content">
+            <div class="glass-card" style="margin-bottom:20px;padding:16px 20px;display:none;" id="plan-info">
+                <div style="display:flex;align-items:center;gap:10px;font-size:0.9rem;color:var(--text-dim);">
+                    <span id="plan-info-text"></span>
+                </div>
+            </div>
+
+            <div class="glass-card" id="configuration-card">
+                <div class="form-group">
+                    <label>AI Provider</label>
+                    <p>Choose which AI engine will power your chatbot's responses.</p>
+                    <select id="ai-provider" onchange="onProviderChange()">
+                        <option value="deepseek">DeepSeek</option>
+                        <option value="openai">ChatGPT / OpenAI</option>
+                        <option value="google">Gemini</option>
+                        <option value="anthropic">Claude</option>
+                        <option value="xai">Grok</option>
+                        <option value="qwen">Qwen</option>
+                        <option value="mistral">Mistral</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Model Name</label>
+                    <p>Select the specific AI model version for this provider.</p>
+                    <select id="model-select" onchange="onModelSelectChange()">
+                        <!-- Options will be populated by JavaScript -->
+                    </select>
+                    <div id="custom-model-container" style="display: none; margin-top: 10px;">
+                        <input type="text" id="custom-model-name" placeholder="Enter custom model name (e.g. gpt-4o)">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Temperature (<span id="temp-display">0.7</span>)</label>
+                    <p>Controls randomness: 0 is precise/deterministic, 1 is creative/varied.</p>
+                    <div class="slider-container">
+                        <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7"
+                            oninput="updateTempDisplay(this.value)">
+                        <span class="temp-value" id="temp-val-label">0.7</span>
+                    </div>
+                </div>
+
+                <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Configuration</button>
+                <div id="status-msg" class="status-msg"></div>
             </div>
         </div>
-<div class="glass-card" id="configuration-card">
-            <div class="form-group">
-                <label>AI Provider</label>
-                <p>Choose which AI engine will power your chatbot's responses.</p>
-                <select id="ai-provider" onchange="onProviderChange()">
-                    <option value="deepseek">DeepSeek</option>
-                    <option value="openai">ChatGPT / OpenAI</option>
-                    <option value="google">Gemini</option>
-                    <option value="anthropic">Claude</option>
-                    <option value="xai">Grok</option>
-                    <option value="qwen">Qwen</option>
-                    <option value="mistral">Mistral</option>
-                </select>
 
-            </div>
+        <!-- Tab Content 2: Plan Info -->
+        <div id="plan-tab-content" style="display: none;">
+            <div class="glass-card" style="padding: 30px;">
+                <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--glass-border);">
+                    <span style="font-size: 2rem;">💳</span>
+                    <div>
+                        <h2 style="font-size: 1.3rem; font-weight: 700; color: var(--text-main);">Subscription Status</h2>
+                        <p id="plan-info-detail" style="color: var(--text-dim); font-size: 0.9rem; margin-top: 4px;">Checking subscription...</p>
+                    </div>
+                </div>
 
-            <div class="form-group">
-                <label>Model Name</label>
-                <p>Select the specific AI model version for this provider.</p>
-                <select id="model-select" onchange="onModelSelectChange()">
-                    <!-- Options will be populated by JavaScript -->
-                </select>
-                <div id="custom-model-container" style="display: none; margin-top: 10px;">
-                    <input type="text" id="custom-model-name" placeholder="Enter custom model name (e.g. gpt-4o)">
+                <div style="margin-bottom: 24px;">
+                    <h3 style="font-size: 1.05rem; font-weight: 600; color: var(--text-main); margin-bottom: 12px;">Model Access Tier</h3>
+                    <p style="color: var(--text-dim); font-size: 0.9rem; line-height: 1.5; margin-bottom: 16px;">
+                        Your plan determines which rank of models you are authorized to run. If you need higher-performance AI engines, consider upgrading.
+                    </p>
+                    <!-- Access tiers grid -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+                        <div id="tier-card-economy" class="glass-card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-color: rgba(255,255,255,0.05); position: relative; transition: all 0.3s ease;">
+                            <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Economy Tier</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-top: 6px;">DeepSeek V4 Flash</div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Fast, cost-efficient, standard intelligence. Included in Free / Trials.</div>
+                        </div>
+                        <div id="tier-card-standard" class="glass-card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-color: rgba(255,255,255,0.05); position: relative; transition: all 0.3s ease;">
+                            <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Standard Tier</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #60a5fa; margin-top: 6px;">GPT-4o Mini, Gemini Pro</div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Advanced reasoning for standard business workflows. Included in Advanced.</div>
+                        </div>
+                        <div id="tier-card-premium" class="glass-card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-color: rgba(255,255,255,0.05); position: relative; transition: all 0.3s ease;">
+                            <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Premium Tier</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #a855f7; margin-top: 6px;">Claude 3.5 Sonnet, GPT-4o</div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Highest intelligence, complex analysis and agent workflows. Included in Pro.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: right; margin-top: 20px;">
+                    <a id="pricing-nav-link" href="pricing.html" class="primary-btn" style="display: inline-flex; align-items: center; justify-content: center; text-decoration: none; font-size: 0.95rem; font-weight: 600; padding: 12px 24px; border-radius: 12px; transition: 0.3s; background: linear-gradient(135deg, var(--primary), #2563eb);">
+                        Upgrade Access / View Pricing &rarr;
+                    </a>
                 </div>
             </div>
-
-            <div class="form-group">
-                <label>Temperature (<span id="temp-display">0.7</span>)</label>
-                <p>Controls randomness: 0 is precise/deterministic, 1 is creative/varied.</p>
-                <div class="slider-container">
-                    <input type="range" id="temperature" min="0" max="1" step="0.1" value="0.7"
-                        oninput="updateTempDisplay(this.value)">
-                    <span class="temp-value" id="temp-val-label">0.7</span>
-                </div>
-            </div>
-
-            <button class="save-btn" id="save-btn" onclick="saveSettings()">Save Configuration</button>
-            <div id="status-msg" class="status-msg"></div>
         </div>
     </main>
 
@@ -424,6 +514,7 @@
         function applyPlanFiltering() {
             var planInfo = document.getElementById("plan-info");
             var planInfoText = document.getElementById("plan-info-text");
+            var planInfoDetail = document.getElementById("plan-info-detail");
             var providerSelect = document.getElementById("ai-provider");
             var modelSelect = document.getElementById("model-select");
             var customContainer = document.getElementById("custom-model-container");
@@ -432,18 +523,42 @@
             if (planInfo) planInfo.style.display = "block";
             if (customContainer) customContainer.style.display = "none";
 
+            // Update tab button pricing links
+            const pricingBtn = document.getElementById("pricing-nav-link");
+            if (pricingBtn) {
+                pricingBtn.href = "pricing.html" + getBotQuery();
+            }
+
+            // Reset active card highlight styles
+            ['economy', 'standard', 'premium'].forEach(t => {
+                const el = document.getElementById(`tier-card-${t}`);
+                if (el) {
+                    el.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                    el.style.background = "rgba(15, 23, 42, 0.4)";
+                    const badge = el.querySelector(".active-tier-badge");
+                    if (badge) badge.remove();
+                }
+            });
+
+            let currentTier = "economy"; // default
+            let statusText = "Checking subscription...";
+
             if (!hasAccessToModels()) {
                 // No valid subscription, show all but warn
+                statusText = "Your current plan does not include AI model access.";
                 if (planInfoText) planInfoText.innerHTML = "Your current plan does not include AI model access. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View plans &amp; upgrade &rarr;</a>";
+                if (planInfoDetail) planInfoDetail.innerHTML = statusText + " <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;'>Upgrade now &rarr;</a>";
                 if (providerSelect) providerSelect.disabled = true;
                 if (modelSelect) modelSelect.disabled = true;
                 if (saveBtn) saveBtn.disabled = true;
                 return;
             }
 
-
             if (isModelCatalogTrial()) {
+                currentTier = "economy";
+                statusText = "Free Trial plan — model access: Economy tier.";
                 if (planInfoText) planInfoText.innerHTML = "Trial uses <strong>DeepSeek V4 Flash</strong> only. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View pricing &amp; upgrade &rarr;</a>";
+                if (planInfoDetail) planInfoDetail.innerHTML = statusText + " Upgrade to access GPT-4o, Claude, and Gemini models.";
                 if (providerSelect) providerSelect.disabled = true;
                 if (modelSelect) modelSelect.disabled = true;
                 if (customContainer) customContainer.style.display = "none";
@@ -460,18 +575,24 @@
                     providerSelect.selectedIndex = 1;
                     onProviderChange();
                 }
+                highlightTierCard(currentTier);
                 return;
             }
+
             if (providerSelect) providerSelect.disabled = false;
             if (modelSelect) modelSelect.disabled = false;
             if (saveBtn) saveBtn.disabled = false;
 
             if (isActiveTrial()) {
+                currentTier = "economy";
+                statusText = "Active Trial plan — model access: Economy tier.";
                 if (planInfoText) planInfoText.innerHTML = "Trial uses <strong>DeepSeek AI</strong> only. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;font-weight:600;'>View pricing &amp; upgrade &rarr;</a>";
+                if (planInfoDetail) planInfoDetail.innerHTML = statusText + " Upgrade to access GPT-4o, Claude, and Gemini models.";
                 if (customContainer) customContainer.style.display = "none";
             } else if (isPaidPlan()) {
                 var planName = _subscriptionAccess.plan.name || "Current";
                 var tierName = getMaxModelTier() || "economy";
+                currentTier = tierName.toLowerCase();
                 var code = (_subscriptionAccess.plan.code || "").toLowerCase();
                 var upgradeMsg = "";
                 if (code === "essential") {
@@ -479,10 +600,36 @@
                 } else if (code === "advanced") {
                     upgradeMsg = " <span style='font-size:0.82rem;color:var(--text-dim);'>Premium models available in <strong>Pro</strong>. <a href='pricing.html" + getBotQuery() + "' style='color:var(--primary);text-decoration:underline;'>Upgrade &rarr;</a></span>";
                 }
-                if (planInfoText) planInfoText.innerHTML = "<strong>" + planName + "</strong> plan &mdash; model access: <strong>" + tierName.charAt(0).toUpperCase() + tierName.slice(1) + "</strong> tier." + upgradeMsg;
+                statusText = "<strong>" + planName + "</strong> plan &mdash; model access: <strong>" + tierName.charAt(0).toUpperCase() + tierName.slice(1) + "</strong> tier.";
+                if (planInfoText) planInfoText.innerHTML = statusText + upgradeMsg;
+                if (planInfoDetail) planInfoDetail.innerHTML = statusText + upgradeMsg;
             }
 
             populateProviderDropdown();
+            highlightTierCard(currentTier);
+        }
+
+        function highlightTierCard(tier) {
+            const activeCard = document.getElementById(`tier-card-${tier}`);
+            if (activeCard) {
+                activeCard.style.borderColor = "var(--primary)";
+                activeCard.style.background = "rgba(59, 130, 246, 0.08)";
+                activeCard.style.boxShadow = "0 0 15px rgba(59, 130, 246, 0.25)";
+
+                const badge = document.createElement("div");
+                badge.className = "active-tier-badge";
+                badge.style.position = "absolute";
+                badge.style.top = "12px";
+                badge.style.right = "12px";
+                badge.style.background = "var(--primary)";
+                badge.style.color = "#fff";
+                badge.style.fontSize = "0.68rem";
+                badge.style.fontWeight = "700";
+                badge.style.padding = "2px 8px";
+                badge.style.borderRadius = "999px";
+                badge.textContent = "ACTIVE";
+                activeCard.appendChild(badge);
+            }
         }
         async function fetchModelCatalog() {
             try {
@@ -633,6 +780,19 @@
                 saveBtn.disabled = false;
                 saveBtn.innerText = "Save Configuration";
                 statusMsg.style.display = "block";
+            }
+        }
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`${tabId}-btn`).classList.add('active');
+
+            if (tabId === 'config-tab') {
+                document.getElementById('config-tab-content').style.display = 'block';
+                document.getElementById('plan-tab-content').style.display = 'none';
+            } else {
+                document.getElementById('config-tab-content').style.display = 'none';
+                document.getElementById('plan-tab-content').style.display = 'block';
             }
         }
     </script>

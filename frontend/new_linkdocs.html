@@ -2237,6 +2237,9 @@
             const [isReadmeOpen, setIsReadmeOpen] = useState(false);
             const [readmeText, setReadmeText] = useState("");
             const [loadingReadme, setLoadingReadme] = useState(false);
+            const [readmeSearchQuery, setReadmeSearchQuery] = useState("");
+            const [readmeMatchIndices, setReadmeMatchIndices] = useState([]);
+            const [readmeCurrentMatchIdx, setReadmeCurrentMatchIdx] = useState(-1);
 
             // History Log State Variables
             const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -2363,10 +2366,20 @@
                 }
             };
 
+            const closeReadmeModal = () => {
+                setIsReadmeOpen(false);
+                setReadmeSearchQuery("");
+                setReadmeMatchIndices([]);
+                setReadmeCurrentMatchIdx(-1);
+            };
+
             const openReadmeModal = async (fileId) => {
                 setLoadingReadme(true);
                 setIsReadmeOpen(true);
                 setReadmeText("");
+                setReadmeSearchQuery("");
+                setReadmeMatchIndices([]);
+                setReadmeCurrentMatchIdx(-1);
                 try {
                     const response = await authenticatedFetch(`/api/knowledge/readme${botQuery}&file_id=${fileId}`);
                     const result = await response.json();
@@ -2412,6 +2425,9 @@
                 let tableHeaders = [];
                 let tableRows = [];
                 const rendered = [];
+                const query = readmeSearchQuery;
+                const activeLineIdx = readmeCurrentMatchIdx >= 0 ? readmeMatchIndices[readmeCurrentMatchIdx] : -1;
+                let tableHeaderIdx = null;
 
                 const flushList = (key) => {
                     if (listItems.length > 0) {
@@ -2431,7 +2447,7 @@
                                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.88rem" }}>
                                     {tableHeaders.length > 0 && (
                                         <thead>
-                                            <tr style={{ borderBottom: "2px solid var(--glass-border)", background: "rgba(255,255,255,0.03)" }}>
+                                            <tr id={tableHeaderIdx !== null ? `readme-line-${tableHeaderIdx}` : undefined} style={{ borderBottom: "2px solid var(--glass-border)", background: "rgba(255,255,255,0.03)" }}>
                                                 {tableHeaders}
                                             </tr>
                                         </thead>
@@ -2444,6 +2460,7 @@
                         );
                         tableHeaders = [];
                         tableRows = [];
+                        tableHeaderIdx = null;
                     }
                 };
 
@@ -2456,7 +2473,7 @@
                         flushTable(idx);
                         inList = false;
                         inTable = false;
-                        rendered.push(<h1 key={idx} style={{ fontSize: "1.5rem", fontWeight: "700", marginTop: "24px", marginBottom: "12px", color: "var(--text)" }}>{cleanLine.substring(2)}</h1>);
+                        rendered.push(<h1 key={idx} id={`readme-line-${idx}`} style={{ fontSize: "1.5rem", fontWeight: "700", marginTop: "24px", marginBottom: "12px", color: "var(--text)" }}>{highlightNode(cleanLine.substring(2), query, idx === activeLineIdx)}</h1>);
                         return;
                     }
                     if (cleanLine.startsWith("## ")) {
@@ -2464,7 +2481,7 @@
                         flushTable(idx);
                         inList = false;
                         inTable = false;
-                        rendered.push(<h2 key={idx} style={{ fontSize: "1.25rem", fontWeight: "700", marginTop: "20px", marginBottom: "10px", color: "var(--text)", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "6px" }}>{cleanLine.substring(3)}</h2>);
+                        rendered.push(<h2 key={idx} id={`readme-line-${idx}`} style={{ fontSize: "1.25rem", fontWeight: "700", marginTop: "20px", marginBottom: "10px", color: "var(--text)", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "6px" }}>{highlightNode(cleanLine.substring(3), query, idx === activeLineIdx)}</h2>);
                         return;
                     }
                     if (cleanLine.startsWith("### ")) {
@@ -2472,7 +2489,7 @@
                         flushTable(idx);
                         inList = false;
                         inTable = false;
-                        rendered.push(<h3 key={idx} style={{ fontSize: "1.08rem", fontWeight: "600", marginTop: "16px", marginBottom: "8px", color: "var(--text)" }}>{cleanLine.substring(4)}</h3>);
+                        rendered.push(<h3 key={idx} id={`readme-line-${idx}`} style={{ fontSize: "1.08rem", fontWeight: "600", marginTop: "16px", marginBottom: "8px", color: "var(--text)" }}>{highlightNode(cleanLine.substring(4), query, idx === activeLineIdx)}</h3>);
                         return;
                     }
 
@@ -2496,8 +2513,8 @@
                             parts.push(itemText.substring(lastIdx));
                         }
                         listItems.push(
-                            <li key={idx} style={{ marginBottom: "6px", lineHeight: "1.5" }}>
-                                {parts.length > 0 ? parts : itemText}
+                            <li key={idx} id={`readme-line-${idx}`} style={{ marginBottom: "6px", lineHeight: "1.5" }}>
+                                {highlightNode(parts.length > 0 ? parts : itemText, query, idx === activeLineIdx)}
                             </li>
                         );
                         return;
@@ -2512,14 +2529,19 @@
                         }
                         const cells = line.split("|").map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1);
                         if (tableHeaders.length === 0 && tableRows.length === 0) {
+                            tableHeaderIdx = idx;
                             tableHeaders = cells.map((cell, cIdx) => (
-                                <th key={cIdx} style={{ padding: "10px 14px", fontWeight: "600", color: "var(--text-dim)", borderBottom: "1px solid var(--glass-border)" }}>{cell}</th>
+                                <th key={cIdx} style={{ padding: "10px 14px", fontWeight: "600", color: "var(--text-dim)", borderBottom: "1px solid var(--glass-border)" }}>
+                                    {highlightNode(cell, query, idx === activeLineIdx)}
+                                </th>
                             ));
                         } else {
                             tableRows.push(
-                                <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                                <tr key={idx} id={`readme-line-${idx}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
                                     {cells.map((cell, cIdx) => (
-                                        <td key={cIdx} style={{ padding: "10px 14px", color: "var(--text-dim)" }}>{cell}</td>
+                                        <td key={cIdx} style={{ padding: "10px 14px", color: "var(--text-dim)" }}>
+                                            {highlightNode(cell, query, idx === activeLineIdx)}
+                                        </td>
                                     ))}
                                 </tr>
                             );
@@ -2532,7 +2554,7 @@
                         flushTable(idx);
                         inList = false;
                         inTable = false;
-                        rendered.push(<div key={idx} style={{ height: "8px" }}></div>);
+                        rendered.push(<div key={idx} id={`readme-line-${idx}`} style={{ height: "8px" }}></div>);
                         return;
                     }
 
@@ -2557,8 +2579,8 @@
                     }
 
                     rendered.push(
-                        <p key={idx} style={{ marginBottom: "12px", lineHeight: "1.6", color: "var(--text-dim)" }}>
-                            {parts.length > 0 ? parts : text}
+                        <p key={idx} id={`readme-line-${idx}`} style={{ marginBottom: "12px", lineHeight: "1.6", color: "var(--text-dim)" }}>
+                            {highlightNode(parts.length > 0 ? parts : text, query, idx === activeLineIdx)}
                         </p>
                     );
                 });
@@ -2874,6 +2896,92 @@
                     setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
                 }
             };
+
+            const escapeRegExp = (string) => {
+                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            };
+
+            const highlightText = (text, query, isActiveLine) => {
+                if (!query || !query.trim() || !text) return text;
+                const queryEscaped = escapeRegExp(query);
+                const regex = new RegExp(`(${queryEscaped})`, 'gi');
+                const textStr = typeof text === 'string' ? text : String(text);
+                const textParts = textStr.split(regex);
+
+                return textParts.map((part, index) => {
+                    if (part.toLowerCase() === query.toLowerCase()) {
+                        return (
+                            <mark
+                                key={index}
+                                style={{
+                                    background: isActiveLine ? "#f97316" : "#eab308",
+                                    color: "#000",
+                                    padding: "0 2px",
+                                    borderRadius: "2px",
+                                    fontWeight: "bold"
+                                }}
+                            >
+                                {part}
+                            </mark>
+                        );
+                    }
+                    return part;
+                });
+            };
+
+            const highlightNode = (node, query, isActiveLine) => {
+                if (typeof node === 'string') {
+                    return highlightText(node, query, isActiveLine);
+                }
+                if (Array.isArray(node)) {
+                    return node.map((child, i) => highlightNode(child, query, isActiveLine));
+                }
+                if (React.isValidElement(node)) {
+                    const children = node.props.children;
+                    if (children !== undefined) {
+                        return React.cloneElement(node, { key: node.key }, highlightNode(children, query, isActiveLine));
+                    }
+                }
+                return node;
+            };
+
+            // Effect to calculate search matches when query or text changes
+            useEffect(() => {
+                if (!readmeSearchQuery.trim() || !readmeText) {
+                    setReadmeMatchIndices([]);
+                    setReadmeCurrentMatchIdx(-1);
+                    return;
+                }
+                const lines = readmeText.split('\n');
+                const query = readmeSearchQuery.toLowerCase();
+                const matches = [];
+                lines.forEach((line, idx) => {
+                    if (line.toLowerCase().includes(query)) {
+                        matches.push(idx);
+                    }
+                });
+                setReadmeMatchIndices(matches);
+                setReadmeCurrentMatchIdx(matches.length > 0 ? 0 : -1);
+            }, [readmeSearchQuery, readmeText]);
+
+            const scrollToMatch = (matchIdx) => {
+                if (matchIdx < 0 || matchIdx >= readmeMatchIndices.length) return;
+                const lineIdx = readmeMatchIndices[matchIdx];
+                const element = document.getElementById(`readme-line-${lineIdx}`);
+                if (element) {
+                    element.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            };
+
+            // Effect to scroll to the active match
+            useEffect(() => {
+                if (readmeCurrentMatchIdx >= 0 && readmeMatchIndices.length > 0) {
+                    const timer = setTimeout(() => {
+                        scrollToMatch(readmeCurrentMatchIdx);
+                    }, 50);
+                    return () => clearTimeout(timer);
+                }
+            }, [readmeCurrentMatchIdx]);
 
             useEffect(() => {
                 fetchBotInfo();
@@ -3383,12 +3491,118 @@
                     </div>
 
                     {/* Readme Pop-out Modal */}
-                    <div className={`modal-backdrop ${isReadmeOpen ? "open" : ""}`} onClick={() => setIsReadmeOpen(false)}>
+                    <div className={`modal-backdrop ${isReadmeOpen ? "open" : ""}`} onClick={closeReadmeModal}>
                         <div className="modal-content" style={{ maxWidth: "800px", width: "90%", maxHeight: "85vh", display: "flex", flexDirection: "column", padding: "30px", border: "1px solid var(--glass-border)", background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--glass-border)", paddingBottom: "12px", marginBottom: "16px" }}>
                                 <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "700" }}>Knowledge Source README.md</h3>
-                                <button className="btn" onClick={() => setIsReadmeOpen(false)} style={{ padding: "4px 12px", fontSize: "0.85rem", background: "rgba(255,255,255,0.05)", border: "1px solid var(--glass-border)" }}>✕ Close</button>
+                                <button className="btn" onClick={closeReadmeModal} style={{ padding: "4px 12px", fontSize: "0.85rem", background: "rgba(255,255,255,0.05)", border: "1px solid var(--glass-border)" }}>✕ Close</button>
                             </div>
+
+                            {/* Search bar row */}
+                            {!loadingReadme && readmeText && (
+                                <div style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: "12px",
+                                    marginBottom: "16px",
+                                    background: "rgba(15, 23, 42, 0.4)",
+                                    border: "1px solid var(--glass-border)",
+                                    borderRadius: "16px",
+                                    padding: "10px 16px",
+                                    flexWrap: "wrap"
+                                }}>
+                                    <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
+                                        <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", opacity: 0.5, pointerEvents: "none" }}>🔍</span>
+                                        <input
+                                            type="text"
+                                            placeholder="Search word in README..."
+                                            value={readmeSearchQuery}
+                                            onChange={(e) => setReadmeSearchQuery(e.target.value)}
+                                            style={{
+                                                width: "100%",
+                                                background: "transparent",
+                                                border: "none",
+                                                padding: "8px 8px 8px 36px",
+                                                color: "#fff",
+                                                outline: "none",
+                                                fontSize: "0.9rem"
+                                            }}
+                                        />
+                                        {readmeSearchQuery && (
+                                            <button
+                                                onClick={() => setReadmeSearchQuery("")}
+                                                style={{
+                                                    position: "absolute",
+                                                    right: "8px",
+                                                    top: "50%",
+                                                    transform: "translateY(-50%)",
+                                                    background: "transparent",
+                                                    border: "none",
+                                                    color: "var(--text-dim)",
+                                                    cursor: "pointer",
+                                                    fontSize: "0.9rem"
+                                                }}
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {readmeSearchQuery.trim() && (
+                                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                            <span style={{ fontSize: "0.85rem", color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+                                                {readmeMatchIndices.length > 0
+                                                    ? `${readmeCurrentMatchIdx + 1} of ${readmeMatchIndices.length}`
+                                                    : "0 matches"
+                                                }
+                                            </span>
+
+                                            <button
+                                                className="btn"
+                                                disabled={readmeMatchIndices.length <= 1}
+                                                onClick={() => {
+                                                    setReadmeCurrentMatchIdx(prev => {
+                                                        const next = prev - 1;
+                                                        return next < 0 ? readmeMatchIndices.length - 1 : next;
+                                                    });
+                                                }}
+                                                style={{
+                                                    padding: "6px 12px",
+                                                    fontSize: "0.8rem",
+                                                    borderRadius: "8px",
+                                                    background: "rgba(255,255,255,0.05)",
+                                                    cursor: readmeMatchIndices.length > 1 ? "pointer" : "not-allowed"
+                                                }}
+                                                title="Previous Match"
+                                            >
+                                                ◀ Prev
+                                            </button>
+
+                                            <button
+                                                className="btn"
+                                                disabled={readmeMatchIndices.length <= 1}
+                                                onClick={() => {
+                                                    setReadmeCurrentMatchIdx(prev => {
+                                                        const next = prev + 1;
+                                                        return next >= readmeMatchIndices.length ? 0 : next;
+                                                    });
+                                                }}
+                                                style={{
+                                                    padding: "6px 12px",
+                                                    fontSize: "0.8rem",
+                                                    borderRadius: "8px",
+                                                    background: "rgba(255,255,255,0.05)",
+                                                    cursor: readmeMatchIndices.length > 1 ? "pointer" : "not-allowed"
+                                                }}
+                                                title="Next Match"
+                                            >
+                                                Next ▶
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {loadingReadme ? (
                                 <div style={{ flexGrow: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "250px", gap: "12px" }}>
                                     <span className="spinner" style={{ width: "32px", height: "32px" }}></span>

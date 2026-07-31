@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -175,6 +175,93 @@
                 align-items: stretch;
             }
         }
+
+        /* ===== Tabs Navigation ===== */
+        .tabs-nav {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .tab-item {
+            padding-bottom: 12px;
+            color: var(--text-dim);
+            font-weight: 600;
+            position: relative;
+            cursor: pointer;
+            transition: color 0.3s;
+        }
+
+        .tab-item:hover {
+            color: var(--text-main);
+        }
+
+        .tab-item.active {
+            color: var(--text-main);
+            font-weight: 700;
+        }
+
+        .tab-item.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--primary);
+            border-radius: 4px;
+        }
+
+        /* ===== Chart Layout ===== */
+        .chart-container-bar {
+            height: 240px;
+            display: flex;
+            align-items: flex-end;
+            gap: 12px;
+            padding: 20px 10px 10px 10px;
+            background: rgba(15, 23, 42, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+        }
+
+        .chart-bar {
+            flex: 1;
+            background: var(--primary);
+            border-radius: 6px;
+            transition: height 1s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            cursor: pointer;
+        }
+
+        .chart-bar:hover {
+            background: #60a5fa;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+        }
+
+        .chart-bar.latest-bar {
+            background: var(--accent);
+        }
+
+        .chart-bar.latest-bar:hover {
+            background: #34d399;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.4);
+        }
+
+        .chart-labels-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 12px;
+            padding: 0 10px;
+            font-size: 0.82rem;
+            color: var(--text-dim);
+        }
+
+        .chart-label-item {
+            flex: 1;
+            text-align: center;
+            font-weight: 500;
+        }
     </style>
 </head>
 
@@ -193,33 +280,72 @@
             </div>
         </div>
 
-        <div class="glass-card">
-            <div class="report-toolbar">
-                <div>
-                    <h2 style="margin: 0; font-size: 1.2rem;">AI Chatbot Insights & Report</h2>
-                    <p style="margin: 8px 0 0 0; color: var(--text-dim); font-size: 0.9rem;">
-                        Select a range, generate a report, then download it as PDF.
-                    </p>
+        <!-- Tabs Navigation -->
+        <div class="tabs-nav">
+            <div class="tab-item active" onclick="switchTab('report-tab')" id="report-tab-btn">AI Analytics Report</div>
+            <div class="tab-item" onclick="switchTab('chart-tab')" id="chart-tab-btn">Message Activity Charts</div>
+        </div>
+
+        <!-- Tab Content 1: AI Reports -->
+        <div id="report-tab-content">
+            <div class="glass-card">
+                <div class="report-toolbar">
+                    <div>
+                        <h2 style="margin: 0; font-size: 1.2rem;">AI Chatbot Insights &amp; Report</h2>
+                        <p style="margin: 8px 0 0 0; color: var(--text-dim); font-size: 0.9rem;">
+                            Select a range, generate a report, then download it as PDF.
+                        </p>
+                    </div>
+                    <div class="report-actions">
+                        <select id="report-days" class="report-select">
+                            <option value="7" selected>Last 7 Days</option>
+                            <option value="14">Last 14 Days</option>
+                            <option value="30">Last 30 Days</option>
+                            <option value="9999">All Time</option>
+                        </select>
+                        <button id="btn-generate-report" class="primary-btn" onclick="generateReport()">
+                            Generate AI Report
+                        </button>
+                        <button id="btn-download-pdf" class="secondary-btn" onclick="downloadReportPDF()" style="display: none;">
+                            Download PDF
+                        </button>
+                    </div>
                 </div>
-                <div class="report-actions">
-                    <select id="report-days" class="report-select">
-                        <option value="7" selected>Last 7 Days</option>
-                        <option value="14">Last 14 Days</option>
-                        <option value="30">Last 30 Days</option>
-                        <option value="9999">All Time</option>
-                    </select>
-                    <button id="btn-generate-report" class="primary-btn" onclick="generateReport()">
-                        Generate AI Report
-                    </button>
-                    <button id="btn-download-pdf" class="secondary-btn" onclick="downloadReportPDF()" style="display: none;">
-                        Download PDF
-                    </button>
+
+                <div id="report-container" class="report-output">
+                    <div style="text-align: center; font-size: 0.95rem;">
+                        Select the report range above and click <strong>Generate AI Report</strong> to run log analysis.
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <div id="report-container" class="report-output">
-                <div style="text-align: center; font-size: 0.95rem;">
-                    Select the report range above and click <strong>Generate AI Report</strong> to run log analysis.
+        <!-- Tab Content 2: Activity Charts -->
+        <div id="chart-tab-content" style="display: none;">
+            <div class="glass-card">
+                <div style="margin-bottom: 24px;">
+                    <h2 style="margin: 0; font-size: 1.2rem;">Message Traffic Analytics</h2>
+                    <p style="margin: 8px 0 0 0; color: var(--text-dim); font-size: 0.9rem;">
+                        Daily message volumes for this chatbot over the last 7 days.
+                    </p>
+                </div>
+                <div id="activity-chart-container" class="chart-container-bar">
+                    <div style="width: 100%; text-align: center; color: var(--text-dim); margin: auto;">
+                        Loading analytics chart...
+                    </div>
+                </div>
+                <div id="activity-chart-labels" class="chart-labels-row"></div>
+                <div style="margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                    <div class="glass-card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-color: rgba(255,255,255,0.05);">
+                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Total Messages</div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: var(--primary); margin-top: 6px;" id="chart-total-msgs">-</div>
+                        <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Total interactions logged in the active tracking database.</div>
+                    </div>
+                    <div class="glass-card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-color: rgba(255,255,255,0.05);">
+                        <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Total Unique Leads</div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: var(--accent); margin-top: 6px;" id="chart-total-users">-</div>
+                        <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Unique customer profiles engaged in conversations.</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -569,6 +695,114 @@
                 downloadBtn.disabled = false;
                 downloadBtn.textContent = originalText;
             }
+        }
+
+        let chartDataFetched = false;
+
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`${tabId}-btn`).classList.add('active');
+
+            if (tabId === 'report-tab') {
+                document.getElementById('report-tab-content').style.display = 'block';
+                document.getElementById('chart-tab-content').style.display = 'none';
+            } else {
+                document.getElementById('report-tab-content').style.display = 'none';
+                document.getElementById('chart-tab-content').style.display = 'block';
+                fetchChartAnalytics();
+            }
+        }
+
+        async function fetchChartAnalytics() {
+            if (chartDataFetched) return;
+            const container = document.getElementById("activity-chart-container");
+            const labelsContainer = document.getElementById("activity-chart-labels");
+
+            container.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0; width: 100%;">
+                    <div style="width: 30px; height: 30px; border: 3px solid rgba(59, 130, 246, 0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                    <span style="font-size: 0.95rem;">Fetching analytics data...</span>
+                </div>
+            `;
+            labelsContainer.innerHTML = "";
+
+            try {
+                const response = await authenticatedFetch(`/api/analytics?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (response.ok && result.status === "success" && result.data) {
+                    chartDataFetched = true;
+                    document.getElementById('chart-total-users').innerText = result.data.total_users;
+                    document.getElementById('chart-total-msgs').innerText = result.data.total_messages;
+                    renderActivityChart(result.data.chart.labels, result.data.chart.data);
+                } else {
+                    container.innerHTML = `<div style="width: 100%; text-align: center; color: #f87171; margin: auto;">Failed to load analytics: ${result.message || "Unknown error"}</div>`;
+                }
+            } catch (err) {
+                console.error("Failed to load chart data:", err);
+                container.innerHTML = `<div style="width: 100%; text-align: center; color: #f87171; margin: auto;">Network error or request failed.</div>`;
+            }
+        }
+
+        function renderActivityChart(labels, data) {
+            const container = document.getElementById('activity-chart-container');
+            const labelsContainer = document.getElementById('activity-chart-labels');
+
+            container.innerHTML = "";
+            labelsContainer.innerHTML = "";
+
+            const maxVal = Math.max(...data, 10); // Minimum scale 10
+
+            data.forEach((val, i) => {
+                const percentage = (val / maxVal) * 100;
+
+                const barWrapper = document.createElement('div');
+                barWrapper.style.flex = "1";
+                barWrapper.style.display = "flex";
+                barWrapper.style.flexDirection = "column";
+                barWrapper.style.justifyContent = "flex-end";
+                barWrapper.style.height = "100%";
+                barWrapper.style.position = "relative";
+
+                const bar = document.createElement('div');
+                bar.className = i === data.length - 1 ? "chart-bar latest-bar" : "chart-bar";
+                bar.style.height = `${Math.max(percentage, 5)}%`;
+                bar.title = `${val} messages`;
+
+                const tooltip = document.createElement('div');
+                tooltip.style.position = "absolute";
+                tooltip.style.bottom = "calc(100% + 8px)";
+                tooltip.style.left = "50%";
+                tooltip.style.transform = "translateX(-50%)";
+                tooltip.style.background = "rgba(15, 23, 42, 0.95)";
+                tooltip.style.border = "1px solid var(--glass-border)";
+                tooltip.style.color = "#fff";
+                tooltip.style.padding = "4px 8px";
+                tooltip.style.borderRadius = "6px";
+                tooltip.style.fontSize = "0.75rem";
+                tooltip.style.whiteSpace = "nowrap";
+                tooltip.style.opacity = "0";
+                tooltip.style.transition = "opacity 0.2s ease";
+                tooltip.style.pointerEvents = "none";
+                tooltip.style.zIndex = "10";
+                tooltip.textContent = `${val} msgs`;
+                bar.appendChild(tooltip);
+
+                bar.addEventListener('mouseenter', () => {
+                    tooltip.style.opacity = "1";
+                });
+                bar.addEventListener('mouseleave', () => {
+                    tooltip.style.opacity = "0";
+                });
+
+                barWrapper.appendChild(bar);
+                container.appendChild(barWrapper);
+
+                const label = document.createElement('div');
+                label.className = "chart-label-item";
+                label.innerText = labels[i];
+                labelsContainer.appendChild(label);
+            });
         }
     </script>
 </body>
