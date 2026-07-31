@@ -66,7 +66,7 @@
 | Knowledge graph visualization | Implemented | Graph rendering and node/edge CRUD in new_linkdocs.html |
 | Knowledge graph editing | Implemented | Add, rename, delete nodes; add, delete edges; focused route tests exist |
 | Compiled README generation | Implemented | Automatically updates bot_<id>_readme.md on PDF uploads, graph mutations, and Q&A submissions |
-| README popup viewer | Implemented | Modal dialog next to the active PDF file in new_linkdocs.html showing parsed markdown structure |
+| README popup viewer | Verified complete | Modal dialog next to the active PDF file in new_linkdocs.html showing parsed markdown with search, results count, next/prev navigation buttons, and scroll focus |
 
 ## AI Providers
 
