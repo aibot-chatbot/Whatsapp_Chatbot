@@ -37,12 +37,12 @@ def auto_generate_welcome_menu(chatbot_id):
 
     prompt = (
         f"You are an expert conversational designer. Based on the following PDF knowledge base for '{company_name}', generate:\n"
-        f"1. A friendly 'Welcome Message' for a WhatsApp chatbot.\n"
+        f"1. A friendly 'Welcome Message' for a WhatsApp chatbot (include a short footer sentence at the end offering human customer service, e.g. '💬 Or reply AGENT to connect with human staff', in the PDF's language).\n"
         f"2. Exactly 1 to 3 short interactive button options representing the main services, products, or most common questions.\n\n"
 
         f"CRITICAL: Format your response EXACTLY as valid JSON:\n"
         f'{{\n'
-        f'    "welcome_text": "Hello! Welcome to {company_name}. How can I help you today?",\n'
+        f'    "welcome_text": "Hello! Welcome to {company_name}. How can I help you today?\\n\\n💬 Reply AGENT anytime to speak with human staff.",\n'
         f'    "buttons": [\n'
         f'        {{\n'
         f'            "label": "Our Services",\n'
@@ -103,7 +103,10 @@ def auto_generate_welcome_menu(chatbot_id):
         raise ValueError("Failed to generate menu using AI. The service might be temporarily unavailable.")
 
 
-def extract_pdf_data_points(chatbot_id):
+_EXTRACTION_CACHE = {}
+
+
+def extract_pdf_data_points(chatbot_id, force_refresh=False):
     """
     Scans the active PDF for the chatbot and asks the AI to extract facts
     grouped into logical business categories. Cached per (chatbot_id, file_id)
