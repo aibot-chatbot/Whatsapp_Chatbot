@@ -11,6 +11,7 @@
         "platform_admin.company.subscription_history.read",
         "platform_admin.company.ai_credit_usage.read",
         "platform_admin.company.ai_credit_transactions.read",
+        "platform_admin.company.billing_orders.read",
         "platform_admin.company.users.read",
         "platform_admin.company.chatbots.read",
         "platform_admin.audit_events.list"
@@ -23,6 +24,7 @@
         "company_subscription_history",
         "company_ai_credit_usage",
         "company_ai_credit_transactions",
+        "company_billing_orders",
         "company_users",
         "company_chatbots",
         "platform_admin_audit_events"
