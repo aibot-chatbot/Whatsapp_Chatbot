@@ -93,7 +93,6 @@
             top: 20px;
         }
 
-        /* Visible Scrollbar Styling */
         .editor-pane::-webkit-scrollbar,
         .chips-pane::-webkit-scrollbar {
             width: 8px;
@@ -723,7 +722,13 @@
             <!-- Left Column: Flow Builder Editor -->
             <div class="editor-pane">
                 <div class="form-group">
-                    <label>Welcome Message</label>
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <label style="margin-bottom:0;">Welcome Message</label>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #10b981; cursor: pointer; user-select: none; font-weight: 600;">
+                            <input type="checkbox" id="toggle-agent-footer" onchange="toggleAgentFooter(this.checked)" style="accent-color: #10b981; width: 14px; height: 14px; cursor: pointer;">
+                            💬 Include Human Agent Footer
+                        </label>
+                    </div>
                     <textarea id="welcome-text" placeholder="Hello! How can I help you today?"></textarea>
                 </div>
 
@@ -973,6 +978,24 @@
             });
         });
 
+        const AGENT_FOOTER_TEXT = "\n\n💬 Or reply 'AGENT' or 'SERVICE' anytime to connect with human staff.";
+
+        function toggleAgentFooter(enabled) {
+            const textarea = document.getElementById('welcome-text');
+            let currentVal = textarea.value.trim();
+
+            // Strip existing agent footer if present
+            currentVal = currentVal.replace(/\n\n💬 (Or|Atau) reply ['"]?AGENT['"]?.*$/gi, '').trim();
+
+            if (enabled) {
+                currentVal += AGENT_FOOTER_TEXT;
+            }
+
+            textarea.value = currentVal;
+            welcomeText = currentVal;
+            renderPreview();
+        }
+
         async function loadBotData() {
             try {
                 loadActiveDocumentInfo();
@@ -1005,6 +1028,7 @@
                 }
             } catch (err) {
                 console.error("Failed to load active document info", err);
+<<<<<<< HEAD
             }
         }
 
@@ -1012,6 +1036,43 @@
             welcomeText = msg;
             buttons = [];
             buttonsDataPoints = [];
+=======
+            }
+        }
+
+        function parseWelcomeMessage(rawText) {
+            buttons = [];
+            buttonsDataPoints = [];
+
+            if (!rawText) {
+                welcomeText = "";
+                return;
+            }
+
+            try {
+                const parsed = JSON.parse(rawText);
+                if (typeof parsed === 'object' && parsed !== null) {
+                    welcomeText = parsed.welcome_text || "";
+                    buttons = Array.isArray(parsed.buttons) ? [...parsed.buttons] : [];
+                    if (botData && Array.isArray(botData.flow_buttons_data_points)) {
+                        buttonsDataPoints = botData.flow_buttons_data_points.map(b => Array.isArray(b.data_points) ? [...b.data_points] : []);
+                    }
+                    return;
+                }
+            } catch (e) {}
+
+            // Legacy format: [BUTTON: Name]
+            const regex = /\[BUTTON:\s*(.*?)\]/gi;
+            let match;
+            while ((match = regex.exec(rawText)) !== null) {
+                buttons.push(match[1].trim());
+            }
+            welcomeText = rawText.replace(/\[BUTTON:\s*(.*?)\]/gi, "").trim();
+
+            if (botData && Array.isArray(botData.flow_buttons_data_points)) {
+                buttonsDataPoints = botData.flow_buttons_data_points.map(b => Array.isArray(b.data_points) ? [...b.data_points] : []);
+            }
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
         }
 
         function renderEditor() {
@@ -1239,8 +1300,11 @@
 
                 displayCats.forEach((cat) => {
                     const originalIdx = extractedCategories.indexOf(cat);
+<<<<<<< HEAD
                     const cleanName = cat.category_name.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
                     const escapedCatName = cat.category_name.replace(/'/g, "&apos;").replace(/"/g, '&quot;');
+=======
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
                     html += `
                         <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(234,179,8,0.25); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1258,8 +1322,13 @@
                                 ${cat.data_points.map((chip, i) => `
                                     <span class="info-chip"
                                         draggable="true"
+<<<<<<< HEAD
                                         ondragstart="onChipDragStart(event, '${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}')"
                                         onclick="openChipDetailModal('${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}', '${escapedCatName}')"
+=======
+                                        ondragstart="onChipDragStart(event, ${originalIdx}, ${i})"
+                                        onclick="openChipDetailModal(${originalIdx}, ${i})"
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
                                         title="Click for full details, or drag to button">
                                         📄 ${chip}
                                     </span>
@@ -1278,8 +1347,13 @@
                             <span class="info-chip"
                                 draggable="true"
                                 data-chip-idx="${i}"
+<<<<<<< HEAD
                                 ondragstart="onChipDragStart(event, '${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}')"
                                 onclick="openChipDetailModal('${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}', 'PDF Fact')"
+=======
+                                ondragstart="onChipDragStart(event, ${i})"
+                                onclick="openChipDetailModal(${i})"
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
                                 title="Click for details or drag to button">
                                 📄 ${chip}
                             </span>`).join('')}
@@ -1290,7 +1364,22 @@
 
         let activeModalChipText = "";
 
+<<<<<<< HEAD
         function openChipDetailModal(chipText, catName = "Topic Category") {
+=======
+        function openChipDetailModal(catIdx, chipIdx) {
+            let chipText = "";
+            let catName = "Topic Category";
+
+            if (typeof catIdx === 'number' && typeof chipIdx === 'number' && extractedCategories[catIdx]) {
+                catName = extractedCategories[catIdx].category_name;
+                chipText = extractedCategories[catIdx].data_points[chipIdx] || "";
+            } else if (typeof catIdx === 'number') {
+                chipText = extractedChips[catIdx] || "";
+                catName = "PDF Fact";
+            }
+
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
             activeModalChipText = chipText;
             document.getElementById('chip-modal-cat').textContent = catName;
             document.getElementById('chip-modal-text').textContent = chipText;
@@ -1309,7 +1398,11 @@
                 buttons.forEach((btnName, bIdx) => {
                     const cleanLabel = btnName.trim() || `Button ${bIdx + 1}`;
                     listContainer.innerHTML += `
+<<<<<<< HEAD
                         <button onclick="assignChipToButtonFromModal(${bIdx})" style="background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s;">
+=======
+                        <button onclick="assignChipToButtonFromModal(${bIdx})" style="background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s; width: 100%;">
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
                             <span>🔘 Add to "${cleanLabel}"</span>
                             <span style="font-size:11px; opacity:0.8;">+ Assign</span>
                         </button>
@@ -1392,7 +1485,17 @@
         }
 
         // Drag & Drop handlers
+<<<<<<< HEAD
         function onChipDragStart(e, chipText) {
+=======
+        function onChipDragStart(e, catIdx, chipIdx) {
+            let chipText = "";
+            if (typeof catIdx === 'number' && typeof chipIdx === 'number' && extractedCategories[catIdx]) {
+                chipText = extractedCategories[catIdx].data_points[chipIdx] || "";
+            } else if (typeof catIdx === 'number') {
+                chipText = extractedChips[catIdx] || "";
+            }
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
             e.dataTransfer.setData('text/plain', chipText);
             e.dataTransfer.effectAllowed = 'copy';
         }

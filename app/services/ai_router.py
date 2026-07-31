@@ -799,8 +799,8 @@ def _get_system_provider_for_enforcement(provider: str, model: str | None):
     # which has access to the bot. We pass company_id=None for now and require
     # callers of generate_system_response to provide company context.
     # Fall back to flask.g as a last resort.
-    from flask import g
-    company_id = getattr(g, "company_id", None)
+    from flask import g, has_app_context
+    company_id = getattr(g, "company_id", None) if has_app_context() else None
 
     if not company_id:
         # Without company context, we cannot enforce. This is a safety fallback
@@ -1170,7 +1170,11 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         result = _call_deepseek_direct(prompt, selected_model, selected_temperature, json_response)
     elif selected_provider in OPENROUTER_PROVIDER_KEYS:
         _check_ai_credit_before_provider(company_id)
-        result = _call_openrouter_direct(prompt, selected_model, selected_temperature)
+        try:
+            result = _call_openrouter_direct(prompt, selected_model, selected_temperature)
+        except Exception as e:
+            logging.warning("OpenRouter returned error (%s). Falling back to direct DeepSeek API for system call.", e)
+            result = _call_deepseek_direct(prompt, "deepseek-chat", selected_temperature, json_response)
     else:
         logging.warning("Unsupported system AI provider: %s (fail-closed)", selected_provider)
         raise RuntimeError(f"Unsupported AI provider: {selected_provider}. This path should not be reached because _get_system_provider_for_enforcement already validates permitted providers.")
