@@ -1,595 +1,744 @@
-# Knowledge Base README: bot_29_Speedbot.pdf
-- **Generated Date**: 2026-07-27 17:48:01 UTC
+# Knowledge Base README: bot_29_bot_1_bot_20_bag.pdf
+- **Generated Date**: 2026-07-30 15:41:18 UTC
 - **Chatbot ID**: 29
 
 ## Document Overview
-This document represents the compiled knowledge base for Chatbot #29, extracted from the primary document `bot_29_Speedbot.pdf`.
-- Total Text Chunks: 39
-- Total Graph Nodes: 228
-- Total Graph Connections: 229
+This document represents the compiled knowledge base for Chatbot #29, extracted from the primary document `bot_29_bot_1_bot_20_bag.pdf`.
+- Total Text Chunks: 45
+- Total Graph Nodes: 277
+- Total Graph Connections: 311
 - Total Refined Q&As: 0
 
 ## Knowledge Graph
 ### Entities (Nodes)
 | Name | Category | Description |
 | --- | --- | --- |
-| Tmc/Bmoc Bookstorellllnjjnjnjnjnj | Branch | Bookstore for TMC/BMOC materials |
-| Tiger Maths Competition | Event | A new mathematics competition specifically designed for the school syllabus |
-| Moe Recognition | Policy | Recognition of the competition by the Ministry of Education |
-| Contest Rules & Guidelines | Policy | Rules and guidelines governing the Tiger Maths Competition |
-| Contest Details | FAQ | General information and details about the competition |
-| Olympicedu | Company | An AI assistant platform or educational service provider. |
-| Asian Science & Maths Olympiad | Event | A science and math competition also known as ASMO |
-| Sudoku Challenge Championship | Event | A sudoku competition also known as SCC |
-| Asia Chess Tournament | Event | A chess tournament also known as ACT |
-| World Mathfusion Olympiad | Event | A math olympiad also known as WMO |
-| Asmo Global | Event | An international academic competition |
-| What Is Tmc | FAQ | General information about the Tiger Maths Competition |
-| Is Tmc Approved By The Education Ministry | FAQ | Inquiry regarding KPM approval for TMC |
-| How Are Tmc Categories Arranged By Grade | FAQ | Inquiry about grade categories in TMC |
-| What Language Is Used In The Tmc Competition | FAQ | Inquiry about the language medium of TMC |
-| Can Tmc Participants Join Advanced Competitions | FAQ | Inquiry about progression to advanced competitions from TMC |
-| A1.15 | FAQ | Trigger keyword for how TMC prevents cheating. |
-| Prowler | Category | Level for Grade 3 and 4 |
-| Grade 1 And 2 | Customer Segment | Students in Grade 1 and 2 |
-| Grade 9 And 10 | Customer Segment | Students in Grade 9 and 10 |
-| Chinese | Requirement | Language option for Primary Level competition papers |
-| Tiger Maths Competition Facebook Page | Service | Facebook page where sample questions are posted |
-| Faq A1.4 | FAQ | What language is used in the TMC competition? |
-| Faq A1.8 | FAQ | Can TMC participants join advanced competitions? |
-| July 26 | Schedule | The date on which the WMO International Competition is held |
-| Faq A1.11: How Do I Register For Tmc? | FAQ | Registration can be done online at http://www.olympicmaths.com. |
-| Marking, Ranking, Awards, Certificates, And An E-Report | Service | Additional services provided to participants who pay the administration fee |
-| Online | Location | The virtual venue where the competition will be conducted. |
-| How Many Questions Are There And What'S The Duration | FAQ | Inquiry about TMC exam format and time limit |
-| How Many Rounds Does Tmc Have | FAQ | Inquiry about the number of rounds in TMC |
-| Tmc | Event | A competition whose results are announced on 25th July 2025 and uses review methods to prevent cheating. |
-| A1.1 | FAQ | What is TMC (Tiger Maths Competition)? |
-| Stalker | Category | Level for Grade 5 and 6 |
-| Grade 3 And 4 | Customer Segment | Students in Grade 3 and 4 |
-| Primary School Contest | Category | TMC competition division for primary school students |
-| Administration Fee | Price | Fee required to be paid to receive a certificate |
-| Faq A1.5 | FAQ | How many questions are there and what's the duration? |
-| Kuala Lumpur | Location | The city where the WMO International Competition takes place |
-| Faq A1.12: What Are The Admininistration Fees? | FAQ | Registration is free, but an optional RM38 administration fee applies for extra services. |
-| Http://Www.Olympicmaths.Com | Location | Online registration website for TMC |
-| When Are Results Announced? | FAQ | Frequently asked question regarding the announcement date of the competition results. |
-| Are Sample Questions Available | FAQ | Inquiry about TMC practice materials |
-| Is Tmc Held Online Or Offline | FAQ | Inquiry about the format/venue of TMC |
-| How Do I Register For Tmc? | FAQ | Frequently asked question regarding the registration process for TMC |
-| A1.13 | FAQ | When is the competition date? |
-| A1.2 | FAQ | Is TMC approved by the Education Ministry (KPM)? |
-| Ministry Of Education | Company | Government ministry that approved ASMO, also known as MOE or KPM |
-| Hunter | Category | Level for Grade 7 and 8 |
-| Grade 5 And 6 | Customer Segment | Students in Grade 5 and 6 |
-| Middle School Contest | Category | TMC competition division for secondary school students |
-| Primary School Contest Format | Requirement | 20 questions, 60 minutes duration |
-| Certificate | Product | Participation certificate issued to eligible participants |
-| Faq A1.6 | FAQ | Are sample or past year questions available? |
-| Tmc Gold Medal Winners | Customer Segment | Winners of the TMC Gold Medal who are invited to the competition |
-| Faq A1.9: How Many Rounds Does Tmc Have? | FAQ | TMC has only one national round of competition. |
-| Faq A1.13: When Is The Competition Date? | FAQ | Inquiry about the competition date of TMC. |
-| Tmc Competition | Event | An online competition scheduled for June 21, 2025. |
-| Will All Participants Receive A Certificate | FAQ | Inquiry about participation certificates for TMC |
-| What Are The Registration/Admin Fees? | FAQ | Frequently asked question regarding the fees associated with registration and administration |
-| A1.14 | FAQ | Trigger keyword for TMC results announcement date. |
-| A1.3 | FAQ | How are TMC categories arranged by grade? |
-| Pajsk | Requirement | Co-curricular assessment program that participants can apply for |
-| Cub | Category | Level for Grade 1 and 2 |
-| Predator | Category | Level for Grade 9 and 10 |
-| Grade 7 And 8 | Customer Segment | Students in Grade 7 and 8 |
-| Alpha Tiger | Category | Competition category for Grade 11 and 12 (potentially up to Grade 13) |
-| Bahasa | Requirement | Language used in the TMC competition |
-| Middle School Contest Format | Requirement | 25 questions, 75 minutes duration |
-| Advanced Competitions | Category | Higher-level competitions that TMC participants can join |
-| Faq A1.7 | FAQ | Will all participants receive a certificate? |
-| Wmo International Competition | Event | International competition held in Kuala Lumpur |
-| Faq A1.10: Is Tmc Held Online Or Offline? | FAQ | TMC is held online only to reduce costs and allow flexible scheduling. |
-| Rm38 | Price | Optional administration fee per participant for TMC |
-| 21St June 2025 | Schedule | The date on which the TMC Competition is scheduled to take place. |
-| 25Th July 2025 | Schedule | The date when results for TMC will be announced. |
-| Asian Science & Maths Olympiad Competition | Event | Also known as ASMO, a science and maths competition. |
-| Education Ministry (Kpm) | Company | The ministry associated with the approval of ASMO. |
-| A2 | FAQ | Trigger keyword for common questions about ASMO. |
-| A2.1 | FAQ | What is ASMO? |
-| A2.2 | FAQ | Is ASMO approved by the Education Ministry (KPM)? |
-| A2.3 | FAQ | Who is eligible to participate in the ASMO competition? |
-| A2.4 | FAQ | What language is used in the ASMO competition? |
-| A2.5 | FAQ | Are sample questions available? |
-| A2.6 | FAQ | Will all participants receive a certificate? |
-| A2.7 | FAQ | Can ASMO participants join advanced competitions? |
-| A2.8 | FAQ | How many rounds does ASMO have? |
-| A2.9 | FAQ | Is ASMO held online or offline? |
-| A2.10 | FAQ | User trigger keyword for ASMO registration information |
-| A2.11 | FAQ | What are the registration/admin fees? |
-| Asmo | Brand | Asian Science and Mathematics Olympiad |
-| A2.12 How Does Asmo Prevent Cheating? | FAQ | A frequently asked question regarding ASMO's anti-cheating measures. |
-| A2.1: What Is Asmo? | FAQ | A frequently asked question regarding the definition of ASMO. |
-| Malaysia | Location | Country where ASMO was developed |
-| Asmo English | Product | English Olympiad competition under ASMO |
-| Asmo Bahasa Melayu | Product | Bahasa Melayu competition category under ASMO |
-| The Philippines | Location | Partner country of ASMO |
-| Myanmar | Location | Partner country of ASMO |
-| Hong Kong/Macau | Location | Partner region of ASMO |
-| Uzbekistan | Location | Partner country of ASMO |
-| Bulgaria | Location | Partner country of ASMO |
-| Is Asmo Approved By The Education Ministry (Kpm)? | FAQ | Frequently asked question regarding MOE approval |
-| Asmo Competition | Event | An academic competition (Asian Science and Mathematics Olympiad). |
-| Who Is Eligible To Participate In The Asmo Competition? | FAQ | Frequently asked question regarding the eligibility criteria for the ASMO competition. |
-| Primary Level | Customer Segment | Students in Grade 1 to Grade 6 |
-| Secondary Level | Customer Segment | Students in Grade 7 to Grade 12 |
-| Sample Questions | FAQ | Availability of sample questions for participants (A6.4) |
-| Asmopss | Event | An advanced international competition |
-| Faq A2.6 | FAQ | Will all participants receive a certificate? |
-| Asmo National Round | Event | The national round of the Asian Science and Mathematics Olympiad |
-| State Round | Event | The state-level round of the ASMO competition |
-| Asmo Indonesia | Company | Host organization for the International Round |
-| Can Students Participate In More Than One Subject? | FAQ | Question regarding multi-subject participation |
-| National Round Qualification | Requirement | Meeting the qualification criteria in the national round to participate in ASMO International 2025. |
-| Online Mode | Service | Free participation option for the competition without additional services |
-| Faq A2.8.3.3 | FAQ | How are the awards are determined? |
-| Online Registration | Service | The process of registering for ASMO online |
-| Www.Asmo2U.Com | Location | The official website for ASMO registration and information |
-| A2.12: How Does Asmo Prevent Cheating During Online Competition? | FAQ | Frequently asked question regarding online competition anti-cheating measures |
-| A6.1 What Is Asmo Global? | FAQ | Question defining ASMO Global and its purpose |
-| Primary Or Secondary School Students | Customer Segment | Students in Grade 1 to 12 |
-| Bahasa Malaysia | Requirement | Language option for Primary Level competition papers |
-| Faq A2.3 | FAQ | Who can join ASMO? |
-| Faq A2.7 | FAQ | Can ASMO participants join advanced competitions? |
-| Asmo International 2025 | Event | An international academic competition event. |
-| National Round | Event | The single round of ASMO Global |
-| 12Th December To 15Th December 2025 | Schedule | Dates for the ASMO International Round 2025 |
-| Student | Customer Segment | The target group of learners encouraged to take on challenges honestly. |
-| Offline Mode | Service | Physical participation mode available for school or centre participants. |
-| Individual Participant | Customer Segment | Participants registering independently. |
-| Faq A2.9 | FAQ | Is ASMO held online or offline? |
-| Asmo Science | Product | Science competition category under ASMO |
-| Rm78 | Price | Administration fee for ASMO Science and ASMO Bahasa Melayu |
-| A6.6 How Many Rounds Does Asmo Global Have? | FAQ | Question about the number of rounds in ASMO Global |
-| A6.2 Who Is Eligible To Participate In The Asmo Global Competition? | FAQ | Question about eligibility criteria for ASMO Global |
-| World Mathematics Olympiad | Event | An advanced international competition (WMO) |
-| Faq A2.5 | FAQ | Are sample or past year questions available? |
-| Asmo Winners | Customer Segment | Eligible winners from the National Round invited to the international competition |
-| Who Can Participate In The Asmo International 2025? | FAQ | Question regarding eligibility for the International Round |
-| Award Scheme Pdf | Policy | Confidential and encrypted document detailing how awards are determined. |
-| Centre Participant | Customer Segment | Participants registering through a learning centre. |
-| Faq A2.8.3.2 | FAQ | Can students participate in more than one subject? |
-| Asmo Maths | Product | Mathematics competition category under ASMO |
-| A2.11: What Are The Admininistration Fees? | FAQ | Frequently asked question regarding ASMO administration fees |
-| Participants | Customer Segment | Individuals taking part in the program or event |
-| A6.8 What Are The Registration/Admin Fees? | FAQ | Question about the fees for ASMO Global |
-| A6.4 Are Sample Questions Available? | FAQ | Question about the availability of sample questions |
-| Students Without An Official Asmo Country Partner | Customer Segment | Students from countries lacking a local ASMO organizer |
-| Faq A2.4 | FAQ | What language is used in the ASMO competition? |
-| Bali, Indonesia | Location | Host location for the ASMO International Round 2025 |
-| International Round | Event | Third level of the ASMO competition held in Bali, Indonesia |
-| How Are The Awards Determined? | FAQ | A question regarding the process of determining awards. |
-| One Subject Limit | Policy | Each student is allowed to participate in only one subject. |
-| School Participant | Customer Segment | Participants registering through a school. |
-| Faq A2.8.3.1 | FAQ | Who can participate in the ASMO International 2025? |
-| Rm98 | Price | Administration fee for ASMO Maths and ASMO English |
-| Additional Services | Service | Services including marking, ranking, awards, certificates, and an e-report |
-| Certificate Of Participation | Product | A certificate awarded to all participants upon completion (A6.5) |
-| A6.7 Is Asmo Global Held Online Or Offline? | FAQ | Question about the format of ASMO Global |
-| A6.3 What Language Is Used In The Asmo Global Competition? | FAQ | Question about the language of the competition |
-| Math And Science Olympiads | Product | Math and Science Olympiad competitions under ASMO |
-| A6.4 | FAQ | User trigger keyword query regarding A6.4 |
-| Please Check This Link | Service | Chatbot response directing the user to a link |
-| A6.5 Certificate Faq | FAQ | Will all participants receive a certificate? |
-| A6.6 Rounds Faq | FAQ | How many rounds does ASMO Global have? |
-| A6.7 Format Faq | FAQ | Is ASMO Global held online or offline? |
-| A6.8 Fees Faq | FAQ | What are the registration/admin fees? |
-| B. Books Faq | FAQ | Bookstore selection menu |
-| B1. Tmc/Bmoc Bookstore Faq | FAQ | Information on TMC/BMOC Bookstore |
-| B2. Asmo Bookstore Faq | FAQ | Information on ASMO Bookstore |
-| Usd 45 | Price | Registration fee per participant, per subject for ASMO Global |
-| Asmo Bookstore | Branch | Bookstore for ASMO materials |
-| Https://Www.Asmo2U.Com/ | Location | The official website URL for ASMO. |
-| Iomaths | Brand | Educational brand offering math programs and franchise opportunities |
-| Iomaths Primary | Product | Mathematics course designed for primary school students |
-| Iomaths Pre-School | Product | A pre-school program offered by IoMaths |
-| Iomaths Secondary | Product | Secondary education math course |
-| Schedule | Schedule | Timetable and class schedules for IoMaths Primary |
-| Fee Structure | Price | Pricing and fee details for IoMaths Primary |
-| Syllabus | Policy | Curriculum and syllabus details for IoMaths Primary |
-| Iomaths Course | Product | A mathematics course offered by IoMaths |
-| C2.1 Schedule | FAQ | Information topic about schedule triggered by C1.1 |
-| C2.2 Fee Structure | FAQ | Information topic about fee structure triggered by C1.2 |
-| C2.3 Syllabus | FAQ | Information topic about syllabus triggered by C1.3 |
-| C3.1 Schedule | FAQ | Schedule information for IoMaths Secondary triggered by C1.1 |
-| C3.2 Fee Structure | FAQ | Fee structure information for IoMaths Secondary triggered by C1.2 |
-| C3.3 Syllabus | FAQ | Syllabus information for IoMaths Secondary triggered by C1.3 |
-| Biz Opportunities | Service | Collaboration opportunities for educational institutions and partners |
-| Olympiad Programs | Product | Educational competition programs promoted by partners |
-| D1 Quickern | Company | An organization or brand associated with the partnership opportunities |
-| D2 Asmo Country Partner | Package | A partnership tier or program for country-level collaboration |
-| Quicken | Brand | Provider of Olympiad-based solutions, enrichment programs, and academic services |
-| Country Partner | Service | A partnership role representing ASMO in a specific country |
-| Ability To Handle Promotion, Registration, And Coordination | Requirement | Necessary skills for managing the program locally |
-| Technical Support And System Access | Service | IT and system support for managing participants |
-| Coordinating With The Asmo International Team | Requirement | Responsibility to coordinate for materials and updates |
-| Requirements To Become A Franchisee | Requirement | Criteria and qualifications needed to become an IoMaths franchisee |
-| Live-Streamed Math Courses | Service | Real-time, interactive math sessions designed to boost problem-solving skills |
-| Live Streaming | Service | A live streaming service or product offered on the platform. |
-| Www.Wasap.My/60126667325 | Location | WhatsApp contact link for Admin Staff |
-| D3 Iomaths Franchise | Service | Franchise and education business growth program |
-| Asmo Country Partner | Customer Segment | A partner responsible for running and growing the Olympiad program in their country |
-| D3.3 Responsibility | Requirement | Responsibilities of an ASMO Country Partner |
-| Experience In Managing Student Programs, Competitions, Or Large-Scale Events | Requirement | Prior experience required for the partner role |
-| Training On Event Organization, Registration Systems, And Exam Procedures | Service | Training provided to ensure proper event execution |
-| Organizing Exam Logistics | Requirement | Responsibility to organize online or in-person exam logistics |
-| Iomaths Franchise | Service | Franchise opportunity offering curriculum, training support, and exclusive rights |
-| Live Streaming Portal | Service | Online platform offering live-streamed math courses |
-| Iomaths.Com.My | Company | An online educational platform specializing in mathematics. |
-| Www.Wasap.My/60176424831 | Location | WhatsApp contact link for Admin Staff |
-| Main Menu | Service | The chatbot's main menu interface |
-| Learning Centers | Customer Segment | Target audience for Quicken education business solutions |
-| D2.1 Requirements | Requirement | Requirements to become an ASMO Country Partner |
-| Education-Based Organization Or Business | Requirement | Must be an organization or business focused on education |
-| Official Asmo Branding And Partnership Rights | Package | Rights and branding provided to the country partner |
-| Promoting Asmo Competitions | Requirement | Responsibility to promote competitions to schools, teachers, and students |
-| Distributing Certificates, Results, And Awards | Requirement | Responsibility to distribute recognition materials to participants |
-| Math Enrichment Center | Service | An educational center focused on math enrichment programs. |
-| Franchise Fee | Price | Cost associated with acquiring an IoMaths franchise |
-| Www.Wasap.My/60183188866 | Location | WhatsApp contact link for Admin Staff |
-| Education Providers | Customer Segment | Target audience for Quicken education business solutions |
-| D2.2 Supports Provided | Service | Support services provided to ASMO Country Partners |
-| Strong Network With Schools, Educators, Or Academic Communities | Requirement | Must possess an established network within the academic sector |
-| Marketing Materials And Promotional Templates | Package | Promotional assets provided to the partner |
-| Managing Student Registrations And Inquiries | Requirement | Responsibility to handle local registrations and questions |
-| Responsibility | Policy | Duties and responsibilities of an IoMaths franchisee |
-| Competition-Preparing Students | Customer Segment | Students preparing for math competitions or Olympiads |
-| Admin Staff | Staff | Administrative staff available for further assistance and specific inquiries |
-| Faq List | FAQ | List of frequently asked questions covering current topics |
+| Student Discount | Promotion | 5% discount for students with valid ID |
+| I Bag Marketing Master Guide | Service | Complete WhatsApp Auto-Reply Chatbot Knowledge Base |
+| Travel Bags | Category | Product category |
+| Greeting | Event | First step in customer journey |
+| Order | Service | Order processing |
+| Close | Event | Seventh step in customer journey |
+| Business Overview & Bot Rules | Policy | Section covering business overview and bot rules |
+| Product Discovery - Help Customer Choose | Service | Section for product discovery assistance |
+| Upsell & Cross-Sell Scripts | Service | Section for upsell and cross-sell scripts |
+| Shipping & Delivery Sop | Policy | Section for shipping and delivery standard operating procedures |
+| Seasonal Campaigns (Malaysia) | Promotion | Section for seasonal campaigns in Malaysia |
+| Content Marketing & Social Media Ideas | Service | Section for content marketing and social media ideas |
+| Bag Order | Product | Primary product to convert inquiries into orders |
+| Bundles | Category | Bundles to increase basket size |
+| Catalog Link | Service | Link sent when customer asks to see product |
+| Product Info | Service | Fast and accurate product info to build trust |
+| Classic Tote Bag | Product | Bestseller product priced at RM45 |
+| Bucket Bag | Product | Relaxed boho style, drawstring closure, inner zip pocket, colors: Caramel, Black, Olive |
+| Backpacks | Category | Category of backpacks |
+| Rm 89-120 | Price | Price range for Top Handle Structured |
+| Rm 95-145 | Price | Price range for Laptop Backpack |
+| Spinner Luggage 20" | Product | 20" cabin luggage, TSA lock, 360 spinner wheels, expandable, ABS hard shell |
+| Rm95-145 | Price | Price range for Laptop Backpack |
+| Rm189-250 | Price | Price range for cabin spinner luggage |
+| Grey | Accessory | Color option for laptop sleeve |
+| Nama Kedai | Company | The store name placeholder |
+| Travel Bags & Luggage | Category | Category of bags |
+| Free Shipping Above Rm150 | Promotion | Free shipping on orders over RM150 |
+| Gift Bag | Category | Bag as a gift |
+| Tote | Product | Fashion-forward bag |
+| Laptop Bag | Product | Laptop bag product eligible for student discount |
+| Weekend Duffle | Product | Bag for short trips |
+| Rm50-100 | Price | Budget RM50-100 |
+| Rm35 | Price | Lower-priced alternative starting from RM35 |
+| Bestsellers | Product | Top-selling products to reduce decision fatigue |
+| Shoulder Bag | Product | 28 x 22 x 10 cm bag |
+| Backpack (School) | Product | 44 x 30 x 18 cm (15L) bag |
+| Duffle 40L | Product | 52 x 28 x 28 cm bag |
+| Pink | Accessory | Color variant |
+| Pu Leather | Product | High-quality PU leather for daily collection |
+| Canvas | Category | Material type |
+| Handbags | Category | Product category |
+| All Categories | Category | All product categories |
+| Chatbot | Service | Sales assistant for bags on WhatsApp |
+| Browse | Event | Second step in customer journey |
+| Objection | Event | Fifth step in customer journey |
+| Complete Product Catalog With Scripts | Service | Section with product catalog and scripts |
+| Size, Color & Variant Handling | Service | Section for handling size, color, and variants |
+| Promotions & Campaign Scripts | Service | Section for promotions and campaign scripts |
+| Faq - Auto Reply Scripts | FAQ | Section for FAQ auto reply scripts |
+| Re-Engagement & Loyalty Scripts | Service | Section for re-engagement and loyalty scripts |
+| Accessories | Accessory | Lifestyle props like sunglasses, scarf, coffee |
+| Free Shipping | Promotion | Free shipping offered when spending a little more |
+| Order Summary | FAQ | Step 4: Show itemized order summary |
+| Color | Requirement | Preferred color asked before confirming stock |
+| Quality Complaint | FAQ | Quality complaint received |
+| Mini Sling Bag | Product | Bestseller product priced at RM35 |
+| School Backpack | Product | 15L capacity, padded straps, multiple pockets, fits A4 books, waterproof nylon |
+| Rm 45-65 | Price | Price range for Classic Tote Bag |
+| Rm 55-75 | Price | Price range for Bucket Bag |
+| Travel Backpack 30L | Product | Backpack for backpackers |
+| Spinner Luggage 24" | Product | 24" check-in luggage, TSA lock, lightweight, colors: Black, Rose Gold, Navy, Silver |
+| Rm120-180 | Price | Price range for travel backpack 30L |
+| Rm229-299 | Price | Price range for check-in spinner luggage |
+| Laptop Sleeve | Product | Protective sleeve for laptops |
+| Black | Accessory | Color variant |
+| Briefcase | Product | Executive Genuine PU leather, combination lock, fits A4 folders, 14" laptop |
+| Dark Brown | Accessory | Color option for Briefcase |
+| Handbags & Sling Bags | Category | Category of bags |
+| Office & Laptop Bags | Category | Category of bags |
+| Free Gift Wrapping Untuk Hadiah | Promotion | Free gift wrapping for gifts |
+| Active Promos | Promotion | Current promotions to mention immediately |
+| Travel Bag | Category | Bag for travel |
+| Sling Bag | Product | Sling bag product |
+| Spinner Luggage | Product | Cabin or check-in luggage |
+| Gift Wrapping | Service | Free gift wrapping service |
+| Above Rm100 | Price | Budget above RM100 |
+| Rm95 | Price | Price of Laptop Backpack |
+| Tote Bag (S) | Product | 35 x 30 x 12 cm bag |
+| Backpack (Laptop) | Product | 48 x 32 x 18 cm (20-25L) bag |
+| Luggage 20" | Product | 55 x 40 x 20 cm bag |
+| Customer Journey | Service | Steps: Greeting → Browse → Size/Color Check → Order → Objection → Upsell → Close |
+| Size/Color Check | Event | Third step in customer journey |
+| Upsell | Promotion | Limit to 1 per conversation |
+| Bag Marketing Master Guide | Product | Marketing guide document, page 15 |
+| Greeting & Opening Messages | Service | Section for greeting and opening messages |
+| Order Collection Flow (Step-By-Step) | Service | Section for order collection flow |
+| Customer Objection Handling | Service | Section for handling customer objections |
+| Closing & After-Sales Scripts | Service | Section for closing and after-sales scripts |
+| Matching Sets | Category | Bundles to increase basket size |
+| Product Photo Link | Service | Link sent when customer asks to see product |
+| Size | Requirement | Preferred size asked before confirming stock; give cm/inch measurements |
+| Top Handle Structured | Product | Premium office-ready, gold hardware, fits 13" laptop, colors: Black, Navy, Burgundy |
+| Ladies Handbags & Shoulder Bags | Category | Category of handbags and shoulder bags |
+| Rm 35-55 | Price | Price range for Mini Sling Bag |
+| Rm 55-85 | Price | Price range for School Backpack |
+| Laptop Backpack | Product | Bestseller product priced at RM95 |
+| Duffle Bag Weekend | Product | 40L duffle bag, detachable shoulder strap, shoe compartment, water-resistant polyester |
+| Laptop Sleeve 13-15" | Product | Neoprene laptop sleeve with zipper, slim profile |
+| Rm75-110 | Price | Price range for weekend duffle |
+| Rm25-45 | Price | Price range for laptop sleeve in Malaysian Ringgit |
+| 13" To 15" Laptops | Product | Laptops with screen size 13 to 15 inches |
+| Navy | Accessory | Color variant |
+| Rm 110-160 | Price | Price range for Briefcase |
+| Backpacks (School & Laptop) | Category | Category of bags |
+| Beli 2 Dapat 10% Off | Promotion | Buy 2 get 10% off |
+| Daily Use Bag | Category | Bag for daily use |
+| Backpack | Product | Backpack included in student bundle |
+| Top Handle Bag | Product | Bag for office/work |
+| Rm50 | Price | Budget below RM50 |
+| Rm45 | Price | Price of Classic Tote Bag |
+| Mini Sling | Product | 18 x 12 x 6 cm bag |
+| Tote Bag (L) | Product | 42 x 35 x 14 cm bag |
+| Travel Backpack | Product | 55 x 35 x 22 cm (30L) bag |
+| Luggage 24" | Product | 65 x 45 x 25 cm bag |
+| Brown | Accessory | Color variant |
+| Olive | Accessory | Color variant |
+| Genuine Leather | Product | Premium collection uses genuine leather |
+| Product | Category | Produk lain |
+| Nylon | Category | Material type |
+| Water Resistant | Category | Water resistance level |
+| Gold Tone | Category | Hardware color |
+| Work | Category | Usage scenario |
+| Product + Variant Confirmed | FAQ | Step 1: Confirm product and variant before proceeding |
+| Delivery Info | FAQ | Step 3: Collect delivery information |
+| Confirmation & Tracking | FAQ | Step 6: Confirm payment and provide tracking |
+| White | Accessory | Color variant |
+| Polyester | Category | Material type |
+| Regular | Category | Water resistance level |
+| Daily Use | Category | Usage scenario |
+| Payment | FAQ | Step 5: Payment instructions |
+| J&T | Supplier | Courier for standard delivery in Peninsula |
+| Duitnow | Service | Payment method |
+| Handbag | Product | A handbag product |
+| Bundle | Package | A bundle of products offered at a discount |
+| Flash Sale 24Hr | Promotion | 20% off select items for 24 hours |
+| Referral Reward | Promotion | RM10 off next purchase for both referrer and friend |
+| Bag | Product | The product being reviewed |
+| Rm10 | Price | Referral reward amount |
+| 15% Off | Promotion | 15% discount for first buyers |
+| Trust Objection | FAQ | Objection about store legitimacy |
+| Video Call | Service | Offer live video call to show product |
+| Clear Return Policy | Policy | A policy that removes the biggest risk for buyers. |
+| Dust Bag | Accessory | Packaging pouch included with each bag |
+| Delivery (Peninsula) | Schedule | 2-4 business days |
+| Payment Methods | Policy | DuitNow / Bank Transfer / Online Banking / Cash (pickup) |
+| Standard Size | Product | Standard size available for bags |
+| Warranty | Warranty | X-month warranty for stitching, hardware, zipper defects |
+| J&T Express | Supplier | Courier service supported |
+| Customer Reviews | FAQ | Customer testimonials available |
+| Google Review | Service | Platform for customer reviews |
+| Lazada | Service | E-commerce platform |
+| Waterproof | Category | Water resistance level |
+| Silver Tone | Category | Hardware color |
+| Travel | Category | Usage scenario |
+| Pickup Or Delivery | FAQ | Step 2: Choose pickup or delivery |
+| Rm150 | Price | Minimum order amount for free shipping in Semenanjung |
+| Lalamove | Supplier | Same day courier service supported |
+| Card Holder | Accessory | Card holder accessory |
+| Travel Pillow | Accessory | Travel pillow accessory |
+| Gift Set | Product | Gift set product |
+| Rm18 | Price | Price of the package or product |
+| Free Shipping Rm150+ | Promotion | Free courier for orders above RM150 |
+| New Arrival Discount | Promotion | 15% off new arrivals first 48 hours |
+| Follow & Shop | Promotion | Follow IG/TikTok for 5% discount |
+| First-Time Customer | Customer Segment | Customers making first purchase |
+| First Buyers | Customer Segment | Customers making first purchase |
+| Price Objection | FAQ | Objection about high price |
+| Return Policy Objection | FAQ | Objection about return policy |
+| Short Video | Service | Send short video showing material and size |
+| Semenanjung | Location | Peninsular Malaysia delivery zone |
+| Same-Day Delivery | Service | Urgent delivery via Lalamove/Grab Express with add-on fee |
+| Tag & Authenticity Card | Accessory | Included if applicable |
+| Rm15-18 | Price | Standard shipping fee for Sabah/Sarawak |
+| Grab Express | Supplier | Courier service for same-day delivery |
+| Processing Time | Policy | 1-2 business days after payment confirmed |
+| Tracking | Service | Tracking number shared via WhatsApp after shipment |
+| Lost Parcel Policy | Policy | File claim with courier - provide proof of shipment |
+| Custom Order | Service | Customization service for bags |
+| Custom Surcharge | Price | Additional charge for custom order |
+| Dhl | Supplier | Courier service supported |
+| Pre-Order & Custom Processing Time | Policy | 7-14 business days for pre-order and custom orders |
+| Shopee | Service | E-commerce platform |
+| Pos Laju | Supplier | Courier service supported |
+| Matching Wallet | Accessory | Matching wallet accessory |
+| Luggage Tag | Accessory | Luggage tag accessory |
+| Bag Organizer Insert | Accessory | Bag organizer insert accessory |
+| Coin Pouch | Accessory | Coin pouch accessory |
+| Buy 2 Get 10% Off | Promotion | 10% discount when buying any 2 bags |
+| Bundle Deal | Promotion | Bag + accessory set at fixed price |
+| Birthday Month | Promotion | 15% off in customer's birth month |
+| Accessory | Category | Product category for accessories |
+| 48 Hours | Schedule | Time limit for promotion |
+| Section 8 | Service | Section about promotions and campaign scripts |
+| Product Accuracy Objection | FAQ | Objection about product not matching images |
+| Real Photos | Service | Send real photos before payment |
+| 7-Day Return Policy | Policy | Return within 7 days if defective or wrong item, free return shipping |
+| Sabah/Sarawak | Location | East Malaysia delivery zone |
+| Standard Shipping | Service | Standard shipping service with rates RM8-12 (Semenanjung) / RM15-18 (Sabah/Sarawak) |
+| Rm8-12 | Price | Standard shipping fee for Semenanjung |
+| Rm15-30 | Price | Same-day delivery fee depending on distance |
+| Delivery (East My) | Schedule | 4-7 business days |
+| Pickup | Service | Available with specified hours |
+| Bot | Staff | Automated reply system for shipping inquiries |
+| Custom Size | Product | Custom size with 2-3 weeks lead time |
+| Order Processing Time | Policy | 1-2 business days after payment confirmation |
+| Instagram | Service | Social media platform |
+| Cod | Service | Cash on Delivery service |
+| Sales Psychology Trigger Lines | Service | Lines to boost conversion in sales replies |
+| Stock | Product | Limited stock of a product |
+| Flash Sale | Promotion | Flash sale ending in X hours |
+| Social Proof | Promotion | Marketing technique using customer testimonials and popularity to encourage purchases |
+| Influencer | Customer Segment | Influencer who uses the bag recently |
+| Working Professional | Customer Segment | Target customer segment for the bag |
+| Free Wrapping | Service | Free wrapping service with gift bag set |
+| Merdeka Day Patriotic Collection | Product | Limited edition collection with patriotic colors for Merdeka Day |
+| Pencil Case | Product | Pencil case included in student bundle |
+| Year-End Sale Clearance | Promotion | Year-end mega sale with up to 50% off selected bags |
+| Repeat Customer | Customer Segment | Customer who has ordered multiple times |
+| Rm10 Off Next Order | Promotion | RM10 discount on next order |
+| Loyalty Perks | Policy | Perks for loyal customers |
+| Purchase Date | Requirement | Tarikh beli |
+| Refund | Service | Refund option |
+| Tiktok | Service | Social media platform |
+| Youtube | Service | Video platform |
+| Carousel | Category | Content type on Instagram |
+| Shorts | Category | Content type on YouTube |
+| Rm100 | Price | Price point under RM100 |
+| Water Bottle | Product | Item for size comparison |
+| Promotions | Promotion | Promotions that may end |
+| Marketing Master Guide | Service | A guide for marketing strategies |
+| Scarcity | Promotion | Marketing tactic emphasizing limited availability |
+| Same-Day Dispatch | Service | Order before 2PM for same-day dispatch |
+| Bestseller | Product | Product that is a bestseller with repeat orders every week |
+| Gift Packaging | Service | Beautiful packaging for gifts |
+| Price Point | Price | The price point for the quality offered |
+| Cny Lucky Red & Gold Collection | Product | Collection for Chinese New Year in red and gold tones |
+| Back-To-School Student Bundle | Package | Bundle including backpack and pencil case for back-to-school |
+| Valentine'S Couple Matching Bag Set | Product | His & Hers matching bag set for Valentine's Day |
+| Up To 50% Off | Price | Discount up to 50% off selected bags |
+| Customer After Successful Order | Customer Segment | Customer who just received an order |
+| Loyalty Discount 10% | Promotion | 10% discount for loyal customers |
+| Promo Aktif Sekarang | Promotion | Active promotion for abandoned chat customers |
+| Referral Program | Policy | Referral reward program |
+| Tracking Number | Service | No. tracking akan dikongsikan selepas shipment |
+| Review Platform | Service | Platform for reviews |
+| Photo Of Defect | Requirement | Foto defect yang ada |
+| Replace | Service | Replace option |
+| Reels | Category | Content type on Instagram |
+| Status | Category | Content type on WhatsApp |
+| A4 Paper | Product | Item for size comparison |
+| Price | Price | Prices that may change |
+| Bot With Wrong Info | Service | A bot that provides incorrect information |
+| Student | Customer Segment | Customers eligible for student discount |
+| End Of Month | Promotion | Price valid until end of month |
+| Popular Color | Product | Color variant that is very popular among customers |
+| Orders This Week | Promotion | Number of orders this week for a specific model |
+| Hari Raya Gift Bag Set | Product | Gift bag set for Hari Raya campaign |
+| Deepavali Festival Sling Bag | Product | Festival special sling bag for Deepavali |
+| Mother'S Day Premium Tote | Product | Premium tote bag as Mother's Day gift |
+| Campaign Tip | FAQ | Tip to launch campaign teaser 2 weeks early and collect pre-orders |
+| Customer Who Hasn'T Ordered In 30+ Days | Customer Segment | Customer who hasn't ordered in 30+ days |
+| Customer Who Left Without Ordering | Customer Segment | Customer who abandoned chat without ordering |
+| Priority Access For New Arrivals | Promotion | Priority access to new arrivals |
+| Win-Back Offer | Promotion | Exclusive offer for win-back |
+| Abandoned Chat Follow-Up | Policy | Gentle follow-up within 24hrs |
+| Order Number | Requirement | No. order & tarikh beli |
+| Repair | Service | Repair option |
+| Facebook | Service | Social media platform |
+| Stories | Category | Content type on Instagram |
+| Broadcast | Category | Content type on WhatsApp |
+| Nama Bag | Product | Placeholder for bag name |
+| 13" Laptop | Product | Item for size comparison |
+| New Products | Product | New products that may arrive |
+| Whatsapp | Service | Messaging platform |
+| Bank Transfer | Service | Payment method |
+| Customer | Customer Segment | Customer who made payment or received delivery |
 
 ### Connections (Relationships)
-- **B1. Tmc/Bmoc Bookstore Faq** [PROVIDES INFO ON] -> **Tmc/Bmoc Bookstorellllnjjnjnjnjnj**
-- **Tiger Maths Competition** [HAS POLICY] -> **Contest Rules & Guidelines**
-- **Tiger Maths Competition** [HAS FAQ] -> **Contest Details**
-- **Tiger Maths Competition** [HAS FAQ] -> **What Is Tmc**
-- **Tiger Maths Competition** [HAS FAQ] -> **Is Tmc Approved By The Education Ministry**
-- **Tiger Maths Competition** [HAS FAQ] -> **How Are Tmc Categories Arranged By Grade**
-- **Tiger Maths Competition** [HAS FAQ] -> **What Language Is Used In The Tmc Competition**
-- **Tiger Maths Competition** [HAS FAQ] -> **How Many Questions Are There And What'S The Duration**
-- **Tiger Maths Competition** [HAS FAQ] -> **Are Sample Questions Available**
-- **Tiger Maths Competition** [HAS FAQ] -> **Will All Participants Receive A Certificate**
-- **Tiger Maths Competition** [HAS FAQ] -> **Can Tmc Participants Join Advanced Competitions**
-- **Tiger Maths Competition** [APPROVED BY] -> **Ministry Of Education**
-- **A1.13** [ANSWERS ABOUT] -> **Tiger Maths Competition**
-- **Tmc** [HAS LEVEL] -> **Prowler**
-- **Cub** [TARGETS] -> **Grade 1 And 2**
-- **Predator** [TARGETS] -> **Grade 9 And 10**
-- **Faq A1.4** [ANSWERS ABOUT] -> **Tmc**
-- **Faq A1.5** [ANSWERS ABOUT] -> **Primary School Contest**
-- **Faq A1.6** [DIRECTS TO] -> **Tiger Maths Competition Facebook Page**
-- **Tmc Gold Medal Winners** [INVITED TO] -> **Wmo International Competition**
-- **Faq A1.9: How Many Rounds Does Tmc Have?** [ANSWERS QUESTIONS ABOUT] -> **Tmc**
-- **Faq A1.12: What Are The Admininistration Fees?** [ANSWERS QUESTIONS ABOUT] -> **Tmc**
-- **Tmc Competition** [SCHEDULED ON] -> **21St June 2025**
-- **A1.15** [ANSWERS QUESTION ABOUT] -> **Tmc**
-- **A2.2** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.5** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.9** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.1: What Is Asmo?** [ANSWERS ABOUT] -> **Asmo**
-- **Asmo** [INCLUDES SUBJECT] -> **Asmo English**
-- **Asmo** [PARTNERED WITH] -> **Cambodia**
-- **Asmo** [PARTNERED WITH] -> **Myanmar**
-- **Asmo** [PARTNERED WITH] -> **Bulgaria**
-- **Primary Level** [USES LANGUAGE] -> **Chinese**
-- **Faq A2.6** [ANSWERS ABOUT] -> **Certificate**
-- **Asmo** [LEADS TO] -> **World Mathematics Olympiad**
-- **Asmo International 2025** [HELD IN] -> **Bali, Indonesia**
-- **Tiger Maths Competition** [HAS FAQ] -> **How Many Rounds Does Tmc Have**
-- **A1.2** [ANSWERS ABOUT] -> **Ministry Of Education**
-- **A1.14** [ANSWERS ABOUT] -> **Tiger Maths Competition**
-- **Tmc** [HAS LEVEL] -> **Stalker**
-- **Prowler** [TARGETS] -> **Grade 3 And 4**
-- **Faq A1.4** [MENTIONS] -> **Bahasa**
-- **Faq A1.5** [ANSWERS ABOUT] -> **Middle School Contest**
-- **Faq A1.7** [ANSWERS ABOUT] -> **Certificate**
-- **Wmo International Competition** [HELD ON] -> **July 26**
-- **Faq A1.10: Is Tmc Held Online Or Offline?** [ANSWERS QUESTIONS ABOUT] -> **Tmc**
-- **Faq A1.12: What Are The Admininistration Fees?** [MENTIONS PRICE] -> **Rm38**
-- **Tmc Competition** [HELD AT] -> **Online**
-- **Tmc** [TARGETS] -> **Students**
-- **A2.2** [MENTIONS] -> **Education Ministry (Kpm)**
-- **A2.6** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.10** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **Asmo** [INCLUDES SUBJECT] -> **Asmo Bahasa Melayu**
-- **Asmo** [PARTNERED WITH] -> **The Philippines**
-- **Asmo** [PARTNERED WITH] -> **India**
-- **Is Asmo Approved By The Education Ministry (Kpm)?** [QUESTIONS ABOUT] -> **Asmo**
-- **Faq A2.3** [ANSWERS ABOUT] -> **Asmo**
-- **Primary Level** [USES LANGUAGE] -> **English**
-- **Certificate** [REQUIRES PAYMENT] -> **Administration Fee**
-- **Asmo** [LEADS TO] -> **Asmopss**
-- **Tiger Maths Competition** [HAS FAQ] -> **Is Tmc Held Online Or Offline**
-- **How Do I Register For Tmc?** [REFERS TO] -> **Tmc**
-- **A1.1** [ANSWERS ABOUT] -> **Tiger Maths Competition**
-- **A1.2** [MENTIONS] -> **Pajsk**
-- **A1.15** [ANSWERS ABOUT] -> **Tiger Maths Competition**
-- **Tmc** [HAS LEVEL] -> **Hunter**
-- **Stalker** [TARGETS] -> **Grade 5 And 6**
-- **Faq A1.4** [MENTIONS] -> **Chinese**
-- **Primary School Contest** [HAS FORMAT] -> **Primary School Contest Format**
-- **Certificate** [REQUIRES] -> **Administration Fee**
-- **Wmo International Competition** [HELD IN] -> **Kuala Lumpur**
-- **Faq A1.11: How Do I Register For Tmc?** [ANSWERS QUESTIONS ABOUT] -> **Tmc**
-- **Rm38** [CHARGED FOR] -> **Marking, Ranking, Awards, Certificates, And An E-Report**
-- **When Are Results Announced?** [REFERS TO] -> **Tmc Competition**
-- **A1.14** [ANSWERS QUESTION ABOUT] -> **Tmc**
-- **A2** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.3** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.7** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.11** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **Asmo** [TARGETS] -> **Students**
-- **Asmo** [PARTNERED WITH] -> **Vietnam**
-- **Asmo** [PARTNERED WITH] -> **Hong Kong/Macau**
-- **Asmo** [APPROVED BY] -> **Ministry Of Education**
-- **Who Is Eligible To Participate In The Asmo Competition?** [REFERS TO] -> **Asmo Competition**
-- **Faq A2.4** [ANSWERS ABOUT] -> **Asmo**
-- **Secondary Level** [USES LANGUAGE] -> **English**
-- **Faq A2.7** [ANSWERS ABOUT] -> **World Mathematics Olympiad**
-- **Asmo Winners** [QUALIFIED IN] -> **Asmo National Round**
-- **What Are The Registration/Admin Fees?** [REFERS TO] -> **Tmc**
-- **Tiger Maths Competition** [TARGETS] -> **Students**
-- **A1.3** [ANSWERS ABOUT] -> **Tiger Maths Competition**
-- **Tmc** [HAS LEVEL] -> **Cub**
-- **Tmc** [HAS LEVEL] -> **Predator**
-- **Hunter** [TARGETS] -> **Grade 7 And 8**
-- **Alpha Tiger** [BELONGS TO] -> **Tmc**
-- **Faq A1.4** [MENTIONS] -> **English**
-- **Middle School Contest** [HAS FORMAT] -> **Middle School Contest Format**
-- **Faq A1.8** [ANSWERS ABOUT] -> **Advanced Competitions**
-- **Faq A1.11: How Do I Register For Tmc?** [DIRECTS TO] -> **Http://Www.Olympicmaths.Com**
-- **Faq A1.13: When Is The Competition Date?** [ANSWERS QUESTIONS ABOUT] -> **Tmc**
-- **A2.1** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.4** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.8** [ANSWERS QUESTION ABOUT] -> **Asian Science & Maths Olympiad Competition**
-- **A2.12 How Does Asmo Prevent Cheating?** [ANSWERS ABOUT] -> **Asmo**
-- **Asmo** [DEVELOPED IN] -> **Malaysia**
-- **Asmo** [PARTNERED WITH] -> **Thailand**
-- **Asmo** [PARTNERED WITH] -> **Indonesia**
-- **Asmo** [PARTNERED WITH] -> **Uzbekistan**
-- **Students** [APPLIES FOR] -> **Pajsk**
-- **Primary Level** [USES LANGUAGE] -> **Bahasa Malaysia**
-- **Faq A2.5** [ANSWERS ABOUT] -> **Sample Questions**
-- **Faq A2.7** [ANSWERS ABOUT] -> **Asmopss**
-- **Asmo Winners** [INVITED TO] -> **Asmo International 2025**
-- **Asmo** [HAS LEVEL] -> **State Round**
-- **Asmo** [HAS LEVEL] -> **National Round**
-- **Asmo** [HAS LEVEL] -> **International Round**
-- **International Round** [HELD AT] -> **Bali, Indonesia**
-- **International Round** [HOSTED BY] -> **Asmo Indonesia**
-- **International Round** [SCHEDULED ON] -> **12Th December To 15Th December 2025**
-- **International Round** [HAS FAQ] -> **Who Can Participate In The Asmo International 2025?**
-- **International Round** [HAS FAQ] -> **Can Students Participate In More Than One Subject?**
-- **Students** [PARTICIPATES IN] -> **International Round**
-- **Faq A2.8.3.1** [ANSWERS QUESTIONS ABOUT] -> **Asmo International 2025**
-- **National Round Qualification** [REQUIRED FOR] -> **Asmo International 2025**
-- **Faq A2.8.3.2** [ANSWERS QUESTIONS ABOUT] -> **Student**
-- **One Subject Limit** [APPLIES TO] -> **Student**
-- **Faq A2.8.3.3** [ANSWERS QUESTIONS ABOUT] -> **Award Scheme Pdf**
-- **Faq A2.9** [ANSWERS QUESTIONS ABOUT] -> **Online Mode**
-- **Faq A2.9** [ANSWERS QUESTIONS ABOUT] -> **Offline Mode**
-- **Individual Participant** [RESTRICTED TO] -> **Online Mode**
-- **School Participant** [CAN USE] -> **Online Mode**
-- **School Participant** [CAN USE] -> **Offline Mode**
-- **Centre Participant** [CAN USE] -> **Online Mode**
-- **Centre Participant** [CAN USE] -> **Offline Mode**
-- **A2.10** [TRIGGERS INFO FOR] -> **Asmo**
-- **Asmo** [OFFERS REGISTRATION VIA] -> **Online Registration**
-- **Asmo** [HAS WEBSITE] -> **Www.Asmo2U.Com**
-- **Asmo** [OFFERS] -> **Asmo Science**
-- **Asmo** [OFFERS] -> **Asmo Bahasa Melayu**
-- **Asmo** [OFFERS] -> **Asmo Maths**
-- **Asmo** [OFFERS] -> **Asmo English**
-- **Asmo Science** [HAS PRICE] -> **Rm78**
-- **Asmo Bahasa Melayu** [HAS PRICE] -> **Rm78**
-- **Asmo Maths** [HAS PRICE] -> **Rm98**
-- **Asmo English** [HAS PRICE] -> **Rm98**
-- **Rm78** [INCLUDES] -> **Additional Services**
-- **Rm98** [INCLUDES] -> **Additional Services**
-- **Rm78** [COLLECTED DURING] -> **State Round**
-- **Rm98** [COLLECTED DURING] -> **State Round**
-- **Rm78** [COVERS] -> **National Round**
-- **Rm98** [COVERS] -> **National Round**
-- **Online Mode** [EXCLUDES] -> **Additional Services**
-- **A2.11: What Are The Admininistration Fees?** [ANSWERS WITH] -> **Rm78**
-- **A2.11: What Are The Admininistration Fees?** [ANSWERS WITH] -> **Rm98**
-- **A2.12: How Does Asmo Prevent Cheating During Online Competition?** [MONITORS] -> **Online Mode**
-- **Certificate Of Participation** [DELIVERED TO] -> **Participants**
-- **A6.1 What Is Asmo Global?** [ANSWERS ABOUT] -> **Asmo Global**
-- **A6.2 Who Is Eligible To Participate In The Asmo Global Competition?** [ANSWERS ABOUT] -> **Asmo Global**
-- **A6.3 What Language Is Used In The Asmo Global Competition?** [ANSWERS ABOUT] -> **Asmo Global**
-- **A6.6 How Many Rounds Does Asmo Global Have?** [ANSWERS ABOUT] -> **Asmo Global**
-- **Asmo Global** [OFFERS] -> **Asmo English**
-- **Asmo Global** [REQUIRES] -> **English**
-- **A6.7 Format Faq** [ANSWERS FOR] -> **Asmo Global**
-- **B2. Asmo Bookstore Faq** [PROVIDES INFO ON] -> **Asmo Bookstore**
-- **Iomaths** [OFFERS] -> **Iomaths Pre-School**
-- **Iomaths Primary** [HAS SYLLABUS] -> **Syllabus**
-- **Iomaths Secondary** [HAS TOPIC] -> **C3.1 Schedule**
-- **Asmo Country Partner** [REPRESENTS] -> **Asmo**
-- **Asmo** [OFFERS] -> **Country Partner**
-- **Asmo Country Partner** [RECEIVES] -> **Marketing Materials And Promotional Templates**
-- **Asmo Country Partner** [HAS RESPONSIBILITY] -> **Managing Student Registrations And Inquiries**
-- **Asmo Country Partner** [HAS RESPONSIBILITY] -> **Distributing Certificates, Results, And Awards**
-- **Iomaths** [OFFERS] -> **Iomaths Franchise**
-- **Iomaths Franchise** [HAS POLICY] -> **Responsibility**
-- **Faq List** [ACCESSIBLE FROM] -> **Main Menu**
-- **A6.7 Is Asmo Global Held Online Or Offline?** [ANSWERS ABOUT] -> **Asmo Global**
-- **Asmo Global** [OFFERS] -> **Math And Science Olympiads**
-- **A6.5 Certificate Faq** [ANSWERS FOR] -> **Asmo Global**
-- **A6.7 Format Faq** [BENEFITS] -> **Students**
-- **B. Books Faq** [LEADS TO] -> **B1. Tmc/Bmoc Bookstore Faq**
-- **Iomaths** [OFFERS] -> **Iomaths Secondary**
-- **Iomaths Pre-School** [HAS SCHEDULE] -> **C2.1 Schedule**
-- **Iomaths Secondary** [HAS TOPIC] -> **C3.2 Fee Structure**
-- **Quicken** [OFFERS] -> **D3 Iomaths Franchise**
-- **Asmo Country Partner** [HAS REQUIREMENT] -> **D2.1 Requirements**
-- **Country Partner** [REQUIRES] -> **Education-Based Organization Or Business**
-- **Asmo Country Partner** [REQUIRES] -> **Experience In Managing Student Programs, Competitions, Or Large-Scale Events**
-- **Asmo Country Partner** [RECEIVES] -> **Training On Event Organization, Registration Systems, And Exam Procedures**
-- **Asmo Country Partner** [HAS RESPONSIBILITY] -> **Organizing Exam Logistics**
-- **Iomaths** [OFFERS] -> **Live Streaming Portal**
-- **Live Streaming Portal** [PROVIDES] -> **Live-Streamed Math Courses**
-- **Admin Staff** [REACHABLE AT] -> **Www.Wasap.My/60176424831**
-- **A6.8 What Are The Registration/Admin Fees?** [ANSWERS ABOUT] -> **Asmo Global**
-- **Asmo Global** [TARGETS] -> **Students Without An Official Asmo Country Partner**
-- **A6.6 Rounds Faq** [ANSWERS FOR] -> **Asmo Global**
-- **A6.8 Fees Faq** [ANSWERS FOR] -> **Asmo Global**
-- **B. Books Faq** [LEADS TO] -> **B2. Asmo Bookstore Faq**
-- **Iomaths Primary** [HAS SCHEDULE] -> **Schedule**
-- **Iomaths Pre-School** [HAS PRICE] -> **C2.2 Fee Structure**
-- **Iomaths Secondary** [HAS TOPIC] -> **C3.3 Syllabus**
-- **D1 Quickern** [OFFERS] -> **Olympiad Programs**
-- **Quicken** [TARGETS] -> **Learning Centers**
-- **Asmo Country Partner** [PROVIDES SUPPORT] -> **D2.2 Supports Provided**
-- **Country Partner** [REQUIRES] -> **Strong Network With Schools, Educators, Or Academic Communities**
-- **Asmo Country Partner** [REQUIRES] -> **Ability To Handle Promotion, Registration, And Coordination**
-- **Asmo Country Partner** [RECEIVES] -> **Technical Support And System Access**
-- **Asmo Country Partner** [HAS RESPONSIBILITY] -> **Coordinating With The Asmo International Team**
-- **Iomaths Franchise** [HAS REQUIREMENT] -> **Requirements To Become A Franchisee**
-- **Live-Streamed Math Courses** [TARGETS] -> **Students**
-- **Iomaths.Com.My** [OFFERS] -> **Live Streaming**
-- **Admin Staff** [REACHABLE AT] -> **Www.Wasap.My/60126667325**
-- **A6.4 Are Sample Questions Available?** [ANSWERS ABOUT] -> **Asmo Global**
-- **Asmo Global** [TARGETS] -> **Primary Or Secondary School Students**
-- **A6.4** [TRIGGERS] -> **Please Check This Link**
-- **A6.6 Rounds Faq** [MENTIONS] -> **National Round**
-- **A6.8 Fees Faq** [STATES PRICE] -> **Usd 45**
-- **Asmo** [HAS WEBSITE] -> **Https://Www.Asmo2U.Com/**
-- **Iomaths** [OFFERS] -> **Iomaths Primary**
-- **Iomaths Primary** [HAS PRICE] -> **Fee Structure**
-- **Iomaths** [OFFERS] -> **Iomaths Course**
-- **Iomaths Pre-School** [HAS REQUIREMENT] -> **C2.3 Syllabus**
-- **D1 Quickern** [PROVIDES] -> **D2 Asmo Country Partner**
-- **Quicken** [TARGETS] -> **Education Providers**
-- **Asmo Country Partner** [REQUIRES RESPONSIBILITY] -> **D3.3 Responsibility**
-- **Asmo Country Partner** [RECEIVES] -> **Official Asmo Branding And Partnership Rights**
-- **Asmo Country Partner** [HAS RESPONSIBILITY] -> **Promoting Asmo Competitions**
-- **Iomaths Franchise** [HAS PRICE] -> **Franchise Fee**
-- **Live-Streamed Math Courses** [TARGETS] -> **Competition-Preparing Students**
-- **Admin Staff** [REACHABLE AT] -> **Www.Wasap.My/60183188866**
+- **I Bag Marketing Master Guide** [COVERS] -> **Handbags**
+- **I Bag Marketing Master Guide** [COVERS] -> **All Categories**
+- **Customer Journey** [STARTS WITH] -> **Greeting**
+- **Size/Color Check** [NEXT STEP] -> **Order**
+- **Upsell** [NEXT STEP] -> **Close**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Complete Product Catalog With Scripts**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Size, Color & Variant Handling**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Promotions & Campaign Scripts**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Faq - Auto Reply Scripts**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Re-Engagement & Loyalty Scripts**
+- **Accessories** [UPSELL TO] -> **Bag Order**
+- **Free Shipping** [MENTIONED IN] -> **Order Summary**
+- **Order Summary** [CONFIRMED BEFORE PAYMENT] -> **Customer**
+- **Product Info** [BUILDS TRUST WITH] -> **Customer**
+- **Top Handle Structured** [BELONGS TO] -> **Ladies Handbags & Shoulder Bags**
+- **Classic Tote Bag** [HAS PRICE] -> **Rm 45-65**
+- **Bucket Bag** [HAS PRICE] -> **Rm 55-75**
+- **Duffle Bag Weekend** [HAS PRICE] -> **Rm75-110**
+- **Laptop Sleeve 13-15"** [HAS PRICE] -> **Rm25-45**
+- **Laptop Sleeve** [HAS COLOR] -> **Grey**
+- **Laptop Sleeve** [HAS PRICE] -> **Rm25-45**
+- **Briefcase** [HAS PRICE] -> **Rm 110-160**
+- **Nama Kedai** [SELLS] -> **Handbags & Sling Bags**
+- **Nama Kedai** [SELLS] -> **Office & Laptop Bags**
+- **Nama Kedai** [OFFERS] -> **Free Gift Wrapping Untuk Hadiah**
+- **Customer** [SEEKS] -> **Travel Bag**
+- **Daily Use Bag** [INCLUDES] -> **Sling Bag**
+- **Travel Bag** [INCLUDES] -> **Spinner Luggage**
+- **Gift Bag** [INCLUDES] -> **Gift Wrapping**
+- **Gift Bag** [HAS PRICE] -> **Above Rm100**
+- **Classic Tote Bag** [HAS PRICE] -> **Rm45**
+- **Mini Sling** [HAS COLOR] -> **Brown**
+- **Mini Sling** [HAS COLOR] -> **Olive**
+- **Shoulder Bag** [HAS COLOR] -> **Brown**
+- **Shoulder Bag** [HAS COLOR] -> **Olive**
+- **Tote Bag (S)** [HAS COLOR] -> **Brown**
+- **Tote Bag (S)** [HAS COLOR] -> **Olive**
+- **Tote Bag (L)** [HAS COLOR] -> **Brown**
+- **Tote Bag (L)** [HAS COLOR] -> **Olive**
+- **Backpack (School)** [HAS COLOR] -> **Brown**
+- **Backpack (School)** [HAS COLOR] -> **Olive**
+- **Backpack (Laptop)** [HAS COLOR] -> **Brown**
+- **Backpack (Laptop)** [HAS COLOR] -> **Olive**
+- **Travel Backpack** [HAS COLOR] -> **Brown**
+- **Travel Backpack** [HAS COLOR] -> **Olive**
+- **Duffle 40L** [HAS COLOR] -> **Brown**
+- **Duffle 40L** [HAS COLOR] -> **Olive**
+- **Luggage 20"** [HAS COLOR] -> **Brown**
+- **I Bag Marketing Master Guide** [COVERS] -> **Backpacks**
+- **Greeting** [NEXT STEP] -> **Browse**
+- **Order** [NEXT STEP] -> **Objection**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Greeting & Opening Messages**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Order Collection Flow (Step-By-Step)**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Customer Objection Handling**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Sales Psychology Trigger Lines**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Closing & After-Sales Scripts**
+- **Bag Order** [INQUIRY VIA] -> **Whatsapp**
+- **Matching Sets** [UPSELL TO] -> **Bag Order**
+- **Product Photo Link** [SENT TO] -> **Customer**
+- **Color** [REQUIRED FOR] -> **Bag Order**
+- **Quality Complaint** [ADDRESSED TO] -> **Customer**
+- **Classic Tote Bag** [BELONGS TO] -> **Ladies Handbags & Shoulder Bags**
+- **Bucket Bag** [BELONGS TO] -> **Ladies Handbags & Shoulder Bags**
+- **Mini Sling Bag** [HAS PRICE] -> **Rm 35-55**
+- **School Backpack** [HAS PRICE] -> **Rm 55-85**
+- **Laptop Backpack** [HAS PRICE] -> **Rm95-145**
+- **Spinner Luggage 20"** [HAS PRICE] -> **Rm189-250**
+- **Laptop Sleeve** [HAS COLOR] -> **Black**
+- **Briefcase** [AVAILABLE IN] -> **Black**
+- **Nama Kedai** [SELLS] -> **Backpacks (School & Laptop)**
+- **Nama Kedai** [OFFERS] -> **Beli 2 Dapat 10% Off**
+- **Customer** [SEEKS] -> **Daily Use Bag**
+- **Daily Use Bag** [INCLUDES] -> **Backpack**
+- **Daily Use Bag** [INCLUDES] -> **Top Handle Bag**
+- **Travel Bag** [INCLUDES] -> **Travel Backpack 30L**
+- **Gift Bag** [HAS PRICE] -> **Rm50**
+- **Spinner Luggage** [HAS PRICE] -> **Rm189-250**
+- **Weekend Duffle** [HAS PRICE] -> **Rm75-110**
+- **Mini Sling Bag** [HAS PRICE] -> **Rm35**
+- **Mini Sling** [HAS COLOR] -> **Black**
+- **Mini Sling** [HAS COLOR] -> **Pink**
+- **Shoulder Bag** [HAS COLOR] -> **Black**
+- **Shoulder Bag** [HAS COLOR] -> **Pink**
+- **Tote Bag (S)** [HAS COLOR] -> **Black**
+- **Tote Bag (S)** [HAS COLOR] -> **Pink**
+- **Tote Bag (L)** [HAS COLOR] -> **Black**
+- **Tote Bag (L)** [HAS COLOR] -> **Pink**
+- **Backpack (School)** [HAS COLOR] -> **Black**
+- **Backpack (School)** [HAS COLOR] -> **Pink**
+- **Backpack (Laptop)** [HAS COLOR] -> **Black**
+- **Backpack (Laptop)** [HAS COLOR] -> **Pink**
+- **Travel Backpack** [HAS COLOR] -> **Black**
+- **Travel Backpack** [HAS COLOR] -> **Pink**
+- **Duffle 40L** [HAS COLOR] -> **Black**
+- **Duffle 40L** [HAS COLOR] -> **Pink**
+- **Luggage 20"** [HAS COLOR] -> **Black**
+- **Luggage 20"** [HAS COLOR] -> **Pink**
+- **Luggage 24"** [HAS COLOR] -> **Black**
+- **Luggage 24"** [HAS COLOR] -> **Pink**
+- **Customer** [INQUIRES ABOUT] -> **Genuine Leather**
+- **I Bag Marketing Master Guide** [COVERS] -> **Travel Bags**
+- **Chatbot** [FOLLOWS] -> **Customer Journey**
+- **Browse** [NEXT STEP] -> **Size/Color Check**
+- **Objection** [NEXT STEP] -> **Upsell**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Business Overview & Bot Rules**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Product Discovery - Help Customer Choose**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Upsell & Cross-Sell Scripts**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Shipping & Delivery Sop**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Seasonal Campaigns (Malaysia)**
+- **Bag Marketing Master Guide** [CONTAINS] -> **Content Marketing & Social Media Ideas**
+- **Customer** [ORDERS] -> **Bag Order**
+- **Bundles** [UPSELL TO] -> **Bag Order**
+- **Catalog Link** [SENT TO] -> **Customer**
+- **Size** [REQUIRED FOR] -> **Bag Order**
+- **Upsell** [OFFERED TO] -> **Customer**
+- **Mini Sling Bag** [BELONGS TO] -> **Ladies Handbags & Shoulder Bags**
+- **School Backpack** [BELONGS TO] -> **Backpacks**
+- **Top Handle Structured** [HAS PRICE] -> **Rm 89-120**
+- **Laptop Backpack** [HAS PRICE] -> **Rm 95-145**
+- **Travel Backpack 30L** [HAS PRICE] -> **Rm120-180**
+- **Spinner Luggage 24"** [HAS PRICE] -> **Rm229-299**
+- **Laptop Sleeve** [FITS] -> **13" To 15" Laptops**
+- **Laptop Sleeve** [HAS COLOR] -> **Navy**
+- **Briefcase** [AVAILABLE IN] -> **Dark Brown**
+- **Nama Kedai** [SELLS] -> **Travel Bags & Luggage**
+- **Nama Kedai** [OFFERS] -> **Free Shipping Above Rm150**
+- **Customer** [SEEKS] -> **Gift Bag**
+- **Daily Use Bag** [INCLUDES] -> **Tote**
+- **Daily Use Bag** [INCLUDES] -> **Laptop Bag**
+- **Travel Bag** [INCLUDES] -> **Weekend Duffle**
+- **Gift Bag** [HAS PRICE] -> **Rm50-100**
+- **Spinner Luggage** [HAS PRICE] -> **Rm229-299**
+- **Laptop Backpack** [HAS PRICE] -> **Rm95**
+- **Mini Sling** [HAS COLOR] -> **White**
+- **Mini Sling** [HAS COLOR] -> **Navy**
+- **Shoulder Bag** [HAS COLOR] -> **White**
+- **Shoulder Bag** [HAS COLOR] -> **Navy**
+- **Tote Bag (S)** [HAS COLOR] -> **White**
+- **Tote Bag (S)** [HAS COLOR] -> **Navy**
+- **Tote Bag (L)** [HAS COLOR] -> **White**
+- **Tote Bag (L)** [HAS COLOR] -> **Navy**
+- **Backpack (School)** [HAS COLOR] -> **White**
+- **Backpack (School)** [HAS COLOR] -> **Navy**
+- **Backpack (Laptop)** [HAS COLOR] -> **White**
+- **Backpack (Laptop)** [HAS COLOR] -> **Navy**
+- **Travel Backpack** [HAS COLOR] -> **White**
+- **Travel Backpack** [HAS COLOR] -> **Navy**
+- **Duffle 40L** [HAS COLOR] -> **White**
+- **Duffle 40L** [HAS COLOR] -> **Navy**
+- **Luggage 20"** [HAS COLOR] -> **White**
+- **Luggage 20"** [HAS COLOR] -> **Navy**
+- **Luggage 24"** [HAS COLOR] -> **White**
+- **Luggage 24"** [HAS COLOR] -> **Navy**
+- **Product** [MADE OF] -> **Pu Leather**
+- **Product** [MADE OF] -> **Canvas**
+- **Product** [HAS PROPERTY] -> **Waterproof**
+- **Product** [HAS HARDWARE] -> **Silver Tone**
+- **Product** [SUITABLE FOR] -> **Travel**
+- **Bag Marketing Master Guide** [HAS STEP] -> **Pickup Or Delivery**
+- **Bag Marketing Master Guide** [HAS STEP] -> **Payment**
+- **Free Shipping** [THRESHOLD] -> **Rm150**
+- **Delivery Info** [PREFERRED COURIER] -> **Lalamove**
+- **Luggage Tag** [ACCESSORY FOR] -> **Backpack**
+- **Bundle** [INCLUDES] -> **Travel Pillow**
+- **Coin Pouch** [ACCESSORY FOR] -> **Sling Bag**
+- **Luggage 20"** [HAS COLOR] -> **Olive**
+- **Luggage 24"** [HAS COLOR] -> **Brown**
+- **Luggage 24"** [HAS COLOR] -> **Olive**
+- **Product** [MADE OF] -> **Genuine Leather**
+- **Product** [MADE OF] -> **Polyester**
+- **Product** [HAS PROPERTY] -> **Regular**
+- **Product** [SUITABLE FOR] -> **Daily Use**
+- **Bag Marketing Master Guide** [HAS STEP] -> **Delivery Info**
+- **Bag Marketing Master Guide** [HAS STEP] -> **Confirmation & Tracking**
+- **Delivery Info** [PREFERRED COURIER] -> **J&T**
+- **Payment** [ACCEPTS] -> **Duitnow**
+- **Matching Wallet** [ACCESSORY FOR] -> **Handbag**
+- **Travel Pillow** [ACCESSORY FOR] -> **Backpack**
+- **Bag Organizer Insert** [TRIGGERS] -> **Free Shipping**
+- **Product** [MADE OF] -> **Nylon**
+- **Product** [HAS PROPERTY] -> **Water Resistant**
+- **Product** [HAS HARDWARE] -> **Gold Tone**
+- **Product** [SUITABLE FOR] -> **Work**
+- **Bag Marketing Master Guide** [HAS STEP] -> **Product + Variant Confirmed**
+- **Bag Marketing Master Guide** [HAS STEP] -> **Order Summary**
+- **Pickup Or Delivery** [MENTIONS] -> **Free Shipping**
+- **Delivery Info** [PREFERRED COURIER] -> **Pos Laju**
+- **Payment** [ACCEPTS] -> **Bank Transfer**
+- **Card Holder** [ACCESSORY FOR] -> **Handbag**
+- **Bundle** [INCLUDES] -> **Luggage Tag**
+- **Gift Set** [INCLUDES] -> **Gift Wrapping**
+- **Buy 2 Get 10% Off** [APPLIES TO] -> **Bag**
+- **Bundle Deal** [INCLUDES] -> **Accessory**
+- **Birthday Month** [TARGETS] -> **Customer**
+- **15% Off** [VALID FOR] -> **48 Hours**
+- **Customer** [RAISES] -> **Trust Objection**
+- **Price Objection** [HAS ALTERNATIVE] -> **Rm35**
+- **Product Accuracy Objection** [ADDRESSED BY] -> **Video Call**
+- **Semenanjung** [SERVED BY] -> **Pos Laju**
+- **Dust Bag** [MENTIONED IN] -> **Bag Marketing Master Guide**
+- **Standard Shipping** [HAS PRICE] -> **Rm15-18**
+- **Free Shipping** [REQUIRES MINIMUM] -> **Rm150**
+- **Same-Day Delivery** [USES SUPPLIER] -> **Lalamove**
+- **Delivery (Peninsula)** [USES SUPPLIER] -> **Pos Laju**
+- **Bot** [RESPONDS TO] -> **Customer**
+- **Custom Order** [HAS PRICE] -> **Custom Surcharge**
+- **Pu Leather** [MATERIAL FOR] -> **Custom Order**
+- **Dhl** [SHIPPED BY] -> **Custom Order**
+- **Pre-Order & Custom Processing Time** [APPLIES TO] -> **Custom Order**
+- **Customer** [INQUIRES ABOUT] -> **Cod**
+- **Student Discount** [APPLIES TO] -> **Laptop Bag**
+- **Scarcity** [HIGHLIGHTS] -> **Stock**
+- **End Of Month** [HAS DEADLINE] -> **Flash Sale**
+- **Social Proof** [HIGHLIGHTS] -> **Popular Color**
+- **Social Proof** [HIGHLIGHTS] -> **Orders This Week**
+- **Back-To-School Student Bundle** [INCLUDES] -> **Backpack**
+- **Repeat Customer** [ELIGIBLE FOR] -> **Loyalty Discount 10%**
+- **Customer Who Left Without Ordering** [ELIGIBLE FOR] -> **Promo Aktif Sekarang**
+- **Customer After Successful Order** [PARTICIPATES IN] -> **Referral Program**
+- **Customer** [MAKES PAYMENT FOR] -> **Order**
+- **Customer** [CAN REVIEW ON] -> **Review Platform**
+- **Quality Complaint** [REQUIRES] -> **Photo Of Defect**
+- **Quality Complaint** [MAY RESULT IN] -> **Replace**
+- **Instagram** [HAS CONTENT TYPE] -> **Reels**
+- **Tiktok** [HAS CONTENT TYPE] -> **Reels**
+- **Youtube** [HAS CONTENT TYPE] -> **Shorts**
+- **Carousel** [FEATURES] -> **Bag**
+- **Shorts** [FEATURES] -> **Bag**
+- **Bag** [INCLUDES] -> **Accessories**
+- **Bag** [COMPARED WITH] -> **Water Bottle**
+- **Promotions** [RELATED TO] -> **Bag**
+- **Free Shipping Rm150+** [THRESHOLD] -> **Rm150**
+- **New Arrival Discount** [APPLIES TO] -> **Bag**
+- **Follow & Shop** [TARGETS] -> **First-Time Customer**
+- **15% Off** [TARGETS] -> **First Buyers**
+- **Customer** [RAISES] -> **Product Accuracy Objection**
+- **Product Accuracy Objection** [ADDRESSED BY] -> **Real Photos**
+- **Return Policy Objection** [ADDRESSED BY] -> **7-Day Return Policy**
+- **Same-Day Delivery** [PROVIDED BY] -> **Lalamove**
+- **Sabah/Sarawak** [SERVED BY] -> **J&T**
+- **Gift Wrapping** [MENTIONED IN] -> **Bag Marketing Master Guide**
+- **Standard Shipping** [SERVES LOCATION] -> **Semenanjung**
+- **Free Shipping** [APPLIES TO] -> **Semenanjung**
+- **Same-Day Delivery** [USES SUPPLIER] -> **Grab Express**
+- **Customer** [INQUIRES ABOUT] -> **Standard Shipping**
+- **Custom Order** [OFFERS] -> **Standard Size**
+- **Warranty** [COVERS] -> **Custom Order**
+- **J&T Express** [SHIPPED BY] -> **Custom Order**
+- **Lalamove** [SHIPPED BY] -> **Custom Order**
+- **Customer Reviews** [RELATES TO] -> **Custom Order**
+- **Cod** [AVAILABLE FOR] -> **Customer**
+- **Student Discount** [TARGETS] -> **Student**
+- **Social Proof** [MENTIONS] -> **Influencer**
+- **Gift Wrapping** [RELATED TO] -> **Gift Packaging**
+- **Bag** [TARGETS] -> **Working Professional**
+- **Bundle** [PROMOTES] -> **Free Shipping**
+- **Back-To-School Student Bundle** [INCLUDES] -> **Pencil Case**
+- **Repeat Customer** [ELIGIBLE FOR] -> **Priority Access For New Arrivals**
+- **Customer Who Hasn'T Ordered In 30+ Days** [RECEIVES] -> **Win-Back Offer**
+- **Customer Who Left Without Ordering** [RECEIVES] -> **Abandoned Chat Follow-Up**
+- **Order** [PROVIDES] -> **Tracking Number**
+- **Customer** [CAN INQUIRE ABOUT] -> **Product**
+- **Quality Complaint** [REQUIRES] -> **Order Number**
+- **Quality Complaint** [MAY RESULT IN] -> **Repair**
+- **Instagram** [HAS CONTENT TYPE] -> **Stories**
+- **Whatsapp** [HAS CONTENT TYPE] -> **Status**
+- **Reels** [FEATURES] -> **Bag**
+- **Status** [FEATURES] -> **Nama Bag**
+- **Bag** [PRICED UNDER] -> **Rm100**
+- **Bag** [COMPARED WITH] -> **A4 Paper**
+- **Price** [ASSOCIATED WITH] -> **Bag**
+- **Bot With Wrong Info** [PART OF] -> **Marketing Master Guide**
+- **Bundle Deal** [INCLUDES] -> **Bag**
+- **Referral Reward** [REWARD AMOUNT] -> **Rm10**
+- **Section 8** [PART OF] -> **Bag Marketing Master Guide**
+- **Customer** [RAISES] -> **Price Objection**
+- **Customer** [RAISES] -> **Return Policy Objection**
+- **Product Accuracy Objection** [ADDRESSED BY] -> **Short Video**
+- **Semenanjung** [SERVED BY] -> **J&T**
+- **Sabah/Sarawak** [SERVED BY] -> **Pos Laju**
+- **Tag & Authenticity Card** [MENTIONED IN] -> **Bag Marketing Master Guide**
+- **Standard Shipping** [HAS PRICE] -> **Rm8-12**
+- **Standard Shipping** [SERVES LOCATION] -> **Sabah/Sarawak**
+- **Same-Day Delivery** [HAS PRICE] -> **Rm15-30**
+- **Delivery (Peninsula)** [USES SUPPLIER] -> **J&T**
+- **Customer** [INQUIRES ABOUT] -> **Same-Day Delivery**
+- **Custom Order** [OFFERS] -> **Custom Size**
+- **Genuine Leather** [MATERIAL FOR] -> **Custom Order**
+- **Pos Laju** [SHIPPED BY] -> **Custom Order**
+- **Order Processing Time** [APPLIES TO] -> **Custom Order**
+- **Student Discount** [APPLIES TO] -> **Backpack**
+- **Flash Sale** [HAS CONDITION] -> **Same-Day Dispatch**
+- **Social Proof** [HIGHLIGHTS] -> **Bestseller**
+- **Influencer** [USES] -> **Bag**
+- **Customer** [CARRIES] -> **Bag**
+- **Price Point** [ASSOCIATED WITH] -> **Bundle**
+- **Hari Raya Gift Bag Set** [INCLUDES] -> **Free Wrapping**
+- **Year-End Sale Clearance** [OFFERS] -> **Up To 50% Off**
+- **Customer Who Hasn'T Ordered In 30+ Days** [ELIGIBLE FOR] -> **Rm10 Off Next Order**
+- **Customer After Successful Order** [ELIGIBLE FOR] -> **Referral Reward**
+- **Repeat Customer** [RECEIVES] -> **Loyalty Perks**
+- **Customer** [PURCHASES] -> **Bag**
+- **Customer** [SUBMITS] -> **Quality Complaint**
+- **Quality Complaint** [REQUIRES] -> **Purchase Date**
+- **Quality Complaint** [MAY RESULT IN] -> **Refund**
+- **Instagram** [HAS CONTENT TYPE] -> **Carousel**
+- **Whatsapp** [HAS CONTENT TYPE] -> **Broadcast**
+- **Stories** [FEATURES] -> **Bag**
+- **Broadcast** [FEATURES] -> **Bag**
+- **Bag** [COMPARED WITH] -> **13" Laptop**
+- **New Products** [RELATED TO] -> **Bag**
 
 ## Knowledge Refinement Q&A
 *No custom refined Q&A clarifications have been added yet.*
 
 ## Document Text Chunks
 ### Chunk 1
-You are an AI Assistant to sound warm, friendly and natural - like a helpful person having a genuine conversation.  Always greet with warm and cheerful conversation  Never use robotic phrases  Keep replies short, simple, clear and relatable  Add a positive tone - imagine that you're having a cheerful conversation Examples: - Hey there! How can I help you today? - Appreciate you sharing that! Let's see what we can do. - Let me know if anything's unclear - happy to explain more! Avoid: ❌"Greetings. How may I assist you?" ❌"Your inquiry has been recorded." ❌"As per your request, the following options are available." Make every conversation feel like it's with a friendly expert who genuinely wants to help. You are an AI assistant for **Tiger Maths Competition**. Your role is to help customers with inquiries related to Tiger Maths Competition - including contest details, MOE recognition and contest rules & guidelines Always reply in a helpful, professional, and calm tone. Speak like a human, not like a bot. Please remove all asterisks from the text (**) do not show symbols like #*. Initial Interaction & Main Menu: Start every conversation by checking what the customer needs help with. Trigger Keywords for Initial Greeting: "hello", "hi", "hey", "morning", "afternoon", "salam" Initial Response: "Hello! Thank you for reaching out to us.
+Section: I BAG MARKETING MASTER GUIDE Complete WhatsApp Auto-Reply Chatbot Knowledge Base For Handbags · Backpacks · Travel Bags · All Categories
 
 ### Chunk 2
-I'm OlympicEdu, your AI assistant, here to help you with anything you need. How can I assist you today?"
+Section: I HOW TO USE THIS GUIDE This is your chatbot's complete brain for selling bags on WhatsApp. Each section follows the customer journey: Greeting → Browse → Size/Color Check → Order → Objection → Upsell → Close. Copy scripts directly into your bot. Fill in [brackets] with your real info.
 
 ### Chunk 3
-Chatbot Response: "The TMC is divided into 6 levels according to grade:  Cub: Grade 1 and 2  Prowler: Grade 3 and 4  Stalker: Grade 5 and 6  Hunter: Grade 7 and 8  Predator: Grade 9 and 10
+Section: I TABLE OF CONTENTS # Section Pg 1 Business Overview & Bot Rules 2 2 Complete Product Catalog with Scripts 2 3 Greeting & Opening Messages 3 4 Product Discovery - Help Customer Choose 3 5 Size, Color & Variant Handling 4 6 Order Collection Flow (Step-by-Step) 4 7 Upsell & Cross-Sell Scripts 5 8 Promotions & Campaign Scripts 5 9 Customer Objection Handling 6 10 Shipping & Delivery SOP 6 11 FAQ - Auto Reply Scripts 7 12 Sales Psychology Trigger Lines 7 13 Seasonal Campaigns (Malaysia) 8 14 Re-Engagement & Loyalty Scripts 8 15 Closing & After-Sales Scripts 9 16 Content Marketing & Social Media Ideas 9 Bag Marketing Master Guide · Page 1
 
 ### Chunk 4
-Chatbot Response: "The TMC Competition is scheduled for 21st June 2025 and will be conducted online." A1.14: When are results announced?
+Section: SECTION 1 · BUSINESS OVERVIEW & BOT BEHAVIOR RULES I Business Goals Goal Detail Primary Convert every WhatsApp inquiry into a confirmed bag order Secondary Increase basket size via accessories, matching sets & bundles Tertiary Build customer trust with fast, accurate product info Tone Stylish · Friendly · Confident · Helpful · Emojis (moderate) Language Bahasa Malaysia + English mix (Manglish OK) Response Reply within 1 message - keep it short, scannable, visual I Bot Golden Rules I Always Do • Always ask for preferred color/size BEFORE confirming stock. • Show 2-3 product options max - too many choices = no choice. • Use lifestyle language: 'perfect for travel', 'fits your laptop'. • Mention free shipping threshold in every order conversation. • Send product photo link or catalog link when customer asks to see. • Confirm full order summary BEFORE requesting payment. • Thank every customer & invite them to share / review. I Never Do • Never confirm stock without checking - avoid overselling. • Never give vague answers on size - always give cm/inch measurements. • Never ignore a quality complaint - offer solution immediately. • Never push too many upsells - 1 upsell per conversation. • Never invent product features not in your catalog. • Never end a chat without a clear next step (CTA).
 
 ### Chunk 5
-" attach this file : https://drive.google.com/uc?export=download&id=1pzvjlTcWI9fqGk5YUKsDtMI6iS dNX54n & https://drive.google.com/uc?export=download&id=1h8hxbYABJnwxoKv_KSHkCKP U_W-VHpL9 A2.3: Who is eligible to participate in the ASMO competition?
+Section: SECTION 2 · COMPLETE PRODUCT CATALOG WITH BOT SCRIPTS I Ladies Handbags & Shoulder Bags Tote Bag Classic RM 45-65 I Bestseller Spacious, structured, fits A4 documents. PU leather. Colors: Black, Brown, Nude, Beige. Bot Script: Our Classic Tote Bag is a must-have! I Fits A4, laptop & daily essentials. RM45-65 depending on size. Which color do you prefer? Black, Brown, Nude or Beige? I Bag Marketing Master Guide · Page 2 Sling Bag Mini RM 35-55 I Trending Compact crossbody. Adjustable strap. PU leather. Colors: Black, Pink, White, Tan. Bot Script: So cute & practical! I Mini Sling Bag at RM35-55. Adjustable strap, fits phone + cards + keys. Color preference? I Top Handle Structured RM 89-120 I Premium Office-ready. Gold hardware. Fits 13" laptop. Colors: Black, Navy, Burgundy. Bot Script: This one is a showstopper for the office! I Top Handle Bag RM89-120. Gold hardware, fits 13" laptop. Want to see more photos? I Bucket Bag RM 55-75 I Popular Relaxed boho style, drawstring closure, inner zip pocket. Colors: Caramel, Black, Olive. Bot Script: Boho vibes! I Bucket Bag at RM55-75. Roomy & stylish, drawstring top. Caramel, Black or Olive - which speaks to you? I I Backpacks School Backpack RM 55-85 I Top Pick 15L capacity, padded straps, multiple pockets. Fits A4 books. Waterproof nylon. Bot Script: Perfect for school! I School Backpack RM55-85.
 
 ### Chunk 6
-(Terms & Conditions apply). " A2.8: How many rounds does ASMO have? Trigger Keyword: User replies with "A2.8". Chatbot Response: "ASMO Competition Levels: A2.8.1 State Round A2.8.2 National Round A2.8.3 International Round (2025 in Bali, Indonesia - T&C apply) " Please reply with the appropriate code for any round you'd like more info on. Eg: A2.8.1 Preset Answers for Selected Questions (User replies with corresponding code): A2.8.1: State Round Trigger Keyword: User replies with "A2.8.1". Chatbot Response: "Display this image https://drive.google.com/uc?export=download&id=14JWsQR- AgrhB6b59VVidvWb4_qVJNPZG A2.8.2: National Round Trigger Keyword: User replies with "A2.8.2". Chatbot Response: "Display this image https://drive.google.com/uc?export=download&id=1dnu0IFp2ua7cbB6lBrV UFzTrS18uje5H A2.8.3: International Round Trigger Keyword: User replies with "A2.8.3". Chatbot Response: "The ASMO International Round 2025 will be held in Bali, Indonesia, for 4 days and 3 nights, from 12th December to 15th December 2025, and will be hosted by ASMO Indonesia. Participants will stay at a luxurious 4-star hotel, and a variety of exciting activities are planned throughout the event." Please check common FAQ list for ASMO International 2025 below: A2.8.3.1 Who can participate in the ASMO International 2025? A2.8.3.2 Can students participate in more than one subject?
+Fits 13" to 15" laptops. Colors: Grey, Black, Navy. Bot Script: Protect your laptop in style! I Sleeve RM25-45. What size laptop do you have - 13" or 15"? I
 
 ### Chunk 7
-www.asmo2u.com. For those who wish to register under a school, please liaise with the teacher-in-charge to proceed with the registration. " A2.11: What are the admininistration fees? Trigger Keyword: User replies with "A1.12". Chatbot Response: "There is no charge for registration to join ASMO. However, an optional one time payment of administration fee applies for participants who wish to receive additional services such as marking, ranking, awards, certificates, and an e- report. The administration fee is RM78 per participant and subject for ASMO Science and ASMO Bahasa Melayu, and RM98 for ASMO Maths and ASMO English. This fee is not mandatory. Participants who choose not to pay the administration fee are still welcome to join the event through online mode but will not have access to additional services such as marking, ranking, awards, certificates, and an e-report. The administration fee is collected only during the registration for the State Round and will cover the services for both the State and National Rounds." A2.12: How does ASMO prevent cheating during online competition? Trigger Keyword: User replies with "A2.12". Chatbot Response: "ASMO uses a few review methods during the competition to help ensure fairness. This includes checking how long each participant takes to finish the paper and how much time is spent on each question.
+I I Tip: Always mention active promos immediately - it builds excitement.
 
 ### Chunk 8
-A6.6 How many rounds does ASMO Global have? A6.7 Is ASMO Global held online or offline? A6.8 What are the registration/admin fees? Please reply with the appropriate code of the question you'd like an answer to: Eg : A6.6 A6.1 What is ASMO Global? Trigger Keyword: User replies with "A6.1". Chatbot Response: "ASMO Global is for students from countries without an official ASMO Country Partner. It allows them to join ASMO competitions directly, so they won't miss the chance to participate in international Math and Science Olympiads and ASMO English. Everyone deserves a seat even if your country doesn't have a local organizer!" A6.2 Who is eligible to participate in the ASMO Global competition? Trigger Keyword: User replies with "A6.2". Chatbot Response: "Students are eligible to join ASMO Global if:  Their country does not have an official ASMO Country Partner  They are in primary or secondary school (Grade 1 - 12)) ASMO Global is open to individual international students from any region without local ASMO representation." A6.3 What language is used in the ASMO Global competition? Trigger Keyword: User replies with "A6.3". Chatbot Response: "ASMO Global competitions are administered in English. All questions, instructions, and answer sheets are provided exclusively in English to ensure global consistency and fairness." A6.4 Are sample questions available?
+Section: SECTION 4 · PRODUCT DISCOVERY - HELP CUSTOMER CHOOSE lagi details! I I Tip: Lead with bestsellers to reduce decision fatigue. Bag Marketing Master Guide · Page 6
 
 ### Chunk 9
-My default language is English, but I'm able to translate into any language as needed. Just let me know your preferred language by saying: "Please translate to [language name]." Please reply with the appropriate code based on your inquiry: A. Competitions B. Books C. Course/Training D. Biz Opportunities E. Live Streaming Portal Eg: A A : Competitions Trigger Keyword: User replies with "A". Chatbot Response: "Got it! Here is a list of our competitions:" A1. Tiger Maths Competition (TMC) A2. Asian Science & Maths Olympiad (ASMO) A3. Sudoku Challenge Championship (SCC) A4. Asia Chess Tournament (ACT) A5. World MathFusion Olympiad (WMO) A6. ASMO Global Please let us know which one you're inquiring about. Please reply with the appropriate code based on your inquiry: Eg: A1 A1: Tiger Maths Competition (TMC) Trigger Keyword: User replies with "A1". Chatbot Response: "Got it! Here are some common questions about TMC :" A1.1 What is TMC (Tiger Maths Competition)? A1.2 Is TMC approved by the Education Ministry (KPM)? A1.3 How are TMC categories arranged by grade? A1.4 What language is used in the TMC competition? A1.5 How many questions are there and what's the duration? A1.6 Are sample questions available? A1.7 Will all participants receive a certificate? A1.8 Can TMC participants join advanced competitions? A1.9 How many rounds does TMC have? A1.10 Is TMC held online or offline?
+Section: SECTION 5 · SIZE, COLOR & VARIANT HANDLING Bagus soalan! I [Nama produk] dibuat dari: I [PU Leather / Genuine Leather / Nylon / Canvas / Polyester] I [Water resistant / Waterproof / Regular] I Hardware: [Gold / Silver tone] Sesuai untuk guna harian / kerja / travel. Ada soalan lain? I I Tip: Material transparency builds trust - be specific.
 
 ### Chunk 10
- Alpha Tiger: Grade 11 and 12 (Note: One source lists up to Grade 13 for Alpha Tiger) " A1.4: What language is used in the TMC competition? Trigger Keyword: User replies with "A1.4". Chatbot Response: "The TMC competition papers, for both primary and secondary school groups, use three languages: Bahasa, Chinese, and English. " A1.5: How many questions are there and what's the duration? Trigger Keyword: User replies with "A1.5". Chatbot Response: "For the primary school contest, there are 20 questions and the answering time is 60 minutes. For the middle school (secondary) contest, there are 25 questions and the answering time is 75 minutes. " A1.6: Are sample or past year questions available? Trigger Keyword: User replies with "A1.6". Chatbot Response: "Yes, we do have sample questions for reference! You can follow our Facebook page, Tiger Maths Competition, where sample questions for the competition will be posted from time to time. Facebook : https://www.facebook.com/tmctigermathscompetition/ " A1.7: Will all participants receive a certificate? Trigger Keyword: User replies with "A1.7". Chatbot Response: "Certificates will only be issued to participants who have paid the administration fee." A1.8: Can TMC participants join advanced competitions? Trigger Keyword: User replies with "A1.8". Chatbot Response: "Yes!
+Section: SECTION 7 · UPSELL & CROSS-SELL SCRIPTS Trigger upsell AFTER customer commits to 1 item. Frame upsell as helpful advice, not a sales push. Max 1 upsell per conversation. I Customer: Customer buys a handbag I Bot reply: Nice choice! I By the way, ramai customer pasang dengan Matching Wallet / Card Holder kami - same leather finish, look super coordinated! Nak tengok? Dari RM15 je! I I Tip: Accessory upsell is low-friction and high-margin. I Customer: Customer buys a backpack I Bot reply: Great pick! I Satu lagi - ada Luggage Tag & Travel Pillow set yang sangat popular dengan backpack buyers. Bundle at RM25 (save RM10). Interested? vI I Tip: Bundle framing shows clear savings value. I Customer: Customer near free shipping threshold I Bot reply: Almost free shipping! I Order anda sekarang RM[X]. Tambah RM[Y] lagi - contoh Bag Organizer Insert (RM25) - dan dapat FREE shipping! Berbaloi sangat! I I Tip: Calculate the gap and suggest a specific add-on product. I Customer: Customer buying for themselves - suggest gift set I Bot reply: Sambil beli untuk diri sendiri, ramai customer grab satu lagi untuk dijadikan hadiah. I Kami ada gift wrapping cantik free! Ada birthday kawan ke bulan ni? I I Tip: Turning a personal purchase into a gift doubles the basket. I Customer: Customer buys sling bag I Bot reply: Cantik tu! I Ramai pair Sling Bag dengan Coin Pouch matching color.
 
 ### Chunk 11
-Trigger Keyword: User replies with "A1.14". Chatbot Response: "Results for TMC will be announced on 25th July 2025. " A1.15: How does TMC prevent cheating? Trigger Keyword: User replies with "A1.15". Chatbot Response: "TMC uses a few review methods during the competition to help ensure fairness. This includes checking how long each participant takes to finish the paper and how much time is spent on each question. Our goal is to encourage students to take on the challenge honestly and learn by answering the questions on their own." A2. Asian Science & Maths Olympiad Competition Trigger Keyword: User replies with "A2". Chatbot Response: "Got it! Here are some common questions about ASMO :" A2.1 What is ASMO? A2.2 Is ASMO approved by the Education Ministry (KPM)? A2.3 Who is eligible to participate in the ASMO competition? A2.4 What language is used in the ASMO competition? A2.5 Are sample questions available? A2.6 Will all participants receive a certificate? A2.7 Can ASMO participants join advanced competitions? A2.8 How many rounds does ASMO have? A2.9 Is ASMO held online or offline? A2.10 How do I register for ASMO? A2.11 What are the registration/admin fees?
+15% off untuk 48 JAM SAHAJA bagi first buyers. Nak tengok catalog baru? Reply 'SHOW ME'! I I Tip: New arrival + time limit = strong opening hook.
 
 ### Chunk 12
-Trigger Keyword: User replies with "A2.3". Chatbot Response: "ASMO is open to students from Grade 1 to Grade 12 for all subjects. " A2.4: What language is used in the ASMO competition? Trigger Keyword: User replies with "A2.4". Chatbot Response: "For Primary Level (Grade 1-6), ASMO competition papers are available in three languages:  Bahasa Malaysia  Chinese  English For Secondary Level (Grade 7-12), the papers are available in English only. This multilingual approach ensures accessibility for younger students while maintaining academic consistency at the higher levels." A2.5: Are sample or past year questions available? Trigger Keyword: User replies with "A2.5". Chatbot Response: "Yes, we do have sample questions for reference! You can check the link here https://drive.google.com/drive/folders/1E073- 8APXtPmqdBf5a8UFLC6Y61eoAXB?usp=drive_link " A2.6: Will all participants receive a certificate? Trigger Keyword: User replies with "A2.6". Chatbot Response: "Certificates will only be issued to participants who have paid the administration fee." A2.7: Can ASMO participants join advanced competitions? Trigger Keyword: User replies with "A2.7". Chatbot Response: "Yes! ASMO participants may be invited to join prestigious international competitions such as the World Mathematics Olympiad (WMO), ASMOPSS, and others.
+I Anda aman, kami jaga.' I Tip: Clear return policy removes the biggest risk for buyers. I Customer: "Shipping lama tak?"
 
 ### Chunk 13
-A2.8.3.3 How are the awards determined? Please reply with the appropriate code for any question you'd like more info
+Waterproof, padded straps, lots of pockets. What color does your kid like? I Laptop Backpack RM 95-145 I Office Fave Fits 15.6" laptop, USB charging port, anti-theft back pocket. Polyester.
 
 ### Chunk 14
-Our goal is to encourage students to take on the challenge honestly and learn by
+Section: SECTION 2 · COMPLETE PRODUCT CATALOG WITH BOT SCRIPTS Document Briefcase RM 110-160 I Executive Genuine PU leather, combination lock, fits A4 folders, 14" laptop. Bot Script: Executive look! I Briefcase RM110-160. Combination lock, fits documents + 14" laptop. Very professional! Available in Black & Dark Brown. Interested? I Bag Marketing Master Guide · Page 4
 
 ### Chunk 15
-Trigger Keyword: User replies with "A6.4". Chatbot Response: "Please check this link : "
+Section: SECTION 2 · COMPLETE PRODUCT CATALOG WITH BOT SCRIPTS Bot Script: Work smart! I Laptop Backpack RM95-145. 15.6" fit, USB charging port, anti-theft pocket. Very popular with professionals! I Travel Backpack 30L RM 120-180 vI Travel Pick 30L, airline cabin-approved size, rain cover included, multiple compartments. Bot Script: Ready to travel? vI 30L Travel Backpack RM120-180. Cabin-approved, rain cover included. Great for weekend trips! I I Travel Bags & Luggage Duffle Bag Weekend RM 75-110 I Weekend Go 40L, detachable shoulder strap, shoe compartment. Water-resistant polyester. Bot Script: Weekend getaway sorted! I Duffle Bag RM75-110. 40L, shoe compartment, shoulder strap. Perfect for short trips! I Bag Marketing Master Guide · Page 3 Spinner Luggage 20" RM 189-250 vI Cabin Size 20" cabin approved, TSA lock, 360 spinner wheels, expandable. ABS hard shell. Bot Script: Travel in style! vI 20" Cabin Luggage RM189-250. TSA lock, 360 wheels, expandable. ABS hard shell - very durable! Want to see colors? Spinner Luggage 24" RM 229-299 I Check-In 24" check-in size, TSA lock, lightweight. Colors: Black, Rose Gold, Navy, Silver. Bot Script: Need check-in size? I 24" Luggage RM229-299. TSA lock, super lightweight. Colors: Black, Rose Gold, Navy, Silver. Which one? I I Office & Work Bags Laptop Sleeve 13-15" RM 25-45 I Smart Buy Neoprene, zipper, slim profile.
 
 ### Chunk 16
-Chatbot Response: "Visit our site for more info : https://www.iomaths.com.my/showproducts/productid/5695495/iomaths-course/ " Check our other option regarding IoMaths Pre-school : C2.1 Schedule C2.2 Fee Structure C2.3 Syllabus"
+Section: SECTION 3 · GREETING & OPENING MESSAGES First impressions matter. Keep greetings warm, fast, and immediately show you can help. I Customer: Customer sends 'Hi' / 'Hello' / 'Hai' I Bot reply: Hai! Selamat datang ke [Nama Kedai] II Kami ada koleksi beg terkini - handbags, backpacks, travel bags & more! Boleh reply: 1II Tengok Koleksi 2II Terus Order 3II Tanya Soalan I Tip: Numbered options = easier for mobile users to reply. I Customer: Customer asks 'Ada beg apa?' / 'What bags do you have?' I Bot reply: Wah, banyak pilihan! I Kategori kami: I Handbags & Sling Bags I Backpacks (school & laptop) I Travel Bags & Luggage I Office & Laptop Bags Mana kategori yang anda cari? Kami boleh tunjukkan koleksi terus! I I Tip: Always narrow down category first before showing products. I Customer: Customer says 'Nak beli beg' / 'I want to buy a bag' I Bot reply: Best! I Boleh bagitahu sikit: I Untuk siapa? (diri sendiri / hadiah) I Budget dalam lingkungan berapa? I Ada warna kegemaran? Kami akan carikan yang paling sesuai untuk anda! I I Tip: 3 quick qualifying questions to find the right product fast. I Customer: Customer asks 'Ada promosi?' / 'Any discount?' I Bot reply: Ada! I Promo terkini: II Beli 2 dapat 10% off I Free shipping above RM150 I Free gift wrapping untuk hadiah Nak tengok produk mana yang sedang on sale?
 
 ### Chunk 17
-Chatbot Response: "To become an ASMO Country Partner, we're looking for:  An education-based organization or business  Strong network with schools, educators, or academic communities
+I Bestsellers kami harini: I Classic Tote Bag - RM45 I Mini Sling Bag - RM35 I Laptop Backpack - RM95 Ada yang menarik minat? Boleh share
 
 ### Chunk 18
-Explore here: https://www.iomaths.com.my/showproducts/productid/5695535/live- streaming/ " After every preset answer, add a prompt: "Is there anything else I can help you with, or would you like to go back to the main
+I Tip: Always give exact measurements - vague answers lose sales. I Customer: Customer asks 'Genuine leather ke?' / 'What material?' I Bot reply:
 
 ### Chunk 19
-A1.11 How do I register for TMC? A1.12 What are the registration/admin fees?
+Bag Marketing Master Guide · Page 8
 
 ### Chunk 20
-TMC Gold Medal winners are invited to participate in the WMO International Competition, which is held on July 26 in Kuala Lumpur. "
+Section: SECTION 8 · PROMOTIONS & CAMPAIGN SCRIPTS Promotion Details When to Trigger Buy 2 Get 10% Off Any 2 bags, 10% discount Customer selects 1 item Free Shipping RM150+ Free courier above RM150 Order approaching RM150 Flash Sale 24hr Select items 20% off for 24hrs Time-limited campaign Bundle Deal Bag + accessory set at fixed price After customer picks bag New Arrival Discount 15% off new arrivals first 48hrs New stock announcement Referral Reward RM10 off for referrer + referee Customer mentions friend Birthday Month 15% off in customer's birth month Customer mentions birthday Bag Marketing Master Guide · Page 9 Follow & Shop Follow IG/TikTok for 5% discount First-time customer I Customer: Customer asks about discounts I Bot reply: Promo kami sekarang! I I Beli 2 beg dapat 10% off I Free shipping above RM150 I New arrivals 15% off (48hr only!) I Referral: dapat RM10 untuk korang & kawan! Yang mana paling menarik? I I Tip: Show all promos, let customer self-select. I Customer: Flash sale announcement I Bot reply: I FLASH SALE BERMULA SEKARANG! I 24 JAM SAHAJA - [Nama Bag] dari RM[harga] → RM[harga sale]! Stock terhad. Siapa cepat dia dapat! I Reply 'ORDER' sekarang untuk grab yours! I I Tip: Flash sale creates urgency - use sparingly to maintain credibility. I Customer: New arrival announcement I Bot reply: NEW IN STORE! II [Nama Koleksi Baru] dah tiba!
 
 ### Chunk 21
-A2.12 How does ASMO prevent cheating?" Please reply with the appropriate code of the question you'd like an answer to: Eg : A2.15 Preset Answers for Selected Questions (User replies with corresponding code): A2.1: What is ASMO? Trigger Keyword: User replies with "A2.1".
+Section: SECTION 9 · CUSTOMER OBJECTION HANDLING Handle objections with empathy first, solution second. Never be defensive. Always end with a question to keep conversation alive. I Customer: "Mahal lah" / "Too expensive" I Bot reply: Kami faham! I Tapi kalau tengok kualiti - material, jahitan, dan hardware - memang tahan lama. Ramai customer cakap 'bayar sekali, pakai lama'! Kalau budget terhad, kami ada pilihan dari RM35. Nak kami suggest yang best value? I I Tip: Acknowledge → justify value → offer lower-priced alternative. I Customer: "Boleh trusted ke kedai ni?" / "Legit ke?" I Bot reply: Soalan bagus! I Kami dah beroperasi sejak [tahun]. Ada [X] review positif dari customer setia kami! I Boleh tengok review di: [Link/IG/Shopee] Ramai repeat buyers - tanda kepercayaan terbaik! I I Tip: Social proof is the best trust builder. Link to real reviews. I Customer: "Takut tak sama macam gambar" I Bot reply: Kami faham risiko tu! I Kami boleh hantar: I Foto sebenar (bukan catalogue) sebelum anda bayar I Video pendek tunjuk material & size Nak kami video call sekejap untuk tunjuk live? I I Tip: Offer live proof - it dramatically increases conversion. I Customer: "Boleh return tak kalau tak puas hati?" I Bot reply: [II Masukkan polisi return sebenar anda] Contoh: 'Ya! Return dalam 7 hari jika item defect atau salah hantar. Kami tanggung kos shipping return!
 
 ### Chunk 22
-on. Eg : A2.8.3.3 Preset Answers for Selected Questions (User replies with corresponding code): A2.8.3.1: Who can participate in the ASMO International 2025? Trigger Keyword: User replies with "A2.8.3.1". Chatbot Response: "Participants who meet the qualification criteria in the national round will be invited to join ASMO International 2025. An official invitation letter will be sent to all eligible participants." A2.8.3.2: Can students participate in more than one subject? Trigger Keyword: User replies with "A2.8.3.2". Chatbot Response: "Each student is allowed to participate in only one subject. Please choose the subject you are most confident in to maximize your chances of scoring well." A2.8.3.3: How are the awards are determined? Trigger Keyword: User replies with "A2.8.3.3". Chatbot Response: "Please refer to the award scheme in the attached PDF file. This file is confidential and encrypted. Only invited participants will receive the access code from ASMO to unlock it." (attach pdf file of award scheme/calculation) A2.9: Is ASMO held online or offline? Trigger Keyword: User replies with "A2.9". Chatbot Response: "For individual participants, only the online mode is available. However, for school or centre participants, the teacher-in-charge may choose either online or offline mode based on the participants' needs." A2.10: How do I register for ASMO?
+Section: SECTION 4 · PRODUCT DISCOVERY - HELP CUSTOMER CHOOSE Many customers don't know what they want. Use this decision-tree script to guide them to the right product quickly - increasing conversion rate. I Customer: Customer wants a bag for daily use I Bot reply: For daily use, best pick depends on lifestyle! I I Active / on the go → Backpack (hands-free, practical) I Fashion-forward → Tote or Sling Bag I Office / work → Top Handle or Laptop Bag Which sounds most like you? I'll show options! I Tip: Lifestyle matching increases customer satisfaction. I Customer: Customer wants a bag as a gift I Bot reply: Aww sweet! I Perfect - kami ada gift wrapping free! Boleh bagitahu: I Untuk siapa? (ibu, kawan, kakak, partner?) I Budget: below RM50 / RM50-100 / above RM100? Kami akan suggest pilihan terbaik! I I Tip: Gift buyers need extra handholding - guide them patiently. Bag Marketing Master Guide · Page 5 I Customer: Customer wants travel bag I Bot reply: Travel mode ON! vI Nak dalam kabin atau check-in? I Cabin (20") - RM189-250 → Spinner Luggage I Check-in (24") - RM229-299 → Spinner Luggage I Travel Backpack 30L - RM120-180 → For backpackers I Weekend Duffle - RM75-110 → Short trips Mana paling sesuai untuk perjalanan anda? I I Tip: Travel buyers are high-value - show full range to upsell. I Customer: Customer is unsure / browsing I Bot reply: Tak pe, kami tolong cari!
 
 ### Chunk 23
-answering the questions on their own." A3. Sudoku Challenge Championship (SCC) Trigger Keyword: User replies with "A3". Chatbot Response:"We'll be updating more information soon. In the meantime, please visit our official website at https://sites.google.com/view/sudoku-cc/home for related details." A4. Sudoku Challenge Championship (SCC) Trigger Keyword: User replies with "A4". Chatbot Response:"We'll be updating more information soon. In the meantime, please visit our official website at https://sites.google.com/view/asiachesstournament/home for related details." A5. World MathFusion Olympiad (WMO) Trigger Keyword: User replies with "A5". Chatbot Response:"Please visit this link https://drive.google.com/drive/folders/1rh4D74FDP7dosJ- 3TeJrxSzV2U0kkIiS?usp=sharing for related details. WMO 2025 was successfully held on 26th July 2025. We extend our heartfelt congratulations to all the winners for their outstanding achievements. Discover the full list of WMO 2025 winners on our official website: https://www.facebook.com/share/p/1ZqmD54gsn/ A6. Asian Science & Maths Olympiad Competition Trigger Keyword: User replies with "A2". Chatbot Response: "Got it! Here are some common questions about ASMO :" A6.1 What is ASMO Global? A6.2 Who is eligible to participate in the ASMO Global competition? A6.3 What language is used in the ASMO Global competition?
+Section: SECTION 5 · SIZE, COLOR & VARIANT HANDLING I Standard Bag Size Reference Bag Type Dimension (cm) Best Fits Mini Sling 18 x 12 x 6 cm Phone, cards, lip balm, keys Shoulder Bag 28 x 22 x 10 cm Wallet, phone, small tablet, makeup Tote Bag (S) 35 x 30 x 12 cm A4 docs, water bottle, daily essentials Tote Bag (L) 42 x 35 x 14 cm Laptop 13", A4 folder, gym clothes Backpack (School) 44 x 30 x 18 cm (15L) A4 books, bottles, pencil case Backpack (Laptop) 48 x 32 x 18 cm (20-25L) 15.6" laptop, charger, documents Travel Backpack 55 x 35 x 22 cm (30L) 3-5 days clothes, cabin approved Duffle 40L 52 x 28 x 28 cm Weekend clothes, shoes (separate) Luggage 20" 55 x 40 x 20 cm Cabin - 2-4 days clothes Luggage 24" 65 x 45 x 25 cm Check-in - 5-7 days clothes I Variant & Color Scripts I Customer: Customer asks 'Ada tak warna lain?' / 'Other colors?' I Bot reply: Boleh! Untuk [nama produk] ada dalam: I Black I White I Brown I Pink I Navy I Olive (Note: ketersediaan bergantung pada stok semasa. Kami akan confirm sebelum order ya!) Warna mana? I I Tip: Always add stock caveat - avoids overselling the wrong color. I Customer: Customer asks about size I Bot reply: Measurement untuk [nama produk]: I Dimension: [W x H x D] cm I Boleh muat: [isi mengikut produk] II Berat bag: [X] kg (kosong) Sesuai untuk keperluan anda? I Kalau nak compare size lain, bagitahu je!
 
 ### Chunk 24
-A6.5 Will all participants receive a certificate? Trigger Keyword: User replies with "A6.5". Chatbot Response: "Yes! All ASMO Global participants will receive an official e-certificate after the competition." A6.6 How many rounds does ASMO Global have? Trigger Keyword: User replies with "A6.6". Chatbot Response: "ASMO Global has only one round which is the National Round." A6.7 Is ASMO Global held online or offline? Trigger Keyword: User replies with "A6.7". Chatbot Response: "ASMO Global is conducted completely online, allowing students from countries without an official ASMO Country Partner to participate conveniently from home with no travel required." A6.8 What are the registration/admin fees? Trigger Keyword: User replies with "A6.8". Chatbot Response: "The registration fee for ASMO Global is USD 45 per participant, per subject." B. Books Trigger Keyword: User replies with "B". Chatbot Response: "Please select the bookstore you'd like to visit: " B1. TMC/BMOC Bookstore B2. ASMO Bookstore Please reply with the appropriate code of the question you'd like an answer to: Eg: B1 B1. TMC/BMOC Bookstore Trigger Keyword: User replies with "B1". Chatbot Response: "Click https://olympicmaths.com/bookstore or visit our TMC official website at www.olympicmaths.com" B2. ASMO Bookstore Trigger Keyword: User replies with "B2".
+Section: SECTION 6 · ORDER COLLECTION FLOW (STEP-BY-STEP) Bag Marketing Master Guide · Page 7 STEP 1 Product + Variant Confirmed "Great pick! I Nak confirm: II [Nama bag] - [Warna] - [Size] Betul ke? (Sila check dulu sebelum proceed!) I" I Always confirm product + variant before anything else. STEP 2 Pickup or Delivery? "Nak: I Pickup dari kedai? I Delivery (pos/courier)? Free shipping for orders above RM150! I" I State the free shipping threshold at this step. STEP 3 Collect Delivery Info "Boleh share: I Nama penuh I Alamat penuh (termasuk poskod) I No. telefon I Preferred courier (J&T; / Pos Laju / Lalamove)?" I Collect all info in one message - reduces back-and-forth. STEP 4 Order Summary "RINGKASAN ORDER anda: II [Nama Bag] x1 - RM[harga] I Shipping - RM[harga] I TOTAL: RM[jumlah] Betul ke? Reply 'YA' untuk confirm! I" I Full itemized summary prevents payment disputes. STEP 5 Payment "Terima kasih confirm! I Payment ke: I DuitNow: [No. telefon/ID] I Bank Transfer: [Bank] [Akaun] (Nama: [Nama]) Lepas bayar, hantar screenshot sini ya! I" I Always request payment screenshot immediately. STEP 6 Confirmation & Tracking "Payment received! I Order anda sedang diproses. I Akan dihantar dalam [X] hari bekerja. No. tracking akan dikongsikan selepas shipment. I Terima kasih beli dengan kami! Jangan lupa tag kami bila pakai ye I" I Social tagging prompt = free UGC marketing!
 
 ### Chunk 25
-Please reply with the appropriate code of the topic you'd like an info to C2.1 Schedule Trigger Keyword: User replies with "C1.1". Chatbot Response: "need update by admin" C2.2 Fee Structure Trigger Keyword: User replies with "C1.2". Chatbot Response: "need update by admin" C2.3 Syllabus Trigger Keyword: User replies with "C1.3". Chatbot Response: "need update by admin" C3. IoMaths Secondary Trigger Keyword: User replies with "C3". Chatbot Response: "Visit our site for more info : https://www.iomaths.com.my/showproducts/productid/5695495/iomaths-course/ " Check our other option regarding IoMaths Secondary : C3.1 Schedule C3.2 Fee Structure C3.3 Syllabus" Please reply with the appropriate code of the topic you'd like an info to C3.1 Schedule Trigger Keyword: User replies with "C1.1". Chatbot Response: "need update by admin" C3.2 Fee Structure Trigger Keyword: User replies with "C1.2". Chatbot Response: "need update by admin" C3.3 Syllabus Trigger Keyword: User replies with "C1.3". Chatbot Response: "need update by admin" D. Biz Opportunities Trigger Keyword: User replies with "D". Chatbot Response: "Thank you for your interest! We're always open to collaborating with educational institutions, learning centers, and strategic partners worldwide.
+Hanya RM18, look very put-together! Nak tambah? I I Tip: Color matching accessories are easy yes decisions.
 
 ### Chunk 26
-A1.13 When is the competition date? A1.14 When are results announced? A1.15 How does TMC prevent cheating?" Please reply with the appropriate code of the question you'd like an answer to: Eg : A1.15 Preset Answers for Selected Questions (User replies with corresponding code): A1.1: What is TMC (Tiger Maths Competition)? Trigger Keyword: User replies with "A1.1". Chatbot Response: "TMC stands for the Tiger Maths Competition. It's a new mathematics competition specifically designed for the school syllabus, aiming to challenge and engage students by encouraging them to apply mathematical concepts creatively. It helps test students' basic levels and can effectively plan their mathematics learning journey. " A1.2: Is TMC approved by the Education Ministry (KPM)? Trigger Keyword: User replies with "A1.2". Chatbot Response: "Yes, we're happy to announce that TMC has been approved by the MOE (Ministry of Education)! This means participants are also able to apply for PAJSK. " attach this file : https://drive.google.com/uc?export=download&id=1- BvK8kERK3vTpUA2WUehXQyIwhSAkxR7 & https://drive.google.com/uc?export=download&id=1V5rBHbc4xsy7sXKkBI7Igdc4hg ELOedV A1.3: How are TMC categories arranged by grade? Trigger Keyword: User replies with "A1.3".
+Section: SECTION 8 · PROMOTIONS & CAMPAIGN SCRIPTS Bag Marketing Master Guide · Page 10
 
 ### Chunk 27
-A1.9: How many rounds does TMC have? Trigger Keyword: User replies with "A1.9". Chatbot Response: "TMC has only one national round of competition. " A1.10: Is TMC held online or offline? Trigger Keyword: User replies with "A1.10". Chatbot Response: "TMC is held online only. This format helps reduce administrative costs and allows participants to better arrange their own competition time without delaying their study arrangements, as they only need an internet connection to complete the contest at anytime, anywhere. " A1.11: How do I register for TMC? Trigger Keyword: User replies with "A1.11". Chatbot Response: "Registration for TMC can be done online at http://www.olympicmaths.com. " A1.12: What are the admininistration fees? Trigger Keyword: User replies with "A1.12". Chatbot Response: "While there is no charge for registration, an optional administration fee of RM38 per participant applies. This fee is not mandatory; however, it is required for participants who wish to receive additional services such as marking, ranking, awards, certificates, and an e-report. Participants who choose not to pay the administration fee are still welcome to join the event, but will do so without access to the aforementioned services." A1.13: When is the competition date? Trigger Keyword: User replies with "A1.13".
+Section: SECTION 9 · CUSTOMER OBJECTION HANDLING I Bot reply: Bergantung lokasi! I I Semenanjung: 2-4 hari bekerja (J&T;/Pos Laju) I Sabah/Sarawak: 4-7 hari bekerja I Same-day delivery ada (Lalamove, area [kawasan] sahaja) No. tracking akan dikongsikan lepas shipment! I I Tip: Specific delivery times build confidence. I Customer: "Ada original box tak?" / "Packaging macam mana?" I Bot reply: Ya! I Setiap beg dihantar dengan: I Dust bag / packaging pouch I Gift wrapping (percuma jika minta) II Tag & authenticity card (jika berkenaan) Perfect untuk dijadikan hadiah juga! I I Tip: Good packaging = higher perceived value. Bag Marketing Master Guide · Page 11 I Customer: "Dah ada banyak beg" / "Tak perlu lagi" I Bot reply: Haha faham! I Tapi setiap beg ada tujuannya kan? I Satu untuk kerja, satu untuk weekend, satu untuk travel... Koleksi baru kami ada design yang mungkin belum ada dalam koleksi anda! Nak tengok? Takde rugi tengok je I I Tip: Reframe: different bags for different occasions.
 
 ### Chunk 28
-Chatbot Response: "ASMO stands for the Asian Science & Maths Olympiad, a leading competition platform developed in Malaysia. Over the years, ASMO has grown into the largest academic competition platform in Southeast Asia, expanding beyond Maths and Science to include subjects such as ASMO English and ASMO Bahasa Melayu (Malaysia only). ASMO aims to challenge and evaluate students' understanding of Mathematics and Science through questions that go beyond standard classroom learning. The competition promotes non-routine problem-solving skills, encouraging students to think critically and creatively. Aligned with international trends in STEM education, ASMO helps prepare students to meet future challenges in science and technology. ASMO has proudly partnered with countries including: Thailand, Cambodia, the Philippines, Vietnam, Indonesia, Myanmar, India, Hong Kong/Macau, Uzbekistan, and Bulgaria. " A2.2: Is ASMO approved by the Education Ministry (KPM)? Trigger Keyword: User replies with "A2.2". Chatbot Response: "Yes, we're happy to announce that ASMO has been approved by the MOE (Ministry of Education)! This means participants are also able to apply for PAJSK.
+I Boleh tengok di: I Google Review: [link] I Instagram: [handle] I Shopee / Lazada: [link] Real customers, real bags! I I Customer: Customer asks: Boleh COD tak? I Bot reply: [Masukkan polisi COD anda] Contoh: 'COD available untuk area [kawasan] sahaja. Luar
 
 ### Chunk 29
-In addition, eligible ASMO winners from the National Round will be invited to participate in the ASMO International 2025, which will be held in Bali, Indonesia
+Section: SECTION 10 · SHIPPING & DELIVERY SOP Item Details Standard Shipping RM8-12 (Semenanjung) / RM15-18 (Sabah/Sarawak) Free Shipping Orders above RM150 (Semenanjung) Same-Day Delivery Lalamove / Grab Express - selected areas, add-on fee Processing Time 1-2 business days after payment confirmed Delivery (Peninsula) 2-4 business days (J&T / Pos Laju) Delivery (East MY) 4-7 business days International [State your policy - or 'not available'] Tracking Tracking number shared via WhatsApp after shipment Payment Methods DuitNow / Bank Transfer / Online Banking / Cash (pickup) Pickup Available [Yes/No] - [Hours if yes] Lost Parcel Policy File claim with courier - provide proof of shipment I Customer: Customer asks about shipping fee I Bot reply: Shipping fee: I Semenanjung: RM8-12 I Sabah/Sarawak: RM15-18 I FREE shipping kalau order RM150+! Order anda sekarang berapa? Mungkin dah layak free shipping! I I Tip: Always calculate if they qualify for free shipping. I Customer: Customer wants urgent delivery I Bot reply: Boleh arrange! I Untuk same-day delivery: I Lalamove / Grab Express - kami book untuk anda I Fee bergantung jarak (~RM15-30) I Untuk kawasan [kawasan] sahaja Confirm order sebelum [jam] untuk same-day processing! I I Tip: Set clear cutoff time for same-day orders. Bag Marketing Master Guide · Page 12
 
 ### Chunk 30
-Trigger Keyword: User replies with "A2.10". Chatbot Response: "Registration for ASMO can be done online at
+Section: SECTION 11 · COMPLETE FAQ - AUTO REPLY SCRIPTS kawasan, payment in advance diperlukan. I' I Customer: Customer asks: Ada student discount? I Bot reply: [Masukkan polisi anda] Contoh: 'Ada Student Discount 5%! Tunjukkan ID pelajar masa order. Sesuai untuk backpack & laptop bags! I'
 
 ### Chunk 31
-A6.4 Are sample questions available? A6.5 Will all participants receive a certificate?
+Section: I URGENCY • "Flash sale habis dalam [X] jam lagi!" • "Order sebelum 2PM untuk same-day dispatch!" • "Harga ni valid until end of month sahaja."
 
 ### Chunk 32
-Chatbot Response: "Visit our official ASMO website at https://www.asmo2u.com/ . Friendly reminder: Please select the Malaysia country icon when the pop-up appears
+Section: I ASPIRATION / LIFESTYLE • "Bag ni memang matching dengan working professional look." • "Ramai customer cakap rasa lebih confident carry bag ni." • "Travel essentials yang stylish - not just functional." • "Dari office ke dinner - satu bag buat semua."
 
 ### Chunk 33
-Whether you're looking to become a country partners, promote Olympiad programs, or explore co-branding opportunities, we'd love to hear from you. D1 Quickern D2 ASMO Country Partner
+Section: SECTION 14 · RE-ENGAGEMENT & LOYALTY SCRIPTS I Customer: Customer who hasn't ordered in 30+ days I Bot reply: Hai [Nama]! I Dah lama tak nampak! Kami ada koleksi baru yang memang sesuai untuk anda - [sebutkan kategori yang pernah dibeli]. Special for you: RM10 off next order! Nak tengok? I I Tip: Personalized win-back with exclusive offer works best. I Customer: Repeat customer - loyalty reward I Bot reply: Terima kasih jadi customer setia kami! II Sebagai tanda penghargaan, anda layak untuk: I Loyalty Discount 10% untuk order seterusnya I Priority access untuk new arrivals Boleh guna bila-bila masa! I I Tip: Loyalty perks keep customers from going to competitors. I Customer: Referral prompt after successful order I Bot reply: Syukur order sampai dengan selamat! I Kalau anda suka beg kami, share dengan kawan-kawan! I REFERRAL REWARD: Kawan order pertama kali → korang berdua dapat RM10 off next purchase! Share link ini: [link/code anda] I I Tip: Ask for referral when satisfaction is highest - right after delivery. I Customer: Customer left without ordering (abandoned chat) I Bot reply: Hai! I Nampak tadi anda tengok koleksi kami. Boleh kami bantu cari sesuatu yang sesuai? Atau ada soalan pasal product? Kami sedia tolong! I (Promo aktif sekarang - jangan lepaskan! I) I Tip: Gentle follow-up within 24hrs rescues abandoned conversations.
 
 ### Chunk 34
-Chatbot Response: "Looking to run your own math enrichment center? With an
+Section: SECTION 16 · CONTENT MARKETING & SOCIAL MEDIA IDEAS Platform Content Type Caption Idea Instagram Reels "What fits in my bag" video "Can you believe THIS all fits?! II #BagOrganization" TikTok Bag unboxing + outfit pairing "New bag who dis II #OOTD #BagTok" IG Stories Daily new arrival or flash sale "NEW IN I Swipe to see all colors! DM to order" WhatsApp Status Product photo with price tag "[Nama Bag] - RM[harga] I DM for details!" Facebook Customer testimonial post "IIIII '[Customer quote]' - [Customer name]" IG Carousel Style guide: 1 bag, 5 outfits "5 ways to style your [bag name] I Save this post!" TikTok/Reels "Bag under RM100" roundup "Best bags under RM100 in Malaysia! I #BudgetFashion" WhatsApp Broadcast Weekly new arrivals blast "BARU TIBA! I [X] koleksi baru - first come first served!" YouTube Shorts Material quality close-up "Is it worth it?
 
 ### Chunk 35
-before navigating to the Bookstore tab." C. Course/Training Trigger Keyword: User replies with "C". Chatbot Response: "We have several centers offering courses and training. Check out the list below, and feel free to contact our representative for any inquiries: https://www.iomaths.com.my/contactus/ " Check our other option regarding our course/training : C1 IoMaths Primary C2 IoMaths Pre-school C3 IoMaths Secondary Please reply with the appropriate code of the topic you'd like an info to Eg : C1 C1. IoMaths Primary Trigger Keyword: User replies with "C1". Chatbot Response: "Visit our site for more info : https://www.iomaths.com.my/showproducts/productid/5695495/iomaths-course/ Check our other option regarding IoMaths Primary : C1.1 Schedule C1.2 Fee Structure C1.3 Syllabus" Please reply with the appropriate code of the topic you'd like an info to C1.1 Schedule Trigger Keyword: User replies with "C1.1". Chatbot Response: "need update by admin" C1.2 Fee Structure Trigger Keyword: User replies with "C1.2". Chatbot Response: "need update by admin" C1.3 Syllabus Trigger Keyword: User replies with "C1.3". Chatbot Response: "need update by admin" C2. IoMaths Pre-school Trigger Keyword: User replies with "C2".
+Section: SECTION 11 · COMPLETE FAQ - AUTO REPLY SCRIPTS I Customer: Customer asks: Boleh customize warna / saiz? I Bot reply: [Bergantung produk] Untuk custom order: I Warna: pilih dari swatches kami I Saiz: standard sahaja (custom add 2-3 minggu lead time) I Custom surcharge: RM[X] Bagitahu keperluan anda, kami check feasibility! I I Customer: Customer asks: Ada warranty / jaminan kualiti? I Bot reply: Ya! II Setiap beg ada [X]-bulan warranty untuk: I Defect jahitan I Hardware rosak I Zip problem Wear and tear dari penggunaan tidak termasuk. Soal warranty, DM terus! I I Customer: Customer asks: Genuine leather ke PU leather? I Bot reply: [Masukkan jawapan sebenar] Contoh: 'Koleksi premium kami guna genuine leather. Koleksi harian guna high-quality PU leather - tahan lama & water-resistant!' I I Customer: Customer asks: Boleh pilih courier sendiri? I Bot reply: Ya, boleh! I Kami support: I J&T; Express I Pos Laju I DHL I Lalamove (same day) Bagitahu pilihan anda masa confirm order! I I Customer: Customer asks: Berapa lama proses order? I Bot reply: Order diproses dalam 1-2 hari bekerja selepas payment confirm. I Pre-order & custom: 7-14 hari bekerja. Urgent? Bagitahu kami - kami cuba expedite! I I Customer: Customer asks: Ada review / testimoni customer? I Bot reply: Ada banyak!
 
 ### Chunk 36
-D3 IoMaths Franchise" Please reply with the appropriate code of the topic you'd like an info to D1. Quickern Trigger Keyword: User replies with "D1". Chatbot Response: "Looking to grow your education business with proven programs? Quicken offers a range of Olympiad-based solutions, enrichment programs, and academic services designed for learning centers and education providers. Partner with us to bring world-class math and science experiences to your students. Learn more here: https://www.iomaths.com.my/services/sid/42027/ " D2. ASMO Country Partner Trigger Keyword: User replies with "D2". Chatbot Response: "Interested in representing ASMO in your country? As a Country Partner, you'll have the exclusive opportunity to organize and promote ASMO competitions, bringing international-standard Olympiad experiences to students in your region. We're looking for passionate and capable partners to expand our global network. Learn more here: https://www.iomaths.com.my/competition-country-partners " Check our other option regarding ASMO Country Partner : D2.1 Requirements D2.2 Supports Provided D3.3 Responsibility Please reply with the appropriate code of the topic you'd like an info to Eg : D2.2 D2.1 Requirements Trigger Keyword: User replies with "D2.1".
+Section: SECTION 12 · SALES PSYCHOLOGY TRIGGER LINES Inject 1-2 of these lines naturally into replies to boost conversion. Overusing them kills authenticity - use sparingly.
 
 ### Chunk 37
-IoMaths Franchise, you'll get access to a proven curriculum, training support, and exclusive rights to offer our programs in your area. Join our growing network of partners who are making a real impact in education. Learn more here: https://www.iomaths.com.my/competition-country-partners Check out other option for IoMaths Franchise: D3.1 Requirements To Become a Franchisee D3.2 Franchise Fee D3.3 Support Provided Please reply with the appropriate code of the topic you'd like an info to Eg : D3.3 D3.1 Requirements To Become a Franchisee Trigger Keyword: User replies with "D3.1". Chatbot Response: "need update by admin" D3.2 Franchise Fee Trigger Keyword: User replies with "D3.2". Chatbot Response: "need update by admin" D3.3 Responsiblity Trigger Keyword: User replies with "D3.3". Chatbot Response: "need update by admin" E. Live Streaming Portal Trigger Keyword: User replies with "E". Chatbot Response: "For students who prefer to learn from anywhere, IoMaths now offers live-streamed math courses! These real-time, interactive sessions are designed to boost problem-solving skills and enhance Olympiad readiness. Ideal for students preparing for competitions or strengthening their math foundation.
+Section: I SOCIAL PROOF • "Ini bestseller kami - repeat order setiap minggu!" • "Ramai customer dah order warna ni - sangat popular!" • "Influencer [nama] pun pakai bag ni recently!" • "[X] orders minggu ini untuk model ni."
 
 ### Chunk 38
- Experience in managing student programs, competitions, or large-scale events  Ability to handle promotion, registration, and coordination within your country D2.2 Requirements Trigger Keyword: User replies with "D2.2". Chatbot Response: "As an ASMO Country Partner, you'll receive full support to help you run and grow the Olympiad program in your country, including:  Official ASMO branding and partnership rights  Marketing materials and promotional templates  Training on event organization, registration systems, and exam procedures  Technical support and system access for managing participants You're not alone as we work closely with our partners to ensure a successful experience! D2.3 Responsiblity Trigger Keyword: User replies with "D2.3". Chatbot Response: "As an ASMO Country Partner, your main responsibilities include:  Promoting ASMO competitions to schools, teachers, and students  Managing student registrations and inquiries in your country  Organizing exam logistics (online or in-person, depending on the format)  Coordinating with the ASMO international team for materials and updates  Distributing certificates, results, and awards to participants You'll be the official representative of ASMO in your country in ensuring a smooth and professional competition experience. D3. IoMaths Franchise Trigger Keyword: User replies with "D3".
+Section: I VALUE / SAVINGS • "Jimat RM[X] kalau beli bundle sekarang." • "Kalau tambah sikit lagi, free shipping terus!" • "Price point ni untuk kualiti macam ni - memang berbaloi." Bag Marketing Master Guide · Page 14
 
 ### Chunk 39
-menu? Just reply with the number below!" 1. Ask another specific question from the list. 2. Go back to main menu. 3. Contact Our Admin Staff 1: Ask another specific question from the list Trigger keyword: User replied with "1", then the list of faqs covering the current topics from main menu will appear again to let them select the next enquiry they have. 2: Go back to main menu Trigger keyword: User replied with "2", and will be directed back to the main menu to re-select their choices. 3. Contact Our Admin Staff Trigger keyword: User replied with "3". Chatbot Response: For further assistance or specific inquiries, feel free to get in touch with our admin staff through our Whatsapp number. We're here to help! www.wasap.my/60176424831 www.wasap.my/60126667325 www.wasap.my/60183188866
+Bag Marketing Master Guide · Page 15
+
+### Chunk 40
+Section: I SCARCITY • "Tinggal [X] unit je lagi untuk warna ni!" • "Stok limited - batch baru entah bila datang." • "Warna [X] selalu habis dalam masa 24 jam." Bag Marketing Master Guide · Page 13
+
+### Chunk 41
+Section: I GIFTING • "Perfect untuk hadiah - kami wrap free!" • "Raya/Birthday gift yang confirm akan disukai!" • "Packaging cantik - terus boleh bagi gift."
+
+### Chunk 42
+Section: SECTION 13 · SEASONAL CAMPAIGNS - MALAYSIA Season Campaign Script Snippet Hari Raya Raya Gift Bag Set + Free Wrapping "Hadiah Raya paling stylish! II Gift set beg premium dengan wrapping cantik. CNY Lucky Red & Gold Collection "Gong Xi Fa Cai! I Koleksi CNY kami - red & gold tones, perfect untuk bawa t Deepavali Festival Sling Bag Special "Happy Deepavali! I Grab our festival-special Sling Bag - bright colors, perfec Merdeka Day Patriotic Collection Blue/Red "Merdeka! II Koleksi limited edition - patriotic colors. Tunjuk semangat Malay Back-to-School Student Bundle: Backpack + Pencil Case "Sekolah balik! I Student Bundle: Backpack + Pencil Case RM[bundle price] (s Valentine's Couple Matching Bag Set "Happy Valentine's! I His & Hers Matching Set - coordinate your style! Free g Mother's Day Premium Tote as Mom's Gift "Hadiahkan Mom dengan Premium Tote II - practical, stylish, and she'll use Year-End Sale Clearance Up to 50% Off "YEAR-END MEGA SALE! I Up to 50% off selected bags. Stock terhad - first I Campaign Tip: Launch campaign teaser 2 weeks early. Collect pre-orders to gauge demand before buying stock.
+
+### Chunk 43
+Section: SECTION 15 · CLOSING & AFTER-SALES SCRIPTS I Customer: After payment received I Bot reply: Payment confirmed! I Terima kasih banyak-banyak! I I Order akan diproses dalam 1-2 hari bekerja. No. tracking akan dikongsikan selepas shipment. Boleh DM kami bila-bila untuk update. Tak sabar nak tengok anda pakai bag baru! II I Tip: Warm, confident close reduces buyer anxiety. I Customer: After delivery confirmed I Bot reply: Order dah sampai! I Harap puas hati dengan pilihan anda! I Kalau sudi, tag kami @[handle] bila pakai - suka tengok customer photos! I Review kat [platform] sangat kami hargai! Ada apa-apa soalan atau isu, DM terus ye! I I Tip: User-generated content request at peak satisfaction moment. I Customer: Customer says thank you I Bot reply: Sama-sama! I Sangat happy anda suka! I Kami sentiasa ada kalau nak tanya pasal produk lain. Kawan-kawan yang nak beg cantik, refer sini ye! I See you next collection! I I Tip: Warm and leave door open for referral and repeat purchase. I Customer: Quality complaint received I Bot reply: Alamak, sangat minta maaf dengar tu! I Boleh kongsi: I Foto defect yang ada I No. order & tarikh beli Kami akan settle dengan segera - sama ada replace, repair, atau refund bergantung kes. Kepuasan anda adalah keutamaan kami! I I Tip: Fast, empathetic complaint response prevents negative reviews.
+
+### Chunk 44
+Section: SECTION 16 · CONTENT MARKETING & SOCIAL MEDIA IDEAS bot with wrong info loses trust - and sales. Review monthly! I Bag Marketing Master Guide · Page 17
+
+### Chunk 45
+Honest bag review 2024 [brand/model]" I Photo & Video Content Checklist Bag Marketing Master Guide · Page 16 I Flat-lay: bag + accessories + lifestyle props (sunglasses, scarf, coffee) I Size comparison: bag next to A4 paper / 13" laptop / water bottle I Interior shot: showing all pockets and compartments clearly I Model carrying bag - show scale and styling I Color swatches side by side for the same style I Packing video: watch items go in to show capacity I Before/after: messy items vs organized in bag I Close-up: stitching, zipper quality, hardware detail shots I REMEMBER: Update this document whenever prices change, new products arrive, or promotions end. A
