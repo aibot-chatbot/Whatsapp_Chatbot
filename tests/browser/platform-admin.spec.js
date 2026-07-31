@@ -113,7 +113,45 @@ const operationsOverview = {
       status_updated_at: "2026-07-29T00:00:00+00:00",
       current_period_end: "2026-07-28T00:00:00+00:00"
     }
-  ]
+  ],
+  operational_alerts: {
+    alerts: [
+      {
+        type: "subscription_past_due",
+        severity: "warning",
+        company_id: 42,
+        company_name: "Example Tenant <script>window.__xss = true</script>",
+        company_status: "active",
+        summary: "Subscription is past due",
+        details: {
+          subscription_status: "past_due",
+          plan_code: "pro",
+          plan_name: "Pro <img src=x onerror=window.__alertPlanXss=true>",
+          current_period_end: "2026-07-28T00:00:00+00:00",
+          status_updated_at: "2026-07-29T00:00:00+00:00"
+        },
+        investigation_url: "platform-admin-company.html?company_id=42"
+      },
+      {
+        type: "subscription_expired",
+        severity: "critical",
+        company_id: 43,
+        company_name: "Expired Tenant <svg onload=window.__expiredAlertXss=true>",
+        company_status: "active",
+        summary: "Subscription is expired",
+        details: {
+          subscription_status: "expired",
+          plan_code: "free",
+          plan_name: "Free",
+          current_period_end: "2026-07-20T00:00:00+00:00",
+          status_updated_at: "2026-07-21T00:00:00+00:00"
+        },
+        investigation_url: "platform-admin-company.html?company_id=43"
+      }
+    ],
+    summary: { total: 2, critical: 1, warning: 1, info: 0 },
+    limits: { max_alerts: 10 }
+  }
 };
 
 const userList = {
@@ -636,12 +674,23 @@ test.describe("platform-admin dashboard and directory", () => {
     await expect(metricCard(page, "Past due")).toContainText("1");
     await expect(page.getByRole("heading", { name: "Subscription status" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Plan distribution" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operational alerts" })).toBeVisible();
+    await expect(metricCard(page, "Total alerts")).toContainText("2");
+    await expect(metricCard(page, "Critical alerts")).toContainText("1");
+    await expect(metricCard(page, "Warning alerts")).toContainText("1");
+    await expect(metricCard(page, "Info alerts")).toContainText("0");
+    await expect(page.getByRole("cell", { name: "Subscription is past due" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Subscription is expired" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Pro <img src=x onerror=window.__alertPlanXss=true>" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Expired Tenant <svg onload=window.__expiredAlertXss=true>" })).toHaveAttribute("href", "platform-admin-company.html?company_id=43");
     await expect(page.getByRole("heading", { name: "Companies requiring attention" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Pro <img src=x onerror=window.__planXss=true>" }).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: "Example Tenant <script>window.__xss = true</script>" })).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
+    await expect(page.getByRole("link", { name: "Example Tenant <script>window.__xss = true</script>" }).first()).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
     await expect(page.locator("script", { hasText: "window.__xss = true" })).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => window.__xss)).toBeUndefined();
     await expect.poll(() => page.evaluate(() => window.__planXss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__alertPlanXss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__expiredAlertXss)).toBeUndefined();
     await expect(page.getByText("Internal / Read Only")).toBeVisible();
     await assertReadOnlyBoundary(page);
   });
@@ -649,13 +698,51 @@ test.describe("platform-admin dashboard and directory", () => {
   test("dashboard performs one overview request after authorization and handles empty attention", async ({ page }) => {
     const calls = await openPlatformPage(page, "/platform-admin.html", ({ url }) => {
       if (url.pathname === "/api/platform-admin/overview") {
-        return success({ ...operationsOverview, attention_companies: [] });
+        return success({
+          ...operationsOverview,
+          attention_companies: [],
+          operational_alerts: {
+            alerts: [],
+            summary: { total: 0, critical: 0, warning: 0, info: 0 },
+            limits: { max_alerts: 10 }
+          }
+        });
       }
       return defaultHandler({ url });
     });
+    await expect(page.getByText("No operational alerts found.")).toBeVisible();
     await expect(page.getByText("No past-due or expired companies found.")).toBeVisible();
     expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
     expect(calls.filter(call => call.path === "/api/platform-admin/companies")).toHaveLength(0);
+  });
+
+  test("dashboard derives operational alerts from legacy attention response", async ({ page }) => {
+    const legacyOverview = {
+      ...operationsOverview,
+      operational_alerts: undefined,
+      attention_companies: [
+        {
+          company_id: 42,
+          company_name: "Legacy Tenant <script>window.__legacyAlertXss=true</script>",
+          company_status: "active",
+          subscription_status: "expired",
+          plan_code: "pro",
+          plan_name: "Legacy Pro",
+          status_updated_at: "2026-07-29T00:00:00+00:00",
+          current_period_end: "2026-07-28T00:00:00+00:00"
+        }
+      ]
+    };
+    delete legacyOverview.operational_alerts;
+    await openPlatformPage(page, "/platform-admin.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/overview") return success(legacyOverview);
+      return defaultHandler({ url });
+    });
+    await expect(metricCard(page, "Total alerts")).toContainText("1");
+    await expect(metricCard(page, "Critical alerts")).toContainText("1");
+    await expect(page.getByRole("cell", { name: "Subscription is expired" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Legacy Tenant <script>window.__legacyAlertXss=true</script>" }).first()).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
+    await expect.poll(() => page.evaluate(() => window.__legacyAlertXss)).toBeUndefined();
   });
 
   test("dashboard unavailable and denied refreshes clear previously rendered overview data", async ({ page }) => {
@@ -674,7 +761,7 @@ test.describe("platform-admin dashboard and directory", () => {
         return defaultHandler({ url });
       });
       await expect(page.getByRole("heading", { name: "Platform operations" })).toBeVisible();
-      await expect(page.getByText("Example Tenant")).toBeVisible();
+      await expect(page.getByText("Example Tenant").first()).toBeVisible();
 
       await page.reload();
       await expect(page.getByRole("heading", { name: scenario.heading })).toBeVisible();

@@ -29,20 +29,24 @@ overview endpoint, plus the subscription-history and AI-credit transaction-histo
 investigation endpoints, Audit Logs viewer, and billing-order history endpoint are
 application-only and locally tested unless separately staged later. The overview
 uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
+Operational Alerts Phase 1 extends the existing dashboard and overview response
+only, deriving typed read-only subscription past-due/expired alerts from the
+existing attention-company data without adding a route or page.
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
 `amount_sen` as integer sen as stored, and does not return or infer currency.
-Payment reconciliation, checkout recovery, retry payment, manual crediting,
-subscription activation, plan changes, no-subscription counting, global
-activity, usage aggregation, charts, exports, audit export, audit
+AI-credit alerts, billing-order attention alerts, inactive-company alerts,
+no-current-chatbot alerts, payment reconciliation, checkout recovery, retry
+payment, manual crediting, subscription activation, plan changes,
+no-subscription counting, global activity, usage aggregation, charts, exports, audit export, audit
 editing/deletion, and write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
 shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
 client, in-memory request cancellation/state clearing, the Platform Operations
 overview, the server-paginated company directory, safe company billing/AI-credit
-detail views, and lazy read-only subscription-history, AI-credit transaction-history,
+detail views, typed subscription operational alerts, and lazy read-only subscription-history, AI-credit transaction-history,
 billing-order history, and company users/chatbots sections. A later bounded frontend-only platform-admin
 Support Workspace adds a read-only investigation hub that reuses the existing
 operations overview and company directory APIs, highlights attention companies,
