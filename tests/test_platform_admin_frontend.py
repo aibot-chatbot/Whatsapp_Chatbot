@@ -287,9 +287,36 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn('ui.runRequest("operations-overview"', self.dashboard)
         self.assertIn("Platform operations", self.dashboard)
         self.assertIn("Read-only overview of tenant and subscription health", self.dashboard)
+        self.assertIn("Operational alerts", self.dashboard)
+        self.assertIn("No operational alerts found.", self.dashboard)
+        self.assertIn("subscription_past_due", self.dashboard)
+        self.assertIn("subscription_expired", self.dashboard)
+        self.assertIn("Critical alerts", self.dashboard)
+        self.assertIn("Warning alerts", self.dashboard)
         self.assertIn("Companies requiring attention", self.dashboard)
+        self.assertIn("platform-admin-company.html?", self.dashboard)
+        self.assertIn("Number.isSafeInteger(company.company_id)", self.dashboard)
         api_source = read(API)
         self.assertIn('return platformFetch("/overview"', api_source)
+        self.assertNotIn("listOperationalAlerts", api_source)
+        for forbidden in [
+            "PlatformAdminApi.listCompanies({",
+            "innerHTML",
+            "JSON.stringify",
+            "Reconcile",
+            "Retry payment",
+            "Activate",
+            "Change plan",
+            "Credit manually",
+            "Checkout",
+            "Payment link",
+            "Message tenant",
+            "Create ticket",
+            "Export",
+            "Download",
+            "Chart",
+        ]:
+            self.assertNotIn(forbidden, self.dashboard)
 
     def test_support_workspace_reuses_only_overview_and_company_directory(self):
         self.assertIn("Support Workspace", read(FRONTEND / "platform-admin-support.html"))

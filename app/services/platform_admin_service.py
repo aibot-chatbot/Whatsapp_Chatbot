@@ -364,6 +364,51 @@ def get_operations_overview(actor_id):
             "current_period_end": row.get("current_period_end"),
         })
 
+    def _subscription_alert(row):
+        company_id = row.get("company_id")
+        if not isinstance(company_id, int) or isinstance(company_id, bool) or company_id <= 0:
+            return None
+        status = str(row.get("subscription_status") or "").strip().lower()
+        if status == "past_due":
+            alert_type = "subscription_past_due"
+            severity = "warning"
+            summary = "Subscription is past due"
+        elif status == "expired":
+            alert_type = "subscription_expired"
+            severity = "critical"
+            summary = "Subscription is expired"
+        else:
+            return None
+        return {
+            "type": alert_type,
+            "severity": severity,
+            "company_id": company_id,
+            "company_name": row.get("company_name"),
+            "company_status": row.get("company_status"),
+            "summary": summary,
+            "details": {
+                "subscription_status": status,
+                "plan_code": row.get("plan_code"),
+                "plan_name": row.get("plan_name"),
+                "current_period_end": row.get("current_period_end"),
+                "status_updated_at": row.get("status_updated_at"),
+            },
+            "investigation_url": f"platform-admin-company.html?company_id={company_id}",
+        }
+
+    alerts = []
+    for row in attention:
+        alert = _subscription_alert(row)
+        if alert:
+            alerts.append(alert)
+        if len(alerts) >= 10:
+            break
+    alert_summary = {"total": len(alerts), "critical": 0, "warning": 0, "info": 0}
+    for alert in alerts:
+        severity = alert.get("severity")
+        if severity in ("critical", "warning", "info"):
+            alert_summary[severity] += 1
+
     result = {
         "generated_at": generated_at,
         "companies": {
@@ -390,6 +435,11 @@ def get_operations_overview(actor_id):
             ],
         },
         "attention_companies": attention,
+        "operational_alerts": {
+            "alerts": alerts,
+            "summary": alert_summary,
+            "limits": {"max_alerts": 10},
+        },
     }
     _audit(actor_id, "platform_admin.operations.overview.read", "platform_operations_overview", None, {
         "outcome": "success",

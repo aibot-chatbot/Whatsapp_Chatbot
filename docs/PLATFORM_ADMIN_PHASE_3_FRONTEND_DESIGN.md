@@ -32,7 +32,9 @@ history phase adds one lazy company-detail investigation section and one
 GET-only endpoint for safe `company_subscription_orders` fields. Billing orders
 are mutable operational records rather than an event-sourced payment timeline;
 the section shows `amount_sen` as integer sen only and does not return or infer
-currency.
+currency. The current application-only Operational Alerts Phase 1 extends the
+existing dashboard and `/api/platform-admin/overview` response only; it adds no
+endpoint and no page.
 
 The original Phase 3 frontend pass did not add endpoints, reactivate a mapping,
 change users.role, alter migrations, or deploy anything. Subsequent
@@ -65,8 +67,12 @@ subscription changes remain out of scope.
 - The dashboard performs one audited `GET /api/platform-admin/overview` request
   after `/me`. It reports company counts, latest-subscription status counts,
   latest-subscription plan distribution, and past-due/expired attention
-  companies only. It does not include no-subscription counting, order review,
-  global activity, usage aggregation, charts, exports, or write controls.
+  companies plus typed read-only operational alerts derived from that same
+  attention data. Operational Alerts Phase 1 includes only subscription
+  past-due and expired alerts. It does not include no-subscription counting,
+  inactive-company alerts, platform-wide AI-credit alerts, billing-order
+  attention alerts, no-current-chatbot alerts, order review, global activity,
+  usage aggregation, charts, exports, or write controls.
 - Focused source-contract coverage is implemented in
   `tests/test_platform_admin_frontend.py`. The browser-based staging pass is
   also complete.
@@ -386,6 +392,19 @@ linking to existing company detail pages. Do not calculate revenue, order
 review, subscription-order reconciliation, no-subscription counts, AI-credit
 balances, resource-limit proximity, global audit activity, usage aggregation,
 charts, exports, or write controls.
+
+Operational Alerts Phase 1 extends this same dashboard and overview response
+without adding a new endpoint or page. It converts the existing
+past-due/expired attention-company rows into typed read-only alert rows:
+`subscription_past_due` with warning severity and `subscription_expired` with
+critical severity. Alerts link only to
+`platform-admin-company.html?company_id=<id>` for existing investigation. The
+Support Workspace remains unchanged and may continue consuming
+`attention_companies`. AI-credit alerts, billing-order attention alerts,
+inactive-company alerts, no-current-chatbot alerts, charts, exports, write
+actions, reconciliation, checkout recovery, retry payment, manual crediting,
+activation, plan changes, messaging, ticketing, and impersonation remain
+deferred.
 
 The original Phase 3 dashboard intentionally avoided adding a backend aggregate
 endpoint and used company-list requests for local UI counts. That behavior is

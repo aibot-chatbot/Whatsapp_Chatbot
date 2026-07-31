@@ -321,7 +321,12 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   Platform Operations overview now adds one GET-only locally tested dashboard
   endpoint for company counts, latest-subscription status counts, latest-plan
   distribution, and at most 10 past-due/expired attention companies using
-  `created_at DESC, id DESC` latest-subscription semantics.
+  `created_at DESC, id DESC` latest-subscription semantics. Operational Alerts
+  Phase 1 extends this same dashboard and `/overview` response with typed
+  read-only subscription past-due/expired alerts derived from existing
+  attention data. It adds no endpoint or page, and AI-credit alerts,
+  billing-order attention alerts, inactive-company alerts, no-current-chatbot
+  alerts, charts, exports, and write actions remain deferred.
 - A separate platform-admin Support Workspace is implemented as a read-only
   investigation hub. It is distinct from tenant `support.html`, reuses only
   existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
@@ -389,7 +394,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
+| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, operational alerts, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Platform-admin Support Workspace | Implemented locally as a read-only investigation hub using existing overview and company-directory APIs only; no backend endpoint, ticketing, case management, billing-order history, audit-log viewer, or write controls |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |

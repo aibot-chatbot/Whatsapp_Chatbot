@@ -1191,7 +1191,31 @@ class PlatformAdminRouteTests(unittest.TestCase):
                     "plan_name": "Pro",
                     "status_updated_at": "2026-07-29T00:00:00+00:00",
                     "current_period_end": "2026-07-28T00:00:00+00:00",
-                }
+                },
+                {
+                    "company_id": 3,
+                    "subscription_status": "expired",
+                    "plan_code": "free",
+                    "plan_name": "Free",
+                    "status_updated_at": "2026-07-20T00:00:00+00:00",
+                    "current_period_end": "2026-07-19T00:00:00+00:00",
+                },
+                {
+                    "company_id": 4,
+                    "subscription_status": "paused",
+                    "plan_code": "legacy",
+                    "plan_name": "Legacy",
+                    "status_updated_at": "2026-07-18T00:00:00+00:00",
+                    "current_period_end": "2026-07-17T00:00:00+00:00",
+                },
+                {
+                    "company_id": "bad",
+                    "subscription_status": "expired",
+                    "plan_code": "pro",
+                    "plan_name": "Pro",
+                    "status_updated_at": "2026-07-18T00:00:00+00:00",
+                    "current_period_end": "2026-07-17T00:00:00+00:00",
+                },
             ],
         }
         with patch.object(
@@ -1205,7 +1229,11 @@ class PlatformAdminRouteTests(unittest.TestCase):
         ), patch.object(
             platform_admin_service.platform_company_repository,
             "get_companies_by_ids_for_platform_admin",
-            side_effect=lambda ids: calls.append("company_ids") or {2: {"id": 2, "company_name": "Tenant", "status": "active"}},
+            side_effect=lambda ids: calls.append("company_ids") or {
+                2: {"id": 2, "company_name": "Tenant", "status": "active"},
+                3: {"id": 3, "company_name": "Expired Tenant", "status": "active"},
+                4: {"id": 4, "company_name": "Paused Tenant", "status": "active"},
+            },
         ), patch.object(
             platform_admin_service.platform_admin_repository,
             "insert_platform_admin_audit_event",
@@ -1215,7 +1243,10 @@ class PlatformAdminRouteTests(unittest.TestCase):
             calls.append("response")
         self.assertEqual(response.status_code, 200)
         data = response.json["data"]
-        self.assertEqual(set(data), {"generated_at", "companies", "subscriptions", "attention_companies"})
+        self.assertEqual(set(data), {
+            "generated_at", "companies", "subscriptions",
+            "attention_companies", "operational_alerts",
+        })
         self.assertEqual(data["companies"], {"total": 5, "active": 4, "inactive": 1})
         self.assertEqual(data["subscriptions"]["by_status"]["past_due"], 1)
         self.assertEqual(data["subscriptions"]["by_plan"], [{"code": "free", "name": "Free", "count": 1}])
@@ -1231,6 +1262,32 @@ class PlatformAdminRouteTests(unittest.TestCase):
         })
         self.assertEqual(data["attention_companies"][0]["company_name"], "Tenant")
         self.assertEqual(data["attention_companies"][0]["subscription_status"], "past_due")
+        self.assertEqual(len(data["attention_companies"]), 3)
+        alerts = data["operational_alerts"]["alerts"]
+        self.assertEqual(len(alerts), 2)
+        self.assertEqual(alerts[0], {
+            "type": "subscription_past_due",
+            "severity": "warning",
+            "company_id": 2,
+            "company_name": "Tenant",
+            "company_status": "active",
+            "summary": "Subscription is past due",
+            "details": {
+                "subscription_status": "past_due",
+                "plan_code": "pro",
+                "plan_name": "Pro",
+                "current_period_end": "2026-07-28T00:00:00+00:00",
+                "status_updated_at": "2026-07-29T00:00:00+00:00",
+            },
+            "investigation_url": "platform-admin-company.html?company_id=2",
+        })
+        self.assertEqual(alerts[1]["type"], "subscription_expired")
+        self.assertEqual(alerts[1]["severity"], "critical")
+        self.assertEqual(alerts[1]["summary"], "Subscription is expired")
+        self.assertEqual(data["operational_alerts"]["summary"], {
+            "total": 2, "critical": 1, "warning": 1, "info": 0,
+        })
+        self.assertEqual(data["operational_alerts"]["limits"], {"max_alerts": 10})
         self.assertEqual(calls, ["companies", "subscriptions", "company_ids", "audit", "response"])
         self.assertEqual(audit.call_args.args[1], "platform_admin.operations.overview.read")
         self.assertEqual(audit.call_args.args[2], "platform_operations_overview")
@@ -1263,6 +1320,53 @@ class PlatformAdminRouteTests(unittest.TestCase):
         })
         self.assertEqual(response.json["data"]["subscriptions"]["by_plan"], [])
         self.assertEqual(response.json["data"]["attention_companies"], [])
+        self.assertEqual(response.json["data"]["operational_alerts"], {
+            "alerts": [],
+            "summary": {"total": 0, "critical": 0, "warning": 0, "info": 0},
+            "limits": {"max_alerts": 10},
+        })
+
+    def test_operations_overview_operational_alerts_are_capped_at_ten(self):
+        subscriptions = [
+            {
+                "company_id": company_id,
+                "subscription_status": "expired" if company_id % 2 else "past_due",
+                "plan_code": "pro",
+                "plan_name": "Pro",
+                "status_updated_at": f"2026-07-{company_id:02d}T00:00:00+00:00",
+                "current_period_end": f"2026-07-{company_id:02d}T00:00:00+00:00",
+            }
+            for company_id in range(1, 13)
+        ]
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_counts_for_platform_admin",
+            return_value={"total": 12, "active": 12, "inactive": 0},
+        ), patch.object(
+            platform_admin_service.platform_billing_repository,
+            "get_latest_subscription_overview_for_platform_admin",
+            return_value={
+                "by_status": {"past_due": 6, "expired": 6},
+                "by_plan": [],
+                "attention_subscriptions": subscriptions,
+            },
+        ), patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_companies_by_ids_for_platform_admin",
+            return_value={
+                company_id: {"id": company_id, "company_name": f"Tenant {company_id}", "status": "active"}
+                for company_id in range(1, 13)
+            },
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event", return_value={"id": 1},
+        ):
+            response = self.client.get("/api/platform-admin/overview", headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        alerts = response.json["data"]["operational_alerts"]["alerts"]
+        self.assertEqual(len(alerts), 10)
+        self.assertEqual(response.json["data"]["operational_alerts"]["summary"]["total"], 10)
+        self.assertEqual(response.json["data"]["operational_alerts"]["limits"], {"max_alerts": 10})
 
     def test_operations_overview_repository_and_audit_failures_are_sanitized(self):
         with patch.object(

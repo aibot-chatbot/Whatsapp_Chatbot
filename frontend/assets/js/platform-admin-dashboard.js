@@ -106,6 +106,128 @@
         return panel;
     }
 
+    function alertTypeFromSubscriptionStatus(status) {
+        const normalized = typeof status === "string" ? status.trim().toLowerCase() : "";
+        if (normalized === "past_due") {
+            return {
+                type: "subscription_past_due",
+                severity: "warning",
+                summary: "Subscription is past due"
+            };
+        }
+        if (normalized === "expired") {
+            return {
+                type: "subscription_expired",
+                severity: "critical",
+                summary: "Subscription is expired"
+            };
+        }
+        return null;
+    }
+
+    function alertLink(alert) {
+        return companyLink(alert.company_id, "Investigate");
+    }
+
+    function fallbackOperationalAlerts(attentionCompanies) {
+        const alerts = [];
+        if (!Array.isArray(attentionCompanies)) return alerts;
+        attentionCompanies.slice(0, 10).forEach(function (company) {
+            if (!Number.isSafeInteger(company.company_id) || company.company_id <= 0) return;
+            const alertType = alertTypeFromSubscriptionStatus(company.subscription_status);
+            if (!alertType) return;
+            alerts.push({
+                type: alertType.type,
+                severity: alertType.severity,
+                company_id: company.company_id,
+                company_name: company.company_name,
+                company_status: company.company_status,
+                summary: alertType.summary,
+                details: {
+                    subscription_status: company.subscription_status,
+                    plan_code: company.plan_code,
+                    plan_name: company.plan_name,
+                    current_period_end: company.current_period_end,
+                    status_updated_at: company.status_updated_at
+                },
+                investigation_url: "platform-admin-company.html?company_id=" + String(company.company_id)
+            });
+        });
+        return alerts;
+    }
+
+    function summarizeAlerts(alerts, providedSummary) {
+        const summary = { total: alerts.length, critical: 0, warning: 0, info: 0 };
+        alerts.forEach(function (alert) {
+            if (alert.severity === "critical") summary.critical += 1;
+            else if (alert.severity === "warning") summary.warning += 1;
+            else if (alert.severity === "info") summary.info += 1;
+        });
+        if (providedSummary && typeof providedSummary === "object") {
+            summary.total = Number.isSafeInteger(providedSummary.total) ? providedSummary.total : summary.total;
+            summary.critical = Number.isSafeInteger(providedSummary.critical) ? providedSummary.critical : summary.critical;
+            summary.warning = Number.isSafeInteger(providedSummary.warning) ? providedSummary.warning : summary.warning;
+            summary.info = Number.isSafeInteger(providedSummary.info) ? providedSummary.info : summary.info;
+        }
+        return summary;
+    }
+
+    function renderOperationalAlertsPanel(overview) {
+        const panel = ui.element("section", "platform-panel");
+        panel.append(
+            ui.element("h2", "", "Operational alerts"),
+            ui.element("p", "platform-note", "Read-only subscription alerts derived from the platform operations overview. Investigate a company before taking any external operational step.")
+        );
+        const operationalAlerts = overview && overview.operational_alerts ? overview.operational_alerts : {};
+        const alerts = Array.isArray(operationalAlerts.alerts)
+            ? operationalAlerts.alerts
+            : fallbackOperationalAlerts(overview ? overview.attention_companies : []);
+        const summary = summarizeAlerts(alerts, operationalAlerts.summary);
+        const summaryGrid = ui.element("section", "platform-grid");
+        summaryGrid.setAttribute("aria-label", "Operational alert summary");
+        summaryGrid.append(
+            metric("Total alerts", summary.total),
+            metric("Critical alerts", summary.critical),
+            metric("Warning alerts", summary.warning),
+            metric("Info alerts", summary.info)
+        );
+        panel.append(summaryGrid);
+        if (alerts.length === 0) {
+            panel.append(ui.element("p", "platform-empty", "No operational alerts found."));
+            return panel;
+        }
+        const rows = alerts.map(function (alert) {
+            const details = alert && alert.details ? alert.details : {};
+            return [
+                ui.statusBadge(alert.severity),
+                alert.summary || alert.type,
+                companyLink(alert.company_id, alert.company_name),
+                ui.statusBadge(alert.company_status),
+                ui.statusBadge(details.subscription_status),
+                details.plan_name || details.plan_code,
+                ui.formatDate(details.current_period_end),
+                ui.formatDate(details.status_updated_at),
+                alertLink(alert)
+            ];
+        });
+        panel.append(renderTable(
+            [
+                "Severity",
+                "Summary",
+                "Company",
+                "Company status",
+                "Subscription status",
+                "Plan",
+                "Current period end",
+                "Status updated",
+                "Investigate"
+            ],
+            rows,
+            "Operational alerts"
+        ));
+        return panel;
+    }
+
     function renderDashboardOverview(overview) {
         const root = document.getElementById("platform-page-content");
         root.replaceChildren();
@@ -149,6 +271,7 @@
             refreshed,
             renderStatusPanel(byStatus),
             renderPlanPanel(subscriptions.by_plan || []),
+            renderOperationalAlertsPanel(overview),
             renderAttentionPanel(overview.attention_companies || [])
         );
     }
