@@ -91,8 +91,6 @@
             border: 1px solid var(--border-color);
             position: sticky;
             top: 20px;
-        }
-
         .editor-pane::-webkit-scrollbar,
         .chips-pane::-webkit-scrollbar {
             width: 8px;
@@ -1029,6 +1027,7 @@
             } catch (err) {
                 console.error("Failed to load active document info", err);
 <<<<<<< HEAD
+<<<<<<< HEAD
             }
         }
 
@@ -1037,6 +1036,8 @@
             buttons = [];
             buttonsDataPoints = [];
 =======
+=======
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
             }
         }
 
@@ -1072,6 +1073,9 @@
             if (botData && Array.isArray(botData.flow_buttons_data_points)) {
                 buttonsDataPoints = botData.flow_buttons_data_points.map(b => Array.isArray(b.data_points) ? [...b.data_points] : []);
             }
+<<<<<<< HEAD
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
+=======
 >>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
         }
 
@@ -1301,8 +1305,11 @@
                 displayCats.forEach((cat) => {
                     const originalIdx = extractedCategories.indexOf(cat);
 <<<<<<< HEAD
+<<<<<<< HEAD
                     const cleanName = cat.category_name.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
                     const escapedCatName = cat.category_name.replace(/'/g, "&apos;").replace(/"/g, '&quot;');
+=======
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
 =======
 >>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
                     html += `
@@ -1323,8 +1330,13 @@
                                     <span class="info-chip"
                                         draggable="true"
 <<<<<<< HEAD
+<<<<<<< HEAD
                                         ondragstart="onChipDragStart(event, '${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}')"
                                         onclick="openChipDetailModal('${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}', '${escapedCatName}')"
+=======
+                                        ondragstart="onChipDragStart(event, ${originalIdx}, ${i})"
+                                        onclick="openChipDetailModal(${originalIdx}, ${i})"
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
 =======
                                         ondragstart="onChipDragStart(event, ${originalIdx}, ${i})"
                                         onclick="openChipDetailModal(${originalIdx}, ${i})"
@@ -1348,8 +1360,13 @@
                                 draggable="true"
                                 data-chip-idx="${i}"
 <<<<<<< HEAD
+<<<<<<< HEAD
                                 ondragstart="onChipDragStart(event, '${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}')"
                                 onclick="openChipDetailModal('${chip.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}', 'PDF Fact')"
+=======
+                                ondragstart="onChipDragStart(event, ${i})"
+                                onclick="openChipDetailModal(${i})"
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
 =======
                                 ondragstart="onChipDragStart(event, ${i})"
                                 onclick="openChipDetailModal(${i})"
@@ -1365,8 +1382,11 @@
         let activeModalChipText = "";
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         function openChipDetailModal(chipText, catName = "Topic Category") {
 =======
+=======
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
         function openChipDetailModal(catIdx, chipIdx) {
             let chipText = "";
             let catName = "Topic Category";
@@ -1379,6 +1399,9 @@
                 catName = "PDF Fact";
             }
 
+<<<<<<< HEAD
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
+=======
 >>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
             activeModalChipText = chipText;
             document.getElementById('chip-modal-cat').textContent = catName;
@@ -1399,7 +1422,11 @@
                     const cleanLabel = btnName.trim() || `Button ${bIdx + 1}`;
                     listContainer.innerHTML += `
 <<<<<<< HEAD
+<<<<<<< HEAD
                         <button onclick="assignChipToButtonFromModal(${bIdx})" style="background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s;">
+=======
+                        <button onclick="assignChipToButtonFromModal(${bIdx})" style="background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s; width: 100%;">
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
 =======
                         <button onclick="assignChipToButtonFromModal(${bIdx})" style="background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.25); padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; display: flex; align-items: center; justify-content: space-between; transition: background 0.15s; width: 100%;">
 >>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
@@ -1486,8 +1513,11 @@
 
         // Drag & Drop handlers
 <<<<<<< HEAD
+<<<<<<< HEAD
         function onChipDragStart(e, chipText) {
 =======
+=======
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
         function onChipDragStart(e, catIdx, chipIdx) {
             let chipText = "";
             if (typeof catIdx === 'number' && typeof chipIdx === 'number' && extractedCategories[catIdx]) {
@@ -1495,6 +1525,9 @@
             } else if (typeof catIdx === 'number') {
                 chipText = extractedChips[catIdx] || "";
             }
+<<<<<<< HEAD
+>>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
+=======
 >>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
             e.dataTransfer.setData('text/plain', chipText);
             e.dataTransfer.effectAllowed = 'copy';
