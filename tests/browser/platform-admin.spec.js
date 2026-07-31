@@ -224,6 +224,73 @@ const filteredAiCreditTransactions = {
   ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" }
 };
 
+const auditEvents = {
+  audit_events: [
+    {
+      id: 801,
+      actor: { platform_admin_user_id: 7001 },
+      action: "platform_admin.company.read<script>window.__auditActionXss=true</script>",
+      resource_type: "company<img src=x onerror=window.__auditResourceXss=true>",
+      resource_id: "42",
+      metadata: {
+        outcome: "success",
+        endpoint: "/api/platform-admin/companies/<company_id>",
+        http_method: "GET",
+        limit: 25,
+        returned_count: 1,
+        token: "must-not-render",
+        raw_payload: { secret: "must-not-render" }
+      },
+      created_at: "2026-07-31T08:00:00+00:00"
+    }
+  ],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 2, has_more: true },
+  filters: {
+    action: null,
+    resource_type: null,
+    actor_user_id: null,
+    resource_id: null,
+    created_after: null,
+    created_before: null
+  },
+  ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" }
+};
+
+const filteredAuditEvents = {
+  audit_events: [
+    {
+      id: 802,
+      actor: { platform_admin_user_id: 7002 },
+      action: "platform_admin.audit_events.list",
+      resource_type: "platform_admin_audit_events",
+      resource_id: null,
+      metadata: {
+        outcome: "success",
+        endpoint: "/api/platform-admin/audit-events",
+        http_method: "GET",
+        action_filter_applied: true,
+        resource_type_filter_applied: false,
+        actor_user_id_filter_applied: false,
+        resource_id_filter_applied: true,
+        created_after_filter_applied: true,
+        created_before_filter_applied: true,
+        returned_count: 1
+      },
+      created_at: "2026-07-31T09:00:00+00:00"
+    }
+  ],
+  pagination: { limit: 50, offset: 25, returned: 1, total: 26, has_more: false },
+  filters: {
+    action: "platform_admin.audit_events.list",
+    resource_type: null,
+    actor_user_id: null,
+    resource_id: "42",
+    created_after: "2026-07-31T00:00:00+00:00",
+    created_before: "2026-08-01T00:00:00+00:00"
+  },
+  ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" }
+};
+
 function success(data) {
   return { status: 200, body: { status: "success", data } };
 }
@@ -292,6 +359,7 @@ async function openPlatformPage(page, path, handler, user) {
 function defaultHandler({ url }) {
   if (url.pathname === "/api/platform-admin/me") return success(identity);
   if (url.pathname === "/api/platform-admin/overview") return success(operationsOverview);
+  if (url.pathname === "/api/platform-admin/audit-events") return success(auditEvents);
   if (url.pathname === "/api/platform-admin/companies") {
     if (url.searchParams.get("status") === "active") {
       return success(companyList(1, [], { limit: 1, status: "active" }));
@@ -712,6 +780,167 @@ test.describe("platform-admin support workspace", () => {
     await page.getByLabel("Company name or ID").fill("Example");
     await page.getByRole("button", { name: "Search companies" }).click();
     await expect(page.getByLabel("company result cards")).toBeVisible();
+  });
+});
+
+test.describe("platform-admin audit log viewer", () => {
+  test("audit nav and data appear only after platform authorization", async ({ page }) => {
+    let releaseMe;
+    const meGate = new Promise(resolve => {
+      releaseMe = resolve;
+    });
+    const calls = await openPlatformPage(page, "/platform-admin-audit-events.html", async ({ url }) => {
+      if (url.pathname === "/api/platform-admin/me") {
+        await meGate;
+        return success(identity);
+      }
+      return defaultHandler({ url });
+    });
+
+    await expect(page.getByRole("heading", { name: "Checking access" })).toBeVisible();
+    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me"]);
+    releaseMe();
+    await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Audit Logs" })).toHaveAttribute("href", "platform-admin-audit-events.html");
+    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/audit-events"]);
+    expect(calls.every(call => call.method === "GET")).toBe(true);
+  });
+
+  test("renders safe audit rows and allowlisted metadata only", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-audit-events.html", ({ url }) => defaultHandler({ url }));
+
+    await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "platform_admin.company.read<script>window.__auditActionXss=true</script>" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "company<img src=x onerror=window.__auditResourceXss=true>" })).toBeVisible();
+    await expect(page.getByText("platform_admin_user_id")).toHaveCount(0);
+    await expect(page.getByText("must-not-render")).toHaveCount(0);
+    await expect(page.getByText("raw_payload")).toHaveCount(0);
+    await expect(page.getByText("token")).toHaveCount(0);
+    await expect(page.getByRole("table").getByText("outcome")).toBeVisible();
+    await expect(page.getByRole("table").getByText("endpoint")).toBeVisible();
+    await expect(page.getByRole("table").getByText("http_method")).toBeVisible();
+    expect(await page.evaluate(() => window.__auditActionXss || window.__auditResourceXss || false)).toBe(false);
+    expect(calls.filter(call => call.path === "/api/platform-admin/audit-events")).toHaveLength(1);
+  });
+
+  test("pagination and approved filters produce expected query parameters", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-audit-events.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/audit-events" && url.searchParams.get("action")) {
+        return success(filteredAuditEvents);
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.locator("#platform-audit-action").selectOption("platform_admin.audit_events.list");
+    await page.locator("#platform-audit-resource-type").selectOption("platform_admin_audit_events");
+    await page.locator("#platform-audit-actor-user-id").fill("32");
+    await page.locator("#platform-audit-resource-id").fill("42");
+    await page.locator("#platform-audit-created-after").fill("2026-07-31T00:00:00+00:00");
+    await page.locator("#platform-audit-created-before").fill("2026-08-01T00:00:00+00:00");
+    await page.locator("#platform-audit-limit").selectOption("50");
+    await page.getByRole("button", { name: "Apply filters" }).click();
+    await expect(page.getByRole("cell", { name: "platform_admin.audit_events.list" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Previous" }).click();
+    const urls = calls
+      .filter(call => call.path === "/api/platform-admin/audit-events")
+      .map(call => new URL("http://test" + call.search));
+    expect(urls.some(url => url.searchParams.get("limit") === "50")).toBe(true);
+    expect(urls.some(url => url.searchParams.get("offset") === "25")).toBe(true);
+    expect(urls.some(url => url.searchParams.get("offset") === "0")).toBe(true);
+    expect(urls.some(url => url.searchParams.get("action") === "platform_admin.audit_events.list")).toBe(true);
+    expect(urls.some(url => url.searchParams.get("resource_type") === "platform_admin_audit_events")).toBe(true);
+    expect(urls.some(url => url.searchParams.get("actor_user_id") === "32")).toBe(true);
+    expect(urls.some(url => url.searchParams.get("resource_id") === "42")).toBe(true);
+    expect(urls.every(url => !url.searchParams.has("metadata"))).toBe(true);
+    expect(urls.every(url => !url.searchParams.has("sort_by"))).toBe(true);
+
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await expect(page.locator("#platform-audit-action")).toHaveValue("");
+    await expect(page.locator("#platform-audit-resource-id")).toHaveValue("");
+  });
+
+  test("empty validation unavailable and access failure states are sanitized", async ({ page }) => {
+    await openPlatformPage(page, "/platform-admin-audit-events.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/audit-events") {
+        return success({
+          ...auditEvents,
+          audit_events: [],
+          pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false }
+        });
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByText("No audit events found.")).toBeVisible();
+
+    await openPlatformPage(page, "/platform-admin-audit-events.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/audit-events") {
+        return failure(400, "invalid_action", "raw validation detail");
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByText("Audit log filters could not be validated.")).toBeVisible();
+    await expect(page.getByText("raw validation detail")).toHaveCount(0);
+
+    await openPlatformPage(page, "/platform-admin-audit-events.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/audit-events") {
+        return failure(503, "platform_admin_data_unavailable", "raw Supabase details");
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "Temporarily Unavailable" })).toBeVisible();
+    await expect(page.getByText("raw Supabase details")).toHaveCount(0);
+    await expect(page.getByText("platform_admin.company.read")).toHaveCount(0);
+
+    await openPlatformPage(page, "/platform-admin-audit-events.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/me") {
+        return failure(403, "platform_admin_access_denied");
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "Access Denied" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Audit Logs" })).toHaveCount(0);
+  });
+
+  test("late audit response cannot restore obsolete rows", async ({ page }) => {
+    let releaseOld;
+    const oldRequest = new Promise(resolve => {
+      releaseOld = () => resolve(success({
+        ...auditEvents,
+        audit_events: [{
+          ...auditEvents.audit_events[0],
+          action: "platform_admin.company.list<script>window.__oldAuditXss=true</script>"
+        }]
+      }));
+    });
+    await openPlatformPage(page, "/platform-admin-audit-events.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/audit-events") {
+        if (!url.searchParams.get("action")) return oldRequest;
+        return success(filteredAuditEvents);
+      }
+      return defaultHandler({ url });
+    });
+
+    await expect(page.getByText("Loading audit events...")).toBeVisible();
+    await page.locator("#platform-audit-action").selectOption("platform_admin.audit_events.list");
+    await page.getByRole("button", { name: "Apply filters" }).click();
+    await expect(page.getByRole("cell", { name: "platform_admin.audit_events.list" })).toBeVisible();
+    releaseOld();
+    await page.waitForTimeout(100);
+    await expect(page.getByText("platform_admin.company.list<script>window.__oldAuditXss=true</script>")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.__oldAuditXss)).toBeUndefined();
+  });
+
+  test("audit log viewer has no write export controls and works on mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openPlatformPage(page, "/platform-admin-audit-events.html", ({ url }) => defaultHandler({ url }));
+    await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible();
+    await expect(page.getByLabel("audit event cards")).toBeVisible();
+    for (const label of ["Export", "Download", "Delete audit", "Edit audit", "Create Ticket", "Platform Admin Mapping"]) {
+      await expect(page.getByRole("button", { name: label })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: label })).toHaveCount(0);
+    }
   });
 });
 

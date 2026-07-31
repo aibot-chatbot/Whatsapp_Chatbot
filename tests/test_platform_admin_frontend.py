@@ -12,6 +12,7 @@ PAGES = [
     FRONTEND / "platform-admin-companies.html",
     FRONTEND / "platform-admin-company.html",
     FRONTEND / "platform-admin-support.html",
+    FRONTEND / "platform-admin-audit-events.html",
 ]
 API = FRONTEND / "assets" / "js" / "platform-admin-api.js"
 SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
@@ -19,6 +20,7 @@ DASHBOARD = FRONTEND / "assets" / "js" / "platform-admin-dashboard.js"
 COMPANIES = FRONTEND / "assets" / "js" / "platform-admin-companies.js"
 COMPANY = FRONTEND / "assets" / "js" / "platform-admin-company.js"
 SUPPORT = FRONTEND / "assets" / "js" / "platform-admin-support.js"
+AUDIT_EVENTS = FRONTEND / "assets" / "js" / "platform-admin-audit-events.js"
 CSS = FRONTEND / "assets" / "css" / "platform-admin.css"
 SIDEBAR = FRONTEND / "sidebar-component.js"
 TENANT_SUPPORT = FRONTEND / "support.html"
@@ -33,7 +35,7 @@ class TestPlatformAdminPageGate(unittest.TestCase):
     def setUpClass(cls):
         cls.pages = {path.name: read(path) for path in PAGES}
         cls.shell = read(SHELL)
-        cls.controllers = [read(DASHBOARD), read(COMPANIES), read(COMPANY)]
+        cls.controllers = [read(DASHBOARD), read(COMPANIES), read(COMPANY), read(SUPPORT), read(AUDIT_EVENTS)]
 
     def test_all_pages_begin_in_blocking_checking_access_state(self):
         for name, html in self.pages.items():
@@ -49,6 +51,7 @@ class TestPlatformAdminPageGate(unittest.TestCase):
             "platform-admin-companies.html": "platform-admin-companies.js",
             "platform-admin-company.html": "platform-admin-company.js",
             "platform-admin-support.html": "platform-admin-support.js",
+            "platform-admin-audit-events.html": "platform-admin-audit-events.js",
         }
         for name, html in self.pages.items():
             with self.subTest(page=name):
@@ -101,6 +104,7 @@ class TestPlatformAdminShell(unittest.TestCase):
             "Dashboard",
             "Companies",
             "Support",
+            "Audit Logs",
             "Return to Tenant App",
             "Logout",
         ]:
@@ -157,7 +161,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         cls.api = read(API)
         cls.auth = read(FRONTEND / "assets" / "js" / "auth.js")
 
-    def test_public_client_exposes_only_ten_approved_methods(self):
+    def test_public_client_exposes_only_eleven_approved_methods(self):
         exported = re.search(
             r"window\.PlatformAdminApi = Object\.freeze\(\{(.*?)\}\);",
             self.api,
@@ -170,6 +174,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "getMe",
                 "getOverview",
                 "listCompanies",
+                "listAuditEvents",
                 "getCompany",
                 "getCompanySubscription",
                 "listCompanySubscriptionHistory",
@@ -186,6 +191,27 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             self.assertNotIn(f'method: "{method}"', self.api)
         self.assertNotIn("request: platformFetch", self.api)
         self.assertNotIn("/api/admin/billing", self.api)
+
+    def test_audit_event_client_uses_only_approved_filters(self):
+        function = re.search(
+            r"function listAuditEvents\(options\) \{(.*?)\n    \}",
+            self.api,
+            flags=re.S,
+        ).group(1)
+        for key in [
+            "limit",
+            "offset",
+            "action",
+            "resource_type",
+            "actor_user_id",
+            "resource_id",
+            "created_after",
+            "created_before",
+        ]:
+            self.assertIn(key, function)
+        for forbidden in ["metadata", "search", "sort_by", "export", "download"]:
+            self.assertNotIn(forbidden, function)
+        self.assertIn('platformFetch("/audit-events?"', function)
 
     def test_bearer_token_comes_from_existing_authenticated_session_helper(self):
         self.assertIn("authenticatedFetch(API_ROOT + path", self.api)
@@ -241,6 +267,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         cls.companies = read(COMPANIES)
         cls.company = read(COMPANY)
         cls.support = read(SUPPORT)
+        cls.audit_events = read(AUDIT_EVENTS)
 
     def test_tenant_support_remains_tenant_facing_static_help(self):
         page = read(TENANT_SUPPORT)
@@ -311,6 +338,27 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
                 self.assertIn("does not submit tickets", self.support)
             else:
                 self.assertNotIn(forbidden, self.support)
+
+    def test_audit_log_viewer_uses_shell_client_and_safe_metadata_summary(self):
+        self.assertIn("Audit Logs", read(FRONTEND / "platform-admin-audit-events.html"))
+        self.assertIn("PlatformAdminShell.start({ onAuthorized: initializeAuditLogViewer })", self.audit_events)
+        self.assertIn('ui.runRequest("audit-events"', self.audit_events)
+        self.assertIn("PlatformAdminApi.listAuditEvents({", self.audit_events)
+        self.assertIn("Read-only platform-admin activity history", self.audit_events)
+        self.assertIn("does not expose raw metadata or tenant records", self.audit_events)
+        self.assertIn("Safe metadata summary", self.audit_events)
+        self.assertIn("METADATA_KEYS", self.audit_events)
+        self.assertNotIn("JSON.stringify", self.audit_events)
+        self.assertNotIn("textarea", self.audit_events)
+        for forbidden in [
+            "Export",
+            "Download",
+            "Delete audit",
+            "Edit audit",
+            "Platform Admin Mapping",
+            "metadata search",
+        ]:
+            self.assertNotIn(forbidden, self.audit_events)
 
     def test_directory_debounces_aborts_and_resets_pagination(self):
         self.assertIn("}, 350);", self.companies)

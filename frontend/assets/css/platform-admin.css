@@ -380,6 +380,14 @@ a {
     margin: 1rem 0;
 }
 
+.platform-audit-filters {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: end;
+    gap: 0.85rem;
+    margin: 1rem 0;
+}
+
 .platform-support-results {
     min-height: 5rem;
 }
@@ -437,6 +445,33 @@ a {
 
 .platform-company-cards {
     display: none;
+}
+
+.platform-audit-metadata {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0;
+}
+
+.platform-audit-metadata div {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.4fr) minmax(0, 1fr);
+    gap: 0.5rem;
+}
+
+.platform-audit-metadata dt {
+    color: var(--platform-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.platform-audit-metadata dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.platform-audit-results {
+    min-height: 5rem;
 }
 
 .platform-company-card {
@@ -551,7 +586,8 @@ a {
     .platform-grid,
     .platform-definition-grid,
     .platform-toolbar,
-    .platform-support-search {
+    .platform-support-search,
+    .platform-audit-filters {
         grid-template-columns: 1fr;
     }
 

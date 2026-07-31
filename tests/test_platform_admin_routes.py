@@ -31,11 +31,12 @@ class PlatformAdminRouteTests(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
 
-    def test_only_ten_approved_get_routes_exist(self):
+    def test_only_eleven_approved_get_routes_exist(self):
         rules = [rule for rule in self.app.url_map.iter_rules() if rule.rule.startswith("/api/platform-admin")]
         self.assertEqual({rule.rule for rule in rules}, {
             "/api/platform-admin/me",
             "/api/platform-admin/overview",
+            "/api/platform-admin/audit-events",
             "/api/platform-admin/companies",
             "/api/platform-admin/companies/<int:company_id>",
             "/api/platform-admin/companies/<int:company_id>/subscription",
@@ -52,7 +53,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 10)
+        self.assertEqual(len(rules), 11)
         for rule in rules:
             path = rule.rule.replace("<int:company_id>", "2")
             with self.subTest(path=path):
@@ -101,6 +102,15 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/2/ai-credit-transactions?limit=0": "invalid_limit",
             "/api/platform-admin/companies/2/ai-credit-transactions?offset=-1": "invalid_offset",
             "/api/platform-admin/companies/2/ai-credit-transactions?transaction_type=provider_cost": "invalid_transaction_type",
+            "/api/platform-admin/audit-events?limit=0": "invalid_limit",
+            "/api/platform-admin/audit-events?offset=-1": "invalid_offset",
+            "/api/platform-admin/audit-events?action=unknown": "invalid_action",
+            "/api/platform-admin/audit-events?resource_type=raw_payload": "invalid_resource_type",
+            "/api/platform-admin/audit-events?actor_user_id=0": "invalid_actor_user_id",
+            f"/api/platform-admin/audit-events?resource_id={'x' * 256}": "invalid_resource_id",
+            "/api/platform-admin/audit-events?created_after=2026-07-31T00:00:00": "invalid_created_after",
+            "/api/platform-admin/audit-events?created_before=2026-07-31T00:00:00": "invalid_created_before",
+            "/api/platform-admin/audit-events?created_after=2026-08-01T00:00:00%2B00:00&created_before=2026-07-31T00:00:00%2B00:00": "invalid_created_before",
         }
         for path, code in cases.items():
             with self.subTest(path=path):
@@ -285,6 +295,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             ("/api/platform-admin/me", "platform_admin.identity.read"),
             ("/api/platform-admin/overview", "platform_admin.operations.overview.read"),
             ("/api/platform-admin/companies", "platform_admin.company.list"),
+            ("/api/platform-admin/audit-events", "platform_admin.audit_events.list"),
             (
                 "/api/platform-admin/companies/2/subscription",
                 "platform_admin.company.subscription.read",
@@ -321,6 +332,10 @@ class PlatformAdminRouteTests(unittest.TestCase):
             ), patch.object(
                 platform_admin_service.platform_company_repository,
                 "get_companies_by_ids_for_platform_admin", return_value={},
+            ), patch.object(
+                platform_admin_service.platform_admin_repository,
+                "list_platform_admin_audit_events_for_platform_admin",
+                return_value=([], 0),
             ), patch.object(
                 platform_admin_service.platform_billing_repository,
                 "get_latest_subscription_overview_for_platform_admin",
@@ -361,6 +376,140 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 audit.assert_called_once()
                 self.assertEqual(audit.call_args.args[1], expected_action)
+
+    def test_audit_events_success_shape_filters_and_audit_metadata(self):
+        rows = [{
+            "id": 5,
+            "platform_admin_user_id": 3,
+            "action": "platform_admin.company.read",
+            "resource_type": "company",
+            "resource_id": "29",
+            "metadata": {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/companies/<company_id>",
+                "http_method": "GET",
+                "token": "must be omitted",
+                "raw_payload": {"nested": "must be omitted"},
+            },
+            "created_at": "2026-07-31T08:00:00+00:00",
+            "secret_extra": "must be omitted",
+        }]
+        calls = []
+        with patch.object(
+            platform_admin_service.platform_admin_repository,
+            "list_platform_admin_audit_events_for_platform_admin",
+            side_effect=lambda **kwargs: calls.append("read") or (rows, 7),
+        ) as repository, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=lambda *args, **kwargs: calls.append("audit") or {"id": 99},
+        ) as audit:
+            response = self.client.get(
+                "/api/platform-admin/audit-events?limit=1&offset=2"
+                "&action=platform_admin.company.read&resource_type=company"
+                "&actor_user_id=32&resource_id=29"
+                "&created_after=2026-07-01T00:00:00%2B00:00"
+                "&created_before=2026-08-01T00:00:00%2B00:00",
+                headers=self.headers,
+            )
+            calls.append("response")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(calls, ["read", "audit", "response"])
+        repository.assert_called_once()
+        kwargs = repository.call_args.kwargs
+        self.assertEqual(kwargs["limit"], 1)
+        self.assertEqual(kwargs["offset"], 2)
+        self.assertEqual(kwargs["action"], "platform_admin.company.read")
+        self.assertEqual(kwargs["resource_type"], "company")
+        self.assertEqual(kwargs["actor_user_id"], 32)
+        self.assertEqual(kwargs["resource_id"], "29")
+        event = response.json["data"]["audit_events"][0]
+        self.assertEqual(set(event), {
+            "id", "actor", "action", "resource_type", "resource_id",
+            "metadata", "created_at",
+        })
+        self.assertEqual(event["actor"], {"platform_admin_user_id": 3})
+        self.assertEqual(event["metadata"], {
+            "outcome": "success",
+            "endpoint": "/api/platform-admin/companies/<company_id>",
+            "http_method": "GET",
+        })
+        response_text = response.get_data(as_text=True)
+        self.assertNotIn("must be omitted", response_text)
+        self.assertNotIn("secret_extra", response_text)
+        self.assertEqual(response.json["data"]["pagination"]["total"], 7)
+        self.assertEqual(response.json["data"]["ordering"]["tie_breaker"], "id desc")
+        audit.assert_called_once()
+        self.assertEqual(audit.call_args.args[1], "platform_admin.audit_events.list")
+        self.assertEqual(audit.call_args.args[2], "platform_admin_audit_events")
+        self.assertIsNone(audit.call_args.args[3])
+        self.assertEqual(audit.call_args.args[4], {
+            "outcome": "success",
+            "endpoint": "/api/platform-admin/audit-events",
+            "http_method": "GET",
+            "limit": 1,
+            "offset": 2,
+            "action_filter_applied": True,
+            "resource_type_filter_applied": True,
+            "actor_user_id_filter_applied": True,
+            "resource_id_filter_applied": True,
+            "created_after_filter_applied": True,
+            "created_before_filter_applied": True,
+            "returned_count": 1,
+        })
+
+    def test_audit_events_empty_list_and_repository_failure_are_sanitized(self):
+        with patch.object(
+            platform_admin_service.platform_admin_repository,
+            "list_platform_admin_audit_events_for_platform_admin",
+            return_value=([], 0),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ):
+            response = self.client.get("/api/platform-admin/audit-events", headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["audit_events"], [])
+        self.assertEqual(response.json["data"]["pagination"]["returned"], 0)
+
+        with patch.object(
+            platform_admin_service.platform_admin_repository,
+            "list_platform_admin_audit_events_for_platform_admin",
+            side_effect=RuntimeError("Supabase service_role raw detail"),
+        ):
+            failure_response = self.client.get("/api/platform-admin/audit-events", headers=self.headers)
+        self.assertEqual(failure_response.status_code, 503)
+        self.assertEqual(failure_response.json["code"], "platform_admin_data_unavailable")
+        self.assertNotIn("supabase", failure_response.get_data(as_text=True).lower())
+        self.assertNotIn("service_role", failure_response.get_data(as_text=True).lower())
+
+    def test_audit_events_audit_failure_withholds_rows(self):
+        with patch.object(
+            platform_admin_service.platform_admin_repository,
+            "list_platform_admin_audit_events_for_platform_admin",
+            return_value=([
+                {
+                    "id": 5,
+                    "platform_admin_user_id": 3,
+                    "action": "platform_admin.company.read",
+                    "resource_type": "company",
+                    "resource_id": "29",
+                    "metadata": {"outcome": "success"},
+                    "created_at": "2026-07-31T08:00:00+00:00",
+                }
+            ], 1),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            side_effect=RuntimeError("audit insert raw detail"),
+        ):
+            response = self.client.get("/api/platform-admin/audit-events", headers=self.headers)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json["code"], "platform_admin_audit_unavailable")
+        self.assertNotIn("audit_events", response.get_data(as_text=True))
+        self.assertNotIn("audit insert raw detail", response.get_data(as_text=True))
 
     def test_subscription_history_success_shape_and_audit_metadata(self):
         calls = []

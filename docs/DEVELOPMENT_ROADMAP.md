@@ -22,17 +22,17 @@
 
 The initial read-only backend is implemented with a separate database-backed
 platform-admin allowlist, per-request fail-closed authorization, dedicated
-cross-tenant repositories, ten GET-only endpoints, and audit-before-response
+cross-tenant repositories, eleven GET-only endpoints, and audit-before-response
 enforcement. Tenant roles and JWT claims do not grant platform access. The
 later users/chatbots company-inspection endpoints and Platform Operations
 overview endpoint, plus the subscription-history and AI-credit transaction-history
-investigation endpoints, are
+investigation endpoints and Audit Logs viewer, are
 application-only and locally tested unless separately staged later. The overview
 uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Order review, no-subscription
-counting, global activity, usage aggregation, charts, exports, and write
-controls remain deferred.
+counting, global activity, usage aggregation, charts, exports, audit export,
+audit editing/deletion, and write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
 shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
@@ -47,6 +47,11 @@ backend endpoint. It is separate from tenant `support.html` and does not add
 ticketing, support-case records, notes, assignment, billing-order history,
 audit-log viewing, or write controls. The ordinary
 tenant sidebar does not expose platform navigation.
+The Audit Logs viewer adds a separate read-only page and one audited backend
+endpoint for safe platform-admin audit event summaries. It returns actor mapping
+IDs only, omits raw metadata and tenant records, and does not add audit
+editing, deletion, export, download, charts, platform-admin user management, or
+other write controls.
 Authenticated tenant pages now use a shared top-right account menu for Profile,
 Support, and Logout. Support points to a static authenticated tenant help page
 with local self-service guidance and no support-submission backend. Active

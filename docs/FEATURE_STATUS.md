@@ -327,6 +327,13 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   endpoint, ticketing, case notes, billing-order history, audit-log viewer, or
   write controls; the platform-admin backend inventory remains exactly ten
   GET-only routes.
+- A separate platform-admin Audit Logs viewer is implemented as a read-only,
+  application-only local extension. It adds one audited GET-only endpoint,
+  `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
+  metadata summaries only, and does not expose raw metadata, tenant records,
+  exports, downloads, charts, audit editing, audit deletion, or platform-admin
+  user management. The platform-admin backend inventory is now exactly eleven
+  GET-only routes.
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
@@ -371,7 +378,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 | Limitation | Status |
 |---|---|
-| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, users/chatbots, subscription-history, and AI-credit transaction-history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
+| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, users/chatbots, subscription-history, AI-credit transaction-history, and audit-log viewer extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Platform-admin Support Workspace | Implemented locally as a read-only investigation hub using existing overview and company-directory APIs only; no backend endpoint, ticketing, case management, billing-order history, audit-log viewer, or write controls |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |

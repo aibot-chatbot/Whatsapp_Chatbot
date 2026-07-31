@@ -56,6 +56,21 @@ def operations_overview():
     return _execute(lambda: platform_admin_service.get_operations_overview(_actor_id()))
 
 
+@platform_admin_bp.get("/audit-events")
+def audit_events():
+    return _execute(lambda: platform_admin_service.list_audit_events(
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        action=request.args.get("action"),
+        resource_type=request.args.get("resource_type"),
+        actor_user_id=request.args.get("actor_user_id"),
+        resource_id=request.args.get("resource_id"),
+        created_after=request.args.get("created_after"),
+        created_before=request.args.get("created_before"),
+    ))
+
+
 @platform_admin_bp.get("/companies")
 def companies():
     return _execute(lambda: platform_admin_service.list_companies(
