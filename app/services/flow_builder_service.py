@@ -109,10 +109,7 @@ def auto_generate_welcome_menu(chatbot_id):
         raise ValueError("Failed to generate menu using AI. The service might be temporarily unavailable.")
 
 
-_EXTRACTION_CACHE = {}
-
-
-def extract_pdf_data_points(chatbot_id, force_refresh=False):
+def extract_pdf_data_points(chatbot_id):
     """
     Scans the active PDF for the chatbot and asks the AI to extract facts
     grouped into logical business categories. Cached per (chatbot_id, file_id)
