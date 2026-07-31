@@ -259,6 +259,27 @@ class PlatformAdminAuditTests(unittest.TestCase):
                 "http_method": "GET",
             },
         ),
+        (
+            "audit_events_list_success",
+            2,
+            "platform_admin.audit_events.list",
+            "platform_admin_audit_events",
+            None,
+            {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/audit-events",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "action_filter_applied": False,
+                "resource_type_filter_applied": False,
+                "actor_user_id_filter_applied": False,
+                "resource_id_filter_applied": False,
+                "created_after_filter_applied": False,
+                "created_before_filter_applied": False,
+                "returned_count": 0,
+            },
+        ),
     )
 
     def test_valid_event_is_inserted(self):
@@ -391,6 +412,7 @@ class PlatformAdminAuditTests(unittest.TestCase):
             ("platform_admin.company.chatbots.read", "company_users", "1"),
             ("platform_admin.company.subscription_history.read", "company_subscription", "1"),
             ("platform_admin.company.ai_credit_transactions.read", "company_ai_credit_usage", "1"),
+            ("platform_admin.audit_events.list", "company", None),
         )
         for action, resource_type, resource_id in invalid_pairs:
             with self.subTest(action=action, resource_type=resource_type), self.assertRaises(ValueError):
@@ -443,6 +465,18 @@ class PlatformAdminAuditTests(unittest.TestCase):
                         "limit": 25,
                         "offset": 0,
                         "transaction_type_filter": None,
+                        "returned_count": 0,
+                    })
+                if action == "platform_admin.audit_events.list":
+                    metadata.update({
+                        "limit": 25,
+                        "offset": 0,
+                        "action_filter_applied": False,
+                        "resource_type_filter_applied": False,
+                        "actor_user_id_filter_applied": False,
+                        "resource_id_filter_applied": False,
+                        "created_after_filter_applied": False,
+                        "created_before_filter_applied": False,
                         "returned_count": 0,
                     })
                 platform_admin_repository.validate_audit_event(
@@ -532,6 +566,58 @@ class PlatformAdminAuditTests(unittest.TestCase):
                     platform_admin_repository.validate_audit_event(
                         1, action, resource_type, "9", metadata
                     )
+
+    def test_audit_event_viewer_metadata_is_strictly_validated(self):
+        valid = {
+            "outcome": "success",
+            "endpoint": "/api/platform-admin/audit-events",
+            "http_method": "GET",
+            "limit": 25,
+            "offset": 0,
+            "action_filter_applied": False,
+            "resource_type_filter_applied": False,
+            "actor_user_id_filter_applied": False,
+            "resource_id_filter_applied": False,
+            "created_after_filter_applied": False,
+            "created_before_filter_applied": False,
+            "returned_count": 0,
+        }
+        platform_admin_repository.validate_audit_event(
+            1,
+            "platform_admin.audit_events.list",
+            "platform_admin_audit_events",
+            None,
+            valid,
+        )
+        invalid_cases = []
+        for key in (
+            "limit", "offset", "action_filter_applied",
+            "resource_type_filter_applied", "actor_user_id_filter_applied",
+            "resource_id_filter_applied", "created_after_filter_applied",
+            "created_before_filter_applied", "returned_count",
+        ):
+            metadata = dict(valid)
+            metadata.pop(key)
+            invalid_cases.append((f"missing_{key}", metadata))
+        invalid_cases.extend([
+            ("boolean_limit", dict(valid, limit=True)),
+            ("boolean_offset", dict(valid, offset=True)),
+            ("boolean_returned_count", dict(valid, returned_count=True)),
+            ("string_filter_flag", dict(valid, action_filter_applied="true")),
+            ("returned_count_exceeds_limit", dict(valid, limit=1, returned_count=2)),
+            ("returned_count_exceeds_max", dict(valid, limit=100, returned_count=101)),
+            ("raw_filter_value", dict(valid, action_filter="platform_admin.company.read")),
+            ("raw_error", dict(valid, error_stack="trace")),
+        ])
+        for name, metadata in invalid_cases:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                platform_admin_repository.validate_audit_event(
+                    1,
+                    "platform_admin.audit_events.list",
+                    "platform_admin_audit_events",
+                    None,
+                    metadata,
+                )
 
     def test_child_list_invalid_sort_state_and_boolean_integers_are_rejected(self):
         invalid_cases = (

@@ -5,8 +5,8 @@
 **Production policy candidate; formal security, privacy, legal, and data-owner
 approval remains required.** This policy matches the implemented read-only
 platform-admin endpoint set, including the application-only operations overview,
-company-user, chatbot, subscription-history, and AI-credit transaction-history
-extensions. It does not
+company-user, chatbot, subscription-history, AI-credit transaction-history, and
+audit-log viewer extensions. It does not
 authorize a deployment, schema change, retention deletion, or mapping
 activation.
 
@@ -42,6 +42,7 @@ No action or resource type outside this table is approved for Phase 4.
 | `platform_admin.company.users.read` | `company_users` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/users` |
 | `platform_admin.company.chatbots.read` | `company_chatbots` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `state_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/chatbots` |
 | `platform_admin.operations.overview.read` | `platform_operations_overview` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `attention_company_count`, `generated_at` | None | `/api/platform-admin/overview` |
+| `platform_admin.audit_events.list` | `platform_admin_audit_events` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, `action_filter_applied`, `resource_type_filter_applied`, `actor_user_id_filter_applied`, `resource_id_filter_applied`, `created_after_filter_applied`, `created_before_filter_applied`, `returned_count` | None | `/api/platform-admin/audit-events` |
 
 ### Operations-overview fields
 
@@ -80,6 +81,12 @@ period_start
 period_end
 attention_company_count
 generated_at
+action_filter_applied
+resource_type_filter_applied
+actor_user_id_filter_applied
+resource_id_filter_applied
+created_after_filter_applied
+created_before_filter_applied
 ```
 
 No additional key is permitted without a code change, security/privacy review,
@@ -195,6 +202,35 @@ the common fields.
 | `search_applied` | Boolean only; never the search value |
 | `state_filter` | `current`, `archived`, or `all` |
 | `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
+
+### Platform-admin audit-event viewer fields
+
+These fields are present only when `platform_admin.audit_events.list` has
+`outcome = success`.
+
+The audit-log viewer lists safe summaries of persisted platform-admin audit
+events. It returns the actor mapping ID only in Phase 1 and does not expose
+actor email, actor full name, raw metadata JSON, tenant records, audit editing,
+deletion, export, download, charts, retention controls, or platform-admin user
+management.
+
+| Field | Allowed value |
+|---|---|
+| `limit` | Validated integer 1-100 |
+| `offset` | Validated non-negative integer |
+| `action_filter_applied` | Boolean only; never the raw action value |
+| `resource_type_filter_applied` | Boolean only; never the raw resource-type value |
+| `actor_user_id_filter_applied` | Boolean only; never duplicate actor identity |
+| `resource_id_filter_applied` | Boolean only; never the raw resource ID |
+| `created_after_filter_applied` | Boolean only; never the raw timestamp |
+| `created_before_filter_applied` | Boolean only; never the raw timestamp |
+| `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
+
+Viewer responses must defensively return only the safe metadata subset from
+stored events: `outcome`, `endpoint`, `http_method`, bounded list context,
+operations-overview fields, AI-credit period fields, and the viewer filter
+summary booleans. Unsupported or nested metadata is omitted from the response
+even when it exists on a stored historical row.
 
 ## Prohibited data
 

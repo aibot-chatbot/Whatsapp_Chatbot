@@ -233,11 +233,14 @@
             companies.href = "platform-admin-companies.html";
             const support = element("a", "", "Support");
             support.href = "platform-admin-support.html";
+            const auditEvents = element("a", "", "Audit Logs");
+            auditEvents.href = "platform-admin-audit-events.html";
             const active = this.getAttribute("active-page");
             if (active === "dashboard") dashboard.setAttribute("aria-current", "page");
             if (active === "companies") companies.setAttribute("aria-current", "page");
             if (active === "support") support.setAttribute("aria-current", "page");
-            nav.append(dashboard, companies, support);
+            if (active === "audit-events") auditEvents.setAttribute("aria-current", "page");
+            nav.append(dashboard, companies, support, auditEvents);
 
             const footer = element("div", "platform-shell-footer");
             this.operator = element("div", "platform-operator");

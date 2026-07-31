@@ -66,6 +66,56 @@ def _integer_parameter(value, *, name, default, minimum, maximum=None):
     return parsed
 
 
+def _optional_exact_member_parameter(value, *, name, allowed, code):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        _validation(code, f"{name} is not supported.")
+    normalized = value.strip()
+    if not normalized or normalized not in allowed:
+        _validation(code, f"{name} is not supported.")
+    return normalized
+
+
+def _optional_resource_id_parameter(value):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        _validation("invalid_resource_id", "resource_id must be text.")
+    normalized = value.strip()
+    if not normalized or len(normalized) > 255:
+        _validation("invalid_resource_id", "resource_id must contain 1 to 255 characters.")
+    return normalized
+
+
+def _optional_positive_integer_parameter(value, *, name):
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        _validation(f"invalid_{name}", f"{name} must be a positive integer.")
+    if isinstance(value, bool) or parsed <= 0:
+        _validation(f"invalid_{name}", f"{name} must be a positive integer.")
+    return parsed
+
+
+def _optional_datetime_parameter(value, *, name):
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        _validation(f"invalid_{name}", f"{name} must be a timezone-aware ISO-8601 datetime.")
+    if len(value.strip()) > 64:
+        _validation(f"invalid_{name}", f"{name} is too long.")
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        _validation(f"invalid_{name}", f"{name} must be a valid ISO-8601 datetime.")
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        _validation(f"invalid_{name}", f"{name} must include a timezone offset.")
+    return parsed
+
+
 def _audit(actor_id, action, resource_type, resource_id, metadata):
     try:
         platform_admin_repository.insert_platform_admin_audit_event(
@@ -74,6 +124,62 @@ def _audit(actor_id, action, resource_type, resource_id, metadata):
     except Exception:
         logger.error("Platform-admin audit insertion failed")
         _audit_unavailable()
+
+
+SAFE_AUDIT_METADATA_KEYS = {
+    "outcome",
+    "endpoint",
+    "http_method",
+    "limit",
+    "offset",
+    "sort_by",
+    "sort_order",
+    "search_applied",
+    "status_filter",
+    "state_filter",
+    "transaction_type_filter",
+    "returned_count",
+    "attention_company_count",
+    "generated_at",
+    "period_start",
+    "period_end",
+    "action_filter_applied",
+    "resource_type_filter_applied",
+    "actor_user_id_filter_applied",
+    "resource_id_filter_applied",
+    "created_after_filter_applied",
+    "created_before_filter_applied",
+}
+
+
+def _safe_audit_metadata(metadata):
+    if not isinstance(metadata, dict):
+        return {}
+    safe = {}
+    for key in SAFE_AUDIT_METADATA_KEYS:
+        if key not in metadata:
+            continue
+        value = metadata.get(key)
+        if isinstance(value, (dict, list, tuple, set)):
+            continue
+        safe[key] = value
+    return safe
+
+
+def _safe_audit_event_response_row(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "id": row.get("id"),
+        "actor": {
+            "platform_admin_user_id": row.get("platform_admin_user_id"),
+        },
+        "action": row.get("action"),
+        "resource_type": row.get("resource_type"),
+        "resource_id": row.get("resource_id"),
+        "metadata": _safe_audit_metadata(row.get("metadata")),
+        "created_at": row.get("created_at"),
+    }
 
 
 def _now_utc_iso():
@@ -121,6 +227,92 @@ def get_current_platform_admin_identity(authenticated_user, platform_admin_user)
         "http_method": "GET",
     })
     return data
+
+
+def list_audit_events(
+    actor_id, *, limit=None, offset=None, action=None, resource_type=None,
+    actor_user_id=None, resource_id=None, created_after=None, created_before=None
+):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["audit_events"]
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    normalized_action = _optional_exact_member_parameter(
+        action,
+        name="action",
+        allowed=platform_admin_repository.ALLOWED_AUDIT_ACTIONS,
+        code="invalid_action",
+    )
+    normalized_resource_type = _optional_exact_member_parameter(
+        resource_type,
+        name="resource_type",
+        allowed=platform_admin_repository.ALLOWED_RESOURCE_TYPES,
+        code="invalid_resource_type",
+    )
+    normalized_actor_user_id = _optional_positive_integer_parameter(
+        actor_user_id, name="actor_user_id"
+    )
+    normalized_resource_id = _optional_resource_id_parameter(resource_id)
+    parsed_after = _optional_datetime_parameter(created_after, name="created_after")
+    parsed_before = _optional_datetime_parameter(created_before, name="created_before")
+    if parsed_after and parsed_before and parsed_after >= parsed_before:
+        _validation("invalid_created_before", "created_after must be earlier than created_before.")
+
+    try:
+        rows, total = platform_admin_repository.list_platform_admin_audit_events_for_platform_admin(
+            limit=limit,
+            offset=offset,
+            action=normalized_action,
+            resource_type=normalized_resource_type,
+            actor_user_id=normalized_actor_user_id,
+            resource_id=normalized_resource_id,
+            created_after=parsed_after,
+            created_before=parsed_before,
+        )
+    except Exception:
+        logger.error("Platform audit event listing failed")
+        _data_unavailable()
+
+    safe_rows = [_safe_audit_event_response_row(row) for row in (rows or [])]
+    result = {
+        "audit_events": safe_rows,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(safe_rows),
+            "total": int(total or 0),
+            "has_more": offset + len(safe_rows) < int(total or 0),
+        },
+        "filters": {
+            "action": normalized_action,
+            "resource_type": normalized_resource_type,
+            "actor_user_id": normalized_actor_user_id,
+            "resource_id": normalized_resource_id,
+            "created_after": parsed_after.isoformat() if parsed_after else None,
+            "created_before": parsed_before.isoformat() if parsed_before else None,
+        },
+        "ordering": {
+            "by": "created_at",
+            "order": "desc",
+            "tie_breaker": "id desc",
+        },
+    }
+    _audit(actor_id, "platform_admin.audit_events.list",
+           "platform_admin_audit_events", None, {
+               "outcome": "success",
+               "endpoint": endpoint,
+               "http_method": "GET",
+               "limit": limit,
+               "offset": offset,
+               "action_filter_applied": normalized_action is not None,
+               "resource_type_filter_applied": normalized_resource_type is not None,
+               "actor_user_id_filter_applied": normalized_actor_user_id is not None,
+               "resource_id_filter_applied": normalized_resource_id is not None,
+               "created_after_filter_applied": parsed_after is not None,
+               "created_before_filter_applied": parsed_before is not None,
+               "returned_count": len(safe_rows),
+           })
+    return result
 
 
 def get_operations_overview(actor_id):

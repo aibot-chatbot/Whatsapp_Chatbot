@@ -33,6 +33,69 @@ class PlatformAdminRepositoryTests(unittest.TestCase):
         query.eq.assert_any_call("user_id", 9)
         query.eq.assert_any_call("is_active", True)
 
+    def test_audit_event_list_uses_safe_projection_filters_count_and_ordering(self):
+        rows = [{
+            "id": 11,
+            "platform_admin_user_id": 3,
+            "action": "platform_admin.company.read",
+            "resource_type": "company",
+            "resource_id": "29",
+            "metadata": {"outcome": "success"},
+            "created_at": "2026-07-31T00:00:00+00:00",
+            "raw_payload": "must not be projected",
+        }]
+        query = fluent_query(rows, count=9)
+        with patch.object(platform_admin_repository.supabase, "table", return_value=query) as table:
+            result, count = platform_admin_repository.list_platform_admin_audit_events_for_platform_admin(
+                limit=5,
+                offset=10,
+                action="platform_admin.company.read",
+                resource_type="company",
+                resource_id="29",
+                created_after=platform_admin_service.datetime.fromisoformat("2026-07-01T00:00:00+00:00"),
+                created_before=platform_admin_service.datetime.fromisoformat("2026-08-01T00:00:00+00:00"),
+            )
+        table.assert_called_once_with("platform_admin_audit_events")
+        query.select.assert_called_once_with(
+            platform_admin_repository.AUDIT_EVENT_FIELDS,
+            count="exact",
+        )
+        self.assertNotIn("*", platform_admin_repository.AUDIT_EVENT_FIELDS)
+        query.eq.assert_any_call("action", "platform_admin.company.read")
+        query.eq.assert_any_call("resource_type", "company")
+        query.eq.assert_any_call("resource_id", "29")
+        query.gte.assert_called_once()
+        query.lt.assert_called_once()
+        query.order.assert_any_call("created_at", desc=True)
+        query.order.assert_any_call("id", desc=True)
+        query.range.assert_called_once_with(10, 14)
+        self.assertEqual((result, count), (rows, 9))
+
+    def test_audit_event_actor_user_filter_uses_mapping_lookup(self):
+        mapping_query = fluent_query([{"id": 3}, {"id": 4}])
+        audit_query = fluent_query([], count=0)
+        with patch.object(
+            platform_admin_repository.supabase, "table",
+            side_effect=[mapping_query, audit_query],
+        ) as table:
+            rows, count = platform_admin_repository.list_platform_admin_audit_events_for_platform_admin(
+                limit=25, offset=0, actor_user_id=32,
+            )
+        self.assertEqual(table.call_args_list[0].args[0], "platform_admin_users")
+        mapping_query.select.assert_called_once_with("id")
+        mapping_query.eq.assert_called_once_with("user_id", 32)
+        audit_query.in_.assert_called_once_with("platform_admin_user_id", [3, 4])
+        self.assertEqual((rows, count), ([], 0))
+
+    def test_audit_event_actor_user_filter_with_no_mapping_skips_audit_table(self):
+        mapping_query = fluent_query([])
+        with patch.object(platform_admin_repository.supabase, "table", return_value=mapping_query) as table:
+            rows, count = platform_admin_repository.list_platform_admin_audit_events_for_platform_admin(
+                limit=25, offset=0, actor_user_id=999,
+            )
+        table.assert_called_once_with("platform_admin_users")
+        self.assertEqual((rows, count), ([], 0))
+
     def test_company_list_uses_count_range_escaped_search_and_stable_order(self):
         query = fluent_query([{"id": 2}], count=3)
         with patch.object(platform_company_repository.supabase, "table", return_value=query):

@@ -9,6 +9,9 @@ from app.database.db import supabase
 PLATFORM_ADMIN_FIELDS = (
     "id,user_id,is_active,created_at,updated_at,created_by_user_id"
 )
+AUDIT_EVENT_FIELDS = (
+    "id,platform_admin_user_id,action,resource_type,resource_id,metadata,created_at"
+)
 PROHIBITED_KEY_FRAGMENTS = {
     "authorization", "cookie", "token", "secret", "password", "credential",
     "api_key", "service_role", "signature", "payload", "prompt", "message",
@@ -44,6 +47,7 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "company_chatbots": "/api/platform-admin/companies/<company_id>/chatbots",
     "company_subscription_history": "/api/platform-admin/companies/<company_id>/subscription-history",
     "company_ai_credit_transactions": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
+    "audit_events": "/api/platform-admin/audit-events",
 }
 
 
@@ -183,6 +187,20 @@ AUDIT_EVENT_SCHEMAS = {
             "success": {"limit", "offset", "transaction_type_filter", "returned_count"},
             "not_found": set(),
         },
+    },
+    "platform_admin.audit_events.list": {
+        "resource_type": "platform_admin_audit_events",
+        "resource_id": _resource_id_none,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "limit", "offset",
+            "action_filter_applied", "resource_type_filter_applied",
+            "actor_user_id_filter_applied", "resource_id_filter_applied",
+            "created_after_filter_applied", "created_before_filter_applied",
+            "returned_count",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["audit_events"],
     },
 }
 ALLOWED_AUDIT_ACTIONS = frozenset(AUDIT_EVENT_SCHEMAS)
@@ -384,6 +402,19 @@ def _validate_metadata_schema(action, schema, metadata):
         if metadata["returned_count"] > metadata["limit"]:
             raise ValueError("returned_count cannot exceed limit")
 
+    if action == "platform_admin.audit_events.list":
+        _bounded_integer(metadata["limit"], "limit", 1, 100)
+        _non_negative_integer(metadata["offset"], "offset")
+        for key in (
+            "action_filter_applied", "resource_type_filter_applied",
+            "actor_user_id_filter_applied", "resource_id_filter_applied",
+            "created_after_filter_applied", "created_before_filter_applied",
+        ):
+            _boolean(metadata[key], key)
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
+        if metadata["returned_count"] > metadata["limit"]:
+            raise ValueError("returned_count cannot exceed limit")
+
 
 def validate_audit_event(
     platform_admin_user_id, action, resource_type, resource_id, metadata
@@ -426,6 +457,66 @@ def get_active_platform_admin_by_user_id(user_id):
     )
     rows = response.data or []
     return rows[0] if rows else None
+
+
+def list_platform_admin_audit_events_for_platform_admin(
+    *, limit, offset, action=None, resource_type=None, actor_user_id=None,
+    resource_id=None, created_after=None, created_before=None
+):
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
+    if action is not None and action not in AUDIT_EVENT_SCHEMAS:
+        raise ValueError("Unsupported audit action")
+    if resource_type is not None and resource_type not in ALLOWED_RESOURCE_TYPES:
+        raise ValueError("Unsupported audit resource type")
+    if actor_user_id is not None:
+        _positive_integer(actor_user_id, "actor_user_id")
+    if resource_id is not None and (
+        not isinstance(resource_id, str) or not resource_id.strip() or len(resource_id) > 255
+    ):
+        raise ValueError("resource_id must be a non-blank string no longer than 255 characters")
+
+    actor_mapping_ids = None
+    if actor_user_id is not None:
+        mapping_response = (
+            supabase.table("platform_admin_users")
+            .select("id")
+            .eq("user_id", actor_user_id)
+            .execute()
+        )
+        actor_mapping_ids = [
+            row.get("id") for row in (mapping_response.data or [])
+            if isinstance(row.get("id"), int) and not isinstance(row.get("id"), bool)
+        ]
+        if not actor_mapping_ids:
+            return [], 0
+
+    query = supabase.table("platform_admin_audit_events").select(
+        AUDIT_EVENT_FIELDS, count="exact"
+    )
+    if action is not None:
+        query = query.eq("action", action)
+    if resource_type is not None:
+        query = query.eq("resource_type", resource_type)
+    if actor_mapping_ids is not None:
+        query = query.in_("platform_admin_user_id", actor_mapping_ids)
+    if resource_id is not None:
+        query = query.eq("resource_id", resource_id)
+    if created_after is not None:
+        query = query.gte("created_at", created_after.isoformat())
+    if created_before is not None:
+        query = query.lt("created_at", created_before.isoformat())
+
+    response = (
+        query
+        .order("created_at", desc=True)
+        .order("id", desc=True)
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
+    return response.data or [], int(response.count or 0)
 
 
 def insert_platform_admin_audit_event(

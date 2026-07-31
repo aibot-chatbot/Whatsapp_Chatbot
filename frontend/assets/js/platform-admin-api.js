@@ -15,6 +15,12 @@
         "invalid_status",
         "invalid_state",
         "invalid_transaction_type",
+        "invalid_action",
+        "invalid_resource_type",
+        "invalid_actor_user_id",
+        "invalid_resource_id",
+        "invalid_created_after",
+        "invalid_created_before",
         "invalid_sort_by",
         "invalid_sort_order"
     ]);
@@ -98,6 +104,20 @@
         return platformFetch("/companies?" + params.toString(), config.signal);
     }
 
+    function listAuditEvents(options) {
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit));
+        params.set("offset", String(config.offset));
+        if (config.action) params.set("action", config.action);
+        if (config.resourceType) params.set("resource_type", config.resourceType);
+        if (config.actorUserId) params.set("actor_user_id", String(config.actorUserId));
+        if (config.resourceId) params.set("resource_id", config.resourceId);
+        if (config.createdAfter) params.set("created_after", config.createdAfter);
+        if (config.createdBefore) params.set("created_before", config.createdBefore);
+        return platformFetch("/audit-events?" + params.toString(), config.signal);
+    }
+
     function getCompany(companyId, options) {
         const id = requireCompanyId(companyId);
         return platformFetch("/companies/" + id, (options || {}).signal);
@@ -162,6 +182,7 @@
         getMe: getMe,
         getOverview: getOverview,
         listCompanies: listCompanies,
+        listAuditEvents: listAuditEvents,
         getCompany: getCompany,
         getCompanySubscription: getCompanySubscription,
         listCompanySubscriptionHistory: listCompanySubscriptionHistory,
