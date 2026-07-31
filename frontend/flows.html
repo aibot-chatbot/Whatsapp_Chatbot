@@ -723,13 +723,7 @@
             <!-- Left Column: Flow Builder Editor -->
             <div class="editor-pane">
                 <div class="form-group">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
-                        <label style="margin-bottom:0;">Welcome Message</label>
-                        <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #10b981; cursor: pointer; user-select: none; font-weight: 600;">
-                            <input type="checkbox" id="toggle-agent-footer" onchange="toggleAgentFooter(this.checked)" style="accent-color: #10b981; width: 14px; height: 14px; cursor: pointer;">
-                            💬 Include Human Agent Footer
-                        </label>
-                    </div>
+                    <label>Welcome Message</label>
                     <textarea id="welcome-text" placeholder="Hello! How can I help you today?"></textarea>
                 </div>
 
@@ -978,24 +972,6 @@
                 renderPreview();
             });
         });
-
-        const AGENT_FOOTER_TEXT = "\n\n💬 Or reply 'AGENT' or 'SERVICE' anytime to connect with human staff.";
-
-        function toggleAgentFooter(enabled) {
-            const textarea = document.getElementById('welcome-text');
-            let currentVal = textarea.value.trim();
-
-            // Strip existing agent footer if present
-            currentVal = currentVal.replace(/\n\n💬 (Or|Atau) reply ['"]?AGENT['"]?.*$/gi, '').trim();
-
-            if (enabled) {
-                currentVal += AGENT_FOOTER_TEXT;
-            }
-
-            textarea.value = currentVal;
-            welcomeText = currentVal;
-            renderPreview();
-        }
 
         async function loadBotData() {
             try {
