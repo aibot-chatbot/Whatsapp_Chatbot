@@ -631,10 +631,10 @@
 
                 document.getElementById('stat-total-users').innerText = analytics.data.total_users;
                 document.getElementById('stat-total-msgs').innerText = analytics.data.total_messages;
-                
+
                 // Render Chart
                 renderChart(analytics.data.chart.labels, analytics.data.chart.data);
-                
+
                 // Render Recent History
                 renderHistory(analytics.data.recent_history);
 
@@ -1011,4 +1011,3 @@
 </body>
 
 </html>
-

@@ -39,7 +39,10 @@ def create_app():
     # 2. Define both the template and the static folder paths
     app = Flask(__name__,
                 template_folder=os.path.join(root_dir, 'frontend'),
-                static_folder=os.path.join(root_dir, 'frontend', 'static')) # Added this!
+                static_folder=os.path.join(root_dir, 'frontend'),
+                static_url_path='')
+
+    CORS(app, resources={r"/*": {"origins": "*"}})
 
     # Load configurations and logging settings
     load_configurations(app)
