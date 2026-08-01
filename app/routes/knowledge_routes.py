@@ -672,6 +672,14 @@ def get_refinement_questions():
         }), 400
 
     verify_chatbot_access(chatbot_id)
+    try:
+        can_use_plan_feature(g.company_id, "knowledge_refinement")
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
 
     from flask import Response, stream_with_context
     import json
@@ -863,6 +871,7 @@ def submit_refinement_answers():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        can_use_plan_feature(g.company_id, "knowledge_refinement")
 
         data = request.get_json()
         answers = data.get("answers", [])
@@ -933,6 +942,12 @@ def submit_refinement_answers():
             "message": f"Successfully saved {saved_count} refined knowledge clarifications."
         }), 200
 
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e)
+        }), 403
     except Exception as e:
         logging.error(f"[Refinement] Failed to submit answers: {e}")
         return jsonify({

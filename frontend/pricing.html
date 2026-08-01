@@ -25,22 +25,54 @@
             --warning: #f59e0b;
             --danger: #ef4444;
         }
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
         body {
             background-color: var(--bg);
             background-image:
-                radial-gradient(circle at 100% 100%, rgba(59,130,246,0.15) 0%, transparent 50%),
-                radial-gradient(circle at 0% 0%, rgba(16,185,129,0.1) 0%, transparent 50%);
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
             color: var(--text-main);
             min-height: 100vh;
             display: flex;
             overflow-x: hidden;
         }
-        .main-container { flex-grow: 1; padding: 50px 60px; max-width: 100%; width: 100%; }
-        .header { margin-bottom: 24px; }
-        .header h1 { font-size: 1.7rem; font-weight: 700; }
-        .header p { color: var(--text-dim); margin-top: 6px; font-size: 0.95rem; }
-        .plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 30px; }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 50px 60px;
+            max-width: 100%;
+            width: 100%;
+        }
+
+        .header {
+            margin-bottom: 24px;
+        }
+
+        .header h1 {
+            font-size: 1.7rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 6px;
+            font-size: 0.95rem;
+        }
+
+        .plans-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
         .plan-card {
             background: var(--card-bg);
             border: 1px solid var(--glass-border);
@@ -52,57 +84,166 @@
             display: flex;
             flex-direction: column;
         }
-        .plan-card:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-2px); }
-        .plan-card.current-plan { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), 0 4px 24px rgba(59,130,246,0.15); }
+
+        .plan-card:hover {
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .plan-card.current-plan {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 1px var(--primary), 0 4px 24px rgba(59, 130, 246, 0.15);
+        }
+
         .plan-badge {
-            position: absolute; top: -10px; right: 20px;
-            background: var(--primary); color: white;
-            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-            padding: 4px 12px; border-radius: 20px; letter-spacing: 0.5px;
+            position: absolute;
+            top: -10px;
+            right: 20px;
+            background: var(--primary);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 4px 12px;
+            border-radius: 20px;
+            letter-spacing: 0.5px;
         }
-        .plan-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
-        .plan-price { font-size: 1.8rem; font-weight: 700; margin: 8px 0 4px; }
-        .plan-price .interval { font-size: 0.85rem; font-weight: 400; color: var(--text-dim); }
-        .plan-price .free-text { font-size: 1.2rem; color: var(--accent); }
-        .plan-desc { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 16px; }
-        .plan-features { list-style: none; flex-grow: 1; margin-bottom: 20px; }
+
+        .plan-name {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .plan-price {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 8px 0 4px;
+        }
+
+        .plan-price .interval {
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: var(--text-dim);
+        }
+
+        .plan-price .free-text {
+            font-size: 1.2rem;
+            color: var(--accent);
+        }
+
+        .plan-desc {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+        }
+
+        .plan-features {
+            list-style: none;
+            flex-grow: 1;
+            margin-bottom: 20px;
+        }
+
         .plan-features li {
-            padding: 8px 0; font-size: 0.88rem;
-            display: flex; align-items: center; gap: 10px;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
+            padding: 8px 0;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         }
-        .plan-features li:last-child { border-bottom: none; }
-        .plan-features .check { color: var(--accent); flex-shrink: 0; }
-        .plan-features .cross { color: var(--text-dim); opacity: 0.4; flex-shrink: 0; }
-        .plan-features .label { color: var(--text-dim); font-size: 0.78rem; }
-        .plan-footer { margin-top: auto; }
+
+        .plan-features li:last-child {
+            border-bottom: none;
+        }
+
+        .plan-features .check {
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .plan-features .cross {
+            color: var(--text-dim);
+            opacity: 0.4;
+            flex-shrink: 0;
+        }
+
+        .plan-features .label {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+        }
+
+        .plan-footer {
+            margin-top: auto;
+        }
+
         .btn-upgrade {
-            display: block; width: 100%; text-align: center;
-            padding: 12px; border-radius: 12px; border: none;
-            font-weight: 600; font-size: 0.9rem; cursor: pointer;
-            transition: all 0.15s; text-decoration: none;
+            display: block;
+            width: 100%;
+            text-align: center;
+            padding: 12px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
         }
+
         .btn-upgrade.primary-bg {
-            background: var(--primary); color: white;
+            background: var(--primary);
+            color: white;
         }
-        .btn-upgrade.primary-bg:hover { background: #2563eb; }
+
+        .btn-upgrade.primary-bg:hover {
+            background: #2563eb;
+        }
+
         .btn-upgrade.current {
-            background: rgba(255,255,255,0.06); color: var(--text-dim);
-            cursor: default; border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-dim);
+            cursor: default;
+            border: 1px solid var(--glass-border);
         }
+
         .btn-upgrade.coming-soon {
-            background: rgba(255,255,255,0.04); color: var(--text-dim);
-            border: 1px solid var(--glass-border); cursor: default;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-dim);
+            border: 1px solid var(--glass-border);
+            cursor: default;
             font-size: 0.82rem;
         }
-        #pricing-loading, #pricing-error { padding: 40px 0; text-align: center; color: var(--text-dim); }
-        #pricing-loading .spin { animation: spin 1s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+
+        #pricing-loading,
+        #pricing-error {
+            padding: 40px 0;
+            text-align: center;
+            color: var(--text-dim);
+        }
+
+        #pricing-loading .spin {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
 
         @media (max-width: 768px) {
-            .main-container { padding: 24px 20px; }
-            .plans-grid { grid-template-columns: 1fr; }
-            .plan-card.current-plan { order: -1; }
+            .main-container {
+                padding: 24px 20px;
+            }
+
+            .plans-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .plan-card.current-plan {
+                order: -1;
+            }
         }
     </style>
 </head>
@@ -111,10 +252,12 @@
     <chatbot-sidebar></chatbot-sidebar>
     <script src="sidebar-component.js"></script>
     <script src="assets/js/auth.js"></script>
+    <script src="assets/js/plan-catalog.js"></script>
 
     <div class="main-container">
         <div class="header">
-            <h1><i data-lucide="credit-card" style="width:24px;height:24px;vertical-align:middle;margin-right:8px;"></i>Pricing &amp; Plans</h1>
+            <h1><i data-lucide="credit-card"
+                    style="width:24px;height:24px;vertical-align:middle;margin-right:8px;"></i>Pricing &amp; Plans</h1>
             <p>Compare available plans and features. Upgrade to unlock more capabilities.</p>
         </div>
 
@@ -225,7 +368,8 @@
                 "ai_generated_reports": "AI-Generated Reports",
                 "crm_lead_assignment": "CRM Lead Assignment",
                 "single_website_scraping": "Single Website Scraping",
-                "batch_website_scraping": "Batch Website Scraping"
+                "batch_website_scraping": "Batch Website Scraping",
+                "knowledge_refinement": "Knowledge Refinement Q&A"
             };
             var label = labels[key];
             var icon = enabled ? "check" : "cross";
@@ -242,7 +386,8 @@
             "ai_generated_reports",
             "crm_lead_assignment",
             "single_website_scraping",
-            "batch_website_scraping"
+            "batch_website_scraping",
+            "knowledge_refinement"
         ];
 
         function buildModelItem(code, tier) {
@@ -322,7 +467,7 @@
 
                 // Sort plans: Free first, then Essential, Advanced, Pro
                 var order = { "free": 0, "essential": 1, "advanced": 2, "pro": 3 };
-                plans.sort(function(a, b) {
+                plans.sort(function (a, b) {
                     var aCode = (a.code || "").toLowerCase();
                     var bCode = (b.code || "").toLowerCase();
                     var aRank = Object.prototype.hasOwnProperty.call(order, aCode) ? order[aCode] : 99;
@@ -331,12 +476,24 @@
                 });
 
                 grid.replaceChildren();
-                plans.forEach(function(plan) {
+                plans.forEach(function (plan) {
                     var code = (plan.code || "").toLowerCase();
                     var isCurrent = code === currentPlanCode;
                     var name = plan.name || code.charAt(0).toUpperCase() + code.slice(1);
                     var desc = plan.description || "";
                     var features = plan.feature_flags || {};
+                    if (window.SubscriptionPlanCatalog && window.SubscriptionPlanCatalog.plans) {
+                        var clientPlan = window.SubscriptionPlanCatalog.plans.find(function (p) {
+                            return (p.code || "").toLowerCase() === code;
+                        });
+                        if (clientPlan && clientPlan.feature_flags) {
+                            for (var fk in clientPlan.feature_flags) {
+                                if (features[fk] === undefined || clientPlan.feature_flags[fk] === true) {
+                                    features[fk] = clientPlan.feature_flags[fk];
+                                }
+                            }
+                        }
+                    }
                     var tier = plan.model_access_tier || "economy";
 
                     var card = document.createElement("div");
@@ -373,7 +530,7 @@
                     featuresList.appendChild(buildModelItem(code, tier));
                     featuresList.appendChild(buildAiCreditItem(plan.included_ai_credit_micro_myr));
 
-                    CUSTOMER_FEATURE_FLAGS.forEach(function(key) {
+                    CUSTOMER_FEATURE_FLAGS.forEach(function (key) {
                         var enabled = typeof features === "object" && features !== null && features[key] === true;
                         featuresList.appendChild(buildFlagItem(key, enabled));
                     });
@@ -414,22 +571,22 @@
                     } else if (subStatus === "past_due" || subStatus === "expired") {
                         // Expired/past due paid user
                         if (thisRank > prevCurrentRank) {
-                            footer.appendChild(buildButton("btn-upgrade primary-bg", "Renew & Upgrade", "zap", function() { handleUpgrade(code); }));
+                            footer.appendChild(buildButton("btn-upgrade primary-bg", "Renew & Upgrade", "zap", function () { handleUpgrade(code); }));
                         } else if (thisRank < prevCurrentRank) {
-                            var changeButton = buildButton("btn-upgrade", "Change on Renewal", null, function() { handleDowngrade(code); });
+                            var changeButton = buildButton("btn-upgrade", "Change on Renewal", null, function () { handleDowngrade(code); });
                             changeButton.style.cssText = "background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;";
                             footer.appendChild(changeButton);
                         } else {
-                            footer.appendChild(buildButton("btn-upgrade primary-bg", "Renew Plan", "zap", function() { handleUpgrade(code); }));
+                            footer.appendChild(buildButton("btn-upgrade primary-bg", "Renew Plan", "zap", function () { handleUpgrade(code); }));
                         }
                     } else if (prevCurrentRank > 0 && thisRank < prevCurrentRank) {
                         // Paid user looking at lower paid plan
-                        var downgradeButton = buildButton("btn-upgrade", "Downgrade", "arrow-down", function() { handleDowngrade(code); });
+                        var downgradeButton = buildButton("btn-upgrade", "Downgrade", "arrow-down", function () { handleDowngrade(code); });
                         downgradeButton.style.cssText = "background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;";
                         footer.appendChild(downgradeButton);
                     } else {
                         // Upgrade (trial, free without trial, or paid user looking at higher plan)
-                        footer.appendChild(buildButton("btn-upgrade primary-bg", "Upgrade", "zap", function() { handleUpgrade(code); }));
+                        footer.appendChild(buildButton("btn-upgrade primary-bg", "Upgrade", "zap", function () { handleUpgrade(code); }));
                     }
                     card.appendChild(footer);
                     grid.appendChild(card);
@@ -470,11 +627,11 @@
             modal.append(heading, body, actions);
             overlay.appendChild(modal);
             document.body.appendChild(overlay);
-            document.getElementById("pricing-modal-confirm").addEventListener("click", function() {
+            document.getElementById("pricing-modal-confirm").addEventListener("click", function () {
                 document.body.removeChild(overlay); if (onConfirm) onConfirm();
             });
-            document.getElementById("pricing-modal-cancel").addEventListener("click", function() { document.body.removeChild(overlay); });
-            overlay.addEventListener("click", function(e) { if (e.target === overlay) document.body.removeChild(overlay); });
+            document.getElementById("pricing-modal-cancel").addEventListener("click", function () { document.body.removeChild(overlay); });
+            overlay.addEventListener("click", function (e) { if (e.target === overlay) document.body.removeChild(overlay); });
         }
 
         var _downgradeRequesting = false;
@@ -491,13 +648,13 @@
                         var planDisplay = d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1);
                         subConfirmModal("Schedule Downgrade to " + planDisplay,
                             "Your current plan will remain active until " + dateStr + ". After that your plan changes, paid access expires, and you must renew. No resources deleted. No refund.",
-                            "Confirm Downgrade", "#2563eb", async function() {
+                            "Confirm Downgrade", "#2563eb", async function () {
                                 _downgradeRequesting = true;
                                 try {
                                     var schedRes = await authenticatedFetch("/api/billing/subscription/downgrade", {
                                         method: "POST",
-                                        headers: {"Content-Type": "application/json"},
-                                        body: JSON.stringify({target_plan_code: planCode})
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ target_plan_code: planCode })
                                     });
                                     var schedBody = await schedRes.json();
                                     if (schedBody.status === "success") {
@@ -514,7 +671,7 @@
                         );
                     } else {
                         var msg = "Cannot downgrade to " + d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1) + ".\n\nThe following resources exceed the target plan limits:\n";
-                        d.blocking_items.forEach(function(item) {
+                        d.blocking_items.forEach(function (item) {
                             msg += "- " + item.resource.replace(/_/g, " ") + ": " + item.used + " used, limit " + item.limit + " (excess: " + item.excess + ")\n";
                         });
                         msg += "\nNo data will be deleted automatically. Please reduce usage before downgrading.";
@@ -561,10 +718,11 @@
             if (errorDiv) {
                 errorDiv.textContent = msg;
                 errorDiv.style.display = "block";
-                setTimeout(function() { errorDiv.style.display = "none"; }, 8000);
+                setTimeout(function () { errorDiv.style.display = "none"; }, 8000);
             }
         }
         loadPricing();
     </script>
 </body>
+
 </html>

@@ -1,4 +1,4 @@
-﻿-- 003_upsert_subscription_plans.sql
+-- 003_upsert_subscription_plans.sql
 -- Idempotent seed migration for the paid subscription plan catalogue.
 --
 -- Creates Essential, Advanced and Pro plans if they do not already exist.
@@ -27,17 +27,17 @@ ALTER TABLE public.subscription_plans
 
 -- Essential
 INSERT INTO subscription_plans (code, name, description, is_active, chatbot_limit, team_member_limit, knowledge_file_limit, knowledge_storage_limit_bytes, channel_limit, model_access_tier, feature_flags, billing_interval, currency, price, included_ai_credit_micro_myr)
-SELECT 'essential', 'Essential', 'Essential plan - 1 chatbot, 1 channel, 5 knowledge files, 50 MB storage', TRUE, 1, 1, 5, 52428800, 1, 'economy', '{"batch_website_scraping": false, "ai_generated_reports": false, "ai_assisted_menu_generation": false}'::jsonb, 'monthly', 'MYR', NULL, NULL
+SELECT 'essential', 'Essential', 'Essential plan - 1 chatbot, 1 channel, 5 knowledge files, 50 MB storage', TRUE, 1, 1, 5, 52428800, 1, 'economy', '{"batch_website_scraping": false, "ai_generated_reports": false, "ai_assisted_menu_generation": false, "knowledge_refinement": false}'::jsonb, 'monthly', 'MYR', NULL, NULL
 WHERE NOT EXISTS (SELECT 1 FROM subscription_plans WHERE LOWER(code) = 'essential');
 
 -- Advanced
 INSERT INTO subscription_plans (code, name, description, is_active, chatbot_limit, team_member_limit, knowledge_file_limit, knowledge_storage_limit_bytes, channel_limit, model_access_tier, feature_flags, billing_interval, currency, price, included_ai_credit_micro_myr)
-SELECT 'advanced', 'Advanced', 'Advanced plan - 2 chatbots, 2 channels, 25 knowledge files, 250 MB storage', TRUE, 2, 3, 25, 262144000, 2, 'standard', '{"batch_website_scraping": false, "ai_generated_reports": false, "ai_assisted_menu_generation": true}'::jsonb, 'monthly', 'MYR', NULL, NULL
+SELECT 'advanced', 'Advanced', 'Advanced plan - 2 chatbots, 2 channels, 25 knowledge files, 250 MB storage', TRUE, 2, 3, 25, 262144000, 2, 'standard', '{"batch_website_scraping": false, "ai_generated_reports": false, "ai_assisted_menu_generation": true, "knowledge_refinement": false}'::jsonb, 'monthly', 'MYR', NULL, NULL
 WHERE NOT EXISTS (SELECT 1 FROM subscription_plans WHERE LOWER(code) = 'advanced');
 
 -- Pro
 INSERT INTO subscription_plans (code, name, description, is_active, chatbot_limit, team_member_limit, knowledge_file_limit, knowledge_storage_limit_bytes, channel_limit, model_access_tier, feature_flags, billing_interval, currency, price, included_ai_credit_micro_myr)
-SELECT 'pro', 'Pro', 'Pro plan - 3 chatbots, 2 channels, 75 knowledge files, 1 GB storage', TRUE, 3, 5, 75, 1073741824, 2, 'premium', '{"batch_website_scraping": true, "ai_generated_reports": true, "ai_assisted_menu_generation": true}'::jsonb, 'monthly', 'MYR', NULL, NULL
+SELECT 'pro', 'Pro', 'Pro plan - 3 chatbots, 2 channels, 75 knowledge files, 1 GB storage', TRUE, 3, 5, 75, 1073741824, 2, 'premium', '{"batch_website_scraping": true, "ai_generated_reports": true, "ai_assisted_menu_generation": true, "knowledge_refinement": true}'::jsonb, 'monthly', 'MYR', NULL, NULL
 WHERE NOT EXISTS (SELECT 1 FROM subscription_plans WHERE LOWER(code) = 'pro');
 
 -- === Update existing rows (idempotent re-run) ===
@@ -59,7 +59,8 @@ SET
     feature_flags = COALESCE(feature_flags, '{}'::jsonb) || jsonb_build_object(
         'batch_website_scraping', false,
         'ai_generated_reports', false,
-        'ai_assisted_menu_generation', false
+        'ai_assisted_menu_generation', false,
+        'knowledge_refinement', false
     )
 WHERE LOWER(code) = 'essential';
 
@@ -77,7 +78,8 @@ SET
     feature_flags = COALESCE(feature_flags, '{}'::jsonb) || jsonb_build_object(
         'batch_website_scraping', false,
         'ai_generated_reports', false,
-        'ai_assisted_menu_generation', true
+        'ai_assisted_menu_generation', true,
+        'knowledge_refinement', false
     )
 WHERE LOWER(code) = 'advanced';
 
@@ -95,6 +97,7 @@ SET
     feature_flags = COALESCE(feature_flags, '{}'::jsonb) || jsonb_build_object(
         'batch_website_scraping', true,
         'ai_generated_reports', true,
-        'ai_assisted_menu_generation', true
+        'ai_assisted_menu_generation', true,
+        'knowledge_refinement', true
     )
 WHERE LOWER(code) = 'pro';

@@ -352,6 +352,7 @@
     </main>
 
     <script src="assets/js/auth.js"></script>
+    <script src="assets/js/plan-catalog.js"></script>
     <script>
         requireLogin();
 
@@ -374,12 +375,69 @@
             sessionStorage.setItem("selectedBotId", selectedBotId);
         }
 
+        let userSubscription = null;
+        let aiReportsAllowed = true;
+
+        async function fetchSubscription() {
+            try {
+                const res = await authenticatedFetch("/api/billing/subscription");
+                const json = await res.json();
+                if (res.ok && json.status === "success") {
+                    userSubscription = json.data;
+                    const flags = userSubscription?.plan?.feature_flags || {};
+                    if ("ai_generated_reports" in flags) {
+                        aiReportsAllowed = flags.ai_generated_reports === true;
+                    } else {
+                        const planCode = userSubscription?.plan?.code || "free";
+                        aiReportsAllowed = planCode === "pro";
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load subscription info", err);
+            }
+        }
+
+        function applyReportsGating() {
+            if (!aiReportsAllowed) {
+                const btn = document.getElementById("btn-generate-report");
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = "🔒 Upgrade to Generate";
+                    btn.title = "Upgrade your plan to the Pro plan to unlock AI analytics reports.";
+                    btn.style.opacity = "0.7";
+                    btn.style.cursor = "not-allowed";
+                }
+
+                const container = document.getElementById("report-container");
+                if (container) {
+                    container.style.borderStyle = "solid";
+                    container.innerHTML = `
+                        <div style="padding: 24px; text-align: center; width: 100%;">
+                            <div style="font-size: 40px; margin-bottom: 12px;">🔒</div>
+                            <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">
+                                AI Analytics Reports Require Upgrade
+                            </h3>
+                            <p style="color: var(--text-dim); font-size: 0.9rem; line-height: 1.5; margin-bottom: 20px; max-width: 480px; margin-left: auto; margin-right: auto;">
+                                Interactive RAG knowledge graphs, customer intent signals, and monthly AI-generated PDF reports are available exclusively on the Pro subscription plan.
+                            </p>
+                            <a href="pricing.html?bot_id=${encodeURIComponent(selectedBotId)}" class="primary-btn" style="display: inline-flex; text-decoration: none; margin: 0 auto; border-radius: 12px; padding: 10px 24px;">
+                                💳 Upgrade to Pro Plan
+                            </a>
+                        </div>
+                    `;
+                }
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", () => {
             if (!selectedBotId) {
                 return;
             }
 
             fetchSelectedBot();
+            fetchSubscription().then(() => {
+                applyReportsGating();
+            });
         });
 
         async function fetchSelectedBot() {
