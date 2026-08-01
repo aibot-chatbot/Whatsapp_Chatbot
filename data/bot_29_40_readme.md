@@ -1,11 +1,11 @@
 # Knowledge Base README: bot_29_Travel_Chatbot_QA_Dataset.pdf
-- **Generated Date**: 2026-07-27 17:33:29 UTC
+- **Generated Date**: 2026-08-01 15:41:55 UTC
 - **Chatbot ID**: 29
 
 ## Document Overview
 This document represents the compiled knowledge base for Chatbot #29, extracted from the primary document `bot_29_Travel_Chatbot_QA_Dataset.pdf`.
 - Total Text Chunks: 44
-- Total Graph Nodes: 768
+- Total Graph Nodes: 764
 - Total Graph Connections: 814
 - Total Refined Q&As: 0
 
@@ -237,7 +237,6 @@ This document represents the compiled knowledge base for Chatbot #29, extracted 
 | +$30 | Price | Budget adjustment for accommodation |
 | $1,967 | Price | New total budget for the package |
 | David Tan | Customer Segment | 41-year-old engineer from Kuala Lumpur, family-friendly travel with safety and child-friendly activities |
-| Student Discount | Promotion | Discount for students on travel |
 | $20/Day | Price | Daily price for tuk-tuk rental |
 | Royal Palace | Category | Royal residence in Phnom Penh |
 | Fish Amok | Product | Traditional Cambodian fish dish |
@@ -604,7 +603,6 @@ This document represents the compiled knowledge base for Chatbot #29, extracted 
 | Papago | Product | Translation app, best for Asian languages |
 | Agoda | Service | Travel booking platform, strong in Asia |
 | Xe Currency | Product | Currency conversion app |
-| Whatsapp | Product | Global communication app |
 | Viber | Product | Communication app for calls |
 | Wanderlog | Product | Collaborative travel planning app |
 | Yelp | Product | Food and business review app |
@@ -687,7 +685,6 @@ This document represents the compiled knowledge base for Chatbot #29, extracted 
 | Early-Bird Discount | Promotion | 5% discount for bookings 6+ months in advance |
 | Credit Card | Requirement | Required for monthly installment plan |
 | Mastercard | Brand | Accepted credit/debit card brand |
-| Bank Transfer | Service | Accepted payment method |
 | Klarna | Brand | Buy Now Pay Later provider |
 | Package Booking | Package | Combined flights, hotels, and tours |
 | Corporate Group Rate | Price | Negotiated rates for corporate groups |
@@ -732,7 +729,6 @@ This document represents the compiled knowledge base for Chatbot #29, extracted 
 | Full Refund | Price | 100% of payment returned, minus fees if applicable |
 | Full Name Change | Service | Service requiring rebooking for major name changes |
 | Support@Yourtravelco.Com | Service | Customer support contact email |
-| Customer | Customer Segment | Person with a $2,500 budget interested in food and temples |
 | Diego Fernandez | Customer Segment | 25-year-old freelance writer from Buenos Aires |
 | $3,200 | Price | Price of the honeymoon package |
 | Full Payment | Service | Pay 100% at booking |

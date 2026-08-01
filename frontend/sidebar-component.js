@@ -452,11 +452,6 @@ class ChatbotSidebar extends HTMLElement {
                             </div>
                         </div>
 
-                        <a href="flows.html${botQuery}" class="nav-link" title="Flow Builder">
-                            <i data-lucide="workflow"></i>
-                            <span>Flow Builder</span>
-                        </a>
-
                         <a href="integration.html${botQuery}" class="nav-link" title="Integration">
                             <i data-lucide="plug"></i>
                             <span>Integration</span>
