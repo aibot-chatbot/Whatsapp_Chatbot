@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -27,13 +28,22 @@
             --accent: #10b981;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
         body {
             background-color: var(--bg);
             background-image: radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                              radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
             background-attachment: fixed;
-            color: var(--text-main); min-height: 100vh; display: flex; overflow-x: hidden;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
         }
 
         .main-content {
@@ -44,7 +54,7 @@
             padding: 24px 30px;
             gap: 16px;
         }
-        
+
         .split-layout {
             display: flex;
             flex: 1;
@@ -52,8 +62,15 @@
             align-items: flex-start;
         }
 
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-        .spinner { animation: spin 1s linear infinite; }
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
 
         .editor-pane {
             flex: 1.2;
@@ -91,21 +108,26 @@
             border: 1px solid var(--border-color);
             position: sticky;
             top: 20px;
+        }
+
         .editor-pane::-webkit-scrollbar,
         .chips-pane::-webkit-scrollbar {
             width: 8px;
         }
+
         .editor-pane::-webkit-scrollbar-track,
         .chips-pane::-webkit-scrollbar-track {
             background: rgba(15, 23, 42, 0.6);
             border-radius: 10px;
         }
+
         .editor-pane::-webkit-scrollbar-thumb,
         .chips-pane::-webkit-scrollbar-thumb {
             background: rgba(234, 179, 8, 0.45);
             border-radius: 10px;
             border: 1px solid rgba(234, 179, 8, 0.6);
         }
+
         .editor-pane::-webkit-scrollbar-thumb:hover,
         .chips-pane::-webkit-scrollbar-thumb:hover {
             background: rgba(234, 179, 8, 0.8);
@@ -122,7 +144,7 @@
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
         }
 
         .phone-header {
@@ -152,7 +174,7 @@
             max-width: 85%;
             font-size: 13px;
             color: #333;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
             white-space: pre-wrap;
             line-height: 1.4;
         }
@@ -166,16 +188,31 @@
             text-align: center;
             font-size: 13px;
             font-weight: 500;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
             margin-top: 4px;
         }
 
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-dim); }
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--text-dim);
+        }
+
         .form-group textarea {
-            width: 100%; height: 100px; padding: 12px;
-            background: var(--surface); border: 1px solid var(--border-color);
-            border-radius: 8px; color: var(--text-main); font-size: 14px; resize: vertical;
+            width: 100%;
+            height: 100px;
+            padding: 12px;
+            background: var(--surface);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-main);
+            font-size: 14px;
+            resize: vertical;
         }
 
         .button-card {
@@ -352,15 +389,25 @@
         }
 
         .review-header .ai-icon {
-            width: 36px; height: 36px;
+            width: 36px;
+            height: 36px;
             background: var(--accent);
             border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             flex-shrink: 0;
         }
 
-        .review-header h2 { font-size: 18px; font-weight: 600; }
-        .review-header p { font-size: 13px; color: var(--text-dim); }
+        .review-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .review-header p {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
 
         .review-body {
             display: flex;
@@ -378,7 +425,7 @@
         .review-preview-panel {
             width: 340px;
             padding: 24px;
-            background: rgba(0,0,0,0.15);
+            background: rgba(0, 0, 0, 0.15);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -434,13 +481,16 @@
         }
 
         .btn-card-num {
-            width: 24px; height: 24px;
+            width: 24px;
+            height: 24px;
             border-radius: 50%;
             background: var(--accent);
             color: white;
             font-size: 12px;
             font-weight: 700;
-            display: flex; align-items: center; justify-content: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             flex-shrink: 0;
         }
 
@@ -566,7 +616,7 @@
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
         }
 
         .review-phone-header {
@@ -592,7 +642,7 @@
         /* Chip Tray CSS */
         .chip-tray-wrapper {
             margin-top: 16px;
-            border: 1px solid rgba(234,179,8,0.2);
+            border: 1px solid rgba(234, 179, 8, 0.2);
             border-radius: 10px;
             overflow: hidden;
         }
@@ -602,8 +652,8 @@
             align-items: center;
             gap: 8px;
             padding: 10px 14px;
-            background: rgba(234,179,8,0.06);
-            border-bottom: 1px solid rgba(234,179,8,0.15);
+            background: rgba(234, 179, 8, 0.06);
+            border-bottom: 1px solid rgba(234, 179, 8, 0.15);
             cursor: pointer;
             user-select: none;
         }
@@ -624,7 +674,7 @@
 
         .chip-tray-body {
             padding: 12px 14px;
-            background: rgba(15,23,42,0.4);
+            background: rgba(15, 23, 42, 0.4);
             display: none;
         }
 
@@ -649,8 +699,8 @@
             align-items: flex-start;
             gap: 6px;
             padding: 6px 12px;
-            background: rgba(234,179,8,0.12);
-            border: 1px solid rgba(234,179,8,0.3);
+            background: rgba(234, 179, 8, 0.12);
+            border: 1px solid rgba(234, 179, 8, 0.3);
             border-radius: 12px;
             font-size: 12px;
             line-height: 1.4;
@@ -662,8 +712,8 @@
         }
 
         .info-chip:hover {
-            background: rgba(234,179,8,0.22);
-            border-color: rgba(234,179,8,0.5);
+            background: rgba(234, 179, 8, 0.22);
+            border-color: rgba(234, 179, 8, 0.5);
             transform: translateY(-1px);
         }
 
@@ -678,8 +728,8 @@
         .btn-extract-chips {
             width: 100%;
             padding: 9px;
-            background: rgba(234,179,8,0.1);
-            border: 1px dashed rgba(234,179,8,0.4);
+            background: rgba(234, 179, 8, 0.1);
+            border: 1px dashed rgba(234, 179, 8, 0.4);
             border-radius: 7px;
             color: #ca8a04;
             font-size: 12.5px;
@@ -693,7 +743,7 @@
         }
 
         .btn-extract-chips:hover {
-            background: rgba(234,179,8,0.18);
+            background: rgba(234, 179, 8, 0.18);
         }
 
         .btn-extract-chips:disabled {
@@ -702,6 +752,7 @@
         }
     </style>
 </head>
+
 <body>
     <chatbot-sidebar></chatbot-sidebar>
 
@@ -709,9 +760,11 @@
         <header class="top-header" style="display: flex; align-items: center; justify-content: space-between;">
             <div>
                 <h1 style="font-size: 24px; font-weight: 600;">Visual Flow Builder</h1>
-                <p style="color: var(--text-secondary); margin-top: 4px;">Design your bot's Welcome Menu and interactive buttons.</p>
+                <p style="color: var(--text-secondary); margin-top: 4px;">Design your bot's Welcome Menu and interactive
+                    buttons.</p>
             </div>
-            <button onclick="openGuideModal()" style="background: rgba(59,130,246,0.12); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
+            <button onclick="openGuideModal()"
+                style="background: rgba(59,130,246,0.12); color: #3b82f6; border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: background 0.2s;">
                 ❓ How to Use Guide
             </button>
         </header>
@@ -720,10 +773,13 @@
             <!-- Left Column: Flow Builder Editor -->
             <div class="editor-pane">
                 <div class="form-group">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
                         <label style="margin-bottom:0;">Welcome Message</label>
-                        <label style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #10b981; cursor: pointer; user-select: none; font-weight: 600;">
-                            <input type="checkbox" id="toggle-agent-footer" onchange="toggleAgentFooter(this.checked)" style="accent-color: #10b981; width: 14px; height: 14px; cursor: pointer;">
+                        <label
+                            style="display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #10b981; cursor: pointer; user-select: none; font-weight: 600;">
+                            <input type="checkbox" id="toggle-agent-footer" onchange="toggleAgentFooter(this.checked)"
+                                style="accent-color: #10b981; width: 14px; height: 14px; cursor: pointer;">
                             💬 Include Human Agent Footer
                         </label>
                     </div>
@@ -738,43 +794,75 @@
 
                 <div style="display: flex; gap: 15px; margin-top: 20px;">
                     <button class="btn-save" onclick="saveFlow()" style="flex: 1;">Save Flow</button>
-                    <button class="btn-save" onclick="autoGenerate()" id="btn-auto-gen" style="flex: 1; background: var(--accent);">
+                    <button class="btn-save" onclick="autoGenerate()" id="btn-auto-gen"
+                        style="flex: 1; background: var(--accent);">
                         <i data-lucide="sparkles" style="width: 18px; margin-right: 8px;"></i> Auto-Generate
                     </button>
                 </div>
-                
-                <div style="margin-top: 20px; padding: 12px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; font-size: 0.85rem; color: var(--text-dim); display: flex; gap: 10px; align-items: flex-start;">
-                    <i data-lucide="info" style="width: 16px; height: 16px; color: var(--primary); flex-shrink: 0; margin-top: 2px;"></i>
-                    <p style="line-height: 1.4;"><strong>Tip:</strong> Drag any AI chip from the center panel directly into buttons on the left, or click <strong>+ Create Button</strong> on a category card.</p>
+
+                <div
+                    style="margin-top: 20px; padding: 12px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 8px; font-size: 0.85rem; color: var(--text-dim); display: flex; gap: 10px; align-items: flex-start;">
+                    <i data-lucide="info"
+                        style="width: 16px; height: 16px; color: var(--primary); flex-shrink: 0; margin-top: 2px;"></i>
+                    <p style="line-height: 1.4;"><strong>Tip:</strong> Drag any AI chip from the center panel directly
+                        into buttons on the left, or click <strong>+ Create Button</strong> on a category card.</p>
                 </div>
             </div>
 
             <!-- Center Column: AI Knowledge Clusters & Info Chips Pane -->
             <div class="chips-pane">
-                <div id="active-doc-badge" style="padding: 12px 16px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); border-radius: 10px; font-size: 13px; color: #10b981; display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-                    <span>Active Document: <strong id="active-doc-name" style="color: #f8fafc; font-weight: 600;">Checking active document...</strong></span>
+                <div id="active-doc-badge"
+                    style="padding: 12px 16px; background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); border-radius: 10px; font-size: 13px; color: #10b981; display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        style="flex-shrink:0;">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                        <polyline points="10 9 9 9 8 9" />
+                    </svg>
+                    <span>Active Document: <strong id="active-doc-name"
+                            style="color: #f8fafc; font-weight: 600;">Checking active document...</strong></span>
                 </div>
 
-                <div class="chip-tray-wrapper" id="chip-tray-wrapper" style="margin-top:0; border:none; background:transparent;">
+                <div class="chip-tray-wrapper" id="chip-tray-wrapper"
+                    style="margin-top:0; border:none; background:transparent;">
                     <div style="margin-bottom:12px;">
-                        <h2 style="font-size:16px; font-weight:700; color:#fbbf24; display:flex; align-items:center; gap:8px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <h2
+                            style="font-size:16px; font-weight:700; color:#fbbf24; display:flex; align-items:center; gap:8px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="8" x2="12" y2="12" />
+                                <line x1="12" y1="16" x2="12.01" y2="16" />
+                            </svg>
                             📋 AI Info Chips
                         </h2>
-                        <p style="font-size:12px; color:#94a3b8; margin-top:4px;">Drag chips ➡️ left directly into buttons on the editor.</p>
+                        <p style="font-size:12px; color:#94a3b8; margin-top:4px;">Drag chips ➡️ left directly into
+                            buttons on the editor.</p>
                     </div>
 
                     <div style="display: flex; gap: 8px; margin-bottom: 12px;">
-                        <button class="btn-extract-chips" id="btn-extract-chips" onclick="extractDataPoints(false)" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        <button class="btn-extract-chips" id="btn-extract-chips" onclick="extractDataPoints(false)"
+                            style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                <polyline points="7 10 12 15 17 10" />
+                                <line x1="12" y1="15" x2="12" y2="3" />
+                            </svg>
                             Extract PDF Info
                         </button>
-                        <button onclick="extractDataPoints(true)" title="Force fresh AI re-extraction" style="background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.3); border-radius: 7px; color: #ca8a04; padding: 0 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
+                        <button onclick="extractDataPoints(true)" title="Force fresh AI re-extraction"
+                            style="background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.3); border-radius: 7px; color: #ca8a04; padding: 0 10px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                             🔄 Refresh
                         </button>
                     </div>
-                    <div id="category-filter-bar" style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;"></div>
+                    <div id="category-filter-bar"
+                        style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;"></div>
                     <div id="chip-tray-chips-area"></div>
                 </div>
             </div>
@@ -817,25 +905,36 @@
                     </h3>
 
                     <div style="margin-bottom: 16px;">
-                        <label style="display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">
-                            Welcome Message <span style="background:rgba(16,185,129,0.15); color:#10b981; padding:2px 6px; border-radius:4px; font-size:10px;">AI GENERATED</span>
+                        <label
+                            style="display:block; font-size:12px; color:var(--text-dim); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">
+                            Welcome Message <span
+                                style="background:rgba(16,185,129,0.15); color:#10b981; padding:2px 6px; border-radius:4px; font-size:10px;">AI
+                                GENERATED</span>
                         </label>
-                        <textarea id="review-welcome-text" style="width:100%; height:90px; padding:10px; background:var(--surface); border:1px solid var(--border-color); border-radius:8px; color:var(--text-main); font-size:13px; resize:vertical;" oninput="updateReviewPreview()"></textarea>
+                        <textarea id="review-welcome-text"
+                            style="width:100%; height:90px; padding:10px; background:var(--surface); border:1px solid var(--border-color); border-radius:8px; color:var(--text-main); font-size:13px; resize:vertical;"
+                            oninput="updateReviewPreview()"></textarea>
                     </div>
 
                     <div>
-                        <label style="display:block; font-size:12px; color:var(--text-dim); margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">
-                            Interactive Buttons (max 3) <span style="background:rgba(16,185,129,0.15); color:#10b981; padding:2px 6px; border-radius:4px; font-size:10px;">AI GENERATED</span>
+                        <label
+                            style="display:block; font-size:12px; color:var(--text-dim); margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">
+                            Interactive Buttons (max 3) <span
+                                style="background:rgba(16,185,129,0.15); color:#10b981; padding:2px 6px; border-radius:4px; font-size:10px;">AI
+                                GENERATED</span>
                         </label>
                         <div id="review-buttons-container"></div>
-                        <button class="btn-add" id="review-add-btn" onclick="addReviewButton()" style="margin-top:8px;">+ Add Button</button>
+                        <button class="btn-add" id="review-add-btn" onclick="addReviewButton()"
+                            style="margin-top:8px;">+ Add Button</button>
                     </div>
                 </div>
 
                 <!-- Right: Live preview -->
                 <div class="review-preview-panel">
                     <div>
-                        <p style="text-align:center; font-size:12px; color:#64748b; margin-bottom:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em;">Live Preview</p>
+                        <p
+                            style="text-align:center; font-size:12px; color:#64748b; margin-bottom:12px; font-weight:500; text-transform:uppercase; letter-spacing:0.05em;">
+                            Live Preview</p>
                         <div class="review-phone">
                             <div class="review-phone-header">
                                 <i data-lucide="bot" style="width:16px;"></i> AI Assistant
@@ -860,70 +959,109 @@
     </div>
 
     <!-- ============ CHIP DETAIL MODAL ============ -->
-    <div id="chip-detail-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px);">
-        <div style="background: #0f172a; border: 1px solid rgba(234,179,8,0.4); border-radius: 16px; width: 100%; max-width: 520px; padding: 24px; box-shadow: 0 0 30px rgba(234,179,8,0.15), 0 20px 50px rgba(0,0,0,0.5);">
+    <div id="chip-detail-overlay"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 1000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px);">
+        <div
+            style="background: #0f172a; border: 1px solid rgba(234,179,8,0.4); border-radius: 16px; width: 100%; max-width: 520px; padding: 24px; box-shadow: 0 0 30px rgba(234,179,8,0.15), 0 20px 50px rgba(0,0,0,0.5);">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="background: rgba(234,179,8,0.15); color: #fbbf24; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase;" id="chip-modal-cat">Topic Category</span>
+                    <span
+                        style="background: rgba(234,179,8,0.15); color: #fbbf24; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase;"
+                        id="chip-modal-cat">Topic Category</span>
                 </div>
-                <button onclick="closeChipDetailModal()" style="background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer;">✕</button>
+                <button onclick="closeChipDetailModal()"
+                    style="background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer;">✕</button>
             </div>
 
-            <h3 style="font-size: 12px; color: #ca8a04; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">📄 Extracted Fact Detail</h3>
-            <div id="chip-modal-text" style="background: rgba(15,23,42,0.9); border: 1px solid rgba(234,179,8,0.3); border-radius: 10px; padding: 14px; color: #f8fafc; font-size: 14px; line-height: 1.5; margin-bottom: 20px; font-weight: 500;">
+            <h3
+                style="font-size: 12px; color: #ca8a04; font-weight: 700; text-transform: uppercase; margin-bottom: 8px;">
+                📄 Extracted Fact Detail</h3>
+            <div id="chip-modal-text"
+                style="background: rgba(15,23,42,0.9); border: 1px solid rgba(234,179,8,0.3); border-radius: 10px; padding: 14px; color: #f8fafc; font-size: 14px; line-height: 1.5; margin-bottom: 20px; font-weight: 500;">
                 Full fact text renders here...
             </div>
 
-            <h4 style="font-size: 12px; color: #10b981; font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">🎯 Assign Fact to WhatsApp Button:</h4>
-            <div id="chip-modal-buttons-list" style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+            <h4
+                style="font-size: 12px; color: #10b981; font-weight: 700; text-transform: uppercase; margin-bottom: 10px;">
+                🎯 Assign Fact to WhatsApp Button:</h4>
+            <div id="chip-modal-buttons-list"
+                style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
                 <!-- Target buttons list renders here -->
             </div>
 
-            <div style="display: flex; gap: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px; margin-top: 8px;">
-                <button onclick="closeChipDetailModal()" style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #94a3b8; cursor: pointer; font-size: 13px; font-weight: 500;">Close</button>
-                <button id="chip-modal-copy-btn" onclick="copyChipModalText()" style="padding: 10px 16px; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; color: #3b82f6; cursor: pointer; font-size: 13px; font-weight: 600;">📋 Copy Text</button>
+            <div
+                style="display: flex; gap: 10px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px; margin-top: 8px;">
+                <button onclick="closeChipDetailModal()"
+                    style="flex: 1; padding: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: #94a3b8; cursor: pointer; font-size: 13px; font-weight: 500;">Close</button>
+                <button id="chip-modal-copy-btn" onclick="copyChipModalText()"
+                    style="padding: 10px 16px; background: rgba(59,130,246,0.15); border: 1px solid rgba(59,130,246,0.3); border-radius: 8px; color: #3b82f6; cursor: pointer; font-size: 13px; font-weight: 600;">📋
+                    Copy Text</button>
             </div>
         </div>
     </div>
 
     <!-- ============ QUICK GUIDE MODAL ============ -->
-    <div id="quick-guide-overlay" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(5px);">
-        <div style="background: #0f172a; border: 1px solid rgba(59,130,246,0.4); border-radius: 16px; width: 100%; max-width: 600px; padding: 28px; box-shadow: 0 0 40px rgba(59,130,246,0.2), 0 20px 50px rgba(0,0,0,0.6);">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 14px;">
+    <div id="quick-guide-overlay"
+        style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(5px);">
+        <div
+            style="background: #0f172a; border: 1px solid rgba(59,130,246,0.4); border-radius: 16px; width: 100%; max-width: 600px; padding: 28px; box-shadow: 0 0 40px rgba(59,130,246,0.2), 0 20px 50px rgba(0,0,0,0.6);">
+            <div
+                style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 14px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="font-size: 20px;">💡</span>
                     <h2 style="font-size: 18px; font-weight: 700; color: #3b82f6;">How to Use Visual Flow Builder</h2>
                 </div>
-                <button onclick="closeGuideModal()" style="background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">✕</button>
+                <button onclick="closeGuideModal()"
+                    style="background: none; border: none; color: #94a3b8; font-size: 20px; cursor: pointer;">✕</button>
             </div>
 
             <div style="display: flex; flex-direction: column; gap: 18px; margin-bottom: 24px;">
-                <div style="display: flex; gap: 14px; background: rgba(15,23,42,0.8); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-                    <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(59,130,246,0.2); color: #3b82f6; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0;">1</div>
+                <div
+                    style="display: flex; gap: 14px; background: rgba(15,23,42,0.8); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                    <div
+                        style="width: 32px; height: 32px; border-radius: 50%; background: rgba(59,130,246,0.2); color: #3b82f6; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0;">
+                        1</div>
                     <div>
-                        <h4 style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">⚡ Option A: 1-Click Topic Button Creation</h4>
-                        <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">Look at the center panel (<strong>AI Info Chips</strong>). Click <strong>+ Create Button</strong> on any category card (e.g. <em>Product Catalog</em> or <em>Promotions</em>). It automatically creates a WhatsApp button and populates all relevant facts into it!</p>
+                        <h4 style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">⚡ Option A:
+                            1-Click Topic Button Creation</h4>
+                        <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">Look at the center panel
+                            (<strong>AI Info Chips</strong>). Click <strong>+ Create Button</strong> on any category
+                            card (e.g. <em>Product Catalog</em> or <em>Promotions</em>). It automatically creates a
+                            WhatsApp button and populates all relevant facts into it!</p>
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 14px; background: rgba(15,23,42,0.8); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-                    <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(234,179,8,0.2); color: #fbbf24; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0;">2</div>
+                <div
+                    style="display: flex; gap: 14px; background: rgba(15,23,42,0.8); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                    <div
+                        style="width: 32px; height: 32px; border-radius: 50%; background: rgba(234,179,8,0.2); color: #fbbf24; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0;">
+                        2</div>
                     <div>
-                        <h4 style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">🎯 Option B: Drag & Drop Specific Facts</h4>
-                        <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">Drag any yellow fact chip from the center panel ➡️ <strong>Left into a button's instruction zone</strong>. Or click any chip to open its full detail modal and click <em>+ Assign</em>.</p>
+                        <h4 style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">🎯 Option B:
+                            Drag & Drop Specific Facts</h4>
+                        <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">Drag any yellow fact chip from
+                            the center panel ➡️ <strong>Left into a button's instruction zone</strong>. Or click any
+                            chip to open its full detail modal and click <em>+ Assign</em>.</p>
                     </div>
                 </div>
 
-                <div style="display: flex; gap: 14px; background: rgba(15,23,42,0.8); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
-                    <div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(16,185,129,0.2); color: #10b981; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0;">3</div>
+                <div
+                    style="display: flex; gap: 14px; background: rgba(15,23,42,0.8); padding: 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                    <div
+                        style="width: 32px; height: 32px; border-radius: 50%; background: rgba(16,185,129,0.2); color: #10b981; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0;">
+                        3</div>
                     <div>
-                        <h4 style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">✨ Option C: 100% AI Auto-Generate</h4>
-                        <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">Click the green <strong>✨ Auto-Generate</strong> button on the left. AI reads your active PDF and designs your entire Welcome Menu + 3 Interactive Buttons automatically!</p>
+                        <h4 style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-bottom: 4px;">✨ Option C:
+                            100% AI Auto-Generate</h4>
+                        <p style="font-size: 12.5px; color: #94a3b8; line-height: 1.5;">Click the green <strong>✨
+                                Auto-Generate</strong> button on the left. AI reads your active PDF and designs your
+                            entire Welcome Menu + 3 Interactive Buttons automatically!</p>
                     </div>
                 </div>
             </div>
 
-            <button onclick="closeGuideModal()" style="width: 100%; padding: 12px; background: #3b82f6; border: none; border-radius: 10px; color: white; font-size: 14px; font-weight: 700; cursor: pointer;">
+            <button onclick="closeGuideModal()"
+                style="width: 100%; padding: 12px; background: #3b82f6; border: none; border-radius: 10px; color: white; font-size: 14px; font-weight: 700; cursor: pointer;">
                 Got it, let's build! 🚀
             </button>
         </div>
@@ -1026,18 +1164,7 @@
                 }
             } catch (err) {
                 console.error("Failed to load active document info", err);
-<<<<<<< HEAD
-<<<<<<< HEAD
-            }
-        }
 
-        function parseWelcomeMessage(msg) {
-            welcomeText = msg;
-            buttons = [];
-            buttonsDataPoints = [];
-=======
-=======
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
             }
         }
 
@@ -1060,7 +1187,7 @@
                     }
                     return;
                 }
-            } catch (e) {}
+            } catch (e) { }
 
             // Legacy format: [BUTTON: Name]
             const regex = /\[BUTTON:\s*(.*?)\]/gi;
@@ -1073,10 +1200,7 @@
             if (botData && Array.isArray(botData.flow_buttons_data_points)) {
                 buttonsDataPoints = botData.flow_buttons_data_points.map(b => Array.isArray(b.data_points) ? [...b.data_points] : []);
             }
-<<<<<<< HEAD
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
-=======
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
+
         }
 
         function renderEditor() {
@@ -1304,14 +1428,6 @@
 
                 displayCats.forEach((cat) => {
                     const originalIdx = extractedCategories.indexOf(cat);
-<<<<<<< HEAD
-<<<<<<< HEAD
-                    const cleanName = cat.category_name.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '').trim();
-                    const escapedCatName = cat.category_name.replace(/'/g, "&apos;").replace(/"/g, '&quot;');
-=======
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
-=======
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
                     html += `
                         <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(234,179,8,0.25); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
@@ -1380,13 +1496,6 @@
         }
 
         let activeModalChipText = "";
-
-<<<<<<< HEAD
-<<<<<<< HEAD
-        function openChipDetailModal(chipText, catName = "Topic Category") {
-=======
-=======
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
         function openChipDetailModal(catIdx, chipIdx) {
             let chipText = "";
             let catName = "Topic Category";
@@ -1399,10 +1508,6 @@
                 catName = "PDF Fact";
             }
 
-<<<<<<< HEAD
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
-=======
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
             activeModalChipText = chipText;
             document.getElementById('chip-modal-cat').textContent = catName;
             document.getElementById('chip-modal-text').textContent = chipText;
@@ -1512,12 +1617,7 @@
         }
 
         // Drag & Drop handlers
-<<<<<<< HEAD
-<<<<<<< HEAD
-        function onChipDragStart(e, chipText) {
-=======
-=======
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
+
         function onChipDragStart(e, catIdx, chipIdx) {
             let chipText = "";
             if (typeof catIdx === 'number' && typeof chipIdx === 'number' && extractedCategories[catIdx]) {
@@ -1525,10 +1625,7 @@
             } else if (typeof catIdx === 'number') {
                 chipText = extractedChips[catIdx] || "";
             }
-<<<<<<< HEAD
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
-=======
->>>>>>> parent of 5f6f899 (revert: restore original working flow builder and services from commit c0b854a)
+
             e.dataTransfer.setData('text/plain', chipText);
             e.dataTransfer.effectAllowed = 'copy';
         }
@@ -1602,7 +1699,7 @@
                     method: 'POST'
                 });
                 const json = await res.json();
-                
+
                 if (json.status === 'success') {
                     // Load into review state instead of directly applying
                     reviewText = json.data.welcome_text || "";
@@ -1787,4 +1884,5 @@
         }
     </script>
 </body>
+
 </html>
