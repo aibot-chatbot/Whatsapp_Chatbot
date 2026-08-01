@@ -377,6 +377,7 @@ PLAN_FEATURES = frozenset({
     "ai_generated_reports",
     "ai_assisted_menu_generation",
     "crm_lead_assignment",
+    "knowledge_refinement",
 })
 
 

@@ -15,7 +15,8 @@ SET feature_flags = COALESCE(feature_flags, '{}'::jsonb) || jsonb_build_object(
     'batch_website_scraping', false,
     'ai_generated_reports', false,
     'ai_assisted_menu_generation', false,
-    'crm_lead_assignment', false
+    'crm_lead_assignment', false,
+    'knowledge_refinement', false
 )
 WHERE LOWER(code) = 'free';
 
@@ -23,7 +24,8 @@ WHERE LOWER(code) = 'free';
 UPDATE subscription_plans
 SET feature_flags = COALESCE(feature_flags, '{}'::jsonb) || jsonb_build_object(
     'single_website_scraping', false,
-    'crm_lead_assignment', false
+    'crm_lead_assignment', false,
+    'knowledge_refinement', false
 )
 WHERE LOWER(code) = 'essential';
 
@@ -31,7 +33,8 @@ WHERE LOWER(code) = 'essential';
 UPDATE subscription_plans
 SET feature_flags = COALESCE(feature_flags, '{}'::jsonb) || jsonb_build_object(
     'single_website_scraping', true,
-    'crm_lead_assignment', true
+    'crm_lead_assignment', true,
+    'knowledge_refinement', false
 )
 WHERE LOWER(code) = 'advanced';
 
@@ -39,6 +42,7 @@ WHERE LOWER(code) = 'advanced';
 UPDATE subscription_plans
 SET feature_flags = COALESCE(feature_flags, '{}'::jsonb) || jsonb_build_object(
     'single_website_scraping', true,
-    'crm_lead_assignment', true
+    'crm_lead_assignment', true,
+    'knowledge_refinement', true
 )
 WHERE LOWER(code) = 'pro';

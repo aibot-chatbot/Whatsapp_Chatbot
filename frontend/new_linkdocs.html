@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="assets/css/shared-glass.css">
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
+    <script src="assets/js/plan-catalog.js"></script>
     <script>requireLogin();requireAdminOrOwner();</script>
     <script src="sidebar-component.js"></script>
 
@@ -1938,7 +1939,24 @@
             );
         }
 
-        function KnowledgeRefinement({ botId }) {
+        function KnowledgeRefinement({ botId, hasAccess }) {
+            if (!hasAccess) {
+                return (
+                    <div className="glass-card" style={{ padding: "40px", marginTop: "20px", textAlign: "center" }}>
+                        <div style={{ fontSize: "50px", marginBottom: "16px" }}>🔒</div>
+                        <h3 style={{ margin: "0 0 10px 0", fontSize: "1.3rem", fontWeight: "700", color: "#f8fafc" }}>
+                            Pro Feature: Interactive Knowledge Refinement
+                        </h3>
+                        <p style={{ margin: "0 auto 24px auto", fontSize: "0.9rem", color: "var(--text-dim)", maxWidth: "480px", lineHeight: "1.5" }}>
+                            Auditing your knowledge graph for gaps and filling details using interactive Q&A is a Pro feature. Upgrade your plan to get full access to this and other advanced automation tools.
+                        </p>
+                        <a href={`pricing.html?bot_id=${botId}`} className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 24px", fontSize: "0.9rem", textDecoration: "none", borderRadius: "10px" }}>
+                            💳 Upgrade to Pro Plan
+                        </a>
+                    </div>
+                );
+            }
+
             const [questions, setQuestions] = useState([]);
             const [answers, setAnswers] = useState({});
             const [logs, setLogs] = useState([]);
@@ -2092,12 +2110,14 @@
                                 <span style={{ fontSize: "1.2rem", marginTop: "-2px" }}>⚠️</span>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontWeight: "700", color: "#ff6b6b", marginBottom: "6px", textTransform: "uppercase", fontSize: "0.82rem", letterSpacing: "0.5px" }}>
-                                        {error.includes("402") || error.toLowerCase().includes("payment required") || error.toLowerCase().includes("credit") ? "Payment Required" : "Error Encountered"}
+                                        {error.includes("402") || error.toLowerCase().includes("payment required") || error.toLowerCase().includes("credit") ? "Payment Required" :
+                                         (error.toLowerCase().includes("feature") || error.toLowerCase().includes("plan") || error.toLowerCase().includes("subscription") ? "Upgrade Required" : "Error Encountered")}
                                     </div>
                                     <div style={{ color: "rgba(255,255,255,0.7)", fontSize: "0.86rem", lineHeight: "1.5" }}>
                                         {error}
                                     </div>
-                                    {(error.includes("402") || error.toLowerCase().includes("payment required") || error.toLowerCase().includes("credit")) && (
+                                    {(error.includes("402") || error.toLowerCase().includes("payment required") || error.toLowerCase().includes("credit") ||
+                                      error.toLowerCase().includes("feature") || error.toLowerCase().includes("plan") || error.toLowerCase().includes("subscription")) && (
                                         <div style={{ marginTop: "12px" }}>
                                             <a href={`pricing.html?bot_id=${botId}`} className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 14px", fontSize: "0.82rem", textDecoration: "none", borderRadius: "8px" }}>
                                                 💳 Upgrade Plan / Recharge Credits
@@ -2223,6 +2243,39 @@
             const [activeTab, setActiveTab] = useState("file");
             const [linkUrl, setLinkUrl] = useState("");
             const [activeViewTab, setActiveViewTab] = useState("sources");
+            const [subscription, setSubscription] = useState(null);
+            const [loadingSub, setLoadingSub] = useState(true);
+
+            const fetchSubscription = async () => {
+                try {
+                    const res = await authenticatedFetch("/api/billing/subscription");
+                    const data = await res.json();
+                    if (res.ok && data.status === "success") {
+                        setSubscription(data.data);
+                    }
+                } catch (err) {
+                    console.error("Failed to load subscription info:", err);
+                } finally {
+                    setLoadingSub(false);
+                }
+            };
+
+            const planCode = subscription?.plan?.code || "free";
+            const planFeatureFlags = subscription?.plan?.feature_flags || {};
+
+            const hasFeatureAccess = (featureKey) => {
+                if (planFeatureFlags && typeof planFeatureFlags === "object" && featureKey in planFeatureFlags) {
+                    return planFeatureFlags[featureKey] === true;
+                }
+                if (window.SubscriptionPlanCatalog && window.SubscriptionPlanCatalog.plans) {
+                    const planDef = window.SubscriptionPlanCatalog.plans.find(p => p.code === planCode);
+                    if (planDef && planDef.feature_flags) {
+                        return planDef.feature_flags[featureKey] === true;
+                    }
+                }
+                return false;
+            };
+
 
             // Interactive Crawler State Variables
             const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -2653,11 +2706,15 @@
                         const links = data.data?.links || [];
                         setAnalyzedLinks(links);
 
-                        // Select all by default
+                        // Select all by default if batch is allowed, else select only the primary (first) link
                         const initialSelected = {};
-                        links.forEach(l => {
-                            initialSelected[l] = true;
-                        });
+                        if (hasFeatureAccess("batch_website_scraping")) {
+                            links.forEach(l => {
+                                initialSelected[l] = true;
+                            });
+                        } else if (links.length > 0) {
+                            initialSelected[links[0]] = true;
+                        }
                         setSelectedLinks(initialSelected);
                         setCrawlStep("select");
                     } else {
@@ -2671,13 +2728,24 @@
             };
 
             const handleToggleLink = (link) => {
-                setSelectedLinks(prev => ({
-                    ...prev,
-                    [link]: !prev[link]
-                }));
+                setSelectedLinks(prev => {
+                    const isCurrentlySelected = !!prev[link];
+                    if (!isCurrentlySelected && !hasFeatureAccess("batch_website_scraping")) {
+                        // In single scraping mode, toggle resets other selections to limit to 1
+                        return { [link]: true };
+                    }
+                    return {
+                        ...prev,
+                        [link]: !isCurrentlySelected
+                    };
+                });
             };
 
             const handleToggleAllLinks = () => {
+                if (!hasFeatureAccess("batch_website_scraping")) {
+                    alert("Batch website scraping is a Pro feature. Upgrade your plan to crawl and select all pages at once.");
+                    return;
+                }
                 const allSelected = analyzedLinks.every(l => selectedLinks[l]);
                 const nextSelected = {};
                 analyzedLinks.forEach(l => {
@@ -2986,6 +3054,7 @@
             useEffect(() => {
                 fetchBotInfo();
                 fetchFiles();
+                fetchSubscription();
             }, []);
 
             const totalItems = files.length;
@@ -3242,7 +3311,7 @@
                             <GraphVisualizer botId={selectedBotId} activeFile={activeFile} />
                         )}
                         {activeViewTab === "refinement" && (
-                            <KnowledgeRefinement botId={selectedBotId} />
+                            <KnowledgeRefinement botId={selectedBotId} hasAccess={hasFeatureAccess("knowledge_refinement")} />
                         )}
                     </main>
 
@@ -3273,7 +3342,20 @@
                             </div>
 
                             {activeTab === "link" ? (
-                                crawlStep === "input" ? (
+                                !hasFeatureAccess("single_website_scraping") ? (
+                                    <div style={{ padding: "20px 10px", textAlign: "center", width: "100%" }}>
+                                        <div style={{ fontSize: "36px", marginBottom: "12px" }}>🔒</div>
+                                        <h3 style={{ fontSize: "1.15rem", fontWeight: "700", color: "#f8fafc", marginBottom: "8px" }}>
+                                            Website Scraping Requires Upgrade
+                                        </h3>
+                                        <p style={{ color: "var(--text-dim)", fontSize: "0.88rem", lineHeight: "1.45", marginBottom: "20px", maxWidth: "400px", marginLeft: "auto", marginRight: "auto" }}>
+                                            Automatically crawling websites and ingesting pages as supporting knowledge is available starting from the Advanced plan.
+                                        </p>
+                                        <a href={`pricing.html?bot_id=${urlBotId || storedBotId}`} className="btn btn-primary" style={{ display: "inline-flex", textDecoration: "none", borderRadius: "8px", padding: "8px 20px" }}>
+                                            💳 View Pricing & Upgrade
+                                        </a>
+                                    </div>
+                                ) : crawlStep === "input" ? (
                                     <div className="input-group">
                                         <label>Website URL</label>
                                         <input
@@ -3432,45 +3514,47 @@
                                     Cancel
                                 </button>
                                 {activeTab === "link" ? (
-                                    crawlStep === "input" ? (
-                                        <button
-                                            className="btn btn-primary"
-                                            type="button"
-                                            onClick={handleAnalyze}
-                                            disabled={isAnalyzing || !linkUrl.trim()}
-                                        >
-                                            {isAnalyzing ? (
-                                                <span>
-                                                    <span className="spinner"></span> Analyzing...
-                                                </span>
-                                            ) : "Analyze Website"}
-                                        </button>
-                                    ) : crawlStep === "select" ? (
-                                        <button
-                                            className="btn btn-primary"
-                                            type="button"
-                                            onClick={handleExtractContent}
-                                            disabled={isExtracting || Object.values(selectedLinks).filter(Boolean).length === 0}
-                                        >
-                                            {isExtracting ? (
-                                                <span>
-                                                    <span className="spinner"></span> Extracting...
-                                                </span>
-                                            ) : `Extract & Review (${Object.values(selectedLinks).filter(Boolean).length} Selected)`}
-                                        </button>
-                                    ) : (
-                                        <button
-                                            className="btn btn-primary"
-                                            type="button"
-                                            onClick={handleConfirmIngest}
-                                            disabled={isUploading || !refinedText.trim()}
-                                        >
-                                            {isUploading ? (
-                                                <span>
-                                                    <span className="spinner"></span> Ingesting...
-                                                </span>
-                                            ) : "Confirm & Ingest"}
-                                        </button>
+                                    !hasFeatureAccess("single_website_scraping") ? null : (
+                                        crawlStep === "input" ? (
+                                            <button
+                                                className="btn btn-primary"
+                                                type="button"
+                                                onClick={handleAnalyze}
+                                                disabled={isAnalyzing || !linkUrl.trim()}
+                                            >
+                                                {isAnalyzing ? (
+                                                    <span>
+                                                        <span className="spinner"></span> Analyzing...
+                                                    </span>
+                                                ) : "Analyze Website"}
+                                            </button>
+                                        ) : crawlStep === "select" ? (
+                                            <button
+                                                className="btn btn-primary"
+                                                type="button"
+                                                onClick={handleExtractContent}
+                                                disabled={isExtracting || Object.values(selectedLinks).filter(Boolean).length === 0}
+                                            >
+                                                {isExtracting ? (
+                                                    <span>
+                                                        <span className="spinner"></span> Extracting...
+                                                    </span>
+                                                ) : `Extract & Review (${Object.values(selectedLinks).filter(Boolean).length} Selected)`}
+                                            </button>
+                                        ) : (
+                                            <button
+                                                className="btn btn-primary"
+                                                type="button"
+                                                onClick={handleConfirmIngest}
+                                                disabled={isUploading || !refinedText.trim()}
+                                            >
+                                                {isUploading ? (
+                                                    <span>
+                                                        <span className="spinner"></span> Ingesting...
+                                                    </span>
+                                                ) : "Confirm & Ingest"}
+                                            </button>
+                                        )
                                     )
                                 ) : (
                                     <button

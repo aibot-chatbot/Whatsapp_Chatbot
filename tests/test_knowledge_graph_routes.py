@@ -352,3 +352,34 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
                 headers={"Authorization": "Bearer test-token"}
             )
             self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.routes.knowledge_routes.can_use_plan_feature")
+    def test_get_refinement_questions_feature_gated_denied(self, mock_can_use, mock_verify):
+        from app.services.billing_guard import BillingLimitError
+        mock_can_use.side_effect = BillingLimitError("Feature not available on your plan", code="feature_not_available")
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.get(
+                "/api/knowledge/refinement/questions?chatbot_id=1",
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 403)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "error")
+            self.assertEqual(data["code"], "feature_not_available")
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.routes.knowledge_routes.can_use_plan_feature")
+    def test_submit_refinement_answers_feature_gated_denied(self, mock_can_use, mock_verify):
+        from app.services.billing_guard import BillingLimitError
+        mock_can_use.side_effect = BillingLimitError("Feature not available on your plan", code="feature_not_available")
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/refinement/submit?chatbot_id=1",
+                json={"answers": [{"question": "q", "answer": "a"}]},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 403)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "error")
+            self.assertEqual(data["code"], "feature_not_available")

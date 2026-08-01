@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -1427,6 +1427,7 @@
     </div>
 
     <script src="assets/js/auth.js"></script>
+    <script src="assets/js/plan-catalog.js"></script>
     <script>
         requireLogin();
 
@@ -1454,6 +1455,27 @@
         let currentCrmLeads = [];
         let selectedLeadForDetails = null;
         let customerInsightsFetchAttempted = false;
+        let userSubscription = null;
+        let crmLeadAssignmentAllowed = true;
+
+        async function fetchSubscription() {
+            try {
+                const res = await authenticatedFetch("/api/billing/subscription");
+                const json = await res.json();
+                if (res.ok && json.status === "success") {
+                    userSubscription = json.data;
+                    const flags = userSubscription?.plan?.feature_flags || {};
+                    if ("crm_lead_assignment" in flags) {
+                        crmLeadAssignmentAllowed = flags.crm_lead_assignment === true;
+                    } else {
+                        const planCode = userSubscription?.plan?.code || "free";
+                        crmLeadAssignmentAllowed = (planCode === "advanced" || planCode === "pro");
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to load subscription info", err);
+            }
+        }
 
         function canViewAiSignals() {
             try {
@@ -1474,7 +1496,9 @@
 
             setupWorkspaceTabs();
             fetchSelectedBot();
-            fetchCrmLeads();
+            fetchSubscription().then(() => {
+                fetchCrmLeads();
+            });
             setupCrmFilters();
             setupCrmQuickFilters();
             setupActionTabs();
@@ -2193,7 +2217,13 @@
             input.type = "text";
             input.maxLength = 100;
             input.value = assignedTo || "";
-            input.placeholder = "Staff name";
+            input.placeholder = crmLeadAssignmentAllowed ? "Staff name" : "🔒 Pro/Advanced only";
+            if (!crmLeadAssignmentAllowed) {
+                input.disabled = true;
+                input.title = "Upgrade your subscription plan to assign leads to staff members.";
+                input.style.cursor = "not-allowed";
+                input.style.opacity = "0.6";
+            }
             return input;
         }
 
@@ -2326,7 +2356,9 @@
             const result = await response.json();
 
             if (!response.ok || result.status !== "success") {
-                throw new Error(result.message || "Failed to save CRM lead");
+                const err = new Error(result.message || "Failed to save CRM lead");
+                err.code = result.code;
+                throw err;
             }
 
             return result.data && result.data.lead;
@@ -2388,8 +2420,14 @@
                 if (window.lucide && typeof window.lucide.createIcons === 'function') {
                     window.lucide.createIcons({ root: button });
                 }
-                feedback.className = "save-feedback error";
-                feedback.textContent = "Failed to save";
+                if (err.code === "feature_not_available") {
+                    feedback.className = "save-feedback error";
+                    feedback.textContent = "Upgrade Required";
+                    alert("⚠️ CRM Lead Assignment is not available on your current subscription plan. Please upgrade to the Advanced or Pro plan.");
+                } else {
+                    feedback.className = "save-feedback error";
+                    feedback.textContent = "Failed to save";
+                }
             }
         }
 
@@ -2635,9 +2673,15 @@
             } catch (err) {
                 console.error("CRM lead notes save failed", err);
                 saveBtn.textContent = "Save Notes";
-                feedback.className = "save-feedback error";
-                feedback.textContent = "Failed to save";
                 saveBtn.disabled = false;
+                if (err.code === "feature_not_available") {
+                    feedback.className = "save-feedback error";
+                    feedback.textContent = "Upgrade Required";
+                    alert("⚠️ CRM Lead Assignment is not available on your current subscription plan. Please upgrade to the Advanced or Pro plan.");
+                } else {
+                    feedback.className = "save-feedback error";
+                    feedback.textContent = "Failed to save";
+                }
             }
         }
     </script>

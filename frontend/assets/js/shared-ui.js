@@ -1,4 +1,4 @@
-﻿/**
+/**
  * shared-ui.js
  * Reusable UI helpers for the AI Chatbot frontend.
  */
@@ -220,6 +220,7 @@ function formatTimeSimple(dateStr) {
             document.addEventListener("click", this.boundDocumentClick);
             document.addEventListener("keydown", this.boundKeydown);
             window.addEventListener("pagehide", this.boundPageHide);
+            this.fetchSubscription();
         }
 
         disconnectedCallback() {
@@ -235,6 +236,7 @@ function formatTimeSimple(dateStr) {
             var user = getStoredUser();
             var displayName = getDisplayName(user);
             var email = getEmail(user);
+            this.storedEmail = email;
             this.shadowRoot.innerHTML = "";
 
             var style = document.createElement("style");
@@ -253,6 +255,10 @@ function formatTimeSimple(dateStr) {
                 .identity{padding:9px 10px 10px;border-bottom:1px solid var(--glass-border,rgba(255,255,255,.1));margin-bottom:6px;}
                 .identity-name{font-size:.9rem;font-weight:700;overflow-wrap:anywhere;}
                 .identity-email{font-size:.78rem;color:var(--text-dim,#94a3b8);margin-top:3px;overflow-wrap:anywhere;}
+                .plan-badge{display:none;margin-top:6px;padding:3px 8px;font-size:.72rem;font-weight:700;text-transform:uppercase;border-radius:6px;background:rgba(59,130,246,.15);color:#3b82f6;border:1px solid rgba(59,130,246,.25);width:fit-content;align-items:center;gap:6px;}
+                .plan-badge.pro{background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.25);}
+                .plan-status-dot{width:6px;height:6px;border-radius:50%;background:#3b82f6;flex-shrink:0;box-shadow:0 0 8px #3b82f6;opacity:0.8;}
+                .plan-badge.pro .plan-status-dot{background:#10b981;box-shadow:0 0 8px #10b981;}
                 .item{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:var(--text-dim,#94a3b8);text-decoration:none;border-radius:12px;padding:10px 11px;font-size:.9rem;font-weight:600;cursor:pointer;text-align:left;font:inherit;}
                 .item[hidden]{display:none;}
                 .item:hover,.item:focus-visible{background:rgba(255,255,255,.07);color:var(--text-main,#f8fafc);outline:none;}
@@ -307,7 +313,15 @@ function formatTimeSimple(dateStr) {
             var identityEmail = document.createElement("div");
             identityEmail.className = "identity-email";
             identityEmail.textContent = email || "Authenticated tenant user";
-            identity.append(identityName, identityEmail);
+            var planBadge = document.createElement("div");
+            planBadge.id = "menu-plan-badge";
+            planBadge.className = "plan-badge";
+            var statusDot = document.createElement("span");
+            statusDot.className = "plan-status-dot";
+            var textSpan = document.createElement("span");
+            textSpan.id = "menu-plan-text";
+            planBadge.append(statusDot, textSpan);
+            identity.append(identityName, identityEmail, planBadge);
 
             var profile = this.linkItem("profile.html" + this.profileQuery(), "Profile", "user-circle");
             var support = this.linkItem("support.html", "Support", "circle-help");
@@ -351,6 +365,44 @@ function formatTimeSimple(dateStr) {
             link.setAttribute("role", "menuitem");
             link.append(this.icon(iconName), document.createTextNode(label));
             return link;
+        }
+
+        async fetchSubscription() {
+            try {
+                var token = sessionStorage.getItem("token") || localStorage.getItem("token") || "";
+                if (!token) return;
+                var res = await fetch("/api/billing/subscription", {
+                    headers: {
+                        "Authorization": "Bearer " + token
+                    }
+                });
+                if (res.ok) {
+                    var json = await res.json();
+                    if (json.status === "success" && json.data) {
+                        var planName = json.data.plan?.name || "Free";
+                        var subStatus = json.data.status || "active";
+                        this.updatePlanDisplay(planName, subStatus);
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to fetch subscription for account menu", err);
+            }
+        }
+
+        updatePlanDisplay(planName, status) {
+            var planBadge = this.shadowRoot.getElementById("menu-plan-badge");
+            var planText = this.shadowRoot.getElementById("menu-plan-text");
+            if (planBadge && planText) {
+                planText.textContent = planName + " Plan";
+                planBadge.style.display = "inline-flex";
+                if (planName.toLowerCase() === "pro") {
+                    planBadge.classList.add("pro");
+                }
+            }
+            var emailNode = this.shadowRoot.querySelector(".account-button .email");
+            if (emailNode && this.storedEmail) {
+                emailNode.textContent = this.storedEmail + " • " + planName;
+            }
         }
 
         toggleMenu() {

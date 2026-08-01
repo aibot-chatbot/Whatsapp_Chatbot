@@ -23,7 +23,8 @@
                 batch_website_scraping: false,
                 ai_assisted_menu_generation: false,
                 ai_generated_reports: false,
-                crm_lead_assignment: false
+                crm_lead_assignment: false,
+                knowledge_refinement: false
             }
         },
         {
@@ -47,7 +48,8 @@
                 batch_website_scraping: false,
                 ai_assisted_menu_generation: false,
                 ai_generated_reports: false,
-                crm_lead_assignment: false
+                crm_lead_assignment: false,
+                knowledge_refinement: false
             }
         },
         {
@@ -71,7 +73,8 @@
                 batch_website_scraping: false,
                 ai_assisted_menu_generation: true,
                 ai_generated_reports: false,
-                crm_lead_assignment: true
+                crm_lead_assignment: true,
+                knowledge_refinement: false
             }
         },
         {
@@ -95,7 +98,8 @@
                 batch_website_scraping: true,
                 ai_assisted_menu_generation: true,
                 ai_generated_reports: true,
-                crm_lead_assignment: true
+                crm_lead_assignment: true,
+                knowledge_refinement: true
             }
         }
     ];
