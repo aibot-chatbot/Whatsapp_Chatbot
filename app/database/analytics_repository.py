@@ -62,7 +62,7 @@ def get_recent_history(chatbot_id, limit=4):
         msg_rows = msg_res.data or []
         last_msg = msg_rows[0] if msg_rows else {}
 
-        phone = convo.get("customer_phone", "")
+        phone = convo.get("customer_phone") or ""
         masked = phone[-4:] if len(phone) > 4 else phone
 
         results.append({

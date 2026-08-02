@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\User\Desktop\tt\Whatsapp_Chatbot\app\services\ai_router.py", line 993, in generate_response
+    selected_provider, model_name = _route_for_enforcement(selected_provider, model_name)
+                                    ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\User\Desktop\tt\Whatsapp_Chatbot\app\services\ai_router.py", line 730, in _route_for_enforcement
+    raise RuntimeError("No company context available for routing enforcement.")
+RuntimeError: No company context available for routing enforcement.
