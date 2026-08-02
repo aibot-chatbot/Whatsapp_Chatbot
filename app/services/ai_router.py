@@ -721,11 +721,13 @@ def _check_ai_credit_before_provider(company_id: int | None):
         )
 
 
-def _route_for_enforcement(provider: str, model: str | None):
+def _route_for_enforcement(provider: str, model: str | None, company_id: int | None = None):
     # Resolve AI access policy.
-    # The company_id must be available from the calling context (set in g).
-    from flask import g
-    company_id = getattr(g, "company_id", None)
+    # The company_id must be available from the calling context (set in g) or passed directly.
+    if not company_id:
+        from flask import g, has_app_context
+        company_id = getattr(g, "company_id", None) if has_app_context() else None
+        
     if not company_id:
         raise RuntimeError("No company context available for routing enforcement.")
 
@@ -969,6 +971,18 @@ def call_provider(
 
 
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY):
+    """Generate a response using the appropriate AI provider..."""
+
+    # --- PHASE 3: INTERCEPT WITH CUSTOM FLOW ENGINE ---
+    from app.services.flow_executor_service import process_flow_message
+    flow_reply = process_flow_message(chatbot_id, message, str(customer_id))
+    if flow_reply:
+        logging.info(f"Custom Flow triggered for bot {chatbot_id} on keyword match.")
+        return flow_reply
+    # --------------------------------------------------
+
+    # Enforce billing usage logging...
+    from app.services.ai_credit_service import is_ai_credit_enforcement_enabled
     try:
 
         bot = get_bot_by_id(chatbot_id)
@@ -990,7 +1004,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
             model_name,
         )
 
-        selected_provider, model_name = _route_for_enforcement(selected_provider, model_name)
+        selected_provider, model_name = _route_for_enforcement(selected_provider, model_name, company_id)
 
         logging.info(
             f"Routing request for Bot {chatbot_id} to provider: {selected_provider}, model: {model_name}"
@@ -1015,15 +1029,58 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 return clean_ai_reply(result.text)
 
             logging.warning(
-                f"Provider {selected_provider} returned an error reply. Cross-provider fallback is disabled."
+                f"Provider {selected_provider} returned an error reply. Initiating failover."
             )
 
         except BillingLimitError:
             raise
         except Exception as provider_error:
-            logging.error(f"Provider {selected_provider} failed: {provider_error}")
+            logging.error(f"Provider {selected_provider} failed: {provider_error}. Initiating failover.")
 
-        # Cross-provider fallback is disabled.
+        # Subscription-aware Cross-provider failover
+        from app.services.ai_access_policy import resolve_ai_access
+        from app.services.model_catalog import get_fallback_model
+        
+        policy = resolve_ai_access(company_id)
+        backup_provider, backup_model = get_fallback_model(selected_provider, policy.max_model_tier)
+        
+        if not backup_provider or not backup_model:
+            logging.error(f"No valid fallback provider/model available for tier '{policy.max_model_tier}'. Failover aborted.")
+            return "Sorry, I'm having trouble replying right now. Please try again later."
+        
+        logging.info(f"Failing over to {backup_provider} for Bot {chatbot_id}")
+        
+        try:
+            import threading
+            from app.services.email_service import send_provider_failover_email
+            
+            # Send notification asynchronously so it doesn't block the chat response
+            if company_id:
+                threading.Thread(
+                    target=send_provider_failover_email, 
+                    args=(company_id, selected_provider, backup_provider, chatbot_id)
+                ).start()
+            
+            result = call_provider(
+                backup_provider,
+                message,
+                customer_id,
+                chatbot_id,
+                model_name=backup_model,
+                temperature=temperature,
+                source_channel=source_channel,
+                company_id=company_id,
+            )
+            
+            if _should_log_provider_usage(result) and company_id:
+                _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=2)
+                
+            if not is_error_reply(result.text):
+                return clean_ai_reply(result.text)
+                
+        except Exception as backup_error:
+            logging.error(f"Backup provider {backup_provider} also failed: {backup_error}")
+
         return "Sorry, I'm having trouble replying right now. Please try again later."
 
     except BillingLimitError:

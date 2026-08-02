@@ -441,6 +441,10 @@ class ChatbotSidebar extends HTMLElement {
                                 <i data-lucide="chevron-down" class="chevron"></i>
                             </button>
                             <div class="dropdown-content">
+                                <a href="flows.html${botQuery}" class="nav-link sub-link" title="Flow Builder">
+                                    <i data-lucide="git-merge"></i>
+                                    <span>Flow Builder</span>
+                                </a>
                                 <a href="model_settings.html${botQuery}" class="nav-link sub-link" title="Tune AI">
                                     <i data-lucide="sliders-horizontal"></i>
                                     <span>Tune AI</span>

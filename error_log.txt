@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Users\User\Desktop\tt\Whatsapp_Chatbot\check_table.py", line 15, in <module>
+    }).execute())
+       ~~~~~~~^^
+  File "C:\Users\User\Desktop\tt\Whatsapp_Chatbot\pwb\Lib\site-packages\postgrest\_sync\request_builder.py", line 96, in execute
+    raise APIError(dict(json_obj))
+postgrest.exceptions.APIError: {'message': 'permission denied for table flows', 'code': '42501', 'hint': 'Grant the required privileges to the current role with: GRANT SELECT, INSERT ON public.flows TO service_role;', 'details': None}

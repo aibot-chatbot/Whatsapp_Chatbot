@@ -333,9 +333,36 @@ def process_telegram_update(update: dict, webhook_secret: str):
 
     # Stop normal AI reply until Telegram user shares phone number
     if not conversation.get("customer_phone"):
+        # Check if they manually typed a phone number instead of using the button
+        cleaned_text = re.sub(r'[\D]', '', message_text)
+        if 8 <= len(cleaned_text) <= 15:
+            phone_number = cleaned_text
+            if message_text.strip().startswith('+'):
+                phone_number = '+' + phone_number
+                
+            conversation = update_conversation_phone_by_platform(
+                chatbot_id=chatbot_id,
+                platform_user_id=platform_user_id,
+                customer_phone=phone_number,
+                customer_name=customer_name,
+                source_channel="telegram",
+            )
+            
+            reply = "Thanks, your phone number has been saved. How can I help you today?"
+            save_message(
+                conversation_id=conversation["id"],
+                sender_type="bot",
+                message_text=reply,
+                message_type="text",
+                delivery_status="sent",
+                ai_generated=False,
+            )
+            send_telegram_message(bot_token, customer_key, reply)
+            save_processed_telegram_update(telegram_channel_id, update_id)
+            return
+
         reply = (
-            "Hi, before we continue, please share your phone number "
-            "so our staff can contact you."
+            "Please tap the 'Share Phone Number' button below, or type your phone number manually to continue."
         )
 
         save_message(
