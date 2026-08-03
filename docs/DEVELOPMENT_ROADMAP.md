@@ -32,6 +32,23 @@ uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
 Operational Alerts Phase 1 extends the existing dashboard and overview response
 only, deriving typed read-only subscription past-due/expired alerts from the
 existing attention-company data without adding a route or page.
+
+At the current HEAD, localhost manual verification recorded on 2026-08-03
+passed for the complete twelve-route read-only stack: dashboard, operational
+alerts, company directory/detail, subscription summary/history, AI-credit usage
+and transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
+billing-order audit filters, and local revocation with Access Denied and stale
+platform-data clearing. This is local evidence only. The original five
+platform-admin endpoints remain the only endpoint set recorded as staging
+verified; later extensions remain application-only/local-tested unless separately
+staged. Operational Alerts added no endpoint or page, and the billing-order
+audit-filter fix added no route or backend behavior change.
+The read-only smoke helper was also exercised locally on 2026-08-03 against
+localhost: all twelve checks passed with an approved company ID, required-only
+checks passed with child checks skipped when no company ID was supplied, and
+missing `PLATFORM_ADMIN_TOKEN` failed safely. This is localhost evidence only;
+the helper is local/staging-ready but requires an approved environment and
+token, and does not change the production-blocked status.
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
@@ -92,6 +109,12 @@ including service-role mutation rejection and rollback cleanup. The mapping
 remains inactive. No production SQL, bootstrap, deployment, tenant-role change,
 or maintenance bypass has been applied; production approvals remain
 outstanding.
+
+Production remains blocked: no confirmed staging/online environment is defined
+in repository configuration; the latest extensions are not staging-verified; and
+production ownership/executor, protected-company/bootstrap, audit
+retention/redaction, monitoring, rollback, and backup/restore approvals or
+evidence remain pending.
 
 The final Phase 4 staging rehearsal is complete. It verified inactive-state
 denial, time-bounded reactivation, dashboard and company read paths, normal
