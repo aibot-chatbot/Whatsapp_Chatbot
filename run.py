@@ -27,7 +27,7 @@ if __name__ == "__main__":
     print("=" * 50 + "\n")
 
     app.run(
-        host=os.getenv("FLASK_HOST", "127.0.0.1"),
+        host=os.getenv("FLASK_HOST", "0.0.0.0"),
         port=int(os.getenv("FLASK_PORT", "8000")),
         debug=env_flag("FLASK_DEBUG", default=False),
         use_reloader=False,
