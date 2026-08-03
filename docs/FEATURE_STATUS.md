@@ -298,7 +298,8 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 ## Phase 4L - Platform-Admin Read-Only Backend and Frontend
 
-**Status: Verified complete in staging; production blocked**
+**Status: Original five endpoints verified in staging; current 12-route stack
+verified locally; production blocked**
 
 The original five platform-admin endpoints are staging-verified. The later
 extensions are application-only/local-tested unless separately staged. At the
@@ -385,6 +386,27 @@ production readiness.
   without a company ID; and removing `PLATFORM_ADMIN_TOKEN` failed safely with
   the required configuration error. This remains localhost evidence only and
   requires an approved environment and token for any local/staging use.
+
+### Local read-only investigation coverage checklist
+
+This checklist describes the current localhost-only investigation surface. It
+does not establish staging verification or production readiness; production
+remains blocked.
+
+| Route | Purpose and safe read-only coverage | Intentionally excluded |
+|---|---|---|
+| `/me` | Confirm current platform-admin identity and active mapping shape | Tenant-role authority, token details, mapping management |
+| `/overview` | Show company/subscription summaries and typed operational alerts | Writes, charts, exports, global activity, remediation |
+| `/audit-events` | List safe audit-event summaries, filters, actor mapping IDs, and approved metadata fields | Raw payloads, secrets, exports, editing, deletion, retention controls |
+| `/companies` | Search, filter, sort, and page safe company directory fields | Customer content, mutations, bulk actions, deletion, export |
+| `/companies/<company_id>` | Inspect safe company profile and status fields | Full tenant records, impersonation, edits, customer content |
+| `/companies/<company_id>/subscription` | Read current subscription summary and safe plan fields | Activation, plan changes, cancellation, payment actions |
+| `/companies/<company_id>/subscription-history` | Read persisted subscription history rows and safe plan/status fields | Guaranteed event-sourced timeline, reconciliation, lifecycle changes |
+| `/companies/<company_id>/ai-credit-usage` | Read current-period balance, usage summary, and safe period fields | Credit adjustment, charging, provider economics, raw usage payloads |
+| `/companies/<company_id>/ai-credit-transactions` | Read safe ledger deltas, balances, transaction types, and periods | Manual credit, reversal, payment references, provider payloads |
+| `/companies/<company_id>/billing-orders` | Read safe order status, amount-in-sen, plan, activation, and lifecycle timestamps | Payment/gateway details, checkout, retry, reconciliation, manual credit |
+| `/companies/<company_id>/users` | Read safe company-user identity, role, status, and timestamps | User management, role changes, credentials, invitations |
+| `/companies/<company_id>/chatbots` | Read safe chatbot identity, state, configuration summary, and timestamps | Bot edits, messaging, credentials, deployment, customer content |
 - Staging browser verification passed for the dashboard, company directory,
   company detail, read-only controls, tenant-app return path, and logout
 - Post-verification revocation was confirmed: refresh showed Access Denied and

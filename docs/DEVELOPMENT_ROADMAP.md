@@ -12,7 +12,7 @@
 > | 4I | Renewal, grace period, failed-payment recovery | Complete |
 > | 4J | Billing notifications and alerts | Complete |
 > | 4K | Advanced billing and AI-usage reporting | Complete |
-> | 4L | Platform-admin controls | **Staging verified; production-readiness package prepared; production blocked** |
+> | 4L | Platform-admin controls | **Original scope staging verified; current 12-route stack local-only; production blocked** |
 > | 4M | Production launch audit and remediation | Complete |
 > | 4N | Knowledge Readme compilation & Pop-out viewer | Complete |
 >

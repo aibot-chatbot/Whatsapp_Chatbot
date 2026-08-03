@@ -83,6 +83,100 @@ class TestPlatformAdminSmokeCheck(unittest.TestCase):
         billing = next(result for result in results if result.path.endswith("/billing-orders"))
         self.assertFalse(billing.passed)
 
+    def test_overview_missing_operational_alerts_fails(self):
+        def missing_alerts_response(url, **kwargs):
+            if url.endswith("/overview"):
+                return FakeResponse({})
+            return response_for(url)
+
+        results = smoke._run_with_overview_check(
+            "http://localhost", "secret", None, 3, Mock(side_effect=missing_alerts_response)
+        )
+        overview = next(result for result in results if result.path.endswith("/overview"))
+        self.assertFalse(overview.passed)
+        self.assertIn("operational_alerts", overview.detail)
+
+    def test_unexpected_http_status_fails(self):
+        def unavailable_response(url, **kwargs):
+            if url.endswith("/overview"):
+                return FakeResponse({"operational_alerts": []}, status_code=503)
+            return response_for(url)
+
+        results = smoke._run_with_overview_check(
+            "http://localhost", "secret", None, 3, Mock(side_effect=unavailable_response)
+        )
+        overview = next(result for result in results if result.path.endswith("/overview"))
+        self.assertFalse(overview.passed)
+        self.assertIn("unexpected HTTP status 503", overview.detail)
+
+    def test_invalid_json_response_fails(self):
+        invalid_json = Mock(status_code=200, request=Mock(method="GET"))
+        invalid_json.json.side_effect = ValueError("invalid json")
+
+        def invalid_json_response(url, **kwargs):
+            if url.endswith("/me"):
+                return invalid_json
+            return response_for(url)
+
+        results = smoke._run_with_overview_check(
+            "http://localhost", "secret", None, 3, Mock(side_effect=invalid_json_response)
+        )
+        identity = next(result for result in results if result.path.endswith("/me"))
+        self.assertFalse(identity.passed)
+        self.assertIn("valid JSON", identity.detail)
+
+    def test_missing_success_envelope_fails(self):
+        missing_envelope = Mock(status_code=200, request=Mock(method="GET"))
+        missing_envelope.json.return_value = {"data": {}}
+
+        def missing_envelope_response(url, **kwargs):
+            if url.endswith("/me"):
+                return missing_envelope
+            return response_for(url)
+
+        results = smoke._run_with_overview_check(
+            "http://localhost", "secret", None, 3, Mock(side_effect=missing_envelope_response)
+        )
+        identity = next(result for result in results if result.path.endswith("/me"))
+        self.assertFalse(identity.passed)
+        self.assertIn("success envelope", identity.detail)
+
+    def test_non_get_response_metadata_fails(self):
+        results = smoke._run_with_overview_check(
+            "http://localhost", "secret", None, 3,
+            Mock(side_effect=lambda url, **kwargs: (
+                FakeResponse({}, method="POST") if url.endswith("/me") else response_for(url)
+            )),
+        )
+        identity = next(result for result in results if result.path.endswith("/me"))
+        self.assertFalse(identity.passed)
+        self.assertIn("method was not GET", identity.detail)
+
+    def test_all_forbidden_billing_markers_fail(self):
+        for marker in (
+            "payment_reference",
+            "gateway_order_id",
+            "checkout_url",
+            "idempotency_key",
+            "payment_gateway",
+            "order_reference",
+            "RM",
+            "MYR",
+        ):
+            with self.subTest(marker=marker):
+                def unsafe_response(url, **kwargs):
+                    if url.endswith("/billing-orders"):
+                        return FakeResponse({"billing_orders": [{marker: "hidden"}]})
+                    return response_for(url)
+
+                results = smoke._run_with_overview_check(
+                    "http://localhost", "secret", 42, 3, Mock(side_effect=unsafe_response)
+                )
+                billing = next(
+                    result for result in results if result.path.endswith("/billing-orders")
+                )
+                self.assertFalse(billing.passed)
+
     def test_token_is_not_printed(self):
         output = io.StringIO()
         with contextlib.redirect_stdout(output):

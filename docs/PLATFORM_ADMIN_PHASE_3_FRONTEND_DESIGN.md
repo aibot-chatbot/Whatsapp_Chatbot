@@ -114,8 +114,8 @@ subscription changes remain out of scope.
   `frontend/platform-admin-audit-events.html`. It runs through the same fresh
   `/api/platform-admin/me` page gate, uses the new
   `GET /api/platform-admin/audit-events` endpoint, displays only safe audit
-  event summaries with actor mapping IDs, and keeps the platform-admin backend
-  inventory at eleven GET-only routes. It adds no audit editing, deletion,
+  event summaries with actor mapping IDs, and keeps the current platform-admin
+  backend inventory at exactly twelve GET-only routes. It adds no audit editing, deletion,
   export, download, charts, raw metadata viewer, platform-admin user
   management, or other write controls.
 - The current bounded read-only platform-admin extension adds **Billing
