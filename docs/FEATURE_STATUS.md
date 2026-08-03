@@ -300,6 +300,16 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 **Status: Verified complete in staging; production blocked**
 
+The original five platform-admin endpoints are staging-verified. The later
+extensions are application-only/local-tested unless separately staged. At the
+current HEAD, localhost manual verification recorded on 2026-08-03 passed for
+the full current twelve-route read-only stack: dashboard, operational alerts,
+company directory/detail, subscription summary/history, AI-credit usage and
+transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
+billing-order audit filters, and local revocation with Access Denied and stale
+platform-data clearing. This does not establish staging verification or
+production readiness.
+
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
 - Twelve GET-only endpoints for platform identity, operations overview, company directory/detail,
@@ -332,15 +342,15 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
   links operators into existing company investigation pages. It adds no backend
   endpoint, ticketing, case notes, billing-order history, audit-log viewer, or
-  write controls; the platform-admin backend inventory remains exactly ten
+  write controls; the current platform-admin backend inventory remains exactly twelve
   GET-only routes.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
   metadata summaries only, and does not expose raw metadata, tenant records,
   exports, downloads, charts, audit editing, audit deletion, or platform-admin
-  user management. The platform-admin backend inventory is now exactly eleven
-  GET-only routes.
+  user management. Together with the billing-order route below, the current
+  platform-admin backend inventory is exactly twelve GET-only routes.
 - A bounded platform-admin Billing Order History section is implemented as a
   read-only, application-only local extension on company detail. It adds one
   audited GET-only endpoint,
@@ -350,6 +360,8 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   payment/gateway/checkout/reference, idempotency, raw-error, reconciliation,
   retry, activation, manual-credit, export/download, chart, and write behavior.
   The platform-admin backend inventory is now exactly twelve GET-only routes.
+  The billing-order audit-filter fix changed frontend filtering only; it added
+  no route or backend behavior change.
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
@@ -362,6 +374,17 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - Focused frontend source-contract tests cover endpoint restrictions, request
   cancellation, state clearing, safe rendering, accessibility, and responsive
   behavior
+- `scripts/platform_admin_smoke_check.py` provides a read-only local/staging-
+  ready HTTP smoke check for the current twelve-route stack. It accepts the
+  bearer token only from the environment, never prints response bodies or
+  credentials, and does not establish staging verification or production
+  readiness.
+- Local smoke evidence recorded on 2026-08-03 against localhost
+  (`http://127.0.0.1:8000`): all twelve checks passed with an approved company
+  ID; the four required checks passed and child checks were correctly skipped
+  without a company ID; and removing `PLATFORM_ADMIN_TOKEN` failed safely with
+  the required configuration error. This remains localhost evidence only and
+  requires an approved environment and token for any local/staging use.
 - Staging browser verification passed for the dashboard, company directory,
   company detail, read-only controls, tenant-app return path, and logout
 - Post-verification revocation was confirmed: refresh showed Access Denied and
@@ -389,6 +412,11 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   approvals, exact archive configuration, formal audit-policy approval, backup
   restore evidence, monitoring activation, migration 026 production approval,
   and final go/no-go
+
+Additional current blockers are the absence of a confirmed staging/online
+environment in repository configuration, lack of staging verification for the
+latest extensions, pending production ownership/executor approval, and pending
+monitoring, rollback, and backup evidence.
 
 ## Platform Limitations
 
