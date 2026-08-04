@@ -1,4 +1,4 @@
-"""Read-only HTTP surface for separately authorized platform administrators."""
+"""Privileged HTTP surface for separately authorized platform administrators."""
 
 import logging
 
@@ -158,4 +158,42 @@ def company_chatbots(company_id):
         state=request.args.get("state"),
         sort_by=request.args.get("sort_by"),
         sort_order=request.args.get("sort_order"),
+    ))
+
+
+@platform_admin_bp.get("/support-cases")
+def support_cases():
+    return _execute(lambda: platform_admin_service.list_support_cases(
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        company_id=request.args.get("company_id"),
+        status=request.args.get("status"),
+        priority=request.args.get("priority"),
+    ))
+
+
+@platform_admin_bp.post("/support-cases")
+def create_support_case():
+    return _execute(lambda: platform_admin_service.create_support_case(
+        request.get_json(silent=True), _actor_id()
+    ))
+
+
+@platform_admin_bp.get("/support-cases/<int:case_id>")
+def support_case_detail(case_id):
+    return _execute(lambda: platform_admin_service.get_support_case(case_id, _actor_id()))
+
+
+@platform_admin_bp.post("/support-cases/<int:case_id>/notes")
+def create_support_case_note(case_id):
+    return _execute(lambda: platform_admin_service.add_support_case_note(
+        case_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
+@platform_admin_bp.patch("/support-cases/<int:case_id>")
+def update_support_case(case_id):
+    return _execute(lambda: platform_admin_service.update_support_case(
+        case_id, request.get_json(silent=True), _actor_id()
     ))
