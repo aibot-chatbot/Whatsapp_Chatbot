@@ -197,6 +197,26 @@ def get_messages_by_conversation(conversation_id: int):
     return result.data
 
 
+def count_messages_by_conversation(conversation_id: int, sender_type: str = None):
+    """
+    Count messages in a conversation without transferring the rows.
+
+    Used by the website widget to enforce a per-session message cap so an
+    embedded chatbot cannot be abused to burn a company's AI credit.
+    """
+    query = (
+        supabase.table("messages")
+        .select("id", count="exact")
+        .eq("conversation_id", conversation_id)
+    )
+
+    if sender_type:
+        query = query.eq("sender_type", sender_type)
+
+    result = query.limit(1).execute()
+    return result.count or 0
+
+
 def get_messages_by_conversation_and_chatbot(conversation_id: int, chatbot_id: int):
     """
     Fetch messages only when the conversation belongs to the requested chatbot.
