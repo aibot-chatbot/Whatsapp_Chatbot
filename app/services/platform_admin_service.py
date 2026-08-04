@@ -8,6 +8,7 @@ from app.database import platform_billing_repository
 from app.database import platform_chatbot_repository
 from app.database import platform_company_repository
 from app.database import platform_company_user_repository
+from app.database import platform_support_case_repository
 
 
 logger = logging.getLogger(__name__)
@@ -161,6 +162,11 @@ SAFE_AUDIT_METADATA_KEYS = {
     "resource_id_filter_applied",
     "created_after_filter_applied",
     "created_before_filter_applied",
+    "company_filter_applied",
+    "priority_filter_applied",
+    "company_id",
+    "status",
+    "priority",
 }
 
 
@@ -196,6 +202,331 @@ def _safe_audit_event_response_row(row):
 
 def _now_utc_iso():
     return datetime.now(timezone.utc).isoformat()
+
+
+SUPPORT_CASE_ENDPOINTS = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS
+SUPPORT_CASE_TEXT_LIMITS = {
+    "title": 160,
+    "redacted_summary": 2000,
+    "redacted_note": 2000,
+}
+SUPPORT_CASE_FORBIDDEN_TERMS = (
+    "authorization", "cookie", "credential", "password", "secret", "token",
+    "provider payload", "payment reference", "payment_reference", "checkout",
+    "gateway", "impersonat", "customer message", "conversation content",
+)
+
+
+def _support_case_text(value, *, field_name, required=True):
+    if value is None and not required:
+        return None
+    if not isinstance(value, str):
+        _validation(f"invalid_{field_name}", f"{field_name} must be text.")
+    normalized = value.strip()
+    maximum = SUPPORT_CASE_TEXT_LIMITS[field_name]
+    if required and not normalized:
+        _validation(f"invalid_{field_name}", f"{field_name} is required.")
+    if len(normalized) > maximum:
+        _validation(f"invalid_{field_name}", f"{field_name} is too long.")
+    lowered = normalized.casefold()
+    if any(term in lowered for term in SUPPORT_CASE_FORBIDDEN_TERMS):
+        _validation(
+            f"invalid_{field_name}",
+            f"{field_name} contains content outside the redacted support-case boundary.",
+        )
+    return normalized
+
+
+def _support_case_company(company_id, actor_id):
+    _positive_id(company_id)
+    try:
+        company = platform_company_repository.get_company_for_platform_admin(company_id)
+    except Exception:
+        logger.error("Platform support-case company lookup failed")
+        _data_unavailable()
+    if not company:
+        _audit(actor_id, "platform_admin.company.read", "company", str(company_id), {
+            "outcome": "not_found",
+            "endpoint": platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["company_detail"],
+            "http_method": "GET",
+        })
+        raise PlatformAdminServiceError(404, "company_not_found", "Company not found.")
+    return company
+
+
+def _safe_support_case_company(company):
+    if not isinstance(company, dict):
+        return None
+    return {
+        "id": company.get("id"),
+        "company_name": company.get("company_name"),
+        "status": company.get("status"),
+    }
+
+
+def _safe_support_case_row(row, company=None):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "id": row.get("id"),
+        "company_id": row.get("company_id"),
+        "company": _safe_support_case_company(company),
+        "created_by_platform_admin_user_id": row.get("created_by_platform_admin_user_id"),
+        "assigned_platform_admin_user_id": row.get("assigned_platform_admin_user_id"),
+        "status": row.get("status"),
+        "priority": row.get("priority"),
+        "title": row.get("title"),
+        "redacted_summary": row.get("redacted_summary"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "closed_at": row.get("closed_at"),
+    }
+
+
+def _safe_support_case_event(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "id": row.get("id"),
+        "case_id": row.get("case_id"),
+        "event_type": row.get("event_type"),
+        "actor_platform_admin_user_id": row.get("actor_platform_admin_user_id"),
+        "old_status": row.get("old_status"),
+        "new_status": row.get("new_status"),
+        "old_priority": row.get("old_priority"),
+        "new_priority": row.get("new_priority"),
+        "redacted_note": row.get("redacted_note"),
+        "created_at": row.get("created_at"),
+    }
+
+
+def _support_case_or_not_found(case_id, actor_id, action, endpoint):
+    _positive_id(case_id, "invalid_case_id")
+    try:
+        case = platform_support_case_repository.get_support_case_for_platform_admin(case_id)
+    except Exception:
+        logger.error("Platform support-case lookup failed")
+        _data_unavailable()
+    if not case:
+        _audit(actor_id, action, "platform_support_cases", str(case_id), {
+            "outcome": "not_found", "endpoint": endpoint, "http_method": "GET",
+        })
+        raise PlatformAdminServiceError(404, "support_case_not_found", "Support case not found.")
+    return case
+
+
+def _support_case_companies(cases):
+    ids = [row.get("company_id") for row in cases if isinstance(row, dict)]
+    try:
+        return platform_company_repository.get_companies_by_ids_for_platform_admin(ids)
+    except Exception:
+        logger.error("Platform support-case company lookup failed")
+        _data_unavailable()
+
+
+def list_support_cases(actor_id, *, limit=None, offset=None, company_id=None,
+                       status=None, priority=None):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_list"]
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    company_id = _optional_positive_integer_parameter(company_id, name="company_id")
+    normalized_status = _optional_exact_member_parameter(
+        status, name="status", allowed=platform_support_case_repository.ALLOWED_STATUSES,
+        code="invalid_status",
+    )
+    normalized_priority = _optional_exact_member_parameter(
+        priority, name="priority", allowed=platform_support_case_repository.ALLOWED_PRIORITIES,
+        code="invalid_priority",
+    )
+    try:
+        cases, total = platform_support_case_repository.list_support_cases_for_platform_admin(
+            limit=limit, offset=offset, company_id=company_id,
+            status=normalized_status, priority=normalized_priority,
+        )
+        companies = _support_case_companies(cases)
+    except PlatformAdminServiceError:
+        raise
+    except Exception:
+        logger.error("Platform support-case listing failed")
+        _data_unavailable()
+    result = {
+        "cases": [_safe_support_case_row(row, companies.get(row.get("company_id"))) for row in cases],
+        "pagination": {
+            "limit": limit, "offset": offset, "returned": len(cases),
+            "total": total, "has_more": offset + len(cases) < total,
+        },
+        "filters": {
+            "company_id": company_id, "status": normalized_status,
+            "priority": normalized_priority,
+        },
+    }
+    _audit(actor_id, "platform_admin.support_case.list", "platform_support_cases", None, {
+        "outcome": "success", "endpoint": endpoint, "http_method": "GET",
+        "limit": limit, "offset": offset,
+        "company_filter_applied": company_id is not None,
+        "status_filter_applied": normalized_status is not None,
+        "priority_filter_applied": normalized_priority is not None,
+        "returned_count": len(cases),
+    })
+    return result
+
+
+def get_support_case(case_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_read"]
+    case = _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.read",
+        SUPPORT_CASE_ENDPOINTS["support_case_read"],
+    )
+    try:
+        events = platform_support_case_repository.list_support_case_events_for_platform_admin(case_id)
+        company = platform_company_repository.get_company_for_platform_admin(case.get("company_id"))
+    except Exception:
+        logger.error("Platform support-case detail lookup failed")
+        _data_unavailable()
+    result = {
+        "case": _safe_support_case_row(case, company),
+        "events": [_safe_support_case_event(event) for event in events],
+    }
+    _audit(actor_id, "platform_admin.support_case.read", "platform_support_cases", str(case_id), {
+        "outcome": "success", "endpoint": endpoint, "http_method": "GET",
+    })
+    return result
+
+
+def create_support_case(payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_create"]
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be an object.")
+    company_id = payload.get("company_id")
+    if isinstance(company_id, bool) or not isinstance(company_id, int) or company_id <= 0:
+        _validation("invalid_company_id", "Company ID must be a positive integer.")
+    title = _support_case_text(payload.get("title"), field_name="title")
+    summary = _support_case_text(payload.get("redacted_summary"), field_name="redacted_summary")
+    status = payload.get("status", "open")
+    priority = payload.get("priority", "normal")
+    status = _optional_exact_member_parameter(
+        status, name="status", allowed=platform_support_case_repository.ALLOWED_STATUSES,
+        code="invalid_status",
+    )
+    priority = _optional_exact_member_parameter(
+        priority, name="priority", allowed=platform_support_case_repository.ALLOWED_PRIORITIES,
+        code="invalid_priority",
+    )
+    company = _support_case_company(company_id, actor_id)
+    now = _now_utc_iso()
+    try:
+        case = platform_support_case_repository.create_support_case_for_platform_admin({
+            "company_id": company_id,
+            "created_by_platform_admin_user_id": actor_id,
+            "status": status,
+            "priority": priority,
+            "title": title,
+            "redacted_summary": summary,
+            "created_at": now,
+            "updated_at": now,
+        })
+        platform_support_case_repository.create_support_case_event_for_platform_admin({
+            "case_id": case["id"], "event_type": "created",
+            "actor_platform_admin_user_id": actor_id, "new_status": status,
+            "new_priority": priority, "created_at": now,
+        })
+    except Exception:
+        logger.error("Platform support-case creation failed")
+        _data_unavailable()
+    _audit(actor_id, "platform_admin.support_case.create", "platform_support_cases", str(case["id"]), {
+        "outcome": "success", "endpoint": endpoint, "http_method": "POST",
+        "company_id": company_id, "status": status, "priority": priority,
+    })
+    return {"case": _safe_support_case_row(case, company)}
+
+
+def add_support_case_note(case_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_note_create"]
+    case = _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.read",
+        SUPPORT_CASE_ENDPOINTS["support_case_read"],
+    )
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be an object.")
+    note = _support_case_text(payload.get("redacted_note"), field_name="redacted_note")
+    try:
+        event = platform_support_case_repository.create_support_case_event_for_platform_admin({
+            "case_id": case_id, "event_type": "note_added",
+            "actor_platform_admin_user_id": actor_id, "redacted_note": note,
+            "created_at": _now_utc_iso(),
+        })
+    except Exception:
+        logger.error("Platform support-case note creation failed")
+        _data_unavailable()
+    _audit(actor_id, "platform_admin.support_case.note.create", "platform_support_case_events", str(case_id), {
+        "outcome": "success", "endpoint": endpoint, "http_method": "POST",
+    })
+    return {"case_id": case["id"], "event": _safe_support_case_event(event)}
+
+
+def update_support_case(case_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_update"]
+    case = _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.read",
+        SUPPORT_CASE_ENDPOINTS["support_case_read"],
+    )
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be an object.")
+    if set(payload) - {"status", "priority"} or not payload:
+        _validation("invalid_request", "Only status and priority may be updated.")
+    status = payload.get("status", case.get("status"))
+    priority = payload.get("priority", case.get("priority"))
+    status = _optional_exact_member_parameter(
+        status, name="status", allowed=platform_support_case_repository.ALLOWED_STATUSES,
+        code="invalid_status",
+    )
+    priority = _optional_exact_member_parameter(
+        priority, name="priority", allowed=platform_support_case_repository.ALLOWED_PRIORITIES,
+        code="invalid_priority",
+    )
+    if status == case.get("status") and priority == case.get("priority"):
+        _validation("no_change", "Support case status and priority are unchanged.")
+    now = _now_utc_iso()
+    update_payload = {"status": status, "priority": priority, "updated_at": now}
+    update_payload["closed_at"] = now if status == "closed" else None
+    try:
+        updated = platform_support_case_repository.update_support_case_for_platform_admin(case_id, update_payload)
+        if not updated:
+            _data_unavailable()
+        if status != case.get("status"):
+            platform_support_case_repository.create_support_case_event_for_platform_admin({
+                "case_id": case_id, "event_type": "status_changed",
+                "actor_platform_admin_user_id": actor_id,
+                "old_status": case.get("status"), "new_status": status,
+                "created_at": now,
+            })
+        if priority != case.get("priority"):
+            platform_support_case_repository.create_support_case_event_for_platform_admin({
+                "case_id": case_id, "event_type": "priority_changed",
+                "actor_platform_admin_user_id": actor_id,
+                "old_priority": case.get("priority"), "new_priority": priority,
+                "created_at": now,
+            })
+        company = platform_company_repository.get_company_for_platform_admin(case.get("company_id"))
+    except PlatformAdminServiceError:
+        raise
+    except Exception:
+        logger.error("Platform support-case update failed")
+        _data_unavailable()
+    metadata = {
+        "outcome": "success", "endpoint": endpoint, "http_method": "PATCH",
+    }
+    if status != case.get("status"):
+        metadata["status"] = status
+    if priority != case.get("priority"):
+        metadata["priority"] = priority
+    _audit(actor_id, "platform_admin.support_case.update", "platform_support_cases", str(case_id), metadata)
+    return {"case": _safe_support_case_row(updated, company)}
 
 
 def _company_or_not_found(company_id, actor_id, action, resource_type, endpoint):

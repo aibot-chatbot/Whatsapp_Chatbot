@@ -32,6 +32,8 @@ uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
 Operational Alerts Phase 1 extends the existing dashboard and overview response
 only, deriving typed read-only subscription past-due/expired alerts from the
 existing attention-company data without adding a route or page.
+All proposed Phase 2 alert types remain deferred under the design contract in
+`docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 
 At the current HEAD, localhost manual verification recorded on 2026-08-03
 passed for the complete twelve-route read-only stack: dashboard, operational
@@ -49,6 +51,11 @@ checks passed with child checks skipped when no company ID was supplied, and
 missing `PLATFORM_ADMIN_TOKEN` failed safely. This is localhost evidence only;
 the helper is local/staging-ready but requires an approved environment and
 token, and does not change the production-blocked status.
+The access request, revocation, replacement, and periodic-review procedure is
+documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it is policy-only and
+does not authorize mapping changes or production access.
+Its evidence checklist covers approval, revocation, smoke checks, audit-log
+review, redaction, and environment-specific evidence boundaries.
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
@@ -60,17 +67,25 @@ no-subscription counting, global activity, usage aggregation, charts, exports, a
 editing/deletion, and write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
-shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
-client, in-memory request cancellation/state clearing, the Platform Operations
+shell, a fresh `/me` authorization gate on every page, an allowlisted
+GET/POST/PATCH client, in-memory request cancellation/state clearing, the Platform Operations
 overview, the server-paginated company directory, safe company billing/AI-credit
 detail views, typed subscription operational alerts, and lazy read-only subscription-history, AI-credit transaction-history,
 billing-order history, and company users/chatbots sections. A later bounded frontend-only platform-admin
 Support Workspace adds a read-only investigation hub that reuses the existing
 operations overview and company directory APIs, highlights attention companies,
-and links into the existing company detail investigation page without adding a
-backend endpoint. It is separate from tenant `support.html` and does not add
-ticketing, support-case records, notes, assignment, billing-order history,
-audit-log viewing, or write controls. The ordinary
+and links into the existing company detail investigation page.
+Support Cases Phase 1 application code and migration draft are implemented
+locally; the database migration remains unapplied, so end-to-end DB verification
+is pending. The feature adds bounded internal case create/list/detail,
+redacted notes, status/priority updates, append-only case events, and audited
+writes. It is separate from tenant `support.html` and does not add customer
+messaging, impersonation, billing actions, exports, charts, or production use.
+SQL execution now requires project/ref/environment preflight evidence recorded
+in the platform-admin access lifecycle. Future SQL is limited to confirmed
+local/dev or approved staging targets; production remains blocked.
+Assignment UI, customer contact, SLA, and other future concepts remain deferred
+under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.
 The Audit Logs viewer adds a separate read-only page and one audited backend
 endpoint for safe platform-admin audit event summaries. It returns actor mapping
