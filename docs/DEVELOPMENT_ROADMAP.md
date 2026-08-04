@@ -49,6 +49,11 @@ checks passed with child checks skipped when no company ID was supplied, and
 missing `PLATFORM_ADMIN_TOKEN` failed safely. This is localhost evidence only;
 the helper is local/staging-ready but requires an approved environment and
 token, and does not change the production-blocked status.
+The access request, revocation, replacement, and periodic-review procedure is
+documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it is policy-only and
+does not authorize mapping changes or production access.
+Its evidence checklist covers approval, revocation, smoke checks, audit-log
+review, redaction, and environment-specific evidence boundaries.
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays

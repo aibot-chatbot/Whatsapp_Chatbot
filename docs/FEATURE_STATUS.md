@@ -380,6 +380,12 @@ production readiness.
   bearer token only from the environment, never prints response bodies or
   credentials, and does not establish staging verification or production
   readiness.
+- Access request, revocation, replacement, and periodic-review procedure is
+  documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it adds no access,
+  mapping management, write controls, or production authorization.
+- The lifecycle document now includes a redacted access, revocation, smoke,
+  audit-log, and localhost/staging/production evidence checklist; it does not
+  change the current local-only verification boundary.
 - Local smoke evidence recorded on 2026-08-03 against localhost
   (`http://127.0.0.1:8000`): all twelve checks passed with an approved company
   ID; the four required checks passed and child checks were correctly skipped
