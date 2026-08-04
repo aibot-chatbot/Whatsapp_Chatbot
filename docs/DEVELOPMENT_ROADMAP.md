@@ -32,6 +32,8 @@ uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
 Operational Alerts Phase 1 extends the existing dashboard and overview response
 only, deriving typed read-only subscription past-due/expired alerts from the
 existing attention-company data without adding a route or page.
+All proposed Phase 2 alert types remain deferred under the design contract in
+`docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 
 At the current HEAD, localhost manual verification recorded on 2026-08-03
 passed for the complete twelve-route read-only stack: dashboard, operational

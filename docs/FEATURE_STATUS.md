@@ -337,7 +337,9 @@ production readiness.
   read-only subscription past-due/expired alerts derived from existing
   attention data. It adds no endpoint or page, and AI-credit alerts,
   billing-order attention alerts, inactive-company alerts, no-current-chatbot
-  alerts, charts, exports, and write actions remain deferred.
+  alerts, charts, exports, and write actions remain deferred. The deferred
+  Phase 2 alert definitions and approval gates are recorded in
+  `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 - A separate platform-admin Support Workspace is implemented as a read-only
   investigation hub. It is distinct from tenant `support.html`, reuses only
   existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
