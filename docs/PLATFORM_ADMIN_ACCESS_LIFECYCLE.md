@@ -183,3 +183,51 @@ This procedure does not introduce:
 
 The detailed audit metadata, redaction, retention, and archival policy is in
 `docs/PLATFORM_ADMIN_AUDIT_POLICY.md`.
+
+## 12. SQL execution environment preflight
+
+Every platform-admin migration requires a target check before SQL is opened or
+run:
+
+- Confirm the Supabase project name, project ref, and environment label.
+- Record the intended target explicitly: localhost/dev, approved staging, or
+  production.
+- When the task is local/dev, verify the URL is not a production URL.
+- Capture redacted screenshot or equivalent evidence of the target before
+  execution.
+- Confirm the exact migration file, approved executor, and rollback owner.
+- Do not create or reactivate `platform_admin_users` mappings as part of SQL
+  preflight.
+
+Stop immediately if the dashboard shows `PRODUCTION` while the task is
+local/dev or staging-only. Do not run SQL; ask for review.
+
+## 13. Migration 029 incident record
+
+Migration 029 was accidentally applied to the Supabase project marked
+main/PRODUCTION and was then rolled back successfully. No support-case rows
+were created, no tenant data changed, and no `platform_admin_users` mappings
+changed. Rollback removed `platform_support_cases`,
+`platform_support_case_events`, and their sequences. This incident does not
+authorize future production SQL; production remains blocked.
+
+Future Support Cases testing may apply migration 029 only to a confirmed
+localhost/dev database or separately approved staging environment. Support
+Cases must not be tested on production.
+
+## 14. SQL execution evidence checklist
+
+Before apply or rollback:
+
+- [ ] Project name, project ref, environment label, target, and URL recorded.
+- [ ] Redacted pre-apply target screenshot captured.
+- [ ] Exact migration file, approved executor, and rollback owner recorded.
+- [ ] Row counts before apply/rollback and dependency checks captured.
+
+After apply or rollback:
+
+- [ ] Expected tables, sequences, policies, grants, and append-only trigger or
+      function verified, or confirmed removed after rollback.
+- [ ] Post-apply or post-rollback row counts and schema evidence recorded.
+- [ ] Evidence contains no secrets, tokens, cookies, full response bodies, or
+      sensitive customer data.

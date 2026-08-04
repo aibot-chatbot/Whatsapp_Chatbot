@@ -81,6 +81,9 @@ is pending. The feature adds bounded internal case create/list/detail,
 redacted notes, status/priority updates, append-only case events, and audited
 writes. It is separate from tenant `support.html` and does not add customer
 messaging, impersonation, billing actions, exports, charts, or production use.
+SQL execution now requires project/ref/environment preflight evidence recorded
+in the platform-admin access lifecycle. Future SQL is limited to confirmed
+local/dev or approved staging targets; production remains blocked.
 Assignment UI, customer contact, SLA, and other future concepts remain deferred
 under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.
