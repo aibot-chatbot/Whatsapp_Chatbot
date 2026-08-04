@@ -351,6 +351,10 @@ production readiness.
   writes. Assignment UI, customer contact, messaging, impersonation, billing
   actions, exports, charts, and production use remain blocked. The workflow
   contract is documented in `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
+  SQL execution requires project/ref/environment preflight evidence; the
+  Migration 029 production-application and successful rollback are recorded in
+  the access lifecycle. Future testing is local/dev or approved staging only;
+  production remains blocked.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
