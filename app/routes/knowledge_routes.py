@@ -229,6 +229,10 @@ def scrape_website_knowledge():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        # Plan gate: Free and Essential have single_website_scraping = false
+        # (data/004_add_subscription_plan_feature_flags.sql). Without this the
+        # flag is defined on every plan but enforced nowhere.
+        can_use_plan_feature(g.company_id, "single_website_scraping")
         # Check subscription limit before knowledge file creation
         can_upload_knowledge_file(g.company_id)
         result = scrape_website_url(data["url"], chatbot_id)
