@@ -14,7 +14,12 @@
         "platform_admin.company.billing_orders.read",
         "platform_admin.company.users.read",
         "platform_admin.company.chatbots.read",
-        "platform_admin.audit_events.list"
+        "platform_admin.audit_events.list",
+        "platform_admin.support_case.list",
+        "platform_admin.support_case.read",
+        "platform_admin.support_case.create",
+        "platform_admin.support_case.note.create",
+        "platform_admin.support_case.update"
     ];
     const RESOURCE_TYPES = [
         "platform_admin",
@@ -27,7 +32,9 @@
         "company_billing_orders",
         "company_users",
         "company_chatbots",
-        "platform_admin_audit_events"
+        "platform_admin_audit_events",
+        "platform_support_cases",
+        "platform_support_case_events"
     ];
     const METADATA_KEYS = [
         "outcome",
@@ -51,7 +58,12 @@
         "actor_user_id_filter_applied",
         "resource_id_filter_applied",
         "created_after_filter_applied",
-        "created_before_filter_applied"
+        "created_before_filter_applied",
+        "company_filter_applied",
+        "priority_filter_applied",
+        "company_id",
+        "status",
+        "priority"
     ];
 
     const state = {

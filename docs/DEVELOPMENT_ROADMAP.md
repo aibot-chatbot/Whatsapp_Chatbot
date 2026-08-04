@@ -67,17 +67,22 @@ no-subscription counting, global activity, usage aggregation, charts, exports, a
 editing/deletion, and write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
-shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
-client, in-memory request cancellation/state clearing, the Platform Operations
+shell, a fresh `/me` authorization gate on every page, an allowlisted
+GET/POST/PATCH client, in-memory request cancellation/state clearing, the Platform Operations
 overview, the server-paginated company directory, safe company billing/AI-credit
 detail views, typed subscription operational alerts, and lazy read-only subscription-history, AI-credit transaction-history,
 billing-order history, and company users/chatbots sections. A later bounded frontend-only platform-admin
 Support Workspace adds a read-only investigation hub that reuses the existing
 operations overview and company directory APIs, highlights attention companies,
-and links into the existing company detail investigation page without adding a
-backend endpoint. It is separate from tenant `support.html` and does not add
-ticketing, support-case records, notes, assignment, billing-order history,
-audit-log viewing, or write controls. The ordinary
+and links into the existing company detail investigation page.
+Support Cases Phase 1 application code and migration draft are implemented
+locally; the database migration remains unapplied, so end-to-end DB verification
+is pending. The feature adds bounded internal case create/list/detail,
+redacted notes, status/priority updates, append-only case events, and audited
+writes. It is separate from tenant `support.html` and does not add customer
+messaging, impersonation, billing actions, exports, charts, or production use.
+Assignment UI, customer contact, SLA, and other future concepts remain deferred
+under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.
 The Audit Logs viewer adds a separate read-only page and one audited backend
 endpoint for safe platform-admin audit event summaries. It returns actor mapping

@@ -343,17 +343,22 @@ production readiness.
 - A separate platform-admin Support Workspace is implemented as a read-only
   investigation hub. It is distinct from tenant `support.html`, reuses only
   existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
-  links operators into existing company investigation pages. It adds no backend
-  endpoint, ticketing, case notes, billing-order history, audit-log viewer, or
-  write controls; the current platform-admin backend inventory remains exactly twelve
-  GET-only routes.
+  links operators into existing company investigation pages. Support Cases
+  Phase 1 application code and migration draft are implemented locally; the
+  database migration remains unapplied, so end-to-end DB verification is
+  pending. The feature adds bounded internal case create/list/detail, redacted internal notes,
+  status/priority updates, append-only case events, and audit-before-response
+  writes. Assignment UI, customer contact, messaging, impersonation, billing
+  actions, exports, charts, and production use remain blocked. The workflow
+  contract is documented in `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
   metadata summaries only, and does not expose raw metadata, tenant records,
   exports, downloads, charts, audit editing, audit deletion, or platform-admin
-  user management. Together with the billing-order route below, the current
-  platform-admin backend inventory is exactly twelve GET-only routes.
+  user management. The original investigation inventory remains twelve
+  GET-only routes; Support Cases adds three localhost-only paths with bounded
+  GET/POST/PATCH methods.
 - A bounded platform-admin Billing Order History section is implemented as a
   read-only, application-only local extension on company detail. It adds one
   audited GET-only endpoint,
@@ -362,7 +367,8 @@ production readiness.
   integer sen as stored, returns no currency and infers no MYR, and excludes
   payment/gateway/checkout/reference, idempotency, raw-error, reconciliation,
   retry, activation, manual-credit, export/download, chart, and write behavior.
-  The platform-admin backend inventory is now exactly twelve GET-only routes.
+  The current platform-admin backend inventory is twelve GET-only investigation
+  routes plus three localhost-only support-case paths.
   The billing-order audit-filter fix changed frontend filtering only; it added
   no route or backend behavior change.
 - Frontend performs a fresh `/me` authorization check on every page entry,
@@ -453,7 +459,7 @@ monitoring, rollback, and backup evidence.
 | Limitation | Status |
 |---|---|
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, operational alerts, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
-| Platform-admin Support Workspace | Implemented locally as a read-only investigation hub using existing overview and company-directory APIs only; no backend endpoint, ticketing, case management, billing-order history, audit-log viewer, or write controls |
+| Platform-admin Support Workspace | Implemented locally as a read-only investigation hub; Support Cases Phase 1 adds bounded internal case routes and redacted append-only notes/status/priority tracking; no customer messaging, impersonation, billing actions, exports, charts, or production use |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | Direct tenant support contact/tickets | Deferred (no approved support contact destination or support-submission backend) |
