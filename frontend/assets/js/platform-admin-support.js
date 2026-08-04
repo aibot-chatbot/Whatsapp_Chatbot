@@ -7,7 +7,10 @@
         error: null,
         searchInput: null,
         searchButton: null,
-        loadSequence: 0
+        loadSequence: 0,
+        caseResults: null,
+        caseDetail: null,
+        caseError: null
     };
 
     function safeValue(value) {
@@ -265,6 +268,199 @@
         return section;
     }
 
+    function selectField(labelText, id, values, selected) {
+        const field = ui.element("div", "platform-field");
+        const label = ui.element("label", "", labelText);
+        label.htmlFor = id;
+        const select = ui.element("select", "platform-input");
+        select.id = id;
+        values.forEach(function (value) {
+            const option = ui.element("option", "", value.label);
+            option.value = value.value;
+            option.selected = value.value === selected;
+            select.append(option);
+        });
+        field.append(label, select);
+        return { field: field, input: select };
+    }
+
+    function renderCaseDetail(data) {
+        if (!state.caseDetail) return;
+        const current = data && data.case ? data.case : null;
+        if (!current) {
+            state.caseDetail.replaceChildren(ui.element("p", "platform-empty", "Select a support case to inspect it."));
+            return;
+        }
+        const section = panel(
+            "Internal support case detail",
+            "Internal platform notes only. This view contains no customer conversation or external communication controls."
+        );
+        section.append(
+            ui.element("h3", "", safeValue(current.title)),
+            cardLine("Case ID", current.id),
+            cardLine("Company ID", current.company_id),
+            cardLine("Status", current.status),
+            cardLine("Priority", current.priority),
+            cardLine("Redacted summary", current.redacted_summary),
+            cardLine("Updated", ui.formatDate(current.updated_at))
+        );
+        const events = Array.isArray(data.events) ? data.events : [];
+        section.append(ui.element("h3", "", "Append-only case events"));
+        if (!events.length) section.append(ui.element("p", "platform-empty", "No case events recorded."));
+        else section.append(table(
+            ["Event", "Actor mapping", "Status", "Priority", "Redacted note", "Created"],
+            events.map(function (event) {
+                return [event.event_type, event.actor_platform_admin_user_id,
+                    event.new_status || event.old_status, event.new_priority || event.old_priority,
+                    event.redacted_note, ui.formatDate(event.created_at)];
+            }),
+            "Support-case events"
+        ));
+
+        const controls = ui.element("div", "platform-support-actions");
+        const status = selectField("Status", "platform-support-case-status", [
+            { value: "open", label: "Open" },
+            { value: "in_progress", label: "In progress" },
+            { value: "resolved", label: "Resolved" },
+            { value: "closed", label: "Closed" }
+        ], current.status);
+        const priority = selectField("Priority", "platform-support-case-priority", [
+            { value: "low", label: "Low" },
+            { value: "normal", label: "Normal" },
+            { value: "high", label: "High" },
+            { value: "urgent", label: "Urgent" }
+        ], current.priority);
+        const update = ui.element("button", "platform-button platform-button-primary", "Update case");
+        update.type = "button";
+        update.addEventListener("click", async function () {
+            try {
+                await ui.runRequest("support-case-update", function (signal) {
+                    return PlatformAdminApi.updateSupportCase(current.id, {
+                        status: status.input.value, priority: priority.input.value
+                    }, { signal: signal });
+                });
+                await openSupportCase(current.id);
+                await loadSupportCases();
+            } catch (error) {
+                if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The case could not be updated.";
+            }
+        });
+        controls.append(status.field, priority.field, update);
+        section.append(controls);
+
+        const noteForm = ui.element("form", "platform-support-search");
+        const noteField = ui.element("div", "platform-field");
+        const noteLabel = ui.element("label", "", "Redacted internal note");
+        const noteInput = ui.element("textarea", "platform-input");
+        noteInput.maxLength = 2000;
+        noteInput.required = true;
+        noteField.append(noteLabel, noteInput);
+        const noteButton = ui.element("button", "platform-button", "Add internal note");
+        noteButton.type = "submit";
+        noteForm.append(noteField, noteButton);
+        noteForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            try {
+                await ui.runRequest("support-case-note", function (signal) {
+                    return PlatformAdminApi.addSupportCaseNote(current.id, {
+                        redacted_note: noteInput.value
+                    }, { signal: signal });
+                });
+                noteInput.value = "";
+                await openSupportCase(current.id);
+            } catch (error) {
+                if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The internal note could not be added.";
+            }
+        });
+        section.append(noteForm);
+        state.caseDetail.replaceChildren(section);
+    }
+
+    async function openSupportCase(caseId) {
+        try {
+            const data = await ui.runRequest("support-case-detail", function (signal) {
+                return PlatformAdminApi.getSupportCase(caseId, { signal: signal });
+            });
+            renderCaseDetail(data);
+        } catch (error) {
+            if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The support case could not be loaded.";
+        }
+    }
+
+    async function loadSupportCases() {
+        try {
+            const data = await ui.runRequest("support-case-list", function (signal) {
+                return PlatformAdminApi.listSupportCases({ limit: 25, offset: 0, signal: signal });
+            });
+            const cases = data && Array.isArray(data.cases) ? data.cases : [];
+            if (!state.caseResults) return;
+            if (!cases.length) {
+                state.caseResults.replaceChildren(ui.element("p", "platform-empty", "No internal support cases found."));
+                return;
+            }
+            state.caseResults.replaceChildren(table(
+                ["ID", "Company", "Title", "Status", "Priority", "Updated", "Action"],
+                cases.map(function (item) {
+                    const button = ui.element("button", "platform-link-button", "Open case");
+                    button.type = "button";
+                    button.addEventListener("click", function () { openSupportCase(item.id); });
+                    return [item.id, item.company_id, item.title, item.status, item.priority,
+                        ui.formatDate(item.updated_at), button];
+                }),
+                "Internal support cases"
+            ));
+        } catch (error) {
+            if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "Support cases are temporarily unavailable.";
+        }
+    }
+
+    function renderSupportCases() {
+        const section = panel(
+            "Internal support cases",
+            "Localhost-only internal tracking for redacted investigation notes. Cases are not customer-facing."
+        );
+        state.caseError = ui.element("p", "platform-inline-error");
+        state.caseError.setAttribute("aria-live", "polite");
+        const form = ui.element("form", "platform-support-search");
+        const company = ui.element("input", "platform-input");
+        company.type = "number"; company.min = "1"; company.required = true;
+        const title = ui.element("input", "platform-input");
+        title.maxLength = 160; title.required = true;
+        const summary = ui.element("textarea", "platform-input");
+        summary.maxLength = 2000; summary.required = true;
+        const companyField = ui.element("div", "platform-field");
+        const companyLabel = ui.element("label", "", "Company ID"); companyLabel.append(company); companyField.append(companyLabel);
+        const titleField = ui.element("div", "platform-field");
+        const titleLabel = ui.element("label", "", "Case title"); titleLabel.append(title); titleField.append(titleLabel);
+        const summaryField = ui.element("div", "platform-field");
+        const summaryLabel = ui.element("label", "", "Redacted summary"); summaryLabel.append(summary); summaryField.append(summaryLabel);
+        const create = ui.element("button", "platform-button platform-button-primary", "Create internal case");
+        create.type = "submit";
+        form.append(companyField, titleField, summaryField, create);
+        form.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            try {
+                const data = await ui.runRequest("support-case-create", function (signal) {
+                    return PlatformAdminApi.createSupportCase({
+                        company_id: Number(company.value), title: title.value,
+                        redacted_summary: summary.value
+                    }, { signal: signal });
+                });
+                company.value = ""; title.value = ""; summary.value = "";
+                await loadSupportCases();
+                if (data && data.case) await openSupportCase(data.case.id);
+            } catch (error) {
+                if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The support case could not be created.";
+            }
+        });
+        state.caseResults = ui.element("div", "platform-support-results");
+        state.caseDetail = ui.element("div", "platform-support-results");
+        state.caseResults.append(ui.element("p", "platform-loading", "Loading internal support cases..."));
+        state.caseDetail.append(ui.element("p", "platform-empty", "Select a support case to inspect it."));
+        section.append(form, state.caseError, state.caseResults, state.caseDetail);
+        return section;
+    }
+
     function renderWorkspaceSkeleton() {
         const root = document.getElementById("platform-page-content");
         const header = ui.element("header", "platform-page-header");
@@ -290,8 +486,10 @@
             root.replaceChildren(
                 root.firstChild,
                 renderAttention(overview),
-                renderLookup()
+                renderLookup(),
+                renderSupportCases()
             );
+            await loadSupportCases();
         } catch (error) {
             if (!ui.handleError(error) && (!error || error.category !== "aborted")) {
                 root.replaceChildren(ui.element("p", "platform-empty", "Support workspace data is temporarily unavailable."));

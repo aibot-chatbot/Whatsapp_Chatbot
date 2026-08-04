@@ -28,7 +28,8 @@ Audit failure returns a sanitized 503 and withholds fetched tenant data.
 
 ## Approved actions, resources, and metadata schemas
 
-No action or resource type outside this table is approved for Phase 4.
+No action or resource type outside this table is approved. Support-case Phase 1
+actions are localhost-only and remain blocked from staging/production approval.
 
 | Action | Resource type | Resource ID | Outcomes | Required metadata | Optional metadata | Endpoint |
 |---|---|---|---|---|---|---|
@@ -44,6 +45,11 @@ No action or resource type outside this table is approved for Phase 4.
 | `platform_admin.company.chatbots.read` | `company_chatbots` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `state_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/chatbots` |
 | `platform_admin.operations.overview.read` | `platform_operations_overview` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `attention_company_count`, `generated_at` | None | `/api/platform-admin/overview` |
 | `platform_admin.audit_events.list` | `platform_admin_audit_events` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, `action_filter_applied`, `resource_type_filter_applied`, `actor_user_id_filter_applied`, `resource_id_filter_applied`, `created_after_filter_applied`, `created_before_filter_applied`, `returned_count` | None | `/api/platform-admin/audit-events` |
+| `platform_admin.support_case.list` | `platform_support_cases` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, filter-applied flags, `returned_count` | None | `/api/platform-admin/support-cases` |
+| `platform_admin.support_case.read` | `platform_support_cases` | Case ID | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/support-cases/<case_id>` |
+| `platform_admin.support_case.create` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `company_id` | `status`, `priority` | `POST /api/platform-admin/support-cases` |
+| `platform_admin.support_case.note.create` | `platform_support_case_events` | Case ID | `success` | `outcome`, `endpoint`, `http_method` | None | `POST /api/platform-admin/support-cases/<case_id>/notes` |
+| `platform_admin.support_case.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method` | `status`, `priority` | `PATCH /api/platform-admin/support-cases/<case_id>` |
 
 ### Operations-overview fields
 
@@ -89,6 +95,11 @@ actor_user_id_filter_applied
 resource_id_filter_applied
 created_after_filter_applied
 created_before_filter_applied
+company_filter_applied
+priority_filter_applied
+company_id
+status
+priority
 ```
 
 No additional key is permitted without a code change, security/privacy review,
@@ -104,7 +115,7 @@ or metadata fields require an explicit schema and tests before use.
 |---|---|
 | `outcome` | `success` or `not_found` as applicable |
 | `endpoint` | The fixed route template from the approved action table; never a full URL or query string |
-| `http_method` | `GET` only in the read-only phase |
+| `http_method` | `GET` for investigation actions; `POST` or `PATCH` only for the bounded localhost support-case actions |
 
 ### Company-list fields
 

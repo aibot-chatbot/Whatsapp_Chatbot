@@ -22,7 +22,16 @@
         "invalid_created_after",
         "invalid_created_before",
         "invalid_sort_by",
-        "invalid_sort_order"
+        "invalid_sort_order",
+        "invalid_company_id",
+        "invalid_priority",
+        "invalid_case_id",
+        "invalid_title",
+        "invalid_redacted_summary",
+        "invalid_redacted_note",
+        "invalid_request",
+        "no_change",
+        "support_case_not_found"
     ]);
 
     function makeError(category, status, code) {
@@ -43,13 +52,18 @@
         return "unavailable";
     }
 
-    async function platformFetch(path, signal) {
+    async function platformFetch(path, signal, method, body) {
+        const requestMethod = method || "GET";
         let response;
         try {
             response = await authenticatedFetch(API_ROOT + path, {
-                method: "GET",
+                method: requestMethod,
                 signal: signal,
-                headers: { "Accept": "application/json" }
+                headers: {
+                    "Accept": "application/json",
+                    ...(body ? { "Content-Type": "application/json" } : {})
+                },
+                ...(body ? { body: JSON.stringify(body) } : {})
             });
         } catch (error) {
             if ((signal && signal.aborted) || (error && error.name === "AbortError")) {
@@ -80,6 +94,13 @@
             throw makeError("validation", 400, "invalid_company_id");
         }
         return String(companyId);
+    }
+
+    function requireCaseId(caseId) {
+        if (!Number.isSafeInteger(caseId) || caseId <= 0) {
+            throw makeError("validation", 400, "invalid_case_id");
+        }
+        return String(caseId);
     }
 
     function getMe(options) {
@@ -190,6 +211,36 @@
         return platformFetch("/companies/" + id + "/chatbots?" + params.toString(), config.signal);
     }
 
+    function listSupportCases(options) {
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit || 25));
+        params.set("offset", String(config.offset || 0));
+        if (config.companyId) params.set("company_id", String(config.companyId));
+        if (config.status) params.set("status", config.status);
+        if (config.priority) params.set("priority", config.priority);
+        return platformFetch("/support-cases?" + params.toString(), config.signal);
+    }
+
+    function createSupportCase(payload, options) {
+        return platformFetch("/support-cases", (options || {}).signal, "POST", payload);
+    }
+
+    function getSupportCase(caseId, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id, (options || {}).signal);
+    }
+
+    function addSupportCaseNote(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/notes", (options || {}).signal, "POST", payload);
+    }
+
+    function updateSupportCase(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id, (options || {}).signal, "PATCH", payload);
+    }
+
     window.PlatformAdminApi = Object.freeze({
         getMe: getMe,
         getOverview: getOverview,
@@ -202,6 +253,11 @@
         listCompanyAiCreditTransactions: listCompanyAiCreditTransactions,
         listCompanyBillingOrders: listCompanyBillingOrders,
         listCompanyUsers: listCompanyUsers,
-        listCompanyChatbots: listCompanyChatbots
+        listCompanyChatbots: listCompanyChatbots,
+        listSupportCases: listSupportCases,
+        createSupportCase: createSupportCase,
+        getSupportCase: getSupportCase,
+        addSupportCaseNote: addSupportCaseNote,
+        updateSupportCase: updateSupportCase
     });
 }());
