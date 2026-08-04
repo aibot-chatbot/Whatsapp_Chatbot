@@ -366,6 +366,10 @@ def scrape_extract_website():
         verify_chatbot_access(chatbot_id)
         # Check subscription feature access for batch website scraping
         can_use_plan_feature(g.company_id, "batch_website_scraping")
+        # Fail before the billed LLM call below. scrape-embed re-checks this at
+        # write time, but a client already at their knowledge-file limit would
+        # otherwise pay for an extraction that can never be saved.
+        can_upload_knowledge_file(g.company_id)
 
         urls = data["urls"]
         if not urls:
