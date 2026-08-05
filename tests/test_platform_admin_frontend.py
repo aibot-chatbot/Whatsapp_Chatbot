@@ -186,6 +186,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "listSupportCases",
                 "createSupportCase",
                 "getSupportCase",
+                "listTenantSupportRequests",
+                "getTenantSupportRequest",
                 "addSupportCaseNote",
                 "updateSupportCase",
             ],
@@ -200,6 +202,24 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         self.assertNotIn('method: "DELETE"', self.api)
         self.assertNotIn("request: platformFetch", self.api)
         self.assertNotIn("/api/admin/billing", self.api)
+
+    def test_tenant_support_intake_viewer_is_get_only_and_validates_display_paths(self):
+        list_function = re.search(
+            r"function listTenantSupportRequests\(options\) \{(.*?)\n    \}",
+            self.api, flags=re.S,
+        ).group(1)
+        detail_function = re.search(
+            r"function getTenantSupportRequest\(requestId, options\) \{(.*?)\n    \}",
+            self.api, flags=re.S,
+        ).group(1)
+        self.assertIn('"/tenant-support-requests?', list_function)
+        self.assertIn('"/tenant-support-requests/"', detail_function)
+        self.assertNotIn('"POST"', list_function + detail_function)
+        self.assertNotIn('"PATCH"', list_function + detail_function)
+        self.assertIn('"invalid_request_id"', detail_function)
+        support = read(SUPPORT)
+        self.assertIn("tenantRequestDetail.replaceChildren()", support)
+        self.assertIn("text only", support)
 
     def test_audit_event_client_uses_only_approved_filters(self):
         function = re.search(
@@ -385,7 +405,9 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             "Read-only tenant investigation",
             "Internal support cases",
             "Cases are not customer-facing",
-            "does not submit tickets",
+            "does not message tenants",
+            "Tenant-submitted support requests",
+            "rendered as text only",
             "Loading support workspace...",
             "No companies currently require attention.",
             "No company search results found.",

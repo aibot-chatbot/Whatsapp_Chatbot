@@ -54,6 +54,8 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "support_case_read": "/api/platform-admin/support-cases/<case_id>",
     "support_case_note_create": "/api/platform-admin/support-cases/<case_id>/notes",
     "support_case_update": "/api/platform-admin/support-cases/<case_id>",
+    "tenant_support_request_list": "/api/platform-admin/tenant-support-requests",
+    "tenant_support_request_read": "/api/platform-admin/tenant-support-requests/<request_id>",
 }
 
 
@@ -274,6 +276,26 @@ AUDIT_EVENT_SCHEMAS = {
         "outcomes": {"success"},
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_update"],
         "http_methods": {"PATCH"},
+    },
+    "platform_admin.tenant_support_request.list": {
+        "resource_type": "tenant_support_requests",
+        "resource_id": _resource_id_none,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "limit", "offset",
+            "returned_count", "company_filter_applied", "category_filter_applied",
+            "status_filter_applied",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["tenant_support_request_list"],
+    },
+    "platform_admin.tenant_support_request.read": {
+        "resource_type": "tenant_support_requests",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": set(),
+        "outcomes": AUDIT_OUTCOMES,
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["tenant_support_request_read"],
     },
 }
 ALLOWED_AUDIT_ACTIONS = frozenset(AUDIT_EVENT_SCHEMAS)

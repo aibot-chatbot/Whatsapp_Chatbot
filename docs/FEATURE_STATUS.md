@@ -362,6 +362,11 @@ production readiness.
   local browser/API E2E verification passed with fake data. This is not staging
   verification or production readiness; the platform-admin support-case tables
   and mappings were not modified.
+  The read-only tenant-support intake viewer is implemented locally under
+  `docs/PLATFORM_ADMIN_TENANT_SUPPORT_INTAKE_VIEWER_CONTRACT.md` with two
+  GET-only routes and a separate Support Workspace section. No SQL was required;
+  Migration 030 remains verified only in the main shared testing Supabase with
+  fake/team data. This is not staging verification or production readiness.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
@@ -474,5 +479,6 @@ monitoring, rollback, and backup evidence.
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | Direct tenant support contact/tickets | Implemented locally as bounded submission only; no inbox, messaging, email, attachments, or production use |
+| Platform-admin tenant support intake viewer | Implemented locally as separate read-only GET list/detail routes and Support Workspace section; no mutation, conversion, reply, export, staging verification, or production use |
 | PDF receipts | Open (HTML only) |
 | Cross-company dashboard | Deferred |

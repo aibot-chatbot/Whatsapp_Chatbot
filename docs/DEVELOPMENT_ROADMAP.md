@@ -91,6 +91,11 @@ Migration 030 is applied and verified only in the main shared testing Supabase
 with fake/team data; local browser/API E2E verification passed with fake data.
 This is not staging verification or production readiness, and the migration
 does not modify the verified platform-admin support-case tables.
+The read-only platform-admin tenant-support intake viewer is implemented locally
+under `docs/PLATFORM_ADMIN_TENANT_SUPPORT_INTAKE_VIEWER_CONTRACT.md` with two
+GET-only routes and a separate Support Workspace section. No SQL was required;
+Migration 030 remains verified only in the main shared testing Supabase with
+fake/team data. This is not staging verification or production readiness.
 Assignment UI, customer contact, SLA, and other future concepts remain deferred
 under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.

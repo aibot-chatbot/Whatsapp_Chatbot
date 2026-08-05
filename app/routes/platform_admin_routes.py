@@ -197,3 +197,22 @@ def update_support_case(case_id):
     return _execute(lambda: platform_admin_service.update_support_case(
         case_id, request.get_json(silent=True), _actor_id()
     ))
+
+
+@platform_admin_bp.get("/tenant-support-requests")
+def tenant_support_requests():
+    return _execute(lambda: platform_admin_service.list_tenant_support_requests(
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        company_id=request.args.get("company_id"),
+        category=request.args.get("category"),
+        status=request.args.get("status"),
+    ))
+
+
+@platform_admin_bp.get("/tenant-support-requests/<int:request_id>")
+def tenant_support_request_detail(request_id):
+    return _execute(lambda: platform_admin_service.get_tenant_support_request(
+        request_id, _actor_id()
+    ))
