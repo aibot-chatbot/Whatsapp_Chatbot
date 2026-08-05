@@ -24,7 +24,7 @@
 | Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match. `RATELIMIT_GOOGLE_AUTH=10/minute` covers Google login, registration, and invitation acceptance; live external Google verification is still required |
 | Auth and public-invitation rate limiting | Verified complete | Flask-Limiter decorators registered before `create_app()` are enforced during normal startup. Existing login, OTP, password-reset, checkout, retry, receipt, and export limits are active when enabled; invitation validation is 30/minute and password invitation acceptance is 5/minute by default |
 | User profile | Implemented | Profile viewing and update flow exists |
-| Authenticated tenant Support page | Implemented locally | `support.html` is authenticated, reachable from the shared tenant account menu, and now submits only category, title, and redacted description to the local `POST /api/support/requests` endpoint. Migration 030 remains unapplied; database/browser E2E verification, inbox/history, messaging, email, attachments, and production use remain pending or blocked |
+| Authenticated tenant Support page | Verified locally | `support.html` is authenticated, reachable from the shared tenant account menu, and submits only category, title, and redacted description to `POST /api/support/requests`. Migration 030 and one fake-data browser/API E2E run are verified only in the main shared testing Supabase; this is not staging verification or production readiness. Inbox/history, messaging, email, attachments, billing actions, impersonation, exports, and charts remain excluded |
 | Password change | Implemented | Requires regression coverage |
 
 ## Company and Team
@@ -357,10 +357,11 @@ production readiness.
   production remains blocked.
   Tenant support submission is governed by
   `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`; its backend endpoint and
-  bounded frontend form are implemented locally, but migration 030 remains
-  unapplied and database/browser E2E verification is pending.
-  Migration 030 is an unapplied separate tenant-intake schema draft only and
-  does not modify the platform-admin support-case tables or mappings.
+  bounded frontend form are implemented locally. Migration 030 is applied and
+  verified only in the main shared testing Supabase with fake/team data, and
+  local browser/API E2E verification passed with fake data. This is not staging
+  verification or production readiness; the platform-admin support-case tables
+  and mappings were not modified.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
