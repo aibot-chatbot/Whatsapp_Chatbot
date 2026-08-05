@@ -321,7 +321,7 @@ test.describe("tenant account menu shared placement", () => {
 });
 
 test.describe("tenant support page", () => {
-  test("opens from the shared account menu and renders static help content", async ({ page }) => {
+  test("opens from the shared account menu and renders bounded help and request content", async ({ page }) => {
     await openTenantPage(page, "/bots.html");
 
     await openAccountMenu(page);
@@ -330,10 +330,12 @@ test.describe("tenant support page", () => {
     await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
     await expect(page.getByText("Common Help Topics")).toBeVisible();
     await expect(page.getByText("Billing And AI Credits")).toBeVisible();
-    await expect(page.getByText("Direct support contact is not configured yet.")).toBeVisible();
+    await expect(page.getByText("Submit a Support Request")).toBeVisible();
+    await expect(page.locator("#support-request-form")).toHaveCount(1);
+    await expect(page.locator("#support-request-category option")).toHaveCount(8);
     await expect(page.locator("tenant-account-menu")).toHaveCount(1);
-    await expect(page.locator("form")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /submit|send|ticket|contact/i })).toHaveCount(0);
+    await expect(page.locator("input[type=file]")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /message|email|billing|impersonat|export|chart/i })).toHaveCount(0);
   });
 
   test("direct authenticated navigation works and renders safe account context", async ({ page }) => {

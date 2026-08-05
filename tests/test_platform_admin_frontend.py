@@ -294,15 +294,32 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         cls.support = read(SUPPORT)
         cls.audit_events = read(AUDIT_EVENTS)
 
-    def test_tenant_support_remains_tenant_facing_static_help(self):
+    def test_tenant_support_has_bounded_authenticated_submission_form(self):
         page = read(TENANT_SUPPORT)
         self.assertIn("<h1>Support</h1>", page)
-        self.assertIn("Direct support contact is not configured yet.", page)
+        self.assertIn('id="support-request-form"', page)
+        self.assertIn('authenticatedFetch("/api/support/requests"', page)
+        self.assertIn("Do not include passwords, tokens, cookies, payment details", page)
         self.assertIn("<chatbot-sidebar></chatbot-sidebar>", page)
         self.assertIn("requireLogin();", page)
         self.assertNotIn("Platform Administration", page)
         self.assertNotIn("PlatformAdminShell", page)
         self.assertNotIn("/api/platform-admin", page)
+        payload = page.split("var values = {", 1)[1].split("};", 1)[0]
+        for field in ("category", "title", "redacted_description"):
+            self.assertIn(field, payload)
+        for forbidden in (
+            "company_id", "user_id", "platform_admin", "status", "priority",
+            "assignment", "audit_metadata", "payment_reference", "token", "cookie",
+        ):
+            self.assertNotIn(forbidden, payload)
+        for forbidden_control in (
+            "support-request-inbox", "support-request-history",
+            "support-request-message", "send message", "email integration",
+            "type=\"file\"", "billing-action", "impersonation-control",
+            "support-request-export", "support-request-chart",
+        ):
+            self.assertNotIn(forbidden_control, page.lower())
 
     def test_dashboard_uses_single_operations_overview_request(self):
         self.assertEqual(self.dashboard.count("PlatformAdminApi.getOverview({"), 1)

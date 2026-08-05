@@ -75,15 +75,22 @@ billing-order history, and company users/chatbots sections. A later bounded fron
 Support Workspace adds a read-only investigation hub that reuses the existing
 operations overview and company directory APIs, highlights attention companies,
 and links into the existing company detail investigation page.
-Support Cases Phase 1 application code and migration draft are implemented
-locally; the database migration remains unapplied, so end-to-end DB verification
-is pending. The feature adds bounded internal case create/list/detail,
+Support Cases Phase 1 is implemented for internal platform-admin use and is
+verified in the main shared testing Supabase with fake/team data; this is not
+staging or production verification. The feature adds bounded internal case create/list/detail,
 redacted notes, status/priority updates, append-only case events, and audited
 writes. It is separate from tenant `support.html` and does not add customer
 messaging, impersonation, billing actions, exports, charts, or production use.
 SQL execution now requires project/ref/environment preflight evidence recorded
 in the platform-admin access lifecycle. Future SQL is limited to confirmed
 local/dev or approved staging targets; production remains blocked.
+Tenant support submission is governed by
+`docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`. The backend endpoint is
+implemented locally and the bounded frontend form is implemented locally;
+migration 030 remains unapplied and database/browser E2E verification is
+pending.
+Migration 030 is an unapplied, separate tenant-intake schema draft only; it
+does not modify the verified platform-admin support-case tables.
 Assignment UI, customer contact, SLA, and other future concepts remain deferred
 under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.
@@ -98,8 +105,9 @@ lifecycle timestamp fields only. It excludes payment/gateway/checkout/reference,
 idempotency, raw-error, reconciliation, retry, activation, manual-credit,
 export/download, chart, and write behavior.
 Authenticated tenant pages now use a shared top-right account menu for Profile,
-Support, and Logout. Support points to a static authenticated tenant help page
-with local self-service guidance and no support-submission backend. Active
+Support, and Logout. Support now includes the local backend submission endpoint
+and a bounded frontend request form; migration 030 remains unapplied and
+database/browser E2E verification is pending. Active
 platform admins can discover a Platform Administration link only after a lazy live
 `/api/platform-admin/me` check. This menu visibility does not replace the
 platform page's fresh authorization gate.
@@ -351,8 +359,8 @@ Make major frontend workflows consistent and verifiable.
 
 ### Progress recorded 2026-07-29
 
-- Static authenticated tenant Support page (`support.html`) added as a bounded frontend consistency improvement. It uses the ordinary tenant sidebar and shared account menu, requires login through the existing frontend auth helper, renders account display text safely from session storage, links only to existing local tenant pages, and does not add support forms, ticket creation, email sending, backend routes, configuration, staging changes, or production changes.
-- The shared tenant account menu now restores Support as a working destination while keeping Profile, Logout, and lazy live Platform Administration discovery behavior unchanged. Direct contact and support-ticket submission remain deferred until an approved contact destination and backend design exist.
+- Static authenticated tenant Support page (`support.html`) added as a bounded frontend consistency improvement. It uses the ordinary tenant sidebar and shared account menu, requires login through the existing frontend auth helper, renders account display text safely from session storage, and links to existing local tenant pages.
+- The shared tenant account menu now restores Support as a working destination while keeping Profile, Logout, and lazy live Platform Administration discovery behavior unchanged. Tenant support submission is implemented locally through the bounded endpoint/form contract; migration 030, database/browser E2E verification, messaging, email, and production use remain pending or blocked.
 - Public landing-page pricing was aligned with the authoritative subscription plan catalogue used by authenticated Billing. The landing page now renders published plan values from a tested duplicate frontend catalogue module, removes unsupported support-level claims, and keeps logged-out/register plus logged-in/billing CTA behavior covered by local tests. The duplicate module must be updated whenever plan migrations, runtime plan rows, or commercial values change; a public-safe plan catalogue endpoint remains a possible later cleanup. Free stores the economy tier internally but is presented as DeepSeek Only because active trial provider access is direct DeepSeek only. The Pro public description uses neutral application copy because the current runtime database row still contains legacy example wording; correcting that row remains a separate reviewed data-migration decision.
 
 ### Deferred risks

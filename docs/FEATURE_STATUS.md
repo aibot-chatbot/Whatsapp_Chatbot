@@ -24,7 +24,7 @@
 | Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match. `RATELIMIT_GOOGLE_AUTH=10/minute` covers Google login, registration, and invitation acceptance; live external Google verification is still required |
 | Auth and public-invitation rate limiting | Verified complete | Flask-Limiter decorators registered before `create_app()` are enforced during normal startup. Existing login, OTP, password-reset, checkout, retry, receipt, and export limits are active when enabled; invitation validation is 30/minute and password invitation acceptance is 5/minute by default |
 | User profile | Implemented | Profile viewing and update flow exists |
-| Authenticated tenant Support page | Implemented | Static authenticated help page exists at `support.html` and is reachable from the shared tenant account menu. It uses local self-service guidance and verified local links only; direct contact, ticket submission, email sending, and support intake remain deferred because no approved destination/backend exists |
+| Authenticated tenant Support page | Implemented locally | `support.html` is authenticated, reachable from the shared tenant account menu, and now submits only category, title, and redacted description to the local `POST /api/support/requests` endpoint. Migration 030 remains unapplied; database/browser E2E verification, inbox/history, messaging, email, attachments, and production use remain pending or blocked |
 | Password change | Implemented | Requires regression coverage |
 
 ## Company and Team
@@ -344,9 +344,9 @@ production readiness.
   investigation hub. It is distinct from tenant `support.html`, reuses only
   existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
   links operators into existing company investigation pages. Support Cases
-  Phase 1 application code and migration draft are implemented locally; the
-  database migration remains unapplied, so end-to-end DB verification is
-  pending. The feature adds bounded internal case create/list/detail, redacted internal notes,
+  Phase 1 is implemented for internal platform-admin use and verified in the
+  main shared testing Supabase with fake/team data; this is not staging or
+  production verification. The feature adds bounded internal case create/list/detail, redacted internal notes,
   status/priority updates, append-only case events, and audit-before-response
   writes. Assignment UI, customer contact, messaging, impersonation, billing
   actions, exports, charts, and production use remain blocked. The workflow
@@ -355,6 +355,12 @@ production readiness.
   Migration 029 production-application and successful rollback are recorded in
   the access lifecycle. Future testing is local/dev or approved staging only;
   production remains blocked.
+  Tenant support submission is governed by
+  `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`; its backend endpoint and
+  bounded frontend form are implemented locally, but migration 030 remains
+  unapplied and database/browser E2E verification is pending.
+  Migration 030 is an unapplied separate tenant-intake schema draft only and
+  does not modify the platform-admin support-case tables or mappings.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
@@ -379,8 +385,8 @@ production readiness.
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
 - Tenant pages now use a shared top-right account menu for Profile, Support,
-  and Logout. Support points to a static authenticated tenant help page with no
-  support-submission backend. The optional Platform
+  and Logout. Support points to an authenticated tenant help page with a
+  bounded local support-submission form. The optional Platform
   Administration menu item is discovered lazily through a live
   `/api/platform-admin/me` check and is not stored or placed in the tenant
   sidebar.
@@ -466,6 +472,6 @@ monitoring, rollback, and backup evidence.
 | Platform-admin Support Workspace | Implemented locally as a read-only investigation hub; Support Cases Phase 1 adds bounded internal case routes and redacted append-only notes/status/priority tracking; no customer messaging, impersonation, billing actions, exports, charts, or production use |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
-| Direct tenant support contact/tickets | Deferred (no approved support contact destination or support-submission backend) |
+| Direct tenant support contact/tickets | Implemented locally as bounded submission only; no inbox, messaging, email, attachments, or production use |
 | PDF receipts | Open (HTML only) |
 | Cross-company dashboard | Deferred |
