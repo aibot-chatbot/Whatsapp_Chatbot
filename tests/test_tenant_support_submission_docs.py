@@ -52,9 +52,21 @@ class TenantSupportSubmissionContractTest(unittest.TestCase):
         docs_flat = re.sub(r"\s+", " ", docs).lower()
         self.assertIn("post /api/support/requests", docs_flat)
         self.assertIn("backend endpoint", docs_flat)
-        self.assertIn("migration 030 remains unapplied", docs_flat)
-        self.assertIn("e2e verification is pending", docs_flat)
+        self.assertIn("migration 030 is applied and verified", docs_flat)
+        self.assertIn("browser/api e2e verification passed", docs_flat)
+        self.assertIn("not staging verification", docs_flat)
+        self.assertIn("production readiness", docs_flat)
         self.assertNotIn("no tenant support api exists", docs_flat)
+
+    def test_verified_contract_has_no_pre_implementation_wording(self):
+        for phrase in (
+            "unapplied schema draft",
+            "may later add a form",
+            "before implementation",
+            "implementation requires approval",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertNotIn(phrase, self.contract_flat.lower())
 
 
 if __name__ == "__main__":

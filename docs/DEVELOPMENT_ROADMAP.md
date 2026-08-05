@@ -86,10 +86,10 @@ in the platform-admin access lifecycle. Future SQL is limited to confirmed
 local/dev or approved staging targets; production remains blocked.
 Tenant support submission is governed by
 `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`. The backend endpoint is
-implemented locally and the bounded frontend form is implemented locally;
-migration 030 remains unapplied and database/browser E2E verification is
-pending.
-Migration 030 is an unapplied, separate tenant-intake schema draft only; it
+implemented locally and the bounded frontend form is implemented locally.
+Migration 030 is applied and verified only in the main shared testing Supabase
+with fake/team data; local browser/API E2E verification passed with fake data.
+This is not staging verification or production readiness, and the migration
 does not modify the verified platform-admin support-case tables.
 Assignment UI, customer contact, SLA, and other future concepts remain deferred
 under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
@@ -106,8 +106,9 @@ idempotency, raw-error, reconciliation, retry, activation, manual-credit,
 export/download, chart, and write behavior.
 Authenticated tenant pages now use a shared top-right account menu for Profile,
 Support, and Logout. Support now includes the local backend submission endpoint
-and a bounded frontend request form; migration 030 remains unapplied and
-database/browser E2E verification is pending. Active
+and a bounded frontend request form. Migration 030 and local browser/API E2E
+verification are recorded only in the main shared testing Supabase with
+fake/team data; this is not staging verification or production readiness. Active
 platform admins can discover a Platform Administration link only after a lazy live
 `/api/platform-admin/me` check. This menu visibility does not replace the
 platform page's fresh authorization gate.

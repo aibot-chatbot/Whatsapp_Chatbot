@@ -2,20 +2,20 @@
 
 ## Status and current boundary
 
-The backend submission endpoint is implemented locally, but migration 030
-remains unapplied, so database end-to-end and browser verification are pending.
-The frontend form is not implemented. This is not staging verification or
-production readiness.
+The backend submission endpoint and bounded frontend form are implemented. The
+main shared testing Supabase has migration 030 applied and verified with
+fake/team data, and local browser/API E2E verification passed with fake data.
+This is not staging verification or production readiness.
 
 The current tenant `support.html` page provides authenticated help topics,
-account context, and navigation only; it has no submission form. There is no
+account context, navigation, and the bounded submission form. There is no
 tenant ticket inbox, ticket history, or customer-facing support workflow.
 Existing Support Cases are internal platform-admin cases created from the
 Platform-admin Support Workspace.
 
-## Future endpoint contract
+## Submission endpoint contract
 
-The proposed first tenant endpoint is:
+The first tenant endpoint is:
 
 ```text
 POST /api/support/requests
@@ -55,13 +55,13 @@ cases as-is:
 - no tenant requester field exists;
 - the current audit model expects a platform-admin actor.
 
-An approved tenant requester/source actor model is required before
-implementation. Tenant submissions must never be attributed to a fake or
-shared platform-admin mapping. A schema migration and an approved transaction
-or RPC design are required; no SQL is authorized by this document. Migration
-030 is a separate unapplied schema draft for this design and does not modify
+The approved tenant requester/source actor model is implemented by Migration 030
+and the atomic creation RPC. Tenant submissions must never be attributed to a
+fake or shared platform-admin mapping. Migration 030 is applied and verified
+only in the main shared testing Supabase with fake/team data. It does not modify
 `platform_support_cases`, `platform_support_case_events`, or
-`platform_admin_users`.
+`platform_admin_users`. This is not staging verification or production
+readiness.
 
 ## Audit and atomicity contract
 
@@ -78,7 +78,7 @@ Audit failure must prevent a false success response.
 
 ## Abuse, privacy, and retention controls
 
-Before implementation, approve and test:
+Before staging or production use, approve and test:
 
 - per-user and per-company rate limits;
 - a daily submission cap;
@@ -90,10 +90,11 @@ Before implementation, approve and test:
 
 ## Frontend contract
 
-`support.html` may later add a form containing a category selector, title or
-subject, and redacted description. It must warn users not to include secrets
-or payment details and provide loading, success, validation, rate-limit, and
-error states.
+`support.html` now includes a bounded first-version form with a category
+selector, title or subject, and redacted description. It submits only
+`category`, `title`, and `redacted_description`, warns users not to include
+secrets or payment details, and provides loading, success, validation,
+rate-limit, and error states.
 
 The first version must not add an inbox, messaging thread, billing action,
 impersonation, export, chart, attachment, or email integration.
@@ -110,7 +111,7 @@ impersonation, export, chart, attachment, or email integration.
 
 ## Approval gates
 
-Implementation requires approval of:
+Further rollout requires approval of:
 
 - schema migration and tenant actor model;
 - tenant audit metadata and atomicity design;
@@ -119,8 +120,18 @@ Implementation requires approval of:
 - focused backend, migration, and frontend tests;
 - a shared-testing or staging verification plan.
 
-Until those gates are approved, the current internal platform-admin Support
-Cases workflow remains separate. Tenant submission remains incomplete until
-migration, frontend, and end-to-end verification gates are complete.
-`data/030_create_tenant_support_requests.sql` is a draft only and has not been
-applied, and no staging or production claim is made.
+The current internal platform-admin Support Cases workflow remains separate.
+Further staging or production rollout remains gated. Migration 030 and local browser/API E2E
+verification are recorded only for the main shared testing Supabase with
+fake/team data. Tenant inbox/history, messaging, email, attachments, billing
+actions, impersonation, exports, and charts remain excluded. No staging or
+production claim is made.
+
+## Main shared-testing verification evidence
+
+The verified fake-data run recorded one request, one `created` event, and one
+audit event. The request source was `tenant`, with status `new`, priority
+`normal`, and category `technical`. The event used actor type `tenant` with a
+tenant user actor and no platform-admin actor. The audit action was
+`tenant_support.request.create` with outcome `success` and source `tenant`.
+Safe audit output exposed no title, description, or full request body.
