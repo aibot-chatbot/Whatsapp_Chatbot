@@ -9,6 +9,7 @@ from app.database import platform_chatbot_repository
 from app.database import platform_company_repository
 from app.database import platform_company_user_repository
 from app.database import platform_support_case_repository
+from app.database import tenant_support_repository
 
 
 logger = logging.getLogger(__name__)
@@ -42,7 +43,11 @@ def _audit_unavailable():
 
 def _positive_id(value, code="invalid_company_id"):
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-        _validation(code, "Company ID must be a positive integer.")
+        label = {
+            "invalid_case_id": "Case ID",
+            "invalid_request_id": "Request ID",
+        }.get(code, "Company ID")
+        _validation(code, f"{label} must be a positive integer.")
     return value
 
 
@@ -167,6 +172,7 @@ SAFE_AUDIT_METADATA_KEYS = {
     "company_id",
     "status",
     "priority",
+    "category_filter_applied",
 }
 
 
@@ -527,6 +533,112 @@ def update_support_case(case_id, payload, actor_id):
         metadata["priority"] = priority
     _audit(actor_id, "platform_admin.support_case.update", "platform_support_cases", str(case_id), metadata)
     return {"case": _safe_support_case_row(updated, company)}
+
+
+def _safe_tenant_support_request_row(row, *, include_content=False):
+    safe = {
+        "request_id": row.get("id"),
+        "company_id": row.get("company_id"),
+        "requester_user_id": row.get("requester_user_id"),
+        "category": row.get("category"),
+        "status": row.get("status"),
+        "priority": row.get("priority"),
+        "source": row.get("source"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "closed_at": row.get("closed_at"),
+    }
+    if include_content:
+        safe["title"] = row.get("title")
+        safe["redacted_description"] = row.get("redacted_description")
+    return safe
+
+
+def _safe_tenant_support_event(row):
+    return {
+        "event_type": row.get("event_type"),
+        "actor_type": row.get("actor_type"),
+        "created_at": row.get("created_at"),
+    }
+
+
+def list_tenant_support_requests(actor_id, *, limit=None, offset=None,
+                                 company_id=None, category=None, status=None):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = SUPPORT_CASE_ENDPOINTS["tenant_support_request_list"]
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    company_id = _optional_positive_integer_parameter(company_id, name="company_id")
+    category = _optional_exact_member_parameter(
+        category, name="category", allowed=tenant_support_repository.ALLOWED_CATEGORIES,
+        code="invalid_category",
+    )
+    status = _optional_exact_member_parameter(
+        status, name="status", allowed=tenant_support_repository.ALLOWED_STATUSES,
+        code="invalid_status",
+    )
+    try:
+        rows, total = tenant_support_repository.list_tenant_support_requests_for_platform_admin(
+            limit=limit, offset=offset, company_id=company_id,
+            category=category, status=status,
+        )
+    except Exception:
+        logger.error("Tenant support request list lookup failed")
+        _data_unavailable()
+    result = {
+        "requests": [_safe_tenant_support_request_row(row) for row in rows],
+        "pagination": {
+            "limit": limit, "offset": offset, "returned": len(rows),
+            "total": total, "has_more": offset + len(rows) < total,
+        },
+        "filters": {
+            "company_id": company_id, "category": category, "status": status,
+        },
+    }
+    _audit(actor_id, "platform_admin.tenant_support_request.list",
+           "tenant_support_requests", None, {
+               "outcome": "success", "endpoint": endpoint, "http_method": "GET",
+               "limit": limit, "offset": offset, "returned_count": len(rows),
+               "company_filter_applied": company_id is not None,
+               "category_filter_applied": category is not None,
+               "status_filter_applied": status is not None,
+           })
+    return result
+
+
+def get_tenant_support_request(request_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    request_id = _positive_id(request_id, "invalid_request_id")
+    endpoint = SUPPORT_CASE_ENDPOINTS["tenant_support_request_read"]
+    try:
+        row = tenant_support_repository.get_tenant_support_request_for_platform_admin(request_id)
+    except Exception:
+        logger.error("Tenant support request detail lookup failed")
+        _data_unavailable()
+    if not row:
+        _audit(actor_id, "platform_admin.tenant_support_request.read",
+               "tenant_support_requests", str(request_id), {
+                   "outcome": "not_found", "endpoint": endpoint, "http_method": "GET",
+               })
+        raise PlatformAdminServiceError(
+            404, "tenant_support_request_not_found", "Tenant support request not found."
+        )
+    try:
+        events = tenant_support_repository.list_tenant_support_request_events_for_platform_admin(
+            request_id
+        )
+    except Exception:
+        logger.error("Tenant support request event lookup failed")
+        _data_unavailable()
+    result = {
+        "request": _safe_tenant_support_request_row(row, include_content=True),
+        "events": [_safe_tenant_support_event(event) for event in events],
+    }
+    _audit(actor_id, "platform_admin.tenant_support_request.read",
+           "tenant_support_requests", str(request_id), {
+               "outcome": "success", "endpoint": endpoint, "http_method": "GET",
+           })
+    return result
 
 
 def _company_or_not_found(company_id, actor_id, action, resource_type, endpoint):

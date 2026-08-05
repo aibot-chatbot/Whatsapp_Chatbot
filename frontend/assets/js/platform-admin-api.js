@@ -31,7 +31,10 @@
         "invalid_redacted_note",
         "invalid_request",
         "no_change",
-        "support_case_not_found"
+        "support_case_not_found",
+        "invalid_request_id",
+        "invalid_category",
+        "tenant_support_request_not_found"
     ]);
 
     function makeError(category, status, code) {
@@ -231,6 +234,24 @@
         return platformFetch("/support-cases/" + id, (options || {}).signal);
     }
 
+    function listTenantSupportRequests(options) {
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit || 25));
+        params.set("offset", String(config.offset || 0));
+        if (config.companyId) params.set("company_id", String(config.companyId));
+        if (config.category) params.set("category", config.category);
+        if (config.status) params.set("status", config.status);
+        return platformFetch("/tenant-support-requests?" + params.toString(), config.signal);
+    }
+
+    function getTenantSupportRequest(requestId, options) {
+        if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+            throw makeError("validation", 400, "invalid_request_id");
+        }
+        return platformFetch("/tenant-support-requests/" + String(requestId), (options || {}).signal);
+    }
+
     function addSupportCaseNote(caseId, payload, options) {
         const id = requireCaseId(caseId);
         return platformFetch("/support-cases/" + id + "/notes", (options || {}).signal, "POST", payload);
@@ -257,6 +278,8 @@
         listSupportCases: listSupportCases,
         createSupportCase: createSupportCase,
         getSupportCase: getSupportCase,
+        listTenantSupportRequests: listTenantSupportRequests,
+        getTenantSupportRequest: getTenantSupportRequest,
         addSupportCaseNote: addSupportCaseNote,
         updateSupportCase: updateSupportCase
     });

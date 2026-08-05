@@ -49,6 +49,8 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/support-cases",
             "/api/platform-admin/support-cases/<int:case_id>",
             "/api/platform-admin/support-cases/<int:case_id>/notes",
+            "/api/platform-admin/tenant-support-requests",
+            "/api/platform-admin/tenant-support-requests/<int:request_id>",
         })
         methods = {}
         for rule in rules:
@@ -63,9 +65,13 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 17)
+        self.assertEqual(len(rules), 19)
         for rule in rules:
-            path = rule.rule.replace("<int:company_id>", "2").replace("<int:case_id>", "1")
+            path = (
+                rule.rule.replace("<int:company_id>", "2")
+                .replace("<int:case_id>", "1")
+                .replace("<int:request_id>", "1")
+            )
             method = next(iter(rule.methods - {"HEAD", "OPTIONS"}))
             with self.subTest(path=path):
                 self.assertEqual(self.client.open(path, method=method).status_code, 401)

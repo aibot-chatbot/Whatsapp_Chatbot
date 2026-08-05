@@ -10,7 +10,11 @@
         loadSequence: 0,
         caseResults: null,
         caseDetail: null,
-        caseError: null
+        caseError: null,
+        tenantRequestResults: null,
+        tenantRequestDetail: null,
+        tenantRequestError: null,
+        tenantRequestLoadSequence: 0
     };
 
     function safeValue(value) {
@@ -414,6 +418,117 @@
         }
     }
 
+    function renderTenantRequestDetail(data) {
+        if (!state.tenantRequestDetail) return;
+        const current = data && data.request ? data.request : null;
+        if (!current) {
+            state.tenantRequestDetail.replaceChildren(ui.element("p", "platform-empty", "Select a tenant-submitted request to inspect it."));
+            return;
+        }
+        const section = panel(
+            "Tenant-submitted support request detail",
+            "Read-only intake review. Title and redacted description are rendered as text only."
+        );
+        section.append(
+            cardLine("Request ID", current.request_id),
+            cardLine("Company", companyLink(current.company_id, "Open company investigation")),
+            cardLine("Requester user ID", current.requester_user_id),
+            cardLine("Category", current.category),
+            cardLine("Status", current.status),
+            cardLine("Priority", current.priority),
+            cardLine("Source", current.source),
+            cardLine("Title", current.title),
+            cardLine("Redacted description", current.redacted_description),
+            cardLine("Created", ui.formatDate(current.created_at)),
+            cardLine("Updated", ui.formatDate(current.updated_at))
+        );
+        const events = Array.isArray(data.events) ? data.events : [];
+        section.append(ui.element("h3", "", "Tenant request events"));
+        section.append(events.length ? table(
+            ["Event", "Actor type", "Created"],
+            events.map(function (event) {
+                return [event.event_type, event.actor_type, ui.formatDate(event.created_at)];
+            }),
+            "Tenant support request events"
+        ) : ui.element("p", "platform-empty", "No request events recorded."));
+        state.tenantRequestDetail.replaceChildren(section);
+    }
+
+    async function openTenantSupportRequest(requestId) {
+        const sequence = ++state.tenantRequestLoadSequence;
+        try {
+            const data = await ui.runRequest("tenant-support-request-detail", function (signal) {
+                return PlatformAdminApi.getTenantSupportRequest(requestId, { signal: signal });
+            });
+            if (sequence === state.tenantRequestLoadSequence) renderTenantRequestDetail(data);
+        } catch (error) {
+            if (sequence === state.tenantRequestLoadSequence && state.tenantRequestDetail) {
+                state.tenantRequestDetail.replaceChildren();
+            }
+            if (!ui.handleError(error) && state.tenantRequestError) {
+                state.tenantRequestError.textContent = "The tenant support request could not be loaded.";
+            }
+        }
+    }
+
+    async function loadTenantSupportRequests() {
+        const sequence = ++state.tenantRequestLoadSequence;
+        if (state.tenantRequestResults) {
+            state.tenantRequestResults.replaceChildren(ui.element("div", "platform-loading", "Loading tenant-submitted support requests..."));
+            state.tenantRequestResults.setAttribute("aria-busy", "true");
+        }
+        try {
+            const data = await ui.runRequest("tenant-support-request-list", function (signal) {
+                return PlatformAdminApi.listTenantSupportRequests({ limit: 25, offset: 0, signal: signal });
+            });
+            if (sequence !== state.tenantRequestLoadSequence || !state.tenantRequestResults) return;
+            const requests = data && Array.isArray(data.requests) ? data.requests : [];
+            if (!requests.length) {
+                state.tenantRequestResults.replaceChildren(ui.element("p", "platform-empty", "No tenant-submitted support requests found."));
+                return;
+            }
+            state.tenantRequestResults.replaceChildren(table(
+                ["ID", "Company", "Requester", "Category", "Status", "Priority", "Created", "Action"],
+                requests.map(function (item) {
+                    const button = ui.element("button", "platform-link-button", "Open request");
+                    button.type = "button";
+                    button.addEventListener("click", function () { openTenantSupportRequest(item.request_id); });
+                    return [item.request_id, companyLink(item.company_id, String(item.company_id)),
+                        item.requester_user_id, item.category, item.status, item.priority,
+                        ui.formatDate(item.created_at), button];
+                }),
+                "Tenant-submitted support requests"
+            ));
+        } catch (error) {
+            if (sequence === state.tenantRequestLoadSequence && state.tenantRequestResults) {
+                state.tenantRequestResults.replaceChildren();
+            }
+            if (!ui.handleError(error) && state.tenantRequestError) {
+                state.tenantRequestError.textContent = "Tenant support requests are temporarily unavailable.";
+            }
+        } finally {
+            if (sequence === state.tenantRequestLoadSequence && state.tenantRequestResults) {
+                state.tenantRequestResults.setAttribute("aria-busy", "false");
+            }
+        }
+    }
+
+    function renderTenantSupportRequests() {
+        const section = panel(
+            "Tenant-submitted support requests",
+            "Read-only intake review. This section has no assignment, conversion, reply, billing, export, or chart controls."
+        );
+        state.tenantRequestError = ui.element("p", "platform-inline-error");
+        state.tenantRequestError.setAttribute("aria-live", "polite");
+        state.tenantRequestResults = ui.element("div", "platform-support-results");
+        state.tenantRequestResults.setAttribute("aria-live", "polite");
+        state.tenantRequestResults.setAttribute("aria-busy", "true");
+        state.tenantRequestDetail = ui.element("div", "platform-support-results");
+        state.tenantRequestDetail.append(ui.element("p", "platform-empty", "Select a tenant-submitted request to inspect it."));
+        section.append(state.tenantRequestError, state.tenantRequestResults, state.tenantRequestDetail);
+        return section;
+    }
+
     function renderSupportCases() {
         const section = panel(
             "Internal support cases",
@@ -467,7 +582,7 @@
         const titleGroup = ui.element("div");
         titleGroup.append(
             ui.element("h1", "", "Support Workspace"),
-            ui.element("p", "", "Read-only tenant investigation for platform administrators. Use existing company views to inspect context; this workspace does not submit tickets, message tenants, or change data.")
+            ui.element("p", "", "Read-only tenant investigation for platform administrators. This workspace does not message tenants or change tenant-submitted requests.")
         );
         header.append(titleGroup, renderQuickNavigation());
         root.replaceChildren(
@@ -487,9 +602,11 @@
                 root.firstChild,
                 renderAttention(overview),
                 renderLookup(),
-                renderSupportCases()
+                renderSupportCases(),
+                renderTenantSupportRequests()
             );
             await loadSupportCases();
+            await loadTenantSupportRequests();
         } catch (error) {
             if (!ui.handleError(error) && (!error || error.category !== "aborted")) {
                 root.replaceChildren(ui.element("p", "platform-empty", "Support workspace data is temporarily unavailable."));
