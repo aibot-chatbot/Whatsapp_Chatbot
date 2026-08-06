@@ -35,7 +35,7 @@ existing attention-company data without adding a route or page.
 All proposed Phase 2 alert types remain deferred under the design contract in
 `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 
-At the current HEAD, localhost manual verification recorded on 2026-08-03
+At the current working tree, localhost manual verification recorded on 2026-08-03
 passed for the complete twelve-route read-only stack: dashboard, operational
 alerts, company directory/detail, subscription summary/history, AI-credit usage
 and transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
@@ -72,7 +72,8 @@ GET/POST/PATCH client, in-memory request cancellation/state clearing, the Platfo
 overview, the server-paginated company directory, safe company billing/AI-credit
 detail views, typed subscription operational alerts, and lazy read-only subscription-history, AI-credit transaction-history,
 billing-order history, and company users/chatbots sections. A later bounded frontend-only platform-admin
-Support Workspace adds a read-only investigation hub that reuses the existing
+Support Workspace adds tenant investigation with controlled internal case
+operations. It reuses the existing
 operations overview and company directory APIs, highlights attention companies,
 and links into the existing company detail investigation page.
 Support Cases Phase 1 is implemented for internal platform-admin use and is
@@ -81,6 +82,16 @@ staging or production verification. The feature adds bounded internal case creat
 redacted notes, status/priority updates, append-only case events, and audited
 writes. It is separate from tenant `support.html` and does not add customer
 messaging, impersonation, billing actions, exports, charts, or production use.
+Platform-admin Support Case Operations Phase 2 is implemented and verified only
+in the main shared testing Supabase with fake/team data. It adds
+assignment/reassignment/unassignment to active platform-admin mappings,
+explicit status transitions, priority updates, internal-note creation, and an
+ordered activity timeline. Migration 032 executed successfully in main
+shared-testing only; fake/team verification covered least-privilege grants,
+RLS/policies, service-role-only RPC execution, assignment/status/priority/note
+mutations, no-op and invalid-transition rejection without extra event/audit
+rows, and close/reopen `closed_at` behavior. This is not staging or production
+verification.
 SQL execution now requires project/ref/environment preflight evidence recorded
 in the platform-admin access lifecycle. Future SQL is limited to confirmed
 local/dev or approved staging targets; production remains blocked.
@@ -103,7 +114,8 @@ applied there and browser/API E2E passed locally: request 1 was reviewed then
 converted, creating internal case 2 once. This is not staging verification or
 production readiness, and production remains blocked. RLS/EXECUTE, audit
 metadata, RPC security, and the mapping baseline remained safe.
-Assignment UI, customer contact, SLA, and other future concepts remain deferred
+Customer contact, SLA, escalation automation, analytics, bulk actions, and
+other future concepts remain deferred
 under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.
 The Audit Logs viewer adds a separate read-only page and one audited backend

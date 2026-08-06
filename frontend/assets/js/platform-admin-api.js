@@ -29,6 +29,7 @@
         "invalid_title",
         "invalid_redacted_summary",
         "invalid_redacted_note",
+        "invalid_assignee",
         "invalid_request",
         "no_change",
         "support_case_not_found",
@@ -234,6 +235,10 @@
         return platformFetch("/support-cases/" + id, (options || {}).signal);
     }
 
+    function listSupportCaseAssignees(options) {
+        return platformFetch("/support-case-assignees", (options || {}).signal);
+    }
+
     function listTenantSupportRequests(options) {
         const config = options || {};
         const params = new URLSearchParams();
@@ -281,9 +286,19 @@
         return platformFetch("/support-cases/" + id + "/notes", (options || {}).signal, "POST", payload);
     }
 
-    function updateSupportCase(caseId, payload, options) {
+    function assignSupportCase(caseId, payload, options) {
         const id = requireCaseId(caseId);
-        return platformFetch("/support-cases/" + id, (options || {}).signal, "PATCH", payload);
+        return platformFetch("/support-cases/" + id + "/assignment", (options || {}).signal, "PATCH", payload);
+    }
+
+    function updateSupportCaseStatus(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/status", (options || {}).signal, "PATCH", payload);
+    }
+
+    function updateSupportCasePriority(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/priority", (options || {}).signal, "PATCH", payload);
     }
 
     window.PlatformAdminApi = Object.freeze({
@@ -302,11 +317,14 @@
         listSupportCases: listSupportCases,
         createSupportCase: createSupportCase,
         getSupportCase: getSupportCase,
+        listSupportCaseAssignees: listSupportCaseAssignees,
         listTenantSupportRequests: listTenantSupportRequests,
         getTenantSupportRequest: getTenantSupportRequest,
         updateTenantSupportRequest: updateTenantSupportRequest,
         convertTenantSupportRequest: convertTenantSupportRequest,
         addSupportCaseNote: addSupportCaseNote,
-        updateSupportCase: updateSupportCase
+        assignSupportCase: assignSupportCase,
+        updateSupportCaseStatus: updateSupportCaseStatus,
+        updateSupportCasePriority: updateSupportCasePriority
     });
 }());

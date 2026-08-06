@@ -173,6 +173,11 @@ def support_cases():
     ))
 
 
+@platform_admin_bp.get("/support-case-assignees")
+def support_case_assignees():
+    return _execute(lambda: platform_admin_service.list_support_case_assignees(_actor_id()))
+
+
 @platform_admin_bp.post("/support-cases")
 def create_support_case():
     return _execute(lambda: platform_admin_service.create_support_case(
@@ -192,9 +197,23 @@ def create_support_case_note(case_id):
     ))
 
 
-@platform_admin_bp.patch("/support-cases/<int:case_id>")
-def update_support_case(case_id):
-    return _execute(lambda: platform_admin_service.update_support_case(
+@platform_admin_bp.patch("/support-cases/<int:case_id>/assignment")
+def assign_support_case(case_id):
+    return _execute(lambda: platform_admin_service.assign_support_case(
+        case_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
+@platform_admin_bp.patch("/support-cases/<int:case_id>/status")
+def update_support_case_status(case_id):
+    return _execute(lambda: platform_admin_service.update_support_case_status(
+        case_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
+@platform_admin_bp.patch("/support-cases/<int:case_id>/priority")
+def update_support_case_priority(case_id):
+    return _execute(lambda: platform_admin_service.update_support_case_priority(
         case_id, request.get_json(silent=True), _actor_id()
     ))
 

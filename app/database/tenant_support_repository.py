@@ -86,6 +86,19 @@ def get_tenant_support_request_for_platform_admin(request_id):
     return rows[0] if rows else None
 
 
+def get_tenant_support_request_by_converted_case_id_for_platform_admin(case_id):
+    _positive_id(case_id, "case_id")
+    response = (
+        supabase.table("tenant_support_requests")
+        .select(REQUEST_FIELDS + ",converted_platform_support_case_id")
+        .eq("converted_platform_support_case_id", case_id)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    return rows[0] if rows else None
+
+
 def list_tenant_support_request_events_for_platform_admin(request_id):
     _positive_id(request_id, "request_id")
     response = (

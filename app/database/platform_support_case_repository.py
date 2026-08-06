@@ -10,9 +10,10 @@ CASE_FIELDS = (
 )
 EVENT_FIELDS = (
     "id,case_id,event_type,actor_platform_admin_user_id,old_status,new_status,"
-    "old_priority,new_priority,redacted_note,created_at"
+    "old_priority,new_priority,old_assigned_platform_admin_user_id,"
+    "new_assigned_platform_admin_user_id,redacted_note,created_at"
 )
-ALLOWED_STATUSES = {"open", "in_progress", "resolved", "closed"}
+ALLOWED_STATUSES = {"open", "in_progress", "waiting_for_tenant", "resolved", "closed"}
 ALLOWED_PRIORITIES = {"low", "normal", "high", "urgent"}
 ALLOWED_LIST_SORT_FIELDS = {"created_at", "updated_at", "priority", "status", "id"}
 ALLOWED_LIST_SORT_ORDERS = {"asc", "desc"}
@@ -106,3 +107,140 @@ def create_support_case_event_for_platform_admin(payload):
     if not rows:
         raise RuntimeError("Support-case event insert returned no row")
     return rows[0]
+
+
+def list_active_platform_admin_assignees_for_platform_admin():
+    response = (
+        supabase.table("platform_admin_users")
+        .select("id,user_id,is_active")
+        .eq("is_active", True)
+        .order("id", desc=False)
+        .execute()
+    )
+    return response.data or []
+
+
+def get_active_platform_admin_assignee_for_platform_admin(platform_admin_user_id):
+    _positive_id(platform_admin_user_id, "platform_admin_user_id")
+    response = (
+        supabase.table("platform_admin_users")
+        .select("id,user_id,is_active")
+        .eq("id", platform_admin_user_id)
+        .eq("is_active", True)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    return rows[0] if rows else None
+
+
+def _rpc_object(response, function_name):
+    value = response.data
+    if isinstance(value, list):
+        value = value[0] if len(value) == 1 else None
+    if not isinstance(value, dict):
+        raise RuntimeError(f"{function_name} RPC returned an invalid result")
+    return value
+
+
+def _validate_case_result(result, function_name):
+    case = result.get("case")
+    event = result.get("event")
+    if not isinstance(case, dict) or not isinstance(event, dict):
+        raise RuntimeError(f"{function_name} RPC returned an invalid result")
+    case_id = case.get("id")
+    event_case_id = event.get("case_id")
+    if (
+        isinstance(case_id, bool) or not isinstance(case_id, int) or case_id <= 0
+        or event_case_id != case_id
+    ):
+        raise RuntimeError(f"{function_name} RPC returned an invalid case ID")
+    if case.get("status") not in ALLOWED_STATUSES:
+        raise RuntimeError(f"{function_name} RPC returned an invalid status")
+    if case.get("priority") not in ALLOWED_PRIORITIES:
+        raise RuntimeError(f"{function_name} RPC returned an invalid priority")
+    return result
+
+
+def assign_support_case_for_platform_admin(case_id, platform_admin_user_id, assignee_platform_admin_user_id):
+    _positive_id(case_id, "case_id")
+    _positive_id(platform_admin_user_id, "platform_admin_user_id")
+    if assignee_platform_admin_user_id is not None:
+        _positive_id(assignee_platform_admin_user_id, "assignee_platform_admin_user_id")
+    return _validate_case_result(
+        _rpc_object(
+            supabase.rpc(
+                "assign_platform_support_case",
+                {
+                    "p_case_id": case_id,
+                    "p_platform_admin_user_id": platform_admin_user_id,
+                    "p_assignee_platform_admin_user_id": assignee_platform_admin_user_id,
+                },
+            ).execute(),
+            "assign_platform_support_case",
+        ),
+        "assign_platform_support_case",
+    )
+
+
+def set_support_case_status_for_platform_admin(case_id, platform_admin_user_id, status):
+    _positive_id(case_id, "case_id")
+    _positive_id(platform_admin_user_id, "platform_admin_user_id")
+    if status not in ALLOWED_STATUSES:
+        raise ValueError("Unsupported support-case status")
+    return _validate_case_result(
+        _rpc_object(
+            supabase.rpc(
+                "set_platform_support_case_status",
+                {
+                    "p_case_id": case_id,
+                    "p_platform_admin_user_id": platform_admin_user_id,
+                    "p_status": status,
+                },
+            ).execute(),
+            "set_platform_support_case_status",
+        ),
+        "set_platform_support_case_status",
+    )
+
+
+def set_support_case_priority_for_platform_admin(case_id, platform_admin_user_id, priority):
+    _positive_id(case_id, "case_id")
+    _positive_id(platform_admin_user_id, "platform_admin_user_id")
+    if priority not in ALLOWED_PRIORITIES:
+        raise ValueError("Unsupported support-case priority")
+    return _validate_case_result(
+        _rpc_object(
+            supabase.rpc(
+                "set_platform_support_case_priority",
+                {
+                    "p_case_id": case_id,
+                    "p_platform_admin_user_id": platform_admin_user_id,
+                    "p_priority": priority,
+                },
+            ).execute(),
+            "set_platform_support_case_priority",
+        ),
+        "set_platform_support_case_priority",
+    )
+
+
+def add_support_case_note_for_platform_admin(case_id, platform_admin_user_id, redacted_note):
+    _positive_id(case_id, "case_id")
+    _positive_id(platform_admin_user_id, "platform_admin_user_id")
+    if not isinstance(redacted_note, str) or not redacted_note.strip():
+        raise ValueError("redacted_note must be non-empty text")
+    return _validate_case_result(
+        _rpc_object(
+            supabase.rpc(
+                "add_platform_support_case_note",
+                {
+                    "p_case_id": case_id,
+                    "p_platform_admin_user_id": platform_admin_user_id,
+                    "p_redacted_note": redacted_note,
+                },
+            ).execute(),
+            "add_platform_support_case_note",
+        ),
+        "add_platform_support_case_note",
+    )

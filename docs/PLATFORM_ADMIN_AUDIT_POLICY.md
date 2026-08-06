@@ -29,7 +29,9 @@ Audit failure returns a sanitized 503 and withholds fetched tenant data.
 ## Approved actions, resources, and metadata schemas
 
 No action or resource type outside this table is approved. Support-case Phase 1
-actions are localhost-only and remain blocked from staging/production approval.
+and Phase 2 actions are localhost-only and remain blocked from staging/production
+approval until their migrations are applied and verified in the named
+environment.
 
 | Action | Resource type | Resource ID | Outcomes | Required metadata | Optional metadata | Endpoint |
 |---|---|---|---|---|---|---|
@@ -49,7 +51,11 @@ actions are localhost-only and remain blocked from staging/production approval.
 | `platform_admin.support_case.read` | `platform_support_cases` | Case ID | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/support-cases/<case_id>` |
 | `platform_admin.support_case.create` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `company_id` | `status`, `priority` | `POST /api/platform-admin/support-cases` |
 | `platform_admin.support_case.note.create` | `platform_support_case_events` | Case ID | `success` | `outcome`, `endpoint`, `http_method` | None | `POST /api/platform-admin/support-cases/<case_id>/notes` |
-| `platform_admin.support_case.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method` | `status`, `priority` | `PATCH /api/platform-admin/support-cases/<case_id>` |
+| `platform_admin.support_case.assignee.list` | `platform_admin_users` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `returned_count` | None | `GET /api/platform-admin/support-case-assignees` |
+| `platform_admin.support_case.assign` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_assigned_platform_admin_user_id`, `new_assigned_platform_admin_user_id` | None | `PATCH /api/platform-admin/support-cases/<case_id>/assignment` |
+| `platform_admin.support_case.unassign` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_assigned_platform_admin_user_id`, `new_assigned_platform_admin_user_id` | None | `PATCH /api/platform-admin/support-cases/<case_id>/assignment` |
+| `platform_admin.support_case.status.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_status`, `new_status` | None | `PATCH /api/platform-admin/support-cases/<case_id>/status` |
+| `platform_admin.support_case.priority.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_priority`, `new_priority` | None | `PATCH /api/platform-admin/support-cases/<case_id>/priority` |
 
 ### Operations-overview fields
 
@@ -100,6 +106,12 @@ priority_filter_applied
 company_id
 status
 priority
+old_status
+new_status
+old_priority
+new_priority
+old_assigned_platform_admin_user_id
+new_assigned_platform_admin_user_id
 ```
 
 No additional key is permitted without a code change, security/privacy review,
