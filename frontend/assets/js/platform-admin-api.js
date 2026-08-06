@@ -252,6 +252,30 @@
         return platformFetch("/tenant-support-requests/" + String(requestId), (options || {}).signal);
     }
 
+    function updateTenantSupportRequest(requestId, payload, options) {
+        if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+            throw makeError("validation", 400, "invalid_request_id");
+        }
+        return platformFetch(
+            "/tenant-support-requests/" + String(requestId),
+            (options || {}).signal,
+            "PATCH",
+            payload
+        );
+    }
+
+    function convertTenantSupportRequest(requestId, options) {
+        if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+            throw makeError("validation", 400, "invalid_request_id");
+        }
+        return platformFetch(
+            "/tenant-support-requests/" + String(requestId) + "/convert",
+            (options || {}).signal,
+            "POST",
+            {}
+        );
+    }
+
     function addSupportCaseNote(caseId, payload, options) {
         const id = requireCaseId(caseId);
         return platformFetch("/support-cases/" + id + "/notes", (options || {}).signal, "POST", payload);
@@ -280,6 +304,8 @@
         getSupportCase: getSupportCase,
         listTenantSupportRequests: listTenantSupportRequests,
         getTenantSupportRequest: getTenantSupportRequest,
+        updateTenantSupportRequest: updateTenantSupportRequest,
+        convertTenantSupportRequest: convertTenantSupportRequest,
         addSupportCaseNote: addSupportCaseNote,
         updateSupportCase: updateSupportCase
     });

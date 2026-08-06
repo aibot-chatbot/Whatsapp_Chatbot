@@ -367,6 +367,11 @@ production readiness.
   GET-only routes and a separate Support Workspace section. No SQL was required;
   Migration 030 remains verified only in the main shared testing Supabase with
   fake/team data. This is not staging verification or production readiness.
+  Tenant Support Intake Review/Conversion is implemented locally and verified
+  only in the main shared testing Supabase with fake/team data. Migration 031
+  was applied there and browser/API E2E passed locally: request 1 was reviewed
+  then converted, producing internal case 2 exactly once. This is not staging
+  verification or production readiness; production remains blocked.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
@@ -480,5 +485,6 @@ monitoring, rollback, and backup evidence.
 | Email/SMS delivery | Deferred (no provider) |
 | Direct tenant support contact/tickets | Implemented locally as bounded submission only; no inbox, messaging, email, attachments, or production use |
 | Platform-admin tenant support intake viewer | Implemented locally as separate read-only GET list/detail routes and Support Workspace section; no mutation, conversion, reply, export, staging verification, or production use |
+| Platform-admin tenant support intake review/conversion | Runtime code and Migration 031 verified only in main shared testing Supabase with fake/team data; case 2 conversion, safe audit metadata, service-role-only RLS/EXECUTE, and mapping baseline verified; not staging or production-ready |
 | PDF receipts | Open (HTML only) |
 | Cross-company dashboard | Deferred |

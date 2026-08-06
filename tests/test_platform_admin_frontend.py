@@ -188,6 +188,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "getSupportCase",
                 "listTenantSupportRequests",
                 "getTenantSupportRequest",
+                "updateTenantSupportRequest",
+                "convertTenantSupportRequest",
                 "addSupportCaseNote",
                 "updateSupportCase",
             ],
@@ -220,6 +222,11 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         support = read(SUPPORT)
         self.assertIn("tenantRequestDetail.replaceChildren()", support)
         self.assertIn("text only", support)
+        for function_name in (
+            "updateTenantSupportRequest",
+            "convertTenantSupportRequest",
+        ):
+            self.assertIn(function_name + ":", self.api)
 
     def test_audit_event_client_uses_only_approved_filters(self):
         function = re.search(
@@ -406,8 +413,20 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             "Internal support cases",
             "Cases are not customer-facing",
             "does not message tenants",
+            "approved internal review, close, and conversion actions",
+            "after Migration 031 is applied",
             "Tenant-submitted support requests",
             "rendered as text only",
+            "Approved review, close, and conversion controls",
+            "Assignment, replies, billing, exports, charts, messaging, email, attachments, and impersonation remain excluded",
+            "Mark reviewed",
+            "Close request",
+            "Convert to internal case",
+            "window.confirm",
+            "PlatformAdminApi.updateTenantSupportRequest",
+            "PlatformAdminApi.convertTenantSupportRequest",
+            "loadTenantSupportRequests();",
+            "Open internal case #",
             "Loading support workspace...",
             "No companies currently require attention.",
             "No company search results found.",
@@ -418,7 +437,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             self.assertIn(marker, self.support)
         for forbidden in [
             "Send customer message",
-            "Assign",
+            "Assign a tenant",
             "Impersonate",
             "Reset Password",
             "Suspend",
