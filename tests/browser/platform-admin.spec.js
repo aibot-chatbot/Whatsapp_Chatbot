@@ -38,6 +38,71 @@ const company = {
   updated_at: "2026-07-02T00:00:00+00:00"
 };
 
+const supportCase = {
+  id: 9,
+  company_id: 42,
+  company: { id: 42, company_name: "Example Tenant <script>window.__xss = true</script>", status: "active" },
+  created_by_platform_admin_user_id: 7001,
+  assigned_platform_admin_user_id: 7001,
+  status: "open",
+  priority: "normal",
+  title: "Review tenant activation <script>window.__caseXss=true</script>",
+  redacted_summary: "Safe internal summary only.",
+  created_at: "2026-07-30T00:00:00+00:00",
+  updated_at: "2026-07-30T00:00:00+00:00",
+  closed_at: null
+};
+
+const supportCaseDetail = {
+  case: supportCase,
+  source_tenant_request: { request_id: 31, company_id: 42, status: "converted" },
+  status_transitions: ["in_progress", "waiting_for_tenant", "resolved"],
+  events: [
+    {
+      id: 1,
+      case_id: 9,
+      event_type: "created",
+      actor_platform_admin_user_id: 7001,
+      new_status: "open",
+      new_priority: "normal",
+      created_at: "2026-07-30T00:00:00+00:00"
+    },
+    {
+      id: 2,
+      case_id: 9,
+      event_type: "assignment_changed",
+      actor_platform_admin_user_id: 7001,
+      old_assigned_platform_admin_user_id: null,
+      new_assigned_platform_admin_user_id: 7001,
+      created_at: "2026-07-30T00:01:00+00:00"
+    },
+    {
+      id: 3,
+      case_id: 9,
+      event_type: "note_added",
+      actor_platform_admin_user_id: 7001,
+      redacted_note: "Safe note <img src=x onerror=window.__noteXss=true>",
+      created_at: "2026-07-30T00:02:00+00:00"
+    }
+  ]
+};
+
+const supportCases = {
+  cases: [supportCase],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 1, has_more: false },
+  filters: { company_id: null, status: null, priority: null }
+};
+
+const supportCaseAssignees = {
+  assignees: [{ id: 7001, user_id: 9001, is_active: true }]
+};
+
+const tenantSupportRequests = {
+  requests: [],
+  pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false },
+  filters: { company_id: null, category: null, status: null }
+};
+
 const subscriptionSummary = {
   company: { id: 42 },
   subscription: {
@@ -476,6 +541,10 @@ function defaultHandler({ url }) {
   if (url.pathname === "/api/platform-admin/me") return success(identity);
   if (url.pathname === "/api/platform-admin/overview") return success(operationsOverview);
   if (url.pathname === "/api/platform-admin/audit-events") return success(auditEvents);
+  if (url.pathname === "/api/platform-admin/support-case-assignees") return success(supportCaseAssignees);
+  if (url.pathname === "/api/platform-admin/support-cases") return success(supportCases);
+  if (url.pathname === "/api/platform-admin/support-cases/9") return success(supportCaseDetail);
+  if (url.pathname === "/api/platform-admin/tenant-support-requests") return success(tenantSupportRequests);
   if (url.pathname === "/api/platform-admin/companies") {
     if (url.searchParams.get("status") === "active") {
       return success(companyList(1, [], { limit: 1, status: "active" }));
@@ -829,7 +898,14 @@ test.describe("platform-admin support workspace", () => {
     releaseMe();
     await expect(page.getByRole("heading", { name: "Support Workspace" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Support" })).toHaveAttribute("href", "platform-admin-support.html");
-    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
+    await expect(page.getByText("No tenant-submitted support requests found.")).toBeVisible();
+    expect(calls.map(call => call.path)).toEqual([
+      "/api/platform-admin/me",
+      "/api/platform-admin/overview",
+      "/api/platform-admin/support-case-assignees",
+      "/api/platform-admin/support-cases",
+      "/api/platform-admin/tenant-support-requests"
+    ]);
     expect(calls.every(call => call.method === "GET")).toBe(true);
   });
 
@@ -843,7 +919,14 @@ test.describe("platform-admin support workspace", () => {
     await expect(page.getByRole("cell", { name: "Past due subscription" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Investigate" }).first()).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
     expect(await page.evaluate(() => window.__xss || window.__planXss || false)).toBe(false);
-    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
+    await expect(page.getByRole("cell", { name: "Review tenant activation" })).toBeVisible();
+    expect(calls.map(call => call.path)).toEqual([
+      "/api/platform-admin/me",
+      "/api/platform-admin/overview",
+      "/api/platform-admin/support-case-assignees",
+      "/api/platform-admin/support-cases",
+      "/api/platform-admin/tenant-support-requests"
+    ]);
   });
 
   test("shows empty attention and bounded company lookup states", async ({ page }) => {
@@ -882,6 +965,51 @@ test.describe("platform-admin support workspace", () => {
     expect(lookupCall.search).toContain("search=Example");
     await page.getByRole("link", { name: "Investigate" }).last().click();
     await expect(page).toHaveURL(/platform-admin-company\.html\?company_id=42$/);
+  });
+
+  test("case detail renders operational controls and uses split mutation endpoints", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-support.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/support-cases/9/assignment") {
+        return success({ ...supportCaseDetail, case: { ...supportCase, assigned_platform_admin_user_id: null } });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/status") {
+        return success({ ...supportCaseDetail, case: { ...supportCase, status: "in_progress" } });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/priority") {
+        return success({ ...supportCaseDetail, case: { ...supportCase, priority: "high" } });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/notes") {
+        return success(supportCaseDetail);
+      }
+      return defaultHandler({ request, url });
+    });
+
+    await page.getByRole("button", { name: "Open case" }).click();
+    await expect(page.getByRole("heading", { name: "Internal support case detail" })).toBeVisible();
+    await expect(page.getByText("Tenant request #31")).toBeVisible();
+    await expect(page.getByText("Case activity timeline")).toBeVisible();
+    await expect(page.getByText("Safe note <img src=x onerror=window.__noteXss=true>")).toBeVisible();
+    await expect(page.getByLabel("Next status")).not.toContainText("Closed");
+    await expect(page.getByLabel("Next status")).toContainText("Waiting for tenant");
+    await expect(page.getByRole("button", { name: "Update assignee" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Update priority" })).toBeDisabled();
+
+    await page.getByLabel("Assignee").selectOption("");
+    await expect(page.getByRole("button", { name: "Update assignee" })).toBeEnabled();
+    await page.getByRole("button", { name: "Update assignee" }).click();
+    await page.getByLabel("Next status").selectOption("in_progress");
+    await page.getByRole("button", { name: "Update status" }).click();
+    await page.getByLabel("Priority").selectOption("high");
+    await expect(page.getByRole("button", { name: "Update priority" })).toBeEnabled();
+    await page.getByRole("button", { name: "Update priority" }).click();
+    await page.getByLabel("Redacted internal note").fill("Follow-up note");
+    await page.getByRole("button", { name: "Add internal note" }).click();
+
+    await expect.poll(() => page.evaluate(() => window.__caseXss || window.__noteXss || false)).toBe(false);
+    expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/assignment"))).toBe(true);
+    expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/status"))).toBe(true);
+    expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/priority"))).toBe(true);
+    expect(calls.some(call => call.method === "POST" && call.path.endsWith("/notes"))).toBe(true);
   });
 
   test("replaced support lookup requests suppress late stale results", async ({ page }) => {

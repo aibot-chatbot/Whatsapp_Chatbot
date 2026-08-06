@@ -19,7 +19,11 @@
         "platform_admin.support_case.read",
         "platform_admin.support_case.create",
         "platform_admin.support_case.note.create",
-        "platform_admin.support_case.update"
+        "platform_admin.support_case.assignee.list",
+        "platform_admin.support_case.assign",
+        "platform_admin.support_case.unassign",
+        "platform_admin.support_case.status.update",
+        "platform_admin.support_case.priority.update"
     ];
     const RESOURCE_TYPES = [
         "platform_admin",
@@ -63,7 +67,13 @@
         "priority_filter_applied",
         "company_id",
         "status",
-        "priority"
+        "priority",
+        "old_status",
+        "new_status",
+        "old_priority",
+        "new_priority",
+        "old_assigned_platform_admin_user_id",
+        "new_assigned_platform_admin_user_id"
     ];
 
     const state = {

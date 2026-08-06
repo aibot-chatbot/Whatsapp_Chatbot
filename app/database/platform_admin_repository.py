@@ -36,6 +36,8 @@ AI_CREDIT_TRANSACTION_TYPE_FILTERS = {
     "reversal",
 }
 TENANT_SUPPORT_REQUEST_STATUSES = {"new", "reviewed", "converted", "closed"}
+SUPPORT_CASE_STATUSES = {"open", "in_progress", "waiting_for_tenant", "resolved", "closed"}
+SUPPORT_CASE_PRIORITIES = {"low", "normal", "high", "urgent"}
 AUDIT_OUTCOMES = {"success", "not_found"}
 PLATFORM_ADMIN_ENDPOINTS = {
     "identity": "/api/platform-admin/me",
@@ -53,8 +55,11 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "support_case_list": "/api/platform-admin/support-cases",
     "support_case_create": "/api/platform-admin/support-cases",
     "support_case_read": "/api/platform-admin/support-cases/<case_id>",
+    "support_case_assignee_list": "/api/platform-admin/support-case-assignees",
     "support_case_note_create": "/api/platform-admin/support-cases/<case_id>/notes",
-    "support_case_update": "/api/platform-admin/support-cases/<case_id>",
+    "support_case_assign": "/api/platform-admin/support-cases/<case_id>/assignment",
+    "support_case_status_update": "/api/platform-admin/support-cases/<case_id>/status",
+    "support_case_priority_update": "/api/platform-admin/support-cases/<case_id>/priority",
     "tenant_support_request_list": "/api/platform-admin/tenant-support-requests",
     "tenant_support_request_read": "/api/platform-admin/tenant-support-requests/<request_id>",
 }
@@ -269,13 +274,57 @@ AUDIT_EVENT_SCHEMAS = {
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_note_create"],
         "http_methods": {"POST"},
     },
-    "platform_admin.support_case.update": {
+    "platform_admin.support_case.assignee.list": {
+        "resource_type": "platform_admin_users",
+        "resource_id": _resource_id_none,
+        "required_metadata": {"outcome", "endpoint", "http_method", "returned_count"},
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_assignee_list"],
+        "http_methods": {"GET"},
+    },
+    "platform_admin.support_case.assign": {
         "resource_type": "platform_support_cases",
         "resource_id": _resource_id_positive_integer_string,
-        "required_metadata": {"outcome", "endpoint", "http_method"},
-        "optional_metadata": {"status", "priority"},
+        "required_metadata": {
+            "outcome", "endpoint", "http_method",
+            "old_assigned_platform_admin_user_id",
+            "new_assigned_platform_admin_user_id",
+        },
+        "optional_metadata": set(),
         "outcomes": {"success"},
-        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_update"],
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_assign"],
+        "http_methods": {"PATCH"},
+    },
+    "platform_admin.support_case.unassign": {
+        "resource_type": "platform_support_cases",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method",
+            "old_assigned_platform_admin_user_id",
+            "new_assigned_platform_admin_user_id",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_assign"],
+        "http_methods": {"PATCH"},
+    },
+    "platform_admin.support_case.status.update": {
+        "resource_type": "platform_support_cases",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method", "old_status", "new_status"},
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_status_update"],
+        "http_methods": {"PATCH"},
+    },
+    "platform_admin.support_case.priority.update": {
+        "resource_type": "platform_support_cases",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method", "old_priority", "new_priority"},
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_priority_update"],
         "http_methods": {"PATCH"},
     },
     "platform_admin.tenant_support_request.list": {
@@ -579,15 +628,39 @@ def _validate_metadata_schema(action, schema, metadata):
         if metadata["returned_count"] > metadata["limit"]:
             raise ValueError("returned_count cannot exceed limit")
 
-    if action in {
-        "platform_admin.support_case.create",
-        "platform_admin.support_case.update",
-    }:
+    if action == "platform_admin.support_case.assignee.list":
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=1000)
+
+    if action == "platform_admin.support_case.create":
         if "company_id" in metadata:
             _positive_integer(metadata["company_id"], "company_id")
         for key in ("status", "priority"):
             if key in metadata and not isinstance(metadata[key], str):
                 raise ValueError(f"{key} must be text")
+
+    if action in {"platform_admin.support_case.assign", "platform_admin.support_case.unassign"}:
+        old_assignee = metadata["old_assigned_platform_admin_user_id"]
+        new_assignee = metadata["new_assigned_platform_admin_user_id"]
+        if old_assignee is not None:
+            _positive_integer(old_assignee, "old_assigned_platform_admin_user_id")
+        if new_assignee is not None:
+            _positive_integer(new_assignee, "new_assigned_platform_admin_user_id")
+        if action.endswith(".assign") and new_assignee is None:
+            raise ValueError("assign audit must include a new assignee")
+        if action.endswith(".unassign") and new_assignee is not None:
+            raise ValueError("unassign audit must clear the assignee")
+
+    if action == "platform_admin.support_case.status.update":
+        if metadata["old_status"] not in SUPPORT_CASE_STATUSES:
+            raise ValueError("old_status must be a valid support-case status")
+        if metadata["new_status"] not in SUPPORT_CASE_STATUSES:
+            raise ValueError("new_status must be a valid support-case status")
+
+    if action == "platform_admin.support_case.priority.update":
+        if metadata["old_priority"] not in SUPPORT_CASE_PRIORITIES:
+            raise ValueError("old_priority must be a valid support-case priority")
+        if metadata["new_priority"] not in SUPPORT_CASE_PRIORITIES:
+            raise ValueError("new_priority must be a valid support-case priority")
 
     if action in {
         "platform_admin.tenant_support_request.review",

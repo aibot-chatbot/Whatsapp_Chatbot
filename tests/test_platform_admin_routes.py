@@ -47,8 +47,12 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/<int:company_id>/users",
             "/api/platform-admin/companies/<int:company_id>/chatbots",
             "/api/platform-admin/support-cases",
+            "/api/platform-admin/support-case-assignees",
             "/api/platform-admin/support-cases/<int:case_id>",
             "/api/platform-admin/support-cases/<int:case_id>/notes",
+            "/api/platform-admin/support-cases/<int:case_id>/assignment",
+            "/api/platform-admin/support-cases/<int:case_id>/status",
+            "/api/platform-admin/support-cases/<int:case_id>/priority",
             "/api/platform-admin/tenant-support-requests",
             "/api/platform-admin/tenant-support-requests/<int:request_id>",
             "/api/platform-admin/tenant-support-requests/<int:request_id>/convert",
@@ -59,11 +63,17 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertTrue(all(
             value == {"GET"}
             for key, value in methods.items()
-            if "support-cases" not in key and "tenant-support-requests" not in key
+            if "support-cases" not in key
+            and "support-case-assignees" not in key
+            and "tenant-support-requests" not in key
         ))
         self.assertEqual(methods["/api/platform-admin/support-cases"], {"GET", "POST"})
-        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>"], {"GET", "PATCH"})
+        self.assertEqual(methods["/api/platform-admin/support-case-assignees"], {"GET"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>"], {"GET"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/notes"], {"POST"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/assignment"], {"PATCH"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/status"], {"PATCH"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/priority"], {"PATCH"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests"], {"GET"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>"], {"GET", "PATCH"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>/convert"], {"POST"})
@@ -73,7 +83,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 21)
+        self.assertEqual(len(rules), 24)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")

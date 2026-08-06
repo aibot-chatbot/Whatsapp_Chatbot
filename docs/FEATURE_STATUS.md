@@ -303,7 +303,7 @@ verified locally; production blocked**
 
 The original five platform-admin endpoints are staging-verified. The later
 extensions are application-only/local-tested unless separately staged. At the
-current HEAD, localhost manual verification recorded on 2026-08-03 passed for
+current working tree, localhost manual verification recorded on 2026-08-03 passed for
 the full current twelve-route read-only stack: dashboard, operational alerts,
 company directory/detail, subscription summary/history, AI-credit usage and
 transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
@@ -340,17 +340,25 @@ production readiness.
   alerts, charts, exports, and write actions remain deferred. The deferred
   Phase 2 alert definitions and approval gates are recorded in
   `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
-- A separate platform-admin Support Workspace is implemented as a read-only
-  investigation hub. It is distinct from tenant `support.html`, reuses only
+- A separate platform-admin Support Workspace is implemented as tenant
+  investigation with controlled internal case operations. It is distinct from tenant `support.html`, reuses only
   existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
   links operators into existing company investigation pages. Support Cases
   Phase 1 is implemented for internal platform-admin use and verified in the
   main shared testing Supabase with fake/team data; this is not staging or
-  production verification. The feature adds bounded internal case create/list/detail, redacted internal notes,
-  status/priority updates, append-only case events, and audit-before-response
-  writes. Assignment UI, customer contact, messaging, impersonation, billing
-  actions, exports, charts, and production use remain blocked. The workflow
-  contract is documented in `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
+  production verification. Platform-admin Support Case Operations Phase 2 is
+  implemented and verified only in the main shared testing Supabase with
+  fake/team data. It adds operation-specific assignment, status, priority, and
+  internal-note controls, a server-provided case timeline, and Migration 032
+  trusted RPCs for atomic mutation/event/audit writes. Verified fake/team
+  evidence covers assignment, status/priority changes, internal notes,
+  no-op/invalid-transition rejection without extra event/audit rows,
+  close/reopen `closed_at` behavior, least-privilege grants, RLS/policies, and
+  service-role-only RPC execution. This is not staging or production
+  verification. Customer contact, messaging, impersonation, billing actions,
+  exports, charts, SLA timers, escalation automation, and production use remain
+  blocked. The workflow contract is documented in
+  `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
   SQL execution requires project/ref/environment preflight evidence; the
   Migration 029 production-application and successful rollback are recorded in
   the access lifecycle. Future testing is local/dev or approved staging only;
@@ -378,8 +386,8 @@ production readiness.
   metadata summaries only, and does not expose raw metadata, tenant records,
   exports, downloads, charts, audit editing, audit deletion, or platform-admin
   user management. The original investigation inventory remains twelve
-  GET-only routes; Support Cases adds three localhost-only paths with bounded
-  GET/POST/PATCH methods.
+  GET-only routes; Support Cases now adds operation-specific localhost-only
+  paths with bounded GET/POST/PATCH methods.
 - A bounded platform-admin Billing Order History section is implemented as a
   read-only, application-only local extension on company detail. It adds one
   audited GET-only endpoint,
@@ -389,7 +397,7 @@ production readiness.
   payment/gateway/checkout/reference, idempotency, raw-error, reconciliation,
   retry, activation, manual-credit, export/download, chart, and write behavior.
   The current platform-admin backend inventory is twelve GET-only investigation
-  routes plus three localhost-only support-case paths.
+  routes plus operation-specific localhost-only support-case paths.
   The billing-order audit-filter fix changed frontend filtering only; it added
   no route or backend behavior change.
 - Frontend performs a fresh `/me` authorization check on every page entry,
@@ -480,7 +488,7 @@ monitoring, rollback, and backup evidence.
 | Limitation | Status |
 |---|---|
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, operational alerts, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
-| Platform-admin Support Workspace | Implemented locally as a read-only investigation hub; Support Cases Phase 1 adds bounded internal case routes and redacted append-only notes/status/priority tracking; no customer messaging, impersonation, billing actions, exports, charts, or production use |
+| Platform-admin Support Workspace | Implemented as tenant investigation with controlled internal case operations; Support Cases Phase 2 and Migration 032 are verified only in main shared testing Supabase with fake/team data; no customer messaging, impersonation, billing actions, exports, charts, SLA automation, staging readiness, or production use |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
 | Direct tenant support contact/tickets | Implemented locally as bounded submission only; no inbox, messaging, email, attachments, or production use |

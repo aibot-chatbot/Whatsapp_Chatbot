@@ -79,6 +79,8 @@ class TenantSupportRouteTests(unittest.TestCase):
             "priority": "urgent",
             "assignment": 9,
             "closed_at": "2026-08-05T00:00:00Z",
+            "redacted_note": "Internal note must not cross tenant boundary.",
+            "internal_note": "Internal note must not cross tenant boundary.",
             "audit_metadata": {"secret": "omit"},
             "category": "technical",
             "title": "Test",
@@ -90,6 +92,8 @@ class TenantSupportRouteTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json["code"], "unsupported_field")
+        self.assertNotIn("redacted_note", response.get_data(as_text=True))
+        self.assertNotIn("internal_note", response.get_data(as_text=True))
         rpc.assert_not_called()
 
     def test_invalid_category_and_text_lengths_are_rejected(self):

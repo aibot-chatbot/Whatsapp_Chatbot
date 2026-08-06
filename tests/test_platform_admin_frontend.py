@@ -186,12 +186,15 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "listSupportCases",
                 "createSupportCase",
                 "getSupportCase",
+                "listSupportCaseAssignees",
                 "listTenantSupportRequests",
                 "getTenantSupportRequest",
                 "updateTenantSupportRequest",
                 "convertTenantSupportRequest",
                 "addSupportCaseNote",
-                "updateSupportCase",
+                "assignSupportCase",
+                "updateSupportCaseStatus",
+                "updateSupportCasePriority",
             ],
         )
 
@@ -287,7 +290,13 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             flags=re.S,
         ).group(1)
         self.assertIn('"invalid_case_id"', validator)
-        for function_name in ["getSupportCase", "addSupportCaseNote", "updateSupportCase"]:
+        for function_name in [
+            "getSupportCase",
+            "addSupportCaseNote",
+            "assignSupportCase",
+            "updateSupportCaseStatus",
+            "updateSupportCasePriority",
+        ]:
             body = re.search(
                 rf"function {function_name}\(caseId,.*?\) \{{(.*?)\n    \}}",
                 self.api,
@@ -409,12 +418,11 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
 
     def test_support_workspace_has_internal_case_states_and_safe_controls(self):
         for marker in [
-            "Read-only tenant investigation",
+            "Tenant investigation with controlled internal case operations",
             "Internal support cases",
             "Cases are not customer-facing",
             "does not message tenants",
-            "approved internal review, close, and conversion actions",
-            "after Migration 031 is applied",
+            "billing, notification, export, impersonation, or SLA actions",
             "Tenant-submitted support requests",
             "rendered as text only",
             "Approved review, close, and conversion controls",
@@ -454,11 +462,15 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             "Create internal case",
             "Redacted summary",
             "Add internal note",
-            "Update case",
-            "Append-only case events",
+            "Update status",
+            "Update priority",
+            "Update assignee",
+            "Case activity timeline",
             "PlatformAdminApi.createSupportCase",
             "PlatformAdminApi.addSupportCaseNote",
-            "PlatformAdminApi.updateSupportCase",
+            "PlatformAdminApi.assignSupportCase",
+            "PlatformAdminApi.updateSupportCaseStatus",
+            "PlatformAdminApi.updateSupportCasePriority",
         ]:
             self.assertIn(marker, self.support)
 
