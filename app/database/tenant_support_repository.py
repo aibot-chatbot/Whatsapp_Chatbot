@@ -14,6 +14,7 @@ ALLOWED_CATEGORIES = {
     "ai_credits", "other",
 }
 ALLOWED_STATUSES = {"new", "reviewed", "converted", "closed"}
+REVIEW_CONVERSION_STATUSES = {"reviewed", "closed", "converted"}
 
 
 def _positive_id(value, field_name):
@@ -96,3 +97,79 @@ def list_tenant_support_request_events_for_platform_admin(request_id):
         .execute()
     )
     return response.data or []
+
+
+def _rpc_object(response, function_name):
+    value = response.data
+    if isinstance(value, list):
+        value = value[0] if len(value) == 1 else None
+    if not isinstance(value, dict):
+        raise RuntimeError(f"{function_name} RPC returned an invalid result")
+    return value
+
+
+def _validate_status_rpc_result(result, function_name):
+    request_id = result.get("request_id")
+    status = result.get("status")
+    if isinstance(request_id, bool) or not isinstance(request_id, int) or request_id <= 0:
+        raise RuntimeError(f"{function_name} RPC returned an invalid request ID")
+    if status not in {"reviewed", "closed"}:
+        raise RuntimeError(f"{function_name} RPC returned an invalid status")
+    for key in ("old_status", "new_status"):
+        if key in result and result[key] not in ALLOWED_STATUSES:
+            raise RuntimeError(f"{function_name} RPC returned an invalid status field")
+    return result
+
+
+def set_tenant_support_request_status_for_platform_admin(
+    request_id, platform_admin_user_id, status
+):
+    _positive_id(request_id, "request_id")
+    _positive_id(platform_admin_user_id, "platform_admin_user_id")
+    if status not in {"reviewed", "closed"}:
+        raise ValueError("Unsupported tenant support request status")
+    response = supabase.rpc(
+        "set_tenant_support_request_status",
+        {
+            "p_request_id": request_id,
+            "p_platform_admin_user_id": platform_admin_user_id,
+            "p_status": status,
+        },
+    ).execute()
+    return _validate_status_rpc_result(
+        _rpc_object(response, "set_tenant_support_request_status"),
+        "set_tenant_support_request_status",
+    )
+
+
+def convert_tenant_support_request_for_platform_admin(
+    request_id, platform_admin_user_id
+):
+    _positive_id(request_id, "request_id")
+    _positive_id(platform_admin_user_id, "platform_admin_user_id")
+    result = _rpc_object(
+        supabase.rpc(
+            "convert_tenant_support_request",
+            {
+                "p_request_id": request_id,
+                "p_platform_admin_user_id": platform_admin_user_id,
+            },
+        ).execute(),
+        "convert_tenant_support_request",
+    )
+    returned_request_id = result.get("request_id")
+    if (
+        isinstance(returned_request_id, bool)
+        or not isinstance(returned_request_id, int)
+        or returned_request_id <= 0
+        or returned_request_id != request_id
+    ):
+        raise RuntimeError("convert_tenant_support_request RPC returned an invalid request ID")
+    if result.get("status") != "converted":
+        raise RuntimeError("convert_tenant_support_request RPC returned an invalid status")
+    case_id = result.get("converted_platform_support_case_id")
+    if isinstance(case_id, bool) or not isinstance(case_id, int) or case_id <= 0:
+        raise RuntimeError(
+            "convert_tenant_support_request RPC returned an invalid case ID"
+        )
+    return result

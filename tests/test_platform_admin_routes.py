@@ -51,21 +51,29 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/support-cases/<int:case_id>/notes",
             "/api/platform-admin/tenant-support-requests",
             "/api/platform-admin/tenant-support-requests/<int:request_id>",
+            "/api/platform-admin/tenant-support-requests/<int:request_id>/convert",
         })
         methods = {}
         for rule in rules:
             methods.setdefault(rule.rule, set()).update(rule.methods - {"HEAD", "OPTIONS"})
-        self.assertTrue(all(value == {"GET"} for key, value in methods.items() if "support-cases" not in key))
+        self.assertTrue(all(
+            value == {"GET"}
+            for key, value in methods.items()
+            if "support-cases" not in key and "tenant-support-requests" not in key
+        ))
         self.assertEqual(methods["/api/platform-admin/support-cases"], {"GET", "POST"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>"], {"GET", "PATCH"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/notes"], {"POST"})
+        self.assertEqual(methods["/api/platform-admin/tenant-support-requests"], {"GET"})
+        self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>"], {"GET", "PATCH"})
+        self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>/convert"], {"POST"})
 
     def test_blueprint_wide_guard_covers_all_routes(self):
         rules = [
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 19)
+        self.assertEqual(len(rules), 21)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")

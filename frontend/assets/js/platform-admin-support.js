@@ -14,7 +14,8 @@
         tenantRequestResults: null,
         tenantRequestDetail: null,
         tenantRequestError: null,
-        tenantRequestLoadSequence: 0
+        tenantRequestLoadSequence: 0,
+        tenantRequestConversionCaseId: null
     };
 
     function safeValue(value) {
@@ -30,6 +31,21 @@
         const link = ui.element("a", "platform-link-button", label || "Investigate");
         link.href = "platform-admin-company.html?" + params.toString();
         return link;
+    }
+
+    function internalSupportCaseLink(caseId) {
+        if (!Number.isSafeInteger(caseId) || caseId <= 0) {
+            return ui.element("span", "", "Unavailable");
+        }
+        const link = ui.element("a", "platform-link-button", "Open internal case #" + String(caseId));
+        link.href = "platform-admin-support.html?case_id=" + String(caseId);
+        return link;
+    }
+
+    function clearTenantRequestState() {
+        state.tenantRequestConversionCaseId = null;
+        if (state.tenantRequestResults) state.tenantRequestResults.replaceChildren();
+        if (state.tenantRequestDetail) state.tenantRequestDetail.replaceChildren();
     }
 
     function panel(title, description) {
@@ -451,7 +467,76 @@
             }),
             "Tenant support request events"
         ) : ui.element("p", "platform-empty", "No request events recorded."));
+        if (state.tenantRequestConversionCaseId) {
+            section.append(cardLine(
+                "Converted internal case",
+                internalSupportCaseLink(state.tenantRequestConversionCaseId)
+            ));
+        }
+        if (current.status === "new" || current.status === "reviewed") {
+            const controls = ui.element("div", "platform-support-actions");
+            if (current.status === "new") {
+                controls.append(tenantRequestActionButton(
+                    "Mark reviewed", function () {
+                        updateTenantRequestStatus(current.request_id, "reviewed");
+                    }
+                ));
+            }
+            controls.append(tenantRequestActionButton(
+                "Close request", function () {
+                    updateTenantRequestStatus(current.request_id, "closed");
+                }
+            ));
+            controls.append(tenantRequestActionButton(
+                "Convert to internal case", function () {
+                    convertTenantRequest(current.request_id);
+                }
+            ));
+            section.append(controls);
+        }
         state.tenantRequestDetail.replaceChildren(section);
+    }
+
+    function tenantRequestActionButton(label, action) {
+        const button = ui.element("button", "platform-button", label);
+        button.type = "button";
+        button.addEventListener("click", action);
+        return button;
+    }
+
+    async function updateTenantRequestStatus(requestId, status) {
+        if (!window.confirm("Confirm changing this tenant support request to " + status + "?")) return;
+        try {
+            await ui.runRequest("tenant-support-request-status", function (signal) {
+                return PlatformAdminApi.updateTenantSupportRequest(
+                    requestId, { status: status }, { signal: signal }
+                );
+            });
+            await loadTenantSupportRequests();
+            await openTenantSupportRequest(requestId);
+        } catch (error) {
+            clearTenantRequestState();
+            if (!ui.handleError(error) && state.tenantRequestError) {
+                state.tenantRequestError.textContent = "The tenant support request could not be updated.";
+            }
+        }
+    }
+
+    async function convertTenantRequest(requestId) {
+        if (!window.confirm("Convert this tenant support request into an internal support case?")) return;
+        try {
+            const data = await ui.runRequest("tenant-support-request-convert", function (signal) {
+                return PlatformAdminApi.convertTenantSupportRequest(requestId, { signal: signal });
+            });
+            state.tenantRequestConversionCaseId = data && data.converted_platform_support_case_id;
+            await loadTenantSupportRequests();
+            await openTenantSupportRequest(requestId);
+        } catch (error) {
+            clearTenantRequestState();
+            if (!ui.handleError(error) && state.tenantRequestError) {
+                state.tenantRequestError.textContent = "The tenant support request could not be converted.";
+            }
+        }
     }
 
     async function openTenantSupportRequest(requestId) {
@@ -464,6 +549,7 @@
         } catch (error) {
             if (sequence === state.tenantRequestLoadSequence && state.tenantRequestDetail) {
                 state.tenantRequestDetail.replaceChildren();
+                state.tenantRequestConversionCaseId = null;
             }
             if (!ui.handleError(error) && state.tenantRequestError) {
                 state.tenantRequestError.textContent = "The tenant support request could not be loaded.";
@@ -516,7 +602,7 @@
     function renderTenantSupportRequests() {
         const section = panel(
             "Tenant-submitted support requests",
-            "Read-only intake review. This section has no assignment, conversion, reply, billing, export, or chart controls."
+            "Read-only intake review. Approved review, close, and conversion controls are available after Migration 031 is applied. Assignment, replies, billing, exports, charts, messaging, email, attachments, and impersonation remain excluded."
         );
         state.tenantRequestError = ui.element("p", "platform-inline-error");
         state.tenantRequestError.setAttribute("aria-live", "polite");
@@ -582,7 +668,7 @@
         const titleGroup = ui.element("div");
         titleGroup.append(
             ui.element("h1", "", "Support Workspace"),
-            ui.element("p", "", "Read-only tenant investigation for platform administrators. This workspace does not message tenants or change tenant-submitted requests.")
+            ui.element("p", "", "Read-only tenant investigation for platform administrators. This workspace does not message tenants, but may perform approved internal review, close, and conversion actions after Migration 031 is applied.")
         );
         header.append(titleGroup, renderQuickNavigation());
         root.replaceChildren(

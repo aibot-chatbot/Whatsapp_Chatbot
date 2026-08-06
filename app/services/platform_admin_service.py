@@ -641,6 +641,59 @@ def get_tenant_support_request(request_id, actor_id):
     return result
 
 
+def update_tenant_support_request(request_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    request_id = _positive_id(request_id, "invalid_request_id")
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be an object.")
+    if set(payload) != {"status"}:
+        _validation("invalid_request", "Only status may be updated.")
+    status = _optional_exact_member_parameter(
+        payload.get("status"), name="status",
+        allowed={"reviewed", "closed"}, code="invalid_status",
+    )
+    try:
+        result = tenant_support_repository.set_tenant_support_request_status_for_platform_admin(
+            request_id, actor_id, status
+        )
+    except ValueError as exc:
+        _validation("invalid_status", str(exc))
+    except Exception:
+        logger.error("Tenant support request status update failed")
+        _data_unavailable()
+    safe = {
+        "request_id": result["request_id"],
+        "status": result["status"],
+    }
+    for key in ("old_status", "new_status", "closed_at"):
+        if key in result:
+            safe[key] = result[key]
+    return safe
+
+
+def convert_tenant_support_request(request_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    request_id = _positive_id(request_id, "invalid_request_id")
+    if payload is None:
+        payload = {}
+    if not isinstance(payload, dict) or payload:
+        _validation("invalid_request", "Conversion request body must be empty.")
+    try:
+        result = tenant_support_repository.convert_tenant_support_request_for_platform_admin(
+            request_id, actor_id
+        )
+    except Exception:
+        logger.error("Tenant support request conversion failed")
+        _data_unavailable()
+    return {
+        "request_id": result["request_id"],
+        "status": result["status"],
+        "converted_platform_support_case_id": result[
+            "converted_platform_support_case_id"
+        ],
+    }
+
+
 def _company_or_not_found(company_id, actor_id, action, resource_type, endpoint):
     _positive_id(company_id)
     try:

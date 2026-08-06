@@ -96,6 +96,13 @@ under `docs/PLATFORM_ADMIN_TENANT_SUPPORT_INTAKE_VIEWER_CONTRACT.md` with two
 GET-only routes and a separate Support Workspace section. No SQL was required;
 Migration 030 remains verified only in the main shared testing Supabase with
 fake/team data. This is not staging verification or production readiness.
+Tenant Support Intake Review/Conversion is implemented locally under
+`docs/PLATFORM_ADMIN_TENANT_SUPPORT_CONVERSION_CONTRACT.md` and verified only
+in the main shared testing Supabase with fake/team data. Migration 031 was
+applied there and browser/API E2E passed locally: request 1 was reviewed then
+converted, creating internal case 2 once. This is not staging verification or
+production readiness, and production remains blocked. RLS/EXECUTE, audit
+metadata, RPC security, and the mapping baseline remained safe.
 Assignment UI, customer contact, SLA, and other future concepts remain deferred
 under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.

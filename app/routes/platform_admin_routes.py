@@ -216,3 +216,21 @@ def tenant_support_request_detail(request_id):
     return _execute(lambda: platform_admin_service.get_tenant_support_request(
         request_id, _actor_id()
     ))
+
+
+@platform_admin_bp.patch("/tenant-support-requests/<int:request_id>")
+def update_tenant_support_request(request_id):
+    return _execute(lambda: platform_admin_service.update_tenant_support_request(
+        request_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
+@platform_admin_bp.post("/tenant-support-requests/<int:request_id>/convert")
+def convert_tenant_support_request(request_id):
+    raw_body = request.get_data(cache=True)
+    payload = request.get_json(silent=True) if raw_body.strip() else {}
+    if raw_body.strip() and payload is None:
+        payload = {"_invalid_body": True}
+    return _execute(lambda: platform_admin_service.convert_tenant_support_request(
+        request_id, payload, _actor_id()
+    ))
