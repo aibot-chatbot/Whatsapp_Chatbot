@@ -6,7 +6,8 @@
 approval remains required.** This policy matches the implemented read-only
 platform-admin endpoint set, including the application-only operations overview,
 company-user, chatbot, subscription-history, AI-credit transaction-history,
-billing-order history, and audit-log viewer extensions. It does not
+billing-order history, support-case operations, tenant-visible support replies,
+and audit-log viewer extensions. It does not
 authorize a deployment, schema change, retention deletion, or mapping
 activation.
 
@@ -28,10 +29,12 @@ Audit failure returns a sanitized 503 and withholds fetched tenant data.
 
 ## Approved actions, resources, and metadata schemas
 
-No action or resource type outside this table is approved. Support-case Phase 1
-and Phase 2 actions are localhost-only and remain blocked from staging/production
-approval until their migrations are applied and verified in the named
-environment.
+No action or resource type outside this table is approved. Support Cases Phase
+1 and Platform-admin Support Case Operations Phase 2 are verified only in the
+main shared-testing Supabase with fake/team data. Platform-admin Tenant
+Communication Phase 3 and Migration 033 are verified only in the main
+shared-testing Supabase with fake/team data. This is not staging verification
+and does not establish production readiness.
 
 | Action | Resource type | Resource ID | Outcomes | Required metadata | Optional metadata | Endpoint |
 |---|---|---|---|---|---|---|
@@ -56,6 +59,8 @@ environment.
 | `platform_admin.support_case.unassign` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_assigned_platform_admin_user_id`, `new_assigned_platform_admin_user_id` | None | `PATCH /api/platform-admin/support-cases/<case_id>/assignment` |
 | `platform_admin.support_case.status.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_status`, `new_status` | None | `PATCH /api/platform-admin/support-cases/<case_id>/status` |
 | `platform_admin.support_case.priority.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_priority`, `new_priority` | None | `PATCH /api/platform-admin/support-cases/<case_id>/priority` |
+| `platform_admin.support_case.reply.list` | `platform_support_cases` | Case ID | `success`, `not_found` | `outcome`, `endpoint`, `http_method`, `returned_count` | `request_id`, `company_id` | `GET /api/platform-admin/support-cases/<case_id>/replies` |
+| `platform_admin.support_case.reply.create` | `tenant_support_replies` | Reply ID | `success` | `outcome`, `endpoint`, `http_method`, `case_id`, `request_id`, `company_id`, `reply_id`, `notification_channel`, `delivery_status` | None | `POST /api/platform-admin/support-cases/<case_id>/replies` |
 
 ### Operations-overview fields
 
@@ -112,6 +117,11 @@ old_priority
 new_priority
 old_assigned_platform_admin_user_id
 new_assigned_platform_admin_user_id
+case_id
+request_id
+reply_id
+notification_channel
+delivery_status
 ```
 
 No additional key is permitted without a code change, security/privacy review,
@@ -127,7 +137,7 @@ or metadata fields require an explicit schema and tests before use.
 |---|---|
 | `outcome` | `success` or `not_found` as applicable |
 | `endpoint` | The fixed route template from the approved action table; never a full URL or query string |
-| `http_method` | `GET` for investigation actions; `POST` or `PATCH` only for the bounded localhost support-case actions |
+| `http_method` | `GET` for investigation actions; `POST` or `PATCH` only for the approved bounded support-case actions |
 
 ### Company-list fields
 
@@ -282,6 +292,18 @@ stored events: `outcome`, `endpoint`, `http_method`, bounded list context,
 operations-overview fields, AI-credit period fields, and the viewer filter
 summary booleans. Unsupported or nested metadata is omitted from the response
 even when it exists on a stored historical row.
+
+### Support reply fields
+
+`platform_admin.support_case.reply.create` metadata records only linkage and
+delivery state: case ID, request ID, company ID, reply ID,
+`notification_channel = in_app`, and `delivery_status = pending`. It must not
+include the reply body, internal note body, email body, provider response,
+tenant conversation content, or arbitrary client metadata.
+
+`platform_admin.support_case.reply.list` records the fixed endpoint, method,
+outcome, returned count, and optional request/company identifiers only. It must
+not record reply text or notification failure details.
 
 ## Prohibited data
 

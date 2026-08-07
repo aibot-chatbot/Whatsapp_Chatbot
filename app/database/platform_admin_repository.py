@@ -60,6 +60,8 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "support_case_assign": "/api/platform-admin/support-cases/<case_id>/assignment",
     "support_case_status_update": "/api/platform-admin/support-cases/<case_id>/status",
     "support_case_priority_update": "/api/platform-admin/support-cases/<case_id>/priority",
+    "support_case_reply_list": "/api/platform-admin/support-cases/<case_id>/replies",
+    "support_case_reply_create": "/api/platform-admin/support-cases/<case_id>/replies",
     "tenant_support_request_list": "/api/platform-admin/tenant-support-requests",
     "tenant_support_request_read": "/api/platform-admin/tenant-support-requests/<request_id>",
 }
@@ -326,6 +328,27 @@ AUDIT_EVENT_SCHEMAS = {
         "outcomes": {"success"},
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_priority_update"],
         "http_methods": {"PATCH"},
+    },
+    "platform_admin.support_case.reply.list": {
+        "resource_type": "platform_support_cases",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method", "returned_count"},
+        "optional_metadata": {"request_id", "company_id"},
+        "outcomes": AUDIT_OUTCOMES,
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_reply_list"],
+        "http_methods": {"GET"},
+    },
+    "platform_admin.support_case.reply.create": {
+        "resource_type": "tenant_support_replies",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "case_id", "request_id",
+            "company_id", "reply_id", "notification_channel", "delivery_status",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_reply_create"],
+        "http_methods": {"POST"},
     },
     "platform_admin.tenant_support_request.list": {
         "resource_type": "tenant_support_requests",
@@ -661,6 +684,19 @@ def _validate_metadata_schema(action, schema, metadata):
             raise ValueError("old_priority must be a valid support-case priority")
         if metadata["new_priority"] not in SUPPORT_CASE_PRIORITIES:
             raise ValueError("new_priority must be a valid support-case priority")
+
+    if action == "platform_admin.support_case.reply.list":
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=1000)
+        if "company_id" in metadata:
+            _positive_integer(metadata["company_id"], "company_id")
+        if "request_id" in metadata:
+            _positive_integer(metadata["request_id"], "request_id")
+
+    if action == "platform_admin.support_case.reply.create":
+        for key in ("case_id", "request_id", "company_id", "reply_id"):
+            _positive_integer(metadata[key], key)
+        _exact_string(metadata["notification_channel"], "notification_channel", "in_app")
+        _member(metadata["delivery_status"], "delivery_status", {"pending"})
 
     if action in {
         "platform_admin.tenant_support_request.review",

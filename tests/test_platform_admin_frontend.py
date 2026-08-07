@@ -192,6 +192,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "updateTenantSupportRequest",
                 "convertTenantSupportRequest",
                 "addSupportCaseNote",
+                "listSupportCaseReplies",
+                "createSupportCaseReply",
                 "assignSupportCase",
                 "updateSupportCaseStatus",
                 "updateSupportCasePriority",
@@ -201,12 +203,50 @@ class TestPlatformAdminApiClient(unittest.TestCase):
     def test_client_uses_allowlisted_methods_and_has_no_generic_public_request(self):
         self.assertIn('const requestMethod = method || "GET"', self.api)
         self.assertIn('method: requestMethod', self.api)
-        self.assertIn('"POST"', self.api)
-        self.assertIn('"PATCH"', self.api)
         self.assertNotIn('method: "PUT"', self.api)
         self.assertNotIn('method: "DELETE"', self.api)
+        self.assertNotIn('"PUT"', self.api)
+        self.assertNotIn('"DELETE"', self.api)
         self.assertNotIn("request: platformFetch", self.api)
+        self.assertNotIn("mutation: platformFetch", self.api)
+        self.assertNotIn("publicRequest", self.api)
+        self.assertNotIn("genericMutation", self.api)
         self.assertNotIn("/api/admin/billing", self.api)
+        approved_mutations = {
+            "createSupportCase": ("/support-cases", "POST"),
+            "updateTenantSupportRequest": ("/tenant-support-requests/\" + String(requestId)", "PATCH"),
+            "convertTenantSupportRequest": ("/tenant-support-requests/\" + String(requestId) + \"/convert", "POST"),
+            "addSupportCaseNote": ("/support-cases/\" + id + \"/notes", "POST"),
+            "createSupportCaseReply": ("/support-cases/\" + id + \"/replies", "POST"),
+            "assignSupportCase": ("/support-cases/\" + id + \"/assignment", "PATCH"),
+            "updateSupportCaseStatus": ("/support-cases/\" + id + \"/status", "PATCH"),
+            "updateSupportCasePriority": ("/support-cases/\" + id + \"/priority", "PATCH"),
+        }
+        seen_mutations = {}
+        for function_name, body in re.findall(
+            r"function (\w+)\([^)]*\) \{(.*?)\n    \}",
+            self.api,
+            flags=re.S,
+        ):
+            if '"POST"' not in body and '"PATCH"' not in body:
+                continue
+            seen_mutations[function_name] = body
+        self.assertEqual(set(seen_mutations), set(approved_mutations))
+        for function_name, (path_fragment, method) in approved_mutations.items():
+            body = seen_mutations[function_name]
+            self.assertIn(path_fragment, body)
+            self.assertIn(f'"{method}"', body)
+        for forbidden in (
+            "/billing",
+            "/companies/\" + id",
+            "/users",
+            "/chatbots",
+            "/imperson",
+            "/export",
+            "/delete",
+            "/messages",
+        ):
+            self.assertNotIn(forbidden, "\n".join(seen_mutations.values()))
 
     def test_tenant_support_intake_viewer_is_get_only_and_validates_display_paths(self):
         list_function = re.search(
@@ -228,6 +268,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         for function_name in (
             "updateTenantSupportRequest",
             "convertTenantSupportRequest",
+            "listSupportCaseReplies",
+            "createSupportCaseReply",
         ):
             self.assertIn(function_name + ":", self.api)
 
@@ -293,6 +335,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         for function_name in [
             "getSupportCase",
             "addSupportCaseNote",
+            "listSupportCaseReplies",
+            "createSupportCaseReply",
             "assignSupportCase",
             "updateSupportCaseStatus",
             "updateSupportCasePriority",
@@ -350,12 +394,16 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, payload)
         for forbidden_control in (
-            "support-request-inbox", "support-request-history",
+            "support-request-inbox",
             "support-request-message", "send message", "email integration",
             "type=\"file\"", "billing-action", "impersonation-control",
             "support-request-export", "support-request-chart",
         ):
             self.assertNotIn(forbidden_control, page.lower())
+        self.assertIn("Support History", page)
+        self.assertIn('authenticatedFetch("/api/support/requests?limit=25&offset=0"', page)
+        self.assertIn('authenticatedFetch("/api/support/requests/" + String(requestId)', page)
+        self.assertIn("Tenant-visible replies", page)
 
     def test_dashboard_uses_single_operations_overview_request(self):
         self.assertEqual(self.dashboard.count("PlatformAdminApi.getOverview({"), 1)
@@ -420,13 +468,21 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         for marker in [
             "Tenant investigation with controlled internal case operations",
             "Internal support cases",
-            "Cases are not customer-facing",
-            "does not message tenants",
-            "billing, notification, export, impersonation, or SLA actions",
+            "Internal notes are not customer-facing",
+            "Tenant-visible conversation",
+            "Send reply to tenant",
+            "This reply will be visible to the tenant",
+            "PlatformAdminApi.listSupportCaseReplies",
+            "PlatformAdminApi.createSupportCaseReply",
+            'ui.runRequest("support-case-public-reply"',
+            "replyButton.disabled = true;",
+            "} finally {",
+            "replyButton.isConnected",
+            "billing, export, impersonation, attachment, email, and SLA actions remain excluded",
             "Tenant-submitted support requests",
             "rendered as text only",
             "Approved review, close, and conversion controls",
-            "Assignment, replies, billing, exports, charts, messaging, email, attachments, and impersonation remain excluded",
+            "Tenant-visible replies are bounded platform-admin workflows",
             "Mark reviewed",
             "Close request",
             "Convert to internal case",
@@ -786,7 +842,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         sources = "\n".join([read(API), read(SHELL), self.dashboard, self.companies, self.company, self.support])
         self.assertNotIn("console.", sources)
         self.assertNotIn("/api/admin/billing", sources)
-        for method in ["POST", "PUT", "PATCH", "DELETE"]:
+        for method in ["PUT", "DELETE"]:
             self.assertNotIn(f'method: "{method}"', sources)
 
     def test_no_mutation_or_impersonation_controls_exist(self):

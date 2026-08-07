@@ -49,6 +49,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/support-cases",
             "/api/platform-admin/support-case-assignees",
             "/api/platform-admin/support-cases/<int:case_id>",
+            "/api/platform-admin/support-cases/<int:case_id>/replies",
             "/api/platform-admin/support-cases/<int:case_id>/notes",
             "/api/platform-admin/support-cases/<int:case_id>/assignment",
             "/api/platform-admin/support-cases/<int:case_id>/status",
@@ -70,6 +71,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(methods["/api/platform-admin/support-cases"], {"GET", "POST"})
         self.assertEqual(methods["/api/platform-admin/support-case-assignees"], {"GET"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>"], {"GET"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/replies"], {"GET", "POST"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/notes"], {"POST"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/assignment"], {"PATCH"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/status"], {"PATCH"})
@@ -83,7 +85,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 24)
+        self.assertEqual(len(rules), 26)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")

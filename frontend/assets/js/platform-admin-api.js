@@ -29,10 +29,12 @@
         "invalid_title",
         "invalid_redacted_summary",
         "invalid_redacted_note",
+        "invalid_redacted_body",
         "invalid_assignee",
         "invalid_request",
         "no_change",
         "support_case_not_found",
+        "support_case_linkage_invalid",
         "invalid_request_id",
         "invalid_category",
         "tenant_support_request_not_found"
@@ -286,6 +288,16 @@
         return platformFetch("/support-cases/" + id + "/notes", (options || {}).signal, "POST", payload);
     }
 
+    function listSupportCaseReplies(caseId, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/replies", (options || {}).signal);
+    }
+
+    function createSupportCaseReply(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/replies", (options || {}).signal, "POST", payload);
+    }
+
     function assignSupportCase(caseId, payload, options) {
         const id = requireCaseId(caseId);
         return platformFetch("/support-cases/" + id + "/assignment", (options || {}).signal, "PATCH", payload);
@@ -323,6 +335,8 @@
         updateTenantSupportRequest: updateTenantSupportRequest,
         convertTenantSupportRequest: convertTenantSupportRequest,
         addSupportCaseNote: addSupportCaseNote,
+        listSupportCaseReplies: listSupportCaseReplies,
+        createSupportCaseReply: createSupportCaseReply,
         assignSupportCase: assignSupportCase,
         updateSupportCaseStatus: updateSupportCaseStatus,
         updateSupportCasePriority: updateSupportCasePriority

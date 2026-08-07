@@ -41,7 +41,7 @@ insufficient for reliable lookup, idempotency, and reconciliation.
 ## Transaction and RPC contract
 
 Python multi-write sequences are not sufficient. Review/close and conversion
-must be atomic future PostgreSQL RPC operations in an approved migration:
+use atomic PostgreSQL RPC operations from the approved Migration 031 contract:
 
 - `convert_tenant_support_request(...)`;
 - `set_tenant_support_request_status(...)`.
@@ -53,7 +53,7 @@ according to an approved decision.
 
 ## Review and close workflow
 
-The future endpoint is:
+The implemented endpoint is:
 
 ```text
 PATCH /api/platform-admin/tenant-support-requests/<request_id>
@@ -77,13 +77,13 @@ request identity from the active platform-admin context and stored request.
 
 ## Conversion workflow
 
-The future endpoint is:
+The implemented endpoint is:
 
 ```text
 POST /api/platform-admin/tenant-support-requests/<request_id>/convert
 ```
 
-Phase 1 conversion accepts an empty body. The server derives company ID,
+Conversion accepts an empty body. The server derives company ID,
 requester ID, title, redacted description, and the active platform-admin actor
 from trusted stored/authenticated context. It then atomically:
 
@@ -147,6 +147,11 @@ This phase excludes customer messaging, tenant replies, email, attachments,
 billing actions, impersonation, exports/charts, direct tenant-user mutation,
 assignment, notes added to `tenant_support_requests`, non-atomic conversion,
 and production use.
+
+Later Phase 3 tenant communication is documented in
+`PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. It adds bounded tenant-visible
+replies only after a request has been converted and keeps generic customer
+messaging, email, and attachments excluded.
 
 ## Approval decisions before staging or production use
 

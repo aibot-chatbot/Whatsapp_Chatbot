@@ -35,7 +35,7 @@ existing attention-company data without adding a route or page.
 All proposed Phase 2 alert types remain deferred under the design contract in
 `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 
-At the current working tree, localhost manual verification recorded on 2026-08-03
+In the current local implementation, localhost manual verification recorded on 2026-08-03
 passed for the complete twelve-route read-only stack: dashboard, operational
 alerts, company directory/detail, subscription summary/history, AI-credit usage
 and transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
@@ -81,7 +81,8 @@ verified in the main shared testing Supabase with fake/team data; this is not
 staging or production verification. The feature adds bounded internal case create/list/detail,
 redacted notes, status/priority updates, append-only case events, and audited
 writes. It is separate from tenant `support.html` and does not add customer
-messaging, impersonation, billing actions, exports, charts, or production use.
+messaging, impersonation, billing actions, exports, charts, or production use
+in Phase 2.
 Platform-admin Support Case Operations Phase 2 is implemented and verified only
 in the main shared testing Supabase with fake/team data. It adds
 assignment/reassignment/unassignment to active platform-admin mappings,
@@ -92,9 +93,19 @@ RLS/policies, service-role-only RPC execution, assignment/status/priority/note
 mutations, no-op and invalid-transition rejection without extra event/audit
 rows, and close/reopen `closed_at` behavior. This is not staging or production
 verification.
-SQL execution now requires project/ref/environment preflight evidence recorded
-in the platform-admin access lifecycle. Future SQL is limited to confirmed
-local/dev or approved staging targets; production remains blocked.
+Platform-admin Tenant Communication Phase 3 and Migration 033 are verified only
+in the main shared-testing Supabase with fake/team data. It adds tenant-visible reply creation/listing for converted
+support cases, tenant request history/detail with public replies, safe
+`tenant_reply_created` activity, safe reply audit metadata, and a pending
+`in_app` support notification outbox. This is not staging verification and does
+not establish production readiness. Existing billing
+notification and email helpers were not reused for support delivery, and
+attachments are deferred because the available media attachment subsystem is a
+public bot-media mechanism rather than private support storage.
+SQL execution requires project/ref/environment preflight evidence recorded in
+the platform-admin access lifecycle. Future SQL is limited to confirmed
+local/dev, the approved main shared-testing environment with fake/team data, or
+approved staging targets. Production remains blocked.
 Tenant support submission is governed by
 `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`. The backend endpoint is
 implemented locally and the bounded frontend form is implemented locally.
@@ -130,9 +141,12 @@ idempotency, raw-error, reconciliation, retry, activation, manual-credit,
 export/download, chart, and write behavior.
 Authenticated tenant pages now use a shared top-right account menu for Profile,
 Support, and Logout. Support now includes the local backend submission endpoint
-and a bounded frontend request form. Migration 030 and local browser/API E2E
+and a bounded frontend request form plus local request history/detail with
+tenant-visible replies. Migration 030 and local browser/API E2E
 verification are recorded only in the main shared testing Supabase with
-fake/team data; this is not staging verification or production readiness. Active
+fake/team data; Phase 3 and Migration 033 are verified only in the main
+shared-testing Supabase with fake/team data and are not staging verification or
+production readiness. Active
 platform admins can discover a Platform Administration link only after a lazy live
 `/api/platform-admin/me` check. This menu visibility does not replace the
 platform page's fresh authorization gate.

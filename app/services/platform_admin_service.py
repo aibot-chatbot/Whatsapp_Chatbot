@@ -106,6 +106,20 @@ def _handle_support_case_rpc_error(exc, *, operation):
         )
     if "invalid internal note" in text:
         _validation("invalid_redacted_note", "redacted_note is invalid.")
+    if "invalid tenant-visible reply" in text:
+        _validation("invalid_redacted_body", "redacted_body is invalid.")
+    if "converted tenant support request not found" in text:
+        raise PlatformAdminServiceError(
+            404,
+            "tenant_support_request_not_found",
+            "Converted tenant support request not found.",
+        )
+    if "tenant support request and case company mismatch" in text:
+        raise PlatformAdminServiceError(
+            409,
+            "support_case_linkage_invalid",
+            "Support case linkage is invalid.",
+        )
     logger.error("Platform support-case RPC failed")
     _data_unavailable()
 
@@ -230,6 +244,11 @@ SAFE_AUDIT_METADATA_KEYS = {
     "old_assigned_platform_admin_user_id",
     "new_assigned_platform_admin_user_id",
     "category_filter_applied",
+    "case_id",
+    "request_id",
+    "reply_id",
+    "notification_channel",
+    "delivery_status",
 }
 
 
@@ -272,11 +291,17 @@ SUPPORT_CASE_TEXT_LIMITS = {
     "title": 160,
     "redacted_summary": 2000,
     "redacted_note": 2000,
+    "redacted_body": 4000,
 }
 SUPPORT_CASE_FORBIDDEN_TERMS = (
     "authorization", "cookie", "credential", "password", "secret", "token",
     "provider payload", "payment reference", "payment_reference", "checkout",
     "gateway", "impersonat", "customer message", "conversation content",
+)
+SUPPORT_REPLY_FORBIDDEN_TERMS = (
+    "authorization", "cookie", "credential", "password", "secret", "token",
+    "provider payload", "payment reference", "payment_reference", "checkout",
+    "gateway", "impersonat",
 )
 
 
@@ -296,6 +321,23 @@ def _support_case_text(value, *, field_name, required=True):
         _validation(
             f"invalid_{field_name}",
             f"{field_name} contains content outside the redacted support-case boundary.",
+        )
+    return normalized
+
+
+def _support_reply_text(value):
+    if not isinstance(value, str):
+        _validation("invalid_redacted_body", "redacted_body must be text.")
+    normalized = value.strip()
+    if not normalized:
+        _validation("invalid_redacted_body", "redacted_body is required.")
+    if len(normalized) > SUPPORT_CASE_TEXT_LIMITS["redacted_body"]:
+        _validation("invalid_redacted_body", "redacted_body is too long.")
+    lowered = normalized.casefold()
+    if any(term in lowered for term in SUPPORT_REPLY_FORBIDDEN_TERMS):
+        _validation(
+            "invalid_redacted_body",
+            "redacted_body contains unsupported sensitive content.",
         )
     return normalized
 
@@ -370,8 +412,40 @@ def _safe_support_case_event(row):
         "new_priority": row.get("new_priority"),
         "old_assigned_platform_admin_user_id": row.get("old_assigned_platform_admin_user_id"),
         "new_assigned_platform_admin_user_id": row.get("new_assigned_platform_admin_user_id"),
+        "tenant_support_reply_id": row.get("tenant_support_reply_id"),
         "redacted_note": row.get("redacted_note"),
         "created_at": row.get("created_at"),
+    }
+
+
+def _safe_support_case_reply(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "reply_id": row.get("id"),
+        "request_id": row.get("request_id"),
+        "case_id": row.get("platform_support_case_id"),
+        "company_id": row.get("company_id"),
+        "author_type": row.get("author_type"),
+        "redacted_body": row.get("redacted_body"),
+        "visibility_status": row.get("visibility_status"),
+        "created_at": row.get("created_at"),
+    }
+
+
+def _safe_support_reply_notification(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "notification_id": row.get("id"),
+        "reply_id": row.get("reply_id"),
+        "channel": row.get("channel"),
+        "status": row.get("status"),
+        "attempt_count": row.get("attempt_count"),
+        "last_attempt_at": row.get("last_attempt_at"),
+        "delivered_at": row.get("delivered_at"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
     }
 
 
@@ -506,6 +580,91 @@ def get_support_case(case_id, actor_id):
         "outcome": "success", "endpoint": endpoint, "http_method": "GET",
     })
     return result
+
+
+def list_support_case_replies(case_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_reply_list"]
+    case = _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.reply.list", endpoint
+    )
+    try:
+        source_request = (
+            tenant_support_repository
+            .get_tenant_support_request_by_converted_case_id_for_platform_admin(case_id)
+        )
+        replies = platform_support_case_repository.list_support_case_replies_for_platform_admin(case_id)
+        notifications = (
+            platform_support_case_repository
+            .list_support_case_reply_notifications_for_platform_admin(case_id)
+        )
+    except Exception:
+        logger.error("Platform support-case reply list failed")
+        _data_unavailable()
+    metadata = {
+        "outcome": "success",
+        "endpoint": endpoint,
+        "http_method": "GET",
+        "returned_count": len(replies),
+        "company_id": case.get("company_id"),
+    }
+    if source_request:
+        metadata["request_id"] = source_request.get("id")
+    _audit(
+        actor_id,
+        "platform_admin.support_case.reply.list",
+        "platform_support_cases",
+        str(case_id),
+        metadata,
+    )
+    return {
+        "case": _safe_support_case_row(case),
+        "source_tenant_request": (
+            _safe_tenant_support_request_row(source_request)
+            if source_request else None
+        ),
+        "replies": [_safe_support_case_reply(reply) for reply in replies],
+        "notifications": [
+            _safe_support_reply_notification(notification)
+            for notification in notifications
+        ],
+    }
+
+
+def create_support_case_reply(case_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    _positive_id(case_id, "invalid_case_id")
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be an object.")
+    if set(payload) != {"redacted_body"}:
+        _validation("invalid_request", "Only redacted_body may be submitted.")
+    body = _support_reply_text(payload.get("redacted_body"))
+    _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.read",
+        SUPPORT_CASE_ENDPOINTS["support_case_read"],
+    )
+    try:
+        result = platform_support_case_repository.create_support_case_reply_for_platform_admin(
+            case_id, actor_id, body
+        )
+    except ValueError:
+        _validation("invalid_redacted_body", "redacted_body is invalid.")
+    except Exception as exc:
+        _handle_support_case_rpc_error(exc, operation="reply")
+    try:
+        company = platform_company_repository.get_company_for_platform_admin(
+            result["case"].get("company_id")
+        )
+    except Exception:
+        logger.error("Platform support-case reply response refresh failed")
+        _data_unavailable()
+    return {
+        "case": _safe_support_case_row(result["case"], company),
+        "event": _safe_support_case_event(result["event"]),
+        "reply": _safe_support_case_reply(result.get("reply")),
+        "notification": _safe_support_reply_notification(result.get("notification")),
+        "status_transitions": _safe_support_case_transition_options(result["case"].get("status")),
+    }
 
 
 def create_support_case(payload, actor_id):

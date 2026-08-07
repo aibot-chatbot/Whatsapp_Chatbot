@@ -22,7 +22,9 @@ class PlatformAdminSupportWorkflowContractTests(unittest.TestCase):
             "No-op transitions are rejected",
             "normal` remains the safe default",
             "no SLA",
-            "does not send tenant replies",
+            "Tenant Communication Phase 3",
+            "Migration 033 are applied and",
+            "verified only in the main shared-testing Supabase with fake/team data",
             "No staging or production readiness is claimed",
         ]:
             with self.subTest(phrase=phrase):
@@ -47,6 +49,8 @@ class PlatformAdminSupportWorkflowContractTests(unittest.TestCase):
     def test_http_rpc_and_manual_verification_contract_are_present(self):
         for phrase in [
             "GET /api/platform-admin/support-case-assignees",
+            "GET /api/platform-admin/support-cases/<case_id>/replies",
+            "POST /api/platform-admin/support-cases/<case_id>/replies",
             "PATCH /api/platform-admin/support-cases/<case_id>/assignment",
             "PATCH /api/platform-admin/support-cases/<case_id>/status",
             "PATCH /api/platform-admin/support-cases/<case_id>/priority",
@@ -60,6 +64,11 @@ class PlatformAdminSupportWorkflowContractTests(unittest.TestCase):
             "Manual Schema Inspection SQL",
             "Manual Verification SQL",
             "Expected results",
+            "create_platform_support_case_reply",
+            "tenant_support_replies",
+            "tenant_support_reply_notifications",
+            "platform_support_case_events(tenant_support_reply_id, case_id)",
+            "tenant_support_replies(id, platform_support_case_id)",
         ]:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase.lower(), self.normalized)
@@ -69,6 +78,11 @@ class PlatformAdminSupportWorkflowContractTests(unittest.TestCase):
             "Support Cases Phase 1",
             "fake/team data",
             "Main Shared-testing Verification",
+            "Migration 033 was applied successfully only in the main shared-testing Supabase",
+            "reply `UPDATE`",
+            "notification ownership-field update",
+            "platform_admin.support_case.reply.create",
+            "safe linkage and delivery metadata",
             "Duplicate assignment was rejected with no event or audit row",
             "Seven matching Phase 2 mutation audit events exist",
             "Internal note content was not duplicated into audit metadata",

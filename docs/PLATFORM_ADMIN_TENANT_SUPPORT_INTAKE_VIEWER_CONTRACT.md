@@ -46,6 +46,13 @@ The viewer is list/detail only and adds no `POST`, `PATCH`, `PUT`, or `DELETE`
 route. It provides no status update, assignment, conversion, notes, customer
 reply, email, attachment, billing action, impersonation, export, or chart.
 
+Later review/conversion functionality was added under
+`PLATFORM_ADMIN_TENANT_SUPPORT_CONVERSION_CONTRACT.md`. Later tenant
+communication is documented in `PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
+It adds bounded tenant-visible replies for converted support cases only and
+does not turn the intake viewer endpoints into a generic customer messaging
+surface.
+
 ## Safe list projection
 
 The list may return only:
@@ -98,8 +105,10 @@ successful protected response.
 The implemented viewer has a separate section inside
 `platform-admin-support.html` labeled **Tenant-submitted support requests**.
 A validated `company_id` links to the existing company investigation page. A
-safe detail panel displays approved fields as text only. No mutation controls
-are permitted.
+safe detail panel displays approved fields as text only. The historical
+Phase 1 viewer endpoints remain read-only; the current combined Support
+Workspace also contains separate, controlled support-case operations and
+tenant-visible reply controls documented in their own contracts.
 
 ## Approval decisions before staging or production use
 

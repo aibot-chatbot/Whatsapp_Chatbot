@@ -9,6 +9,9 @@ REQUEST_FIELDS = (
 )
 REQUEST_DETAIL_FIELDS = REQUEST_FIELDS + ",title,redacted_description"
 EVENT_FIELDS = "event_type,actor_type,created_at"
+TENANT_REPLY_FIELDS = (
+    "id,request_id,company_id,author_type,redacted_body,visibility_status,created_at"
+)
 ALLOWED_CATEGORIES = {
     "technical", "account", "chatbot", "integration", "billing_question",
     "ai_credits", "other",
@@ -97,6 +100,56 @@ def get_tenant_support_request_by_converted_case_id_for_platform_admin(case_id):
     )
     rows = response.data or []
     return rows[0] if rows else None
+
+
+def list_tenant_support_requests_for_tenant(*, company_id, requester_user_id, limit, offset):
+    _positive_id(company_id, "company_id")
+    _positive_id(requester_user_id, "requester_user_id")
+    _validate_page(limit, offset)
+    response = (
+        supabase.table("tenant_support_requests")
+        .select(REQUEST_FIELDS, count="exact")
+        .eq("company_id", company_id)
+        .eq("requester_user_id", requester_user_id)
+        .order("created_at", desc=True)
+        .order("id", desc=True)
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
+    return response.data or [], int(response.count or 0)
+
+
+def get_tenant_support_request_for_tenant(request_id, *, company_id, requester_user_id):
+    _positive_id(request_id, "request_id")
+    _positive_id(company_id, "company_id")
+    _positive_id(requester_user_id, "requester_user_id")
+    response = (
+        supabase.table("tenant_support_requests")
+        .select(REQUEST_DETAIL_FIELDS)
+        .eq("id", request_id)
+        .eq("company_id", company_id)
+        .eq("requester_user_id", requester_user_id)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    return rows[0] if rows else None
+
+
+def list_tenant_support_replies_for_tenant(request_id, *, company_id):
+    _positive_id(request_id, "request_id")
+    _positive_id(company_id, "company_id")
+    response = (
+        supabase.table("tenant_support_replies")
+        .select(TENANT_REPLY_FIELDS)
+        .eq("request_id", request_id)
+        .eq("company_id", company_id)
+        .eq("visibility_status", "visible")
+        .order("created_at", desc=False)
+        .order("id", desc=False)
+        .execute()
+    )
+    return response.data or []
 
 
 def list_tenant_support_request_events_for_platform_admin(request_id):
