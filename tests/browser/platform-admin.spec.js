@@ -97,6 +97,29 @@ const supportCaseAssignees = {
   assignees: [{ id: 7001, user_id: 9001, is_active: true }]
 };
 
+const supportCaseReplies = {
+  case: supportCase,
+  source_tenant_request: { request_id: 31, company_id: 42, status: "converted" },
+  replies: [{
+    reply_id: 44,
+    request_id: 31,
+    case_id: 9,
+    company_id: 42,
+    author_type: "platform_admin",
+    redacted_body: "Visible update <img src=x onerror=window.__replyXss=true>",
+    visibility_status: "visible",
+    created_at: "2026-07-30T00:03:00+00:00"
+  }],
+  notifications: [{
+    notification_id: 50,
+    reply_id: 44,
+    channel: "in_app",
+    status: "pending",
+    attempt_count: 0,
+    created_at: "2026-07-30T00:03:00+00:00"
+  }]
+};
+
 const tenantSupportRequests = {
   requests: [],
   pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false },
@@ -544,6 +567,7 @@ function defaultHandler({ url }) {
   if (url.pathname === "/api/platform-admin/support-case-assignees") return success(supportCaseAssignees);
   if (url.pathname === "/api/platform-admin/support-cases") return success(supportCases);
   if (url.pathname === "/api/platform-admin/support-cases/9") return success(supportCaseDetail);
+  if (url.pathname === "/api/platform-admin/support-cases/9/replies") return success(supportCaseReplies);
   if (url.pathname === "/api/platform-admin/tenant-support-requests") return success(tenantSupportRequests);
   if (url.pathname === "/api/platform-admin/companies") {
     if (url.searchParams.get("status") === "active") {
@@ -1004,12 +1028,71 @@ test.describe("platform-admin support workspace", () => {
     await page.getByRole("button", { name: "Update priority" }).click();
     await page.getByLabel("Redacted internal note").fill("Follow-up note");
     await page.getByRole("button", { name: "Add internal note" }).click();
+    await expect(page.getByRole("heading", { name: "Tenant-visible conversation" })).toBeVisible();
+    await expect(page.getByText("Visible update <img src=x onerror=window.__replyXss=true>")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send reply to tenant" })).toBeVisible();
 
-    await expect.poll(() => page.evaluate(() => window.__caseXss || window.__noteXss || false)).toBe(false);
+    await expect.poll(() => page.evaluate(() => window.__caseXss || window.__noteXss || window.__replyXss || false)).toBe(false);
     expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/assignment"))).toBe(true);
     expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/status"))).toBe(true);
     expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/priority"))).toBe(true);
     expect(calls.some(call => call.method === "POST" && call.path.endsWith("/notes"))).toBe(true);
+  });
+
+  test("reply composer prevents duplicate submits and recovers after refresh failure", async ({ page }) => {
+    let releaseReply;
+    let replyRequests = 0;
+    let failRefresh = false;
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-support.html", async ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/support-cases/9/replies" && request.method() === "POST") {
+        replyRequests += 1;
+        await new Promise(resolve => {
+          releaseReply = resolve;
+        });
+        failRefresh = true;
+        return success({
+          case: supportCase,
+          event: { event_id: 4, case_id: 9, event_type: "tenant_reply_created" },
+          reply: {
+            reply_id: 45,
+            request_id: 31,
+            case_id: 9,
+            company_id: 42,
+            author_type: "platform_admin",
+            redacted_body: "Safe tenant update",
+            visibility_status: "visible",
+            created_at: "2026-07-30T00:05:00+00:00"
+          },
+          notification: {
+            notification_id: 51,
+            reply_id: 45,
+            channel: "in_app",
+            status: "pending",
+            attempt_count: 0
+          }
+        });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9" && failRefresh) {
+        return failure(503, "temporarily_unavailable", "Temporarily unavailable.");
+      }
+      return defaultHandler({ request, url });
+    });
+
+    await page.getByRole("button", { name: "Open case" }).click();
+    await page.getByLabel("Tenant-visible redacted reply").fill("Safe tenant update");
+    const sendButton = page.getByRole("button", { name: "Send reply to tenant" });
+    await sendButton.click();
+    await expect(sendButton).toBeDisabled();
+    await sendButton.click({ force: true });
+    expect(replyRequests).toBe(1);
+    releaseReply();
+
+    await expect(sendButton).toBeEnabled();
+    await page.getByLabel("Tenant-visible redacted reply").fill("Another safe update");
+    await expect(sendButton).toBeEnabled();
+    await expect(page.getByText("raw")).toHaveCount(0);
+    await expect(page.getByText("stack")).toHaveCount(0);
   });
 
   test("replaced support lookup requests suppress late stale results", async ({ page }) => {

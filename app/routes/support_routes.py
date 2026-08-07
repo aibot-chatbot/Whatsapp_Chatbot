@@ -35,3 +35,40 @@ def submit_support_request():
             "code": exc.code,
             "message": exc.message,
         }), exc.status_code
+
+
+@support_bp.get("/requests")
+@token_required
+def list_support_requests():
+    try:
+        result = tenant_support_service.list_tenant_support_requests(
+            company_id=g.company_id,
+            requester_user_id=g.user_id,
+            limit=request.args.get("limit"),
+            offset=request.args.get("offset"),
+        )
+        return jsonify({"status": "success", "data": result}), 200
+    except tenant_support_service.TenantSupportServiceError as exc:
+        return jsonify({
+            "status": "error",
+            "code": exc.code,
+            "message": exc.message,
+        }), exc.status_code
+
+
+@support_bp.get("/requests/<int:request_id>")
+@token_required
+def support_request_detail(request_id):
+    try:
+        result = tenant_support_service.get_tenant_support_request(
+            request_id,
+            company_id=g.company_id,
+            requester_user_id=g.user_id,
+        )
+        return jsonify({"status": "success", "data": result}), 200
+    except tenant_support_service.TenantSupportServiceError as exc:
+        return jsonify({
+            "status": "error",
+            "code": exc.code,
+            "message": exc.message,
+        }), exc.status_code

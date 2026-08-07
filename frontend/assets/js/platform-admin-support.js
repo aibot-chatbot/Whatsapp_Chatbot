@@ -58,7 +58,11 @@
             note_added: "Internal note",
             status_changed: "Status changed",
             priority_changed: "Priority changed",
-            assignment_changed: "Assignment changed"
+            assignment_changed: "Assignment changed",
+            tenant_reply_created: "Tenant-visible reply",
+            pending: "Pending",
+            sent: "Sent",
+            failed: "Failed"
         };
         return labels[value] || safeValue(value);
     }
@@ -332,6 +336,88 @@
         return { field: field, input: select };
     }
 
+    function renderPublicReplySection(current, data) {
+        const section = panel(
+            "Tenant-visible conversation",
+            "Replies in this section are visible to the tenant. Internal notes stay separate."
+        );
+        const sourceRequest = data && data.source_tenant_request;
+        const replies = data && Array.isArray(data.public_replies) ? data.public_replies : [];
+        const notifications = data && Array.isArray(data.reply_notifications)
+            ? data.reply_notifications
+            : [];
+        if (!sourceRequest) {
+            section.append(ui.element("p", "platform-empty", "Tenant replies require a converted tenant support request."));
+            return section;
+        }
+        section.append(cardLine("Conversation request", "Request #" + String(sourceRequest.request_id)));
+        if (!replies.length) {
+            section.append(ui.element("p", "platform-empty", "No tenant-visible replies have been sent."));
+        } else {
+            section.append(table(
+                ["Author", "Reply", "Notification", "Created"],
+                replies.map(function (reply) {
+                    const notification = notifications.find(function (item) {
+                        return item.reply_id === reply.reply_id && item.channel === "in_app";
+                    });
+                    return [
+                        "Platform admin",
+                        reply.redacted_body,
+                        notification ? labelFor(notification.status) : "Pending",
+                        ui.formatDate(reply.created_at)
+                    ];
+                }),
+                "Tenant-visible support replies"
+            ));
+        }
+
+        const replyForm = ui.element("form", "platform-support-search");
+        const replyField = ui.element("div", "platform-field");
+        const replyLabel = ui.element("label", "", "Tenant-visible redacted reply");
+        replyLabel.htmlFor = "platform-support-case-public-reply";
+        const replyInput = ui.element("textarea", "platform-input");
+        replyInput.id = "platform-support-case-public-reply";
+        replyInput.maxLength = 4000;
+        replyInput.required = true;
+        const warning = ui.element(
+            "p",
+            "platform-note",
+            "This reply will be visible to the tenant. Do not include passwords, tokens, provider payloads, payment details, or private customer conversation content."
+        );
+        replyField.append(replyLabel, replyInput, warning);
+        const replyButton = ui.element("button", "platform-button platform-button-primary", "Send reply to tenant");
+        replyButton.type = "submit";
+        replyForm.append(replyField, replyButton);
+        replyForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            const body = replyInput.value.trim();
+            if (!body) {
+                if (state.caseError) state.caseError.textContent = "Tenant-visible reply cannot be empty.";
+                return;
+            }
+            if (!window.confirm("Send this reply to the tenant?")) return;
+            replyButton.disabled = true;
+            try {
+                await ui.runRequest("support-case-public-reply", function (signal) {
+                    return PlatformAdminApi.createSupportCaseReply(current.id, {
+                        redacted_body: body
+                    }, { signal: signal });
+                });
+                replyInput.value = "";
+                await openSupportCase(current.id, { preserveOnFailure: true });
+                await loadSupportCases();
+            } catch (error) {
+                if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The tenant-visible reply could not be sent.";
+            } finally {
+                if (replyButton.isConnected) {
+                    replyButton.disabled = false;
+                }
+            }
+        });
+        section.append(replyForm);
+        return section;
+    }
+
     function renderCaseDetail(data) {
         if (!state.caseDetail) return;
         const current = data && data.case ? data.case : null;
@@ -341,7 +427,7 @@
         }
         const section = panel(
             "Internal support case detail",
-            "Internal platform notes only. This view contains no customer conversation or external communication controls."
+            "Tenant investigation with controlled internal case operations. Internal notes and tenant-visible replies are separate."
         );
         section.append(
             ui.element("h3", "", safeValue(current.title)),
@@ -372,6 +458,10 @@
                         assigneeLabel(event.new_assigned_platform_admin_user_id);
                 } else if (event.event_type === "created") {
                     change = labelFor(event.new_status) + " / " + labelFor(event.new_priority);
+                } else if (event.event_type === "tenant_reply_created") {
+                    change = event.tenant_support_reply_id
+                        ? "Reply #" + String(event.tenant_support_reply_id)
+                        : "";
                 }
                 return [labelFor(event.event_type), event.actor_platform_admin_user_id,
                     change, event.redacted_note, ui.formatDate(event.created_at)];
@@ -506,16 +596,37 @@
             }
         });
         section.append(noteForm);
-        state.caseDetail.replaceChildren(section);
+        state.caseDetail.replaceChildren(section, renderPublicReplySection(current, data));
     }
 
-    async function openSupportCase(caseId) {
+    async function openSupportCase(caseId, options) {
+        const config = options || {};
         try {
             const data = await ui.runRequest("support-case-detail", function (signal) {
                 return PlatformAdminApi.getSupportCase(caseId, { signal: signal });
             });
+            try {
+                const replyData = await ui.runRequest("support-case-public-replies", function (signal) {
+                    return PlatformAdminApi.listSupportCaseReplies(caseId, { signal: signal });
+                });
+                data.public_replies = replyData && Array.isArray(replyData.replies) ? replyData.replies : [];
+                data.reply_notifications = replyData && Array.isArray(replyData.notifications) ? replyData.notifications : [];
+                if (!data.source_tenant_request && replyData && replyData.source_tenant_request) {
+                    data.source_tenant_request = replyData.source_tenant_request;
+                }
+            } catch (error) {
+                data.public_replies = [];
+                data.reply_notifications = [];
+                if (!ui.handleError(error) && state.caseError) {
+                    state.caseError.textContent = "Tenant-visible replies could not be loaded.";
+                }
+            }
             renderCaseDetail(data);
         } catch (error) {
+            if (config.preserveOnFailure) {
+                if (state.caseError) state.caseError.textContent = "The support case could not be refreshed.";
+                return;
+            }
             if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The support case could not be loaded.";
         }
     }
@@ -729,7 +840,7 @@
     function renderTenantSupportRequests() {
         const section = panel(
             "Tenant-submitted support requests",
-            "Read-only intake review. Approved review, close, and conversion controls are available after Migration 031 is applied. Assignment, replies, billing, exports, charts, messaging, email, attachments, and impersonation remain excluded."
+            "Tenant investigation with controlled internal case operations. Approved review, close, and conversion controls remain bounded. Tenant-visible replies are bounded platform-admin workflows. Billing, exports, charts, email, attachments, and impersonation remain excluded."
         );
         state.tenantRequestError = ui.element("p", "platform-inline-error");
         state.tenantRequestError.setAttribute("aria-live", "polite");
@@ -745,7 +856,7 @@
     function renderSupportCases() {
         const section = panel(
             "Internal support cases",
-            "Localhost-only internal tracking for redacted investigation notes. Cases are not customer-facing."
+            "Internal tracking for redacted investigation notes and controlled tenant-visible replies. Internal notes are not customer-facing."
         );
         state.caseError = ui.element("p", "platform-inline-error");
         state.caseError.setAttribute("aria-live", "polite");
@@ -795,7 +906,7 @@
         const titleGroup = ui.element("div");
         titleGroup.append(
             ui.element("h1", "", "Support Workspace"),
-            ui.element("p", "", "Tenant investigation with controlled internal case operations. This workspace does not message tenants or perform billing, notification, export, impersonation, or SLA actions.")
+            ui.element("p", "", "Tenant investigation with controlled internal case operations. Tenant replies are explicit support-case writes; billing, export, impersonation, attachment, email, and SLA actions remain excluded.")
         );
         header.append(titleGroup, renderQuickNavigation());
         root.replaceChildren(

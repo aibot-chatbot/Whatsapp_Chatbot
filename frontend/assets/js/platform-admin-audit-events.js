@@ -23,7 +23,9 @@
         "platform_admin.support_case.assign",
         "platform_admin.support_case.unassign",
         "platform_admin.support_case.status.update",
-        "platform_admin.support_case.priority.update"
+        "platform_admin.support_case.priority.update",
+        "platform_admin.support_case.reply.list",
+        "platform_admin.support_case.reply.create"
     ];
     const RESOURCE_TYPES = [
         "platform_admin",
@@ -38,7 +40,8 @@
         "company_chatbots",
         "platform_admin_audit_events",
         "platform_support_cases",
-        "platform_support_case_events"
+        "platform_support_case_events",
+        "tenant_support_replies"
     ];
     const METADATA_KEYS = [
         "outcome",
@@ -73,7 +76,12 @@
         "old_priority",
         "new_priority",
         "old_assigned_platform_admin_user_id",
-        "new_assigned_platform_admin_user_id"
+        "new_assigned_platform_admin_user_id",
+        "case_id",
+        "request_id",
+        "reply_id",
+        "notification_channel",
+        "delivery_status"
     ];
 
     const state = {

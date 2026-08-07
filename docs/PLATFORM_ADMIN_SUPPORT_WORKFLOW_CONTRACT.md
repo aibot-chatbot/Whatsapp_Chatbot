@@ -7,14 +7,19 @@ Supabase with fake/team data. Platform-admin Support Case Operations Phase 2 is
 implemented and verified only in the main shared-testing Supabase with
 fake/team data. Migration 032 executed successfully there.
 No staging or production readiness is claimed for Phase 2.
+Platform-admin Tenant Communication Phase 3 and Migration 033 are applied and
+verified only in the main shared-testing Supabase with fake/team data.
+This is not staging verification and does not establish production readiness.
 Production remains blocked.
 
 The workspace is internal to authorized platform administrators. It supports
 case listing/detail, redacted case creation, assignment, status transitions,
-priority updates, internal notes, and a server-provided activity timeline. It
-does not send tenant replies, email, notifications, attachments, billing
-actions, impersonation, exports, analytics, SLA timers, escalation automation,
-bulk actions, or tenant suspension controls.
+priority updates, internal notes, tenant-visible replies for converted tenant
+requests, pending in-app support notification outbox records, and a
+server-provided activity timeline. It does not send external email, expose
+internal notes to tenants, support attachments, billing actions, impersonation,
+exports, analytics, SLA timers, escalation automation, bulk actions, or tenant
+suspension controls.
 Billing actions remain excluded.
 
 ## Lifecycle
@@ -85,7 +90,48 @@ existing conversion mapping is present.
 The browser renders the timeline from server facts only. Relevant events
 include case creation, conversion-created case events, assignment changes,
 priority changes, status changes, reopening, resolution, closure, and internal
-note creation.
+note creation. Phase 3 adds `tenant_reply_created` case events linked to the
+tenant-visible reply ID. Reply text is stored in `tenant_support_replies`, not
+in internal-note fields or audit metadata.
+
+## Tenant-visible Replies
+
+Phase 3 introduces a dedicated tenant-visible reply model:
+
+- `tenant_support_replies` stores append-only public support replies.
+- Replies are anchored to both `tenant_support_requests.id` and
+  `platform_support_cases.id`.
+- The authoritative linkage is the existing
+  `tenant_support_requests.converted_platform_support_case_id` mapping.
+- Platform admins may create replies only for internal cases converted from a
+  tenant support request. Manually created internal cases without that mapping
+  cannot receive tenant-visible replies in Phase 3.
+- Company ID, request ID, case ID, and platform-admin mapping ID are derived by
+  the trusted backend/RPC, never accepted from the browser.
+- Reply bodies are trimmed, redacted text with a 4000 character maximum.
+- Tenant-facing routes return safe public reply fields only: reply ID, request
+  ID, author type, redacted body, and created timestamp.
+
+Internal notes remain in `platform_support_case_events.redacted_note` and are
+never serialized through tenant support routes or templates.
+
+## Notification and Attachment Boundary
+
+Phase 3 creates one pending `in_app` support notification/outbox row for each
+tenant-visible reply inside the same RPC transaction. This is durable delivery
+tracking, not proof of delivered email or browser notification. The outbox
+tracks `pending`, `sent`, and `failed` states, retry count, safe failure code,
+and timestamps without storing provider payloads or reply bodies in generic
+metadata.
+
+No approved support email provider abstraction exists in this repository.
+External email delivery is deferred. The existing email helpers are
+provider-coupled account/invite/system notification functions and are not used
+for support replies.
+
+Attachments are deferred. The existing media attachment subsystem is a
+public-URL bot media library for chatbot/broadcast delivery and is not suitable
+for private support-case files.
 
 ## HTTP Surface
 
@@ -97,8 +143,20 @@ The Phase 2 platform-admin endpoints are:
 - `PATCH /api/platform-admin/support-cases/<case_id>/priority`
 - `POST /api/platform-admin/support-cases/<case_id>/notes`
 
-All routes are protected by the existing platform-admin blueprint guard. Request
-bodies are strict and unknown fields are rejected.
+The Phase 3 platform-admin endpoints are:
+
+- `GET /api/platform-admin/support-cases/<case_id>/replies`
+- `POST /api/platform-admin/support-cases/<case_id>/replies`
+
+The Phase 3 tenant endpoints are:
+
+- `GET /api/support/requests`
+- `GET /api/support/requests/<request_id>`
+
+Platform-admin routes are protected by the existing platform-admin blueprint
+guard. Tenant support routes use `token_required` plus refreshed
+database-backed company/requester context and do not trust browser-supplied
+company IDs. Request bodies are strict and unknown fields are rejected.
 
 ## Database and RPC Contract
 
@@ -135,6 +193,179 @@ policies are approved for these tables.
 Migration 032 must not be applied automatically to any other environment.
 Verification requires actual Supabase execution output from the named
 environment.
+
+Migration 033 adds Phase 3 support communication objects and one trusted
+mutation RPC:
+
+- `tenant_support_replies`
+- `tenant_support_reply_notifications`
+- `platform_support_case_events.tenant_support_reply_id`
+- `create_platform_support_case_reply(...)`
+
+`create_platform_support_case_reply(...)` validates the active platform-admin
+actor through the locked Phase 2 mapping helper, locks the internal case and
+converted tenant request rows, verifies company linkage, inserts one
+tenant-visible reply, updates the case timestamp, appends one
+`tenant_reply_created` case event, inserts one safe platform-admin audit event,
+and creates one pending `in_app` notification/outbox row atomically. Any event,
+audit, or outbox insertion failure rolls back the reply and case update.
+
+Migration 033 also enforces reply and outbox linkage at the database layer.
+Every tenant-visible reply must match the authoritative converted request tuple
+`tenant_support_requests(id, converted_platform_support_case_id, company_id)`
+and the support case tuple `platform_support_cases(id, company_id)`.
+Notification/outbox rows must match their referenced reply on `reply_id`,
+`request_id`, `platform_support_case_id`, and `company_id`.
+`tenant_reply_created` case events must use the composite
+`platform_support_case_events(tenant_support_reply_id, case_id)` to
+`tenant_support_replies(id, platform_support_case_id)` foreign key, and the
+event consistency check requires a non-null reply ID only for
+`tenant_reply_created` events while requiring it to be null for every other
+case event type.
+
+Tenant-visible replies are append-only. Notification ownership/linkage fields
+are immutable after insertion: `reply_id`, `request_id`,
+`platform_support_case_id`, `company_id`, `channel`, and `idempotency_key`
+cannot be updated. Only delivery fields may change: `status`,
+`attempt_count`, `last_attempt_at`, `delivered_at`, `failure_code`, and
+`updated_at`.
+
+Expected effective privileges after Migration 033:
+
+| Object | Role | Required privileges | Must not have |
+|---|---|---|---|
+| `tenant_support_replies` | `service_role` | `SELECT`, `INSERT` | `UPDATE`, `DELETE`, `TRUNCATE`, `TRIGGER`, `REFERENCES` |
+| `tenant_support_reply_notifications` | `service_role` | `SELECT`, `INSERT`, `UPDATE` | `DELETE`, `TRUNCATE`, `TRIGGER`, `REFERENCES` |
+| reply/outbox identity sequences | `service_role` | `USAGE` | `SELECT`, `UPDATE` |
+| reply/outbox tables and sequences | `anon`, `authenticated` | none | all direct privileges |
+| `create_platform_support_case_reply(...)` | `service_role` | `EXECUTE` | execution by `anon` or `authenticated` |
+
+RLS must be enabled on both new tables, with service-role-only policies. Direct
+browser table mutation remains prohibited.
+
+## Phase 3 Manual Schema Inspection SQL
+
+Run before Migration 033 in any future environment:
+
+```sql
+select table_name
+from information_schema.tables
+where table_schema = 'public'
+  and table_name in (
+    'tenant_support_replies',
+    'tenant_support_reply_notifications',
+    'support_threads',
+    'platform_admin_messages'
+  )
+order by table_name;
+
+select table_name, column_name, data_type, is_nullable, column_default
+from information_schema.columns
+where table_schema = 'public'
+  and table_name in (
+    'tenant_support_requests',
+    'platform_support_cases',
+    'platform_support_case_events',
+    'tenant_support_replies',
+    'tenant_support_reply_notifications'
+  )
+order by table_name, ordinal_position;
+
+select conrelid::regclass::text as table_name,
+       conname,
+       pg_get_constraintdef(oid) as definition
+from pg_constraint
+where conrelid in (
+  'public.tenant_support_requests'::regclass,
+  'public.platform_support_cases'::regclass,
+  'public.platform_support_case_events'::regclass
+)
+order by table_name, conname;
+
+select schemaname, tablename, indexname, indexdef
+from pg_indexes
+where schemaname = 'public'
+  and tablename in (
+    'tenant_support_requests',
+    'platform_support_cases',
+    'platform_support_case_events'
+  )
+order by tablename, indexname;
+
+select p.proname,
+       p.prosecdef as security_definer,
+       p.proconfig,
+       p.proacl
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in (
+    'require_active_platform_admin_mapping',
+    'create_platform_support_case_reply'
+  )
+order by p.proname;
+
+select grantee, table_name, privilege_type
+from information_schema.role_table_grants
+where table_schema = 'public'
+  and table_name in (
+    'tenant_support_replies',
+    'tenant_support_reply_notifications',
+    'platform_support_case_events'
+  )
+  and grantee in ('service_role', 'anon', 'authenticated')
+order by table_name, grantee, privilege_type;
+```
+
+Confirm before execution that `platform_support_case_events_type_check` is the
+Migration 032 definition including `assignment_changed`, that
+`tenant_support_requests_converted_case_fkey` and
+`ux_tenant_support_requests_converted_case` exist, and that no existing
+tenant-visible reply, notification, message, attachment, or support-thread
+model already occupies the names introduced by Migration 033.
+
+## Phase 3 Manual Verification SQL
+
+Run only after applying Migration 033 in an approved fake/team data
+environment:
+
+```sql
+select public.create_platform_support_case_reply(
+  :case_id,
+  :actor_mapping_id,
+  'Safe tenant-visible reply from fake/team verification.'
+);
+
+select id, request_id, platform_support_case_id, company_id, author_type,
+       visibility_status, redacted_body, created_at
+from public.tenant_support_replies
+where platform_support_case_id = :case_id
+order by created_at asc, id asc;
+
+select event_type, actor_platform_admin_user_id, tenant_support_reply_id,
+       redacted_note, created_at
+from public.platform_support_case_events
+where case_id = :case_id
+order by created_at asc, id asc;
+
+select reply_id, channel, status, attempt_count, failure_code, created_at
+from public.tenant_support_reply_notifications
+where platform_support_case_id = :case_id
+order by created_at asc, id asc;
+
+select action, resource_type, resource_id, metadata
+from public.platform_admin_audit_events
+where action = 'platform_admin.support_case.reply.create'
+order by created_at desc, id desc
+limit 5;
+```
+
+Expected results: the RPC returns one reply, refreshed case, one
+`tenant_reply_created` event, and one pending `in_app` notification; tenant
+request and case company IDs match; audit metadata contains safe identifiers
+and notification status only; reply body is absent from audit metadata; invalid
+case IDs, cases without converted tenant requests, inactive actors, empty
+replies, oversized replies, and linkage mismatches fail without partial rows.
 
 ## Manual Schema Inspection SQL
 
@@ -351,3 +582,77 @@ Interpretation: transient/flaky browser timeout, not a clean 47-pass full run.
 The local test evidence above remains local repository verification. The main
 shared-testing evidence is limited to fake/team Supabase data and does not
 establish staging or production readiness.
+
+Local focused tests for Phase 3 were run on August 6, 2026:
+
+```text
+python -m pytest -q tests\test_platform_admin_tenant_communication_migration.py tests\test_platform_admin_support_cases.py tests\test_platform_admin_routes.py tests\test_tenant_support_routes.py tests\test_tenant_support_repository.py tests\test_platform_admin_frontend.py
+112 passed, 137 subtests passed
+```
+
+## Phase 3 Main Shared-testing Verification
+
+Migration 033 was applied successfully only in the main shared-testing Supabase
+with fake/team data. This is not staging verification and does not establish
+production readiness. Staging and production remain blocked.
+
+Structural verification confirmed `tenant_support_replies`,
+`tenant_support_reply_notifications`, and
+`platform_support_case_events.tenant_support_reply_id` exist. RLS is enabled
+and not forced on both Phase 3 tables. Only `service_role` policies exist.
+`tenant_support_replies` grants `service_role` `SELECT` and `INSERT` only.
+`tenant_support_reply_notifications` grants `service_role` `SELECT`, `INSERT`,
+and `UPDATE` only. Reply and notification identity sequences grant
+`service_role` `USAGE` only. `anon` and `authenticated` have no approved direct
+access.
+
+`create_platform_support_case_reply` is owned by `postgres`, is
+`SECURITY INVOKER`, uses `search_path=pg_catalog`, and is executable only by
+`service_role`. The two trigger functions are `SECURITY INVOKER`, use
+`search_path=pg_catalog`, and are not directly executable by application roles.
+
+Database integrity verification confirmed reply request/case/company linkage
+is enforced, notification linkage matches its referenced reply tuple,
+`tenant_reply_created` event linkage uses the composite
+`(tenant_support_reply_id, case_id)` foreign key, and the old weaker
+single-column reply foreign key is absent. `tenant_reply_created` requires a
+non-null reply ID, and all other case event types require a null reply ID.
+Tenant-visible replies are append-only. Notification ownership fields are
+immutable, while approved notification delivery fields remain updatable.
+
+The fake/team success-path verification used tenant request ID 1, platform
+support case ID 2, company ID 1, active platform-admin mapping ID 1, reply ID
+1, event ID 13, notification ID 1, and audit event ID 354. The successful RPC
+created exactly one tenant-visible reply, one `tenant_reply_created` event, one
+pending `in_app` notification, and one platform-admin audit event.
+
+The returned and stored linkage was consistent: request 1, case 2, company 1,
+platform-admin mapping 1, `author_type = platform_admin`,
+`visibility_status = visible`, `channel = in_app`, initial notification
+`status = pending`, and initial `attempt_count = 0`.
+
+Audit verification confirmed action
+`platform_admin.support_case.reply.create`, resource type
+`tenant_support_replies`, resource ID 1, and safe linkage and delivery metadata
+only. The audit event did not include reply body, internal note, provider
+payload, or raw failure detail.
+
+Protection verification confirmed reply `UPDATE` and reply `DELETE` were
+rejected with SQLSTATE `55000`, notification ownership-field update was
+rejected with SQLSTATE `55000`, and an approved delivery update succeeded with
+`status = failed`, `attempt_count = 1`,
+`failure_code = test_delivery_failure`, `last_attempt_at` set, and
+`delivered_at` remaining null.
+
+Atomic rejection verification confirmed invalid case was rejected with
+`P0002 Support case not found`, a case without a converted tenant request was
+rejected with `P0002 Converted tenant support request not found`, an
+invalid/inactive platform-admin mapping was rejected with
+`42501 Active platform-admin mapping is required`, and an empty reply was
+rejected with `22023 Invalid tenant-visible reply`. Final counts remained
+exactly one reply, one notification, one `tenant_reply_created` event, and one
+reply audit event.
+
+The local test evidence above remains local repository verification. The Phase
+3 database evidence above is limited to fake/team data in main shared-testing
+and does not establish staging or production readiness.

@@ -190,6 +190,18 @@ def support_case_detail(case_id):
     return _execute(lambda: platform_admin_service.get_support_case(case_id, _actor_id()))
 
 
+@platform_admin_bp.get("/support-cases/<int:case_id>/replies")
+def support_case_replies(case_id):
+    return _execute(lambda: platform_admin_service.list_support_case_replies(case_id, _actor_id()))
+
+
+@platform_admin_bp.post("/support-cases/<int:case_id>/replies")
+def create_support_case_reply(case_id):
+    return _execute(lambda: platform_admin_service.create_support_case_reply(
+        case_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
 @platform_admin_bp.post("/support-cases/<int:case_id>/notes")
 def create_support_case_note(case_id):
     return _execute(lambda: platform_admin_service.add_support_case_note(

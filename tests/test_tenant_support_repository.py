@@ -47,6 +47,37 @@ class TenantSupportRepositoryTests(unittest.TestCase):
                             redacted_description="Test description",
                         )
 
+    def test_tenant_history_queries_are_scoped_to_company_and_requester(self):
+        query = MagicMock()
+        for method in ("select", "eq", "order", "range"):
+            getattr(query, method).return_value = query
+        query.execute.return_value = MagicMock(data=[{"id": 31}], count=1)
+        with patch.object(tenant_support_repository.supabase, "table", return_value=query):
+            rows, total = tenant_support_repository.list_tenant_support_requests_for_tenant(
+                company_id=100, requester_user_id=7, limit=25, offset=0
+            )
+        self.assertEqual((rows, total), ([{"id": 31}], 1))
+        query.eq.assert_any_call("company_id", 100)
+        query.eq.assert_any_call("requester_user_id", 7)
+        self.assertNotIn("converted_platform_support_case_id", tenant_support_repository.REQUEST_FIELDS)
+
+    def test_tenant_reply_query_uses_safe_projection_and_visibility_filter(self):
+        query = MagicMock()
+        for method in ("select", "eq", "order"):
+            getattr(query, method).return_value = query
+        query.execute.return_value = MagicMock(data=[{"id": 44, "redacted_body": "Visible"}])
+        with patch.object(tenant_support_repository.supabase, "table", return_value=query):
+            replies = tenant_support_repository.list_tenant_support_replies_for_tenant(
+                31, company_id=100
+            )
+        self.assertEqual(replies, [{"id": 44, "redacted_body": "Visible"}])
+        query.select.assert_called_once_with(tenant_support_repository.TENANT_REPLY_FIELDS)
+        query.eq.assert_any_call("request_id", 31)
+        query.eq.assert_any_call("company_id", 100)
+        query.eq.assert_any_call("visibility_status", "visible")
+        self.assertNotIn("author_platform_admin_user_id", tenant_support_repository.TENANT_REPLY_FIELDS)
+        self.assertNotIn("platform_support_case_id", tenant_support_repository.TENANT_REPLY_FIELDS)
+
 
 if __name__ == "__main__":
     unittest.main()

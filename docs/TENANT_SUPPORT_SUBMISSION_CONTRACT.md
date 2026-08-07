@@ -8,10 +8,13 @@ fake/team data, and local browser/API E2E verification passed with fake data.
 This is not staging verification or production readiness.
 
 The current tenant `support.html` page provides authenticated help topics,
-account context, navigation, and the bounded submission form. There is no
-tenant ticket inbox, ticket history, or customer-facing support workflow.
-Existing Support Cases are internal platform-admin cases created from the
-Platform-admin Support Workspace.
+account context, navigation, the bounded submission form, and Phase 3 request
+history/detail for the signed-in requester. The history view shows
+tenant-visible support replies only. Existing Support Cases are internal
+platform-admin cases created from the Platform-admin Support Workspace.
+Phase 3 tenant-visible reply storage and Migration 033 are verified only in the
+main shared-testing Supabase with fake/team data. This is not staging
+verification and does not establish production readiness.
 
 ## Submission endpoint contract
 
@@ -96,13 +99,19 @@ selector, title or subject, and redacted description. It submits only
 secrets or payment details, and provides loading, success, validation,
 rate-limit, and error states.
 
-The first version must not add an inbox, messaging thread, billing action,
-impersonation, export, chart, attachment, or email integration.
+Phase 3 adds a safe request history/detail view that calls
+`GET /api/support/requests` and `GET /api/support/requests/<request_id>`.
+The tenant view renders request content and public replies as text only and
+does not expose internal notes, platform-admin mapping IDs, internal case IDs,
+audit metadata, internal priority, notification provider details, or other
+tenants' requests.
+
+The tenant page still must not add live chat, generic messaging, billing
+action, impersonation, export, chart, attachment, or email integration.
 
 ## Explicit exclusions
 
-- no tenant ticket inbox or history yet;
-- no two-way messaging, live chat, or customer contact workflow;
+- no live chat or unrestricted messaging workflow;
 - no email notifications;
 - no attachments;
 - no billing or remediation actions;
@@ -123,9 +132,11 @@ Further rollout requires approval of:
 The current internal platform-admin Support Cases workflow remains separate.
 Further staging or production rollout remains gated. Migration 030 and local browser/API E2E
 verification are recorded only for the main shared testing Supabase with
-fake/team data. Tenant inbox/history, messaging, email, attachments, billing
-actions, impersonation, exports, and charts remain excluded. No staging or
-production claim is made.
+fake/team data. Phase 3 request history and tenant-visible reply handling is
+verified only in the main shared-testing Supabase with fake/team data through
+Migration 033. Live chat, unrestricted
+messaging, email, attachments, billing actions, impersonation, exports, and
+charts remain excluded. No staging or production claim is made.
 
 ## Main shared-testing verification evidence
 
