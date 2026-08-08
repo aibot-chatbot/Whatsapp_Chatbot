@@ -32,6 +32,8 @@ from app.routes.broadcast_routes import broadcast_blueprint
 from app.routes.admin_billing_routes import admin_billing_bp
 from app.routes.dev_billing_routes import dev_billing_bp
 from app.routes.platform_admin_routes import platform_admin_bp
+from app.routes.support_routes import support_bp
+from app.routes.widget_routes import widget_blueprint
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -53,10 +55,19 @@ def create_app():
     init_limiter(app)
 
     # ── Security response headers ──────────────────────────────────
+    # The website chat widget is designed to be framed by customer sites,
+    # so those routes opt out of X-Frame-Options: DENY. Their own
+    # frame-ancestors CSP and per-widget domain allowlist apply instead.
+    WIDGET_FRAMEABLE_PREFIXES = ("/widget/", "/chat/", "/api/widget/")
+
+    def _is_frameable_widget_path(path):
+        return path == "/widget.js" or path.startswith(WIDGET_FRAMEABLE_PREFIXES)
+
     @app.after_request
     def _add_security_headers(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
+        if not _is_frameable_widget_path(request.path):
+            response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         # CSP omitted intentionally: the frontend uses many inline
         # scripts and styles that a strict CSP would break. A
@@ -93,6 +104,8 @@ def create_app():
     app.register_blueprint(broadcast_blueprint)
     app.register_blueprint(admin_billing_bp)
     app.register_blueprint(platform_admin_bp)
+    app.register_blueprint(support_bp)
+    app.register_blueprint(widget_blueprint)
     if app.config.get("ENABLE_DEV_BILLING_ROUTES"):
         app.register_blueprint(dev_billing_bp)
 
@@ -123,4 +136,3 @@ def create_app():
             return {"status": "error", "message": "Not found"}, 404
 
     return app
-

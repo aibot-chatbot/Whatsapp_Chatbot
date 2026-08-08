@@ -236,7 +236,19 @@ def test_all_bot_id_route_handlers_have_an_ownership_gate():
                     "permanently_delete_archived_bot(",
                 )
             )
-            if not has_direct_gate and not has_company_scoped_bot_service:
+            # Public website-widget endpoints have no logged-in company to
+            # scope against. Their tenancy gate is the unguessable public key:
+            # _load_widget_or_error() resolves the widget row (which carries
+            # its own chatbot_id and company_id), then enforces that the
+            # widget is enabled, the chatbot is active, and the calling
+            # origin is on the widget's domain allowlist.
+            has_public_widget_gate = "_load_widget_or_error(" in function_source
+
+            if not (
+                has_direct_gate
+                or has_company_scoped_bot_service
+                or has_public_widget_gate
+            ):
                 missing_gates.append(f"{path}:{node.lineno}:{node.name}")
 
     assert missing_gates == []

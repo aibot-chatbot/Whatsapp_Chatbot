@@ -61,6 +61,11 @@ def _top_level_keywords(sql):
     ]
 
 
+# Highest migration number currently in data/. Bump this deliberately when a
+# new migration is added, so numbering conflicts surface as a test failure.
+HIGHEST_MIGRATION_NUMBER = 29
+
+
 def test_028_is_the_next_selected_migration_number():
     numbered = []
     for path in (PROJECT_ROOT / "data").glob("*.sql"):
@@ -68,7 +73,7 @@ def test_028_is_the_next_selected_migration_number():
         if match:
             numbered.append((int(match.group(1)), path.name))
 
-    assert max(number for number, _ in numbered) == 28
+    assert max(number for number, _ in numbered) == HIGHEST_MIGRATION_NUMBER
     assert [
         name for number, name in numbered if number == 28
     ] == ["028_cleanup_orphan_crm_agent_actions.sql"]

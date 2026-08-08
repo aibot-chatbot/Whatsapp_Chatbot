@@ -1,0 +1,40 @@
+# Normalise line endings so Windows checkouts do not produce phantom
+# "every file modified" diffs. Text files are stored as LF in the repo
+# and checked out as-is; editors on Windows handle LF fine.
+* text=auto eol=lf
+
+# Explicit text types
+*.py      text eol=lf
+*.js      text eol=lf
+*.jsx     text eol=lf
+*.ts      text eol=lf
+*.html    text eol=lf
+*.css     text eol=lf
+*.json    text eol=lf
+*.md      text eol=lf
+*.sql     text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+*.txt     text eol=lf
+*.cfg     text eol=lf
+*.ini     text eol=lf
+
+# Windows-only scripts keep CRLF
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+*.ps1     text eol=crlf
+
+# Binary files - never touch
+*.pdf     binary
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.webp    binary
+*.ico     binary
+*.woff    binary
+*.woff2   binary
+*.ttf     binary
+*.zip     binary
+*.exe     binary
+*.dll     binary

@@ -10,6 +10,7 @@ limits and AI-credit billing with ToyyibPay top-ups.
 - **Authentication & Teams** — JWT login, OTP flows, Google OAuth, password reset; company-scoped teams with owner/admin/member roles; email invitations
 - **Chatbot Management** — Create and configure chatbots with custom prompts, data extraction, and auto-generated menus
 - **Channel Integrations** — WhatsApp Cloud API (Meta), Telegram, Wasender (WhatsApp API); separate credential storage per channel
+- **Website Chat Widget** — Embeddable chat bubble installed with one `<script>` tag, inline iframe embed, and a public share link; per-bot branding (colours, avatar, welcome message, suggested questions), in-chat lead capture, domain allowlist, and a per-session message cap
 - **Conversations & CRM** — Multi-channel inbox; CRM lead tracking with status, assignment, and follow-up
 - **Knowledge Management** — PDF upload, website scraping, batch ingestion; RAG retrieval; knowledge graph exploration
 - **AI Routing** — OpenRouter and DeepSeek providers; model-level access policies per subscription plan; trial-to-paid gating
@@ -102,6 +103,8 @@ External callbacks require a separately deployed public HTTPS server.
 - **Billing data is company-scoped**, not bot-scoped. All payment history, credit, and reports belong to the company.
 - **Development billing routes** (enabled via `ENABLE_DEV_BILLING_ROUTES`) simulate payment callbacks without real payments. Never enable in production.
 - **Migrations 003–014** must be applied in order to the Supabase project before billing features work.
+- **The website widget requires migration `029_web_widget_support.sql`.** Until it is applied, the Web Widget card in Integrations will fail to load. Configure and enable the widget per chatbot under **Integrations -> Web Widget**; the embed snippet only works once the widget is enabled.
+- **Widget embed URLs use `PUBLIC_BASE_URL`** when set, otherwise the request host. Set `PUBLIC_BASE_URL` to your public HTTPS origin so generated snippets are correct.
 
 ## Running Tests
 
@@ -122,9 +125,11 @@ app/
   jobs/                # Background job entry points
   decorators/          # Auth and security decorators
   utils/               # JWT, Telegram, WhatsApp utilities
-data/                  # SQL migrations 003–014
+data/                  # SQL migrations 003–029
 docs/                  # Documentation and runbooks
 frontend/              # HTML, JS, CSS (served by Flask)
+  widget.js            # Embeddable widget loader (public, cross-origin)
+  widget-chat.html     # Widget chat UI (iframe + share link)
 scripts/               # CLI tools and smoke tests
 tests/                 # pytest test suite (35 files, ~1,084 tests)
 ```

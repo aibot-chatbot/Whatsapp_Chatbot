@@ -1,0 +1,381 @@
+"""widget_routes.py — website chat widget (FastBots-style embed).
+
+Two groups of endpoints live here:
+
+  Public (no JWT, cross-origin) — consumed by the embed script, the iframe
+  and the share link. Addressed by `public_key`, never by chatbot_id.
+
+      GET  /widget.js                           loader script
+      GET  /widget/<public_key>                 iframe chat page
+      GET  /chat/<public_key>                   full-page share link
+      GET  /api/widget/<public_key>/config      public appearance config
+      POST /api/widget/<public_key>/session     start a chat session
+      POST /api/widget/<public_key>/message     send a message, get a reply
+      POST /api/widget/<public_key>/lead        submit the lead form
+
+  Dashboard (JWT + admin/owner) — used by the Embed tab.
+
+      GET  /api/bots/<chatbot_id>/widget
+      PUT  /api/bots/<chatbot_id>/widget
+      POST /api/bots/<chatbot_id>/widget/regenerate-key
+"""
+
+import logging
+import os
+
+from flask import Blueprint, current_app, jsonify, request, send_from_directory
+
+from app.decorators.auth_decorator import token_required
+from app.rate_limit import limiter
+from app.services.ai_router import OPERATION_CHAT_REPLY, generate_response
+from app.services.billing_guard import BillingLimitError
+from app.services.web_widget_service import (
+    WidgetError,
+    assert_session_quota,
+    capture_lead,
+    ensure_widget,
+    generate_session_id,
+    is_origin_allowed,
+    normalise_incoming_message,
+    open_conversation,
+    public_config,
+    record_bot_message,
+    record_customer_message,
+    regenerate_public_key,
+    resolve_public_widget,
+    update_widget_settings,
+    validate_session_id,
+)
+from app.utils.access_control import (
+    get_current_company_id,
+    role_required,
+    verify_chatbot_access,
+)
+
+logger = logging.getLogger(__name__)
+
+widget_blueprint = Blueprint("widget", __name__)
+
+FRONTEND_DIR = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "..", "frontend")
+)
+
+SILENT_REPLY_MARKER = "<SILENT_BOT_RESPONSE>"
+HUMAN_TAKEOVER_NOTICE = (
+    "A member of our team has joined the conversation and will reply shortly."
+)
+
+# Public widget endpoints are unauthenticated, so they are rate limited by IP.
+WIDGET_MESSAGE_RATELIMIT = "20/minute"
+WIDGET_SESSION_RATELIMIT = "30/minute"
+
+
+# ── Cross-origin support ──────────────────────────────────────────────
+# The app-wide CORS config only allows the dashboard origin. Widget routes
+# are embedded on customer websites, so they answer any origin and are
+# instead protected by the per-widget domain allowlist.
+
+def _public_cors(response, origin=None):
+    response.headers["Access-Control-Allow-Origin"] = origin or "*"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Vary"] = "Origin"
+    return response
+
+
+@widget_blueprint.after_request
+def _apply_widget_headers(response):
+    if request.path.startswith(("/api/widget/", "/widget/", "/chat/")) or \
+            request.path == "/widget.js":
+        _public_cors(response, request.headers.get("Origin"))
+        # The chat UI is designed to be framed by third-party sites, so the
+        # app-wide X-Frame-Options: DENY must not apply here.
+        response.headers.pop("X-Frame-Options", None)
+        response.headers["Content-Security-Policy"] = "frame-ancestors *"
+    return response
+
+
+def _error(message, status=400, code="widget_error"):
+    return jsonify({"status": "error", "code": code, "message": message}), status
+
+
+def _load_widget_or_error():
+    """Resolve + origin-check the widget for the current request."""
+    public_key = request.view_args.get("public_key")
+    widget, bot = resolve_public_widget(public_key)
+
+    origin = request.headers.get("Origin") or request.headers.get("Referer")
+    if not is_origin_allowed(widget, origin):
+        raise WidgetError(
+            "This chatbot is not permitted on this website.",
+            status=403,
+            code="origin_not_allowed",
+        )
+
+    return widget, bot
+
+
+# ── Public: loader script and chat pages ──────────────────────────────
+
+@widget_blueprint.route("/widget.js", methods=["GET", "OPTIONS"])
+def widget_loader():
+    """Serve the embed loader with a JavaScript content type."""
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    response = send_from_directory(
+        FRONTEND_DIR,
+        "widget.js",
+        mimetype="application/javascript",
+    )
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return response
+
+
+@widget_blueprint.route("/widget/<public_key>", methods=["GET"])
+def widget_frame(public_key):
+    """Chat UI rendered inside the embedded iframe."""
+    return send_from_directory(FRONTEND_DIR, "widget-chat.html")
+
+
+@widget_blueprint.route("/chat/<public_key>", methods=["GET"])
+def widget_share_page(public_key):
+    """Standalone full-page chat, for sharing as a direct link."""
+    return send_from_directory(FRONTEND_DIR, "widget-chat.html")
+
+
+# ── Public: JSON API ──────────────────────────────────────────────────
+
+@widget_blueprint.route("/api/widget/<public_key>/config", methods=["GET", "OPTIONS"])
+def widget_config(public_key):
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    try:
+        widget, _bot = _load_widget_or_error()
+    except WidgetError as e:
+        return _error(str(e), e.status, e.code)
+
+    return jsonify({"status": "success", "data": public_config(widget)}), 200
+
+
+@widget_blueprint.route("/api/widget/<public_key>/session", methods=["POST", "OPTIONS"])
+@limiter.limit(WIDGET_SESSION_RATELIMIT)
+def widget_start_session(public_key):
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    try:
+        widget, _bot = _load_widget_or_error()
+    except WidgetError as e:
+        return _error(str(e), e.status, e.code)
+
+    session_id = generate_session_id()
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "session_id": session_id,
+            "welcome_message": widget.get("welcome_message") or "",
+            "suggested_questions": widget.get("suggested_questions") or [],
+        },
+    }), 200
+
+
+@widget_blueprint.route("/api/widget/<public_key>/message", methods=["POST", "OPTIONS"])
+@limiter.limit(WIDGET_MESSAGE_RATELIMIT)
+def widget_send_message(public_key):
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    try:
+        widget, _bot = _load_widget_or_error()
+
+        payload = request.get_json(silent=True) or {}
+        session_id = validate_session_id(payload.get("session_id"))
+        message = normalise_incoming_message(payload.get("message"))
+
+        conversation = open_conversation(widget, session_id)
+        remaining = assert_session_quota(widget, conversation["id"])
+
+        record_customer_message(conversation["id"], message)
+
+        reply = generate_response(
+            message,
+            session_id,
+            widget["chatbot_id"],
+            source_channel="web",
+            operation_type=OPERATION_CHAT_REPLY,
+        )
+
+        if reply == SILENT_REPLY_MARKER:
+            # A human agent has taken over; do not surface the marker.
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "reply": HUMAN_TAKEOVER_NOTICE,
+                    "handled_by": "human",
+                    "messages_remaining": max(remaining - 1, 0),
+                },
+            }), 200
+
+        record_bot_message(conversation["id"], reply)
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "reply": reply,
+                "handled_by": "bot",
+                "messages_remaining": max(remaining - 1, 0),
+            },
+        }), 200
+
+    except WidgetError as e:
+        return _error(str(e), e.status, e.code)
+    except BillingLimitError as e:
+        # Never leak the company's billing state to a website visitor.
+        logger.warning(
+            "Widget message blocked by billing guard (chatbot=%s, code=%s)",
+            public_key,
+            e.code,
+        )
+        return _error(
+            "This chatbot is temporarily unavailable. Please try again later.",
+            503,
+            "temporarily_unavailable",
+        )
+    except Exception:
+        logger.exception("Widget message failed for key=%s", public_key)
+        return _error(
+            "Sorry, something went wrong. Please try again.",
+            500,
+            "internal_error",
+        )
+
+
+@widget_blueprint.route("/api/widget/<public_key>/lead", methods=["POST", "OPTIONS"])
+@limiter.limit(WIDGET_SESSION_RATELIMIT)
+def widget_submit_lead(public_key):
+    if request.method == "OPTIONS":
+        return ("", 204)
+
+    try:
+        widget, _bot = _load_widget_or_error()
+
+        if not widget.get("collect_lead"):
+            return _error("Lead capture is not enabled.", 400, "lead_disabled")
+
+        payload = request.get_json(silent=True) or {}
+        session_id = validate_session_id(payload.get("session_id"))
+
+        conversation = open_conversation(
+            widget,
+            session_id,
+            customer_name=(payload.get("name") or "").strip() or None,
+        )
+        capture_lead(widget, conversation, payload)
+
+        return jsonify({"status": "success", "data": {"captured": True}}), 200
+
+    except WidgetError as e:
+        return _error(str(e), e.status, e.code)
+    except Exception:
+        logger.exception("Widget lead capture failed for key=%s", public_key)
+        return _error("Could not save your details.", 500, "internal_error")
+
+
+# ── Dashboard: widget configuration ───────────────────────────────────
+
+def _embed_urls(widget):
+    base = (current_app.config.get("PUBLIC_BASE_URL")
+            or os.getenv("PUBLIC_BASE_URL")
+            or request.host_url.rstrip("/")).rstrip("/")
+    key = widget.get("public_key")
+
+    return {
+        "base_url": base,
+        "script_url": f"{base}/widget.js",
+        "share_url": f"{base}/chat/{key}",
+        "iframe_url": f"{base}/widget/{key}",
+        "script_snippet": (
+            f'<script src="{base}/widget.js" '
+            f'data-chatbot-key="{key}" defer></script>'
+        ),
+        "iframe_snippet": (
+            f'<iframe src="{base}/widget/{key}" '
+            f'style="width:100%;height:600px;border:0;" '
+            f'frameborder="0" allow="clipboard-write"></iframe>'
+        ),
+    }
+
+
+@widget_blueprint.route("/api/bots/<int:chatbot_id>/widget", methods=["GET"])
+@token_required
+@role_required("admin", "owner")
+def get_bot_widget(chatbot_id):
+    try:
+        verify_chatbot_access(chatbot_id)
+        widget = ensure_widget(chatbot_id, get_current_company_id())
+
+        return jsonify({
+            "status": "success",
+            "data": {"widget": widget, "embed": _embed_urls(widget)},
+        }), 200
+
+    except WidgetError as e:
+        return _error(str(e), e.status, e.code)
+    except PermissionError as e:
+        return _error(str(e), 403, "forbidden")
+    except Exception as e:
+        logger.exception("Failed to load widget for chatbot %s", chatbot_id)
+        return _error(str(e), 500, "internal_error")
+
+
+@widget_blueprint.route("/api/bots/<int:chatbot_id>/widget", methods=["PUT", "PATCH"])
+@token_required
+@role_required("admin", "owner")
+def put_bot_widget(chatbot_id):
+    try:
+        verify_chatbot_access(chatbot_id)
+        widget = update_widget_settings(
+            chatbot_id,
+            get_current_company_id(),
+            request.get_json(silent=True) or {},
+        )
+
+        return jsonify({
+            "status": "success",
+            "data": {"widget": widget, "embed": _embed_urls(widget)},
+        }), 200
+
+    except WidgetError as e:
+        return _error(str(e), e.status, e.code)
+    except PermissionError as e:
+        return _error(str(e), 403, "forbidden")
+    except Exception as e:
+        logger.exception("Failed to update widget for chatbot %s", chatbot_id)
+        return _error(str(e), 500, "internal_error")
+
+
+@widget_blueprint.route(
+    "/api/bots/<int:chatbot_id>/widget/regenerate-key", methods=["POST"]
+)
+@token_required
+@role_required("admin", "owner")
+def post_regenerate_widget_key(chatbot_id):
+    try:
+        verify_chatbot_access(chatbot_id)
+        widget = regenerate_public_key(chatbot_id, get_current_company_id())
+
+        return jsonify({
+            "status": "success",
+            "data": {"widget": widget, "embed": _embed_urls(widget)},
+        }), 200
+
+    except WidgetError as e:
+        return _error(str(e), e.status, e.code)
+    except PermissionError as e:
+        return _error(str(e), 403, "forbidden")
+    except Exception as e:
+        logger.exception("Failed to regenerate widget key for chatbot %s", chatbot_id)
+        return _error(str(e), 500, "internal_error")

@@ -24,7 +24,7 @@
 | Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match. `RATELIMIT_GOOGLE_AUTH=10/minute` covers Google login, registration, and invitation acceptance; live external Google verification is still required |
 | Auth and public-invitation rate limiting | Verified complete | Flask-Limiter decorators registered before `create_app()` are enforced during normal startup. Existing login, OTP, password-reset, checkout, retry, receipt, and export limits are active when enabled; invitation validation is 30/minute and password invitation acceptance is 5/minute by default |
 | User profile | Implemented | Profile viewing and update flow exists |
-| Authenticated tenant Support page | Implemented | Static authenticated help page exists at `support.html` and is reachable from the shared tenant account menu. It uses local self-service guidance and verified local links only; direct contact, ticket submission, email sending, and support intake remain deferred because no approved destination/backend exists |
+| Authenticated tenant Support page | Verified locally | `support.html` is authenticated, reachable from the shared tenant account menu, and submits only category, title, and redacted description to `POST /api/support/requests`. Migration 030 and one fake-data browser/API E2E run are verified only in the main shared testing Supabase; this is not staging verification or production readiness. Inbox/history, messaging, email, attachments, billing actions, impersonation, exports, and charts remain excluded |
 | Password change | Implemented | Requires regression coverage |
 
 ## Company and Team
@@ -300,7 +300,18 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 ## Phase 4L - Platform-Admin Read-Only Backend and Frontend
 
-**Status: Verified complete in staging; production blocked**
+**Status: Original five endpoints verified in staging; current 12-route stack
+verified locally; production blocked**
+
+The original five platform-admin endpoints are staging-verified. The later
+extensions are application-only/local-tested unless separately staged. At the
+current HEAD, localhost manual verification recorded on 2026-08-03 passed for
+the full current twelve-route read-only stack: dashboard, operational alerts,
+company directory/detail, subscription summary/history, AI-credit usage and
+transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
+billing-order audit filters, and local revocation with Access Denied and stale
+platform-data clearing. This does not establish staging verification or
+production readiness.
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
@@ -328,21 +339,49 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   read-only subscription past-due/expired alerts derived from existing
   attention data. It adds no endpoint or page, and AI-credit alerts,
   billing-order attention alerts, inactive-company alerts, no-current-chatbot
-  alerts, charts, exports, and write actions remain deferred.
+  alerts, charts, exports, and write actions remain deferred. The deferred
+  Phase 2 alert definitions and approval gates are recorded in
+  `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 - A separate platform-admin Support Workspace is implemented as a read-only
   investigation hub. It is distinct from tenant `support.html`, reuses only
   existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
-  links operators into existing company investigation pages. It adds no backend
-  endpoint, ticketing, case notes, billing-order history, audit-log viewer, or
-  write controls; the platform-admin backend inventory remains exactly ten
-  GET-only routes.
+  links operators into existing company investigation pages. Support Cases
+  Phase 1 is implemented for internal platform-admin use and verified in the
+  main shared testing Supabase with fake/team data; this is not staging or
+  production verification. The feature adds bounded internal case create/list/detail, redacted internal notes,
+  status/priority updates, append-only case events, and audit-before-response
+  writes. Assignment UI, customer contact, messaging, impersonation, billing
+  actions, exports, charts, and production use remain blocked. The workflow
+  contract is documented in `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
+  SQL execution requires project/ref/environment preflight evidence; the
+  Migration 029 production-application and successful rollback are recorded in
+  the access lifecycle. Future testing is local/dev or approved staging only;
+  production remains blocked.
+  Tenant support submission is governed by
+  `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`; its backend endpoint and
+  bounded frontend form are implemented locally. Migration 030 is applied and
+  verified only in the main shared testing Supabase with fake/team data, and
+  local browser/API E2E verification passed with fake data. This is not staging
+  verification or production readiness; the platform-admin support-case tables
+  and mappings were not modified.
+  The read-only tenant-support intake viewer is implemented locally under
+  `docs/PLATFORM_ADMIN_TENANT_SUPPORT_INTAKE_VIEWER_CONTRACT.md` with two
+  GET-only routes and a separate Support Workspace section. No SQL was required;
+  Migration 030 remains verified only in the main shared testing Supabase with
+  fake/team data. This is not staging verification or production readiness.
+  Tenant Support Intake Review/Conversion is implemented locally and verified
+  only in the main shared testing Supabase with fake/team data. Migration 031
+  was applied there and browser/API E2E passed locally: request 1 was reviewed
+  then converted, producing internal case 2 exactly once. This is not staging
+  verification or production readiness; production remains blocked.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
   metadata summaries only, and does not expose raw metadata, tenant records,
   exports, downloads, charts, audit editing, audit deletion, or platform-admin
-  user management. The platform-admin backend inventory is now exactly eleven
-  GET-only routes.
+  user management. The original investigation inventory remains twelve
+  GET-only routes; Support Cases adds three localhost-only paths with bounded
+  GET/POST/PATCH methods.
 - A bounded platform-admin Billing Order History section is implemented as a
   read-only, application-only local extension on company detail. It adds one
   audited GET-only endpoint,
@@ -351,19 +390,60 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   integer sen as stored, returns no currency and infers no MYR, and excludes
   payment/gateway/checkout/reference, idempotency, raw-error, reconciliation,
   retry, activation, manual-credit, export/download, chart, and write behavior.
-  The platform-admin backend inventory is now exactly twelve GET-only routes.
+  The current platform-admin backend inventory is twelve GET-only investigation
+  routes plus three localhost-only support-case paths.
+  The billing-order audit-filter fix changed frontend filtering only; it added
+  no route or backend behavior change.
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
 - Tenant pages now use a shared top-right account menu for Profile, Support,
-  and Logout. Support points to a static authenticated tenant help page with no
-  support-submission backend. The optional Platform
+  and Logout. Support points to an authenticated tenant help page with a
+  bounded local support-submission form. The optional Platform
   Administration menu item is discovered lazily through a live
   `/api/platform-admin/me` check and is not stored or placed in the tenant
   sidebar.
 - Focused frontend source-contract tests cover endpoint restrictions, request
   cancellation, state clearing, safe rendering, accessibility, and responsive
   behavior
+- `scripts/platform_admin_smoke_check.py` provides a read-only local/staging-
+  ready HTTP smoke check for the current twelve-route stack. It accepts the
+  bearer token only from the environment, never prints response bodies or
+  credentials, and does not establish staging verification or production
+  readiness.
+- Access request, revocation, replacement, and periodic-review procedure is
+  documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it adds no access,
+  mapping management, write controls, or production authorization.
+- The lifecycle document now includes a redacted access, revocation, smoke,
+  audit-log, and localhost/staging/production evidence checklist; it does not
+  change the current local-only verification boundary.
+- Local smoke evidence recorded on 2026-08-03 against localhost
+  (`http://127.0.0.1:8000`): all twelve checks passed with an approved company
+  ID; the four required checks passed and child checks were correctly skipped
+  without a company ID; and removing `PLATFORM_ADMIN_TOKEN` failed safely with
+  the required configuration error. This remains localhost evidence only and
+  requires an approved environment and token for any local/staging use.
+
+### Local read-only investigation coverage checklist
+
+This checklist describes the current localhost-only investigation surface. It
+does not establish staging verification or production readiness; production
+remains blocked.
+
+| Route | Purpose and safe read-only coverage | Intentionally excluded |
+|---|---|---|
+| `/me` | Confirm current platform-admin identity and active mapping shape | Tenant-role authority, token details, mapping management |
+| `/overview` | Show company/subscription summaries and typed operational alerts | Writes, charts, exports, global activity, remediation |
+| `/audit-events` | List safe audit-event summaries, filters, actor mapping IDs, and approved metadata fields | Raw payloads, secrets, exports, editing, deletion, retention controls |
+| `/companies` | Search, filter, sort, and page safe company directory fields | Customer content, mutations, bulk actions, deletion, export |
+| `/companies/<company_id>` | Inspect safe company profile and status fields | Full tenant records, impersonation, edits, customer content |
+| `/companies/<company_id>/subscription` | Read current subscription summary and safe plan fields | Activation, plan changes, cancellation, payment actions |
+| `/companies/<company_id>/subscription-history` | Read persisted subscription history rows and safe plan/status fields | Guaranteed event-sourced timeline, reconciliation, lifecycle changes |
+| `/companies/<company_id>/ai-credit-usage` | Read current-period balance, usage summary, and safe period fields | Credit adjustment, charging, provider economics, raw usage payloads |
+| `/companies/<company_id>/ai-credit-transactions` | Read safe ledger deltas, balances, transaction types, and periods | Manual credit, reversal, payment references, provider payloads |
+| `/companies/<company_id>/billing-orders` | Read safe order status, amount-in-sen, plan, activation, and lifecycle timestamps | Payment/gateway details, checkout, retry, reconciliation, manual credit |
+| `/companies/<company_id>/users` | Read safe company-user identity, role, status, and timestamps | User management, role changes, credentials, invitations |
+| `/companies/<company_id>/chatbots` | Read safe chatbot identity, state, configuration summary, and timestamps | Bot edits, messaging, credentials, deployment, customer content |
 - Staging browser verification passed for the dashboard, company directory,
   company detail, read-only controls, tenant-app return path, and logout
 - Post-verification revocation was confirmed: refresh showed Access Denied and
@@ -392,14 +472,21 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
   restore evidence, monitoring activation, migration 026 production approval,
   and final go/no-go
 
+Additional current blockers are the absence of a confirmed staging/online
+environment in repository configuration, lack of staging verification for the
+latest extensions, pending production ownership/executor approval, and pending
+monitoring, rollback, and backup evidence.
+
 ## Platform Limitations
 
 | Limitation | Status |
 |---|---|
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, operational alerts, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
-| Platform-admin Support Workspace | Implemented locally as a read-only investigation hub using existing overview and company-directory APIs only; no backend endpoint, ticketing, case management, billing-order history, audit-log viewer, or write controls |
+| Platform-admin Support Workspace | Implemented locally as a read-only investigation hub; Support Cases Phase 1 adds bounded internal case routes and redacted append-only notes/status/priority tracking; no customer messaging, impersonation, billing actions, exports, charts, or production use |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
-| Direct tenant support contact/tickets | Deferred (no approved support contact destination or support-submission backend) |
+| Direct tenant support contact/tickets | Implemented locally as bounded submission only; no inbox, messaging, email, attachments, or production use |
+| Platform-admin tenant support intake viewer | Implemented locally as separate read-only GET list/detail routes and Support Workspace section; no mutation, conversion, reply, export, staging verification, or production use |
+| Platform-admin tenant support intake review/conversion | Runtime code and Migration 031 verified only in main shared testing Supabase with fake/team data; case 2 conversion, safe audit metadata, service-role-only RLS/EXECUTE, and mapping baseline verified; not staging or production-ready |
 | PDF receipts | Open (HTML only) |
 | Cross-company dashboard | Deferred |

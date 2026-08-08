@@ -2,9 +2,15 @@
 
 ## Status and scope
 
-**Verified complete in staging; production blocked.** The platform-admin
+**Original scope verified in staging; production blocked.** The platform-admin
 database migrations, five read-only backend endpoints, and Phase 3 frontend
-are verified in staging. The approved mapping was temporarily reactivated for
+are verified in staging. Later extensions are application-only/local-tested
+unless separately staged. At the current HEAD, localhost manual verification
+recorded on 2026-08-03 passed for the full current twelve-route read-only stack,
+including dashboard, operational alerts, company directory/detail, subscription
+summary/history, AI-credit usage/transactions, billing orders, users, chatbots,
+Support Workspace, Audit Logs, billing-order audit filters, and local revocation
+with Access Denied and stale-data clearing. The approved mapping was temporarily reactivated for
 browser verification, then revoked again. The mapping row remains present and
 inactive. Production deployment remains blocked.
 
@@ -100,7 +106,7 @@ subscription changes remain out of scope.
   `GET /api/platform-admin/companies` APIs, highlights attention companies, and
   links to `platform-admin-company.html?company_id=<id>` for existing read-only
   company investigation. It adds no backend endpoint, keeps the platform-admin
-  backend inventory at ten GET-only routes, and does not add ticketing, case
+  backend inventory at twelve GET-only routes, and does not add ticketing, case
   notes, assignment, billing-order history, audit-log viewing, messaging,
   impersonation, reconciliation, subscription changes, AI-credit adjustments,
   exports, or other write controls.
@@ -108,8 +114,8 @@ subscription changes remain out of scope.
   `frontend/platform-admin-audit-events.html`. It runs through the same fresh
   `/api/platform-admin/me` page gate, uses the new
   `GET /api/platform-admin/audit-events` endpoint, displays only safe audit
-  event summaries with actor mapping IDs, and keeps the platform-admin backend
-  inventory at eleven GET-only routes. It adds no audit editing, deletion,
+  event summaries with actor mapping IDs, and keeps the current platform-admin
+  backend inventory at exactly twelve GET-only routes. It adds no audit editing, deletion,
   export, download, charts, raw metadata viewer, platform-admin user
   management, or other write controls.
 - The current bounded read-only platform-admin extension adds **Billing
@@ -121,6 +127,8 @@ subscription changes remain out of scope.
   returns or infers currency, and excludes payment/gateway/checkout/reference,
   idempotency, raw-error, reconciliation, retry, activation, manual-credit,
   export, download, chart, and write behavior.
+  The billing-order audit-filter fix changed frontend filtering only; it added
+  no route or backend behavior change.
 
 ## Verification evidence
 

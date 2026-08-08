@@ -31,7 +31,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             item.start()
             self.addCleanup(item.stop)
 
-    def test_only_twelve_approved_get_routes_exist(self):
+    def test_approved_platform_admin_routes_have_read_and_support_case_boundaries(self):
         rules = [rule for rule in self.app.url_map.iter_rules() if rule.rule.startswith("/api/platform-admin")]
         self.assertEqual({rule.rule for rule in rules}, {
             "/api/platform-admin/me",
@@ -46,19 +46,43 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/<int:company_id>/billing-orders",
             "/api/platform-admin/companies/<int:company_id>/users",
             "/api/platform-admin/companies/<int:company_id>/chatbots",
+            "/api/platform-admin/support-cases",
+            "/api/platform-admin/support-cases/<int:case_id>",
+            "/api/platform-admin/support-cases/<int:case_id>/notes",
+            "/api/platform-admin/tenant-support-requests",
+            "/api/platform-admin/tenant-support-requests/<int:request_id>",
+            "/api/platform-admin/tenant-support-requests/<int:request_id>/convert",
         })
-        self.assertTrue(all((rule.methods - {"HEAD", "OPTIONS"}) == {"GET"} for rule in rules))
+        methods = {}
+        for rule in rules:
+            methods.setdefault(rule.rule, set()).update(rule.methods - {"HEAD", "OPTIONS"})
+        self.assertTrue(all(
+            value == {"GET"}
+            for key, value in methods.items()
+            if "support-cases" not in key and "tenant-support-requests" not in key
+        ))
+        self.assertEqual(methods["/api/platform-admin/support-cases"], {"GET", "POST"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>"], {"GET", "PATCH"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/notes"], {"POST"})
+        self.assertEqual(methods["/api/platform-admin/tenant-support-requests"], {"GET"})
+        self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>"], {"GET", "PATCH"})
+        self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>/convert"], {"POST"})
 
     def test_blueprint_wide_guard_covers_all_routes(self):
         rules = [
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 12)
+        self.assertEqual(len(rules), 21)
         for rule in rules:
-            path = rule.rule.replace("<int:company_id>", "2")
+            path = (
+                rule.rule.replace("<int:company_id>", "2")
+                .replace("<int:case_id>", "1")
+                .replace("<int:request_id>", "1")
+            )
+            method = next(iter(rule.methods - {"HEAD", "OPTIONS"}))
             with self.subTest(path=path):
-                self.assertEqual(self.client.get(path).status_code, 401)
+                self.assertEqual(self.client.open(path, method=method).status_code, 401)
 
     def test_cross_tenant_target_comes_from_path_not_jwt_company(self):
         with patch.object(
@@ -418,6 +442,11 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 "outcome": "success",
                 "endpoint": "/api/platform-admin/companies/<company_id>",
                 "http_method": "GET",
+                "company_filter_applied": True,
+                "priority_filter_applied": False,
+                "company_id": 31,
+                "status": "open",
+                "priority": "normal",
                 "token": "must be omitted",
                 "raw_payload": {"nested": "must be omitted"},
             },
@@ -464,6 +493,11 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "outcome": "success",
             "endpoint": "/api/platform-admin/companies/<company_id>",
             "http_method": "GET",
+            "company_filter_applied": True,
+            "priority_filter_applied": False,
+            "company_id": 31,
+            "status": "open",
+            "priority": "normal",
         })
         response_text = response.get_data(as_text=True)
         self.assertNotIn("must be omitted", response_text)
