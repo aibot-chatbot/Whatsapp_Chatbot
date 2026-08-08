@@ -2,7 +2,7 @@ import logging
 import re
 
 from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
-from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.services.settings_service import generate_greeting
 from app.services.rag_service import get_deployed_settings
 
@@ -157,7 +157,7 @@ def _extract_menu_from_chunk(content):
 
 def get_primary_pdf_greeting_menu(chatbot_id):
     try:
-        active_pdf = get_active_pdf_knowledge_file(chatbot_id)
+        active_pdf = get_active_knowledge_file(chatbot_id)
         if not active_pdf:
             return ""
 
@@ -191,18 +191,23 @@ def handle_greeting(chatbot_id):
 
     bot = get_bot_by_id(chatbot_id)
     menu = get_primary_pdf_greeting_menu(chatbot_id)
+    
+    welcome_buttons = bot.get("welcome_menu_labels", []) if bot else []
 
     if bot and bot.get("welcome_message"):
         greeting = bot.get("welcome_message")
         if menu:
-            return f"{greeting}\n\n{menu}"
-        return greeting
-
-    settings = get_deployed_settings(chatbot_id)
-    greeting = generate_greeting(settings)
-
-    if menu:
-        return f"{greeting}\n\n{menu}"
+            greeting = f"{greeting}\n\n{menu}"
+    else:
+        settings = get_deployed_settings(chatbot_id)
+        greeting = generate_greeting(settings)
+        if menu:
+            greeting = f"{greeting}\n\n{menu}"
+            
+    if welcome_buttons and isinstance(welcome_buttons, list):
+        # Format the buttons tag to be picked up by telegram/whatsapp utils
+        labels = " | ".join(welcome_buttons)
+        greeting = f"{greeting}\n\n[BUTTONS: {labels}]"
 
     return greeting
 

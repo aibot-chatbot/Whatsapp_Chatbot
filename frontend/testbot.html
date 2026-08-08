@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -255,16 +255,26 @@
 
                 let htmlContent = text;
 
-                // Parse [BUTTON: X] for bot messages
+                // Parse [BUTTONS: X | Y] and legacy [BUTTON: X]
                 if (role === 'bot' && !isHtml && text) {
-                    const buttonRegex = /\[BUTTON:\s*(.*?)\]/g;
                     let buttons = [];
+                    
+                    // New format: [BUTTONS: A | B | C]
+                    const buttonsRegex = /\[BUTTONS:\s*(.*?)\]/g;
                     let match;
-                    while ((match = buttonRegex.exec(text)) !== null) {
+                    while ((match = buttonsRegex.exec(text)) !== null) {
+                        const parts = match[1].split('|').map(b => b.trim()).filter(b => b);
+                        buttons.push(...parts);
+                    }
+                    htmlContent = text.replace(buttonsRegex, '').trim();
+
+                    // Legacy format fallback: [BUTTON: A]
+                    const buttonRegex = /\[BUTTON:\s*(.*?)\]/g;
+                    while ((match = buttonRegex.exec(htmlContent)) !== null) {
                         buttons.push(match[1].trim());
                     }
+                    htmlContent = htmlContent.replace(buttonRegex, '').trim();
                     
-                    htmlContent = text.replace(buttonRegex, '').trim();
                     htmlContent = htmlContent.replace(/\n/g, '<br>');
 
                     if (buttons.length > 0) {
@@ -370,8 +380,12 @@
 
                         // Auto-load welcome message
                         if (selectedBotData.status === "success" && selectedBotData.data.welcome_message) {
+                            let wMsg = selectedBotData.data.welcome_message;
+                            if (selectedBotData.data.welcome_menu_labels && selectedBotData.data.welcome_menu_labels.length > 0) {
+                                wMsg += "\n\n[BUTTONS: " + selectedBotData.data.welcome_menu_labels.join(" | ") + "]";
+                            }
                             setTimeout(() => {
-                                appendMessage('bot', selectedBotData.data.welcome_message, false);
+                                appendMessage('bot', wMsg, false);
                             }, 500);
                         }
                     } else {

@@ -48,8 +48,10 @@
 | Chatbot deletion | Implemented | Requires deletion-flow verification |
 | Prompt configuration | Implemented | Profile and deployment flow exists |
 | Model selection | Implemented | Model catalog and settings UI exist |
-| Automated menu or flow generation | Implemented | Requires current verification |
+| Automated menu or flow generation | Obsolete | Feature scrubbed per user request |
 | Media Attachments | Implemented | Backend, UI, and webhook dispatch created |
+| Message style & welcome menu buttons | Implemented | Welcome-menu buttons always render regardless of the interactive-buttons toggle (per product decision). The `[BUTTONS: ...]` tag is now stripped from the reply before markdown formatting on both Telegram and WhatsApp so buttons reliably render. Welcome-menu AI generation is capped at 3 labels to match the UI. Regression tests added in `tests/test_message_style_buttons.py` |
+
 
 ## Knowledge and RAG
 

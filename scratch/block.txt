@@ -1,0 +1,90 @@
+﻿
+        // 鈹€鈹€ Inline Suggestions 鈹€鈹€
+        function renderInlineSuggestions(suggestions, sourceDocument) {
+            pendingSuggestions = suggestions.slice();
+            const sourceEl = document.getElementById('suggestions-source');
+            const listEl = document.getElementById('suggestions-list');
+            const addBtn = document.getElementById('inline-add-btn');
+            const selectionControls = document.getElementById('selection-controls');
+            const selectionTooltip = document.getElementById('selection-tooltip');
+            const suggestionsBadge = document.getElementById('suggestions-badge');
+
+            // Show source document
+            sourceEl.innerHTML = `<strong>馃搫 Source:</strong> ${escapeHtml(sourceDocument || 'Unknown document')}`;
+            sourceEl.style.display = '';
+
+            listEl.innerHTML = '';
+
+            suggestions.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'inline-suggestion-item';
+                div.draggable = true;
+                div.dataset.idx = idx;
+                div.innerHTML = `
+                    <div class="inline-suggestion-grip" style="flex-shrink:0;opacity:0.4;font-size:1.1rem;line-height:1.2;padding-top:2px;">鈰嫯</div>
+                    <input type="checkbox" class="inline-checkbox" data-idx="${idx}" checked draggable="false">
+                    <div class="inline-suggestion-content">
+                        <input type="text" class="inline-label-input" data-idx="${idx}" draggable="false"
+                               value="${escapeHtml(item.label)}" maxlength="20" placeholder="Button label">
+                        <input type="text" class="inline-desc-input" data-idx="${idx}" draggable="false"
+                               value="${escapeHtml(item.description || '')}" maxlength="60" placeholder="Description (optional)">
+                    </div>
+                `;
+
+                // Drag from suggestions to saved buttons
+                div.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('application/json', JSON.stringify({label: item.label, description: item.description || ''}));
+                    e.dataTransfer.effectAllowed = 'copy';
+                    div.classList.add('dragging');
+                });
+                div.addEventListener('dragend', () => {
+                    div.classList.remove('dragging');
+                });
+
+                // Update selection count when checkbox changes
+                const checkbox = div.querySelector('.inline-checkbox');
+                checkbox.addEventListener('change', updateInlineAddButton);
+
+                listEl.appendChild(div);
+            });
+
+            // Show selection controls
+            selectionControls.style.display = '';
+            selectionTooltip.style.display = '';
+            suggestionsBadge.style.display = 'none';
+            addBtn.style.display = '';
+            updateInlineAddButton();
+        }
+
+        function updateInlineAddButton() {
+            const checkboxes = document.querySelectorAll('#suggestions-list .inline-checkbox');
+            const addBtn = document.getElementById('inline-add-btn');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const totalCount = checkboxes.length;
+
+            addBtn.textContent = checkedCount > 0 ? `Add ${checkedCount} Selected` : 'Add Selected';
+            addBtn.disabled = checkedCount === 0;
+
+            // Update selection counter
+            const selectionCount = document.getElementById('selection-count');
+            if (totalCount > 0) {
+                selectionCount.textContent = `${checkedCount} of ${totalCount} selected`;
+            } else {
+                selectionCount.textContent = '0 selected';
+            }
+
+            // Update checkbox visual state
+            checkboxes.forEach(cb => {
+                const item = cb.closest('.inline-suggestion-item');
+                if (cb.checked) {
+                    item.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                    item.style.background = 'rgba(16, 185, 129, 0.06)';
+                } else {
+                    item.style.borderColor = '';
+                    item.style.background = '';
+                }
+            });
+        }
+
+        function addSelectedInline() {
+            const checkboxes = document.querySelectorAll('#suggestions-list .inline-checkbox');

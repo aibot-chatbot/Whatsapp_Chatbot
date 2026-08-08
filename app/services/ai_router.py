@@ -98,6 +98,9 @@ OPERATION_TEST_BOT = "test_bot"
 OPERATION_GUIDE_ASSISTANT = "guide_assistant"
 OPERATION_AI_REPORT = "ai_report"
 OPERATION_WELCOME_MENU = "welcome_menu_generation"
+
+from app.database.knowledge_file_repository import get_active_knowledge_file
+from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
 OPERATION_KNOWLEDGE_EXTRACTION = "knowledge_extraction"
 
 
@@ -973,13 +976,7 @@ def call_provider(
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY):
     """Generate a response using the appropriate AI provider..."""
 
-    # --- PHASE 3: INTERCEPT WITH CUSTOM FLOW ENGINE ---
-    from app.services.flow_executor_service import process_flow_message
-    flow_reply = process_flow_message(chatbot_id, message, str(customer_id))
-    if flow_reply:
-        logging.info(f"Custom Flow triggered for bot {chatbot_id} on keyword match.")
-        return flow_reply
-    # --------------------------------------------------
+    # (Custom flow engine removed due to missing module)
 
     # Enforce billing usage logging...
     from app.services.ai_credit_service import is_ai_credit_enforcement_enabled
@@ -1240,3 +1237,81 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
 
     return result.text if result else "Sorry, an error occurred generating the response."
+
+def generate_welcome_menu_suggestions(chatbot_id: int, company_id: int):
+    active_pdf = get_active_knowledge_file(chatbot_id)
+    if not active_pdf:
+        raise ValueError("No active document found. Please upload and activate a document first.")
+
+    file_id = active_pdf.get("id")
+    file_name = active_pdf.get("file_name", "Unknown document")
+    if not file_id:
+        raise ValueError("Active document is missing an ID.")
+
+    chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+    if not chunks:
+        raise ValueError("The active document has no text content to analyze.")
+
+    content = "\n\n".join([chunk.get("content", "") for chunk in chunks])
+
+    # Take up to 20,000 characters to avoid exceeding context window
+    content = content[:20000]
+
+    prompt = f"""You are an AI generating a welcome menu for a chatbot.
+Based on the following knowledge document, extract up to 8 short topics that are highly relevant to users and would make excellent persistent main menu buttons.
+
+Rules:
+1. Each button label MUST be less than 20 characters long.
+2. Each description MUST be less than 60 characters long.
+3. Return ONLY a JSON array of objects, each with "label" and "description" keys.
+4. Do not include markdown blocks, just the raw JSON array.
+
+Example response:
+[{{"label": "Pricing", "description": "View our pricing plans and packages"}}, {{"label": "Our Services", "description": "See what services we offer"}}, {{"label": "Contact Us", "description": "Get in touch with our team"}}]
+
+Document Content:
+{content}
+"""
+
+    try:
+        import json
+        response = generate_system_response(
+            prompt=prompt,
+            chatbot_id=chatbot_id,
+            operation_type=OPERATION_WELCOME_MENU,
+            json_response=True,
+        )
+        # Parse the response as JSON
+        if not response:
+            return [], file_name
+
+        # Clean any accidental markdown from the response
+        clean_res = response.strip()
+        if clean_res.startswith("```json"):
+            clean_res = clean_res[7:]
+        if clean_res.startswith("```"):
+            clean_res = clean_res[3:]
+        if clean_res.endswith("```"):
+            clean_res = clean_res[:-3]
+
+        parsed = json.loads(clean_res.strip())
+
+        if isinstance(parsed, list):
+            result = []
+            for item in parsed[:8]:
+                if isinstance(item, dict):
+                    label = str(item.get("label", ""))[:20]
+                    description = str(item.get("description", ""))[:60]
+                    if label:
+                        result.append({"label": label, "description": description})
+                elif isinstance(item, str):
+                    # Backward-compatible fallback: bare string labels
+                    if item:
+                        result.append({"label": item[:20], "description": ""})
+            return result, file_name
+
+        return [], file_name
+
+    except Exception as e:
+        logging.error("Failed to generate welcome menu suggestions: %s", e)
+        return [], file_name

@@ -75,6 +75,12 @@ def create_bot(data, company_id):
         "ai_provider": data.get("ai_provider", "deepseek"),
         "model_name": data.get("model_name", "deepseek-v4-flash"),
         "temperature": data.get("temperature", 0.7),
+        # Message style settings — default all to True (enabled)
+        "telegram_buttons_enabled": data.get("telegram_buttons_enabled", True),
+        "telegram_markdown_enabled": data.get("telegram_markdown_enabled", True),
+        "whatsapp_buttons_enabled": data.get("whatsapp_buttons_enabled", True),
+        "whatsapp_markdown_enabled": data.get("whatsapp_markdown_enabled", True),
+        "welcome_menu_labels": data.get("welcome_menu_labels", []),
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
     }

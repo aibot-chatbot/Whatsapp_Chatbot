@@ -5,19 +5,20 @@ import requests
 import re
 
 from app.services.ai_router import generate_response
+from app.database.bot_repository import get_bot_by_id
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
 from app.database.processed_message_repository import is_processed, save_processed
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_phone_number_id
 from app.services.workflow_tracker import update_workflow_state
 from app.services.media_send_service import dispatch_media_after_reply
+from app.utils.message_style_utils import parse_buttons_tag, format_for_whatsapp_markdown
 
 
 def log_http_response(response):
     logging.info(f"Status: {response.status_code}")
     logging.info(f"Content-type: {response.headers.get('content-type')}")
     logging.info(f"Body: {response.text}")
-
 
 def get_text_message_input(recipient, text):
     return json.dumps(
@@ -31,21 +32,24 @@ def get_text_message_input(recipient, text):
     )
 
 
-def get_interactive_button_message_input(recipient, body_text, buttons):
-    # WhatsApp API limits buttons to 3
-    buttons = buttons[:3]
+def get_interactive_button_message(recipient: str, text: str, buttons: list) -> str:
+    """Build a WhatsApp interactive quick-reply button payload.
 
-    interactive_buttons = []
-    for i, btn_text in enumerate(buttons):
-        # Truncate button text to 20 chars max as per WhatsApp limit
-        btn_title = btn_text[:20].strip()
-        interactive_buttons.append({
+    Args:
+        recipient: The WhatsApp phone number (wa_id).
+        text: The message body text (without the [BUTTONS:] tag).
+        buttons: List of button label strings (max 3, each ≤20 chars).
+
+    Returns:
+        JSON string ready to POST to the Meta Graph API.
+    """
+    button_objects = [
+        {
             "type": "reply",
-            "reply": {
-                "id": f"btn_{i}",
-                "title": btn_title
-            }
-        })
+            "reply": {"id": f"btn_{i}", "title": label},
+        }
+        for i, label in enumerate(buttons[:3])
+    ]
 
     return json.dumps(
         {
@@ -55,15 +59,12 @@ def get_interactive_button_message_input(recipient, body_text, buttons):
             "type": "interactive",
             "interactive": {
                 "type": "button",
-                "body": {
-                    "text": body_text
-                },
-                "action": {
-                    "buttons": interactive_buttons
-                }
-            }
+                "body": {"text": text},
+                "action": {"buttons": button_objects},
+            },
         }
     )
+
 
 
 def send_message(data, channel=None):
@@ -142,9 +143,12 @@ def process_whatsapp_message(body):
         logging.info(f"Duplicate message ignored: {message_id}")
         return
 
-    # Step 5: Handle non-text messages safely
-    if message.get("type") != "text":
-        logging.info(f"Unsupported WhatsApp message type: {message.get('type')}")
+    # Handle non-text messages safely
+    message_type = message.get("type", "unknown")
+
+    if message_type not in ("text", "interactive"):
+
+        logging.info(f"Unsupported WhatsApp message type: {message_type}")
 
         conversation = get_or_create_conversation(
             chatbot_id=chatbot_id,
@@ -156,14 +160,12 @@ def process_whatsapp_message(body):
         save_message(
             conversation_id=conversation["id"],
             sender_type="customer",
-            message_text=f"[Unsupported message type: {message.get('type')}]",
-            message_type=message.get("type", "unknown"),
+            message_text=f"[Unsupported message type: {message_type}]",
+            message_type=message_type,
             platform_message_id=message_id,
             delivery_status="received",
             ai_generated=False,
         )
-
-        message_type = message.get("type", "unknown")
 
         if message_type == "image":
             reply = (
@@ -191,7 +193,16 @@ def process_whatsapp_message(body):
         save_processed(chatbot_id, message_id)
         return
 
-    message_body = message["text"]["body"]
+    if message_type == "interactive":
+        interactive_data = message.get("interactive", {})
+        if interactive_data.get("type") == "button_reply":
+            message_body = interactive_data.get("button_reply", {}).get("title", "")
+        elif interactive_data.get("type") == "list_reply":
+            message_body = interactive_data.get("list_reply", {}).get("title", "")
+        else:
+            message_body = ""
+    else:
+        message_body = message["text"]["body"]
 
     conversation = get_or_create_conversation(
         chatbot_id=chatbot_id,
@@ -226,11 +237,21 @@ def process_whatsapp_message(body):
         update_workflow_state(chatbot_id, "COMPLETED", "<SILENT_BOT_RESPONSE>", wa_id)
         return
 
-    response = process_text_for_whatsapp(response)
+    # Read message style settings from the bot record (safe default: enabled)
+    bot_record = get_bot_by_id(chatbot_id) or {}
+    buttons_enabled = bot_record.get("whatsapp_buttons_enabled", True)
+    markdown_enabled = bot_record.get("whatsapp_markdown_enabled", True)
 
-    # Extract interactive buttons if any
-    button_matches = re.findall(r"\[BUTTON:\s*(.*?)\]", response, re.IGNORECASE)
-    clean_response = re.sub(r"\[BUTTON:\s*(.*?)\]", "", response, flags=re.IGNORECASE).strip()
+    # Parse [BUTTONS: A | B | C] tag out of the reply FIRST so the tag is never
+    # processed by the markdown formatter (which could mangle or strip it).
+    clean_response, button_labels = parse_buttons_tag(response)
+
+    # Apply WhatsApp markdown formatting to the clean text only
+    if markdown_enabled:
+        clean_response = format_for_whatsapp_markdown(clean_response)
+    else:
+        clean_response = process_text_for_whatsapp(clean_response)
+
 
     save_message(
         conversation_id=conversation["id"],
@@ -241,18 +262,28 @@ def process_whatsapp_message(body):
         ai_generated=True,
     )
 
-    update_workflow_state(chatbot_id, "SENDING", response, wa_id)
+    update_workflow_state(chatbot_id, "SENDING", clean_response, wa_id)
 
-    if button_matches:
-        data = get_interactive_button_message_input(wa_id, clean_response, button_matches)
-    else:
-        data = get_text_message_input(wa_id, response)
+    # Send as interactive button message if buttons are present and enabled;
+    # otherwise fall back to plain text.
+    sent_interactive = False
+    if buttons_enabled and button_labels:
+        try:
+            interactive_data = get_interactive_button_message(wa_id, clean_response, button_labels)
+            send_message(interactive_data, channel)
+            sent_interactive = True
+        except Exception as btn_err:
+            logging.warning(
+                "WhatsApp interactive button send failed, falling back to plain text: %s", btn_err
+            )
 
-    send_message(data, channel)
+    if not sent_interactive:
+        data = get_text_message_input(wa_id, clean_response)
+        send_message(data, channel)
 
     save_processed(chatbot_id, message_id)
-    update_workflow_state(chatbot_id, "COMPLETED", response, wa_id)
-    
+    update_workflow_state(chatbot_id, "COMPLETED", clean_response, wa_id)
+
     # Try sending any configured media attachments that match the user's message
     # using the original message_body
     dispatch_media_after_reply(message_body, chatbot_id, "meta", channel, wa_id)

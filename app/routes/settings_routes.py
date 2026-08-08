@@ -160,3 +160,4 @@ def apply_profile():
             "status": "error",
             "message": str(e)
         }), 500
+
