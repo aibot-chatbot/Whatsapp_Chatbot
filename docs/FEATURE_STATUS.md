@@ -366,8 +366,9 @@ production readiness.
   `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
   SQL execution requires project/ref/environment preflight evidence; the
   Migration 029 production-application and successful rollback are recorded in
-  the access lifecycle. Future testing is local/dev or approved staging only;
-  production remains blocked.
+  the access lifecycle. Future SQL/testing is limited to confirmed local/dev,
+  the approved main shared-testing environment with fake/team data, or approved
+  staging targets. Production remains blocked.
   Tenant support submission is governed by
   `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`; its backend endpoint and
   bounded frontend form are implemented locally. Migration 030 is applied and
@@ -427,6 +428,22 @@ production readiness.
 - Access request, revocation, replacement, and periodic-review procedure is
   documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it adds no access,
   mapping management, write controls, or production authorization.
+- Platform-admin User Management Phase 4 is implemented locally with bounded
+  directory/detail, add-existing-user, activate, and deactivate workflows.
+  Migration 034 is applied and structurally verified only in the approved main
+  shared-testing Supabase with fake/team data. Company 29 is explicitly
+  registered as the protected internal company for main shared-testing only;
+  it is not a staging or production designation and is not hardcoded into the
+  application. Shared testing currently has only one active user in company 29,
+  user 32, and that user already has the sole platform-admin mapping, so the
+  successful create-mapping shared-testing E2E remains pending until a second
+  approved active fake/team user exists. Migration 035 is applied and verified
+  only in the approved main shared-testing Supabase with fake/team data; it
+  corrected only the Phase 4 RPC audit endpoint metadata, preserved RPC
+  ownership/security/EXECUTE posture, did not create mappings, did not create
+  Phase 4 mutation audit events merely by application, and did not alter
+  existing audit rows. Staging verification and production readiness remain
+  blocked.
 - The lifecycle document now includes a redacted access, revocation, smoke,
   audit-log, and localhost/staging/production evidence checklist; it does not
   change the current local-only verification boundary.

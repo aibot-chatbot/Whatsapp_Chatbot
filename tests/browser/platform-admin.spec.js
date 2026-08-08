@@ -27,6 +27,43 @@ const identity = {
   }
 };
 
+const platformAdminUsers = {
+  platform_admin_users: [
+    {
+      platform_admin_user_id: 7001,
+      user_id: 9001,
+      is_active: true,
+      created_at: "2026-07-01T00:00:00+00:00",
+      updated_at: "2026-07-02T00:00:00+00:00",
+      created_by_user_id: null,
+      user_email: "operator@example.test",
+      user_full_name: "Test Operator",
+      user_status: "active",
+      creator_user_id: null,
+      creator_email: null,
+      creator_full_name: null,
+      recent_platform_admin_activity_at: "2026-07-03T00:00:00+00:00"
+    },
+    {
+      platform_admin_user_id: 7002,
+      user_id: 9002,
+      is_active: false,
+      created_at: "2026-07-04T00:00:00+00:00",
+      updated_at: "2026-07-05T00:00:00+00:00",
+      created_by_user_id: 9001,
+      user_email: "second@example.test",
+      user_full_name: "Second Operator <script>window.__adminUserXss=true</script>",
+      user_status: "active",
+      creator_user_id: 9001,
+      creator_email: "operator@example.test",
+      creator_full_name: "Test Operator",
+      recent_platform_admin_activity_at: null
+    }
+  ],
+  pagination: { limit: 100, offset: 0, returned: 2, total: 2, has_more: false },
+  filters: { is_active: null }
+};
+
 const company = {
   id: 42,
   company_name: "Example Tenant <script>window.__xss = true</script>",
@@ -564,6 +601,16 @@ function defaultHandler({ url }) {
   if (url.pathname === "/api/platform-admin/me") return success(identity);
   if (url.pathname === "/api/platform-admin/overview") return success(operationsOverview);
   if (url.pathname === "/api/platform-admin/audit-events") return success(auditEvents);
+  if (url.pathname === "/api/platform-admin/platform-admin-users") return success(platformAdminUsers);
+  if (url.pathname === "/api/platform-admin/platform-admin-users/7002/active") {
+    return success({
+      platform_admin_user: {
+        platform_admin_user_id: 7002,
+        user_id: 9002,
+        is_active: true
+      }
+    });
+  }
   if (url.pathname === "/api/platform-admin/support-case-assignees") return success(supportCaseAssignees);
   if (url.pathname === "/api/platform-admin/support-cases") return success(supportCases);
   if (url.pathname === "/api/platform-admin/support-cases/9") return success(supportCaseDetail);
@@ -784,7 +831,7 @@ test.describe("platform-admin dashboard and directory", () => {
     await expect.poll(() => page.evaluate(() => window.__planXss)).toBeUndefined();
     await expect.poll(() => page.evaluate(() => window.__alertPlanXss)).toBeUndefined();
     await expect.poll(() => page.evaluate(() => window.__expiredAlertXss)).toBeUndefined();
-    await expect(page.getByText("Internal / Read Only")).toBeVisible();
+    await expect(page.getByText("Internal / Controlled Access")).toBeVisible();
     await assertReadOnlyBoundary(page);
   });
 
@@ -1320,6 +1367,143 @@ test.describe("platform-admin audit log viewer", () => {
       await expect(page.getByRole("button", { name: label })).toHaveCount(0);
       await expect(page.getByRole("link", { name: label })).toHaveCount(0);
     }
+  });
+});
+
+test.describe("platform-admin user management", () => {
+  test("directory renders safe mapping fields and bounded lifecycle controls", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-users.html", ({ url }) => defaultHandler({ url }));
+    await expect(page.getByRole("heading", { name: "Platform Admin Management" })).toBeVisible();
+    await expect(page.getByText("Recent platform activity")).toBeVisible();
+    await expect(page.getByText("Bootstrap/unknown")).toBeVisible();
+    await expect(page.getByText("Second Operator <script>window.__adminUserXss=true</script>")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__adminUserXss)).toBeUndefined();
+    await expect(page.getByRole("button", { name: "Deactivate", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Activate", exact: true })).toBeEnabled();
+    await expect(page.getByRole("textbox", { name: /company/i })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: /role|company/i })).toHaveCount(0);
+    for (const label of ["Invite", "Reset password", "Impersonate", "Delete", "Billing"]) {
+      await expect(page.getByRole("button", { name: label })).toHaveCount(0);
+    }
+    await page.getByRole("button", { name: "Activate", exact: true }).click();
+    expect(calls.some(call => (
+      call.method === "PATCH" && call.path === "/api/platform-admin/platform-admin-users/7002/active"
+    ))).toBe(true);
+  });
+
+  test("add existing user uses numeric ID, prevents duplicate submits, and refreshes", async ({ page }) => {
+    let releaseCreate;
+    let createCount = 0;
+    const createGate = new Promise(resolve => {
+      releaseCreate = () => resolve(success({
+        platform_admin_user: { platform_admin_user_id: 7003, user_id: 9003, is_active: true }
+      }));
+    });
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "POST") {
+        createCount += 1;
+        return createGate;
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByLabel("Existing user ID").fill("9003");
+    const addButton = page.getByRole("button", { name: "Add platform admin" });
+    await addButton.click();
+    await expect(addButton).toBeDisabled();
+    await page.evaluate(() => document.querySelector("form button[type='submit']").click());
+    expect(createCount).toBe(1);
+    releaseCreate();
+    await expect(page.getByRole("heading", { name: "Platform Admins" })).toBeVisible();
+  });
+
+  test("create failures are sanitized and do not expose raw provider detail", async ({ page }) => {
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "POST") {
+        return failure(400, "target_user_not_protected", "raw Supabase protected-company detail");
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByLabel("Existing user ID").fill("12345");
+    await page.getByRole("button", { name: "Add platform admin" }).click();
+    await expect(page.getByText("User is not eligible for platform-admin access.")).toBeVisible();
+    await expect(page.getByText("raw Supabase protected-company detail")).toHaveCount(0);
+  });
+
+  test("successful add followed by refresh failure shows recoverable retry state", async ({ page }) => {
+    let directoryRequests = 0;
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "GET") {
+        directoryRequests += 1;
+        if (directoryRequests === 1) return success(platformAdminUsers);
+        return failure(503, "platform_admin_data_unavailable", "raw Supabase refresh detail");
+      }
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "POST") {
+        return success({
+          platform_admin_user: { platform_admin_user_id: 7003, user_id: 9003, is_active: true }
+        });
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByLabel("Existing user ID").fill("9003");
+    await page.getByRole("button", { name: "Add platform admin" }).click();
+    await expect(page.getByText("Loading platform admins...")).toHaveCount(0);
+    await expect(page.getByText("Platform-admin directory refresh failed. Retry to load the current state.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByText("raw Supabase refresh detail")).toHaveCount(0);
+  });
+
+  test("successful activation followed by refresh failure shows recoverable retry state", async ({ page }) => {
+    let activeRequests = 0;
+    let directoryRequests = 0;
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "GET") {
+        directoryRequests += 1;
+        if (directoryRequests === 1) return success(platformAdminUsers);
+        return failure(503, "platform_admin_data_unavailable", "raw provider refresh detail");
+      }
+      if (url.pathname === "/api/platform-admin/platform-admin-users/7002/active") {
+        activeRequests += 1;
+        return success({
+          platform_admin_user: { platform_admin_user_id: 7002, user_id: 9002, is_active: true }
+        });
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Activate", exact: true }).click();
+    expect(activeRequests).toBe(1);
+    await expect(page.getByText("Loading platform admins...")).toHaveCount(0);
+    await expect(page.getByText("Platform-admin directory refresh failed. Retry to load the current state.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByText("raw provider refresh detail")).toHaveCount(0);
+  });
+
+  test("authorization denial during post-mutation refresh clears protected state", async ({ page }) => {
+    let directoryRequests = 0;
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "GET") {
+        directoryRequests += 1;
+        if (directoryRequests === 1) return success(platformAdminUsers);
+        return failure(403, "platform_admin_access_denied", "raw access denial detail");
+      }
+      if (url.pathname === "/api/platform-admin/platform-admin-users/7002/active") {
+        return success({
+          platform_admin_user: { platform_admin_user_id: 7002, user_id: 9002, is_active: true }
+        });
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Activate", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Access Denied" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Platform Admin Management" })).toHaveCount(0);
+    await expect(page.getByText("raw access denial detail")).toHaveCount(0);
   });
 });
 

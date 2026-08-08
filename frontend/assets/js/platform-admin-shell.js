@@ -221,7 +221,7 @@
             const brandText = element("div");
             brandText.append(
                 element("p", "platform-brand-title", "Platform Administration"),
-                element("span", "platform-readonly-badge", "Internal / Read Only")
+                element("span", "platform-readonly-badge", "Internal / Controlled Access")
             );
             brand.append(mark, brandText);
 
@@ -233,14 +233,17 @@
             companies.href = "platform-admin-companies.html";
             const support = element("a", "", "Support");
             support.href = "platform-admin-support.html";
+            const platformAdmins = element("a", "", "Platform Admins");
+            platformAdmins.href = "platform-admin-users.html";
             const auditEvents = element("a", "", "Audit Logs");
             auditEvents.href = "platform-admin-audit-events.html";
             const active = this.getAttribute("active-page");
             if (active === "dashboard") dashboard.setAttribute("aria-current", "page");
             if (active === "companies") companies.setAttribute("aria-current", "page");
             if (active === "support") support.setAttribute("aria-current", "page");
+            if (active === "platform-admin-users") platformAdmins.setAttribute("aria-current", "page");
             if (active === "audit-events") auditEvents.setAttribute("aria-current", "page");
-            nav.append(dashboard, companies, support, auditEvents);
+            nav.append(dashboard, companies, support, platformAdmins, auditEvents);
 
             const footer = element("div", "platform-shell-footer");
             this.operator = element("div", "platform-operator");
