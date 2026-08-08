@@ -12,7 +12,7 @@
 > | 4I | Renewal, grace period, failed-payment recovery | Complete |
 > | 4J | Billing notifications and alerts | Complete |
 > | 4K | Advanced billing and AI-usage reporting | Complete |
-> | 4L | Platform-admin controls | **Staging verified; production-readiness package prepared; production blocked** |
+> | 4L | Platform-admin controls | **Original scope staging verified; current 12-route stack local-only; production blocked** |
 > | 4M | Production launch audit and remediation | Complete |
 > | 4N | Knowledge Readme compilation & Pop-out viewer | Complete |
 >
@@ -32,6 +32,30 @@ uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
 Operational Alerts Phase 1 extends the existing dashboard and overview response
 only, deriving typed read-only subscription past-due/expired alerts from the
 existing attention-company data without adding a route or page.
+All proposed Phase 2 alert types remain deferred under the design contract in
+`docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
+
+At the current HEAD, localhost manual verification recorded on 2026-08-03
+passed for the complete twelve-route read-only stack: dashboard, operational
+alerts, company directory/detail, subscription summary/history, AI-credit usage
+and transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
+billing-order audit filters, and local revocation with Access Denied and stale
+platform-data clearing. This is local evidence only. The original five
+platform-admin endpoints remain the only endpoint set recorded as staging
+verified; later extensions remain application-only/local-tested unless separately
+staged. Operational Alerts added no endpoint or page, and the billing-order
+audit-filter fix added no route or backend behavior change.
+The read-only smoke helper was also exercised locally on 2026-08-03 against
+localhost: all twelve checks passed with an approved company ID, required-only
+checks passed with child checks skipped when no company ID was supplied, and
+missing `PLATFORM_ADMIN_TOKEN` failed safely. This is localhost evidence only;
+the helper is local/staging-ready but requires an approved environment and
+token, and does not change the production-blocked status.
+The access request, revocation, replacement, and periodic-review procedure is
+documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it is policy-only and
+does not authorize mapping changes or production access.
+Its evidence checklist covers approval, revocation, smoke checks, audit-log
+review, redaction, and environment-specific evidence boundaries.
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
@@ -43,17 +67,44 @@ no-subscription counting, global activity, usage aggregation, charts, exports, a
 editing/deletion, and write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
-shell, a fresh `/me` authorization gate on every page, an allowlisted GET-only
-client, in-memory request cancellation/state clearing, the Platform Operations
+shell, a fresh `/me` authorization gate on every page, an allowlisted
+GET/POST/PATCH client, in-memory request cancellation/state clearing, the Platform Operations
 overview, the server-paginated company directory, safe company billing/AI-credit
 detail views, typed subscription operational alerts, and lazy read-only subscription-history, AI-credit transaction-history,
 billing-order history, and company users/chatbots sections. A later bounded frontend-only platform-admin
 Support Workspace adds a read-only investigation hub that reuses the existing
 operations overview and company directory APIs, highlights attention companies,
-and links into the existing company detail investigation page without adding a
-backend endpoint. It is separate from tenant `support.html` and does not add
-ticketing, support-case records, notes, assignment, billing-order history,
-audit-log viewing, or write controls. The ordinary
+and links into the existing company detail investigation page.
+Support Cases Phase 1 is implemented for internal platform-admin use and is
+verified in the main shared testing Supabase with fake/team data; this is not
+staging or production verification. The feature adds bounded internal case create/list/detail,
+redacted notes, status/priority updates, append-only case events, and audited
+writes. It is separate from tenant `support.html` and does not add customer
+messaging, impersonation, billing actions, exports, charts, or production use.
+SQL execution now requires project/ref/environment preflight evidence recorded
+in the platform-admin access lifecycle. Future SQL is limited to confirmed
+local/dev or approved staging targets; production remains blocked.
+Tenant support submission is governed by
+`docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`. The backend endpoint is
+implemented locally and the bounded frontend form is implemented locally.
+Migration 030 is applied and verified only in the main shared testing Supabase
+with fake/team data; local browser/API E2E verification passed with fake data.
+This is not staging verification or production readiness, and the migration
+does not modify the verified platform-admin support-case tables.
+The read-only platform-admin tenant-support intake viewer is implemented locally
+under `docs/PLATFORM_ADMIN_TENANT_SUPPORT_INTAKE_VIEWER_CONTRACT.md` with two
+GET-only routes and a separate Support Workspace section. No SQL was required;
+Migration 030 remains verified only in the main shared testing Supabase with
+fake/team data. This is not staging verification or production readiness.
+Tenant Support Intake Review/Conversion is implemented locally under
+`docs/PLATFORM_ADMIN_TENANT_SUPPORT_CONVERSION_CONTRACT.md` and verified only
+in the main shared testing Supabase with fake/team data. Migration 031 was
+applied there and browser/API E2E passed locally: request 1 was reviewed then
+converted, creating internal case 2 once. This is not staging verification or
+production readiness, and production remains blocked. RLS/EXECUTE, audit
+metadata, RPC security, and the mapping baseline remained safe.
+Assignment UI, customer contact, SLA, and other future concepts remain deferred
+under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.
 The Audit Logs viewer adds a separate read-only page and one audited backend
 endpoint for safe platform-admin audit event summaries. It returns actor mapping
@@ -66,8 +117,10 @@ lifecycle timestamp fields only. It excludes payment/gateway/checkout/reference,
 idempotency, raw-error, reconciliation, retry, activation, manual-credit,
 export/download, chart, and write behavior.
 Authenticated tenant pages now use a shared top-right account menu for Profile,
-Support, and Logout. Support points to a static authenticated tenant help page
-with local self-service guidance and no support-submission backend. Active
+Support, and Logout. Support now includes the local backend submission endpoint
+and a bounded frontend request form. Migration 030 and local browser/API E2E
+verification are recorded only in the main shared testing Supabase with
+fake/team data; this is not staging verification or production readiness. Active
 platform admins can discover a Platform Administration link only after a lazy live
 `/api/platform-admin/me` check. This menu visibility does not replace the
 platform page's fresh authorization gate.
@@ -92,6 +145,12 @@ including service-role mutation rejection and rollback cleanup. The mapping
 remains inactive. No production SQL, bootstrap, deployment, tenant-role change,
 or maintenance bypass has been applied; production approvals remain
 outstanding.
+
+Production remains blocked: no confirmed staging/online environment is defined
+in repository configuration; the latest extensions are not staging-verified; and
+production ownership/executor, protected-company/bootstrap, audit
+retention/redaction, monitoring, rollback, and backup/restore approvals or
+evidence remain pending.
 
 The final Phase 4 staging rehearsal is complete. It verified inactive-state
 denial, time-bounded reactivation, dashboard and company read paths, normal
@@ -313,8 +372,8 @@ Make major frontend workflows consistent and verifiable.
 
 ### Progress recorded 2026-07-29
 
-- Static authenticated tenant Support page (`support.html`) added as a bounded frontend consistency improvement. It uses the ordinary tenant sidebar and shared account menu, requires login through the existing frontend auth helper, renders account display text safely from session storage, links only to existing local tenant pages, and does not add support forms, ticket creation, email sending, backend routes, configuration, staging changes, or production changes.
-- The shared tenant account menu now restores Support as a working destination while keeping Profile, Logout, and lazy live Platform Administration discovery behavior unchanged. Direct contact and support-ticket submission remain deferred until an approved contact destination and backend design exist.
+- Static authenticated tenant Support page (`support.html`) added as a bounded frontend consistency improvement. It uses the ordinary tenant sidebar and shared account menu, requires login through the existing frontend auth helper, renders account display text safely from session storage, and links to existing local tenant pages.
+- The shared tenant account menu now restores Support as a working destination while keeping Profile, Logout, and lazy live Platform Administration discovery behavior unchanged. Tenant support submission is implemented locally through the bounded endpoint/form contract; migration 030, database/browser E2E verification, messaging, email, and production use remain pending or blocked.
 - Public landing-page pricing was aligned with the authoritative subscription plan catalogue used by authenticated Billing. The landing page now renders published plan values from a tested duplicate frontend catalogue module, removes unsupported support-level claims, and keeps logged-out/register plus logged-in/billing CTA behavior covered by local tests. The duplicate module must be updated whenever plan migrations, runtime plan rows, or commercial values change; a public-safe plan catalogue endpoint remains a possible later cleanup. Free stores the economy tier internally but is presented as DeepSeek Only because active trial provider access is direct DeepSeek only. The Pro public description uses neutral application copy because the current runtime database row still contains legacy example wording; correcting that row remains a separate reviewed data-migration decision.
 
 ### Deferred risks

@@ -35,6 +35,7 @@ AI_CREDIT_TRANSACTION_TYPE_FILTERS = {
     "expiry",
     "reversal",
 }
+TENANT_SUPPORT_REQUEST_STATUSES = {"new", "reviewed", "converted", "closed"}
 AUDIT_OUTCOMES = {"success", "not_found"}
 PLATFORM_ADMIN_ENDPOINTS = {
     "identity": "/api/platform-admin/me",
@@ -49,6 +50,13 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "company_ai_credit_transactions": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
     "company_billing_orders": "/api/platform-admin/companies/<company_id>/billing-orders",
     "audit_events": "/api/platform-admin/audit-events",
+    "support_case_list": "/api/platform-admin/support-cases",
+    "support_case_create": "/api/platform-admin/support-cases",
+    "support_case_read": "/api/platform-admin/support-cases/<case_id>",
+    "support_case_note_create": "/api/platform-admin/support-cases/<case_id>/notes",
+    "support_case_update": "/api/platform-admin/support-cases/<case_id>",
+    "tenant_support_request_list": "/api/platform-admin/tenant-support-requests",
+    "tenant_support_request_read": "/api/platform-admin/tenant-support-requests/<request_id>",
 }
 
 
@@ -223,6 +231,107 @@ AUDIT_EVENT_SCHEMAS = {
         "outcomes": {"success"},
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["audit_events"],
     },
+    "platform_admin.support_case.list": {
+        "resource_type": "platform_support_cases",
+        "resource_id": _resource_id_none,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "limit", "offset",
+            "company_filter_applied", "status_filter_applied",
+            "priority_filter_applied", "returned_count",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_list"],
+    },
+    "platform_admin.support_case.read": {
+        "resource_type": "platform_support_cases",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": set(),
+        "outcomes": AUDIT_OUTCOMES,
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_read"],
+    },
+    "platform_admin.support_case.create": {
+        "resource_type": "platform_support_cases",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method", "company_id"},
+        "optional_metadata": {"status", "priority"},
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_create"],
+        "http_methods": {"POST"},
+    },
+    "platform_admin.support_case.note.create": {
+        "resource_type": "platform_support_case_events",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_note_create"],
+        "http_methods": {"POST"},
+    },
+    "platform_admin.support_case.update": {
+        "resource_type": "platform_support_cases",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": {"status", "priority"},
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_update"],
+        "http_methods": {"PATCH"},
+    },
+    "platform_admin.tenant_support_request.list": {
+        "resource_type": "tenant_support_requests",
+        "resource_id": _resource_id_none,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "limit", "offset",
+            "returned_count", "company_filter_applied", "category_filter_applied",
+            "status_filter_applied",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["tenant_support_request_list"],
+    },
+    "platform_admin.tenant_support_request.read": {
+        "resource_type": "tenant_support_requests",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": set(),
+        "outcomes": AUDIT_OUTCOMES,
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["tenant_support_request_read"],
+    },
+    "platform_admin.tenant_support_request.review": {
+        "resource_type": "tenant_support_requests",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "old_status", "new_status",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["tenant_support_request_read"],
+        "http_methods": {"PATCH"},
+    },
+    "platform_admin.tenant_support_request.close": {
+        "resource_type": "tenant_support_requests",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "old_status", "new_status",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["tenant_support_request_read"],
+        "http_methods": {"PATCH"},
+    },
+    "platform_admin.tenant_support_request.convert": {
+        "resource_type": "tenant_support_requests",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "old_status", "new_status",
+            "converted_platform_support_case_id",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": "/api/platform-admin/tenant-support-requests/<request_id>/convert",
+        "http_methods": {"POST"},
+    },
 }
 ALLOWED_AUDIT_ACTIONS = frozenset(AUDIT_EVENT_SCHEMAS)
 ALLOWED_RESOURCE_TYPES = frozenset(
@@ -335,7 +444,7 @@ def _validate_metadata_schema(action, schema, metadata):
 
     _member(metadata["outcome"], "outcome", schema["outcomes"])
     _exact_string(metadata["endpoint"], "endpoint", schema["endpoint"])
-    _exact_string(metadata["http_method"], "http_method", "GET")
+    _member(metadata["http_method"], "http_method", schema.get("http_methods", {"GET"}))
 
     if action == "platform_admin.company.list":
         _bounded_integer(metadata["limit"], "limit", 1, 100)
@@ -457,6 +566,48 @@ def _validate_metadata_schema(action, schema, metadata):
         _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
         if metadata["returned_count"] > metadata["limit"]:
             raise ValueError("returned_count cannot exceed limit")
+
+    if action == "platform_admin.support_case.list":
+        _bounded_integer(metadata["limit"], "limit", 1, 100)
+        _non_negative_integer(metadata["offset"], "offset")
+        for key in (
+            "company_filter_applied", "status_filter_applied",
+            "priority_filter_applied",
+        ):
+            _boolean(metadata[key], key)
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
+        if metadata["returned_count"] > metadata["limit"]:
+            raise ValueError("returned_count cannot exceed limit")
+
+    if action in {
+        "platform_admin.support_case.create",
+        "platform_admin.support_case.update",
+    }:
+        if "company_id" in metadata:
+            _positive_integer(metadata["company_id"], "company_id")
+        for key in ("status", "priority"):
+            if key in metadata and not isinstance(metadata[key], str):
+                raise ValueError(f"{key} must be text")
+
+    if action in {
+        "platform_admin.tenant_support_request.review",
+        "platform_admin.tenant_support_request.close",
+        "platform_admin.tenant_support_request.convert",
+    }:
+        for key in ("old_status", "new_status"):
+            if metadata[key] not in TENANT_SUPPORT_REQUEST_STATUSES:
+                raise ValueError(f"{key} must be a valid tenant support request status")
+        if action.endswith(".review") and metadata["new_status"] != "reviewed":
+            raise ValueError("review audit must have reviewed new_status")
+        if action.endswith(".close") and metadata["new_status"] != "closed":
+            raise ValueError("close audit must have closed new_status")
+        if action.endswith(".convert"):
+            if metadata["new_status"] != "converted":
+                raise ValueError("convert audit must have converted new_status")
+            _positive_integer(
+                metadata["converted_platform_support_case_id"],
+                "converted_platform_support_case_id",
+            )
 
 
 def validate_audit_event(

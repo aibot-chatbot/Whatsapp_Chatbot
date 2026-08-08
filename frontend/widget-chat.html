@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Chat</title>
+<style>
+  :root {
+    --accent: #4F46E5;
+    --on-accent: #FFFFFF;
+    --bg: #FFFFFF;
+    --panel: #F8FAFC;
+    --bubble-bot: #F1F5F9;
+    --text: #0F172A;
+    --muted: #64748B;
+    --border: #E2E8F0;
+    --radius: 14px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #app { display: flex; flex-direction: column; height: 100%; }
+
+  /* ── Header ─────────────────────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px; background: var(--accent); color: var(--on-accent);
+    flex: 0 0 auto;
+  }
+  header .avatar {
+    width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto;
+    background: rgba(255,255,255,.22); display: grid; place-items: center;
+    font-weight: 700; font-size: 15px; overflow: hidden;
+  }
+  header .avatar img { width: 100%; height: 100%; object-fit: cover; }
+  header .meta { min-width: 0; flex: 1; }
+  header .title { font-weight: 650; font-size: 15px; }
+  header .subtitle { font-size: 12.5px; opacity: .85; }
+  header .title, header .subtitle {
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  header button {
+    background: transparent; border: 0; color: inherit; cursor: pointer;
+    padding: 6px; border-radius: 8px; line-height: 0; opacity: .9;
+  }
+  header button:hover { background: rgba(255,255,255,.16); }
+  header button svg { width: 20px; height: 20px; }
+  body:not(.is-embedded) #closeBtn { display: none; }
+
+  /* ── Message list ───────────────────────────────────────── */
+  #log {
+    flex: 1 1 auto; overflow-y: auto; padding: 16px;
+    background: var(--panel); display: flex; flex-direction: column; gap: 10px;
+    overscroll-behavior: contain;
+  }
+
+  .msg { max-width: 84%; padding: 10px 13px; border-radius: var(--radius); white-space: pre-wrap; word-wrap: break-word; }
+  .msg.bot  { align-self: flex-start; background: var(--bubble-bot); border-bottom-left-radius: 4px; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 4px; }
+  .msg.error{ align-self: center; background: #FEF2F2; color: #991B1B; font-size: 13.5px; text-align: center; max-width: 92%; }
+  .msg a { color: inherit; text-decoration: underline; }
+
+  .typing { align-self: flex-start; display: flex; gap: 4px; padding: 13px; background: var(--bubble-bot); border-radius: var(--radius); border-bottom-left-radius: 4px; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: bounce 1.2s infinite; }
+  .typing i:nth-child(2) { animation-delay: .15s; }
+  .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes bounce { 0%,60%,100% { opacity:.3; transform: translateY(0);} 30% { opacity:1; transform: translateY(-4px);} }
+
+  /* ── Suggested questions ────────────────────────────────── */
+  #suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 12px; background: var(--panel); }
+  #suggestions button {
+    background: #fff; border: 1px solid var(--border); color: var(--text);
+    padding: 8px 12px; border-radius: 9999px; cursor: pointer; font-size: 13.5px;
+  }
+  #suggestions button:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Lead form ──────────────────────────────────────────── */
+  #leadForm { padding: 16px; background: var(--panel); border-top: 1px solid var(--border); }
+  #leadForm p { margin: 0 0 12px; font-size: 14px; color: var(--muted); }
+  #leadForm input {
+    width: 100%; padding: 10px 12px; margin-bottom: 8px;
+    border: 1px solid var(--border); border-radius: 10px; font-size: 14px; font-family: inherit;
+  }
+  #leadForm input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+  #leadForm .row { display: flex; gap: 8px; }
+  #leadForm .row button { flex: 1; padding: 10px; border-radius: 10px; border: 0; cursor: pointer; font-size: 14px; font-family: inherit; }
+  #leadForm .primary { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+  #leadForm .ghost { background: transparent; color: var(--muted); }
+
+  /* ── Composer ───────────────────────────────────────────── */
+  #composer {
+    display: flex; gap: 8px; align-items: flex-end;
+    padding: 12px 14px; border-top: 1px solid var(--border); background: var(--bg);
+    flex: 0 0 auto; padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  #input {
+    flex: 1; resize: none; max-height: 120px; min-height: 42px;
+    padding: 11px 13px; border: 1px solid var(--border); border-radius: 12px;
+    font: inherit; font-size: 14.5px;
+  }
+  #input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+  #send {
+    width: 42px; height: 42px; flex: 0 0 auto; border: 0; border-radius: 12px;
+    background: var(--accent); color: var(--on-accent); cursor: pointer;
+    display: grid; place-items: center;
+  }
+  #send:disabled { opacity: .45; cursor: not-allowed; }
+  #send svg { width: 19px; height: 19px; }
+
+  #branding { text-align: center; font-size: 11.5px; color: var(--muted); padding: 0 0 10px; background: var(--bg); }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="avatar" id="avatar"></div>
+    <div class="meta">
+      <div class="title" id="title">Chat</div>
+      <div class="subtitle" id="subtitle"></div>
+    </div>
+    <button id="closeBtn" type="button" aria-label="Close chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </header>
+
+  <div id="log" role="log" aria-live="polite"></div>
+  <div id="suggestions"></div>
+
+  <form id="leadForm" class="hidden" autocomplete="on">
+    <p id="leadPrompt"></p>
+    <input id="leadName"  type="text"  name="name"  placeholder="Your name">
+    <input id="leadEmail" type="email" name="email" placeholder="Your email">
+    <input id="leadPhone" type="tel"   name="phone" placeholder="Your phone">
+    <div class="row">
+      <button type="submit" class="primary">Continue</button>
+      <button type="button" class="ghost" id="leadSkip">Skip</button>
+    </div>
+  </form>
+
+  <form id="composer">
+    <textarea id="input" rows="1" placeholder="Type your message..."
+              aria-label="Message"></textarea>
+    <button id="send" type="submit" aria-label="Send message">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+  </form>
+  <div id="branding" class="hidden"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var ORIGIN = window.location.origin;
+  // Path is either /widget/<key> (iframe) or /chat/<key> (share link).
+  var PUBLIC_KEY = decodeURIComponent(
+    (window.location.pathname.split("/").filter(Boolean)[1] || "")
+  );
+  var IS_EMBEDDED = new URLSearchParams(window.location.search).get("embed") === "1";
+
+  var els = {
+    log: document.getElementById("log"),
+    input: document.getElementById("input"),
+    send: document.getElementById("send"),
+    composer: document.getElementById("composer"),
+    suggestions: document.getElementById("suggestions"),
+    title: document.getElementById("title"),
+    subtitle: document.getElementById("subtitle"),
+    avatar: document.getElementById("avatar"),
+    branding: document.getElementById("branding"),
+    closeBtn: document.getElementById("closeBtn"),
+    leadForm: document.getElementById("leadForm"),
+    leadPrompt: document.getElementById("leadPrompt"),
+    leadName: document.getElementById("leadName"),
+    leadEmail: document.getElementById("leadEmail"),
+    leadPhone: document.getElementById("leadPhone"),
+    leadSkip: document.getElementById("leadSkip")
+  };
+
+  var state = { config: null, sessionId: null, sending: false, leadDone: false };
+
+  if (IS_EMBEDDED) document.body.classList.add("is-embedded");
+
+  // ── Rendering ─────────────────────────────────────────────
+  function scrollToEnd() { els.log.scrollTop = els.log.scrollHeight; }
+
+  /* Escapes first, then linkifies - never inserts untrusted HTML. */
+  function renderText(node, text) {
+    var urlPattern = /(https?:\/\/[^\s<>"']+)/g;
+    var lastIndex = 0;
+    var match;
+
+    while ((match = urlPattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        node.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
+      }
+      var a = document.createElement("a");
+      a.href = match[0];
+      a.target = "_blank";
+      a.rel = "noopener noreferrer nofollow";
+      a.textContent = match[0];
+      node.appendChild(a);
+      lastIndex = urlPattern.lastIndex;
+    }
+    if (lastIndex < text.length) {
+      node.appendChild(document.createTextNode(text.slice(lastIndex)));
+    }
+  }
+
+  function addMessage(text, kind) {
+    if (!text) return null;
+    var bubble = document.createElement("div");
+    bubble.className = "msg " + (kind || "bot");
+    renderText(bubble, String(text));
+    els.log.appendChild(bubble);
+    scrollToEnd();
+    return bubble;
+  }
+
+  function showTyping() {
+    var node = document.createElement("div");
+    node.className = "typing";
+    node.innerHTML = "<i></i><i></i><i></i>";
+    els.log.appendChild(node);
+    scrollToEnd();
+    return node;
+  }
+
+  function setBusy(busy) {
+    state.sending = busy;
+    els.send.disabled = busy;
+    els.input.disabled = busy;
+  }
+
+  function applyTheme(config) {
+    var root = document.documentElement.style;
+    root.setProperty("--accent", config.primary_color || "#4F46E5");
+    root.setProperty("--on-accent", config.text_color || "#FFFFFF");
+
+    var name = config.display_name || "Chat";
+    document.title = name;
+    els.title.textContent = name;
+    els.subtitle.textContent = config.subtitle || "";
+    els.input.placeholder = config.input_placeholder || "Type your message...";
+
+    if (config.avatar_url) {
+      var img = document.createElement("img");
+      img.src = config.avatar_url;
+      img.alt = "";
+      els.avatar.appendChild(img);
+    } else {
+      els.avatar.textContent = name.trim().charAt(0).toUpperCase() || "?";
+    }
+
+    if (config.show_branding && config.branding_text) {
+      els.branding.textContent = config.branding_text;
+      els.branding.classList.remove("hidden");
+    }
+  }
+
+  function renderSuggestions(questions) {
+    els.suggestions.innerHTML = "";
+    if (!questions || !questions.length) return;
+
+    questions.forEach(function (question) {
+      var button = document.createElement("button");
+      button.type = "button";
+      button.textContent = question;
+      button.addEventListener("click", function () {
+        els.suggestions.innerHTML = "";
+        sendMessage(question);
+      });
+      els.suggestions.appendChild(button);
+    });
+  }
+
+  // ── Networking ────────────────────────────────────────────
+  function api(path, options) {
+    return fetch(ORIGIN + "/api/widget/" + encodeURIComponent(PUBLIC_KEY) + path,
+      Object.assign({ credentials: "omit" }, options || {}))
+      .then(function (response) {
+        return response.json().catch(function () { return {}; })
+          .then(function (body) {
+            if (!response.ok || body.status !== "success") {
+              var err = new Error(body.message || "Request failed");
+              err.code = body.code;
+              throw err;
+            }
+            return body.data || {};
+          });
+      });
+  }
+
+  function sendMessage(text) {
+    var message = (text !== undefined ? text : els.input.value).trim();
+    if (!message || state.sending || !state.sessionId) return;
+
+    els.suggestions.innerHTML = "";
+    addMessage(message, "user");
+    els.input.value = "";
+    els.input.style.height = "auto";
+    setBusy(true);
+
+    var typing = showTyping();
+
+    api("/message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: state.sessionId, message: message })
+    })
+      .then(function (data) {
+        typing.remove();
+        addMessage(data.reply, "bot");
+      })
+      .catch(function (error) {
+        typing.remove();
+        addMessage(error.message || "Something went wrong. Please try again.", "error");
+        if (error.code === "session_limit_reached") {
+          els.composer.classList.add("hidden");
+        }
+      })
+      .finally(function () {
+        setBusy(false);
+        if (!IS_EMBEDDED || document.hasFocus()) els.input.focus();
+      });
+  }
+
+  // ── Lead form ─────────────────────────────────────────────
+  function maybeShowLeadForm() {
+    var config = state.config;
+    if (!config.collect_lead || state.leadDone) return false;
+
+    els.leadPrompt.textContent = config.lead_prompt || "May I have your details?";
+    els.leadName.classList.toggle("hidden", !config.lead_require_name);
+    els.leadEmail.classList.toggle("hidden", !config.lead_require_email);
+    els.leadPhone.classList.toggle("hidden", !config.lead_require_phone);
+    els.leadForm.classList.remove("hidden");
+    els.composer.classList.add("hidden");
+    return true;
+  }
+
+  function dismissLeadForm() {
+    state.leadDone = true;
+    els.leadForm.classList.add("hidden");
+    els.composer.classList.remove("hidden");
+    renderSuggestions(state.config.suggested_questions);
+    els.input.focus();
+  }
+
+  els.leadForm.addEventListener("submit", function (event) {
+    event.preventDefault();
+
+    api("/lead", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: state.sessionId,
+        name: els.leadName.value,
+        email: els.leadEmail.value,
+        phone: els.leadPhone.value
+      })
+    })
+      .then(dismissLeadForm)
+      .catch(function (error) {
+        els.leadPrompt.textContent = error.message || "Please check your details.";
+      });
+  });
+
+  els.leadSkip.addEventListener("click", dismissLeadForm);
+
+  // ── Composer behaviour ────────────────────────────────────
+  els.composer.addEventListener("submit", function (event) {
+    event.preventDefault();
+    sendMessage();
+  });
+
+  els.input.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+
+  els.input.addEventListener("input", function () {
+    els.input.style.height = "auto";
+    els.input.style.height = Math.min(els.input.scrollHeight, 120) + "px";
+  });
+
+  els.closeBtn.addEventListener("click", function () {
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: "aichat:close" }, "*");
+    }
+  });
+
+  window.addEventListener("message", function (event) {
+    if ((event.data || {}).type === "aichat:focus") els.input.focus();
+  });
+
+  // ── Boot ──────────────────────────────────────────────────
+  if (!PUBLIC_KEY) {
+    addMessage("This chat link is not valid.", "error");
+    els.composer.classList.add("hidden");
+    return;
+  }
+
+  setBusy(true);
+
+  api("/config", { method: "GET" })
+    .then(function (config) {
+      state.config = config;
+      applyTheme(config);
+      return api("/session", { method: "POST" });
+    })
+    .then(function (session) {
+      state.sessionId = session.session_id;
+      setBusy(false);
+
+      if (state.config.welcome_message) {
+        addMessage(state.config.welcome_message, "bot");
+      }
+
+      if (!maybeShowLeadForm()) {
+        renderSuggestions(
+          session.suggested_questions || state.config.suggested_questions
+        );
+        if (!IS_EMBEDDED) els.input.focus();
+      }
+    })
+    .catch(function (error) {
+      setBusy(false);
+      addMessage(
+        error.message || "This chatbot is not available right now.",
+        "error"
+      );
+      els.composer.classList.add("hidden");
+    });
+})();
+</script>
+</body>
+</html>

@@ -73,6 +73,11 @@ def _direct_table_operations(paths):
     return operations
 
 
+# Highest migration number currently in data/. Bump this deliberately when a
+# new migration is added, so numbering conflicts surface as a test failure.
+HIGHEST_MIGRATION_NUMBER = 29
+
+
 def test_027_keeps_its_selected_migration_number():
     numbered = []
     for path in (PROJECT_ROOT / "data").glob("*.sql"):
@@ -82,7 +87,7 @@ def test_027_keeps_its_selected_migration_number():
 
     selected = [name for number, name in numbered if number == 27]
     assert selected == ["027_harden_crm_agent_actions.sql"]
-    assert max(number for number, _ in numbered) == 28
+    assert max(number for number, _ in numbered) == HIGHEST_MIGRATION_NUMBER
 
 
 def test_preflight_and_verification_are_read_only_select_scripts():

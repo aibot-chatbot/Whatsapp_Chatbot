@@ -201,6 +201,85 @@
             font-size: 0.92rem;
         }
 
+        .support-request {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .support-request-form {
+            display: grid;
+            gap: 14px;
+        }
+
+        .support-request-form label {
+            color: var(--text-dim);
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .support-request-form input,
+        .support-request-form select,
+        .support-request-form textarea {
+            width: 100%;
+            margin-top: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 9px;
+            padding: 10px 12px;
+            color: var(--text-main);
+            background: rgba(15, 23, 42, 0.72);
+            font-size: 0.95rem;
+        }
+
+        .support-request-form textarea {
+            min-height: 130px;
+            resize: vertical;
+        }
+
+        .support-request-form input:focus,
+        .support-request-form select:focus,
+        .support-request-form textarea:focus {
+            outline: 2px solid rgba(59, 130, 246, 0.55);
+            outline-offset: 1px;
+        }
+
+        .support-request-warning {
+            color: #fcd34d;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
+        .support-request-submit {
+            width: fit-content;
+            border: 0;
+            border-radius: 9px;
+            padding: 10px 16px;
+            color: #fff;
+            background: var(--primary);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .support-request-submit:disabled {
+            cursor: wait;
+            opacity: 0.65;
+        }
+
+        .support-request-status {
+            min-height: 1.4em;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .support-request-status.error {
+            color: #fca5a5;
+        }
+
+        .support-request-status.success {
+            color: #86efac;
+        }
+
         @media (max-width: 1020px) {
             .support-grid {
                 grid-template-columns: 1fr;
@@ -269,9 +348,37 @@
                     </article>
                     <article class="topic-card">
                         <h2>Billing And AI Credits</h2>
-                        <p>Use Billing to review subscriptions, payment history, AI-credit balances, and manual-review payment states. This page does not create tickets or promise direct support follow-up.</p>
+                        <p>Use Billing to review subscriptions, payment history, AI-credit balances, and manual-review payment states. This page accepts only a redacted support request and does not provide billing actions or a messaging thread.</p>
                     </article>
                 </div>
+
+                <section class="support-request" aria-labelledby="support-request-title">
+                    <div class="section-title" id="support-request-title">Submit a Support Request</div>
+                    <p class="section-subtitle">Send a redacted internal request for review. There is no inbox or messaging thread on this page.</p>
+                    <p class="support-request-warning">Do not include passwords, tokens, cookies, payment details, provider payloads, or private customer conversation content.</p>
+                    <form class="support-request-form" id="support-request-form" novalidate>
+                        <label for="support-request-category">Category
+                            <select id="support-request-category" name="category" required>
+                                <option value="">Select a category</option>
+                                <option value="technical">Technical</option>
+                                <option value="account">Account</option>
+                                <option value="chatbot">Chatbot</option>
+                                <option value="integration">Integration</option>
+                                <option value="billing_question">Billing question</option>
+                                <option value="ai_credits">AI credits</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </label>
+                        <label for="support-request-title-input">Subject
+                            <input id="support-request-title-input" name="title" type="text" maxlength="160" required>
+                        </label>
+                        <label for="support-request-description">Redacted description
+                            <textarea id="support-request-description" name="redacted_description" maxlength="2000" required></textarea>
+                        </label>
+                        <button class="support-request-submit" id="support-request-submit" type="submit">Submit request</button>
+                        <p class="support-request-status" id="support-request-status" role="status" aria-live="polite"></p>
+                    </form>
+                </section>
             </section>
 
             <aside>
@@ -301,8 +408,8 @@
                 </section>
 
                 <section class="glass-card notice" style="margin-top:22px;">
-                    <div class="section-title">Contact Status</div>
-                    <p>Direct support contact is not configured yet. Use the help topics and account pages above while an approved support channel is being prepared.</p>
+                    <div class="section-title">Support Request Status</div>
+                    <p>Requests are submitted for internal review. This page does not provide an inbox, messaging thread, email sending, or billing actions.</p>
                 </section>
             </aside>
         </div>
@@ -336,6 +443,85 @@
             document.getElementById("support-account-initials").textContent = initialsFor(initialsSource);
             document.getElementById("support-account-name").textContent = displayName;
             document.getElementById("support-account-email").textContent = email || "Account details unavailable";
+        })();
+
+        (function () {
+            var form = document.getElementById("support-request-form");
+            var submitButton = document.getElementById("support-request-submit");
+            var status = document.getElementById("support-request-status");
+            var category = document.getElementById("support-request-category");
+            var title = document.getElementById("support-request-title-input");
+            var description = document.getElementById("support-request-description");
+            var allowedCategories = new Set([
+                "technical", "account", "chatbot", "integration",
+                "billing_question", "ai_credits", "other"
+            ]);
+
+            function showStatus(message, state) {
+                status.textContent = message;
+                status.className = "support-request-status" + (state ? " " + state : "");
+            }
+
+            function validateForm(values) {
+                if (!allowedCategories.has(values.category)) return "Select a valid support category.";
+                if (!values.title || values.title.length > 160) return "Subject must contain 1 to 160 characters.";
+                if (!values.redacted_description || values.redacted_description.length > 2000) {
+                    return "Description must contain 1 to 2000 characters.";
+                }
+                return "";
+            }
+
+            form.addEventListener("submit", async function (event) {
+                event.preventDefault();
+                var values = {
+                    category: category.value.trim(),
+                    title: title.value.trim(),
+                    redacted_description: description.value.trim()
+                };
+                var validationError = validateForm(values);
+                if (validationError) {
+                    showStatus(validationError, "error");
+                    return;
+                }
+
+                submitButton.disabled = true;
+                submitButton.textContent = "Submitting...";
+                showStatus("Submitting support request...", "");
+                try {
+                    var response = await authenticatedFetch("/api/support/requests", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(values)
+                    });
+                    var result = await response.json().catch(function () { return null; });
+                    if (response.status === 429) {
+                        showStatus("Too many requests. Please try again later.", "error");
+                        return;
+                    }
+                    if (!response.ok) {
+                        if (result && result.code === "invalid_category") {
+                            showStatus("Select a valid support category.", "error");
+                        } else if (result && (result.code === "invalid_title" || result.code === "invalid_redacted_description")) {
+                            showStatus("Review the subject and redacted description.", "error");
+                        } else {
+                            showStatus("Support request could not be submitted.", "error");
+                        }
+                        return;
+                    }
+                    var requestId = result && result.data && result.data.request_id;
+                    if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+                        showStatus("Support request could not be confirmed.", "error");
+                        return;
+                    }
+                    showStatus("Request received. Reference: #" + requestId, "success");
+                    form.reset();
+                } catch (_) {
+                    showStatus("Support request could not be submitted.", "error");
+                } finally {
+                    submitButton.disabled = false;
+                    submitButton.textContent = "Submit request";
+                }
+            });
         })();
     </script>
 </body>

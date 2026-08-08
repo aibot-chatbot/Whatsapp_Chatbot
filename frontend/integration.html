@@ -429,6 +429,101 @@
                 grid-template-columns: 1fr !important;
             }
         }
+
+        /* ── Web widget modal ──────────────────────────────────── */
+        .ww-code {
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: 0.8rem;
+            color: #a5b4fc;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0 0 10px;
+        }
+
+        .ww-copy {
+            background: rgba(99, 102, 241, 0.15);
+            color: #a5b4fc;
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            padding: 7px 14px;
+            font-size: 0.85rem;
+        }
+
+        .ww-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .ww-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .ww-field>span {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+        }
+
+        .ww-field input[type="text"],
+        .ww-field input[type="url"],
+        .ww-field input[type="number"],
+        .ww-field select,
+        .ww-field textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-family: inherit;
+            font-size: 0.9rem;
+            resize: vertical;
+        }
+
+        .ww-field input:focus,
+        .ww-field select:focus,
+        .ww-field textarea:focus {
+            outline: none;
+            border-color: #6366f1;
+        }
+
+        .ww-field select option {
+            background: #1e293b;
+            color: #fff;
+        }
+
+        .ww-span2 {
+            grid-column: 1 / -1;
+        }
+
+        .ww-check {
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .ww-check input {
+            width: 17px;
+            height: 17px;
+            cursor: pointer;
+        }
+
+        .ww-check span {
+            font-size: 0.88rem;
+            color: var(--text-dim);
+        }
+
+        @media (max-width: 640px) {
+            .ww-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
@@ -536,18 +631,182 @@
                 </button>
             </div>
 
-            <div class="glass-card" style="opacity: 0.5; cursor: default;">
-                <div class="platform-icon-container" style="background: rgba(255, 255, 255, 0.05); color: #fff;">🌐
-                </div>
-                <h3 style="font-size: 1.2rem;">Web Widget</h3>
-                <p style="color: var(--text-dim); text-align: center;">Embed a floating chat bubble directly on your
-                    website. (Coming Soon)</p>
+            <div class="glass-card" onclick="openWebWidget()">
+                <div class="platform-icon-container"
+                    style="background: rgba(99, 102, 241, 0.1); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2);">
+                    🌐</div>
+                <h3 style="font-size: 1.5rem; color: #818cf8;">Web Widget</h3>
+                <p style="color: var(--text-dim); text-align: center;">Embed a floating chat bubble on your website with
+                    one line of code, or share a direct chat link.</p>
                 <div style="flex-grow: 1;"></div>
-                <button class="btn" disabled style="background:rgba(255,255,255,0.1); color: var(--text-dim);">Coming
-                    Soon</button>
+                <button id="webwidget-card-button" class="btn"
+                    style="background:#6366f1; color:white; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);">
+                    Set Up Web Widget
+                </button>
             </div>
         </div>
     </main>
+
+    <!-- ── Web Widget configuration modal ─────────────────────────── -->
+    <div class="modal-backdrop" id="webwidget-modal"
+        onclick="if(event.target === this) closeWebWidget()">
+        <div class="modal-content" style="max-width: 720px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2>🌐 Web Widget</h2>
+                <button onclick="closeWebWidget()"
+                    style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:1.5rem;">&times;</button>
+            </div>
+
+            <div id="webwidget-loading" style="color:var(--text-dim); padding:24px 0;">Loading widget settings…</div>
+
+            <div id="webwidget-body" style="display:none;">
+
+                <!-- Enable toggle -->
+                <div
+                    style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; border:1px solid rgba(255,255,255,0.08); border-radius:12px; margin-bottom:20px;">
+                    <div>
+                        <div style="font-weight:600;">Widget status</div>
+                        <div id="webwidget-status-text" style="font-size:0.85rem; color:var(--text-dim);">Disabled</div>
+                    </div>
+                    <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+                        <input type="checkbox" id="ww-is_enabled" style="width:18px; height:18px; cursor:pointer;">
+                        <span style="font-size:0.9rem;">Enabled</span>
+                    </label>
+                </div>
+
+                <!-- Embed snippets -->
+                <h3 style="font-size:1rem; margin:0 0 10px;">1. Install on your website</h3>
+                <p style="font-size:0.85rem; color:var(--text-dim); margin:0 0 8px;">
+                    Paste this before <code>&lt;/body&gt;</code> on any page.
+                </p>
+                <pre id="ww-script-snippet" class="ww-code"></pre>
+                <button type="button" class="btn ww-copy" onclick="copyWidgetValue('ww-script-snippet', this)">Copy
+                    script</button>
+
+                <p style="font-size:0.85rem; color:var(--text-dim); margin:18px 0 8px;">Or embed it inline as an iframe:
+                </p>
+                <pre id="ww-iframe-snippet" class="ww-code"></pre>
+                <button type="button" class="btn ww-copy" onclick="copyWidgetValue('ww-iframe-snippet', this)">Copy
+                    iframe</button>
+
+                <p style="font-size:0.85rem; color:var(--text-dim); margin:18px 0 8px;">Or just share the direct link:
+                </p>
+                <pre id="ww-share-url" class="ww-code"></pre>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button type="button" class="btn ww-copy"
+                        onclick="copyWidgetValue('ww-share-url', this)">Copy link</button>
+                    <button type="button" class="btn ww-copy" onclick="openWidgetPreview()">Open preview</button>
+                </div>
+
+                <!-- Appearance -->
+                <h3 style="font-size:1rem; margin:26px 0 10px;">2. Appearance</h3>
+                <div class="ww-grid">
+                    <label class="ww-field">
+                        <span>Header title</span>
+                        <input type="text" id="ww-display_name" maxlength="80">
+                    </label>
+                    <label class="ww-field">
+                        <span>Subtitle</span>
+                        <input type="text" id="ww-subtitle" maxlength="120">
+                    </label>
+                    <label class="ww-field">
+                        <span>Accent colour</span>
+                        <input type="color" id="ww-primary_color" style="height:42px; padding:4px;">
+                    </label>
+                    <label class="ww-field">
+                        <span>Text on accent</span>
+                        <input type="color" id="ww-text_color" style="height:42px; padding:4px;">
+                    </label>
+                    <label class="ww-field">
+                        <span>Bubble position</span>
+                        <select id="ww-launcher_position">
+                            <option value="right">Bottom right</option>
+                            <option value="left">Bottom left</option>
+                        </select>
+                    </label>
+                    <label class="ww-field">
+                        <span>Bubble label (optional)</span>
+                        <input type="text" id="ww-launcher_label" maxlength="40" placeholder="Chat with us">
+                    </label>
+                    <label class="ww-field ww-span2">
+                        <span>Avatar image URL (optional)</span>
+                        <input type="url" id="ww-avatar_url" placeholder="https://example.com/logo.png">
+                    </label>
+                    <label class="ww-field ww-span2">
+                        <span>Welcome message</span>
+                        <textarea id="ww-welcome_message" rows="2" maxlength="1000"></textarea>
+                    </label>
+                    <label class="ww-field ww-span2">
+                        <span>Suggested questions (one per line, max 4)</span>
+                        <textarea id="ww-suggested_questions" rows="3"
+                            placeholder="What are your opening hours?&#10;How much does it cost?"></textarea>
+                    </label>
+                    <label class="ww-field">
+                        <span>Input placeholder</span>
+                        <input type="text" id="ww-input_placeholder" maxlength="80">
+                    </label>
+                    <label class="ww-field">
+                        <span>Branding text</span>
+                        <input type="text" id="ww-branding_text" maxlength="60">
+                    </label>
+                    <label class="ww-field ww-check">
+                        <input type="checkbox" id="ww-show_branding">
+                        <span>Show branding line</span>
+                    </label>
+                </div>
+
+                <!-- Lead capture -->
+                <h3 style="font-size:1rem; margin:26px 0 10px;">3. Lead capture</h3>
+                <div class="ww-grid">
+                    <label class="ww-field ww-check ww-span2">
+                        <input type="checkbox" id="ww-collect_lead">
+                        <span>Ask visitors for their details before chatting</span>
+                    </label>
+                    <label class="ww-field ww-span2">
+                        <span>Lead form prompt</span>
+                        <input type="text" id="ww-lead_prompt" maxlength="300">
+                    </label>
+                    <label class="ww-field ww-check"><input type="checkbox" id="ww-lead_require_name"><span>Require
+                            name</span></label>
+                    <label class="ww-field ww-check"><input type="checkbox" id="ww-lead_require_email"><span>Require
+                            email</span></label>
+                    <label class="ww-field ww-check"><input type="checkbox" id="ww-lead_require_phone"><span>Require
+                            phone</span></label>
+                </div>
+
+                <!-- Security -->
+                <h3 style="font-size:1rem; margin:26px 0 10px;">4. Security</h3>
+                <div class="ww-grid">
+                    <label class="ww-field ww-span2">
+                        <span>Allowed domains (one per line — leave empty to allow any site)</span>
+                        <textarea id="ww-allowed_domains" rows="2"
+                            placeholder="example.com&#10;shop.example.com"></textarea>
+                    </label>
+                    <label class="ww-field">
+                        <span>Max messages per visitor session</span>
+                        <input type="number" id="ww-max_messages_per_session" min="1" max="500">
+                    </label>
+                    <div class="ww-field">
+                        <span>Public key</span>
+                        <button type="button" class="btn"
+                            style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3);"
+                            onclick="regenerateWidgetKey()">Regenerate key</button>
+                    </div>
+                </div>
+
+                <div id="webwidget-message"
+                    style="margin-top:18px; font-size:0.9rem; min-height:20px; color:var(--text-dim);"></div>
+
+                <div style="display:flex; gap:10px; margin-top:12px;">
+                    <button type="button" id="webwidget-save" class="btn"
+                        style="background:#6366f1; color:white;" onclick="saveWidgetSettings()">Save changes</button>
+                    <button type="button" class="btn"
+                        style="background:rgba(255,255,255,0.08); color:var(--text-dim);"
+                        onclick="closeWebWidget()">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="modal-backdrop" id="setup-modal" onclick="if(event.target === this) closeSetup()">
         <div class="modal-content">
@@ -1061,6 +1320,228 @@
 
         function closeSetup() {
             document.getElementById('setup-modal').style.display = 'none';
+        }
+
+        /* ── Web widget ──────────────────────────────────────────── */
+
+        let webWidgetState = { widget: null, embed: null };
+
+        function wwEl(field) {
+            return document.getElementById(`ww-${field}`);
+        }
+
+        function setWidgetMessage(text, kind) {
+            const box = document.getElementById('webwidget-message');
+            if (!box) return;
+            box.innerText = text || '';
+            box.style.color = kind === 'error' ? '#ef4444'
+                : kind === 'success' ? '#10b981'
+                    : 'var(--text-dim)';
+        }
+
+        function openWebWidget() {
+            document.getElementById('webwidget-modal').style.display = 'flex';
+            document.getElementById('webwidget-loading').style.display = 'block';
+            document.getElementById('webwidget-body').style.display = 'none';
+            setWidgetMessage('');
+            loadWidgetSettings();
+        }
+
+        function closeWebWidget() {
+            document.getElementById('webwidget-modal').style.display = 'none';
+        }
+
+        function renderWidgetForm(widget, embed) {
+            webWidgetState = { widget, embed };
+
+            const textFields = [
+                'display_name', 'subtitle', 'launcher_label', 'welcome_message',
+                'input_placeholder', 'branding_text', 'lead_prompt'
+            ];
+            textFields.forEach(field => {
+                const node = wwEl(field);
+                if (node) node.value = widget[field] || '';
+            });
+
+            wwEl('primary_color').value = widget.primary_color || '#4F46E5';
+            wwEl('text_color').value = widget.text_color || '#FFFFFF';
+            wwEl('avatar_url').value = widget.avatar_url || '';
+            wwEl('launcher_position').value = widget.launcher_position || 'right';
+            wwEl('max_messages_per_session').value = widget.max_messages_per_session || 50;
+
+            [
+                'is_enabled', 'show_branding', 'collect_lead',
+                'lead_require_name', 'lead_require_email', 'lead_require_phone'
+            ].forEach(field => {
+                const node = wwEl(field);
+                if (node) node.checked = Boolean(widget[field]);
+            });
+
+            wwEl('suggested_questions').value = (widget.suggested_questions || []).join('\n');
+            wwEl('allowed_domains').value = (widget.allowed_domains || []).join('\n');
+
+            document.getElementById('webwidget-status-text').innerText =
+                widget.is_enabled
+                    ? 'Live — your widget is answering visitors.'
+                    : 'Disabled — the embed code will not load.';
+
+            document.getElementById('ww-script-snippet').innerText = embed.script_snippet || '';
+            document.getElementById('ww-iframe-snippet').innerText = embed.iframe_snippet || '';
+            document.getElementById('ww-share-url').innerText = embed.share_url || '';
+
+            document.getElementById('webwidget-loading').style.display = 'none';
+            document.getElementById('webwidget-body').style.display = 'block';
+        }
+
+        async function loadWidgetSettings() {
+            const chatbotId = getSelectedChatbotId();
+            if (!chatbotId) return;
+
+            try {
+                const response = await authenticatedFetch(`/api/bots/${chatbotId}/widget`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    throw new Error(result.message || 'Could not load widget settings.');
+                }
+
+                renderWidgetForm(result.data.widget, result.data.embed);
+
+            } catch (error) {
+                document.getElementById('webwidget-loading').innerText =
+                    `Failed to load widget settings: ${error.message}`;
+            }
+        }
+
+        function collectWidgetPayload() {
+            const splitLines = value => value
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean);
+
+            return {
+                is_enabled: wwEl('is_enabled').checked,
+                display_name: wwEl('display_name').value,
+                subtitle: wwEl('subtitle').value,
+                primary_color: wwEl('primary_color').value,
+                text_color: wwEl('text_color').value,
+                avatar_url: wwEl('avatar_url').value,
+                launcher_position: wwEl('launcher_position').value,
+                launcher_label: wwEl('launcher_label').value,
+                welcome_message: wwEl('welcome_message').value,
+                input_placeholder: wwEl('input_placeholder').value,
+                suggested_questions: splitLines(wwEl('suggested_questions').value),
+                show_branding: wwEl('show_branding').checked,
+                branding_text: wwEl('branding_text').value,
+                collect_lead: wwEl('collect_lead').checked,
+                lead_prompt: wwEl('lead_prompt').value,
+                lead_require_name: wwEl('lead_require_name').checked,
+                lead_require_email: wwEl('lead_require_email').checked,
+                lead_require_phone: wwEl('lead_require_phone').checked,
+                allowed_domains: splitLines(wwEl('allowed_domains').value),
+                max_messages_per_session: Number(wwEl('max_messages_per_session').value) || 50
+            };
+        }
+
+        async function saveWidgetSettings() {
+            const chatbotId = getSelectedChatbotId();
+            if (!chatbotId) return;
+
+            const button = document.getElementById('webwidget-save');
+            button.disabled = true;
+            button.innerText = 'Saving...';
+            setWidgetMessage('');
+
+            try {
+                const response = await authenticatedFetch(`/api/bots/${chatbotId}/widget`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(collectWidgetPayload())
+                });
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    throw new Error(result.message || 'Could not save widget settings.');
+                }
+
+                renderWidgetForm(result.data.widget, result.data.embed);
+                setWidgetMessage('Saved. Changes are live immediately.', 'success');
+
+            } catch (error) {
+                setWidgetMessage(error.message, 'error');
+            } finally {
+                button.disabled = false;
+                button.innerText = 'Save changes';
+            }
+        }
+
+        async function regenerateWidgetKey() {
+            const confirmed = confirm(
+                'Regenerating the key will immediately break every embed snippet ' +
+                'and share link already published. Continue?'
+            );
+            if (!confirmed) return;
+
+            const chatbotId = getSelectedChatbotId();
+            if (!chatbotId) return;
+
+            setWidgetMessage('Regenerating key...');
+
+            try {
+                const response = await authenticatedFetch(
+                    `/api/bots/${chatbotId}/widget/regenerate-key`,
+                    { method: 'POST' }
+                );
+                const result = await response.json();
+
+                if (!response.ok || result.status !== 'success') {
+                    throw new Error(result.message || 'Could not regenerate the key.');
+                }
+
+                renderWidgetForm(result.data.widget, result.data.embed);
+                setWidgetMessage('New key issued. Re-copy and reinstall your embed code.', 'success');
+
+            } catch (error) {
+                setWidgetMessage(error.message, 'error');
+            }
+        }
+
+        function copyWidgetValue(elementId, button) {
+            const text = document.getElementById(elementId).innerText;
+            const original = button.innerText;
+
+            const done = () => {
+                button.innerText = 'Copied!';
+                setTimeout(() => { button.innerText = original; }, 1600);
+            };
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+            } else {
+                fallbackCopy(text, done);
+            }
+        }
+
+        function fallbackCopy(text, done) {
+            const area = document.createElement('textarea');
+            area.value = text;
+            area.style.position = 'fixed';
+            area.style.opacity = '0';
+            document.body.appendChild(area);
+            area.select();
+            try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+            document.body.removeChild(area);
+        }
+
+        function openWidgetPreview() {
+            const url = webWidgetState.embed && webWidgetState.embed.share_url;
+            if (!url) return;
+
+            if (!webWidgetState.widget.is_enabled) {
+                setWidgetMessage('Enable the widget and save before previewing.', 'error');
+                return;
+            }
+            window.open(url, '_blank', 'noopener');
         }
 
         function getSafeAuthHeaders() {
