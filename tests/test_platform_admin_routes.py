@@ -54,6 +54,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/support-cases/<int:case_id>/assignment",
             "/api/platform-admin/support-cases/<int:case_id>/status",
             "/api/platform-admin/support-cases/<int:case_id>/priority",
+            "/api/platform-admin/platform-admin-users",
+            "/api/platform-admin/platform-admin-users/<int:mapping_id>",
+            "/api/platform-admin/platform-admin-users/<int:mapping_id>/active",
             "/api/platform-admin/tenant-support-requests",
             "/api/platform-admin/tenant-support-requests/<int:request_id>",
             "/api/platform-admin/tenant-support-requests/<int:request_id>/convert",
@@ -66,6 +69,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             for key, value in methods.items()
             if "support-cases" not in key
             and "support-case-assignees" not in key
+            and "platform-admin-users" not in key
             and "tenant-support-requests" not in key
         ))
         self.assertEqual(methods["/api/platform-admin/support-cases"], {"GET", "POST"})
@@ -76,6 +80,9 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/assignment"], {"PATCH"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/status"], {"PATCH"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/priority"], {"PATCH"})
+        self.assertEqual(methods["/api/platform-admin/platform-admin-users"], {"GET", "POST"})
+        self.assertEqual(methods["/api/platform-admin/platform-admin-users/<int:mapping_id>"], {"GET"})
+        self.assertEqual(methods["/api/platform-admin/platform-admin-users/<int:mapping_id>/active"], {"PATCH"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests"], {"GET"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>"], {"GET", "PATCH"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>/convert"], {"POST"})
@@ -85,12 +92,13 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 26)
+        self.assertEqual(len(rules), 30)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")
                 .replace("<int:case_id>", "1")
                 .replace("<int:request_id>", "1")
+                .replace("<int:mapping_id>", "3")
             )
             method = next(iter(rule.methods - {"HEAD", "OPTIONS"}))
             with self.subTest(path=path):

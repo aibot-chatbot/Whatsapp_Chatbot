@@ -56,6 +56,22 @@ documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it is policy-only and
 does not authorize mapping changes or production access.
 Its evidence checklist covers approval, revocation, smoke checks, audit-log
 review, redaction, and environment-specific evidence boundaries.
+Platform-admin User Management Phase 4 is implemented locally with a bounded
+directory/detail surface, add-existing-user workflow, and activate/deactivate
+controls. Migration 034 is applied and structurally verified only in the
+approved main shared-testing Supabase with fake/team data. Company 29 is
+explicitly registered as the protected internal company for main shared-testing
+only; it is not a staging or production protected-company designation and is
+not hardcoded into the application. Shared testing currently has only one
+active user in company 29, user 32, and that user already has the sole
+platform-admin mapping, so the successful create-mapping shared-testing E2E
+remains pending until a second approved active fake/team user exists. Migration
+035 is applied and verified only in the approved main shared-testing Supabase
+with fake/team data; it corrected only the Phase 4 RPC audit endpoint metadata,
+preserved RPC ownership/security/EXECUTE posture, did not create mappings, did
+not create Phase 4 mutation audit events merely by application, and did not
+alter existing audit rows. No staging verification or production readiness is
+claimed.
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays

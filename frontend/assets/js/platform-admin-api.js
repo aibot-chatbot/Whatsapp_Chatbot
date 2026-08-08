@@ -37,7 +37,17 @@
         "support_case_linkage_invalid",
         "invalid_request_id",
         "invalid_category",
-        "tenant_support_request_not_found"
+        "tenant_support_request_not_found",
+        "invalid_platform_admin_user_id",
+        "invalid_user_id",
+        "invalid_is_active",
+        "target_user_not_found",
+        "target_user_inactive",
+        "target_user_not_protected",
+        "platform_admin_mapping_exists",
+        "platform_admin_user_not_found",
+        "self_deactivation_not_allowed",
+        "final_active_platform_admin"
     ]);
 
     function makeError(category, status, code) {
@@ -109,6 +119,20 @@
         return String(caseId);
     }
 
+    function requirePlatformAdminUserId(mappingId) {
+        if (!Number.isSafeInteger(mappingId) || mappingId <= 0) {
+            throw makeError("validation", 400, "invalid_platform_admin_user_id");
+        }
+        return String(mappingId);
+    }
+
+    function requireUserId(userId) {
+        if (!Number.isSafeInteger(userId) || userId <= 0) {
+            throw makeError("validation", 400, "invalid_user_id");
+        }
+        return userId;
+    }
+
     function getMe(options) {
         const config = options || {};
         return platformFetch("/me", config.signal);
@@ -143,6 +167,33 @@
         if (config.createdAfter) params.set("created_after", config.createdAfter);
         if (config.createdBefore) params.set("created_before", config.createdBefore);
         return platformFetch("/audit-events?" + params.toString(), config.signal);
+    }
+
+    function listPlatformAdminUsers(options) {
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit || 100));
+        params.set("offset", String(config.offset || 0));
+        if (typeof config.isActive === "boolean") params.set("is_active", String(config.isActive));
+        return platformFetch("/platform-admin-users?" + params.toString(), config.signal);
+    }
+
+    function getPlatformAdminUser(mappingId, options) {
+        const id = requirePlatformAdminUserId(mappingId);
+        return platformFetch("/platform-admin-users/" + id, (options || {}).signal);
+    }
+
+    function createPlatformAdminUser(userId, options) {
+        const id = requireUserId(userId);
+        return platformFetch("/platform-admin-users", (options || {}).signal, "POST", { user_id: id });
+    }
+
+    function setPlatformAdminUserActive(mappingId, isActive, options) {
+        const id = requirePlatformAdminUserId(mappingId);
+        if (typeof isActive !== "boolean") {
+            throw makeError("validation", 400, "invalid_is_active");
+        }
+        return platformFetch("/platform-admin-users/" + id + "/active", (options || {}).signal, "PATCH", { is_active: isActive });
     }
 
     function getCompany(companyId, options) {
@@ -318,6 +369,10 @@
         getOverview: getOverview,
         listCompanies: listCompanies,
         listAuditEvents: listAuditEvents,
+        listPlatformAdminUsers: listPlatformAdminUsers,
+        getPlatformAdminUser: getPlatformAdminUser,
+        createPlatformAdminUser: createPlatformAdminUser,
+        setPlatformAdminUserActive: setPlatformAdminUserActive,
         getCompany: getCompany,
         getCompanySubscription: getCompanySubscription,
         listCompanySubscriptionHistory: listCompanySubscriptionHistory,

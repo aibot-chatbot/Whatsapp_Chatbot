@@ -64,6 +64,10 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "support_case_reply_create": "/api/platform-admin/support-cases/<case_id>/replies",
     "tenant_support_request_list": "/api/platform-admin/tenant-support-requests",
     "tenant_support_request_read": "/api/platform-admin/tenant-support-requests/<request_id>",
+    "platform_admin_user_list": "/api/platform-admin/platform-admin-users",
+    "platform_admin_user_read": "/api/platform-admin/platform-admin-users/<platform_admin_user_id>",
+    "platform_admin_user_create": "/api/platform-admin/platform-admin-users",
+    "platform_admin_user_active": "/api/platform-admin/platform-admin-users/<platform_admin_user_id>/active",
 }
 
 
@@ -718,6 +722,23 @@ def _validate_metadata_schema(action, schema, metadata):
                 "converted_platform_support_case_id",
             )
 
+    if action in {
+        "platform_admin.user.list",
+        "platform_admin.user.read",
+        "platform_admin.user.create",
+        "platform_admin.user.activate",
+        "platform_admin.user.deactivate",
+    }:
+        if "returned_count" in metadata:
+            _non_negative_integer(metadata["returned_count"], "returned_count", maximum=1000)
+        if "target_platform_admin_user_id" in metadata:
+            _positive_integer(metadata["target_platform_admin_user_id"], "target_platform_admin_user_id")
+        if "target_user_id" in metadata:
+            _positive_integer(metadata["target_user_id"], "target_user_id")
+        for key in ("old_is_active", "new_is_active"):
+            if key in metadata and metadata[key] is not None:
+                _boolean(metadata[key], key)
+
 
 def validate_audit_event(
     platform_admin_user_id, action, resource_type, resource_id, metadata
@@ -760,6 +781,194 @@ def get_active_platform_admin_by_user_id(user_id):
     )
     rows = response.data or []
     return rows[0] if rows else None
+
+
+PLATFORM_ADMIN_USER_SAFE_FIELDS = (
+    "id,user_id,is_active,created_at,updated_at,created_by_user_id"
+)
+PLATFORM_ADMIN_USER_IDENTITY_FIELDS = "id,email,full_name,status"
+
+
+def _safe_positive_id(value, field_name):
+    _positive_integer(value, field_name)
+    return value
+
+
+def _load_users_by_ids(user_ids):
+    ids = sorted({value for value in user_ids if isinstance(value, int) and not isinstance(value, bool) and value > 0})
+    if not ids:
+        return {}
+    response = (
+        supabase.table("users")
+        .select(PLATFORM_ADMIN_USER_IDENTITY_FIELDS)
+        .in_("id", ids)
+        .execute()
+    )
+    return {
+        row.get("id"): row
+        for row in (response.data or [])
+        if isinstance(row, dict) and isinstance(row.get("id"), int)
+    }
+
+
+def _recent_activity_for_mapping(mapping_id):
+    response = (
+        supabase.table("platform_admin_audit_events")
+        .select("created_at")
+        .eq("platform_admin_user_id", mapping_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    return rows[0].get("created_at") if rows else None
+
+
+def _project_platform_admin_user(row, users_by_id):
+    user = users_by_id.get(row.get("user_id")) or {}
+    creator = users_by_id.get(row.get("created_by_user_id")) or {}
+    return {
+        "platform_admin_user_id": row.get("id"),
+        "user_id": row.get("user_id"),
+        "is_active": row.get("is_active"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "created_by_user_id": row.get("created_by_user_id"),
+        "user_email": user.get("email"),
+        "user_full_name": user.get("full_name"),
+        "user_status": user.get("status"),
+        "creator_user_id": row.get("created_by_user_id"),
+        "creator_email": creator.get("email"),
+        "creator_full_name": creator.get("full_name"),
+        "recent_platform_admin_activity_at": _recent_activity_for_mapping(row.get("id")),
+    }
+
+
+def list_platform_admin_users_for_platform_admin(*, limit, offset, is_active=None):
+    _bounded_integer(limit, "limit", 1, 100)
+    _non_negative_integer(offset, "offset")
+    if is_active is not None and not isinstance(is_active, bool):
+        raise ValueError("is_active must be boolean or null")
+    query = supabase.table("platform_admin_users").select(
+        PLATFORM_ADMIN_USER_SAFE_FIELDS, count="exact"
+    )
+    if is_active is not None:
+        query = query.eq("is_active", is_active)
+    response = (
+        query
+        .order("created_at", desc=True)
+        .order("id", desc=True)
+        .range(offset, offset + limit - 1)
+        .execute()
+    )
+    rows = response.data or []
+    users_by_id = _load_users_by_ids(
+        [row.get("user_id") for row in rows] + [row.get("created_by_user_id") for row in rows]
+    )
+    return [_project_platform_admin_user(row, users_by_id) for row in rows], int(response.count or 0)
+
+
+def get_platform_admin_user_for_platform_admin(mapping_id):
+    _safe_positive_id(mapping_id, "platform_admin_user_id")
+    response = (
+        supabase.table("platform_admin_users")
+        .select(PLATFORM_ADMIN_USER_SAFE_FIELDS)
+        .eq("id", mapping_id)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        return None
+    row = rows[0]
+    users_by_id = _load_users_by_ids([row.get("user_id"), row.get("created_by_user_id")])
+    return _project_platform_admin_user(row, users_by_id)
+
+
+def _is_positive_int(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _validate_mapping_rpc_result(result, *, actor_user_id, target_user_id):
+    if not isinstance(result, dict):
+        raise RuntimeError("Malformed platform-admin create RPC result")
+    mapping = result.get("platform_admin_user")
+    audit = result.get("audit_event")
+    if not isinstance(mapping, dict) or not isinstance(audit, dict):
+        raise RuntimeError("Malformed platform-admin create RPC result")
+    mapping_id = mapping.get("id")
+    if not _is_positive_int(mapping_id):
+        raise RuntimeError("Malformed platform-admin create RPC result")
+    if mapping.get("user_id") != target_user_id:
+        raise RuntimeError("Platform-admin create RPC user mismatch")
+    if mapping.get("is_active") is not True:
+        raise RuntimeError("Platform-admin create RPC active state mismatch")
+    if mapping.get("created_by_user_id") != actor_user_id:
+        raise RuntimeError("Platform-admin create RPC creator mismatch")
+    if not _is_positive_int(audit.get("id")):
+        raise RuntimeError("Malformed platform-admin create audit result")
+    if audit.get("action") != "platform_admin.user.create":
+        raise RuntimeError("Platform-admin create audit action mismatch")
+    if audit.get("resource_type") != "platform_admin_users":
+        raise RuntimeError("Platform-admin create audit resource mismatch")
+    if audit.get("resource_id") != str(mapping_id):
+        raise RuntimeError("Platform-admin create audit resource mismatch")
+    return {"platform_admin_user": mapping, "audit_event": audit}
+
+
+def create_platform_admin_user_mapping_for_platform_admin(actor_mapping_id, actor_user_id, target_user_id):
+    _safe_positive_id(actor_mapping_id, "actor_platform_admin_user_id")
+    _safe_positive_id(actor_user_id, "actor_user_id")
+    _safe_positive_id(target_user_id, "target_user_id")
+    response = supabase.rpc(
+        "create_platform_admin_user_mapping",
+        {
+            "p_actor_platform_admin_user_id": actor_mapping_id,
+            "p_target_user_id": target_user_id,
+        },
+    ).execute()
+    return _validate_mapping_rpc_result(response.data, actor_user_id=actor_user_id, target_user_id=target_user_id)
+
+
+def _validate_active_rpc_result(result, *, target_mapping_id, is_active):
+    if not isinstance(result, dict):
+        raise RuntimeError("Malformed platform-admin active RPC result")
+    mapping = result.get("platform_admin_user")
+    audit = result.get("audit_event")
+    if not isinstance(mapping, dict) or not isinstance(audit, dict):
+        raise RuntimeError("Malformed platform-admin active RPC result")
+    if mapping.get("id") != target_mapping_id:
+        raise RuntimeError("Platform-admin active RPC mapping mismatch")
+    if not _is_positive_int(mapping.get("user_id")):
+        raise RuntimeError("Platform-admin active RPC user mismatch")
+    if mapping.get("is_active") is not is_active:
+        raise RuntimeError("Platform-admin active RPC state mismatch")
+    expected_action = "platform_admin.user.activate" if is_active else "platform_admin.user.deactivate"
+    if not _is_positive_int(audit.get("id")):
+        raise RuntimeError("Malformed platform-admin active audit result")
+    if audit.get("action") != expected_action:
+        raise RuntimeError("Platform-admin active audit action mismatch")
+    if audit.get("resource_type") != "platform_admin_users":
+        raise RuntimeError("Platform-admin active audit resource mismatch")
+    if audit.get("resource_id") != str(target_mapping_id):
+        raise RuntimeError("Platform-admin active audit resource mismatch")
+    return {"platform_admin_user": mapping, "audit_event": audit}
+
+
+def set_platform_admin_user_active_for_platform_admin(actor_mapping_id, target_mapping_id, is_active):
+    _safe_positive_id(actor_mapping_id, "actor_platform_admin_user_id")
+    _safe_positive_id(target_mapping_id, "target_platform_admin_user_id")
+    if not isinstance(is_active, bool):
+        raise ValueError("is_active must be boolean")
+    response = supabase.rpc(
+        "set_platform_admin_user_active",
+        {
+            "p_actor_platform_admin_user_id": actor_mapping_id,
+            "p_target_platform_admin_user_id": target_mapping_id,
+            "p_is_active": is_active,
+        },
+    ).execute()
+    return _validate_active_rpc_result(response.data, target_mapping_id=target_mapping_id, is_active=is_active)
 
 
 def list_platform_admin_audit_events_for_platform_admin(

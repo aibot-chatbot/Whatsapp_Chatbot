@@ -44,6 +44,10 @@ def _actor_id():
     return g.platform_admin_user["id"]
 
 
+def _actor_mapping():
+    return g.platform_admin_user
+
+
 @platform_admin_bp.get("/me")
 def current_platform_admin():
     return _execute(lambda: platform_admin_service.get_current_platform_admin_identity(
@@ -68,6 +72,37 @@ def audit_events():
         resource_id=request.args.get("resource_id"),
         created_after=request.args.get("created_after"),
         created_before=request.args.get("created_before"),
+    ))
+
+
+@platform_admin_bp.get("/platform-admin-users")
+def platform_admin_users():
+    return _execute(lambda: platform_admin_service.list_platform_admin_users(
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        is_active=request.args.get("is_active"),
+    ))
+
+
+@platform_admin_bp.get("/platform-admin-users/<int:mapping_id>")
+def platform_admin_user_detail(mapping_id):
+    return _execute(lambda: platform_admin_service.get_platform_admin_user(
+        mapping_id, _actor_id()
+    ))
+
+
+@platform_admin_bp.post("/platform-admin-users")
+def create_platform_admin_user():
+    return _execute(lambda: platform_admin_service.create_platform_admin_user(
+        request.get_json(silent=True), _actor_mapping()
+    ))
+
+
+@platform_admin_bp.patch("/platform-admin-users/<int:mapping_id>/active")
+def set_platform_admin_user_active(mapping_id):
+    return _execute(lambda: platform_admin_service.set_platform_admin_user_active(
+        mapping_id, request.get_json(silent=True), _actor_id()
     ))
 
 

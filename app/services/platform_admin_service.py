@@ -249,6 +249,10 @@ SAFE_AUDIT_METADATA_KEYS = {
     "reply_id",
     "notification_channel",
     "delivery_status",
+    "target_platform_admin_user_id",
+    "target_user_id",
+    "old_is_active",
+    "new_is_active",
 }
 
 
@@ -284,6 +288,215 @@ def _safe_audit_event_response_row(row):
 
 def _now_utc_iso():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _invalid_platform_admin_user_id(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        _validation(
+            "invalid_platform_admin_user_id",
+            "Platform-admin mapping ID must be a positive integer.",
+        )
+    return value
+
+
+def _invalid_user_id(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        _validation("invalid_user_id", "user_id must be a positive integer.")
+    return value
+
+
+def _strict_body(payload, allowed_keys):
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be a JSON object.")
+    unknown = set(payload) - set(allowed_keys)
+    if unknown:
+        _validation("invalid_request", "Request body contains unsupported fields.")
+    return payload
+
+
+def _handle_platform_admin_user_rpc_error(exc):
+    text = _rpc_error_text(exc)
+    if "target user not found" in text:
+        raise PlatformAdminServiceError(404, "target_user_not_found", "Target user not found.")
+    if "target user must be active" in text:
+        _validation("target_user_inactive", "Target user must be active.")
+    if "target user must belong to a protected company" in text:
+        _validation(
+            "target_user_not_protected",
+            "Target user is not eligible for platform-admin access.",
+        )
+    if "already exists" in text or "23505" in text:
+        _validation("platform_admin_mapping_exists", "Platform-admin mapping already exists.")
+    if "platform-admin mapping not found" in text:
+        raise PlatformAdminServiceError(
+            404, "platform_admin_user_not_found", "Platform-admin mapping not found."
+        )
+    if "unchanged" in text:
+        _validation("no_change", "No change is required.")
+    if "self-deactivation is not allowed" in text:
+        _validation("self_deactivation_not_allowed", "You cannot deactivate your own mapping.")
+    if "at least one active platform-admin mapping is required" in text:
+        _validation(
+            "final_active_platform_admin",
+            "The final active platform admin cannot be deactivated.",
+        )
+    if "active platform-admin mapping is required" in text:
+        raise PlatformAdminServiceError(
+            403, "platform_admin_access_denied", "Platform-admin access is denied."
+        )
+    logger.error("Platform-admin user-management RPC failed")
+    _data_unavailable()
+
+
+def _safe_platform_admin_user(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "platform_admin_user_id": row.get("platform_admin_user_id") or row.get("id"),
+        "user_id": row.get("user_id"),
+        "is_active": row.get("is_active"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "created_by_user_id": row.get("created_by_user_id"),
+        "user_email": row.get("user_email"),
+        "user_full_name": row.get("user_full_name"),
+        "user_status": row.get("user_status"),
+        "creator_user_id": row.get("creator_user_id") or row.get("created_by_user_id"),
+        "creator_email": row.get("creator_email"),
+        "creator_full_name": row.get("creator_full_name"),
+        "recent_platform_admin_activity_at": row.get("recent_platform_admin_activity_at"),
+    }
+
+
+def _safe_rpc_mapping(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "platform_admin_user_id": row.get("id"),
+        "user_id": row.get("user_id"),
+        "is_active": row.get("is_active"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "created_by_user_id": row.get("created_by_user_id"),
+    }
+
+
+def list_platform_admin_users(actor_id, *, limit=None, offset=None, is_active=None):
+    actor_id = _validated_actor_id(actor_id)
+    limit = _integer_parameter(limit, name="limit", default=100, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    active_filter = None
+    if is_active is not None:
+        if isinstance(is_active, str):
+            lowered = is_active.strip().lower()
+            if lowered == "true":
+                active_filter = True
+            elif lowered == "false":
+                active_filter = False
+            else:
+                _validation("invalid_is_active", "is_active must be true or false.")
+        else:
+            _validation("invalid_is_active", "is_active must be true or false.")
+    try:
+        users, total = platform_admin_repository.list_platform_admin_users_for_platform_admin(
+            limit=limit, offset=offset, is_active=active_filter
+        )
+    except Exception:
+        logger.error("Platform-admin user listing failed")
+        _data_unavailable()
+    safe_users = [_safe_platform_admin_user(row) for row in users]
+    _audit(actor_id, "platform_admin.user.list", "platform_admin_users", None, {
+        "outcome": "success",
+        "endpoint": platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_list"],
+        "http_method": "GET",
+        "returned_count": len(safe_users),
+    })
+    return {
+        "platform_admin_users": safe_users,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(safe_users),
+            "total": total,
+            "has_more": offset + len(safe_users) < total,
+        },
+        "filters": {"is_active": active_filter},
+    }
+
+
+def get_platform_admin_user(mapping_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    mapping_id = _invalid_platform_admin_user_id(mapping_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_read"]
+    try:
+        row = platform_admin_repository.get_platform_admin_user_for_platform_admin(mapping_id)
+    except ValueError:
+        _validation("invalid_platform_admin_user_id", "Platform-admin mapping ID must be a positive integer.")
+    except Exception:
+        logger.error("Platform-admin user detail lookup failed")
+        _data_unavailable()
+    if not row:
+        _audit(actor_id, "platform_admin.user.read", "platform_admin_users", str(mapping_id), {
+            "outcome": "not_found",
+            "endpoint": endpoint,
+            "http_method": "GET",
+            "target_platform_admin_user_id": mapping_id,
+        })
+        raise PlatformAdminServiceError(
+            404, "platform_admin_user_not_found", "Platform-admin mapping not found."
+        )
+    safe = _safe_platform_admin_user(row)
+    _audit(actor_id, "platform_admin.user.read", "platform_admin_users", str(mapping_id), {
+        "outcome": "success",
+        "endpoint": endpoint,
+        "http_method": "GET",
+        "target_platform_admin_user_id": mapping_id,
+        "target_user_id": safe.get("user_id"),
+        "old_is_active": None,
+        "new_is_active": safe.get("is_active"),
+    })
+    return {"platform_admin_user": safe}
+
+
+def create_platform_admin_user(payload, actor_mapping):
+    if not isinstance(actor_mapping, dict):
+        raise PlatformAdminServiceError(
+            500, "platform_admin_context_invalid", "Platform context is invalid."
+        )
+    actor_id = _validated_actor_id(actor_mapping.get("id"))
+    actor_user_id = _invalid_user_id(actor_mapping.get("user_id"))
+    payload = _strict_body(payload, {"user_id"})
+    target_user_id = _invalid_user_id(payload.get("user_id"))
+    try:
+        result = platform_admin_repository.create_platform_admin_user_mapping_for_platform_admin(
+            actor_id, actor_user_id, target_user_id
+        )
+    except ValueError:
+        _validation("invalid_user_id", "user_id must be a positive integer.")
+    except Exception as exc:
+        _handle_platform_admin_user_rpc_error(exc)
+    return {
+        "platform_admin_user": _safe_rpc_mapping(result["platform_admin_user"])
+    }
+
+
+def set_platform_admin_user_active(mapping_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    mapping_id = _invalid_platform_admin_user_id(mapping_id)
+    payload = _strict_body(payload, {"is_active"})
+    if not isinstance(payload.get("is_active"), bool):
+        _validation("invalid_is_active", "is_active must be true or false.")
+    try:
+        result = platform_admin_repository.set_platform_admin_user_active_for_platform_admin(
+            actor_id, mapping_id, payload["is_active"]
+        )
+    except ValueError:
+        _validation("invalid_platform_admin_user_id", "Platform-admin mapping ID must be a positive integer.")
+    except Exception as exc:
+        _handle_platform_admin_user_rpc_error(exc)
+    return {
+        "platform_admin_user": _safe_rpc_mapping(result["platform_admin_user"])
+    }
 
 
 SUPPORT_CASE_ENDPOINTS = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS
