@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -598,6 +598,37 @@ function App() {
   const [companyName, setCompanyName] = useState("");
   const [businessDescription, setBusinessDescription] = useState("");
   const [tone, setTone] = useState("");
+  const [extractionMode, setExtractionMode] = useState("manual");
+  const [extractionPrompt, setExtractionPrompt] = useState("");
+  const [extractedButtons, setExtractedButtons] = useState([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionMessage, setExtractionMessage] = useState("");
+
+  const handleExtractDocument = async () => {
+    setIsExtracting(true);
+    setExtractionMessage("Extracting data from document...");
+    try {
+        const response = await fetch(`/api/settings/extract-document-data?chatbot_id=${selectedBotId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + localStorage.getItem("access_token")
+            },
+            body: JSON.stringify({ prompt: extractionPrompt })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+            setExtractedButtons(data.data);
+            setExtractionMessage("Extracted successfully.");
+        } else {
+            setExtractionMessage("Extraction failed: " + data.message);
+        }
+    } catch (error) {
+        setExtractionMessage("Error: " + error.message);
+    } finally {
+        setIsExtracting(false);
+    }
+  };
   const [additionalInstructions, setAdditionalInstructions] = useState("");
   const [customPrompt, setCustomPrompt] = useState("");
   const [activePdf, setActivePdf] = useState("");

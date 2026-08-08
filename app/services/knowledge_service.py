@@ -8,7 +8,7 @@ from app.database.knowledge_file_repository import delete_knowledge_file_by_id
 from app.database.knowledge_file_repository import get_knowledge_file_by_name_or_id
 from app.database.knowledge_file_repository import set_active_pdf_knowledge_file
 from app.database.knowledge_file_repository import get_knowledge_files
-from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.database.knowledge_file_repository import update_supporting_knowledge_enabled
 from app.database.knowledge_chunk_repository import delete_chunks_by_file_for_chatbot
 from app.services.billing_guard import can_upload_knowledge_storage, BillingLimitError
@@ -146,7 +146,7 @@ def list_uploaded_pdfs(chatbot_id):
 
 
 def get_active_pdf(chatbot_id):
-    active = get_active_pdf_knowledge_file(chatbot_id=chatbot_id)
+    active = get_active_knowledge_file(chatbot_id=chatbot_id)
 
     if not active:
         return {
@@ -286,7 +286,7 @@ def delete_pdf_file(file_name, chatbot_id):
     file_id = knowledge_file.get("id")
     stored_name = knowledge_file.get("file_name") or file_name
     stored_path = knowledge_file.get("file_path") or ""
-    active = get_active_pdf_knowledge_file(chatbot_id=chatbot_id)
+    active = get_active_knowledge_file(chatbot_id=chatbot_id)
     is_active_file = active and active.get("id") == file_id
 
     if not file_id:
