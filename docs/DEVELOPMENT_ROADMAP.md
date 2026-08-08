@@ -22,8 +22,8 @@
 
 The initial read-only backend is implemented with a separate database-backed
 platform-admin allowlist, per-request fail-closed authorization, dedicated
-cross-tenant repositories, twelve GET-only endpoints, and audit-before-response
-enforcement. Tenant roles and JWT claims do not grant platform access. The
+cross-tenant repositories, a twelve GET-route investigation inventory, and
+audit-before-response enforcement. Tenant roles and JWT claims do not grant platform access. The
 later users/chatbots company-inspection endpoints and Platform Operations
 overview endpoint, plus the subscription-history and AI-credit transaction-history
 investigation endpoints, Audit Logs viewer, and billing-order history endpoint are
@@ -36,7 +36,7 @@ All proposed Phase 2 alert types remain deferred under the design contract in
 `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 
 In the current local implementation, localhost manual verification recorded on 2026-08-03
-passed for the complete twelve-route read-only stack: dashboard, operational
+passed for the complete twelve-route read-only investigation stack: dashboard, operational
 alerts, company directory/detail, subscription summary/history, AI-credit usage
 and transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
 billing-order audit filters, and local revocation with Access Denied and stale
@@ -45,6 +45,9 @@ platform-admin endpoints remain the only endpoint set recorded as staging
 verified; later extensions remain application-only/local-tested unless separately
 staged. Operational Alerts added no endpoint or page, and the billing-order
 audit-filter fix added no route or backend behavior change.
+The complete platform-admin surface additionally includes separately approved
+bounded support-case, platform-admin user-management, and company lifecycle
+mutation routes; those later mutation routes are not staging verified.
 The read-only smoke helper was also exercised locally on 2026-08-03 against
 localhost: all twelve checks passed with an approved company ID, required-only
 checks passed with child checks skipped when no company ID was supplied, and
@@ -72,6 +75,23 @@ preserved RPC ownership/security/EXECUTE posture, did not create mappings, did
 not create Phase 4 mutation audit events merely by application, and did not
 alter existing audit rows. No staging verification or production readiness is
 claimed.
+Platform-admin Tenant and Company Administration Phase 5 is implemented
+locally with bounded company suspend/restore controls and centralized
+company-operational enforcement for tenant mutation, messaging, widget,
+broadcast, AI, and billing mutation paths. Migration 036 is applied and
+verified only in the approved main shared-testing Supabase with fake/team data:
+`companies.status` is constrained to non-null `active`/`inactive`, companies
+table privileges were tightened to no browser-role direct access and
+service_role `SELECT`, `INSERT`, and `UPDATE` only, and the suspend/restore
+RPCs remain service-role-only `SECURITY INVOKER` functions with
+`search_path=pg_catalog`. Real shared-testing lifecycle verification suspended
+and restored non-protected company 23, left company 23 active after cleanup,
+created audit events 355 and 356 with safe lifecycle metadata only, and
+verified protected company 29 cannot be suspended. No live tenant-runtime
+suspension E2E was performed because company 23 has no users or chatbots and
+the verification intentionally avoided risking another tenant. Runtime
+enforcement is covered by automated local tests. No staging verification or
+production readiness is claimed.
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
@@ -80,7 +100,7 @@ AI-credit alerts, billing-order attention alerts, inactive-company alerts,
 no-current-chatbot alerts, payment reconciliation, checkout recovery, retry
 payment, manual crediting, subscription activation, plan changes,
 no-subscription counting, global activity, usage aggregation, charts, exports, audit export, audit
-editing/deletion, and write controls remain deferred.
+editing/deletion, and overview remediation/write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
 shell, a fresh `/me` authorization gate on every page, an allowlisted

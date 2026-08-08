@@ -12,6 +12,8 @@
         "platform_admin.company.ai_credit_usage.read",
         "platform_admin.company.ai_credit_transactions.read",
         "platform_admin.company.billing_orders.read",
+        "platform_admin.company.suspend",
+        "platform_admin.company.restore",
         "platform_admin.company.users.read",
         "platform_admin.company.chatbots.read",
         "platform_admin.audit_events.list",

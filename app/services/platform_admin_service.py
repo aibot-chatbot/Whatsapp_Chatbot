@@ -314,6 +314,13 @@ def _strict_body(payload, allowed_keys):
     return payload
 
 
+def _empty_body(payload):
+    if payload is None:
+        return {}
+    payload = _strict_body(payload, set())
+    return payload
+
+
 def _handle_platform_admin_user_rpc_error(exc):
     text = _rpc_error_text(exc)
     if "target user not found" in text:
@@ -345,6 +352,27 @@ def _handle_platform_admin_user_rpc_error(exc):
             403, "platform_admin_access_denied", "Platform-admin access is denied."
         )
     logger.error("Platform-admin user-management RPC failed")
+    _data_unavailable()
+
+
+def _handle_company_lifecycle_rpc_error(exc):
+    text = _rpc_error_text(exc)
+    if "company not found" in text:
+        raise PlatformAdminServiceError(404, "company_not_found", "Company not found.")
+    if "company status is unchanged" in text or "unchanged" in text:
+        _validation("no_change", "No change is required.")
+    if "protected platform-admin company cannot be suspended" in text:
+        _validation(
+            "protected_company",
+            "Protected platform-admin companies cannot be suspended.",
+        )
+    if "active platform-admin mapping is required" in text:
+        raise PlatformAdminServiceError(
+            403, "platform_admin_access_denied", "Platform-admin access is denied."
+        )
+    if "invalid company id" in text:
+        _validation("invalid_company_id", "Company ID must be a positive integer.")
+    logger.error("Platform company lifecycle RPC failed")
     _data_unavailable()
 
 
@@ -497,6 +525,36 @@ def set_platform_admin_user_active(mapping_id, payload, actor_id):
     return {
         "platform_admin_user": _safe_rpc_mapping(result["platform_admin_user"])
     }
+
+
+def suspend_company(company_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    company_id = _positive_id(company_id)
+    _empty_body(payload)
+    try:
+        result = platform_company_repository.suspend_platform_company_for_platform_admin(
+            actor_id, company_id
+        )
+    except ValueError:
+        _validation("invalid_company_id", "Company ID must be a positive integer.")
+    except Exception as exc:
+        _handle_company_lifecycle_rpc_error(exc)
+    return {"company": result["company"]}
+
+
+def restore_company(company_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    company_id = _positive_id(company_id)
+    _empty_body(payload)
+    try:
+        result = platform_company_repository.restore_platform_company_for_platform_admin(
+            actor_id, company_id
+        )
+    except ValueError:
+        _validation("invalid_company_id", "Company ID must be a positive integer.")
+    except Exception as exc:
+        _handle_company_lifecycle_rpc_error(exc)
+    return {"company": result["company"]}
 
 
 SUPPORT_CASE_ENDPOINTS = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS

@@ -47,7 +47,8 @@
         "platform_admin_mapping_exists",
         "platform_admin_user_not_found",
         "self_deactivation_not_allowed",
-        "final_active_platform_admin"
+        "final_active_platform_admin",
+        "protected_company"
     ]);
 
     function makeError(category, status, code) {
@@ -199,6 +200,16 @@
     function getCompany(companyId, options) {
         const id = requireCompanyId(companyId);
         return platformFetch("/companies/" + id, (options || {}).signal);
+    }
+
+    function suspendCompany(companyId, options) {
+        const id = requireCompanyId(companyId);
+        return platformFetch("/companies/" + id + "/suspend", (options || {}).signal, "POST", {});
+    }
+
+    function restoreCompany(companyId, options) {
+        const id = requireCompanyId(companyId);
+        return platformFetch("/companies/" + id + "/restore", (options || {}).signal, "POST", {});
     }
 
     function getCompanySubscription(companyId, options) {
@@ -374,6 +385,8 @@
         createPlatformAdminUser: createPlatformAdminUser,
         setPlatformAdminUserActive: setPlatformAdminUserActive,
         getCompany: getCompany,
+        suspendCompany: suspendCompany,
+        restoreCompany: restoreCompany,
         getCompanySubscription: getCompanySubscription,
         listCompanySubscriptionHistory: listCompanySubscriptionHistory,
         getCompanyAiCreditUsage: getCompanyAiCreditUsage,

@@ -8,8 +8,9 @@ platform-admin endpoint set, including the application-only operations overview,
 company-user, chatbot, subscription-history, AI-credit transaction-history,
 billing-order history, support-case operations, tenant-visible support replies,
 audit-log viewer extensions, and the Phase 4 platform-admin user-management
-actions. It does not authorize production deployment, retention deletion,
-staging readiness, or production mapping activation.
+actions, plus the Phase 5 bounded tenant/company lifecycle actions. It does
+not authorize production deployment, retention deletion, staging readiness, or
+production mapping activation.
 
 The platform-admin service is fail closed: a successful or not-found platform
 response must not be returned unless its audit event is inserted successfully.
@@ -44,12 +45,19 @@ the approved main shared-testing Supabase with fake/team data. It corrected only
 the Phase 4 RPC audit endpoint metadata, preserved RPC ownership/security/
 EXECUTE posture, did not create mappings, did not create Phase 4 mutation audit
 events merely by application, and did not alter existing audit rows.
+Platform-admin Tenant and Company Administration Phase 5 and Migration 036 are
+applied and verified only in the approved main shared-testing Supabase with
+fake/team data. This verified company 23 suspend/restore lifecycle audit rows
+and company 29 protected-company rejection, but it is not staging verification
+and does not establish production readiness.
 
 | Action | Resource type | Resource ID | Outcomes | Required metadata | Optional metadata | Endpoint |
 |---|---|---|---|---|---|---|
 | `platform_admin.identity.read` | `platform_admin` | Platform-admin mapping ID as positive integer text | `success` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/me` |
 | `platform_admin.company.list` | `company` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `status_filter`, `returned_count` | None | `/api/platform-admin/companies` |
 | `platform_admin.company.read` | `company` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>` |
+| `platform_admin.company.suspend` | `company` | Target company ID as positive integer text | `success` | `outcome`, `endpoint`, `http_method`, `company_id`, `old_status`, `new_status` | None | `POST /api/platform-admin/companies/<company_id>/suspend` |
+| `platform_admin.company.restore` | `company` | Target company ID as positive integer text | `success` | `outcome`, `endpoint`, `http_method`, `company_id`, `old_status`, `new_status` | None | `POST /api/platform-admin/companies/<company_id>/restore` |
 | `platform_admin.company.subscription.read` | `company_subscription` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>/subscription` |
 | `platform_admin.company.subscription_history.read` | `company_subscription_history` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `status_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/subscription-history` |
 | `platform_admin.company.ai_credit_usage.read` | `company_ai_credit_usage` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `period_start` and `period_end` when `outcome = success` | None for `success`; no period fields for `not_found` | `/api/platform-admin/companies/<company_id>/ai-credit-usage` |
@@ -155,7 +163,7 @@ or metadata fields require an explicit schema and tests before use.
 |---|---|
 | `outcome` | `success` or `not_found` as applicable |
 | `endpoint` | The fixed route template from the approved action table; never a full URL or query string |
-| `http_method` | `GET` for investigation actions; `POST` or `PATCH` only for the approved bounded support-case and platform-admin user-management actions |
+| `http_method` | `GET` for approved investigation actions; `POST` or `PATCH` only for the explicitly approved bounded support-case, platform-admin user-management, and company lifecycle actions |
 
 ### Company-list fields
 

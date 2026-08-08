@@ -3,6 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.database.user_repository import get_user_by_id, get_user_by_id_for_company, update_user, update_user_for_company, get_users_by_company, count_active_admins_by_company
 from app.decorators.auth_decorator import token_required
+from app.services.company_status_service import company_operational_required
 from app.utils.access_control import role_required
 from app.routes.auth_routes import validate_password_strength
 from app.services.billing_guard import can_add_team_member, BillingLimitError
@@ -70,6 +71,7 @@ def fetch_current_user():
 
 @user_bp.route("", methods=["PUT"])
 @token_required
+@company_operational_required
 def update_current_user():
     try:
         data = request.get_json()
@@ -136,6 +138,7 @@ def update_current_user():
 
 @user_bp.route("/password", methods=["PUT"])
 @token_required
+@company_operational_required
 def change_password():
     try:
         data = request.get_json()
@@ -239,6 +242,7 @@ def list_company_users():
 
 @team_bp.route("/<int:user_id>/role", methods=["PUT"])
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def update_member_role(user_id):
     try:
@@ -295,6 +299,7 @@ def update_member_role(user_id):
 
 @team_bp.route("/<int:user_id>/status", methods=["PUT"])
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def update_member_status(user_id):
     try:

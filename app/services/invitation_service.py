@@ -3,6 +3,10 @@ from datetime import datetime, timezone
 from app.database.invite_repository import get_invite_by_token, update_invite
 from app.database.user_repository import create_user, get_user_by_email
 from app.services.billing_guard import can_accept_team_invitation
+from app.services.company_status_service import (
+    CompanyOperationalStatusError,
+    ensure_company_operational,
+)
 
 
 class InvitationValidationError(ValueError):
@@ -72,6 +76,10 @@ def accept_pending_invitation(token, full_name, password_hash, verified_email=No
         raise InvitationValidationError("This email is already registered.", 409)
 
     company_id = invite["company_id"]
+    try:
+        ensure_company_operational(company_id)
+    except CompanyOperationalStatusError:
+        raise InvitationValidationError("This company is not accepting invitations.", 403)
     can_accept_team_invitation(company_id)
     user = create_user(
         company_id=company_id,
