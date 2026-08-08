@@ -154,6 +154,12 @@ def process_telegram_update(update: dict, webhook_secret: str):
     telegram_channel_id = channel["id"]
     chatbot_id = channel["chatbot_id"]
     bot_token = channel["bot_token"]
+    try:
+        from app.services.company_status_service import ensure_company_operational
+        ensure_company_operational(channel.get("company_id"))
+    except Exception:
+        logging.info("Telegram webhook ignored because company is not operational.")
+        return
 
     update_id = update.get("update_id")
 

@@ -191,6 +191,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "createPlatformAdminUser",
                 "setPlatformAdminUserActive",
                 "getCompany",
+                "suspendCompany",
+                "restoreCompany",
                 "getCompanySubscription",
                 "listCompanySubscriptionHistory",
                 "getCompanyAiCreditUsage",
@@ -238,6 +240,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             "updateSupportCasePriority": ("/support-cases/\" + id + \"/priority", "PATCH"),
             "createPlatformAdminUser": ("/platform-admin-users", "POST"),
             "setPlatformAdminUserActive": ("/platform-admin-users/\" + id + \"/active", "PATCH"),
+            "suspendCompany": ("/companies/\" + id + \"/suspend", "POST"),
+            "restoreCompany": ("/companies/\" + id + \"/restore", "POST"),
         }
         seen_mutations = {}
         for function_name, body in re.findall(
@@ -255,8 +259,10 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             self.assertIn(f'"{method}"', body)
         for forbidden in (
             "/billing",
-            "/companies/\" + id",
             "/companies/\" + id + \"/users",
+            "/companies/\" + id + \"/subscription",
+            "/companies/\" + id + \"/ai-credit",
+            "/companies/\" + id + \"/billing-orders",
             "/chatbots",
             "/imperson",
             "/export",
@@ -327,6 +333,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         self.assertIn("companyId <= 0", validator)
         for function_name in [
             "getCompany",
+            "suspendCompany",
+            "restoreCompany",
             "getCompanySubscription",
             "listCompanySubscriptionHistory",
             "getCompanyAiCreditUsage",
@@ -341,6 +349,27 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 flags=re.S,
             ).group(1)
             self.assertLess(body.index("requireCompanyId(companyId)"), body.index("platformFetch("))
+
+    def test_company_lifecycle_controls_are_bounded_and_confirmed(self):
+        company = read(COMPANY)
+        self.assertIn("Operational state", company)
+        self.assertIn("Suspend company", company)
+        self.assertIn("Restore company", company)
+        self.assertIn("window.confirm", company)
+        self.assertIn("Tenant operational activity will be blocked", company)
+        self.assertIn("button.disabled = true", company)
+        self.assertIn("PlatformAdminApi.suspendCompany", company)
+        self.assertIn("PlatformAdminApi.restoreCompany", company)
+        self.assertIn("protected_company", company)
+        for forbidden in (
+            "delete company",
+            "impersonat",
+            "password reset",
+            "manual credit",
+            "role selector",
+            "subscription mutation",
+        ):
+            self.assertNotIn(forbidden, company.casefold())
 
     def test_support_case_ids_use_invalid_case_id_validator(self):
         validator = re.search(

@@ -791,23 +791,14 @@ def _route_for_enforcement(provider: str, model: str | None, company_id: int | N
     )
 
 
-def _get_system_provider_for_enforcement(provider: str, model: str | None):
+def _get_system_provider_for_enforcement(provider: str, model: str | None, company_id: int):
     # Resolve AI access policy.
     # System callers (report_service, flow_builder_service, knowledge_service)
     # resolve the company_id from the bot record before calling.
     from app.services.ai_access_policy import resolve_ai_access
 
-    # We need a company_id. This function is called from generate_system_response
-    # which has access to the bot. We pass company_id=None for now and require
-    # callers of generate_system_response to provide company context.
-    # Fall back to flask.g as a last resort.
-    from flask import g, has_app_context
-    company_id = getattr(g, "company_id", None) if has_app_context() else None
-
-    if not company_id:
-        # Without company context, we cannot enforce. This is a safety fallback
-        # that should not be reached in normal operation.
-        return provider, model
+    if isinstance(company_id, bool) or not isinstance(company_id, int) or company_id <= 0:
+        raise RuntimeError("A valid company context is required for system AI routing enforcement.")
 
     policy = resolve_ai_access(company_id)
 
@@ -973,16 +964,9 @@ def call_provider(
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY):
     """Generate a response using the appropriate AI provider..."""
 
-    # --- PHASE 3: INTERCEPT WITH CUSTOM FLOW ENGINE ---
-    from app.services.flow_executor_service import process_flow_message
-    flow_reply = process_flow_message(chatbot_id, message, str(customer_id))
-    if flow_reply:
-        logging.info(f"Custom Flow triggered for bot {chatbot_id} on keyword match.")
-        return flow_reply
-    # --------------------------------------------------
-
     # Enforce billing usage logging...
     from app.services.ai_credit_service import is_ai_credit_enforcement_enabled
+    from app.services.company_status_service import ensure_company_operational
     try:
 
         bot = get_bot_by_id(chatbot_id)
@@ -998,6 +982,15 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         model_name = bot.get("model_name")
         temperature = bot.get("temperature", 0.7)
         company_id = bot.get("company_id")
+        ensure_company_operational(company_id)
+
+        # --- PHASE 3: INTERCEPT WITH CUSTOM FLOW ENGINE ---
+        from app.services.flow_executor_service import process_flow_message
+        flow_reply = process_flow_message(chatbot_id, message, str(customer_id))
+        if flow_reply:
+            logging.info(f"Custom Flow triggered for bot {chatbot_id} on keyword match.")
+            return flow_reply
+        # --------------------------------------------------
 
         selected_provider, model_name = normalize_model_selection(
             selected_provider,
@@ -1195,11 +1188,22 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         The LLM response text, or raises RuntimeError on failure
     """
 
-    bot = get_bot_by_id(chatbot_id)
+    from app.services.company_status_service import ensure_company_operational
 
-    selected_provider = provider or (bot.get("ai_provider", "deepseek") if bot else "deepseek")
-    selected_model = model or (bot.get("model_name") if bot else None)
-    selected_temperature = temperature if temperature is not None else (bot.get("temperature", 0.3) if bot else 0.3)
+    bot = get_bot_by_id(chatbot_id)
+    if not bot:
+        logging.warning(
+            "System AI call denied for chatbot %s because the bot record was not found.",
+            chatbot_id,
+        )
+        raise RuntimeError("Chatbot is not available for system AI.")
+
+    company_id = bot.get("company_id")
+    ensure_company_operational(company_id)
+
+    selected_provider = provider or bot.get("ai_provider", "deepseek")
+    selected_model = model or bot.get("model_name")
+    selected_temperature = temperature if temperature is not None else bot.get("temperature", 0.3)
 
     selected_provider, selected_model = normalize_model_selection(
         selected_provider,
@@ -1210,15 +1214,13 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         selected_model = get_default_model(selected_provider)
 
     selected_provider, selected_model = _get_system_provider_for_enforcement(
-        selected_provider, selected_model,
+        selected_provider, selected_model, company_id,
     )
 
     logging.info(
         "System AI call for chatbot %s -> provider: %s, model: %s",
         chatbot_id, selected_provider, selected_model,
     )
-
-    company_id = bot.get("company_id") if bot else None
 
     result = None
 

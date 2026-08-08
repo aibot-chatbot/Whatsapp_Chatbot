@@ -48,6 +48,21 @@ def get_company_by_id(company_id):
     return rows[0] if rows else None
 
 
+def get_company_status_by_id(company_id):
+    if not company_id:
+        raise ValueError("Company ID is required")
+
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("id,status")
+        .eq("id", company_id)
+        .limit(1)
+        .execute()
+    )
+    rows = response.data or []
+    return rows[0] if rows else None
+
+
 def update_company(company_id, updates):
     if not company_id:
         raise ValueError("Company ID is required")

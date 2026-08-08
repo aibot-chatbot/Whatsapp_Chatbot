@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request, g
 
 from app.services.profile_service import get_profiles, save_profile, delete_profile
 from app.decorators.auth_decorator import token_required
+from app.services.company_status_service import company_operational_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.workspace_service import get_workspace_summary, update_workspace_company
 
@@ -27,6 +28,7 @@ def fetch_workspace():
 
 @profile_blueprint.route("/api/workspace", methods=["PUT"])
 @token_required
+@company_operational_required
 def update_workspace():
     try:
         data = request.get_json(silent=True)
@@ -78,6 +80,7 @@ def fetch_profiles():
 
 @profile_blueprint.route("/api/profiles", methods=["POST"])
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def create_profile():
     try:
@@ -118,6 +121,7 @@ def create_profile():
 
 @profile_blueprint.route("/api/profiles/<profile_name>", methods=["DELETE"])
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def remove_profile(profile_name):
     try:

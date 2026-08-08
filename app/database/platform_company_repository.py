@@ -108,3 +108,69 @@ def get_companies_by_ids_for_platform_admin(company_ids):
         row["id"]: row for row in (response.data or [])
         if isinstance(row.get("id"), int)
     }
+
+
+def _is_positive_int(value):
+    return isinstance(value, int) and not isinstance(value, bool) and value > 0
+
+
+def _validate_company_lifecycle_result(result, *, company_id, old_status, new_status, action):
+    if not isinstance(result, dict):
+        raise RuntimeError("Malformed company lifecycle RPC result")
+    company = result.get("company")
+    audit = result.get("audit_event")
+    if not isinstance(company, dict) or not isinstance(audit, dict):
+        raise RuntimeError("Malformed company lifecycle RPC result")
+    if company.get("id") != company_id:
+        raise RuntimeError("Company lifecycle RPC company mismatch")
+    if company.get("old_status") != old_status or company.get("new_status") != new_status:
+        raise RuntimeError("Company lifecycle RPC status mismatch")
+    if not isinstance(company.get("updated_at"), str) or not company.get("updated_at").strip():
+        raise RuntimeError("Company lifecycle RPC updated_at missing")
+    if not _is_positive_int(audit.get("id")):
+        raise RuntimeError("Malformed company lifecycle audit result")
+    if audit.get("action") != action:
+        raise RuntimeError("Company lifecycle audit action mismatch")
+    if audit.get("resource_type") != "company":
+        raise RuntimeError("Company lifecycle audit resource mismatch")
+    if audit.get("resource_id") != str(company_id):
+        raise RuntimeError("Company lifecycle audit resource mismatch")
+    return {"company": company, "audit_event": audit}
+
+
+def suspend_platform_company_for_platform_admin(actor_mapping_id, company_id):
+    _positive_company_id(actor_mapping_id)
+    _positive_company_id(company_id)
+    response = supabase.rpc(
+        "suspend_platform_company",
+        {
+            "p_actor_platform_admin_user_id": actor_mapping_id,
+            "p_company_id": company_id,
+        },
+    ).execute()
+    return _validate_company_lifecycle_result(
+        response.data,
+        company_id=company_id,
+        old_status="active",
+        new_status="inactive",
+        action="platform_admin.company.suspend",
+    )
+
+
+def restore_platform_company_for_platform_admin(actor_mapping_id, company_id):
+    _positive_company_id(actor_mapping_id)
+    _positive_company_id(company_id)
+    response = supabase.rpc(
+        "restore_platform_company",
+        {
+            "p_actor_platform_admin_user_id": actor_mapping_id,
+            "p_company_id": company_id,
+        },
+    ).execute()
+    return _validate_company_lifecycle_result(
+        response.data,
+        company_id=company_id,
+        old_status="inactive",
+        new_status="active",
+        action="platform_admin.company.restore",
+    )

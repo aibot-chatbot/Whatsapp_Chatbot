@@ -131,6 +131,12 @@ def process_whatsapp_message(body):
         return
 
     chatbot_id = channel["chatbot_id"]
+    try:
+        from app.services.company_status_service import ensure_company_operational
+        ensure_company_operational(channel.get("company_id"))
+    except Exception:
+        logging.info("WhatsApp webhook ignored because company is not operational.")
+        return
 
     wa_id = value["contacts"][0]["wa_id"]
     customer_name = value["contacts"][0].get("profile", {}).get("name")

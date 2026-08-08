@@ -51,6 +51,8 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "company_subscription_history": "/api/platform-admin/companies/<company_id>/subscription-history",
     "company_ai_credit_transactions": "/api/platform-admin/companies/<company_id>/ai-credit-transactions",
     "company_billing_orders": "/api/platform-admin/companies/<company_id>/billing-orders",
+    "company_suspend": "/api/platform-admin/companies/<company_id>/suspend",
+    "company_restore": "/api/platform-admin/companies/<company_id>/restore",
     "audit_events": "/api/platform-admin/audit-events",
     "support_case_list": "/api/platform-admin/support-cases",
     "support_case_create": "/api/platform-admin/support-cases",
@@ -227,6 +229,30 @@ AUDIT_EVENT_SCHEMAS = {
             },
             "not_found": set(),
         },
+    },
+    "platform_admin.company.suspend": {
+        "resource_type": "company",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "company_id",
+            "old_status", "new_status",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["company_suspend"],
+        "http_methods": {"POST"},
+    },
+    "platform_admin.company.restore": {
+        "resource_type": "company",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "company_id",
+            "old_status", "new_status",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["company_restore"],
+        "http_methods": {"POST"},
     },
     "platform_admin.audit_events.list": {
         "resource_type": "platform_admin_audit_events",
@@ -407,6 +433,60 @@ AUDIT_EVENT_SCHEMAS = {
         "outcomes": {"success"},
         "endpoint": "/api/platform-admin/tenant-support-requests/<request_id>/convert",
         "http_methods": {"POST"},
+    },
+    "platform_admin.user.list": {
+        "resource_type": "platform_admin_users",
+        "resource_id": _resource_id_none,
+        "required_metadata": {"outcome", "endpoint", "http_method", "returned_count"},
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_list"],
+        "http_methods": {"GET"},
+    },
+    "platform_admin.user.read": {
+        "resource_type": "platform_admin_users",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method", "target_platform_admin_user_id"},
+        "optional_metadata": {"target_user_id", "old_is_active", "new_is_active"},
+        "outcomes": AUDIT_OUTCOMES,
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_read"],
+        "http_methods": {"GET"},
+    },
+    "platform_admin.user.create": {
+        "resource_type": "platform_admin_users",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "target_platform_admin_user_id",
+            "target_user_id", "old_is_active", "new_is_active",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_create"],
+        "http_methods": {"POST"},
+    },
+    "platform_admin.user.activate": {
+        "resource_type": "platform_admin_users",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "target_platform_admin_user_id",
+            "target_user_id", "old_is_active", "new_is_active",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_active"],
+        "http_methods": {"PATCH"},
+    },
+    "platform_admin.user.deactivate": {
+        "resource_type": "platform_admin_users",
+        "resource_id": _resource_id_positive_integer_string,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "target_platform_admin_user_id",
+            "target_user_id", "old_is_active", "new_is_active",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_active"],
+        "http_methods": {"PATCH"},
     },
 }
 ALLOWED_AUDIT_ACTIONS = frozenset(AUDIT_EVENT_SCHEMAS)
@@ -629,6 +709,15 @@ def _validate_metadata_schema(action, schema, metadata):
         _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
         if metadata["returned_count"] > metadata["limit"]:
             raise ValueError("returned_count cannot exceed limit")
+
+    if action in {"platform_admin.company.suspend", "platform_admin.company.restore"}:
+        _positive_integer(metadata["company_id"], "company_id")
+        if action.endswith(".suspend"):
+            _exact_string(metadata["old_status"], "old_status", "active")
+            _exact_string(metadata["new_status"], "new_status", "inactive")
+        else:
+            _exact_string(metadata["old_status"], "old_status", "inactive")
+            _exact_string(metadata["new_status"], "new_status", "active")
 
     if action == "platform_admin.audit_events.list":
         _bounded_integer(metadata["limit"], "limit", 1, 100)
