@@ -36,8 +36,9 @@ class TenantSupportSubmissionContractTest(unittest.TestCase):
 
     def test_first_version_exclusions_are_preserved(self):
         for phrase in (
-            "no tenant ticket inbox",
-            "no two-way messaging",
+            "request history/detail",
+            "no live chat",
+            "unrestricted messaging",
             "no email notifications",
             "no attachments",
             "no billing or remediation actions",

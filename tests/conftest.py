@@ -10,6 +10,8 @@ import sys
 import types
 from unittest.mock import MagicMock
 
+import pytest
+
 # ── Environment variables (safe test values) ──────────────────────────────
 os.environ.setdefault("SUPABASE_URL", "https://test-collection.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-collection-service-key")
@@ -44,3 +46,18 @@ _sb.table.return_value.select.return_value.eq.return_value.eq.return_value.limit
 _sb.table.return_value.insert.return_value.execute.return_value = MagicMock(data=[])
 _sb.rpc.return_value.execute.return_value = MagicMock(data=[])
 _db_mod.supabase = _sb
+
+
+@pytest.fixture(autouse=True)
+def _default_active_company_status(monkeypatch):
+    """Keep legacy route tests on the verified active-company baseline."""
+    import app.services.company_status_service as _company_status
+
+    def _active_company_status(company_id):
+        return {"id": company_id, "status": "active"}
+
+    monkeypatch.setattr(
+        _company_status,
+        "get_company_status_by_id",
+        _active_company_status,
+    )

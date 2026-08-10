@@ -59,6 +59,71 @@ def _validated_actor_id(value):
     return value
 
 
+def _rpc_error_text(exc):
+    parts = []
+    for attr in ("message", "details", "hint", "code"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, str):
+            parts.append(value)
+    if getattr(exc, "args", None):
+        for value in exc.args:
+            if isinstance(value, str):
+                parts.append(value)
+            elif isinstance(value, dict):
+                for key in ("message", "details", "hint", "code"):
+                    item = value.get(key)
+                    if isinstance(item, str):
+                        parts.append(item)
+    if not parts:
+        parts.append(str(exc))
+    return " ".join(parts).casefold()
+
+
+def _handle_support_case_rpc_error(exc, *, operation):
+    text = _rpc_error_text(exc)
+    if "support case not found" in text:
+        raise PlatformAdminServiceError(
+            404, "support_case_not_found", "Support case not found."
+        )
+    if "unchanged" in text:
+        raise PlatformAdminServiceError(
+            400, "no_change", "Support case is unchanged."
+        )
+    if "transition is not allowed" in text:
+        _validation("invalid_status", "Support case status transition is not allowed.")
+    if "unsupported support case status" in text:
+        _validation("invalid_status", "Support case status is not supported.")
+    if "unsupported support case priority" in text:
+        _validation("invalid_priority", "Support case priority is not supported.")
+    if "active platform-admin mapping is required" in text:
+        if operation == "assignment":
+            _validation(
+                "invalid_assignee",
+                "Assignee must be an active platform-admin mapping ID or null.",
+            )
+        raise PlatformAdminServiceError(
+            403, "platform_admin_access_denied", "Platform-admin access is denied."
+        )
+    if "invalid internal note" in text:
+        _validation("invalid_redacted_note", "redacted_note is invalid.")
+    if "invalid tenant-visible reply" in text:
+        _validation("invalid_redacted_body", "redacted_body is invalid.")
+    if "converted tenant support request not found" in text:
+        raise PlatformAdminServiceError(
+            404,
+            "tenant_support_request_not_found",
+            "Converted tenant support request not found.",
+        )
+    if "tenant support request and case company mismatch" in text:
+        raise PlatformAdminServiceError(
+            409,
+            "support_case_linkage_invalid",
+            "Support case linkage is invalid.",
+        )
+    logger.error("Platform support-case RPC failed")
+    _data_unavailable()
+
+
 def _integer_parameter(value, *, name, default, minimum, maximum=None):
     if value is None:
         return default
@@ -172,7 +237,22 @@ SAFE_AUDIT_METADATA_KEYS = {
     "company_id",
     "status",
     "priority",
+    "old_status",
+    "new_status",
+    "old_priority",
+    "new_priority",
+    "old_assigned_platform_admin_user_id",
+    "new_assigned_platform_admin_user_id",
     "category_filter_applied",
+    "case_id",
+    "request_id",
+    "reply_id",
+    "notification_channel",
+    "delivery_status",
+    "target_platform_admin_user_id",
+    "target_user_id",
+    "old_is_active",
+    "new_is_active",
 }
 
 
@@ -210,16 +290,289 @@ def _now_utc_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _invalid_platform_admin_user_id(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        _validation(
+            "invalid_platform_admin_user_id",
+            "Platform-admin mapping ID must be a positive integer.",
+        )
+    return value
+
+
+def _invalid_user_id(value):
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        _validation("invalid_user_id", "user_id must be a positive integer.")
+    return value
+
+
+def _strict_body(payload, allowed_keys):
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be a JSON object.")
+    unknown = set(payload) - set(allowed_keys)
+    if unknown:
+        _validation("invalid_request", "Request body contains unsupported fields.")
+    return payload
+
+
+def _empty_body(payload):
+    if payload is None:
+        return {}
+    payload = _strict_body(payload, set())
+    return payload
+
+
+def _handle_platform_admin_user_rpc_error(exc):
+    text = _rpc_error_text(exc)
+    if "target user not found" in text:
+        raise PlatformAdminServiceError(404, "target_user_not_found", "Target user not found.")
+    if "target user must be active" in text:
+        _validation("target_user_inactive", "Target user must be active.")
+    if "target user must belong to a protected company" in text:
+        _validation(
+            "target_user_not_protected",
+            "Target user is not eligible for platform-admin access.",
+        )
+    if "already exists" in text or "23505" in text:
+        _validation("platform_admin_mapping_exists", "Platform-admin mapping already exists.")
+    if "platform-admin mapping not found" in text:
+        raise PlatformAdminServiceError(
+            404, "platform_admin_user_not_found", "Platform-admin mapping not found."
+        )
+    if "unchanged" in text:
+        _validation("no_change", "No change is required.")
+    if "self-deactivation is not allowed" in text:
+        _validation("self_deactivation_not_allowed", "You cannot deactivate your own mapping.")
+    if "at least one active platform-admin mapping is required" in text:
+        _validation(
+            "final_active_platform_admin",
+            "The final active platform admin cannot be deactivated.",
+        )
+    if "active platform-admin mapping is required" in text:
+        raise PlatformAdminServiceError(
+            403, "platform_admin_access_denied", "Platform-admin access is denied."
+        )
+    logger.error("Platform-admin user-management RPC failed")
+    _data_unavailable()
+
+
+def _handle_company_lifecycle_rpc_error(exc):
+    text = _rpc_error_text(exc)
+    if "company not found" in text:
+        raise PlatformAdminServiceError(404, "company_not_found", "Company not found.")
+    if "company status is unchanged" in text or "unchanged" in text:
+        _validation("no_change", "No change is required.")
+    if "protected platform-admin company cannot be suspended" in text:
+        _validation(
+            "protected_company",
+            "Protected platform-admin companies cannot be suspended.",
+        )
+    if "active platform-admin mapping is required" in text:
+        raise PlatformAdminServiceError(
+            403, "platform_admin_access_denied", "Platform-admin access is denied."
+        )
+    if "invalid company id" in text:
+        _validation("invalid_company_id", "Company ID must be a positive integer.")
+    logger.error("Platform company lifecycle RPC failed")
+    _data_unavailable()
+
+
+def _safe_platform_admin_user(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "platform_admin_user_id": row.get("platform_admin_user_id") or row.get("id"),
+        "user_id": row.get("user_id"),
+        "is_active": row.get("is_active"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "created_by_user_id": row.get("created_by_user_id"),
+        "user_email": row.get("user_email"),
+        "user_full_name": row.get("user_full_name"),
+        "user_status": row.get("user_status"),
+        "creator_user_id": row.get("creator_user_id") or row.get("created_by_user_id"),
+        "creator_email": row.get("creator_email"),
+        "creator_full_name": row.get("creator_full_name"),
+        "recent_platform_admin_activity_at": row.get("recent_platform_admin_activity_at"),
+    }
+
+
+def _safe_rpc_mapping(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "platform_admin_user_id": row.get("id"),
+        "user_id": row.get("user_id"),
+        "is_active": row.get("is_active"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
+        "created_by_user_id": row.get("created_by_user_id"),
+    }
+
+
+def list_platform_admin_users(actor_id, *, limit=None, offset=None, is_active=None):
+    actor_id = _validated_actor_id(actor_id)
+    limit = _integer_parameter(limit, name="limit", default=100, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    active_filter = None
+    if is_active is not None:
+        if isinstance(is_active, str):
+            lowered = is_active.strip().lower()
+            if lowered == "true":
+                active_filter = True
+            elif lowered == "false":
+                active_filter = False
+            else:
+                _validation("invalid_is_active", "is_active must be true or false.")
+        else:
+            _validation("invalid_is_active", "is_active must be true or false.")
+    try:
+        users, total = platform_admin_repository.list_platform_admin_users_for_platform_admin(
+            limit=limit, offset=offset, is_active=active_filter
+        )
+    except Exception:
+        logger.error("Platform-admin user listing failed")
+        _data_unavailable()
+    safe_users = [_safe_platform_admin_user(row) for row in users]
+    _audit(actor_id, "platform_admin.user.list", "platform_admin_users", None, {
+        "outcome": "success",
+        "endpoint": platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_list"],
+        "http_method": "GET",
+        "returned_count": len(safe_users),
+    })
+    return {
+        "platform_admin_users": safe_users,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(safe_users),
+            "total": total,
+            "has_more": offset + len(safe_users) < total,
+        },
+        "filters": {"is_active": active_filter},
+    }
+
+
+def get_platform_admin_user(mapping_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    mapping_id = _invalid_platform_admin_user_id(mapping_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["platform_admin_user_read"]
+    try:
+        row = platform_admin_repository.get_platform_admin_user_for_platform_admin(mapping_id)
+    except ValueError:
+        _validation("invalid_platform_admin_user_id", "Platform-admin mapping ID must be a positive integer.")
+    except Exception:
+        logger.error("Platform-admin user detail lookup failed")
+        _data_unavailable()
+    if not row:
+        _audit(actor_id, "platform_admin.user.read", "platform_admin_users", str(mapping_id), {
+            "outcome": "not_found",
+            "endpoint": endpoint,
+            "http_method": "GET",
+            "target_platform_admin_user_id": mapping_id,
+        })
+        raise PlatformAdminServiceError(
+            404, "platform_admin_user_not_found", "Platform-admin mapping not found."
+        )
+    safe = _safe_platform_admin_user(row)
+    _audit(actor_id, "platform_admin.user.read", "platform_admin_users", str(mapping_id), {
+        "outcome": "success",
+        "endpoint": endpoint,
+        "http_method": "GET",
+        "target_platform_admin_user_id": mapping_id,
+        "target_user_id": safe.get("user_id"),
+        "old_is_active": None,
+        "new_is_active": safe.get("is_active"),
+    })
+    return {"platform_admin_user": safe}
+
+
+def create_platform_admin_user(payload, actor_mapping):
+    if not isinstance(actor_mapping, dict):
+        raise PlatformAdminServiceError(
+            500, "platform_admin_context_invalid", "Platform context is invalid."
+        )
+    actor_id = _validated_actor_id(actor_mapping.get("id"))
+    actor_user_id = _invalid_user_id(actor_mapping.get("user_id"))
+    payload = _strict_body(payload, {"user_id"})
+    target_user_id = _invalid_user_id(payload.get("user_id"))
+    try:
+        result = platform_admin_repository.create_platform_admin_user_mapping_for_platform_admin(
+            actor_id, actor_user_id, target_user_id
+        )
+    except ValueError:
+        _validation("invalid_user_id", "user_id must be a positive integer.")
+    except Exception as exc:
+        _handle_platform_admin_user_rpc_error(exc)
+    return {
+        "platform_admin_user": _safe_rpc_mapping(result["platform_admin_user"])
+    }
+
+
+def set_platform_admin_user_active(mapping_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    mapping_id = _invalid_platform_admin_user_id(mapping_id)
+    payload = _strict_body(payload, {"is_active"})
+    if not isinstance(payload.get("is_active"), bool):
+        _validation("invalid_is_active", "is_active must be true or false.")
+    try:
+        result = platform_admin_repository.set_platform_admin_user_active_for_platform_admin(
+            actor_id, mapping_id, payload["is_active"]
+        )
+    except ValueError:
+        _validation("invalid_platform_admin_user_id", "Platform-admin mapping ID must be a positive integer.")
+    except Exception as exc:
+        _handle_platform_admin_user_rpc_error(exc)
+    return {
+        "platform_admin_user": _safe_rpc_mapping(result["platform_admin_user"])
+    }
+
+
+def suspend_company(company_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    company_id = _positive_id(company_id)
+    _empty_body(payload)
+    try:
+        result = platform_company_repository.suspend_platform_company_for_platform_admin(
+            actor_id, company_id
+        )
+    except ValueError:
+        _validation("invalid_company_id", "Company ID must be a positive integer.")
+    except Exception as exc:
+        _handle_company_lifecycle_rpc_error(exc)
+    return {"company": result["company"]}
+
+
+def restore_company(company_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    company_id = _positive_id(company_id)
+    _empty_body(payload)
+    try:
+        result = platform_company_repository.restore_platform_company_for_platform_admin(
+            actor_id, company_id
+        )
+    except ValueError:
+        _validation("invalid_company_id", "Company ID must be a positive integer.")
+    except Exception as exc:
+        _handle_company_lifecycle_rpc_error(exc)
+    return {"company": result["company"]}
+
+
 SUPPORT_CASE_ENDPOINTS = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS
 SUPPORT_CASE_TEXT_LIMITS = {
     "title": 160,
     "redacted_summary": 2000,
     "redacted_note": 2000,
+    "redacted_body": 4000,
 }
 SUPPORT_CASE_FORBIDDEN_TERMS = (
     "authorization", "cookie", "credential", "password", "secret", "token",
     "provider payload", "payment reference", "payment_reference", "checkout",
     "gateway", "impersonat", "customer message", "conversation content",
+)
+SUPPORT_REPLY_FORBIDDEN_TERMS = (
+    "authorization", "cookie", "credential", "password", "secret", "token",
+    "provider payload", "payment reference", "payment_reference", "checkout",
+    "gateway", "impersonat",
 )
 
 
@@ -239,6 +592,23 @@ def _support_case_text(value, *, field_name, required=True):
         _validation(
             f"invalid_{field_name}",
             f"{field_name} contains content outside the redacted support-case boundary.",
+        )
+    return normalized
+
+
+def _support_reply_text(value):
+    if not isinstance(value, str):
+        _validation("invalid_redacted_body", "redacted_body must be text.")
+    normalized = value.strip()
+    if not normalized:
+        _validation("invalid_redacted_body", "redacted_body is required.")
+    if len(normalized) > SUPPORT_CASE_TEXT_LIMITS["redacted_body"]:
+        _validation("invalid_redacted_body", "redacted_body is too long.")
+    lowered = normalized.casefold()
+    if any(term in lowered for term in SUPPORT_REPLY_FORBIDDEN_TERMS):
+        _validation(
+            "invalid_redacted_body",
+            "redacted_body contains unsupported sensitive content.",
         )
     return normalized
 
@@ -289,6 +659,16 @@ def _safe_support_case_row(row, company=None):
     }
 
 
+def _safe_platform_admin_assignee(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "id": row.get("id"),
+        "user_id": row.get("user_id"),
+        "is_active": row.get("is_active"),
+    }
+
+
 def _safe_support_case_event(row):
     if not isinstance(row, dict):
         row = {}
@@ -301,8 +681,42 @@ def _safe_support_case_event(row):
         "new_status": row.get("new_status"),
         "old_priority": row.get("old_priority"),
         "new_priority": row.get("new_priority"),
+        "old_assigned_platform_admin_user_id": row.get("old_assigned_platform_admin_user_id"),
+        "new_assigned_platform_admin_user_id": row.get("new_assigned_platform_admin_user_id"),
+        "tenant_support_reply_id": row.get("tenant_support_reply_id"),
         "redacted_note": row.get("redacted_note"),
         "created_at": row.get("created_at"),
+    }
+
+
+def _safe_support_case_reply(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "reply_id": row.get("id"),
+        "request_id": row.get("request_id"),
+        "case_id": row.get("platform_support_case_id"),
+        "company_id": row.get("company_id"),
+        "author_type": row.get("author_type"),
+        "redacted_body": row.get("redacted_body"),
+        "visibility_status": row.get("visibility_status"),
+        "created_at": row.get("created_at"),
+    }
+
+
+def _safe_support_reply_notification(row):
+    if not isinstance(row, dict):
+        row = {}
+    return {
+        "notification_id": row.get("id"),
+        "reply_id": row.get("reply_id"),
+        "channel": row.get("channel"),
+        "status": row.get("status"),
+        "attempt_count": row.get("attempt_count"),
+        "last_attempt_at": row.get("last_attempt_at"),
+        "delivered_at": row.get("delivered_at"),
+        "created_at": row.get("created_at"),
+        "updated_at": row.get("updated_at"),
     }
 
 
@@ -378,6 +792,35 @@ def list_support_cases(actor_id, *, limit=None, offset=None, company_id=None,
     return result
 
 
+SUPPORT_CASE_STATUS_TRANSITIONS = {
+    "open": {"in_progress", "waiting_for_tenant", "resolved"},
+    "in_progress": {"waiting_for_tenant", "resolved"},
+    "waiting_for_tenant": {"in_progress", "resolved"},
+    "resolved": {"closed", "in_progress"},
+    "closed": {"in_progress"},
+}
+
+
+def _safe_support_case_transition_options(status):
+    return sorted(SUPPORT_CASE_STATUS_TRANSITIONS.get(status, set()))
+
+
+def list_support_case_assignees(actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    try:
+        assignees = platform_support_case_repository.list_active_platform_admin_assignees_for_platform_admin()
+    except Exception:
+        logger.error("Platform support-case assignee lookup failed")
+        _data_unavailable()
+    _audit(actor_id, "platform_admin.support_case.assignee.list", "platform_admin_users", None, {
+        "outcome": "success",
+        "endpoint": SUPPORT_CASE_ENDPOINTS["support_case_assignee_list"],
+        "http_method": "GET",
+        "returned_count": len(assignees),
+    })
+    return {"assignees": [_safe_platform_admin_assignee(row) for row in assignees]}
+
+
 def get_support_case(case_id, actor_id):
     actor_id = _validated_actor_id(actor_id)
     endpoint = SUPPORT_CASE_ENDPOINTS["support_case_read"]
@@ -388,17 +831,111 @@ def get_support_case(case_id, actor_id):
     try:
         events = platform_support_case_repository.list_support_case_events_for_platform_admin(case_id)
         company = platform_company_repository.get_company_for_platform_admin(case.get("company_id"))
+        source_request = (
+            tenant_support_repository
+            .get_tenant_support_request_by_converted_case_id_for_platform_admin(case_id)
+        )
     except Exception:
         logger.error("Platform support-case detail lookup failed")
         _data_unavailable()
     result = {
         "case": _safe_support_case_row(case, company),
         "events": [_safe_support_case_event(event) for event in events],
+        "source_tenant_request": (
+            _safe_tenant_support_request_row(source_request)
+            if source_request else None
+        ),
+        "status_transitions": _safe_support_case_transition_options(case.get("status")),
     }
     _audit(actor_id, "platform_admin.support_case.read", "platform_support_cases", str(case_id), {
         "outcome": "success", "endpoint": endpoint, "http_method": "GET",
     })
     return result
+
+
+def list_support_case_replies(case_id, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_reply_list"]
+    case = _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.reply.list", endpoint
+    )
+    try:
+        source_request = (
+            tenant_support_repository
+            .get_tenant_support_request_by_converted_case_id_for_platform_admin(case_id)
+        )
+        replies = platform_support_case_repository.list_support_case_replies_for_platform_admin(case_id)
+        notifications = (
+            platform_support_case_repository
+            .list_support_case_reply_notifications_for_platform_admin(case_id)
+        )
+    except Exception:
+        logger.error("Platform support-case reply list failed")
+        _data_unavailable()
+    metadata = {
+        "outcome": "success",
+        "endpoint": endpoint,
+        "http_method": "GET",
+        "returned_count": len(replies),
+        "company_id": case.get("company_id"),
+    }
+    if source_request:
+        metadata["request_id"] = source_request.get("id")
+    _audit(
+        actor_id,
+        "platform_admin.support_case.reply.list",
+        "platform_support_cases",
+        str(case_id),
+        metadata,
+    )
+    return {
+        "case": _safe_support_case_row(case),
+        "source_tenant_request": (
+            _safe_tenant_support_request_row(source_request)
+            if source_request else None
+        ),
+        "replies": [_safe_support_case_reply(reply) for reply in replies],
+        "notifications": [
+            _safe_support_reply_notification(notification)
+            for notification in notifications
+        ],
+    }
+
+
+def create_support_case_reply(case_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    _positive_id(case_id, "invalid_case_id")
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be an object.")
+    if set(payload) != {"redacted_body"}:
+        _validation("invalid_request", "Only redacted_body may be submitted.")
+    body = _support_reply_text(payload.get("redacted_body"))
+    _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.read",
+        SUPPORT_CASE_ENDPOINTS["support_case_read"],
+    )
+    try:
+        result = platform_support_case_repository.create_support_case_reply_for_platform_admin(
+            case_id, actor_id, body
+        )
+    except ValueError:
+        _validation("invalid_redacted_body", "redacted_body is invalid.")
+    except Exception as exc:
+        _handle_support_case_rpc_error(exc, operation="reply")
+    try:
+        company = platform_company_repository.get_company_for_platform_admin(
+            result["case"].get("company_id")
+        )
+    except Exception:
+        logger.error("Platform support-case reply response refresh failed")
+        _data_unavailable()
+    return {
+        "case": _safe_support_case_row(result["case"], company),
+        "event": _safe_support_case_event(result["event"]),
+        "reply": _safe_support_case_reply(result.get("reply")),
+        "notification": _safe_support_reply_notification(result.get("notification")),
+        "status_transitions": _safe_support_case_transition_options(result["case"].get("status")),
+    }
 
 
 def create_support_case(payload, actor_id):
@@ -451,88 +988,167 @@ def create_support_case(payload, actor_id):
 
 def add_support_case_note(case_id, payload, actor_id):
     actor_id = _validated_actor_id(actor_id)
-    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_note_create"]
-    case = _support_case_or_not_found(
-        case_id, actor_id, "platform_admin.support_case.read",
-        SUPPORT_CASE_ENDPOINTS["support_case_read"],
-    )
+    _positive_id(case_id, "invalid_case_id")
     if not isinstance(payload, dict):
         _validation("invalid_request", "Request body must be an object.")
+    if set(payload) != {"redacted_note"}:
+        _validation("invalid_request", "Only redacted_note may be submitted.")
     note = _support_case_text(payload.get("redacted_note"), field_name="redacted_note")
+    _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.read",
+        SUPPORT_CASE_ENDPOINTS["support_case_read"],
+    )
     try:
-        event = platform_support_case_repository.create_support_case_event_for_platform_admin({
-            "case_id": case_id, "event_type": "note_added",
-            "actor_platform_admin_user_id": actor_id, "redacted_note": note,
-            "created_at": _now_utc_iso(),
-        })
+        result = platform_support_case_repository.add_support_case_note_for_platform_admin(
+            case_id, actor_id, note
+        )
+    except Exception as exc:
+        _handle_support_case_rpc_error(exc, operation="note")
+    try:
+        company = platform_company_repository.get_company_for_platform_admin(
+            result["case"].get("company_id")
+        )
     except Exception:
-        logger.error("Platform support-case note creation failed")
+        logger.error("Platform support-case note response refresh failed")
         _data_unavailable()
-    _audit(actor_id, "platform_admin.support_case.note.create", "platform_support_case_events", str(case_id), {
-        "outcome": "success", "endpoint": endpoint, "http_method": "POST",
-    })
-    return {"case_id": case["id"], "event": _safe_support_case_event(event)}
+    return {
+        "case": _safe_support_case_row(result["case"], company),
+        "event": _safe_support_case_event(result["event"]),
+        "status_transitions": _safe_support_case_transition_options(result["case"].get("status")),
+    }
 
 
-def update_support_case(case_id, payload, actor_id):
+def assign_support_case(case_id, payload, actor_id):
     actor_id = _validated_actor_id(actor_id)
-    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_update"]
+    _positive_id(case_id, "invalid_case_id")
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be an object.")
+    if set(payload) != {"assigned_platform_admin_user_id"}:
+        _validation("invalid_request", "Only assigned_platform_admin_user_id may be updated.")
+    assignee_id = payload.get("assigned_platform_admin_user_id")
+    if assignee_id is not None and (
+        isinstance(assignee_id, bool) or not isinstance(assignee_id, int) or assignee_id <= 0
+    ):
+        _validation("invalid_assignee", "Assignee must be an active platform-admin mapping ID or null.")
+    if assignee_id is not None:
+        try:
+            assignee = (
+                platform_support_case_repository
+                .get_active_platform_admin_assignee_for_platform_admin(assignee_id)
+            )
+        except Exception:
+            logger.error("Platform support-case assignee validation failed")
+            _data_unavailable()
+        if not assignee:
+            _validation("invalid_assignee", "Assignee must be an active platform-admin mapping ID or null.")
     case = _support_case_or_not_found(
         case_id, actor_id, "platform_admin.support_case.read",
         SUPPORT_CASE_ENDPOINTS["support_case_read"],
     )
+    if case.get("assigned_platform_admin_user_id") == assignee_id:
+        _validation("no_change", "Support case assignee is unchanged.")
+    try:
+        result = platform_support_case_repository.assign_support_case_for_platform_admin(
+            case_id, actor_id, assignee_id
+        )
+    except Exception as exc:
+        _handle_support_case_rpc_error(exc, operation="assignment")
+    try:
+        company = platform_company_repository.get_company_for_platform_admin(
+            result["case"].get("company_id")
+        )
+    except Exception:
+        logger.error("Platform support-case assignment response refresh failed")
+        _data_unavailable()
+    event = result["event"]
+    return {
+        "case": _safe_support_case_row(result["case"], company),
+        "event": _safe_support_case_event(event),
+        "status_transitions": _safe_support_case_transition_options(result["case"].get("status")),
+    }
+
+
+def update_support_case_status(case_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    _positive_id(case_id, "invalid_case_id")
     if not isinstance(payload, dict):
         _validation("invalid_request", "Request body must be an object.")
-    if set(payload) - {"status", "priority"} or not payload:
-        _validation("invalid_request", "Only status and priority may be updated.")
-    status = payload.get("status", case.get("status"))
-    priority = payload.get("priority", case.get("priority"))
+    if set(payload) != {"status"}:
+        _validation("invalid_request", "Only status may be updated.")
     status = _optional_exact_member_parameter(
-        status, name="status", allowed=platform_support_case_repository.ALLOWED_STATUSES,
+        payload.get("status"), name="status", allowed=platform_support_case_repository.ALLOWED_STATUSES,
         code="invalid_status",
     )
+    case = _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.read",
+        SUPPORT_CASE_ENDPOINTS["support_case_read"],
+    )
+    current_status = case.get("status")
+    if status == current_status:
+        _validation("no_change", "Support case status is unchanged.")
+    if status not in SUPPORT_CASE_STATUS_TRANSITIONS.get(current_status, set()):
+        _validation("invalid_status", "Support case status transition is not allowed.")
+    try:
+        result = platform_support_case_repository.set_support_case_status_for_platform_admin(
+            case_id, actor_id, status
+        )
+    except ValueError as exc:
+        _validation("invalid_status", str(exc))
+    except Exception as exc:
+        _handle_support_case_rpc_error(exc, operation="status")
+    try:
+        company = platform_company_repository.get_company_for_platform_admin(
+            result["case"].get("company_id")
+        )
+    except Exception:
+        logger.error("Platform support-case status response refresh failed")
+        _data_unavailable()
+    event = result["event"]
+    return {
+        "case": _safe_support_case_row(result["case"], company),
+        "event": _safe_support_case_event(event),
+        "status_transitions": _safe_support_case_transition_options(result["case"].get("status")),
+    }
+
+
+def update_support_case_priority(case_id, payload, actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    _positive_id(case_id, "invalid_case_id")
+    if not isinstance(payload, dict):
+        _validation("invalid_request", "Request body must be an object.")
+    if set(payload) != {"priority"}:
+        _validation("invalid_request", "Only priority may be updated.")
     priority = _optional_exact_member_parameter(
-        priority, name="priority", allowed=platform_support_case_repository.ALLOWED_PRIORITIES,
+        payload.get("priority"), name="priority", allowed=platform_support_case_repository.ALLOWED_PRIORITIES,
         code="invalid_priority",
     )
-    if status == case.get("status") and priority == case.get("priority"):
-        _validation("no_change", "Support case status and priority are unchanged.")
-    now = _now_utc_iso()
-    update_payload = {"status": status, "priority": priority, "updated_at": now}
-    update_payload["closed_at"] = now if status == "closed" else None
+    case = _support_case_or_not_found(
+        case_id, actor_id, "platform_admin.support_case.read",
+        SUPPORT_CASE_ENDPOINTS["support_case_read"],
+    )
+    if priority == case.get("priority"):
+        _validation("no_change", "Support case priority is unchanged.")
     try:
-        updated = platform_support_case_repository.update_support_case_for_platform_admin(case_id, update_payload)
-        if not updated:
-            _data_unavailable()
-        if status != case.get("status"):
-            platform_support_case_repository.create_support_case_event_for_platform_admin({
-                "case_id": case_id, "event_type": "status_changed",
-                "actor_platform_admin_user_id": actor_id,
-                "old_status": case.get("status"), "new_status": status,
-                "created_at": now,
-            })
-        if priority != case.get("priority"):
-            platform_support_case_repository.create_support_case_event_for_platform_admin({
-                "case_id": case_id, "event_type": "priority_changed",
-                "actor_platform_admin_user_id": actor_id,
-                "old_priority": case.get("priority"), "new_priority": priority,
-                "created_at": now,
-            })
-        company = platform_company_repository.get_company_for_platform_admin(case.get("company_id"))
-    except PlatformAdminServiceError:
-        raise
+        result = platform_support_case_repository.set_support_case_priority_for_platform_admin(
+            case_id, actor_id, priority
+        )
+    except ValueError as exc:
+        _validation("invalid_priority", str(exc))
+    except Exception as exc:
+        _handle_support_case_rpc_error(exc, operation="priority")
+    try:
+        company = platform_company_repository.get_company_for_platform_admin(
+            result["case"].get("company_id")
+        )
     except Exception:
-        logger.error("Platform support-case update failed")
+        logger.error("Platform support-case priority response refresh failed")
         _data_unavailable()
-    metadata = {
-        "outcome": "success", "endpoint": endpoint, "http_method": "PATCH",
+    event = result["event"]
+    return {
+        "case": _safe_support_case_row(result["case"], company),
+        "event": _safe_support_case_event(event),
+        "status_transitions": _safe_support_case_transition_options(result["case"].get("status")),
     }
-    if status != case.get("status"):
-        metadata["status"] = status
-    if priority != case.get("priority"):
-        metadata["priority"] = priority
-    _audit(actor_id, "platform_admin.support_case.update", "platform_support_cases", str(case_id), metadata)
-    return {"case": _safe_support_case_row(updated, company)}
 
 
 def _safe_tenant_support_request_row(row, *, include_content=False):

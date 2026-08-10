@@ -44,6 +44,10 @@ def _actor_id():
     return g.platform_admin_user["id"]
 
 
+def _actor_mapping():
+    return g.platform_admin_user
+
+
 @platform_admin_bp.get("/me")
 def current_platform_admin():
     return _execute(lambda: platform_admin_service.get_current_platform_admin_identity(
@@ -71,6 +75,37 @@ def audit_events():
     ))
 
 
+@platform_admin_bp.get("/platform-admin-users")
+def platform_admin_users():
+    return _execute(lambda: platform_admin_service.list_platform_admin_users(
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        is_active=request.args.get("is_active"),
+    ))
+
+
+@platform_admin_bp.get("/platform-admin-users/<int:mapping_id>")
+def platform_admin_user_detail(mapping_id):
+    return _execute(lambda: platform_admin_service.get_platform_admin_user(
+        mapping_id, _actor_id()
+    ))
+
+
+@platform_admin_bp.post("/platform-admin-users")
+def create_platform_admin_user():
+    return _execute(lambda: platform_admin_service.create_platform_admin_user(
+        request.get_json(silent=True), _actor_mapping()
+    ))
+
+
+@platform_admin_bp.patch("/platform-admin-users/<int:mapping_id>/active")
+def set_platform_admin_user_active(mapping_id):
+    return _execute(lambda: platform_admin_service.set_platform_admin_user_active(
+        mapping_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
 @platform_admin_bp.get("/companies")
 def companies():
     return _execute(lambda: platform_admin_service.list_companies(
@@ -87,6 +122,20 @@ def companies():
 @platform_admin_bp.get("/companies/<int:company_id>")
 def company_detail(company_id):
     return _execute(lambda: platform_admin_service.get_company_detail(company_id, _actor_id()))
+
+
+@platform_admin_bp.post("/companies/<int:company_id>/suspend")
+def suspend_company(company_id):
+    return _execute(lambda: platform_admin_service.suspend_company(
+        company_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
+@platform_admin_bp.post("/companies/<int:company_id>/restore")
+def restore_company(company_id):
+    return _execute(lambda: platform_admin_service.restore_company(
+        company_id, request.get_json(silent=True), _actor_id()
+    ))
 
 
 @platform_admin_bp.get("/companies/<int:company_id>/subscription")
@@ -173,6 +222,11 @@ def support_cases():
     ))
 
 
+@platform_admin_bp.get("/support-case-assignees")
+def support_case_assignees():
+    return _execute(lambda: platform_admin_service.list_support_case_assignees(_actor_id()))
+
+
 @platform_admin_bp.post("/support-cases")
 def create_support_case():
     return _execute(lambda: platform_admin_service.create_support_case(
@@ -185,6 +239,18 @@ def support_case_detail(case_id):
     return _execute(lambda: platform_admin_service.get_support_case(case_id, _actor_id()))
 
 
+@platform_admin_bp.get("/support-cases/<int:case_id>/replies")
+def support_case_replies(case_id):
+    return _execute(lambda: platform_admin_service.list_support_case_replies(case_id, _actor_id()))
+
+
+@platform_admin_bp.post("/support-cases/<int:case_id>/replies")
+def create_support_case_reply(case_id):
+    return _execute(lambda: platform_admin_service.create_support_case_reply(
+        case_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
 @platform_admin_bp.post("/support-cases/<int:case_id>/notes")
 def create_support_case_note(case_id):
     return _execute(lambda: platform_admin_service.add_support_case_note(
@@ -192,9 +258,23 @@ def create_support_case_note(case_id):
     ))
 
 
-@platform_admin_bp.patch("/support-cases/<int:case_id>")
-def update_support_case(case_id):
-    return _execute(lambda: platform_admin_service.update_support_case(
+@platform_admin_bp.patch("/support-cases/<int:case_id>/assignment")
+def assign_support_case(case_id):
+    return _execute(lambda: platform_admin_service.assign_support_case(
+        case_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
+@platform_admin_bp.patch("/support-cases/<int:case_id>/status")
+def update_support_case_status(case_id):
+    return _execute(lambda: platform_admin_service.update_support_case_status(
+        case_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
+@platform_admin_bp.patch("/support-cases/<int:case_id>/priority")
+def update_support_case_priority(case_id):
+    return _execute(lambda: platform_admin_service.update_support_case_priority(
         case_id, request.get_json(silent=True), _actor_id()
     ))
 
