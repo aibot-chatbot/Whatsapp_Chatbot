@@ -371,12 +371,24 @@ def can_accept_team_invitation(company_id: int) -> bool:
 # Extend this set when adding new gated features.
 # Model-access categories (Economy, Standard, Premium) are NOT boolean
 # features and require separate design.
+#
+# Registering a key here gates NOTHING on its own: can_use_plan_feature
+# returns True when feature_flags is NULL/not-a-dict (:435-436) or lacks
+# the key (:439-440). data/034_gate_new_capability_feature_flags.sql is the
+# real gate: every key below must be set explicitly on every plan code there.
 PLAN_FEATURES = frozenset({
     "batch_website_scraping",
     "single_website_scraping",
     "ai_generated_reports",
     "ai_assisted_menu_generation",
     "crm_lead_assignment",
+    # Cost-aligned gating (data/034). conversation_memory adds no LLM call
+    # (pure regex extraction), ai_derived_persona costs one LLM call per
+    # document upload, unified_knowledge_ingestion is the expensive unbounded
+    # one.
+    "unified_knowledge_ingestion",
+    "ai_derived_persona",
+    "conversation_memory",
 })
 
 
@@ -438,6 +450,89 @@ def can_use_plan_feature(company_id, feature_key):
         code="feature_not_available",
         details={"feature_key": feature_key},
     )
+
+
+def can_use_plan_feature_for_chatbot(chatbot_id: int, feature_key: str) -> bool:
+    """``can_use_plan_feature`` for seams that only carry a ``chatbot_id``.
+
+    The message path (chat pipeline, RAG retrieval) and the persona derivation
+    seam never see ``g.company_id``; they identify the tenant by chatbot.  The
+    owner is read from the chatbot row rather than trusted from the caller, so
+    the entitlement is always the one of the company that actually owns the
+    bot.
+
+    Fails closed: an unresolvable or malformed owner raises rather than
+    defaulting to "allowed" — an absent owner must not become a free feature.
+
+    Args:
+        chatbot_id: The chatbot whose owning company is checked.
+        feature_key: A key from :data:`PLAN_FEATURES`.
+
+    Returns:
+        True when the plan allows the feature.
+
+    Raises:
+        BillingLimitError: feature denied, or the owning company could not be
+            resolved.
+        ValueError: unknown or malformed *feature_key*.
+    """
+    # Local import, and not a cycle break: app.database.db is already pulled
+    # in at module scope through invite_repository, so deferring this saves
+    # nothing at import time.  What it does buy is a late-bound lookup, which
+    # keeps the patch seam at app.database.bot_repository.get_bot_by_id itself
+    # rather than at a copy of the name rebound here.
+    from app.database.bot_repository import get_bot_by_id
+
+    try:
+        chatbot = get_bot_by_id(chatbot_id)
+    except Exception as exc:
+        logger.exception(
+            "Failed to resolve the owning company of chatbot %s; denying access.",
+            chatbot_id,
+        )
+        raise BillingLimitError(
+            "Unable to verify subscription entitlement. Please try again.",
+            code="company_unresolved",
+            details={"feature_key": feature_key},
+        ) from exc
+
+    # Mirrors chat_pipeline_service._resolve_chatbot_company_id in full: the
+    # returned row must be the row that was asked for.  get_bot_by_id filters
+    # on id today, so this is defence in depth -- but it is the one check that
+    # keeps a loosened lookup (a fallback, a LIKE, a cached row) from silently
+    # evaluating the entitlement against some other tenant's plan, and the
+    # entitlement is the whole point of this function.
+    if not chatbot or chatbot.get("id") != chatbot_id:
+        logger.warning(
+            "Chatbot %s did not resolve to itself; denying %s.",
+            chatbot_id,
+            feature_key,
+        )
+        raise BillingLimitError(
+            "Unable to verify subscription entitlement. Please try again.",
+            code="company_unresolved",
+            details={"feature_key": feature_key},
+        )
+
+    company_id = chatbot.get("company_id")
+    # bool is an int subclass, and True would otherwise pass as company 1.
+    if (
+        not isinstance(company_id, int)
+        or isinstance(company_id, bool)
+        or company_id <= 0
+    ):
+        logger.warning(
+            "Chatbot %s has no resolvable owning company; denying %s.",
+            chatbot_id,
+            feature_key,
+        )
+        raise BillingLimitError(
+            "Unable to verify subscription entitlement. Please try again.",
+            code="company_unresolved",
+            details={"feature_key": feature_key},
+        )
+
+    return can_use_plan_feature(company_id, feature_key)
 
 
 def can_upload_knowledge_storage(company_id: int, incoming_size_bytes: int) -> bool:
