@@ -466,6 +466,27 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("Companies requiring attention", self.dashboard)
         self.assertIn("platform-admin-company.html?", self.dashboard)
         self.assertIn("Number.isSafeInteger(company.company_id)", self.dashboard)
+        for marker in [
+            "Support operations",
+            "Messaging & integrations",
+            "Billing attention",
+            "AI usage & credits",
+            "Platform-admin activity",
+            "Open Support Workspace",
+            "Open Audit Logs",
+            "No message text, phone numbers, or provider errors are displayed.",
+            "No prompts, responses, provider payloads, or low-balance threshold are shown.",
+            "Raw audit metadata is available nowhere on this dashboard.",
+            "Broadcast campaign status",
+            "Read-only platform operational alerts derived from safe aggregate monitoring data.",
+            "Company-specific operational alerts",
+            "Platform-wide operational alerts",
+            '["Severity", "Summary", "Count", "Investigate"]',
+            "companyAlerts",
+            "aggregateAlerts",
+        ]:
+            self.assertIn(marker, self.dashboard)
+        self.assertNotIn("Read-only subscription alerts derived from the platform operations overview", self.dashboard)
         api_source = read(API)
         self.assertIn('return platformFetch("/overview"', api_source)
         self.assertNotIn("listOperationalAlerts", api_source)
@@ -473,6 +494,18 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             "PlatformAdminApi.listCompanies({",
             "innerHTML",
             "JSON.stringify",
+            "message_text",
+            "phone_number",
+            "model_input",
+            "model_output",
+            "access_token",
+            "api_key",
+            "authorization",
+            "webhook_secret",
+            "checkout_url",
+            "gateway_order_id",
+            "payment_reference",
+            "last_reconciliation_error",
             "Reconcile",
             "Retry payment",
             "Activate",
@@ -1010,7 +1043,6 @@ class TestPlatformAdminResponsiveIsolation(unittest.TestCase):
         sources = "\n".join(read(path) for path in PAGES + [
             API,
             SHELL,
-            DASHBOARD,
             COMPANIES,
             COMPANY,
             SUPPORT,
@@ -1018,6 +1050,7 @@ class TestPlatformAdminResponsiveIsolation(unittest.TestCase):
         ])
         self.assertNotIn("flow-builder", sources.lower())
         self.assertNotIn("broadcast", sources.lower())
+        self.assertIn("Broadcast campaign status", read(DASHBOARD))
 
 
 if __name__ == "__main__":

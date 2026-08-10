@@ -8,6 +8,7 @@ from app.database import platform_billing_repository
 from app.database import platform_chatbot_repository
 from app.database import platform_company_repository
 from app.database import platform_company_user_repository
+from app.database import platform_monitoring_repository
 from app.database import platform_support_case_repository
 from app.database import tenant_support_repository
 
@@ -1451,12 +1452,79 @@ def get_operations_overview(actor_id):
         companies_by_id = platform_company_repository.get_companies_by_ids_for_platform_admin(
             row.get("company_id") for row in attention_subscriptions
         )
+        monitoring_overview = (
+            platform_monitoring_repository.get_monitoring_overview_for_platform_admin()
+        )
     except Exception:
         logger.error("Platform operations overview lookup failed")
         _data_unavailable()
 
     def _safe_count(value):
         return int(value) if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+    def _strict_count(value, *, field_name):
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            raise RuntimeError(f"Malformed monitoring count for {field_name}")
+        return value
+
+    def _strict_count_map(value, *, field_name, allowed_keys):
+        if not isinstance(value, dict):
+            raise RuntimeError(f"Malformed monitoring map for {field_name}")
+        allowed = set(allowed_keys)
+        result = {}
+        for key in sorted(allowed):
+            result[key] = _strict_count(value.get(key, 0), field_name=f"{field_name}.{key}")
+        unknown = set(value) - allowed
+        if unknown:
+            raise RuntimeError(f"Unexpected monitoring keys for {field_name}")
+        return result
+
+    def _strict_window(value, *, days):
+        if not isinstance(value, dict):
+            raise RuntimeError("Malformed monitoring window")
+        since = value.get("since")
+        if not isinstance(since, str) or not since.strip():
+            raise RuntimeError("Malformed monitoring window")
+        if value.get("days") != days:
+            raise RuntimeError("Malformed monitoring window")
+        datetime.fromisoformat(since.replace("Z", "+00:00"))
+        return {"days": days, "since": since}
+
+    try:
+        active_user_count = _strict_count(
+            monitoring_overview.get("active_user_count"),
+            field_name="active_user_count",
+        )
+        support_monitoring = _safe_support_monitoring(
+            monitoring_overview.get("support"),
+            _strict_count,
+            _strict_count_map,
+        )
+        messaging_monitoring = _safe_messaging_monitoring(
+            monitoring_overview.get("messaging"),
+            _strict_count,
+            _strict_count_map,
+        )
+        billing_attention = _safe_billing_attention(
+            monitoring_overview.get("billing_attention"),
+            _strict_count,
+            _strict_count_map,
+        )
+        ai_usage = _safe_ai_usage_monitoring(
+            monitoring_overview.get("ai_usage"),
+            _strict_count,
+            _strict_count_map,
+            _strict_window,
+        )
+        platform_activity = _safe_platform_activity_monitoring(
+            monitoring_overview.get("platform_admin_activity"),
+            _strict_count,
+            _strict_count_map,
+            _strict_window,
+        )
+    except Exception:
+        logger.error("Platform operations overview validation failed")
+        _data_unavailable()
 
     by_status = subscription_overview.get("by_status") or {}
     attention = []
@@ -1521,12 +1589,27 @@ def get_operations_overview(actor_id):
         if severity in ("critical", "warning", "info"):
             alert_summary[severity] += 1
 
+    for alert in _phase6_operational_alerts(
+        support_monitoring=support_monitoring,
+        messaging_monitoring=messaging_monitoring,
+        billing_attention=billing_attention,
+        ai_usage=ai_usage,
+    ):
+        if len(alerts) >= 10:
+            break
+        alerts.append(alert)
+        severity = alert.get("severity")
+        if severity in ("critical", "warning", "info"):
+            alert_summary[severity] += 1
+    alert_summary["total"] = len(alerts)
+
     result = {
         "generated_at": generated_at,
         "companies": {
             "total": _safe_count(company_counts.get("total")),
             "active": _safe_count(company_counts.get("active")),
             "inactive": _safe_count(company_counts.get("inactive")),
+            "active_users": active_user_count,
         },
         "subscriptions": {
             "by_status": {
@@ -1546,6 +1629,11 @@ def get_operations_overview(actor_id):
                 if plan.get("code")
             ],
         },
+        "support": support_monitoring,
+        "messaging": messaging_monitoring,
+        "billing_attention": billing_attention,
+        "ai_usage": ai_usage,
+        "platform_admin_activity": platform_activity,
         "attention_companies": attention,
         "operational_alerts": {
             "alerts": alerts,
@@ -1561,6 +1649,246 @@ def get_operations_overview(actor_id):
         "generated_at": generated_at,
     })
     return result
+
+
+def _safe_support_monitoring(value, strict_count, strict_count_map):
+    if not isinstance(value, dict):
+        raise RuntimeError("Malformed support monitoring")
+    return {
+        "cases_by_status": strict_count_map(
+            value.get("cases_by_status"),
+            field_name="support.cases_by_status",
+            allowed_keys=platform_monitoring_repository.SUPPORT_CASE_STATUSES,
+        ),
+        "cases_by_priority": strict_count_map(
+            value.get("cases_by_priority"),
+            field_name="support.cases_by_priority",
+            allowed_keys=platform_monitoring_repository.SUPPORT_CASE_PRIORITIES,
+        ),
+        "open_case_count": strict_count(value.get("open_case_count"), field_name="support.open_case_count"),
+        "tenant_requests_by_status": strict_count_map(
+            value.get("tenant_requests_by_status"),
+            field_name="support.tenant_requests_by_status",
+            allowed_keys=platform_monitoring_repository.TENANT_SUPPORT_REQUEST_STATUSES,
+        ),
+        "unresolved_tenant_request_count": strict_count(
+            value.get("unresolved_tenant_request_count"),
+            field_name="support.unresolved_tenant_request_count",
+        ),
+    }
+
+
+def _safe_messaging_monitoring(value, strict_count, strict_count_map):
+    if not isinstance(value, dict):
+        raise RuntimeError("Malformed messaging monitoring")
+    channel_health = value.get("channel_health")
+    if not isinstance(channel_health, dict):
+        raise RuntimeError("Malformed channel health")
+    safe_channels = {}
+    for provider in ("telegram", "wasender", "meta_whatsapp"):
+        row = channel_health.get(provider)
+        if not isinstance(row, dict):
+            raise RuntimeError("Malformed channel health")
+        safe_channels[provider] = {
+            "total": strict_count(row.get("total"), field_name=f"channel_health.{provider}.total"),
+            "active": strict_count(row.get("active"), field_name=f"channel_health.{provider}.active"),
+            "inactive": strict_count(row.get("inactive"), field_name=f"channel_health.{provider}.inactive"),
+            "attention_required": strict_count(
+                row.get("attention_required"),
+                field_name=f"channel_health.{provider}.attention_required",
+            ),
+            "by_connection_status": strict_count_map(
+                row.get("by_connection_status"),
+                field_name=f"channel_health.{provider}.by_connection_status",
+                allowed_keys=platform_monitoring_repository.CHANNEL_CONNECTION_STATUSES,
+            ),
+        }
+    if set(channel_health) - {"telegram", "wasender", "meta_whatsapp"}:
+        raise RuntimeError("Unexpected channel provider")
+    return {
+        "messages_by_delivery_status": strict_count_map(
+            value.get("messages_by_delivery_status"),
+            field_name="messaging.messages_by_delivery_status",
+            allowed_keys=platform_monitoring_repository.MESSAGE_DELIVERY_STATUSES,
+        ),
+        "retry_backlog_count": strict_count(
+            value.get("retry_backlog_count"), field_name="messaging.retry_backlog_count"
+        ),
+        "channel_health": safe_channels,
+        "broadcast_campaigns_by_status": strict_count_map(
+            value.get("broadcast_campaigns_by_status"),
+            field_name="messaging.broadcast_campaigns_by_status",
+            allowed_keys=platform_monitoring_repository.BROADCAST_CAMPAIGN_STATUSES,
+        ),
+        "broadcast_recipients_by_status": strict_count_map(
+            value.get("broadcast_recipients_by_status"),
+            field_name="messaging.broadcast_recipients_by_status",
+            allowed_keys=platform_monitoring_repository.BROADCAST_RECIPIENT_STATUSES,
+        ),
+    }
+
+
+def _safe_billing_attention(value, strict_count, strict_count_map):
+    if not isinstance(value, dict):
+        raise RuntimeError("Malformed billing monitoring")
+    return {
+        "orders_by_status": strict_count_map(
+            value.get("orders_by_status"),
+            field_name="billing_attention.orders_by_status",
+            allowed_keys=platform_monitoring_repository.BILLING_ORDER_STATUSES,
+        ),
+        "pending_order_count": strict_count(
+            value.get("pending_order_count"), field_name="billing_attention.pending_order_count"
+        ),
+        "failed_order_count": strict_count(
+            value.get("failed_order_count"), field_name="billing_attention.failed_order_count"
+        ),
+        "reconciliation_required_count": strict_count(
+            value.get("reconciliation_required_count"),
+            field_name="billing_attention.reconciliation_required_count",
+        ),
+        "activation_statuses": strict_count_map(
+            value.get("activation_statuses"),
+            field_name="billing_attention.activation_statuses",
+            allowed_keys=platform_monitoring_repository.BILLING_ACTIVATION_STATUSES,
+        ),
+        "activation_status_unset_count": strict_count(
+            value.get("activation_status_unset_count"),
+            field_name="billing_attention.activation_status_unset_count",
+        ),
+    }
+
+
+def _safe_ai_usage_monitoring(value, strict_count, strict_count_map, strict_window):
+    if not isinstance(value, dict):
+        raise RuntimeError("Malformed AI monitoring")
+    return {
+        "window": strict_window(
+            value.get("window"),
+            days=platform_monitoring_repository.AI_USAGE_WINDOW_DAYS,
+        ),
+        "requests_by_status": strict_count_map(
+            value.get("requests_by_status"),
+            field_name="ai_usage.requests_by_status",
+            allowed_keys=platform_monitoring_repository.AI_REQUEST_STATUSES,
+        ),
+        "recent_request_count": strict_count(
+            value.get("recent_request_count"), field_name="ai_usage.recent_request_count"
+        ),
+        "recent_total_tokens": strict_count(
+            value.get("recent_total_tokens"), field_name="ai_usage.recent_total_tokens"
+        ),
+        "credit_transactions_by_type": strict_count_map(
+            value.get("credit_transactions_by_type"),
+            field_name="ai_usage.credit_transactions_by_type",
+            allowed_keys=platform_monitoring_repository.AI_CREDIT_TRANSACTION_TYPES,
+        ),
+        "depleted_balance_company_count": strict_count(
+            value.get("depleted_balance_company_count"),
+            field_name="ai_usage.depleted_balance_company_count",
+        ),
+    }
+
+
+def _safe_platform_activity_monitoring(value, strict_count, strict_count_map, strict_window):
+    if not isinstance(value, dict):
+        raise RuntimeError("Malformed activity monitoring")
+    return {
+        "window": strict_window(
+            value.get("window"),
+            days=platform_monitoring_repository.AUDIT_ACTIVITY_WINDOW_DAYS,
+        ),
+        "recent_event_count": strict_count(
+            value.get("recent_event_count"), field_name="platform_admin_activity.recent_event_count"
+        ),
+        "events_by_action": strict_count_map(
+            value.get("events_by_action"),
+            field_name="platform_admin_activity.events_by_action",
+            allowed_keys=platform_admin_repository.AUDIT_EVENT_SCHEMAS.keys(),
+        ),
+        "events_by_resource_type": strict_count_map(
+            value.get("events_by_resource_type"),
+            field_name="platform_admin_activity.events_by_resource_type",
+            allowed_keys=platform_admin_repository.ALLOWED_RESOURCE_TYPES,
+        ),
+    }
+
+
+def _phase6_operational_alerts(*, support_monitoring, messaging_monitoring, billing_attention, ai_usage):
+    candidates = [
+        (
+            support_monitoring["open_case_count"],
+            {
+                "type": "support_backlog",
+                "severity": "info",
+                "summary": "Open support cases require review",
+                "details": {"count": support_monitoring["open_case_count"]},
+                "investigation_url": "platform-admin-support.html",
+            },
+        ),
+        (
+            billing_attention["pending_order_count"],
+            {
+                "type": "billing_orders_pending",
+                "severity": "warning",
+                "summary": "Billing orders are pending",
+                "details": {"count": billing_attention["pending_order_count"]},
+                "investigation_url": "platform-admin-companies.html",
+            },
+        ),
+        (
+            billing_attention["reconciliation_required_count"],
+            {
+                "type": "billing_reconciliation_required",
+                "severity": "critical",
+                "summary": "Billing orders require reconciliation",
+                "details": {"count": billing_attention["reconciliation_required_count"]},
+                "investigation_url": "platform-admin-companies.html",
+            },
+        ),
+        (
+            ai_usage["depleted_balance_company_count"],
+            {
+                "type": "ai_credit_depleted",
+                "severity": "warning",
+                "summary": "Companies have depleted AI-credit balances",
+                "details": {"count": ai_usage["depleted_balance_company_count"]},
+                "investigation_url": "platform-admin-companies.html",
+            },
+        ),
+        (
+            messaging_monitoring["retry_backlog_count"],
+            {
+                "type": "messaging_retry_backlog",
+                "severity": "warning",
+                "summary": "Messages are waiting for retry",
+                "details": {"count": messaging_monitoring["retry_backlog_count"]},
+                "investigation_url": "platform-admin-companies.html",
+            },
+        ),
+        (
+            _inactive_or_disconnected_channel_count(messaging_monitoring["channel_health"]),
+            {
+                "type": "integration_channel_attention",
+                "severity": "warning",
+                "summary": "Configured channels are inactive or disconnected",
+                "details": {
+                    "count": _inactive_or_disconnected_channel_count(
+                        messaging_monitoring["channel_health"]
+                    )
+                },
+                "investigation_url": "platform-admin-companies.html",
+            },
+        ),
+    ]
+    return [alert for count, alert in candidates if count > 0]
+
+
+def _inactive_or_disconnected_channel_count(channel_health):
+    total = 0
+    for provider in channel_health.values():
+        total += provider.get("attention_required", 0)
+    return total
 
 
 def list_companies(actor_id, *, limit=None, offset=None, search=None, status=None,

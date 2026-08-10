@@ -32,8 +32,11 @@ uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
 Operational Alerts Phase 1 extends the existing dashboard and overview response
 only, deriving typed read-only subscription past-due/expired alerts from the
 existing attention-company data without adding a route or page.
-All proposed Phase 2 alert types remain deferred under the design contract in
-`docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
+The older Phase 2 alert design contract remains historical guidance for
+unimplemented alert concepts; Phase 6 later implements a bounded set of
+deterministic aggregate alerts while AI low-balance alerts, generic background
+job monitoring, provider-cost monitoring, charts, exports, and remediation
+controls remain deferred.
 
 In the current local implementation, localhost manual verification recorded on 2026-08-03
 passed for the complete twelve-route read-only investigation stack: dashboard, operational
@@ -92,15 +95,48 @@ suspension E2E was performed because company 23 has no users or chatbots and
 the verification intentionally avoided risking another tenant. Runtime
 enforcement is covered by automated local tests. No staging verification or
 production readiness is claimed.
-subscription history lists persisted `company_subscriptions` records and is not
+Platform-admin Platform Monitoring Phase 6 is implemented locally as a
+read-only extension of `GET /api/platform-admin/overview`; no new
+platform-admin mutation routes were added.
+The overview now includes platform summary, support operations, messaging and
+integration health, billing attention, AI usage and credits, and
+platform-admin activity aggregates, plus deterministic aggregate alerts for
+support backlog, pending/reconciliation-required billing orders, depleted
+AI-credit balances, retry backlog, and integration channel attention. Existing
+subscription alerts remain. Read-only inspection in the approved main
+shared-testing Supabase with fake/team data confirmed all required monitoring
+tables and fields exist and current index coverage is sufficient for the first
+implementation. The original PostgREST aggregate implementation failed in
+shared testing because REST aggregate select syntax such as
+`status,count:id.count()` returned HTTP 400, so Migration 037 was introduced
+and verified only in the approved main shared-testing Supabase with fake/team
+data. Migration 037 adds one bounded read-only
+`public.get_platform_admin_monitoring_overview()` RPC, executable only by
+service_role, with `SECURITY INVOKER`, `search_path=pg_catalog`, no writes,
+no dynamic SQL, no RLS/table-privilege weakening, and platform-admin activity
+filtered to current approved audit actions and resource types. Existing
+company/subscription overview reads remain separate from the monitoring RPC.
+Runtime verification against the approved main shared-testing Supabase plus
+localhost frontend/API returned 200 for `/api/platform-admin/me`, the
+monitoring RPC, and `/api/platform-admin/overview`; the Platform Operations
+dashboard rendered and the Temporarily Unavailable state disappeared. This is
+not staging verification and does not establish production readiness.
+Unsupported aggregate values fail closed. Browser E2E is not claimed because
+local `npm`/Playwright dependencies are unavailable.
+Subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
 `amount_sen` as integer sen as stored, and does not return or infer currency.
-AI-credit alerts, billing-order attention alerts, inactive-company alerts,
-no-current-chatbot alerts, payment reconciliation, checkout recovery, retry
-payment, manual crediting, subscription activation, plan changes,
-no-subscription counting, global activity, usage aggregation, charts, exports, audit export, audit
-editing/deletion, and overview remediation/write controls remain deferred.
+Phase 6 implements only the approved aggregate alerts for support backlog,
+pending and reconciliation-required billing orders, depleted AI-credit
+balances, retry backlog, and integration channel attention. AI low-balance
+alerts remain deferred because no threshold is approved; generic background
+job monitoring remains deferred because no durable telemetry exists; provider-
+cost monitoring, inactive-company and no-current-chatbot alert variants,
+payment reconciliation actions, checkout recovery, retry payment, manual
+crediting, subscription activation, plan changes, no-subscription counting,
+global activity drilldowns, charts, exports, audit export, audit editing/
+deletion, and overview remediation/write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
 shell, a fresh `/me` authorization gate on every page, an allowlisted

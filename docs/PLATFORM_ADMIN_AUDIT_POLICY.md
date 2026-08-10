@@ -8,7 +8,8 @@ platform-admin endpoint set, including the application-only operations overview,
 company-user, chatbot, subscription-history, AI-credit transaction-history,
 billing-order history, support-case operations, tenant-visible support replies,
 audit-log viewer extensions, and the Phase 4 platform-admin user-management
-actions, plus the Phase 5 bounded tenant/company lifecycle actions. It does
+actions, the Phase 5 bounded tenant/company lifecycle actions, and the Phase 6
+read-only platform monitoring overview aggregates. It does
 not authorize production deployment, retention deletion, staging readiness, or
 production mapping activation.
 
@@ -50,6 +51,18 @@ applied and verified only in the approved main shared-testing Supabase with
 fake/team data. This verified company 23 suspend/restore lifecycle audit rows
 and company 29 protected-company rejection, but it is not staging verification
 and does not establish production readiness.
+Platform-admin Platform Monitoring Phase 6 is implemented locally as a
+read-only extension of `GET /api/platform-admin/overview`; it reuses
+`platform_admin.operations.overview.read` and adds no mutation audit actions.
+The Phase 6 schema/data inspection and Migration 037 runtime verification were
+completed only in the approved main shared-testing Supabase with fake/team
+data plus localhost frontend/API verification. Migration 037 adds one bounded
+read-only `public.get_platform_admin_monitoring_overview()` RPC because the
+approved shared-testing PostgREST environment rejected REST aggregate select
+syntax. It adds no audit mutation action, writes no rows, keeps RPC EXECUTE
+service-role-only, and filters platform-admin activity monitoring to current
+approved audit actions and resource types. Historical audit rows were not
+deleted or modified. No staging or production readiness is claimed.
 
 | Action | Resource type | Resource ID | Outcomes | Required metadata | Optional metadata | Endpoint |
 |---|---|---|---|---|---|---|
