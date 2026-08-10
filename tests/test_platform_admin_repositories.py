@@ -8,6 +8,7 @@ from app.database import platform_billing_repository
 from app.database import platform_chatbot_repository
 from app.database import platform_company_repository
 from app.database import platform_company_user_repository
+from app.database import platform_monitoring_repository
 from app.database import ai_credit_repository
 from app.database import billing_usage_repository
 from app.database import company_repository
@@ -21,6 +22,76 @@ def fluent_query(data=None, count=None):
         getattr(query, method).return_value = query
     query.execute.return_value = SimpleNamespace(data=data or [], count=count)
     return query
+
+
+def monitoring_rpc_payload():
+    return {
+        "active_user_count": 14,
+        "support": {
+            "cases_by_status": {"open": 1, "in_progress": 2},
+            "cases_by_priority": {"urgent": 3, "high": 2},
+            "tenant_requests_by_status": {"new": 6, "converted": 1},
+        },
+        "messaging": {
+            "messages_by_delivery_status": {"received": 77, "sent": 88, "failed": 1},
+            "retry_backlog_count": 2,
+            "channel_health": {
+                "telegram": {
+                    "total": 11,
+                    "active": 7,
+                    "inactive": 4,
+                    "attention_required": 7,
+                    "by_connection_status": {
+                        "connected": 5,
+                        "disconnected": 5,
+                        "error": 1,
+                    },
+                },
+                "wasender": {
+                    "total": 0,
+                    "active": 0,
+                    "inactive": 0,
+                    "attention_required": 0,
+                    "by_connection_status": {},
+                },
+                "meta_whatsapp": {
+                    "total": 0,
+                    "active": 0,
+                    "inactive": 0,
+                    "attention_required": 0,
+                    "by_connection_status": {},
+                },
+            },
+            "broadcast_campaigns_by_status": {},
+            "broadcast_recipients_by_status": {},
+        },
+        "billing_attention": {
+            "orders_by_status": {"pending": 4, "credited": 1},
+            "reconciliation_required_count": 0,
+            "activation_statuses": {},
+            "activation_status_unset_count": 5,
+        },
+        "ai_usage": {
+            "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+            "requests_by_status": {"completed": 452},
+            "recent_request_count": 9,
+            "recent_total_tokens": 1234,
+            "credit_transactions_by_type": {
+                "included_credit_grant": 8,
+                "usage_debit": 153,
+                "topup_purchase": 2,
+                "expiry": 2,
+                "reversal": 1,
+            },
+            "depleted_balance_company_count": 0,
+        },
+        "platform_admin_activity": {
+            "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+            "recent_event_count": 12,
+            "events_by_action": {},
+            "events_by_resource_type": {},
+        },
+    }
 
 
 class PlatformAdminRepositoryTests(unittest.TestCase):
@@ -618,10 +689,83 @@ class PlatformAdminRepositoryTests(unittest.TestCase):
             platform_billing_repository,
             platform_company_user_repository,
             platform_chatbot_repository,
+            platform_monitoring_repository,
         ):
             source = inspect.getsource(module)
             self.assertNotIn('.select("*")', source)
             self.assertNotIn(".select('*')", source)
+
+    def test_monitoring_repository_uses_single_bounded_rpc_for_aggregates(self):
+        rpc = MagicMock()
+        rpc.execute.return_value = SimpleNamespace(data=monitoring_rpc_payload())
+        with patch.object(platform_monitoring_repository.supabase, "rpc", return_value=rpc) as rpc_call, \
+             patch.object(platform_monitoring_repository.supabase, "table") as table:
+            result = platform_monitoring_repository.get_monitoring_overview_for_platform_admin()
+        rpc_call.assert_called_once_with("get_platform_admin_monitoring_overview")
+        table.assert_not_called()
+        self.assertEqual(result["active_user_count"], 14)
+        self.assertEqual(result["support"]["cases_by_status"]["open"], 1)
+        self.assertEqual(result["support"]["cases_by_status"]["closed"], 0)
+        self.assertEqual(result["support"]["cases_by_priority"]["urgent"], 3)
+        self.assertEqual(result["support"]["open_case_count"], 1 + 2)
+        self.assertEqual(result["support"]["unresolved_tenant_request_count"], 6)
+        self.assertEqual(result["messaging"]["retry_backlog_count"], 2)
+        self.assertEqual(result["messaging"]["channel_health"]["telegram"]["attention_required"], 7)
+        self.assertEqual(result["billing_attention"]["pending_order_count"], 4)
+        self.assertEqual(result["billing_attention"]["failed_order_count"], 0)
+        self.assertEqual(result["ai_usage"]["recent_total_tokens"], 1234)
+        self.assertNotIn("provider_cost", str(result))
+
+    def test_monitoring_repository_rejects_unsupported_rpc_values(self):
+        payload = monitoring_rpc_payload()
+        payload["support"]["cases_by_status"]["invented_status"] = 1
+        rpc = MagicMock()
+        rpc.execute.return_value = SimpleNamespace(data=payload)
+        with patch.object(platform_monitoring_repository.supabase, "rpc", return_value=rpc):
+            with self.assertRaises(RuntimeError):
+                platform_monitoring_repository.get_monitoring_overview_for_platform_admin()
+
+    def test_monitoring_repository_rejects_obsolete_audit_action_from_rpc(self):
+        payload = monitoring_rpc_payload()
+        payload["platform_admin_activity"]["events_by_action"] = {
+            "platform_admin.support_case.update": 1,
+        }
+        rpc = MagicMock()
+        rpc.execute.return_value = SimpleNamespace(data=payload)
+        with patch.object(platform_monitoring_repository.supabase, "rpc", return_value=rpc):
+            with self.assertRaises(RuntimeError):
+                platform_monitoring_repository.get_monitoring_overview_for_platform_admin()
+
+    def test_monitoring_repository_rejects_negative_boolean_and_missing_rpc_values(self):
+        malformed_payloads = [
+            {"active_user_count": True},
+            {**monitoring_rpc_payload(), "active_user_count": -1},
+            {**monitoring_rpc_payload(), "support": {}},
+            {**monitoring_rpc_payload(), "messaging": {**monitoring_rpc_payload()["messaging"], "retry_backlog_count": True}},
+            {**monitoring_rpc_payload(), "ai_usage": {**monitoring_rpc_payload()["ai_usage"], "window": {"days": 1, "since": "2026-08-03T00:00:00+00:00"}}},
+            {**monitoring_rpc_payload(), "platform_admin_activity": {**monitoring_rpc_payload()["platform_admin_activity"], "window": {"days": 7, "since": ""}}},
+        ]
+        for payload in malformed_payloads:
+            with self.subTest(payload=payload):
+                rpc = MagicMock()
+                rpc.execute.return_value = SimpleNamespace(data=payload)
+                with patch.object(platform_monitoring_repository.supabase, "rpc", return_value=rpc):
+                    with self.assertRaises(RuntimeError):
+                        platform_monitoring_repository.get_monitoring_overview_for_platform_admin()
+
+    def test_monitoring_repository_rpc_failure_is_sanitized(self):
+        rpc = MagicMock()
+        rpc.execute.side_effect = RuntimeError("PostgREST aggregate parser exposed SQL")
+        with patch.object(platform_monitoring_repository.supabase, "rpc", return_value=rpc):
+            with self.assertRaisesRegex(RuntimeError, "Platform monitoring aggregate lookup failed"):
+                platform_monitoring_repository.get_monitoring_overview_for_platform_admin()
+
+    def test_monitoring_repository_source_avoids_unsupported_rest_aggregates(self):
+        source = inspect.getsource(platform_monitoring_repository)
+        self.assertNotIn("count:id.count()", source)
+        self.assertNotIn(".sum()", source)
+        self.assertNotIn("total_tokens.sum()", source)
+        self.assertIn("get_platform_admin_monitoring_overview", source)
 
     def test_company_user_and_chatbot_list_projections_are_exact_and_safe(self):
         self.assertEqual(

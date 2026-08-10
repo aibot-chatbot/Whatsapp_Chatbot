@@ -340,10 +340,14 @@ verified.
   `created_at DESC, id DESC` latest-subscription semantics. Operational Alerts
   Phase 1 extends this same dashboard and `/overview` response with typed
   read-only subscription past-due/expired alerts derived from existing
-  attention data. It adds no endpoint or page, and AI-credit alerts,
-  billing-order attention alerts, inactive-company alerts, no-current-chatbot
-  alerts, charts, exports, and overview remediation/write actions remain
-  deferred. The deferred
+  attention data. Phase 6 later adds deterministic aggregate alerts for
+  support backlog, pending and reconciliation-required billing orders,
+  depleted AI-credit balances, retry backlog, and integration channel
+  attention without adding a mutation route. AI low-balance alerts remain
+  deferred because no threshold is approved; generic background job monitoring
+  remains deferred because no durable telemetry exists; provider-cost
+  monitoring, inactive-company and no-current-chatbot alert variants, charts,
+  exports, and overview remediation/write actions remain deferred. The older
   Phase 2 alert definitions and approval gates are recorded in
   `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 - A separate platform-admin Support Workspace is implemented as tenant
@@ -468,6 +472,34 @@ verified.
   or chatbots and the verification intentionally avoided risking another
   tenant. Runtime enforcement is covered by automated local tests. Staging
   verification and production readiness remain blocked.
+- Platform-admin Platform Monitoring Phase 6 is implemented locally as a
+  read-only extension of `GET /api/platform-admin/overview`; no new
+  platform-admin mutation routes were added.
+  It adds platform summary, support operations, messaging and integration
+  health, billing attention, AI usage and credits, and platform-admin activity
+  aggregates, plus deterministic aggregate alerts for support backlog, pending
+  and reconciliation-required billing orders, depleted AI-credit balances,
+  retry backlog, and integration channel attention. Existing subscription
+  alerts remain. Read-only inspection in the approved main shared-testing
+  Supabase with fake/team data confirmed all required monitoring tables and
+  fields exist and current index coverage is sufficient for the first
+  implementation. The original PostgREST aggregate implementation failed in
+  shared testing because REST aggregate select syntax such as
+  `status,count:id.count()` returned HTTP 400, so Migration 037 was introduced
+  and verified only in the approved main shared-testing Supabase with fake/team
+  data. Migration 037 adds one bounded read-only
+  `public.get_platform_admin_monitoring_overview()` RPC, executable only by
+  service_role, with `SECURITY INVOKER`, `search_path=pg_catalog`, no writes,
+  no dynamic SQL, no RLS/table-privilege weakening, and platform-admin activity
+  filtered to current approved audit actions and resource types. Existing
+  company/subscription overview reads remain separate from the monitoring RPC.
+  Runtime verification against the approved main shared-testing Supabase plus
+  localhost frontend/API returned 200 for `/api/platform-admin/me`, the
+  monitoring RPC, and `/api/platform-admin/overview`; the Platform Operations
+  dashboard rendered and the Temporarily Unavailable state disappeared. This
+  is not staging verification and does not establish production readiness.
+  Unsupported aggregate values fail closed. Browser E2E is not claimed because
+  local `npm`/Playwright dependencies are unavailable.
 - The lifecycle document now includes a redacted access, revocation, smoke,
   audit-log, and localhost/staging/production evidence checklist; it does not
   change the current local-only verification boundary.
@@ -545,4 +577,4 @@ monitoring, rollback, and backup evidence.
 | Platform-admin tenant support intake viewer | Implemented locally as separate read-only GET list/detail routes and Support Workspace section; no mutation, conversion, reply, export, staging verification, or production use |
 | Platform-admin tenant support intake review/conversion | Runtime code and Migration 031 verified only in main shared testing Supabase with fake/team data; case 2 conversion, safe audit metadata, service-role-only RLS/EXECUTE, and mapping baseline verified; not staging or production-ready |
 | PDF receipts | Open (HTML only) |
-| Cross-company dashboard | Deferred |
+| Cross-company dashboard | Bounded read-only cross-tenant operational monitoring aggregates are implemented locally through `GET /api/platform-admin/overview` in Phase 6. Generic/unrestricted cross-company analytics, arbitrary global drilldowns, charts, exports, unrestricted tenant browsing, and remediation/write controls remain deferred |

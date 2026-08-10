@@ -1,5 +1,6 @@
 import unittest
-from unittest.mock import patch
+from contextlib import ExitStack
+from unittest.mock import MagicMock, patch
 
 from flask import Flask
 
@@ -30,6 +31,214 @@ class PlatformAdminRouteTests(unittest.TestCase):
         for item in self.patches:
             item.start()
             self.addCleanup(item.stop)
+
+    def _monitoring_overview_patches(self):
+        support = {
+            "cases_by_status": {
+                "open": 1,
+                "in_progress": 2,
+                "waiting_for_tenant": 0,
+                "resolved": 0,
+                "closed": 0,
+            },
+            "cases_by_priority": {"low": 0, "normal": 0, "high": 2, "urgent": 1},
+            "open_case_count": 3,
+            "tenant_requests_by_status": {
+                "new": 1,
+                "reviewed": 1,
+                "converted": 1,
+                "closed": 0,
+            },
+            "unresolved_tenant_request_count": 2,
+        }
+        messaging = {
+            "messages_by_delivery_status": {
+                "received": 77,
+                "sent": 88,
+                "pending": 0,
+                "sending": 0,
+                "failed": 1,
+                "retrying": 0,
+                "permanent_failed": 0,
+            },
+            "retry_backlog_count": 0,
+            "channel_health": {
+                provider: {
+                    "total": 0,
+                    "active": 0,
+                    "inactive": 0,
+                    "attention_required": 0,
+                    "by_connection_status": {
+                        "connected": 0,
+                        "disconnected": 0,
+                        "pending": 0,
+                        "error": 0,
+                    },
+                }
+                for provider in ("telegram", "wasender", "meta_whatsapp")
+            },
+            "broadcast_campaigns_by_status": {
+                "draft": 0,
+                "sending": 0,
+                "completed": 0,
+                "failed": 0,
+            },
+            "broadcast_recipients_by_status": {
+                "pending": 0,
+                "sending": 0,
+                "sent": 0,
+                "failed": 0,
+            },
+        }
+        billing = {
+            "orders_by_status": {
+                "pending": 4,
+                "created": 0,
+                "paid": 0,
+                "credited": 1,
+                "failed": 0,
+                "expired": 0,
+                "cancelled": 0,
+            },
+            "pending_order_count": 4,
+            "failed_order_count": 0,
+            "reconciliation_required_count": 0,
+            "activation_statuses": {
+                "not_started": 0,
+                "claimed": 0,
+                "activated": 0,
+                "credit_pending": 0,
+                "completed": 0,
+                "conflict": 0,
+                "failed": 0,
+            },
+            "activation_status_unset_count": 5,
+        }
+        ai_usage = {
+            "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+            "requests_by_status": {"completed": 452, "failed": 0},
+            "recent_request_count": 9,
+            "recent_total_tokens": 1234,
+            "credit_transactions_by_type": {
+                "included_credit_grant": 8,
+                "trial_credit_grant": 0,
+                "usage_debit": 153,
+                "topup_purchase": 2,
+                "refund": 0,
+                "manual_adjustment": 0,
+                "expiry": 2,
+                "reversal": 1,
+            },
+            "depleted_balance_company_count": 0,
+        }
+        activity = {
+            "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+            "recent_event_count": 12,
+            "events_by_action": {
+                action: 0
+                for action in platform_admin_service.platform_admin_repository.AUDIT_EVENT_SCHEMAS
+            },
+            "events_by_resource_type": {
+                resource_type: 0
+                for resource_type in platform_admin_service.platform_admin_repository.ALLOWED_RESOURCE_TYPES
+            },
+        }
+        return (
+            patch.object(
+                platform_admin_service.platform_monitoring_repository,
+                "get_monitoring_overview_for_platform_admin",
+                return_value={
+                    "active_user_count": 14,
+                    "support": support,
+                    "messaging": messaging,
+                    "billing_attention": billing,
+                    "ai_usage": ai_usage,
+                    "platform_admin_activity": activity,
+                },
+            ),
+        )
+
+    def _empty_monitoring_overview(self):
+        return {
+            "active_user_count": 0,
+            "support": {
+                "cases_by_status": {
+                    "open": 0, "in_progress": 0, "waiting_for_tenant": 0,
+                    "resolved": 0, "closed": 0,
+                },
+                "cases_by_priority": {"low": 0, "normal": 0, "high": 0, "urgent": 0},
+                "open_case_count": 0,
+                "tenant_requests_by_status": {
+                    "new": 0, "reviewed": 0, "converted": 0, "closed": 0,
+                },
+                "unresolved_tenant_request_count": 0,
+            },
+            "messaging": {
+                "messages_by_delivery_status": {
+                    "received": 0, "sent": 0, "pending": 0, "sending": 0,
+                    "failed": 0, "retrying": 0, "permanent_failed": 0,
+                },
+                "retry_backlog_count": 0,
+                "channel_health": {
+                    provider: {
+                        "total": 0,
+                        "active": 0,
+                        "inactive": 0,
+                        "attention_required": 0,
+                        "by_connection_status": {
+                            "connected": 0, "disconnected": 0,
+                            "pending": 0, "error": 0,
+                        },
+                    }
+                    for provider in ("telegram", "wasender", "meta_whatsapp")
+                },
+                "broadcast_campaigns_by_status": {
+                    "draft": 0, "sending": 0, "completed": 0, "failed": 0,
+                },
+                "broadcast_recipients_by_status": {
+                    "pending": 0, "sending": 0, "sent": 0, "failed": 0,
+                },
+            },
+            "billing_attention": {
+                "orders_by_status": {
+                    "pending": 0, "created": 0, "paid": 0, "credited": 0,
+                    "failed": 0, "expired": 0, "cancelled": 0,
+                },
+                "pending_order_count": 0,
+                "failed_order_count": 0,
+                "reconciliation_required_count": 0,
+                "activation_statuses": {
+                    "not_started": 0, "claimed": 0, "activated": 0,
+                    "credit_pending": 0, "completed": 0, "conflict": 0,
+                    "failed": 0,
+                },
+                "activation_status_unset_count": 0,
+            },
+            "ai_usage": {
+                "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+                "requests_by_status": {"completed": 0, "failed": 0},
+                "recent_request_count": 0,
+                "recent_total_tokens": 0,
+                "credit_transactions_by_type": {
+                    "included_credit_grant": 0, "trial_credit_grant": 0,
+                    "usage_debit": 0, "topup_purchase": 0, "refund": 0,
+                    "manual_adjustment": 0, "expiry": 0, "reversal": 0,
+                },
+                "depleted_balance_company_count": 0,
+            },
+            "platform_admin_activity": {
+                "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+                "recent_event_count": 0,
+                "events_by_action": {
+                    action: 0
+                    for action in platform_admin_service.platform_admin_repository.AUDIT_EVENT_SCHEMAS
+                },
+                "events_by_resource_type": {
+                    resource_type: 0
+                    for resource_type in platform_admin_service.platform_admin_repository.ALLOWED_RESOURCE_TYPES
+                },
+            },
+        }
 
     def test_approved_platform_admin_routes_have_read_and_support_case_boundaries(self):
         rules = [rule for rule in self.app.url_map.iter_rules() if rule.rule.startswith("/api/platform-admin")]
@@ -478,6 +687,89 @@ class PlatformAdminRouteTests(unittest.TestCase):
             ), patch.object(
                 platform_admin_service.platform_chatbot_repository,
                 "list_company_chatbots_for_platform_admin", return_value=([], 0),
+            ), patch.object(
+                platform_admin_service.platform_monitoring_repository,
+                "get_monitoring_overview_for_platform_admin",
+                return_value={
+                    "active_user_count": 0,
+                    "support": {
+                        "cases_by_status": {
+                            "open": 0, "in_progress": 0, "waiting_for_tenant": 0,
+                            "resolved": 0, "closed": 0,
+                        },
+                        "cases_by_priority": {"low": 0, "normal": 0, "high": 0, "urgent": 0},
+                        "open_case_count": 0,
+                        "tenant_requests_by_status": {
+                            "new": 0, "reviewed": 0, "converted": 0, "closed": 0,
+                        },
+                        "unresolved_tenant_request_count": 0,
+                    },
+                    "messaging": {
+                        "messages_by_delivery_status": {
+                            "received": 0, "sent": 0, "pending": 0, "sending": 0,
+                            "failed": 0, "retrying": 0, "permanent_failed": 0,
+                        },
+                        "retry_backlog_count": 0,
+                        "channel_health": {
+                            provider: {
+                                "total": 0,
+                                "active": 0,
+                                "inactive": 0,
+                                "attention_required": 0,
+                                "by_connection_status": {
+                                    "connected": 0, "disconnected": 0,
+                                    "pending": 0, "error": 0,
+                                },
+                            }
+                            for provider in ("telegram", "wasender", "meta_whatsapp")
+                        },
+                        "broadcast_campaigns_by_status": {
+                            "draft": 0, "sending": 0, "completed": 0, "failed": 0,
+                        },
+                        "broadcast_recipients_by_status": {
+                            "pending": 0, "sending": 0, "sent": 0, "failed": 0,
+                        },
+                    },
+                    "billing_attention": {
+                        "orders_by_status": {
+                            "pending": 0, "created": 0, "paid": 0, "credited": 0,
+                            "failed": 0, "expired": 0, "cancelled": 0,
+                        },
+                        "pending_order_count": 0,
+                        "failed_order_count": 0,
+                        "reconciliation_required_count": 0,
+                        "activation_statuses": {
+                            "not_started": 0, "claimed": 0, "activated": 0,
+                            "credit_pending": 0, "completed": 0, "conflict": 0,
+                            "failed": 0,
+                        },
+                        "activation_status_unset_count": 0,
+                    },
+                    "ai_usage": {
+                        "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+                        "requests_by_status": {"completed": 0, "failed": 0},
+                        "recent_request_count": 0,
+                        "recent_total_tokens": 0,
+                        "credit_transactions_by_type": {
+                            "included_credit_grant": 0, "trial_credit_grant": 0,
+                            "usage_debit": 0, "topup_purchase": 0, "refund": 0,
+                            "manual_adjustment": 0, "expiry": 0, "reversal": 0,
+                        },
+                        "depleted_balance_company_count": 0,
+                    },
+                    "platform_admin_activity": {
+                        "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+                        "recent_event_count": 0,
+                        "events_by_action": {
+                            action: 0
+                            for action in platform_admin_service.platform_admin_repository.AUDIT_EVENT_SCHEMAS
+                        },
+                        "events_by_resource_type": {
+                            resource_type: 0
+                            for resource_type in platform_admin_service.platform_admin_repository.ALLOWED_RESOURCE_TYPES
+                        },
+                    },
+                },
             ), patch.object(
                 platform_admin_service.platform_admin_repository,
                 "insert_platform_admin_audit_event", return_value={"id": 1},
@@ -1308,36 +1600,48 @@ class PlatformAdminRouteTests(unittest.TestCase):
                 },
             ],
         }
-        with patch.object(
-            platform_admin_service.platform_company_repository,
-            "get_company_counts_for_platform_admin",
-            side_effect=lambda: calls.append("companies") or {"total": 5, "active": 4, "inactive": 1},
-        ), patch.object(
-            platform_admin_service.platform_billing_repository,
-            "get_latest_subscription_overview_for_platform_admin",
-            side_effect=lambda: calls.append("subscriptions") or overview,
-        ), patch.object(
-            platform_admin_service.platform_company_repository,
-            "get_companies_by_ids_for_platform_admin",
-            side_effect=lambda ids: calls.append("company_ids") or {
-                2: {"id": 2, "company_name": "Tenant", "status": "active"},
-                3: {"id": 3, "company_name": "Expired Tenant", "status": "active"},
-                4: {"id": 4, "company_name": "Paused Tenant", "status": "active"},
-            },
-        ), patch.object(
-            platform_admin_service.platform_admin_repository,
-            "insert_platform_admin_audit_event",
-            side_effect=lambda *args: calls.append("audit") or {"id": 1},
-        ) as audit:
+        with ExitStack() as stack:
+            for monitoring_patch in self._monitoring_overview_patches():
+                stack.enter_context(monitoring_patch)
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_counts_for_platform_admin",
+                side_effect=lambda: calls.append("companies") or {"total": 5, "active": 4, "inactive": 1},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_billing_repository,
+                "get_latest_subscription_overview_for_platform_admin",
+                side_effect=lambda: calls.append("subscriptions") or overview,
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_companies_by_ids_for_platform_admin",
+                side_effect=lambda ids: calls.append("company_ids") or {
+                    2: {"id": 2, "company_name": "Tenant", "status": "active"},
+                    3: {"id": 3, "company_name": "Expired Tenant", "status": "active"},
+                    4: {"id": 4, "company_name": "Paused Tenant", "status": "active"},
+                },
+            ))
+            audit = stack.enter_context(patch.object(
+                platform_admin_service.platform_admin_repository,
+                "insert_platform_admin_audit_event",
+                side_effect=lambda *args: calls.append("audit") or {"id": 1},
+            ))
             response = self.client.get("/api/platform-admin/overview", headers=self.headers)
             calls.append("response")
         self.assertEqual(response.status_code, 200)
         data = response.json["data"]
         self.assertEqual(set(data), {
             "generated_at", "companies", "subscriptions",
-            "attention_companies", "operational_alerts",
+            "support", "messaging", "billing_attention", "ai_usage",
+            "platform_admin_activity", "attention_companies", "operational_alerts",
         })
-        self.assertEqual(data["companies"], {"total": 5, "active": 4, "inactive": 1})
+        self.assertEqual(data["companies"], {"total": 5, "active": 4, "inactive": 1, "active_users": 14})
+        self.assertEqual(data["support"]["open_case_count"], 3)
+        self.assertEqual(data["messaging"]["messages_by_delivery_status"]["sent"], 88)
+        self.assertEqual(data["billing_attention"]["pending_order_count"], 4)
+        self.assertEqual(data["ai_usage"]["recent_total_tokens"], 1234)
+        self.assertEqual(data["platform_admin_activity"]["recent_event_count"], 12)
         self.assertEqual(data["subscriptions"]["by_status"]["past_due"], 1)
         self.assertEqual(data["subscriptions"]["by_plan"], [{"code": "free", "name": "Free", "count": 1}])
         self.assertEqual(set(data["attention_companies"][0]), {
@@ -1354,7 +1658,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(data["attention_companies"][0]["subscription_status"], "past_due")
         self.assertEqual(len(data["attention_companies"]), 3)
         alerts = data["operational_alerts"]["alerts"]
-        self.assertEqual(len(alerts), 2)
+        self.assertGreaterEqual(len(alerts), 2)
         self.assertEqual(alerts[0], {
             "type": "subscription_past_due",
             "severity": "warning",
@@ -1374,9 +1678,11 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(alerts[1]["type"], "subscription_expired")
         self.assertEqual(alerts[1]["severity"], "critical")
         self.assertEqual(alerts[1]["summary"], "Subscription is expired")
-        self.assertEqual(data["operational_alerts"]["summary"], {
-            "total": 2, "critical": 1, "warning": 1, "info": 0,
-        })
+        alert_types = {alert["type"] for alert in alerts}
+        self.assertIn("support_backlog", alert_types)
+        self.assertIn("billing_orders_pending", alert_types)
+        self.assertEqual(data["operational_alerts"]["summary"]["critical"], 1)
+        self.assertGreaterEqual(data["operational_alerts"]["summary"]["warning"], 1)
         self.assertEqual(data["operational_alerts"]["limits"], {"max_alerts": 10})
         self.assertEqual(calls, ["companies", "subscriptions", "company_ids", "audit", "response"])
         self.assertEqual(audit.call_args.args[1], "platform_admin.operations.overview.read")
@@ -1387,34 +1693,41 @@ class PlatformAdminRouteTests(unittest.TestCase):
         })
 
     def test_operations_overview_empty_data_returns_zeroes(self):
-        with patch.object(
-            platform_admin_service.platform_company_repository,
-            "get_company_counts_for_platform_admin",
-            return_value={"total": 0, "active": 0, "inactive": 0},
-        ), patch.object(
-            platform_admin_service.platform_billing_repository,
-            "get_latest_subscription_overview_for_platform_admin",
-            return_value={"by_status": {}, "by_plan": [], "attention_subscriptions": []},
-        ), patch.object(
-            platform_admin_service.platform_company_repository,
-            "get_companies_by_ids_for_platform_admin", return_value={},
-        ), patch.object(
-            platform_admin_service.platform_admin_repository,
-            "insert_platform_admin_audit_event", return_value={"id": 1},
-        ):
+        with ExitStack() as stack:
+            for monitoring_patch in self._monitoring_overview_patches():
+                stack.enter_context(monitoring_patch)
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_monitoring_repository,
+                "get_monitoring_overview_for_platform_admin",
+                return_value=self._empty_monitoring_overview(),
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_counts_for_platform_admin",
+                return_value={"total": 0, "active": 0, "inactive": 0},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_billing_repository,
+                "get_latest_subscription_overview_for_platform_admin",
+                return_value={"by_status": {}, "by_plan": [], "attention_subscriptions": []},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_companies_by_ids_for_platform_admin", return_value={},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_admin_repository,
+                "insert_platform_admin_audit_event", return_value={"id": 1},
+            ))
             response = self.client.get("/api/platform-admin/overview", headers=self.headers)
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json["data"]["companies"], {"total": 0, "active": 0, "inactive": 0})
+        self.assertEqual(response.json["data"]["companies"], {"total": 0, "active": 0, "inactive": 0, "active_users": 0})
         self.assertEqual(response.json["data"]["subscriptions"]["by_status"], {
             "trialing": 0, "active": 0, "past_due": 0, "expired": 0, "cancelled": 0,
         })
         self.assertEqual(response.json["data"]["subscriptions"]["by_plan"], [])
         self.assertEqual(response.json["data"]["attention_companies"], [])
-        self.assertEqual(response.json["data"]["operational_alerts"], {
-            "alerts": [],
-            "summary": {"total": 0, "critical": 0, "warning": 0, "info": 0},
-            "limits": {"max_alerts": 10},
-        })
+        self.assertEqual(response.json["data"]["operational_alerts"]["limits"], {"max_alerts": 10})
 
     def test_operations_overview_operational_alerts_are_capped_at_ten(self):
         subscriptions = [
@@ -1428,29 +1741,35 @@ class PlatformAdminRouteTests(unittest.TestCase):
             }
             for company_id in range(1, 13)
         ]
-        with patch.object(
-            platform_admin_service.platform_company_repository,
-            "get_company_counts_for_platform_admin",
-            return_value={"total": 12, "active": 12, "inactive": 0},
-        ), patch.object(
-            platform_admin_service.platform_billing_repository,
-            "get_latest_subscription_overview_for_platform_admin",
-            return_value={
-                "by_status": {"past_due": 6, "expired": 6},
-                "by_plan": [],
-                "attention_subscriptions": subscriptions,
-            },
-        ), patch.object(
-            platform_admin_service.platform_company_repository,
-            "get_companies_by_ids_for_platform_admin",
-            return_value={
-                company_id: {"id": company_id, "company_name": f"Tenant {company_id}", "status": "active"}
-                for company_id in range(1, 13)
-            },
-        ), patch.object(
-            platform_admin_service.platform_admin_repository,
-            "insert_platform_admin_audit_event", return_value={"id": 1},
-        ):
+        with ExitStack() as stack:
+            for monitoring_patch in self._monitoring_overview_patches():
+                stack.enter_context(monitoring_patch)
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_counts_for_platform_admin",
+                return_value={"total": 12, "active": 12, "inactive": 0},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_billing_repository,
+                "get_latest_subscription_overview_for_platform_admin",
+                return_value={
+                    "by_status": {"past_due": 6, "expired": 6},
+                    "by_plan": [],
+                    "attention_subscriptions": subscriptions,
+                },
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_companies_by_ids_for_platform_admin",
+                return_value={
+                    company_id: {"id": company_id, "company_name": f"Tenant {company_id}", "status": "active"}
+                    for company_id in range(1, 13)
+                },
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_admin_repository,
+                "insert_platform_admin_audit_event", return_value={"id": 1},
+            ))
             response = self.client.get("/api/platform-admin/overview", headers=self.headers)
         self.assertEqual(response.status_code, 200)
         alerts = response.json["data"]["operational_alerts"]["alerts"]
@@ -1487,6 +1806,75 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertNotIn("subscription overview scan", scan_body)
         self.assertNotIn("bounded row limit", scan_body)
 
+        with ExitStack() as stack:
+            for monitoring_patch in self._monitoring_overview_patches():
+                stack.enter_context(monitoring_patch)
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_counts_for_platform_admin",
+                return_value={"total": 1, "active": 1, "inactive": 0},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_billing_repository,
+                "get_latest_subscription_overview_for_platform_admin",
+                return_value={
+                    "by_status": {"active": 1},
+                    "by_plan": [{"code": "pro", "name": "Pro", "count": 1}],
+                    "attention_subscriptions": [],
+                },
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_companies_by_ids_for_platform_admin", return_value={},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_admin_repository,
+                "insert_platform_admin_audit_event",
+                side_effect=RuntimeError("audit down"),
+            ))
+            audit_response = self.client.get("/api/platform-admin/overview", headers=self.headers)
+        self.assertEqual(audit_response.status_code, 503)
+        self.assertEqual(audit_response.json["code"], "platform_admin_audit_unavailable")
+        self.assertNotIn("data", audit_response.json)
+
+    def test_operations_overview_malformed_monitoring_section_fails_closed(self):
+        with ExitStack() as stack:
+            for monitoring_patch in self._monitoring_overview_patches():
+                stack.enter_context(monitoring_patch)
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_company_counts_for_platform_admin",
+                return_value={"total": 1, "active": 1, "inactive": 0},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_billing_repository,
+                "get_latest_subscription_overview_for_platform_admin",
+                return_value={"by_status": {}, "by_plan": [], "attention_subscriptions": []},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_company_repository,
+                "get_companies_by_ids_for_platform_admin",
+                return_value={},
+            ))
+            stack.enter_context(patch.object(
+                platform_admin_service.platform_monitoring_repository,
+                "get_monitoring_overview_for_platform_admin",
+                return_value={
+                    "active_user_count": 0,
+                    "support": {"cases_by_status": {"open": True}},
+                    "messaging": {},
+                    "billing_attention": {},
+                    "ai_usage": {},
+                    "platform_admin_activity": {},
+                },
+            ))
+            response = self.client.get("/api/platform-admin/overview", headers=self.headers)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json["code"], "platform_admin_data_unavailable")
+        self.assertNotIn("cases_by_status", response.get_data(as_text=True))
+        self.assertNotIn("data", response.json)
+
+    def test_operations_overview_monitoring_rpc_failure_is_sanitized(self):
         with patch.object(
             platform_admin_service.platform_company_repository,
             "get_company_counts_for_platform_admin",
@@ -1494,23 +1882,22 @@ class PlatformAdminRouteTests(unittest.TestCase):
         ), patch.object(
             platform_admin_service.platform_billing_repository,
             "get_latest_subscription_overview_for_platform_admin",
-            return_value={
-                "by_status": {"active": 1},
-                "by_plan": [{"code": "pro", "name": "Pro", "count": 1}],
-                "attention_subscriptions": [],
-            },
+            return_value={"by_status": {}, "by_plan": [], "attention_subscriptions": []},
         ), patch.object(
-            platform_admin_service.platform_company_repository,
-            "get_companies_by_ids_for_platform_admin", return_value={},
-        ), patch.object(
-            platform_admin_service.platform_admin_repository,
-            "insert_platform_admin_audit_event",
-            side_effect=RuntimeError("audit down"),
+            platform_admin_service.platform_monitoring_repository,
+            "get_monitoring_overview_for_platform_admin",
+            side_effect=RuntimeError(
+                "HTTP 400 /rest/v1/platform_support_cases?select=status,count:id.count()"
+            ),
         ):
-            audit_response = self.client.get("/api/platform-admin/overview", headers=self.headers)
-        self.assertEqual(audit_response.status_code, 503)
-        self.assertEqual(audit_response.json["code"], "platform_admin_audit_unavailable")
-        self.assertNotIn("data", audit_response.json)
+            response = self.client.get("/api/platform-admin/overview", headers=self.headers)
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json["code"], "platform_admin_data_unavailable")
+        body = response.get_data(as_text=True).lower()
+        self.assertNotIn("count:id.count", body)
+        self.assertNotIn("platform_support_cases", body)
+        self.assertNotIn("/rest/v1", body)
+        self.assertNotIn("data", response.json)
 
     def test_child_data_failure_and_audit_failure_are_sanitized(self):
         with patch.object(

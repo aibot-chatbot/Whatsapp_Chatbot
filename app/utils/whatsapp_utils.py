@@ -43,13 +43,21 @@ def get_interactive_button_message(recipient: str, text: str, buttons: list) -> 
     Returns:
         JSON string ready to POST to the Meta Graph API.
     """
-    button_objects = [
-        {
-            "type": "reply",
-            "reply": {"id": f"btn_{i}", "title": label},
-        }
-        for i, label in enumerate(buttons[:3])
-    ]
+    button_objects = []
+    for raw_label in buttons or []:
+        if raw_label is None:
+            continue
+        label = str(raw_label).strip()[:20]
+        if not label:
+            continue
+        button_objects.append(
+            {
+                "type": "reply",
+                "reply": {"id": f"btn_{len(button_objects)}", "title": label},
+            }
+        )
+        if len(button_objects) == 3:
+            break
 
     return json.dumps(
         {
@@ -64,6 +72,10 @@ def get_interactive_button_message(recipient: str, text: str, buttons: list) -> 
             },
         }
     )
+
+
+def get_interactive_button_message_input(recipient: str, text: str, buttons: list) -> str:
+    return get_interactive_button_message(recipient, text, buttons)
 
 
 
