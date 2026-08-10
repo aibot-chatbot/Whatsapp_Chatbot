@@ -142,13 +142,13 @@ def set_active_knowledge_file(chatbot_id: int, file_name: str):
     return result.data[0] if result.data else None
 
 
-def get_active_pdf_knowledge_file(chatbot_id: int):
+def get_active_knowledge_file(chatbot_id: int):
     try:
         result = (
             supabase.table("knowledge_files")
             .select("*")
             .eq("chatbot_id", chatbot_id)
-            .eq("file_type", "pdf")
+            
             .eq("is_active", True)
             .limit(1)
             .execute()
@@ -211,14 +211,14 @@ def set_active_pdf_knowledge_file(chatbot_id: int, file_id: int):
     supabase.table("knowledge_files") \
         .update({"is_active": False}) \
         .eq("chatbot_id", chatbot_id) \
-        .eq("file_type", "pdf") \
+         \
         .execute()
  
     result = (
         supabase.table("knowledge_files")
         .update({"is_active": True})
         .eq("chatbot_id", chatbot_id)
-        .eq("file_type", "pdf")
+        
         .eq("id", file_id)
         .execute()
     )

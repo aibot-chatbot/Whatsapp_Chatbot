@@ -12,6 +12,8 @@
         "platform_admin.company.ai_credit_usage.read",
         "platform_admin.company.ai_credit_transactions.read",
         "platform_admin.company.billing_orders.read",
+        "platform_admin.company.suspend",
+        "platform_admin.company.restore",
         "platform_admin.company.users.read",
         "platform_admin.company.chatbots.read",
         "platform_admin.audit_events.list",
@@ -19,7 +21,18 @@
         "platform_admin.support_case.read",
         "platform_admin.support_case.create",
         "platform_admin.support_case.note.create",
-        "platform_admin.support_case.update"
+        "platform_admin.support_case.assignee.list",
+        "platform_admin.support_case.assign",
+        "platform_admin.support_case.unassign",
+        "platform_admin.support_case.status.update",
+        "platform_admin.support_case.priority.update",
+        "platform_admin.support_case.reply.list",
+        "platform_admin.support_case.reply.create",
+        "platform_admin.user.list",
+        "platform_admin.user.read",
+        "platform_admin.user.create",
+        "platform_admin.user.activate",
+        "platform_admin.user.deactivate"
     ];
     const RESOURCE_TYPES = [
         "platform_admin",
@@ -34,7 +47,9 @@
         "company_chatbots",
         "platform_admin_audit_events",
         "platform_support_cases",
-        "platform_support_case_events"
+        "platform_support_case_events",
+        "tenant_support_replies",
+        "platform_admin_users"
     ];
     const METADATA_KEYS = [
         "outcome",
@@ -63,7 +78,22 @@
         "priority_filter_applied",
         "company_id",
         "status",
-        "priority"
+        "priority",
+        "old_status",
+        "new_status",
+        "old_priority",
+        "new_priority",
+        "old_assigned_platform_admin_user_id",
+        "new_assigned_platform_admin_user_id",
+        "case_id",
+        "request_id",
+        "reply_id",
+        "notification_channel",
+        "delivery_status",
+        "target_platform_admin_user_id",
+        "target_user_id",
+        "old_is_active",
+        "new_is_active"
     ];
 
     const state = {

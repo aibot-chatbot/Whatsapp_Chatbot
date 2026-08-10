@@ -3,6 +3,7 @@ import requests
 import re
 
 from app.services.ai_router import generate_response
+from app.database.bot_repository import get_bot_by_id
 from app.database.conversation_repository import (
     get_or_create_platform_conversation,
     update_conversation_phone_by_platform,
@@ -14,11 +15,19 @@ from app.database.processed_telegram_update_repository import (
     save_processed_telegram_update,
 )
 from app.services.media_send_service import dispatch_media_after_reply
+from app.utils.message_style_utils import parse_buttons_tag, format_for_telegram_markdown
 
 
-def send_telegram_message(bot_token: str, chat_id: str, text: str, reply_markup: dict = None):
+def send_telegram_message(
+    bot_token: str,
+    chat_id: str,
+    text: str,
+    reply_markup: dict = None,
+    parse_mode: str = None,
+):
     """
-    Send text reply back to Telegram, optionally with a custom keyboard or inline buttons.
+    Send text reply back to Telegram, optionally with inline buttons and/or
+    MarkdownV2 formatting.
     """
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
@@ -30,6 +39,9 @@ def send_telegram_message(bot_token: str, chat_id: str, text: str, reply_markup:
 
     if reply_markup:
         payload["reply_markup"] = reply_markup
+
+    if parse_mode:
+        payload["parse_mode"] = parse_mode
 
     try:
         response = requests.post(url, json=payload, timeout=10)
@@ -154,6 +166,12 @@ def process_telegram_update(update: dict, webhook_secret: str):
     telegram_channel_id = channel["id"]
     chatbot_id = channel["chatbot_id"]
     bot_token = channel["bot_token"]
+    try:
+        from app.services.company_status_service import ensure_company_operational
+        ensure_company_operational(channel.get("company_id"))
+    except Exception:
+        logging.info("Telegram webhook ignored because company is not operational.")
+        return
 
     update_id = update.get("update_id")
 
@@ -390,35 +408,71 @@ def process_telegram_update(update: dict, webhook_secret: str):
         save_processed_telegram_update(telegram_channel_id, update_id)
         return
 
-    # Extract interactive buttons if any
-    button_matches = re.findall(r"\[BUTTON:\s*(.*?)\]", reply, re.IGNORECASE)
-    clean_reply = re.sub(r"\[BUTTON:\s*(.*?)\]", "", reply, flags=re.IGNORECASE).strip()
+    # Read message style settings from the bot record (safe default: enabled)
+    bot_record = get_bot_by_id(chatbot_id) or {}
+    buttons_enabled = bot_record.get("telegram_buttons_enabled", True)
+    markdown_enabled = bot_record.get("telegram_markdown_enabled", True)
 
-    reply_markup = None
-    if button_matches:
-        # Create an inline keyboard layout (1 button per row)
-        inline_keyboard = [
-            [{"text": btn_text.strip(), "callback_data": btn_text.strip()}]
-            for btn_text in button_matches[:10] # limit just in case
-        ]
-        reply_markup = {"inline_keyboard": inline_keyboard}
+    # Parse [BUTTONS: A | B | C] tag out of the reply FIRST so the tag is never
+    # processed by the markdown formatter (which would escape its characters and
+    # prevent the buttons from rendering).
+    clean_reply, button_labels = parse_buttons_tag(reply)
+
+    # Build inline keyboard if buttons are present and enabled
+    inline_markup = None
+    if buttons_enabled and button_labels:
+        inline_markup = {
+            "inline_keyboard": [
+                [{"text": lbl, "callback_data": lbl}]
+                for lbl in button_labels
+            ]
+        }
+
+    # Apply Telegram MarkdownV2 formatting to the clean text only
+    parse_mode = None
+    if markdown_enabled:
+        try:
+            clean_reply = format_for_telegram_markdown(clean_reply)
+            parse_mode = "MarkdownV2"
+        except Exception as fmt_err:
+            logging.warning("Telegram markdown formatting failed, sending plain text: %s", fmt_err)
+            # Recover the clean text without the tag and send as plain text
+            clean_reply, _ = parse_buttons_tag(reply)
+            parse_mode = None
 
     parts = split_telegram_reply(clean_reply)
     for i, reply_part in enumerate(parts):
-        # Only attach the buttons to the VERY LAST part of the split message
-        part_markup = reply_markup if i == len(parts) - 1 else None
-        send_telegram_message(bot_token, customer_key, reply_part, reply_markup=part_markup)
+        # Send inline keyboard only with the last part
+        markup = inline_markup if (i == len(parts) - 1) else None
+        result = send_telegram_message(
+            bot_token,
+            customer_key,
+            reply_part,
+            reply_markup=markup,
+            parse_mode=parse_mode,
+        )
+        # If formatted send fails, retry as plain text (Telegram rejects bad MarkdownV2)
+        if result is None and parse_mode:
+            logging.warning("Telegram MarkdownV2 send failed, retrying as plain text")
+            send_telegram_message(
+                bot_token,
+                customer_key,
+                reply_part,
+                reply_markup=markup,
+                parse_mode=None,
+            )
+
 
     save_message(
         conversation_id=conversation["id"],
         sender_type="bot",
-        message_text=clean_reply,
+        message_text=reply,
         message_type="text",
         delivery_status="sent",
         ai_generated=True,
     )
 
     save_processed_telegram_update(telegram_channel_id, update_id)
-    
+
     # Try sending any configured media attachments that match the user's message
     dispatch_media_after_reply(message_text, chatbot_id, "telegram", channel, customer_key)

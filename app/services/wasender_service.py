@@ -229,6 +229,12 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
     wasender_channel_id = channel["id"]
     chatbot_id = channel["chatbot_id"]
     api_key = channel["api_key"]
+    try:
+        from app.services.company_status_service import ensure_company_operational
+        ensure_company_operational(channel.get("company_id"))
+    except Exception:
+        logging.info("Wasender webhook ignored because company is not operational.")
+        return
 
     parsed = extract_wasender_message(payload)
 

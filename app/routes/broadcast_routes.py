@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, request, g, current_app
 
 from app.decorators.auth_decorator import token_required
+from app.services.company_status_service import company_operational_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.database.broadcast_repository import (
     create_campaign,
@@ -26,6 +27,18 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
         chatbot_id = campaign["chatbot_id"]
         channel_type = campaign["channel_type"]
         message_template = campaign["message_template"]
+        try:
+            from app.services.company_status_service import ensure_company_operational
+            ensure_company_operational(company_id)
+        except Exception:
+            for log in pending_logs:
+                update_broadcast_log_status(
+                    log["id"],
+                    "failed",
+                    error_message="Company is suspended."
+                )
+            update_campaign_status(campaign_id, company_id, "failed")
+            return
 
         if message_template == "__use_bot_welcome_flow__":
             from app.database.bot_repository import get_bot_by_id
@@ -63,12 +76,24 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
         success_count = 0
         fail_count = 0
 
-        for log in pending_logs:
+        for index, log in enumerate(pending_logs):
             log_id = log["id"]
             phone = log["recipient_phone"]
 
             # Token replacement
             message_text = message_template.replace("{{phone}}", phone)
+
+            try:
+                ensure_company_operational(company_id)
+            except Exception:
+                for remaining_log in pending_logs[index:]:
+                    update_broadcast_log_status(
+                        remaining_log["id"],
+                        "failed",
+                        error_message="Company is suspended."
+                    )
+                update_campaign_status(campaign_id, company_id, "failed")
+                return
 
             # Update recipient status to sending
             update_broadcast_log_status(log_id, "sending")
@@ -202,6 +227,7 @@ def list_campaigns():
 
 @broadcast_blueprint.route("/api/broadcast/campaign", methods=["POST"])
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def save_campaign():
     try:
@@ -269,6 +295,7 @@ def get_campaign_logs(campaign_id):
 
 @broadcast_blueprint.route("/api/broadcast/campaign/<int:campaign_id>/start", methods=["POST"])
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def start_campaign(campaign_id):
     try:

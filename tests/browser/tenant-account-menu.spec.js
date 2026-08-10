@@ -32,7 +32,7 @@ async function installTenantSession(page, user = {}) {
   }, { userValue: user });
 }
 
-async function mockTenantPageApis(page, platformHandler) {
+async function mockTenantPageApis(page, platformHandler, supportHandler) {
   const calls = [];
   await page.route("https://fonts.googleapis.com/**", route => route.abort());
   await page.route("https://fonts.gstatic.com/**", route => route.abort());
@@ -58,14 +58,19 @@ async function mockTenantPageApis(page, platformHandler) {
       await route.fulfill(json(response.status, response.body));
       return;
     }
+    if (url.pathname.startsWith("/api/support/requests") && supportHandler) {
+      const response = await supportHandler({ request, url, calls });
+      await route.fulfill(json(response.status, response.body));
+      return;
+    }
     await route.fulfill(json(200, { status: "success", data: [] }));
   });
   return calls;
 }
 
-async function openTenantPage(page, path, platformHandler = () => ({ status: 403, body: { status: "error", code: "platform_admin_access_denied" } }), user) {
+async function openTenantPage(page, path, platformHandler = () => ({ status: 403, body: { status: "error", code: "platform_admin_access_denied" } }), user, supportHandler) {
   await installTenantSession(page, user);
-  const calls = await mockTenantPageApis(page, platformHandler);
+  const calls = await mockTenantPageApis(page, platformHandler, supportHandler);
   await page.goto(path);
   await expect(page.locator("tenant-account-menu")).toHaveCount(1);
   return calls;
@@ -321,7 +326,7 @@ test.describe("tenant account menu shared placement", () => {
 });
 
 test.describe("tenant support page", () => {
-  test("opens from the shared account menu and renders static help content", async ({ page }) => {
+  test("opens from the shared account menu and renders bounded help and request content", async ({ page }) => {
     await openTenantPage(page, "/bots.html");
 
     await openAccountMenu(page);
@@ -330,10 +335,12 @@ test.describe("tenant support page", () => {
     await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
     await expect(page.getByText("Common Help Topics")).toBeVisible();
     await expect(page.getByText("Billing And AI Credits")).toBeVisible();
-    await expect(page.getByText("Direct support contact is not configured yet.")).toBeVisible();
+    await expect(page.getByText("Submit a Support Request")).toBeVisible();
+    await expect(page.locator("#support-request-form")).toHaveCount(1);
+    await expect(page.locator("#support-request-category option")).toHaveCount(8);
     await expect(page.locator("tenant-account-menu")).toHaveCount(1);
-    await expect(page.locator("form")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /submit|send|ticket|contact/i })).toHaveCount(0);
+    await expect(page.locator("input[type=file]")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /message|email|billing|impersonat|export|chart/i })).toHaveCount(0);
   });
 
   test("direct authenticated navigation works and renders safe account context", async ({ page }) => {
@@ -348,6 +355,67 @@ test.describe("tenant support page", () => {
     await expect(page.locator("#support-account-email")).toHaveText("tenant@example.test");
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
+  });
+
+  test("renders tenant support history and public replies without internal fields", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__tenantSupportXss = false;
+    });
+    const supportHandler = async ({ request, url }) => {
+      if (request.method() !== "GET") {
+        return { status: 405, body: { status: "error" } };
+      }
+      if (url.pathname === "/api/support/requests") {
+        return {
+          status: 200,
+          body: {
+            status: "success",
+            data: {
+              requests: [{
+                request_id: 31,
+                category: "technical",
+                status: "converted",
+                created_at: "2026-08-06T00:00:00+00:00"
+              }]
+            }
+          }
+        };
+      }
+      return {
+        status: 200,
+        body: {
+          status: "success",
+          data: {
+            request: {
+              request_id: 31,
+              category: "technical",
+              status: "converted",
+              title: "<img src=x onerror=window.__tenantSupportXss=true>",
+              redacted_description: "Safe tenant description",
+              created_at: "2026-08-06T00:00:00+00:00",
+              updated_at: "2026-08-06T00:01:00+00:00"
+            },
+            replies: [{
+              reply_id: 44,
+              request_id: 31,
+              author_type: "platform_admin",
+              redacted_body: "<script>window.__tenantSupportXss=true</script>",
+              redacted_note: "Internal note must not render",
+              author_platform_admin_user_id: 3,
+              created_at: "2026-08-06T00:02:00+00:00"
+            }]
+          }
+        }
+      };
+    };
+    await openTenantPage(page, "/support.html", undefined, undefined, supportHandler);
+    await expect(page.getByText("#31 - technical - converted")).toBeVisible();
+    await page.getByRole("button", { name: "#31 - technical - converted" }).click();
+    await expect(page.getByText("<img src=x onerror=window.__tenantSupportXss=true>")).toBeVisible();
+    await expect(page.getByText("<script>window.__tenantSupportXss=true</script>")).toBeVisible();
+    await expect(page.getByText("Internal note must not render")).toHaveCount(0);
+    await expect(page.getByText("author_platform_admin_user_id")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.__tenantSupportXss)).toBe(false);
   });
 
   test("unauthenticated direct navigation redirects to login", async ({ page }) => {

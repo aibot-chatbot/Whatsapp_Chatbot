@@ -174,3 +174,45 @@ def delete_existing_bot(bot_id):
         }), 500
 
 
+
+@bot_blueprint.route("/api/bots/<int:bot_id>/generate-welcome-menu", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+def generate_bot_welcome_menu(bot_id):
+    try:
+        company_id = get_current_company_id()
+        
+        # Verify bot access
+        bot = get_bot(bot_id, company_id)
+        if not bot:
+            return jsonify({"status": "error", "message": "Bot not found"}), 404
+            
+        from app.services.ai_router import generate_welcome_menu_suggestions
+        suggestions, source_document = generate_welcome_menu_suggestions(bot_id, company_id)
+        
+        if not suggestions:
+             return jsonify({
+                "status": "error",
+                "message": "AI could not generate suggestions. Try adding more context to your document."
+            }), 400
+
+        return jsonify({
+            "status": "success",
+            "data": suggestions,
+            "source_document": source_document,
+            "message": "Welcome menu suggestions generated successfully"
+        }), 200
+
+    except ValueError as ve:
+        return jsonify({
+            "status": "error",
+            "message": str(ve)
+        }), 400
+    except Exception as e:
+        import logging
+        logging.error(f"Error generating welcome menu suggestions: {e}")
+        return jsonify({
+            "status": "error",
+            "message": "An unexpected error occurred during generation."
+        }), 500
+

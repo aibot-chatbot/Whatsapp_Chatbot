@@ -23,7 +23,7 @@ from app.routes.crm_routes import crm_blueprint
 from app.routes.agent_routes import agent_blueprint
 from app.routes.media_attachment_routes import media_attachment_blueprint
 from app.routes.meta_template_routes import meta_template_blueprint
-from app.routes.flow_routes import flow_blueprint
+
 from app.routes.user_routes import user_bp, team_bp
 from app.routes.invite_routes import invite_bp
 from app.routes.billing_routes import billing_bp
@@ -32,6 +32,7 @@ from app.routes.broadcast_routes import broadcast_blueprint
 from app.routes.admin_billing_routes import admin_billing_bp
 from app.routes.dev_billing_routes import dev_billing_bp
 from app.routes.platform_admin_routes import platform_admin_bp
+from app.routes.support_routes import support_bp
 from app.routes.widget_routes import widget_blueprint
 
 def create_app():
@@ -103,10 +104,11 @@ def create_app():
     app.register_blueprint(broadcast_blueprint)
     app.register_blueprint(admin_billing_bp)
     app.register_blueprint(platform_admin_bp)
+    app.register_blueprint(support_bp)
     app.register_blueprint(widget_blueprint)
     if app.config.get("ENABLE_DEV_BILLING_ROUTES"):
         app.register_blueprint(dev_billing_bp)
-    app.register_blueprint(flow_blueprint)
+
 
     # Serve frontend files as fallback for unmatched GET routes
     FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
@@ -134,4 +136,3 @@ def create_app():
             return {"status": "error", "message": "Not found"}, 404
 
     return app
-

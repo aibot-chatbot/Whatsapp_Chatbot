@@ -8,7 +8,7 @@ from app.services.profile_service import get_profile_by_name
 from app.services.knowledge_service import get_active_pdf
 from app.services.ai_router import generate_system_response
 from app.database.bot_repository import get_bot_by_id
-from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
+from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.database.knowledge_chunk_repository import get_chunks_by_file
 
 
@@ -81,7 +81,7 @@ Custom Instructions: {additional_instructions}
 
     # Query active knowledge file from DB and compile text preview from its chunks
     pdf_preview = ""
-    active_file = get_active_pdf_knowledge_file(chatbot_id)
+    active_file = get_active_knowledge_file(chatbot_id)
     if active_file:
         chunks = get_chunks_by_file(active_file.get("id"))
         if chunks:

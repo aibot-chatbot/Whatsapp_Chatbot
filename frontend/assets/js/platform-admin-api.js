@@ -29,9 +29,26 @@
         "invalid_title",
         "invalid_redacted_summary",
         "invalid_redacted_note",
+        "invalid_redacted_body",
+        "invalid_assignee",
         "invalid_request",
         "no_change",
-        "support_case_not_found"
+        "support_case_not_found",
+        "support_case_linkage_invalid",
+        "invalid_request_id",
+        "invalid_category",
+        "tenant_support_request_not_found",
+        "invalid_platform_admin_user_id",
+        "invalid_user_id",
+        "invalid_is_active",
+        "target_user_not_found",
+        "target_user_inactive",
+        "target_user_not_protected",
+        "platform_admin_mapping_exists",
+        "platform_admin_user_not_found",
+        "self_deactivation_not_allowed",
+        "final_active_platform_admin",
+        "protected_company"
     ]);
 
     function makeError(category, status, code) {
@@ -103,6 +120,20 @@
         return String(caseId);
     }
 
+    function requirePlatformAdminUserId(mappingId) {
+        if (!Number.isSafeInteger(mappingId) || mappingId <= 0) {
+            throw makeError("validation", 400, "invalid_platform_admin_user_id");
+        }
+        return String(mappingId);
+    }
+
+    function requireUserId(userId) {
+        if (!Number.isSafeInteger(userId) || userId <= 0) {
+            throw makeError("validation", 400, "invalid_user_id");
+        }
+        return userId;
+    }
+
     function getMe(options) {
         const config = options || {};
         return platformFetch("/me", config.signal);
@@ -139,9 +170,46 @@
         return platformFetch("/audit-events?" + params.toString(), config.signal);
     }
 
+    function listPlatformAdminUsers(options) {
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit || 100));
+        params.set("offset", String(config.offset || 0));
+        if (typeof config.isActive === "boolean") params.set("is_active", String(config.isActive));
+        return platformFetch("/platform-admin-users?" + params.toString(), config.signal);
+    }
+
+    function getPlatformAdminUser(mappingId, options) {
+        const id = requirePlatformAdminUserId(mappingId);
+        return platformFetch("/platform-admin-users/" + id, (options || {}).signal);
+    }
+
+    function createPlatformAdminUser(userId, options) {
+        const id = requireUserId(userId);
+        return platformFetch("/platform-admin-users", (options || {}).signal, "POST", { user_id: id });
+    }
+
+    function setPlatformAdminUserActive(mappingId, isActive, options) {
+        const id = requirePlatformAdminUserId(mappingId);
+        if (typeof isActive !== "boolean") {
+            throw makeError("validation", 400, "invalid_is_active");
+        }
+        return platformFetch("/platform-admin-users/" + id + "/active", (options || {}).signal, "PATCH", { is_active: isActive });
+    }
+
     function getCompany(companyId, options) {
         const id = requireCompanyId(companyId);
         return platformFetch("/companies/" + id, (options || {}).signal);
+    }
+
+    function suspendCompany(companyId, options) {
+        const id = requireCompanyId(companyId);
+        return platformFetch("/companies/" + id + "/suspend", (options || {}).signal, "POST", {});
+    }
+
+    function restoreCompany(companyId, options) {
+        const id = requireCompanyId(companyId);
+        return platformFetch("/companies/" + id + "/restore", (options || {}).signal, "POST", {});
     }
 
     function getCompanySubscription(companyId, options) {
@@ -231,14 +299,80 @@
         return platformFetch("/support-cases/" + id, (options || {}).signal);
     }
 
+    function listSupportCaseAssignees(options) {
+        return platformFetch("/support-case-assignees", (options || {}).signal);
+    }
+
+    function listTenantSupportRequests(options) {
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit || 25));
+        params.set("offset", String(config.offset || 0));
+        if (config.companyId) params.set("company_id", String(config.companyId));
+        if (config.category) params.set("category", config.category);
+        if (config.status) params.set("status", config.status);
+        return platformFetch("/tenant-support-requests?" + params.toString(), config.signal);
+    }
+
+    function getTenantSupportRequest(requestId, options) {
+        if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+            throw makeError("validation", 400, "invalid_request_id");
+        }
+        return platformFetch("/tenant-support-requests/" + String(requestId), (options || {}).signal);
+    }
+
+    function updateTenantSupportRequest(requestId, payload, options) {
+        if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+            throw makeError("validation", 400, "invalid_request_id");
+        }
+        return platformFetch(
+            "/tenant-support-requests/" + String(requestId),
+            (options || {}).signal,
+            "PATCH",
+            payload
+        );
+    }
+
+    function convertTenantSupportRequest(requestId, options) {
+        if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+            throw makeError("validation", 400, "invalid_request_id");
+        }
+        return platformFetch(
+            "/tenant-support-requests/" + String(requestId) + "/convert",
+            (options || {}).signal,
+            "POST",
+            {}
+        );
+    }
+
     function addSupportCaseNote(caseId, payload, options) {
         const id = requireCaseId(caseId);
         return platformFetch("/support-cases/" + id + "/notes", (options || {}).signal, "POST", payload);
     }
 
-    function updateSupportCase(caseId, payload, options) {
+    function listSupportCaseReplies(caseId, options) {
         const id = requireCaseId(caseId);
-        return platformFetch("/support-cases/" + id, (options || {}).signal, "PATCH", payload);
+        return platformFetch("/support-cases/" + id + "/replies", (options || {}).signal);
+    }
+
+    function createSupportCaseReply(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/replies", (options || {}).signal, "POST", payload);
+    }
+
+    function assignSupportCase(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/assignment", (options || {}).signal, "PATCH", payload);
+    }
+
+    function updateSupportCaseStatus(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/status", (options || {}).signal, "PATCH", payload);
+    }
+
+    function updateSupportCasePriority(caseId, payload, options) {
+        const id = requireCaseId(caseId);
+        return platformFetch("/support-cases/" + id + "/priority", (options || {}).signal, "PATCH", payload);
     }
 
     window.PlatformAdminApi = Object.freeze({
@@ -246,7 +380,13 @@
         getOverview: getOverview,
         listCompanies: listCompanies,
         listAuditEvents: listAuditEvents,
+        listPlatformAdminUsers: listPlatformAdminUsers,
+        getPlatformAdminUser: getPlatformAdminUser,
+        createPlatformAdminUser: createPlatformAdminUser,
+        setPlatformAdminUserActive: setPlatformAdminUserActive,
         getCompany: getCompany,
+        suspendCompany: suspendCompany,
+        restoreCompany: restoreCompany,
         getCompanySubscription: getCompanySubscription,
         listCompanySubscriptionHistory: listCompanySubscriptionHistory,
         getCompanyAiCreditUsage: getCompanyAiCreditUsage,
@@ -257,7 +397,16 @@
         listSupportCases: listSupportCases,
         createSupportCase: createSupportCase,
         getSupportCase: getSupportCase,
+        listSupportCaseAssignees: listSupportCaseAssignees,
+        listTenantSupportRequests: listTenantSupportRequests,
+        getTenantSupportRequest: getTenantSupportRequest,
+        updateTenantSupportRequest: updateTenantSupportRequest,
+        convertTenantSupportRequest: convertTenantSupportRequest,
         addSupportCaseNote: addSupportCaseNote,
-        updateSupportCase: updateSupportCase
+        listSupportCaseReplies: listSupportCaseReplies,
+        createSupportCaseReply: createSupportCaseReply,
+        assignSupportCase: assignSupportCase,
+        updateSupportCaseStatus: updateSupportCaseStatus,
+        updateSupportCasePriority: updateSupportCasePriority
     });
 }());
