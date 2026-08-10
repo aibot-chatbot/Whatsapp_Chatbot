@@ -184,6 +184,13 @@ A typical chatbot response flow is:
 10. Save the response.
 11. Send the response back through the originating channel.
 
+Unmerged work in the current working tree extends steps 4 and 5: a persona
+derived from the client's ingested documents can populate the chatbot
+configuration, and conversation-scoped facts can be recalled by keyword
+alongside vector retrieval. Neither is applied to any environment and both carry
+open blockers. Do not treat either as part of the running system; see
+`docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
+
 ## Messaging Integration Flow
 
 Each channel integration has:
