@@ -24,7 +24,7 @@
 | Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match. `RATELIMIT_GOOGLE_AUTH=10/minute` covers Google login, registration, and invitation acceptance; live external Google verification is still required |
 | Auth and public-invitation rate limiting | Verified complete | Flask-Limiter decorators registered before `create_app()` are enforced during normal startup. Existing login, OTP, password-reset, checkout, retry, receipt, and export limits are active when enabled; invitation validation is 30/minute and password invitation acceptance is 5/minute by default |
 | User profile | Implemented | Profile viewing and update flow exists |
-| Authenticated tenant Support page | Implemented | Static authenticated help page exists at `support.html` and is reachable from the shared tenant account menu. It uses local self-service guidance and verified local links only; direct contact, ticket submission, email sending, and support intake remain deferred because no approved destination/backend exists |
+| Authenticated tenant Support page | Implemented | `support.html` is authenticated, reachable from the shared tenant account menu, submits only category, title, and redacted description to `POST /api/support/requests`, and now includes request history/detail with tenant-visible replies from safe tenant endpoints. Migration 030 is verified only in the main shared testing Supabase with fake/team data. Phase 3 tenant communication and Migration 033 are verified only in the main shared-testing Supabase with fake/team data. Email, attachments, billing actions, impersonation, exports, charts, staging readiness, and production use remain excluded |
 | Password change | Implemented | Requires regression coverage |
 
 ## Company and Team
@@ -48,11 +48,13 @@
 | Chatbot deletion | Implemented | Requires deletion-flow verification |
 | Prompt configuration | Implemented | Profile and deployment flow exists |
 | Model selection | Implemented | Model catalog and settings UI exist |
-| Automated menu or flow generation | Implemented | Requires current verification |
+| Automated menu or flow generation | Obsolete | Feature scrubbed per user request |
 | Media Attachments | Implemented | Backend, UI, and webhook dispatch created |
 | Persona field unification (migration 031) | Partially implemented | `bot_config_fields.py` makes the canonical/legacy column mapping single-source and writes NULL into the deprecated `business_objective`/`response_style`/`prompt_text` mirrors. Migration `data/031_unify_bot_config_persona_fields.sql` is unapplied everywhere and its mandatory SELECT-only preflight `scripts/bot_configs_persona_unification_preflight.sql` is unrun; section 10 must be exported to the restricted archive before applying because divergent legacy values become unrecoverable. Deploying the code before the migration fails every `bot_configs` write with `23502`. See `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md` |
 | Derived persona from ingested documents | Partially implemented | `persona_derivation_service.py` fills `company_name`, `business_description`, and `tone` from the client's uploaded PDF after `POST /upload-pdf`, through `ai_router` so billing and tier enforcement apply; a non-JSON reply writes nothing. 73+32+14 focused tests pass plus real-browser `tests/browser/testbot-persona.spec.js`. Blocked from delivering its stated benefit: `rag_service.get_deployed_settings` returns `DEFAULT_SETTINGS` when `chatbots.deployed_profile_name` is blank, so an undeployed bot still replies "Your Company" — exactly the never-opened-the-form population targeted. A test pins the gap; closing it is separate create-RPC/promotion work. Residual stored prompt-injection risk: up to 1000 characters of document-chosen prose reach the serving system prompt as asserted company fact (structural newline/control-character lever closed, semantic lever open). Whether `tone` should be excluded from placeholder-matching is an open design call |
 | Persona provenance and client override | Implemented | `bot_configs.persona_provenance` jsonb tags each derivable field `client_entered` or `derived` in the same INSERT/UPDATE as the value, so the two cannot disagree. A client edit flips the marker to `client_entered` and re-ingestion never overwrites it. Partial profile saves preserve omitted persona fields by key presence; `custom_prompt`, `bot_name`, `additional_instructions`, and `out_of_scope_reply` are still full-replaced. Migration `data/032_bot_config_persona_provenance.sql` is unapplied everywhere and must be applied before the code or every settings/profile save fails with `PGRST204`. No backfill by design: pre-existing rows read as unknown and are adjudicated by value. Client procedure documented in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md` |
+| Message style & welcome menu buttons | Implemented | Welcome-menu buttons always render regardless of the interactive-buttons toggle (per product decision). The `[BUTTONS: ...]` tag is now stripped from the reply before markdown formatting on both Telegram and WhatsApp so buttons reliably render. Welcome-menu AI generation is capped at 3 labels to match the UI. Regression tests added in `tests/test_message_style_buttons.py` |
+
 
 ## Knowledge and RAG
 
@@ -313,17 +315,20 @@ verified locally; production blocked**
 
 The original five platform-admin endpoints are staging-verified. The later
 extensions are application-only/local-tested unless separately staged. At the
-current HEAD, localhost manual verification recorded on 2026-08-03 passed for
-the full current twelve-route read-only stack: dashboard, operational alerts,
+current local implementation, localhost manual verification recorded on 2026-08-03 passed for
+the full current twelve-route read-only investigation stack: dashboard, operational alerts,
 company directory/detail, subscription summary/history, AI-credit usage and
 transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
 billing-order audit filters, and local revocation with Access Denied and stale
 platform-data clearing. This does not establish staging verification or
-production readiness.
+production readiness. The complete platform-admin surface additionally includes
+separately approved bounded support-case, platform-admin user-management, and
+company lifecycle mutation routes; those later mutation routes are not staging
+verified.
 
 - Separate active `platform_admin_users` mapping required on every request;
   tenant owner/admin/member roles never grant platform access
-- Twelve GET-only endpoints for platform identity, operations overview, company directory/detail,
+- Twelve GET-only investigation endpoints for platform identity, operations overview, company directory/detail,
   subscription summary, current-period AI-credit/usage summary, and lazy
   read-only subscription-history, AI-credit transaction history, billing-order history,
   company users, company chatbots, and audit-log
@@ -345,34 +350,71 @@ production readiness.
   `created_at DESC, id DESC` latest-subscription semantics. Operational Alerts
   Phase 1 extends this same dashboard and `/overview` response with typed
   read-only subscription past-due/expired alerts derived from existing
-  attention data. It adds no endpoint or page, and AI-credit alerts,
-  billing-order attention alerts, inactive-company alerts, no-current-chatbot
-  alerts, charts, exports, and write actions remain deferred. The deferred
+  attention data. Phase 6 later adds deterministic aggregate alerts for
+  support backlog, pending and reconciliation-required billing orders,
+  depleted AI-credit balances, retry backlog, and integration channel
+  attention without adding a mutation route. AI low-balance alerts remain
+  deferred because no threshold is approved; generic background job monitoring
+  remains deferred because no durable telemetry exists; provider-cost
+  monitoring, inactive-company and no-current-chatbot alert variants, charts,
+  exports, and overview remediation/write actions remain deferred. The older
   Phase 2 alert definitions and approval gates are recorded in
   `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
-- A separate platform-admin Support Workspace is implemented as a read-only
-  investigation hub. It is distinct from tenant `support.html`, reuses only
+- A separate platform-admin Support Workspace is implemented as tenant
+  investigation with controlled internal case operations. It is distinct from tenant `support.html`, reuses only
   existing `/overview` and `/companies` APIs after the fresh `/me` gate, and
   links operators into existing company investigation pages. Support Cases
-  Phase 1 application code and migration draft are implemented locally; the
-  database migration remains unapplied, so end-to-end DB verification is
-  pending. The feature adds bounded internal case create/list/detail, redacted internal notes,
-  status/priority updates, append-only case events, and audit-before-response
-  writes. Assignment UI, customer contact, messaging, impersonation, billing
-  actions, exports, charts, and production use remain blocked. The workflow
-  contract is documented in `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
+  Phase 1 is implemented for internal platform-admin use and verified in the
+  main shared testing Supabase with fake/team data; this is not staging or
+  production verification. Platform-admin Support Case Operations Phase 2 is
+  implemented and verified only in the main shared testing Supabase with
+  fake/team data. It adds operation-specific assignment, status, priority, and
+  internal-note controls, a server-provided case timeline, and Migration 032
+  trusted RPCs for atomic mutation/event/audit writes. Verified fake/team
+  evidence covers assignment, status/priority changes, internal notes,
+  no-op/invalid-transition rejection without extra event/audit rows,
+  close/reopen `closed_at` behavior, least-privilege grants, RLS/policies, and
+  service-role-only RPC execution. This is not staging or production
+  verification. Platform-admin Tenant Communication Phase 3 is verified only
+  in the main shared-testing Supabase with fake/team data: it adds tenant-visible reply composer/history, tenant support
+  request history/detail, `tenant_reply_created` activity, safe reply audit
+  metadata, and pending in-app support notification outbox records through
+  Migration 033. This is not staging verification and does not establish
+  production readiness. Live chat, external email, attachments, impersonation, billing
+  actions, exports, charts, SLA timers, escalation automation, and production
+  use remain blocked. The workflow contract is documented in
+  `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
   SQL execution requires project/ref/environment preflight evidence; the
   Migration 029 production-application and successful rollback are recorded in
-  the access lifecycle. Future testing is local/dev or approved staging only;
-  production remains blocked.
+  the access lifecycle. Future SQL/testing is limited to confirmed local/dev,
+  the approved main shared-testing environment with fake/team data, or approved
+  staging targets. Production remains blocked.
+  Tenant support submission is governed by
+  `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`; its backend endpoint and
+  bounded frontend form are implemented locally. Migration 030 is applied and
+  verified only in the main shared testing Supabase with fake/team data, and
+  local browser/API E2E verification passed with fake data. This is not staging
+  verification or production readiness; the platform-admin support-case tables
+  and mappings were not modified.
+  The read-only tenant-support intake viewer is implemented locally under
+  `docs/PLATFORM_ADMIN_TENANT_SUPPORT_INTAKE_VIEWER_CONTRACT.md` with two
+  GET-only routes and a separate Support Workspace section. No SQL was required;
+  Migration 030 remains verified only in the main shared testing Supabase with
+  fake/team data. This is not staging verification or production readiness.
+  Tenant Support Intake Review/Conversion is implemented locally and verified
+  only in the main shared testing Supabase with fake/team data. Migration 031
+  was applied there and browser/API E2E passed locally: request 1 was reviewed
+  then converted, producing internal case 2 exactly once. This is not staging
+  verification or production readiness; production remains blocked.
 - A separate platform-admin Audit Logs viewer is implemented as a read-only,
   application-only local extension. It adds one audited GET-only endpoint,
   `GET /api/platform-admin/audit-events`, displays actor mapping IDs and safe
   metadata summaries only, and does not expose raw metadata, tenant records,
   exports, downloads, charts, audit editing, audit deletion, or platform-admin
   user management. The original investigation inventory remains twelve
-  GET-only routes; Support Cases adds three localhost-only paths with bounded
-  GET/POST/PATCH methods.
+  GET-only routes; Support Cases now adds operation-specific bounded
+  GET/POST/PATCH paths. Phase 2 and Phase 3 are verified only in the main
+  shared-testing Supabase with fake/team data.
 - A bounded platform-admin Billing Order History section is implemented as a
   read-only, application-only local extension on company detail. It adds one
   audited GET-only endpoint,
@@ -381,16 +423,19 @@ production readiness.
   integer sen as stored, returns no currency and infers no MYR, and excludes
   payment/gateway/checkout/reference, idempotency, raw-error, reconciliation,
   retry, activation, manual-credit, export/download, chart, and write behavior.
-  The current platform-admin backend inventory is twelve GET-only investigation
-  routes plus three localhost-only support-case paths.
+  The current read-only investigation inventory is twelve GET-only routes. The
+  complete platform-admin surface additionally includes operation-specific
+  bounded support-case, user-management, and company lifecycle mutation paths.
+  Phase 2, Phase 3, Phase 4, and Phase 5 shared-testing evidence remains
+  environment-scoped and does not establish staging or production readiness.
   The billing-order audit-filter fix changed frontend filtering only; it added
   no route or backend behavior change.
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
 - Tenant pages now use a shared top-right account menu for Profile, Support,
-  and Logout. Support points to a static authenticated tenant help page with no
-  support-submission backend. The optional Platform
+  and Logout. Support points to an authenticated tenant help page with a
+  bounded local support-submission form. The optional Platform
   Administration menu item is discovered lazily through a live
   `/api/platform-admin/me` check and is not stored or placed in the tenant
   sidebar.
@@ -398,13 +443,73 @@ production readiness.
   cancellation, state clearing, safe rendering, accessibility, and responsive
   behavior
 - `scripts/platform_admin_smoke_check.py` provides a read-only local/staging-
-  ready HTTP smoke check for the current twelve-route stack. It accepts the
+  ready HTTP smoke check for the current twelve-route investigation stack. It accepts the
   bearer token only from the environment, never prints response bodies or
   credentials, and does not establish staging verification or production
   readiness.
 - Access request, revocation, replacement, and periodic-review procedure is
   documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it adds no access,
   mapping management, write controls, or production authorization.
+- Platform-admin User Management Phase 4 is implemented locally with bounded
+  directory/detail, add-existing-user, activate, and deactivate workflows.
+  Migration 034 is applied and structurally verified only in the approved main
+  shared-testing Supabase with fake/team data. Company 29 is explicitly
+  registered as the protected internal company for main shared-testing only;
+  it is not a staging or production designation and is not hardcoded into the
+  application. Shared testing currently has only one active user in company 29,
+  user 32, and that user already has the sole platform-admin mapping, so the
+  successful create-mapping shared-testing E2E remains pending until a second
+  approved active fake/team user exists. Migration 035 is applied and verified
+  only in the approved main shared-testing Supabase with fake/team data; it
+  corrected only the Phase 4 RPC audit endpoint metadata, preserved RPC
+  ownership/security/EXECUTE posture, did not create mappings, did not create
+  Phase 4 mutation audit events merely by application, and did not alter
+  existing audit rows. Staging verification and production readiness remain
+  blocked.
+- Platform-admin Tenant and Company Administration Phase 5 is implemented
+  locally with bounded company suspend/restore controls and centralized
+  company-operational enforcement. Migration 036 is applied and verified only
+  in the approved main shared-testing Supabase with fake/team data. It
+  constrains `companies.status` to non-null `active`/`inactive`, keeps
+  `companies` RLS disabled and not forced, tightens direct companies privileges
+  to no browser-role access and service_role `SELECT`, `INSERT`, and `UPDATE`
+  only, and exposes service-role-only `SECURITY INVOKER` suspend/restore RPCs
+  with `search_path=pg_catalog`. Shared-testing lifecycle verification
+  suspended and restored non-protected company 23, left company 23 active after
+  cleanup, recorded audit events 355 and 356 with safe fixed lifecycle metadata
+  only, and verified protected company 29 cannot be suspended. No live
+  tenant-runtime suspension E2E was performed because company 23 has no users
+  or chatbots and the verification intentionally avoided risking another
+  tenant. Runtime enforcement is covered by automated local tests. Staging
+  verification and production readiness remain blocked.
+- Platform-admin Platform Monitoring Phase 6 is implemented locally as a
+  read-only extension of `GET /api/platform-admin/overview`; no new
+  platform-admin mutation routes were added.
+  It adds platform summary, support operations, messaging and integration
+  health, billing attention, AI usage and credits, and platform-admin activity
+  aggregates, plus deterministic aggregate alerts for support backlog, pending
+  and reconciliation-required billing orders, depleted AI-credit balances,
+  retry backlog, and integration channel attention. Existing subscription
+  alerts remain. Read-only inspection in the approved main shared-testing
+  Supabase with fake/team data confirmed all required monitoring tables and
+  fields exist and current index coverage is sufficient for the first
+  implementation. The original PostgREST aggregate implementation failed in
+  shared testing because REST aggregate select syntax such as
+  `status,count:id.count()` returned HTTP 400, so Migration 037 was introduced
+  and verified only in the approved main shared-testing Supabase with fake/team
+  data. Migration 037 adds one bounded read-only
+  `public.get_platform_admin_monitoring_overview()` RPC, executable only by
+  service_role, with `SECURITY INVOKER`, `search_path=pg_catalog`, no writes,
+  no dynamic SQL, no RLS/table-privilege weakening, and platform-admin activity
+  filtered to current approved audit actions and resource types. Existing
+  company/subscription overview reads remain separate from the monitoring RPC.
+  Runtime verification against the approved main shared-testing Supabase plus
+  localhost frontend/API returned 200 for `/api/platform-admin/me`, the
+  monitoring RPC, and `/api/platform-admin/overview`; the Platform Operations
+  dashboard rendered and the Temporarily Unavailable state disappeared. This
+  is not staging verification and does not establish production readiness.
+  Unsupported aggregate values fail closed. Browser E2E is not claimed because
+  local `npm`/Playwright dependencies are unavailable.
 - The lifecycle document now includes a redacted access, revocation, smoke,
   audit-log, and localhost/staging/production evidence checklist; it does not
   change the current local-only verification boundary.
@@ -517,9 +622,13 @@ migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
 | Conversation memory PII retention | No expiry; cleanup only by conversation or chatbot cascade |
 | Migrations 031/032/033 | Unapplied everywhere; two mandatory preflights unrun |
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, operational alerts, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
-| Platform-admin Support Workspace | Implemented locally as a read-only investigation hub; Support Cases Phase 1 adds bounded internal case routes and redacted append-only notes/status/priority tracking; no customer messaging, impersonation, billing actions, exports, charts, or production use |
+| Platform-admin Support Workspace | Implemented as tenant investigation with controlled internal case operations; Support Cases Phase 2/Migration 032 and Tenant Communication Phase 3/Migration 033 are verified only in main shared testing Supabase with fake/team data. No live chat, generic messaging, impersonation, billing actions, exports, charts, SLA automation, staging readiness, or production use |
+| Platform-admin Tenant and Company Administration | Runtime implemented locally with company suspend/restore controls and tenant operational-status enforcement; Migration 036 is applied and verified only in main shared-testing Supabase with fake/team data. Company 23 suspend/restore and company 29 protected-company rejection are verified there; no live tenant-runtime suspension E2E, staging readiness, or production use |
+| Platform-admin Tenant Communication | Verified only in main shared-testing Supabase with fake/team data; Migration 033 adds tenant-visible replies, `tenant_reply_created` case events, safe reply audit metadata, and a pending in-app support notification outbox. This is not staging verification and does not establish production readiness; email and attachments remain deferred |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
-| Direct tenant support contact/tickets | Deferred (no approved support contact destination or support-submission backend) |
+| Direct tenant support contact/tickets | Implemented locally as bounded submission plus tenant-visible reply history for the signed-in requester; no live chat, email, attachments, staging readiness, or production use |
+| Platform-admin tenant support intake viewer | Implemented locally as separate read-only GET list/detail routes and Support Workspace section; no mutation, conversion, reply, export, staging verification, or production use |
+| Platform-admin tenant support intake review/conversion | Runtime code and Migration 031 verified only in main shared testing Supabase with fake/team data; case 2 conversion, safe audit metadata, service-role-only RLS/EXECUTE, and mapping baseline verified; not staging or production-ready |
 | PDF receipts | Open (HTML only) |
-| Cross-company dashboard | Deferred |
+| Cross-company dashboard | Bounded read-only cross-tenant operational monitoring aggregates are implemented locally through `GET /api/platform-admin/overview` in Phase 6. Generic/unrestricted cross-company analytics, arbitrary global drilldowns, charts, exports, unrestricted tenant browsing, and remediation/write controls remain deferred |

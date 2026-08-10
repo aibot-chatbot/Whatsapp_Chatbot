@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Message Style | AI CHATBOT</title>
+    <meta name="description" content="Configure how your AI chatbot formats and delivers messages to customers on Telegram and WhatsApp.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --bg: #050b18;
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --tg-color: #26a5e4;
+            --wa-color: #25d366;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.12) 0%, transparent 45%),
+                radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.08) 0%, transparent 45%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 50px 60px;
+            max-width: 1400px;
+        }
+
+        /* ── Page Header ── */
+        .page-header { margin-bottom: 40px; }
+        .page-header h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f8fafc, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .page-header p { color: var(--text-dim); margin-top: 8px; font-size: 1rem; }
+
+        /* ── Platform Sections ── */
+        .platform-section {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 32px;
+            margin-bottom: 24px;
+            backdrop-filter: blur(12px);
+            position: relative;
+            overflow: hidden;
+            transition: border-color 0.3s ease;
+        }
+        .platform-section::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 4px;
+            height: 100%;
+            border-radius: 20px 0 0 20px;
+        }
+        .platform-section.telegram::before { background: var(--tg-color); }
+        .platform-section.whatsapp::before { background: var(--wa-color); }
+        .platform-section:hover { border-color: rgba(255,255,255,0.18); }
+
+        .platform-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 28px;
+        }
+        .platform-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4rem;
+        }
+        .telegram .platform-icon { background: rgba(38, 165, 228, 0.15); border: 1px solid rgba(38, 165, 228, 0.3); }
+        .whatsapp .platform-icon { background: rgba(37, 211, 102, 0.12); border: 1px solid rgba(37, 211, 102, 0.3); }
+        .platform-header-text h2 { font-size: 1.2rem; font-weight: 700; }
+        .platform-header-text p { color: var(--text-dim); font-size: 0.88rem; margin-top: 2px; }
+
+        /* ── Toggle Row ── */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 18px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .toggle-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .toggle-row:first-of-type { padding-top: 0; }
+
+        .toggle-label { flex: 1; }
+        .toggle-label strong { display: block; font-size: 1rem; font-weight: 600; color: var(--text-main); }
+        .toggle-label span { display: block; font-size: 0.85rem; color: var(--text-dim); margin-top: 4px; line-height: 1.4; }
+
+        /* Toggle Switch */
+        .toggle-switch { position: relative; display: inline-block; width: 52px; height: 28px; flex-shrink: 0; margin-left: 20px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-track {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 28px;
+            transition: all 0.3s ease;
+        }
+        .toggle-track::before {
+            content: '';
+            position: absolute;
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background: var(--text-dim);
+            border-radius: 50%;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        input:checked + .toggle-track {
+            border-color: transparent;
+        }
+        .telegram-toggle input:checked + .toggle-track { background: var(--tg-color); box-shadow: 0 0 16px rgba(38,165,228,0.4); }
+        .whatsapp-toggle input:checked + .toggle-track { background: var(--wa-color); box-shadow: 0 0 16px rgba(37,211,102,0.4); }
+        input:checked + .toggle-track::before { transform: translateX(24px); background: #fff; }
+
+        /* ── Preview Card ── */
+        .preview-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 14px;
+            padding: 20px;
+            margin-top: 24px;
+        }
+        .preview-label {
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+            margin-bottom: 14px;
+        }
+        .preview-bubble {
+            display: inline-block;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px 18px 18px 18px;
+            padding: 12px 16px;
+            font-size: 0.92rem;
+            line-height: 1.5;
+            color: var(--text-main);
+            max-width: 85%;
+        }
+        .preview-bubble strong { font-weight: 700; }
+        .preview-bubble em { font-style: italic; }
+
+        .preview-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+            max-width: 85%;
+        }
+        .preview-btn {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            color: var(--text-main);
+            padding: 10px 16px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            text-align: center;
+            cursor: default;
+        }
+        .telegram-preview .preview-btn { border-color: rgba(38,165,228,0.4); color: var(--tg-color); }
+        .whatsapp-preview .preview-btn { border-color: rgba(37,211,102,0.4); color: var(--wa-color); }
+
+        /* ── Info Banner ── */
+        .info-banner {
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 16px;
+            padding: 24px 28px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+        .info-banner-icon { font-size: 1.4rem; flex-shrink: 0; margin-top: 2px; }
+        .info-banner h3 { font-size: 1rem; font-weight: 600; color: #60a5fa; margin-bottom: 8px; }
+        .info-banner p { font-size: 0.88rem; color: var(--text-dim); line-height: 1.6; }
+
+        /* ── Save Button ── */
+        .save-row { display: flex; align-items: center; gap: 16px; margin-top: 32px; }
+        .save-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            padding: 14px 36px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px var(--primary-glow);
+        }
+        .save-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 30px var(--primary-glow); }
+        .save-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .save-status { font-size: 0.9rem; color: var(--text-dim); }
+        .save-status.success { color: var(--accent); }
+        .save-status.error { color: #ef4444; }
+
+        /* ── Welcome Menu ── */
+        .welcome-menu-container {
+            margin-top: 20px;
+        }
+        .welcome-menu-split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .saved-panel, .suggestions-panel {
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 14px;
+            min-height: 220px;
+            background: rgba(15, 23, 42, 0.4);
+            display: flex;
+            flex-direction: column;
+        }
+        .saved-panel { transition: all 0.2s ease; }
+        .saved-panel.drag-over {
+            border-color: var(--accent);
+            background: rgba(16, 185, 129, 0.06);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.12);
+        }
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .panel-title {
+            font-size: 0.78rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-dim);
+        }
+        .panel-count {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            background: rgba(255,255,255,0.06);
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .panel-badge {
+            font-size: 0.7rem;
+            background: var(--accent);
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 700;
+        }
+        .saved-chips, .suggestions-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .empty-hint {
+            color: rgba(255,255,255,0.25);
+            font-size: 0.85rem;
+            text-align: center;
+            padding: 40px 10px;
+            line-height: 1.5;
+        }
+        .saved-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-main);
+            animation: chipIn 0.2s ease;
+        }
+        @keyframes chipIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .saved-chip .chip-remove {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: var(--text-dim);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            line-height: 1;
+            padding: 0;
+            flex-shrink: 0;
+        }
+        .saved-chip .chip-remove:hover { background: rgba(239,68,68,0.3); color: #ef4444; }
+        .suggestion-card {
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            cursor: grab;
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .suggestion-card:hover {
+            background: rgba(255,255,255,0.07);
+            border-color: rgba(255,255,255,0.15);
+            transform: translateY(-1px);
+        }
+        .suggestion-card:active { cursor: grabbing; }
+        .suggestion-card .card-label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 2px;
+        }
+        .suggestion-card .card-desc {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            line-height: 1.4;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            padding: 4px 8px;
+            margin: 4px -8px 0;
+            border-radius: 6px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            transition: all 0.2s;
+        }
+        .suggestion-card .card-desc:hover {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.4);
+        }
+        .suggestion-card .card-desc::before {
+            content: '📋';
+            font-size: 0.72rem;
+            opacity: 0.8;
+        }
+        .suggestion-card .card-desc::after {
+            content: 'Detail';
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-left: auto;
+        }
+        .generate-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.1);
+            color: var(--text-main);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            align-self: flex-start;
+            margin-top: 16px;
+        }
+        .generate-btn:hover { background: rgba(255,255,255,0.15); }
+        .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        @media (max-width: 768px) {
+            .welcome-menu-split { grid-template-columns: 1fr; }
+            .main-container { padding: 24px 20px; }
+        }
+
+        .panel-actions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        .hint-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: rgba(59, 130, 246, 0.12);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 6px;
+            font-size: 0.72rem;
+            color: var(--primary);
+            font-weight: 600;
+            margin-left: 8px;
+        }
+        .hint-badge::before {
+            content: 'ℹ️';
+            font-size: 0.85rem;
+        }
+        .drag-hint {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px dashed rgba(255,255,255,0.15);
+            border-radius: 8px;
+            text-align: center;
+        }
+        .inline-suggestion-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .inline-suggestion-item:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(255,255,255,0.14);
+        }
+        .inline-suggestion-item input[type="text"] {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: var(--text-main);
+            font-size: 0.85rem;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.2s;
+        }
+        .inline-suggestion-item input[type="text"]:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+            background: rgba(255,255,255,0.06);
+        }
+        .inline-suggestion-item input[type="text"]:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        .inline-suggestion-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .inline-label-input {
+            font-weight: 600;
+        }
+        .inline-detail-btn {
+            background: rgba(59,130,246,0.12);
+            border: 1px solid rgba(59,130,246,0.3);
+            color: var(--primary);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            cursor: pointer;
+            align-self: flex-start;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .inline-detail-btn:hover {
+            background: rgba(59,130,246,0.2);
+            border-color: rgba(59,130,246,0.5);
+        }
+        .panel-action-btn {
+            font-size: 0.72rem;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: var(--text-dim);
+            border-radius: 6px;
+            padding: 3px 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .panel-action-btn:hover {
+            background: rgba(255,255,255,0.12);
+            color: var(--text-main);
+        }
+        .panel-action-btn.danger:hover {
+            background: rgba(239,68,68,0.15);
+            color: #ef4444;
+            border-color: rgba(239,68,68,0.3);
+        }
+        .saved-chip {
+            cursor: grab;
+            transition: all 0.15s ease;
+        }
+        .saved-chip:active { cursor: grabbing; }
+        .saved-chip.dragging {
+            opacity: 0.4;
+            transform: scale(0.97);
+        }
+        .saved-chip.drag-target {
+            border-color: var(--accent) !important;
+            background: rgba(16,185,129,0.15) !important;
+        }
+        .suggestion-card.added {
+            opacity: 0.45;
+            border-color: rgba(255,255,255,0.04) !important;
+            background: rgba(255,255,255,0.01) !important;
+            cursor: default;
+            pointer-events: none;
+        }
+        .suggestion-card.added::after {
+            content: '✓ Added';
+            float: right;
+            font-size: 0.72rem;
+            color: #10b981;
+            font-weight: 700;
+        }
+        #saved-panel.drag-over {
+            border-color: var(--accent) !important;
+            background: rgba(168, 85, 247, 0.04);
+        }
+        .max-hint {
+            font-size: 0.75rem;
+            color: #f59e0b;
+            margin-top: 6px;
+            display: none;
+        }
+        .max-hint.visible { display: block; }
+        .card-desc {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .suggestions-badge {
+            font-size: 0.7rem;
+            background: var(--accent);
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 700;
+            display: none;
+        }
+        .max-warning {
+            font-size: 0.75rem;
+            color: #f59e0b;
+            margin-top: 6px;
+            display: none;
+        }
+        .max-warning.visible { display: block; }
+        .preview-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .preview-button {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            color: var(--text-main);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            cursor: default;
+            transition: all 0.2s;
+        }
+        .preview-button:hover {
+            background: rgba(59, 130, 246, 0.18);
+        }
+        .preview-buttons-empty {
+            color: rgba(255,255,255,0.25);
+            font-size: 0.82rem;
+            margin-top: 10px;
+        }
+
+        /* ── Suggestion Selection Modal ── */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-dialog {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 32px;
+            max-width: 580px;
+            width: 92%;
+            max-height: 85vh;
+            overflow-y: auto;
+            transform: translateY(20px) scale(0.96);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(16px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .modal-overlay.active .modal-dialog {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        .modal-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.8rem;
+            cursor: pointer;
+            padding: 4px 10px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+        .modal-close:hover {
+            background: rgba(255,255,255,0.1);
+            color: var(--text-main);
+        }
+
+        .modal-suggestions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .modal-suggestion-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 14px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        .modal-suggestion-item:hover {
+            border-color: rgba(255,255,255,0.2);
+            background: rgba(15, 23, 42, 0.65);
+        }
+
+        .modal-checkbox {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent);
+            cursor: pointer;
+            margin-top: 6px;
+            flex-shrink: 0;
+        }
+
+        .modal-suggestion-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .modal-input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: var(--text-main);
+            font-size: 0.9rem;
+            font-family: 'Outfit', sans-serif;
+            transition: all 0.2s;
+            width: 100%;
+        }
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .modal-input:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        .modal-label-input {
+            font-weight: 600;
+        }
+        .modal-desc-input {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+        .modal-desc-input:disabled {
+            color: var(--text-dim);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-family: 'Outfit', sans-serif;
+        }
+        .modal-btn-primary {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+        }
+        .modal-btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(16, 185, 129, 0.4);
+        }
+        .modal-btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .modal-btn-secondary {
+            background: rgba(255,255,255,0.06);
+            color: var(--text-dim);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .modal-btn-secondary:hover {
+            background: rgba(255,255,255,0.12);
+            color: var(--text-main);
+        }
+
+        .modal-hint {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-top: 14px;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .modal-source {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            padding: 10px 14px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+        }
+        .modal-source strong {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+        .modal-cluster-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 55vh;
+            overflow-y: auto;
+            padding-right: 4px;
+        }
+        .modal-cluster-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(15, 23, 42, 0.5);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            transition: all 0.2s;
+        }
+        .modal-cluster-item:hover {
+            border-color: rgba(255,255,255,0.2);
+            background: rgba(15, 23, 42, 0.65);
+        }
+        .modal-cluster-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .modal-cluster-label {
+            font-weight: 600;
+            color: var(--text-main);
+            font-size: 0.92rem;
+        }
+        .modal-cluster-desc {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            line-height: 1.4;
+        }
+
+        /* ── Inline Suggestions Panel ── */
+        .suggestions-source {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            border: 1px solid var(--glass-border);
+            display: none;
+        }
+        .suggestions-source strong {
+            color: var(--text-main);
+            font-weight: 600;
+        }
+        .inline-suggestion-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 8px;
+            transition: all 0.2s;
+            cursor: grab;
+            user-select: none;
+        }
+        .inline-suggestion-item:hover {
+            border-color: rgba(255,255,255,0.15);
+            background: rgba(255,255,255,0.06);
+        }
+        .inline-suggestion-item.dragging {
+            opacity: 0.4;
+            border-color: var(--primary) !important;
+            background: rgba(59, 130, 246, 0.1) !important;
+            cursor: grabbing;
+        }
+        .inline-suggestion-item:active {
+            cursor: grabbing;
+        }
+        .inline-suggestion-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .inline-label-input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: var(--text-main);
+            font-size: 0.88rem;
+            font-family: 'Outfit', sans-serif;
+            width: 100%;
+        }
+        .inline-label-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+        .inline-desc-input {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 6px;
+            padding: 6px 10px;
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            font-family: 'Outfit', sans-serif;
+            width: 100%;
+        }
+        .inline-desc-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+        .inline-suggestion-grip {
+            color: var(--text-dim);
+            letter-spacing: -2px;
+            cursor: grab;
+        }
+        .inline-suggestion-item.dragging .inline-suggestion-grip {
+            opacity: 0.8;
+            color: var(--primary);
+        }
+
+        /* ── Suggestion Detail Mini Popup ── */
+        .suggestion-detail-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .suggestion-detail-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .suggestion-detail-dialog {
+            background: rgba(20, 30, 50, 0.95);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 420px;
+            width: 92%;
+            transform: translateY(16px) scale(0.95);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+        }
+        .suggestion-detail-overlay.active .suggestion-detail-dialog {
+            transform: translateY(0) scale(1);
+        }
+        .suggestion-detail-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .suggestion-detail-header h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+        .suggestion-detail-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            line-height: 1;
+        }
+        .suggestion-detail-close:hover {
+            background: rgba(255,255,255,0.1);
+            color: var(--text-main);
+        }
+        .suggestion-detail-body {
+            margin-bottom: 20px;
+        }
+        .suggestion-detail-label {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 6px;
+        }
+        .suggestion-detail-desc {
+            font-size: 0.88rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+            padding: 12px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 10px;
+            border: 1px solid var(--glass-border);
+        }
+        .suggestion-detail-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        .suggestion-detail-btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-family: 'Outfit', sans-serif;
+        }
+        .suggestion-detail-btn.primary {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);
+        }
+        .suggestion-detail-btn.primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.35);
+        }
+        .suggestion-detail-btn.primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .suggestion-detail-btn.secondary {
+            background: rgba(255,255,255,0.06);
+            color: var(--text-dim);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        .suggestion-detail-btn.secondary:hover {
+            background: rgba(255,255,255,0.12);
+            color: var(--text-main);
+        }
+        .suggestion-detail-hint {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-top: 12px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <script src="sidebar-component.js"></script>
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container">
+        <div class="page-header">
+            <h1>Message Style</h1>
+            <p>Control how your bot formats and delivers messages to real customers on each platform.</p>
+        </div>
+
+        <div class="info-banner">
+            <div class="info-banner-icon">💡</div>
+            <div>
+                <h3>How interactive buttons work</h3>
+                <p>
+                    When the AI detects 2–3 clear options (e.g. "Booking", "Pricing", "Contact Us"),
+                    it automatically generates button labels. With these settings enabled, those labels
+                    become <strong>real tappable buttons</strong> on Telegram and WhatsApp — customers
+                    never see the raw tag text. If buttons are disabled, the AI reply is sent as plain text.
+                </p>
+            </div>
+        </div>
+
+        <!-- ── Welcome Menu Section ── -->
+        <div class="platform-section" style="border-left: 4px solid #a855f7;">
+            <div class="platform-header">
+                <div class="platform-icon" style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.3);">👋</div>
+                <div class="platform-header-text">
+                    <h2>Welcome Menu Buttons</h2>
+                    <p>Buttons that always appear below the Welcome Message for new conversations.</p>
+                </div>
+            </div>
+            <div class="welcome-menu-container" id="welcome-menu-container">
+                <div class="welcome-menu-split">
+                    <!-- Left: Saved Buttons -->
+                    <div class="saved-panel" id="saved-panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Saved Buttons</span>
+                            <div class="panel-actions">
+                                <button type="button" class="panel-action-btn danger" id="clear-all-btn" title="Remove all saved buttons">Clear All</button>
+                                <span class="panel-count" id="saved-count">0 / 3</span>
+                            </div>
+                        </div>
+                        <div class="saved-chips" id="saved-chips">
+                            <div class="empty-hint" id="empty-hint">Drag suggestions here or click + to add</div>
+                        </div>
+                    </div>
+
+                    <!-- Right: AI Suggestions -->
+                    <div class="suggestions-panel" id="suggestions-panel">
+                        <div class="panel-header">
+                            <span class="panel-title">AI Suggestions</span>
+                            <span class="panel-badge" id="suggestions-badge" style="display:none;">New</span>
+                            <span class="hint-badge">Drag to saved or click for details</span>
+                        </div>
+                        <div class="suggestions-source" id="suggestions-source"></div>
+                        <div class="suggestions-list" id="suggestions-list">
+                            <div class="empty-hint" id="suggestions-empty">Click "Auto-Generate" to see suggestions</div>
+                        </div>
+                        <div class="drag-hint" id="drag-hint" style="display:none;">Drag a suggestion below to the Saved Buttons panel, or click it to see details.</div>
+                    </div>
+                </div>
+
+                <button type="button" class="generate-btn" id="generate-btn" style="margin-top: 16px;">
+                    ✨ Auto-Generate from Active Document
+                </button>
+                <div class="save-status" id="generate-status" style="margin-top: 8px;"></div>
+            </div>
+        </div>
+
+        <!-- ── Unified Formatting Section ── -->
+        <div class="platform-section telegram" style="border-left: 4px solid #3b82f6;">
+            <div class="platform-header">
+                <div class="platform-icon" style="background: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3);">✨</div>
+                <div class="platform-header-text">
+                    <h2>Message Formatting & Interactivity</h2>
+                    <p>Settings applied to all connected Telegram and WhatsApp channels for this bot</p>
+                </div>
+            </div>
+
+            <!-- Buttons Toggle -->
+            <div class="toggle-row">
+                <div class="toggle-label">
+                    <strong>Interactive buttons</strong>
+                    <span>Render AI-suggested options as tappable buttons (Telegram inline keyboards & WhatsApp quick replies).</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="interactive-buttons" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <!-- Markdown Toggle -->
+            <div class="toggle-row">
+                <div class="toggle-label">
+                    <strong>Markdown text formatting</strong>
+                    <span>Render <strong>bold</strong>, <em>italic</em>, and code formatting using native platform styles.</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="markdown-formatting" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+
+            <div class="preview-box">
+                <div class="preview-header">PREVIEW</div>
+                
+                <div class="preview-message">
+                    Here are your travel options:
+                    <br><br>
+                    <span id="preview-text">
+                        We offer flights, hotels, and tour packages across Southeast Asia. Our <strong>best deals</strong> are available for bookings made 2+ weeks ahead.
+                    </span>
+                    <span id="preview-text-plain" style="display: none;">
+                        We offer flights, hotels, and tour packages across Southeast Asia. Our best deals are available for bookings made 2+ weeks ahead.
+                    </span>
+                </div>
+                
+                <div class="preview-buttons" id="preview-buttons-container">
+                    <button class="preview-button">✈️ Flights</button>
+                    <button class="preview-button">🏨 Hotels</button>
+                    <button class="preview-button">🗺️ Tour Packages</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="save-row">
+            <button class="save-btn" id="save-btn">Save Settings</button>
+            <span class="save-status" id="save-status"></span>
+        </div>
+
+    </main>
+
+    <!-- Suggestion Detail Mini Popup -->
+    <div class="suggestion-detail-overlay" id="suggestion-detail-overlay">
+        <div class="suggestion-detail-dialog">
+            <div class="suggestion-detail-header">
+                <h3>Button Details</h3>
+                <button class="suggestion-detail-close" id="suggestion-detail-close">&times;</button>
+            </div>
+            <div class="suggestion-detail-body">
+                <div class="suggestion-detail-label" id="suggestion-detail-label"></div>
+                <div class="suggestion-detail-desc" id="suggestion-detail-desc"></div>
+            </div>
+            <div class="suggestion-detail-actions">
+                <button class="suggestion-detail-btn secondary" id="suggestion-detail-cancel">Cancel</button>
+                <button class="suggestion-detail-btn primary" id="suggestion-detail-add">Add to Saved</button>
+            </div>
+            <div class="suggestion-detail-hint">You can also drag this button directly to the Saved Buttons panel.</div>
+        </div>
+    </div>
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        requireLogin();
+        requireAdminOrOwner();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+        const selectedBotId = urlBotId || storedBotId;
+
+        if (!selectedBotId) {
+            window.location.href = "bots.html";
+        }
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
+
+        const botQuery = `?bot_id=${selectedBotId}`;
+
+        // ── Element refs ──
+        const interactiveButtonsEl = document.getElementById("interactive-buttons");
+        const markdownFormattingEl = document.getElementById("markdown-formatting");
+        
+        const saveBtn       = document.getElementById("save-btn");
+        const saveStatus    = document.getElementById("save-status");
+        
+        const previewBtnsContainer = document.getElementById("preview-buttons-container");
+        const previewTextMd = document.getElementById("preview-text");
+        const previewTextPlain = document.getElementById("preview-text-plain");
+        
+        const generateBtn = document.getElementById("generate-btn");
+        const generateStatus = document.getElementById("generate-status");
+        const savedPanel = document.getElementById("saved-panel");
+        const savedChips = document.getElementById("saved-chips");
+        const savedCount = document.getElementById("saved-count");
+        const emptyHint = document.getElementById("empty-hint");
+        const suggestionsList = document.getElementById("suggestions-list");
+        const suggestionsEmpty = document.getElementById("suggestions-empty");
+        const suggestionsBadge = document.getElementById("suggestions-badge");
+
+        let savedButtons = []; // [{label, description}]
+        let pendingSuggestions = []; // suggestions waiting in modal
+
+        function updateSavedUI() {
+            savedChips.innerHTML = '';
+            if (savedButtons.length === 0) {
+                savedChips.appendChild(emptyHint);
+                emptyHint.style.display = '';
+            } else {
+                savedButtons.forEach((btn, idx) => {
+                    const chip = document.createElement('div');
+                    chip.className = 'saved-chip';
+                    chip.draggable = true;
+                    chip.dataset.idx = idx;
+                    chip.title = btn.description || btn.label;
+                    chip.innerHTML = `
+                        <span>${escapeHtml(btn.label)}</span>
+                        <button class="chip-remove" data-idx="${idx}" title="Remove">&times;</button>
+                    `;
+                    
+                    // Drag reorder within saved panel
+                    chip.addEventListener('dragstart', (e) => {
+                        e.dataTransfer.setData('text/plain', String(idx));
+                        e.dataTransfer.effectAllowed = 'move';
+                        chip.classList.add('dragging');
+                    });
+                    chip.addEventListener('dragend', () => {
+                        chip.classList.remove('dragging');
+                        savedChips.querySelectorAll('.saved-chip').forEach(c => c.classList.remove('drag-target'));
+                    });
+                    chip.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        const draggingIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                        if (!isNaN(draggingIdx) && draggingIdx !== idx) {
+                            chip.classList.add('drag-target');
+                        }
+                    });
+                    chip.addEventListener('dragleave', () => {
+                        chip.classList.remove('drag-target');
+                    });
+                    chip.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        chip.classList.remove('drag-target');
+                        const fromIdx = parseInt(e.dataTransfer.getData('text/plain'), 10);
+                        if (!isNaN(fromIdx) && fromIdx !== idx) {
+                            const [moved] = savedButtons.splice(fromIdx, 1);
+                            savedButtons.splice(idx, 0, moved);
+                            updateSavedUI();
+                        }
+                    });
+                    
+                    savedChips.appendChild(chip);
+                });
+            }
+            savedCount.textContent = `${savedButtons.length} / 3`;
+            updatePreviewButtons();
+            updateSuggestionStates();
+        }
+
+        function updatePreviewButtons() {
+            previewBtnsContainer.innerHTML = '';
+            if (savedButtons.length === 0) {
+                const empty = document.createElement('span');
+                empty.className = 'preview-buttons-empty';
+                empty.textContent = 'No buttons selected yet';
+                previewBtnsContainer.appendChild(empty);
+            } else {
+                savedButtons.forEach(btn => {
+                    const btnEl = document.createElement('button');
+                    btnEl.className = 'preview-button';
+                    btnEl.textContent = btn.label;
+                    previewBtnsContainer.appendChild(btnEl);
+                });
+            }
+        }
+
+        function updateSuggestionStates() {
+            const cards = suggestionsList.querySelectorAll('.suggestion-card');
+            cards.forEach(card => {
+                const label = card.dataset.label;
+                const isAdded = savedButtons.some(b => b.label === label);
+                if (isAdded) {
+                    card.classList.add('added');
+                    card.title = 'Already added to saved buttons';
+                } else {
+                    card.classList.remove('added');
+                    card.title = '';
+                }
+            });
+        }
+
+        // Clear All handler
+        document.getElementById('clear-all-btn').addEventListener('click', () => {
+            if (savedButtons.length === 0) return;
+            if (confirm('Remove all saved buttons?')) {
+                savedButtons = [];
+                updateSavedUI();
+            }
+        });
+
+        function addSavedButton(item) {
+            if (savedButtons.length >= 3) return false;
+            if (savedButtons.some(b => b.label === item.label)) return false;
+            savedButtons.push({ label: item.label, description: item.description || "" });
+            updateSavedUI();
+            return true;
+        }
+
+        function removeSavedButton(idx) {
+            savedButtons.splice(idx, 1);
+            updateSavedUI();
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function renderSuggestionCard(item, idx) {
+            const card = document.createElement('div');
+            card.className = 'suggestion-card';
+            card.draggable = true;
+            card.dataset.idx = idx;
+            card.dataset.label = item.label;
+            card.innerHTML = `
+                <div class="card-label">${escapeHtml(item.label)}</div>
+                <div class="card-desc" data-detail-trigger>
+                    <span class="card-desc-text">${escapeHtml(item.description || "Click for details")}</span>
+                </div>
+            `;
+
+            card.addEventListener('dragstart', (e) => {
+                e.dataTransfer.setData('application/json', JSON.stringify(item));
+                e.dataTransfer.effectAllowed = 'copy';
+                card.style.opacity = '0.5';
+            });
+            card.addEventListener('dragend', () => {
+                card.style.opacity = '1';
+                savedPanel.classList.remove('drag-over');
+            });
+
+            card.addEventListener('click', (e) => {
+                if (e.target.closest('[data-detail-trigger]')) {
+                    openSuggestionDetail(item, card);
+                }
+            });
+
+            return card;
+        }
+
+        // ── Suggestion Detail Modal ──
+        let currentDetailItem = null;
+        let currentDetailCard = null;
+
+        function openSuggestionDetail(item, card) {
+            currentDetailItem = item;
+            currentDetailCard = card;
+            document.getElementById('suggestion-detail-label').textContent = item.label;
+            document.getElementById('suggestion-detail-desc').textContent = item.description || 'No description provided.';
+            const overlay = document.getElementById('suggestion-detail-overlay');
+            const addBtn = document.getElementById('suggestion-detail-add');
+            if (savedButtons.some(b => b.label === item.label) || savedButtons.length >= 3) {
+                addBtn.disabled = true;
+                addBtn.textContent = savedButtons.some(b => b.label === item.label) ? 'Already Added' : 'Limit Reached';
+            } else {
+                addBtn.disabled = false;
+                addBtn.textContent = 'Add to Saved';
+            }
+            overlay.classList.add('active');
+        }
+
+        function closeSuggestionDetail() {
+            document.getElementById('suggestion-detail-overlay').classList.remove('active');
+            currentDetailItem = null;
+            currentDetailCard = null;
+        }
+
+        document.getElementById('suggestion-detail-close').addEventListener('click', closeSuggestionDetail);
+        document.getElementById('suggestion-detail-cancel').addEventListener('click', closeSuggestionDetail);
+        document.getElementById('suggestion-detail-add').addEventListener('click', () => {
+            if (currentDetailItem && addSavedButton(currentDetailItem)) {
+                if (currentDetailCard) {
+                    currentDetailCard.style.borderColor = 'rgba(16,185,129,0.5)';
+                    currentDetailCard.style.background = 'rgba(16,185,129,0.08)';
+                }
+            }
+            closeSuggestionDetail();
+        });
+        document.getElementById('suggestion-detail-overlay').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeSuggestionDetail();
+        });
+
+        savedPanel.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+            savedPanel.classList.add('drag-over');
+        });
+        savedPanel.addEventListener('dragleave', (e) => {
+            if (!savedPanel.contains(e.relatedTarget)) {
+                savedPanel.classList.remove('drag-over');
+            }
+        });
+        savedPanel.addEventListener('drop', (e) => {
+            e.preventDefault();
+            savedPanel.classList.remove('drag-over');
+            try {
+                const raw = e.dataTransfer.getData('application/json');
+                if (!raw) return;
+                const item = JSON.parse(raw);
+                addSavedButton(item);
+            } catch (err) {
+                console.error('Drop parse error:', err);
+            }
+        });
+
+        // Also allow dropping directly on saved chips area
+        savedChips.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'copy';
+            savedPanel.classList.add('drag-over');
+        });
+        savedChips.addEventListener('dragleave', (e) => {
+            if (!savedChips.contains(e.relatedTarget)) {
+                savedPanel.classList.remove('drag-over');
+            }
+        });
+        savedChips.addEventListener('drop', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            savedPanel.classList.remove('drag-over');
+            try {
+                const raw = e.dataTransfer.getData('application/json');
+                if (!raw) return;
+                const item = JSON.parse(raw);
+                addSavedButton(item);
+            } catch (err) {
+                console.error('Drop parse error:', err);
+            }
+        });
+
+        savedChips.addEventListener('click', (e) => {
+            const removeBtn = e.target.closest('.chip-remove');
+            if (!removeBtn) return;
+            const idx = parseInt(removeBtn.dataset.idx, 10);
+            if (!isNaN(idx)) removeSavedButton(idx);
+        });
+
+        // ── Inline Suggestions ──
+        function renderInlineSuggestions(suggestions, sourceDocument) {
+            pendingSuggestions = suggestions.slice();
+            const sourceEl = document.getElementById('suggestions-source');
+            const listEl = document.getElementById('suggestions-list');
+            const suggestionsBadge = document.getElementById('suggestions-badge');
+            const dragHint = document.getElementById('drag-hint');
+
+            // Show source document
+            sourceEl.innerHTML = `<strong>📄 Source:</strong> ${escapeHtml(sourceDocument || 'Unknown document')}`;
+            sourceEl.style.display = '';
+
+            listEl.innerHTML = '';
+
+            suggestions.forEach((item, idx) => {
+                const div = document.createElement('div');
+                div.className = 'inline-suggestion-item';
+                div.draggable = true;
+                div.dataset.idx = idx;
+                div.dataset.label = item.label;
+                div.innerHTML = `
+                    <div class="inline-suggestion-grip" style="flex-shrink:0;opacity:0.4;font-size:1.1rem;line-height:1.2;padding-top:2px;">⋮⋮</div>
+                    <div class="inline-suggestion-content">
+                        <input type="text" class="inline-label-input" data-idx="${idx}" draggable="false"
+                               value="${escapeHtml(item.label)}" maxlength="20" placeholder="Button label">
+                        <input type="text" class="inline-desc-input" data-idx="${idx}" draggable="false"
+                               value="${escapeHtml(item.description || '')}" maxlength="60" placeholder="Description (optional)">
+                    </div>
+                    <button type="button" class="inline-detail-btn" data-detail-trigger>Detail</button>
+                `;
+
+                // Drag from suggestions to saved buttons
+                div.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('application/json', JSON.stringify({label: item.label, description: item.description || ''}));
+                    e.dataTransfer.effectAllowed = 'copy';
+                    div.classList.add('dragging');
+                });
+                div.addEventListener('dragend', () => {
+                    div.classList.remove('dragging');
+                });
+
+                // Click the Detail button to open the full detail popup
+                div.addEventListener('click', (e) => {
+                    if (e.target.closest('[data-detail-trigger]')) {
+                        openSuggestionDetail(item, div);
+                    }
+                });
+
+                listEl.appendChild(div);
+            });
+
+            suggestionsBadge.style.display = 'none';
+            dragHint.style.display = '';
+        }
+
+        function clearInlineSuggestions() {
+            document.getElementById('suggestions-source').style.display = 'none';
+            document.getElementById('suggestions-list').innerHTML = '<div class="empty-hint" id="suggestions-empty">Click "Auto-Generate" to see suggestions</div>';
+            document.getElementById('drag-hint').style.display = 'none';
+            pendingSuggestions = [];
+        }
+
+        // ── Auto-generate ──
+        generateBtn.addEventListener("click", async () => {
+            generateBtn.disabled = true;
+            generateStatus.textContent = "Analyzing document and generating buttons...";
+            generateStatus.className = "save-status";
+
+            try {
+                const res = await authenticatedFetch(`/api/bots/${selectedBotId}/generate-welcome-menu`, {
+                    method: "POST"
+                });
+                const json = await res.json();
+
+                if (json.status === "success" && Array.isArray(json.data) && json.data.length > 0) {
+                    renderInlineSuggestions(json.data, json.source_document);
+                    generateStatus.textContent = `Generated ${json.data.length} suggestions — drag to saved or click for details.`;
+                    generateStatus.className = "save-status success";
+                } else {
+                    suggestionsList.innerHTML = '';
+                    suggestionsEmpty.style.display = '';
+                    suggestionsBadge.style.display = 'none';
+                    document.getElementById('drag-hint').style.display = 'none';
+                    generateStatus.textContent = json.message || "Failed to generate suggestions.";
+                    generateStatus.className = "save-status error";
+                }
+            } catch (err) {
+                generateStatus.textContent = "Network error while generating.";
+                generateStatus.className = "save-status error";
+            } finally {
+                generateBtn.disabled = false;
+                setTimeout(() => { if(generateStatus.className.includes("success")) generateStatus.textContent = ""; }, 5000);
+            }
+        });
+
+        // ── Live preview toggle ──
+        function updatePreviews() {
+            previewBtnsContainer.style.display = interactiveButtonsEl.checked ? "flex" : "none";
+            
+            if (markdownFormattingEl.checked) {
+                previewTextMd.style.display = "inline";
+                previewTextPlain.style.display = "none";
+            } else {
+                previewTextMd.style.display = "none";
+                previewTextPlain.style.display = "inline";
+            }
+        }
+
+        [interactiveButtonsEl, markdownFormattingEl].forEach(el => {
+            el.addEventListener("change", updatePreviews);
+        });
+
+        // ── Load current settings ──
+        async function loadSettings() {
+            try {
+                const res  = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+                const json = await res.json();
+                if (json.status !== "success") return;
+
+                const bot = json.data;
+                // Just read telegram as the source of truth, since they will be kept in sync
+                interactiveButtonsEl.checked  = bot.telegram_buttons_enabled  !== false;
+                markdownFormattingEl.checked = bot.telegram_markdown_enabled  !== false;
+
+                if (bot.welcome_menu_labels && Array.isArray(bot.welcome_menu_labels)) {
+                    savedButtons = bot.welcome_menu_labels.slice(0, 3).map(label => ({ label, description: "" }));
+                    updateSavedUI();
+                }
+
+                updatePreviews();
+            } catch (err) {
+                console.error("Failed to load bot settings:", err);
+            }
+        }
+
+        // ── Save settings ──
+        async function saveSettings() {
+            saveBtn.disabled = true;
+            saveStatus.textContent = "Saving…";
+            saveStatus.className = "save-status";
+
+            const welcomeLabels = savedButtons
+                .map(btn => btn.label.trim())
+                .filter(val => val.length > 0);
+
+            try {
+                const payload = {
+                    telegram_buttons_enabled:  interactiveButtonsEl.checked,
+                    telegram_markdown_enabled: markdownFormattingEl.checked,
+                    whatsapp_buttons_enabled:  interactiveButtonsEl.checked,
+                    whatsapp_markdown_enabled: markdownFormattingEl.checked,
+                    welcome_menu_labels: welcomeLabels,
+                };
+
+                const res  = await authenticatedFetch(`/api/bots/${selectedBotId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                });
+                const json = await res.json();
+
+                if (json.status === "success") {
+                    saveStatus.textContent = "✓ Settings saved successfully";
+                    saveStatus.className = "save-status success";
+                } else {
+                    saveStatus.textContent = json.message || "Failed to save settings.";
+                    saveStatus.className = "save-status error";
+                }
+            } catch (err) {
+                saveStatus.textContent = "Network error — please try again.";
+                saveStatus.className = "save-status error";
+            } finally {
+                saveBtn.disabled = false;
+                setTimeout(() => { saveStatus.textContent = ""; }, 4000);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            initSidebar();
+            loadSettings();
+            saveBtn.addEventListener("click", saveSettings);
+        });
+
+        function initSidebar() {
+            const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+            document.querySelectorAll('.nav-link').forEach(link => {
+                if (link.getAttribute('href') === currentPath) link.classList.add('active');
+            });
+            if (['model_settings.html', 'testbot.html', 'message_style.html'].includes(currentPath)) {
+                const drop = document.getElementById('behaviour-dropdown');
+                if (drop) drop.classList.add('open');
+            }
+        }
+    </script>
+</body>
+</html>

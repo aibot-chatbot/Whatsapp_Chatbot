@@ -6,9 +6,12 @@
 approval remains required.** This policy matches the implemented read-only
 platform-admin endpoint set, including the application-only operations overview,
 company-user, chatbot, subscription-history, AI-credit transaction-history,
-billing-order history, and audit-log viewer extensions. It does not
-authorize a deployment, schema change, retention deletion, or mapping
-activation.
+billing-order history, support-case operations, tenant-visible support replies,
+audit-log viewer extensions, and the Phase 4 platform-admin user-management
+actions, the Phase 5 bounded tenant/company lifecycle actions, and the Phase 6
+read-only platform monitoring overview aggregates. It does
+not authorize production deployment, retention deletion, staging readiness, or
+production mapping activation.
 
 The platform-admin service is fail closed: a successful or not-found platform
 response must not be returned unless its audit event is inserted successfully.
@@ -28,14 +31,46 @@ Audit failure returns a sanitized 503 and withholds fetched tenant data.
 
 ## Approved actions, resources, and metadata schemas
 
-No action or resource type outside this table is approved. Support-case Phase 1
-actions are localhost-only and remain blocked from staging/production approval.
+No action or resource type outside this table is approved. Support Cases Phase
+1 and Platform-admin Support Case Operations Phase 2 are verified only in the
+main shared-testing Supabase with fake/team data. Platform-admin Tenant
+Communication Phase 3 and Migration 033 are verified only in the main
+shared-testing Supabase with fake/team data. This is not staging verification
+and does not establish production readiness.
+Platform-admin User Management Phase 4 and Migration 034 are applied and
+structurally verified only in the approved main shared-testing Supabase with
+fake/team data. Company 29 is registered as the protected internal company for
+main shared-testing only. This is not staging verification and does not
+establish production readiness. Migration 035 is applied and verified only in
+the approved main shared-testing Supabase with fake/team data. It corrected only
+the Phase 4 RPC audit endpoint metadata, preserved RPC ownership/security/
+EXECUTE posture, did not create mappings, did not create Phase 4 mutation audit
+events merely by application, and did not alter existing audit rows.
+Platform-admin Tenant and Company Administration Phase 5 and Migration 036 are
+applied and verified only in the approved main shared-testing Supabase with
+fake/team data. This verified company 23 suspend/restore lifecycle audit rows
+and company 29 protected-company rejection, but it is not staging verification
+and does not establish production readiness.
+Platform-admin Platform Monitoring Phase 6 is implemented locally as a
+read-only extension of `GET /api/platform-admin/overview`; it reuses
+`platform_admin.operations.overview.read` and adds no mutation audit actions.
+The Phase 6 schema/data inspection and Migration 037 runtime verification were
+completed only in the approved main shared-testing Supabase with fake/team
+data plus localhost frontend/API verification. Migration 037 adds one bounded
+read-only `public.get_platform_admin_monitoring_overview()` RPC because the
+approved shared-testing PostgREST environment rejected REST aggregate select
+syntax. It adds no audit mutation action, writes no rows, keeps RPC EXECUTE
+service-role-only, and filters platform-admin activity monitoring to current
+approved audit actions and resource types. Historical audit rows were not
+deleted or modified. No staging or production readiness is claimed.
 
 | Action | Resource type | Resource ID | Outcomes | Required metadata | Optional metadata | Endpoint |
 |---|---|---|---|---|---|---|
 | `platform_admin.identity.read` | `platform_admin` | Platform-admin mapping ID as positive integer text | `success` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/me` |
 | `platform_admin.company.list` | `company` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `status_filter`, `returned_count` | None | `/api/platform-admin/companies` |
 | `platform_admin.company.read` | `company` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>` |
+| `platform_admin.company.suspend` | `company` | Target company ID as positive integer text | `success` | `outcome`, `endpoint`, `http_method`, `company_id`, `old_status`, `new_status` | None | `POST /api/platform-admin/companies/<company_id>/suspend` |
+| `platform_admin.company.restore` | `company` | Target company ID as positive integer text | `success` | `outcome`, `endpoint`, `http_method`, `company_id`, `old_status`, `new_status` | None | `POST /api/platform-admin/companies/<company_id>/restore` |
 | `platform_admin.company.subscription.read` | `company_subscription` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/companies/<company_id>/subscription` |
 | `platform_admin.company.subscription_history.read` | `company_subscription_history` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `status_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/subscription-history` |
 | `platform_admin.company.ai_credit_usage.read` | `company_ai_credit_usage` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `period_start` and `period_end` when `outcome = success` | None for `success`; no period fields for `not_found` | `/api/platform-admin/companies/<company_id>/ai-credit-usage` |
@@ -49,7 +84,18 @@ actions are localhost-only and remain blocked from staging/production approval.
 | `platform_admin.support_case.read` | `platform_support_cases` | Case ID | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/support-cases/<case_id>` |
 | `platform_admin.support_case.create` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `company_id` | `status`, `priority` | `POST /api/platform-admin/support-cases` |
 | `platform_admin.support_case.note.create` | `platform_support_case_events` | Case ID | `success` | `outcome`, `endpoint`, `http_method` | None | `POST /api/platform-admin/support-cases/<case_id>/notes` |
-| `platform_admin.support_case.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method` | `status`, `priority` | `PATCH /api/platform-admin/support-cases/<case_id>` |
+| `platform_admin.support_case.assignee.list` | `platform_admin_users` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `returned_count` | None | `GET /api/platform-admin/support-case-assignees` |
+| `platform_admin.support_case.assign` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_assigned_platform_admin_user_id`, `new_assigned_platform_admin_user_id` | None | `PATCH /api/platform-admin/support-cases/<case_id>/assignment` |
+| `platform_admin.support_case.unassign` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_assigned_platform_admin_user_id`, `new_assigned_platform_admin_user_id` | None | `PATCH /api/platform-admin/support-cases/<case_id>/assignment` |
+| `platform_admin.support_case.status.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_status`, `new_status` | None | `PATCH /api/platform-admin/support-cases/<case_id>/status` |
+| `platform_admin.support_case.priority.update` | `platform_support_cases` | Case ID | `success` | `outcome`, `endpoint`, `http_method`, `old_priority`, `new_priority` | None | `PATCH /api/platform-admin/support-cases/<case_id>/priority` |
+| `platform_admin.support_case.reply.list` | `platform_support_cases` | Case ID | `success`, `not_found` | `outcome`, `endpoint`, `http_method`, `returned_count` | `request_id`, `company_id` | `GET /api/platform-admin/support-cases/<case_id>/replies` |
+| `platform_admin.support_case.reply.create` | `tenant_support_replies` | Reply ID | `success` | `outcome`, `endpoint`, `http_method`, `case_id`, `request_id`, `company_id`, `reply_id`, `notification_channel`, `delivery_status` | None | `POST /api/platform-admin/support-cases/<case_id>/replies` |
+| `platform_admin.user.list` | `platform_admin_users` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `returned_count` | None | `GET /api/platform-admin/platform-admin-users` |
+| `platform_admin.user.read` | `platform_admin_users` | Target mapping ID | `success`, `not_found` | `outcome`, `endpoint`, `http_method`, `target_platform_admin_user_id` | `target_user_id`, `old_is_active`, `new_is_active` | `GET /api/platform-admin/platform-admin-users/<platform_admin_user_id>` |
+| `platform_admin.user.create` | `platform_admin_users` | Newly created mapping ID | `success` | `outcome`, `endpoint`, `http_method`, `target_platform_admin_user_id`, `target_user_id`, `old_is_active`, `new_is_active` | None | `POST /api/platform-admin/platform-admin-users` |
+| `platform_admin.user.activate` | `platform_admin_users` | Target mapping ID | `success` | `outcome`, `endpoint`, `http_method`, `target_platform_admin_user_id`, `target_user_id`, `old_is_active`, `new_is_active` | None | `PATCH /api/platform-admin/platform-admin-users/<platform_admin_user_id>/active` |
+| `platform_admin.user.deactivate` | `platform_admin_users` | Target mapping ID | `success` | `outcome`, `endpoint`, `http_method`, `target_platform_admin_user_id`, `target_user_id`, `old_is_active`, `new_is_active` | None | `PATCH /api/platform-admin/platform-admin-users/<platform_admin_user_id>/active` |
 
 ### Operations-overview fields
 
@@ -100,6 +146,21 @@ priority_filter_applied
 company_id
 status
 priority
+old_status
+new_status
+old_priority
+new_priority
+old_assigned_platform_admin_user_id
+new_assigned_platform_admin_user_id
+case_id
+request_id
+reply_id
+notification_channel
+delivery_status
+target_platform_admin_user_id
+target_user_id
+old_is_active
+new_is_active
 ```
 
 No additional key is permitted without a code change, security/privacy review,
@@ -115,7 +176,7 @@ or metadata fields require an explicit schema and tests before use.
 |---|---|
 | `outcome` | `success` or `not_found` as applicable |
 | `endpoint` | The fixed route template from the approved action table; never a full URL or query string |
-| `http_method` | `GET` for investigation actions; `POST` or `PATCH` only for the bounded localhost support-case actions |
+| `http_method` | `GET` for approved investigation actions; `POST` or `PATCH` only for the explicitly approved bounded support-case, platform-admin user-management, and company lifecycle actions |
 
 ### Company-list fields
 
@@ -270,6 +331,49 @@ stored events: `outcome`, `endpoint`, `http_method`, bounded list context,
 operations-overview fields, AI-credit period fields, and the viewer filter
 summary booleans. Unsupported or nested metadata is omitted from the response
 even when it exists on a stored historical row.
+
+### Support reply fields
+
+`platform_admin.support_case.reply.create` metadata records only linkage and
+delivery state: case ID, request ID, company ID, reply ID,
+`notification_channel = in_app`, and `delivery_status = pending`. It must not
+include the reply body, internal note body, email body, provider response,
+tenant conversation content, or arbitrary client metadata.
+
+`platform_admin.support_case.reply.list` records the fixed endpoint, method,
+outcome, returned count, and optional request/company identifiers only. It must
+not record reply text or notification failure details.
+
+### Platform-admin user-management fields
+
+Phase 4 user-management actions use `resource_type = platform_admin_users`.
+Their resource ID semantics are:
+
+- `platform_admin.user.list`: `resource_id` is `NULL`.
+- `platform_admin.user.read`: `resource_id` is the target mapping ID.
+- `platform_admin.user.create`: `resource_id` is the newly created mapping ID.
+- `platform_admin.user.activate`: `resource_id` is the target mapping ID.
+- `platform_admin.user.deactivate`: `resource_id` is the target mapping ID.
+
+Approved metadata keys for these actions are `endpoint`, `http_method`,
+`outcome`, `target_platform_admin_user_id`, `target_user_id`, `old_is_active`,
+and `new_is_active`. Create records `old_is_active = null` and
+`new_is_active = true`. Activation/deactivation records the previous and new
+boolean state. Metadata must not include passwords, password hashes, tokens,
+tenant roles, company names, user email/full name, raw request bodies, raw
+exceptions, or arbitrary user data.
+
+Migration 034 writes create, activate, and deactivate audit rows atomically from
+the approved RPCs. The runtime list/read routes use these repository validation
+schemas before returning successful directory or detail responses.
+
+Migration 035 is the applied and verified corrective migration for the
+already-applied Phase 4 RPCs. It preserves their business behavior and updates
+only future mutation audit metadata to use
+`/api/platform-admin/platform-admin-users` and
+`/api/platform-admin/platform-admin-users/<platform_admin_user_id>/active`.
+Existing audit rows were not rewritten, and the old shortened endpoint strings
+are absent from the verified current main shared-testing RPC definitions.
 
 ## Prohibited data
 

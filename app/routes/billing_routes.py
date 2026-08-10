@@ -8,6 +8,7 @@ import csv
 import io
 from datetime import datetime
 from app.decorators.auth_decorator import token_required
+from app.services.company_status_service import company_operational_required
 from app.services.billing_service import (
     list_active_plans,
     get_current_subscription,
@@ -331,6 +332,7 @@ def fetch_ai_credit_transactions():
 @billing_bp.route("/toyyibpay/checkout", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_CHECKOUT", "5/minute"))
 @token_required
+@company_operational_required
 def toyyibpay_checkout():
     """Create a ToyyibPay bill for AI-credit top-up.
 
@@ -562,6 +564,7 @@ def toyyibpay_order_status(order_reference):
 
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_CHECKOUT", "5/minute"))
 @token_required
+@company_operational_required
 def subscription_checkout():
     """Create a subscription payment checkout (ToyyibPay bill).
 
@@ -969,6 +972,7 @@ def subscription_order_receipt(order_reference):
 
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_RETRY", "5/minute"))
 @token_required
+@company_operational_required
 def retry_subscription_order(order_reference):
     try:
         company_id = g.company_id
@@ -1005,6 +1009,7 @@ def subscription_downgrade_check(target_plan_code):
 
 @billing_bp.route("/subscription/cancel", methods=["POST"])
 @token_required
+@company_operational_required
 def cancel_subscription():
     try:
         company_id = g.company_id
@@ -1020,6 +1025,7 @@ def cancel_subscription():
 
 @billing_bp.route("/subscription/undo-cancel", methods=["POST"])
 @token_required
+@company_operational_required
 def undo_cancel_subscription():
     try:
         company_id = g.company_id
@@ -1035,6 +1041,7 @@ def undo_cancel_subscription():
 
 @billing_bp.route("/subscription/downgrade", methods=["POST"])
 @token_required
+@company_operational_required
 def schedule_downgrade():
     try:
         company_id = g.company_id
@@ -1061,6 +1068,7 @@ def schedule_downgrade():
 
 @billing_bp.route("/subscription/downgrade", methods=["DELETE"])
 @token_required
+@company_operational_required
 def clear_downgrade():
     try:
         company_id = g.company_id

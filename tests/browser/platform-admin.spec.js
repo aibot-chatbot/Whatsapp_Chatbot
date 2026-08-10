@@ -27,6 +27,43 @@ const identity = {
   }
 };
 
+const platformAdminUsers = {
+  platform_admin_users: [
+    {
+      platform_admin_user_id: 7001,
+      user_id: 9001,
+      is_active: true,
+      created_at: "2026-07-01T00:00:00+00:00",
+      updated_at: "2026-07-02T00:00:00+00:00",
+      created_by_user_id: null,
+      user_email: "operator@example.test",
+      user_full_name: "Test Operator",
+      user_status: "active",
+      creator_user_id: null,
+      creator_email: null,
+      creator_full_name: null,
+      recent_platform_admin_activity_at: "2026-07-03T00:00:00+00:00"
+    },
+    {
+      platform_admin_user_id: 7002,
+      user_id: 9002,
+      is_active: false,
+      created_at: "2026-07-04T00:00:00+00:00",
+      updated_at: "2026-07-05T00:00:00+00:00",
+      created_by_user_id: 9001,
+      user_email: "second@example.test",
+      user_full_name: "Second Operator <script>window.__adminUserXss=true</script>",
+      user_status: "active",
+      creator_user_id: 9001,
+      creator_email: "operator@example.test",
+      creator_full_name: "Test Operator",
+      recent_platform_admin_activity_at: null
+    }
+  ],
+  pagination: { limit: 100, offset: 0, returned: 2, total: 2, has_more: false },
+  filters: { is_active: null }
+};
+
 const company = {
   id: 42,
   company_name: "Example Tenant <script>window.__xss = true</script>",
@@ -36,6 +73,94 @@ const company = {
   contact_phone: "+60000000000",
   created_at: "2026-07-01T00:00:00+00:00",
   updated_at: "2026-07-02T00:00:00+00:00"
+};
+
+const supportCase = {
+  id: 9,
+  company_id: 42,
+  company: { id: 42, company_name: "Example Tenant <script>window.__xss = true</script>", status: "active" },
+  created_by_platform_admin_user_id: 7001,
+  assigned_platform_admin_user_id: 7001,
+  status: "open",
+  priority: "normal",
+  title: "Review tenant activation <script>window.__caseXss=true</script>",
+  redacted_summary: "Safe internal summary only.",
+  created_at: "2026-07-30T00:00:00+00:00",
+  updated_at: "2026-07-30T00:00:00+00:00",
+  closed_at: null
+};
+
+const supportCaseDetail = {
+  case: supportCase,
+  source_tenant_request: { request_id: 31, company_id: 42, status: "converted" },
+  status_transitions: ["in_progress", "waiting_for_tenant", "resolved"],
+  events: [
+    {
+      id: 1,
+      case_id: 9,
+      event_type: "created",
+      actor_platform_admin_user_id: 7001,
+      new_status: "open",
+      new_priority: "normal",
+      created_at: "2026-07-30T00:00:00+00:00"
+    },
+    {
+      id: 2,
+      case_id: 9,
+      event_type: "assignment_changed",
+      actor_platform_admin_user_id: 7001,
+      old_assigned_platform_admin_user_id: null,
+      new_assigned_platform_admin_user_id: 7001,
+      created_at: "2026-07-30T00:01:00+00:00"
+    },
+    {
+      id: 3,
+      case_id: 9,
+      event_type: "note_added",
+      actor_platform_admin_user_id: 7001,
+      redacted_note: "Safe note <img src=x onerror=window.__noteXss=true>",
+      created_at: "2026-07-30T00:02:00+00:00"
+    }
+  ]
+};
+
+const supportCases = {
+  cases: [supportCase],
+  pagination: { limit: 25, offset: 0, returned: 1, total: 1, has_more: false },
+  filters: { company_id: null, status: null, priority: null }
+};
+
+const supportCaseAssignees = {
+  assignees: [{ id: 7001, user_id: 9001, is_active: true }]
+};
+
+const supportCaseReplies = {
+  case: supportCase,
+  source_tenant_request: { request_id: 31, company_id: 42, status: "converted" },
+  replies: [{
+    reply_id: 44,
+    request_id: 31,
+    case_id: 9,
+    company_id: 42,
+    author_type: "platform_admin",
+    redacted_body: "Visible update <img src=x onerror=window.__replyXss=true>",
+    visibility_status: "visible",
+    created_at: "2026-07-30T00:03:00+00:00"
+  }],
+  notifications: [{
+    notification_id: 50,
+    reply_id: 44,
+    channel: "in_app",
+    status: "pending",
+    attempt_count: 0,
+    created_at: "2026-07-30T00:03:00+00:00"
+  }]
+};
+
+const tenantSupportRequests = {
+  requests: [],
+  pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false },
+  filters: { company_id: null, category: null, status: null }
 };
 
 const subscriptionSummary = {
@@ -358,6 +483,24 @@ const auditEvents = {
         raw_payload: { secret: "must-not-render" }
       },
       created_at: "2026-07-31T08:00:00+00:00"
+    },
+    {
+      id: 803,
+      actor: { platform_admin_user_id: 7001 },
+      action: "platform_admin.company.suspend",
+      resource_type: "company",
+      resource_id: "42",
+      metadata: {
+        outcome: "success",
+        endpoint: "/api/platform-admin/companies/<company_id>/suspend",
+        http_method: "POST",
+        company_id: 42,
+        old_status: "active",
+        new_status: "inactive",
+        raw_metadata: "must-not-render",
+        provider_payload: "must-not-render"
+      },
+      created_at: "2026-07-31T08:01:00+00:00"
     }
   ],
   pagination: { limit: 25, offset: 0, returned: 1, total: 2, has_more: true },
@@ -476,6 +619,21 @@ function defaultHandler({ url }) {
   if (url.pathname === "/api/platform-admin/me") return success(identity);
   if (url.pathname === "/api/platform-admin/overview") return success(operationsOverview);
   if (url.pathname === "/api/platform-admin/audit-events") return success(auditEvents);
+  if (url.pathname === "/api/platform-admin/platform-admin-users") return success(platformAdminUsers);
+  if (url.pathname === "/api/platform-admin/platform-admin-users/7002/active") {
+    return success({
+      platform_admin_user: {
+        platform_admin_user_id: 7002,
+        user_id: 9002,
+        is_active: true
+      }
+    });
+  }
+  if (url.pathname === "/api/platform-admin/support-case-assignees") return success(supportCaseAssignees);
+  if (url.pathname === "/api/platform-admin/support-cases") return success(supportCases);
+  if (url.pathname === "/api/platform-admin/support-cases/9") return success(supportCaseDetail);
+  if (url.pathname === "/api/platform-admin/support-cases/9/replies") return success(supportCaseReplies);
+  if (url.pathname === "/api/platform-admin/tenant-support-requests") return success(tenantSupportRequests);
   if (url.pathname === "/api/platform-admin/companies") {
     if (url.searchParams.get("status") === "active") {
       return success(companyList(1, [], { limit: 1, status: "active" }));
@@ -486,6 +644,12 @@ function defaultHandler({ url }) {
     return success(companyList(2, [company], { hasMore: true }));
   }
   if (url.pathname === "/api/platform-admin/companies/42") return success(company);
+  if (url.pathname === "/api/platform-admin/companies/42/suspend") {
+    return success({ company: { id: 42, old_status: "active", new_status: "inactive", updated_at: "2026-08-08T00:00:00+00:00" } });
+  }
+  if (url.pathname === "/api/platform-admin/companies/42/restore") {
+    return success({ company: { id: 42, old_status: "inactive", new_status: "active", updated_at: "2026-08-08T00:00:00+00:00" } });
+  }
   if (url.pathname === "/api/platform-admin/companies/42/subscription") {
     return success(subscriptionSummary);
   }
@@ -691,7 +855,7 @@ test.describe("platform-admin dashboard and directory", () => {
     await expect.poll(() => page.evaluate(() => window.__planXss)).toBeUndefined();
     await expect.poll(() => page.evaluate(() => window.__alertPlanXss)).toBeUndefined();
     await expect.poll(() => page.evaluate(() => window.__expiredAlertXss)).toBeUndefined();
-    await expect(page.getByText("Internal / Read Only")).toBeVisible();
+    await expect(page.getByText("Internal / Controlled Access")).toBeVisible();
     await assertReadOnlyBoundary(page);
   });
 
@@ -829,7 +993,14 @@ test.describe("platform-admin support workspace", () => {
     releaseMe();
     await expect(page.getByRole("heading", { name: "Support Workspace" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Support" })).toHaveAttribute("href", "platform-admin-support.html");
-    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
+    await expect(page.getByText("No tenant-submitted support requests found.")).toBeVisible();
+    expect(calls.map(call => call.path)).toEqual([
+      "/api/platform-admin/me",
+      "/api/platform-admin/overview",
+      "/api/platform-admin/support-case-assignees",
+      "/api/platform-admin/support-cases",
+      "/api/platform-admin/tenant-support-requests"
+    ]);
     expect(calls.every(call => call.method === "GET")).toBe(true);
   });
 
@@ -843,7 +1014,14 @@ test.describe("platform-admin support workspace", () => {
     await expect(page.getByRole("cell", { name: "Past due subscription" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Investigate" }).first()).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
     expect(await page.evaluate(() => window.__xss || window.__planXss || false)).toBe(false);
-    expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
+    await expect(page.getByRole("cell", { name: "Review tenant activation" })).toBeVisible();
+    expect(calls.map(call => call.path)).toEqual([
+      "/api/platform-admin/me",
+      "/api/platform-admin/overview",
+      "/api/platform-admin/support-case-assignees",
+      "/api/platform-admin/support-cases",
+      "/api/platform-admin/tenant-support-requests"
+    ]);
   });
 
   test("shows empty attention and bounded company lookup states", async ({ page }) => {
@@ -882,6 +1060,110 @@ test.describe("platform-admin support workspace", () => {
     expect(lookupCall.search).toContain("search=Example");
     await page.getByRole("link", { name: "Investigate" }).last().click();
     await expect(page).toHaveURL(/platform-admin-company\.html\?company_id=42$/);
+  });
+
+  test("case detail renders operational controls and uses split mutation endpoints", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-support.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/support-cases/9/assignment") {
+        return success({ ...supportCaseDetail, case: { ...supportCase, assigned_platform_admin_user_id: null } });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/status") {
+        return success({ ...supportCaseDetail, case: { ...supportCase, status: "in_progress" } });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/priority") {
+        return success({ ...supportCaseDetail, case: { ...supportCase, priority: "high" } });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/notes") {
+        return success(supportCaseDetail);
+      }
+      return defaultHandler({ request, url });
+    });
+
+    await page.getByRole("button", { name: "Open case" }).click();
+    await expect(page.getByRole("heading", { name: "Internal support case detail" })).toBeVisible();
+    await expect(page.getByText("Tenant request #31")).toBeVisible();
+    await expect(page.getByText("Case activity timeline")).toBeVisible();
+    await expect(page.getByText("Safe note <img src=x onerror=window.__noteXss=true>")).toBeVisible();
+    await expect(page.getByLabel("Next status")).not.toContainText("Closed");
+    await expect(page.getByLabel("Next status")).toContainText("Waiting for tenant");
+    await expect(page.getByRole("button", { name: "Update assignee" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Update priority" })).toBeDisabled();
+
+    await page.getByLabel("Assignee").selectOption("");
+    await expect(page.getByRole("button", { name: "Update assignee" })).toBeEnabled();
+    await page.getByRole("button", { name: "Update assignee" }).click();
+    await page.getByLabel("Next status").selectOption("in_progress");
+    await page.getByRole("button", { name: "Update status" }).click();
+    await page.getByLabel("Priority").selectOption("high");
+    await expect(page.getByRole("button", { name: "Update priority" })).toBeEnabled();
+    await page.getByRole("button", { name: "Update priority" }).click();
+    await page.getByLabel("Redacted internal note").fill("Follow-up note");
+    await page.getByRole("button", { name: "Add internal note" }).click();
+    await expect(page.getByRole("heading", { name: "Tenant-visible conversation" })).toBeVisible();
+    await expect(page.getByText("Visible update <img src=x onerror=window.__replyXss=true>")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Send reply to tenant" })).toBeVisible();
+
+    await expect.poll(() => page.evaluate(() => window.__caseXss || window.__noteXss || window.__replyXss || false)).toBe(false);
+    expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/assignment"))).toBe(true);
+    expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/status"))).toBe(true);
+    expect(calls.some(call => call.method === "PATCH" && call.path.endsWith("/priority"))).toBe(true);
+    expect(calls.some(call => call.method === "POST" && call.path.endsWith("/notes"))).toBe(true);
+  });
+
+  test("reply composer prevents duplicate submits and recovers after refresh failure", async ({ page }) => {
+    let releaseReply;
+    let replyRequests = 0;
+    let failRefresh = false;
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-support.html", async ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/support-cases/9/replies" && request.method() === "POST") {
+        replyRequests += 1;
+        await new Promise(resolve => {
+          releaseReply = resolve;
+        });
+        failRefresh = true;
+        return success({
+          case: supportCase,
+          event: { event_id: 4, case_id: 9, event_type: "tenant_reply_created" },
+          reply: {
+            reply_id: 45,
+            request_id: 31,
+            case_id: 9,
+            company_id: 42,
+            author_type: "platform_admin",
+            redacted_body: "Safe tenant update",
+            visibility_status: "visible",
+            created_at: "2026-07-30T00:05:00+00:00"
+          },
+          notification: {
+            notification_id: 51,
+            reply_id: 45,
+            channel: "in_app",
+            status: "pending",
+            attempt_count: 0
+          }
+        });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9" && failRefresh) {
+        return failure(503, "temporarily_unavailable", "Temporarily unavailable.");
+      }
+      return defaultHandler({ request, url });
+    });
+
+    await page.getByRole("button", { name: "Open case" }).click();
+    await page.getByLabel("Tenant-visible redacted reply").fill("Safe tenant update");
+    const sendButton = page.getByRole("button", { name: "Send reply to tenant" });
+    await sendButton.click();
+    await expect(sendButton).toBeDisabled();
+    await sendButton.click({ force: true });
+    expect(replyRequests).toBe(1);
+    releaseReply();
+
+    await expect(sendButton).toBeEnabled();
+    await page.getByLabel("Tenant-visible redacted reply").fill("Another safe update");
+    await expect(sendButton).toBeEnabled();
+    await expect(page.getByText("raw")).toHaveCount(0);
+    await expect(page.getByText("stack")).toHaveCount(0);
   });
 
   test("replaced support lookup requests suppress late stale results", async ({ page }) => {
@@ -987,6 +1269,12 @@ test.describe("platform-admin audit log viewer", () => {
     await expect(page.getByRole("table").getByText("outcome")).toBeVisible();
     await expect(page.getByRole("table").getByText("endpoint")).toBeVisible();
     await expect(page.getByRole("table").getByText("http_method")).toBeVisible();
+    await expect(page.getByRole("cell", { name: "platform_admin.company.suspend" })).toBeVisible();
+    await expect(page.getByRole("table").getByText("company_id")).toBeVisible();
+    await expect(page.getByRole("table").getByText("old_status")).toBeVisible();
+    await expect(page.getByRole("table").getByText("new_status")).toBeVisible();
+    await expect(page.getByText("raw_metadata")).toHaveCount(0);
+    await expect(page.getByText("provider_payload")).toHaveCount(0);
     expect(await page.evaluate(() => window.__auditActionXss || window.__auditResourceXss || false)).toBe(false);
     expect(calls.filter(call => call.path === "/api/platform-admin/audit-events")).toHaveLength(1);
   });
@@ -1000,7 +1288,7 @@ test.describe("platform-admin audit log viewer", () => {
     });
 
     await page.getByRole("button", { name: "Next" }).click();
-    await page.locator("#platform-audit-action").selectOption("platform_admin.audit_events.list");
+    await page.locator("#platform-audit-action").selectOption("platform_admin.company.suspend");
     await page.locator("#platform-audit-resource-type").selectOption("platform_admin_audit_events");
     await page.locator("#platform-audit-actor-user-id").fill("32");
     await page.locator("#platform-audit-resource-id").fill("42");
@@ -1017,7 +1305,7 @@ test.describe("platform-admin audit log viewer", () => {
     expect(urls.some(url => url.searchParams.get("limit") === "50")).toBe(true);
     expect(urls.some(url => url.searchParams.get("offset") === "25")).toBe(true);
     expect(urls.some(url => url.searchParams.get("offset") === "0")).toBe(true);
-    expect(urls.some(url => url.searchParams.get("action") === "platform_admin.audit_events.list")).toBe(true);
+    expect(urls.some(url => url.searchParams.get("action") === "platform_admin.company.suspend")).toBe(true);
     expect(urls.some(url => url.searchParams.get("resource_type") === "platform_admin_audit_events")).toBe(true);
     expect(urls.some(url => url.searchParams.get("actor_user_id") === "32")).toBe(true);
     expect(urls.some(url => url.searchParams.get("resource_id") === "42")).toBe(true);
@@ -1112,6 +1400,143 @@ test.describe("platform-admin audit log viewer", () => {
   });
 });
 
+test.describe("platform-admin user management", () => {
+  test("directory renders safe mapping fields and bounded lifecycle controls", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-users.html", ({ url }) => defaultHandler({ url }));
+    await expect(page.getByRole("heading", { name: "Platform Admin Management" })).toBeVisible();
+    await expect(page.getByText("Recent platform activity")).toBeVisible();
+    await expect(page.getByText("Bootstrap/unknown")).toBeVisible();
+    await expect(page.getByText("Second Operator <script>window.__adminUserXss=true</script>")).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__adminUserXss)).toBeUndefined();
+    await expect(page.getByRole("button", { name: "Deactivate", exact: true })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Activate", exact: true })).toBeEnabled();
+    await expect(page.getByRole("textbox", { name: /company/i })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: /role|company/i })).toHaveCount(0);
+    for (const label of ["Invite", "Reset password", "Impersonate", "Delete", "Billing"]) {
+      await expect(page.getByRole("button", { name: label })).toHaveCount(0);
+    }
+    await page.getByRole("button", { name: "Activate", exact: true }).click();
+    expect(calls.some(call => (
+      call.method === "PATCH" && call.path === "/api/platform-admin/platform-admin-users/7002/active"
+    ))).toBe(true);
+  });
+
+  test("add existing user uses numeric ID, prevents duplicate submits, and refreshes", async ({ page }) => {
+    let releaseCreate;
+    let createCount = 0;
+    const createGate = new Promise(resolve => {
+      releaseCreate = () => resolve(success({
+        platform_admin_user: { platform_admin_user_id: 7003, user_id: 9003, is_active: true }
+      }));
+    });
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "POST") {
+        createCount += 1;
+        return createGate;
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByLabel("Existing user ID").fill("9003");
+    const addButton = page.getByRole("button", { name: "Add platform admin" });
+    await addButton.click();
+    await expect(addButton).toBeDisabled();
+    await page.evaluate(() => document.querySelector("form button[type='submit']").click());
+    expect(createCount).toBe(1);
+    releaseCreate();
+    await expect(page.getByRole("heading", { name: "Platform Admins" })).toBeVisible();
+  });
+
+  test("create failures are sanitized and do not expose raw provider detail", async ({ page }) => {
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "POST") {
+        return failure(400, "target_user_not_protected", "raw Supabase protected-company detail");
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByLabel("Existing user ID").fill("12345");
+    await page.getByRole("button", { name: "Add platform admin" }).click();
+    await expect(page.getByText("User is not eligible for platform-admin access.")).toBeVisible();
+    await expect(page.getByText("raw Supabase protected-company detail")).toHaveCount(0);
+  });
+
+  test("successful add followed by refresh failure shows recoverable retry state", async ({ page }) => {
+    let directoryRequests = 0;
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "GET") {
+        directoryRequests += 1;
+        if (directoryRequests === 1) return success(platformAdminUsers);
+        return failure(503, "platform_admin_data_unavailable", "raw Supabase refresh detail");
+      }
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "POST") {
+        return success({
+          platform_admin_user: { platform_admin_user_id: 7003, user_id: 9003, is_active: true }
+        });
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByLabel("Existing user ID").fill("9003");
+    await page.getByRole("button", { name: "Add platform admin" }).click();
+    await expect(page.getByText("Loading platform admins...")).toHaveCount(0);
+    await expect(page.getByText("Platform-admin directory refresh failed. Retry to load the current state.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByText("raw Supabase refresh detail")).toHaveCount(0);
+  });
+
+  test("successful activation followed by refresh failure shows recoverable retry state", async ({ page }) => {
+    let activeRequests = 0;
+    let directoryRequests = 0;
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "GET") {
+        directoryRequests += 1;
+        if (directoryRequests === 1) return success(platformAdminUsers);
+        return failure(503, "platform_admin_data_unavailable", "raw provider refresh detail");
+      }
+      if (url.pathname === "/api/platform-admin/platform-admin-users/7002/active") {
+        activeRequests += 1;
+        return success({
+          platform_admin_user: { platform_admin_user_id: 7002, user_id: 9002, is_active: true }
+        });
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Activate", exact: true }).click();
+    expect(activeRequests).toBe(1);
+    await expect(page.getByText("Loading platform admins...")).toHaveCount(0);
+    await expect(page.getByText("Platform-admin directory refresh failed. Retry to load the current state.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByText("raw provider refresh detail")).toHaveCount(0);
+  });
+
+  test("authorization denial during post-mutation refresh clears protected state", async ({ page }) => {
+    let directoryRequests = 0;
+    await openPlatformPage(page, "/platform-admin-users.html", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/platform-admin-users" && request.method() === "GET") {
+        directoryRequests += 1;
+        if (directoryRequests === 1) return success(platformAdminUsers);
+        return failure(403, "platform_admin_access_denied", "raw access denial detail");
+      }
+      if (url.pathname === "/api/platform-admin/platform-admin-users/7002/active") {
+        return success({
+          platform_admin_user: { platform_admin_user_id: 7002, user_id: 9002, is_active: true }
+        });
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Activate", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Access Denied" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Platform Admin Management" })).toHaveCount(0);
+    await expect(page.getByText("raw access denial detail")).toHaveCount(0);
+  });
+});
+
 test.describe("platform-admin company detail", () => {
   test("invalid or missing company ID returns before protected detail calls", async ({ page }) => {
     const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=0", ({ url }) => defaultHandler({ url }));
@@ -1122,6 +1547,9 @@ test.describe("platform-admin company detail", () => {
   test("loads company first, then subscription and AI-credit summaries", async ({ page }) => {
     const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => defaultHandler({ url }));
     await expect(page.getByRole("heading", { name: "Example Tenant <script>window.__xss = true</script>" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Operational state" })).toBeVisible();
+    await expect(page.getByText("Active", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Suspend company" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Subscription", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "AI-credit and usage" })).toBeVisible();
     await expect(page.locator("script", { hasText: "window.__xss = true" })).toHaveCount(0);
@@ -1135,6 +1563,135 @@ test.describe("platform-admin company detail", () => {
     expect(paths).not.toContain("/api/platform-admin/companies/42/billing-orders");
     expect(paths).not.toContain("/api/platform-admin/companies/42/users");
     expect(paths).not.toContain("/api/platform-admin/companies/42/chatbots");
+  });
+
+  test("suspends and restores company with confirmation and bounded lifecycle calls", async ({ page }) => {
+    let status = "active";
+    page.on("dialog", dialog => dialog.accept());
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42") {
+        return success({ ...company, status });
+      }
+      if (url.pathname === "/api/platform-admin/companies/42/suspend" && request.method() === "POST") {
+        status = "inactive";
+        return success({ company: { id: 42, old_status: "active", new_status: "inactive", updated_at: "2026-08-08T00:00:00+00:00" } });
+      }
+      if (url.pathname === "/api/platform-admin/companies/42/restore" && request.method() === "POST") {
+        status = "active";
+        return success({ company: { id: 42, old_status: "inactive", new_status: "active", updated_at: "2026-08-08T00:00:00+00:00" } });
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.getByRole("button", { name: "Suspend company" }).click();
+    await expect(page.getByRole("button", { name: "Restore company" })).toBeVisible();
+    await page.getByRole("button", { name: "Restore company" }).click();
+    await expect(page.getByRole("button", { name: "Suspend company" })).toBeVisible();
+
+    expect(calls.filter(call => call.method === "POST" && call.path === "/api/platform-admin/companies/42/suspend")).toHaveLength(1);
+    expect(calls.filter(call => call.method === "POST" && call.path === "/api/platform-admin/companies/42/restore")).toHaveLength(1);
+  });
+
+  test("cancelling company lifecycle confirmation sends no mutation request", async ({ page }) => {
+    page.on("dialog", dialog => dialog.dismiss());
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/suspend" && request.method() === "POST") {
+        return success({ company: { id: 42, old_status: "active", new_status: "inactive", updated_at: "2026-08-08T00:00:00+00:00" } });
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Suspend company" }).click();
+    await expect(page.getByRole("button", { name: "Suspend company" })).toBeVisible();
+    expect(calls.filter(call => call.method === "POST" && call.path === "/api/platform-admin/companies/42/suspend")).toHaveLength(0);
+  });
+
+  test("company lifecycle duplicate clicks while pending send only one request", async ({ page }) => {
+    let releaseSuspend;
+    const slowSuspend = new Promise(resolve => {
+      releaseSuspend = () => resolve(success({
+        company: { id: 42, old_status: "active", new_status: "inactive", updated_at: "2026-08-08T00:00:00+00:00" }
+      }));
+    });
+    page.on("dialog", dialog => dialog.accept());
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/suspend" && request.method() === "POST") {
+        return slowSuspend;
+      }
+      return defaultHandler({ url });
+    });
+
+    const button = page.getByRole("button", { name: "Suspend company" });
+    await button.click();
+    await expect(button).toBeDisabled();
+    await page.evaluate(() => {
+      document.querySelector("button.platform-danger")?.click();
+      document.querySelector("button.platform-danger")?.click();
+    });
+    expect(calls.filter(call => call.method === "POST" && call.path === "/api/platform-admin/companies/42/suspend")).toHaveLength(1);
+    releaseSuspend();
+    await expect(page.getByRole("button", { name: "Suspend company" })).toBeVisible();
+  });
+
+  test("company lifecycle mutation failures are sanitized", async ({ page }) => {
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42/suspend" && request.method() === "POST") {
+        return failure(400, "protected_company", "raw protected registry detail");
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Suspend company" }).click();
+    await expect(page.getByText("Protected platform-admin companies cannot be suspended.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Suspend company" })).toBeEnabled();
+    await expect(page.getByText("Active", { exact: true })).toBeVisible();
+    await expect(page.getByText("raw protected registry detail")).toHaveCount(0);
+  });
+
+  test("successful company lifecycle mutation followed by 503 refresh recovers without authoritative stale status", async ({ page }) => {
+    let companyReads = 0;
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42") {
+        companyReads += 1;
+        if (companyReads > 1) {
+          return failure(503, "platform_admin_data_unavailable", "raw Supabase refresh detail");
+        }
+        return success(company);
+      }
+      if (url.pathname === "/api/platform-admin/companies/42/suspend" && request.method() === "POST") {
+        return success({ company: { id: 42, old_status: "active", new_status: "inactive", updated_at: "2026-08-08T00:00:00+00:00" } });
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Suspend company" }).click();
+    await expect(page.getByRole("heading", { name: "Temporarily Unavailable" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+    await expect(page.getByText("Loading company detail...")).toHaveCount(0);
+    await expect(page.getByText("Active", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Suspend company" })).toHaveCount(0);
+    await expect(page.getByText("raw Supabase refresh detail")).toHaveCount(0);
+  });
+
+  test("successful company lifecycle mutation followed by 403 refresh clears protected data", async ({ page }) => {
+    let companyReads = 0;
+    page.on("dialog", dialog => dialog.accept());
+    await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ request, url }) => {
+      if (url.pathname === "/api/platform-admin/companies/42") {
+        companyReads += 1;
+        if (companyReads > 1) {
+          return failure(403, "platform_admin_access_denied", "raw access denial detail");
+        }
+        return success(company);
+      }
+      if (url.pathname === "/api/platform-admin/companies/42/suspend" && request.method() === "POST") {
+        return success({ company: { id: 42, old_status: "active", new_status: "inactive", updated_at: "2026-08-08T00:00:00+00:00" } });
+      }
+      return defaultHandler({ url });
+    });
+    await page.getByRole("button", { name: "Suspend company" }).click();
+    await expect(page.getByRole("heading", { name: "Access Denied" })).toBeVisible();
+    await expect(page.getByText("Example Tenant")).toHaveCount(0);
+    await expect(page.getByText("raw access denial detail")).toHaveCount(0);
   });
 
   test("lazy subscription history loads with status filtering pagination and safe rendering", async ({ page }) => {

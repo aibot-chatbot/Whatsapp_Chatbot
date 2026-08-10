@@ -3,6 +3,11 @@
 
     const ui = PlatformAdminShell;
     const STATUS_ORDER = ["trialing", "active", "past_due", "expired", "cancelled"];
+    const SUPPORT_STATUS_ORDER = ["open", "in_progress", "waiting_for_tenant", "resolved", "closed"];
+    const PRIORITY_ORDER = ["urgent", "high", "normal", "low"];
+    const MESSAGE_STATUS_ORDER = ["received", "sent", "pending", "sending", "failed", "retrying", "permanent_failed"];
+    const ORDER_STATUS_ORDER = ["pending", "created", "paid", "credited", "failed", "expired", "cancelled"];
+    const AI_STATUS_ORDER = ["completed", "failed"];
 
     function safeValue(value) {
         return value === null || value === undefined || value === "" ? "Not available" : String(value);
@@ -66,6 +71,183 @@
         return panel;
     }
 
+    function renderBreakdown(title, values, order, captionText) {
+        const panel = ui.element("section", "platform-panel");
+        panel.append(ui.element("h2", "", title));
+        const rows = order.map(function (key) {
+            return [ui.statusBadge(key), ui.formatInteger((values || {})[key] || 0)];
+        });
+        panel.append(renderTable(["Status", "Count"], rows, captionText));
+        return panel;
+    }
+
+    function renderSectionSummary(title, note, metrics) {
+        const panel = ui.element("section", "platform-panel");
+        panel.append(ui.element("h2", "", title));
+        if (note) panel.append(ui.element("p", "platform-note", note));
+        const grid = ui.element("section", "platform-grid");
+        grid.setAttribute("aria-label", title + " summary");
+        metrics.forEach(function (item) {
+            grid.append(metric(item.label, item.value || 0));
+        });
+        panel.append(grid);
+        return panel;
+    }
+
+    function renderSupportPanel(support) {
+        const data = support || {};
+        const panel = renderSectionSummary(
+            "Support operations",
+            "Read-only support backlog and tenant request counts.",
+            [
+                { label: "Open cases", value: data.open_case_count },
+                { label: "Unresolved tenant requests", value: data.unresolved_tenant_request_count },
+                { label: "Urgent cases", value: (data.cases_by_priority || {}).urgent },
+                { label: "High priority cases", value: (data.cases_by_priority || {}).high }
+            ]
+        );
+        const link = ui.element("a", "platform-link-button", "Open Support Workspace");
+        link.href = "platform-admin-support.html";
+        panel.append(link);
+        panel.append(renderTable(
+            ["Case status", "Cases"],
+            SUPPORT_STATUS_ORDER.map(function (status) {
+                return [ui.statusBadge(status), ui.formatInteger((data.cases_by_status || {})[status] || 0)];
+            }),
+            "Support case status counts"
+        ));
+        panel.append(renderTable(
+            ["Tenant request status", "Requests"],
+            ["new", "reviewed", "converted", "closed"].map(function (status) {
+                return [ui.statusBadge(status), ui.formatInteger((data.tenant_requests_by_status || {})[status] || 0)];
+            }),
+            "Tenant support request status counts"
+        ));
+        return panel;
+    }
+
+    function renderMessagingPanel(messaging) {
+        const data = messaging || {};
+        const panel = renderSectionSummary(
+            "Messaging & integrations",
+            "Aggregated delivery and configured channel health. No message text, phone numbers, or provider errors are displayed.",
+            [
+                { label: "Retry backlog", value: data.retry_backlog_count },
+                { label: "Failed messages", value: (data.messages_by_delivery_status || {}).failed },
+                { label: "Retrying messages", value: (data.messages_by_delivery_status || {}).retrying },
+                { label: "Permanent failures", value: (data.messages_by_delivery_status || {}).permanent_failed }
+            ]
+        );
+        panel.append(renderTable(
+            ["Delivery status", "Messages"],
+            MESSAGE_STATUS_ORDER.map(function (status) {
+                return [ui.statusBadge(status), ui.formatInteger((data.messages_by_delivery_status || {})[status] || 0)];
+            }),
+            "Message delivery status counts"
+        ));
+        const channels = data.channel_health || {};
+        panel.append(renderTable(
+            ["Provider", "Configured", "Active", "Inactive", "Connected", "Disconnected", "Pending", "Error"],
+            ["telegram", "wasender", "meta_whatsapp"].map(function (provider) {
+                const row = channels[provider] || {};
+                const statuses = row.by_connection_status || {};
+                return [
+                    provider,
+                    ui.formatInteger(row.total || 0),
+                    ui.formatInteger(row.active || 0),
+                    ui.formatInteger(row.inactive || 0),
+                    ui.formatInteger(statuses.connected || 0),
+                    ui.formatInteger(statuses.disconnected || 0),
+                    ui.formatInteger(statuses.pending || 0),
+                    ui.formatInteger(statuses.error || 0)
+                ];
+            }),
+            "Integration channel health"
+        ));
+        panel.append(renderTable(
+            ["Broadcast campaign status", "Campaigns"],
+            ["draft", "sending", "completed", "failed"].map(function (status) {
+                return [ui.statusBadge(status), ui.formatInteger((data.broadcast_campaigns_by_status || {})[status] || 0)];
+            }),
+            "Broadcast campaign status counts"
+        ));
+        return panel;
+    }
+
+    function renderBillingAttentionPanel(billing) {
+        const data = billing || {};
+        const panel = renderSectionSummary(
+            "Billing attention",
+            "Operational billing counts only. Activation status NULL is not treated as a failure.",
+            [
+                { label: "Pending orders", value: data.pending_order_count },
+                { label: "Failed orders", value: data.failed_order_count },
+                { label: "Reconciliation required", value: data.reconciliation_required_count }
+            ]
+        );
+        panel.append(renderTable(
+            ["Order status", "Orders"],
+            ORDER_STATUS_ORDER.map(function (status) {
+                return [ui.statusBadge(status), ui.formatInteger((data.orders_by_status || {})[status] || 0)];
+            }),
+            "Billing order status counts"
+        ));
+        return panel;
+    }
+
+    function renderAiUsagePanel(aiUsage) {
+        const data = aiUsage || {};
+        const windowData = data.window || {};
+        const panel = renderSectionSummary(
+            "AI usage & credits",
+            "Read-only request and credit activity. No prompts, responses, provider payloads, or low-balance threshold are shown.",
+            [
+                { label: "Recent AI requests", value: data.recent_request_count },
+                { label: "Recent tokens", value: data.recent_total_tokens },
+                { label: "Completed requests", value: (data.requests_by_status || {}).completed },
+                { label: "Depleted balances", value: data.depleted_balance_company_count }
+            ]
+        );
+        panel.append(ui.element("p", "platform-note", "Window starts " + ui.formatDate(windowData.since) + "."));
+        panel.append(renderTable(
+            ["AI request status", "Requests"],
+            AI_STATUS_ORDER.map(function (status) {
+                return [ui.statusBadge(status), ui.formatInteger((data.requests_by_status || {})[status] || 0)];
+            }),
+            "AI request status counts"
+        ));
+        return panel;
+    }
+
+    function renderPlatformActivityPanel(activity) {
+        const data = activity || {};
+        const panel = renderSectionSummary(
+            "Platform-admin activity",
+            "Recent safe audit aggregates only. Raw audit metadata is available nowhere on this dashboard.",
+            [
+                { label: "Recent audit events", value: data.recent_event_count }
+            ]
+        );
+        const link = ui.element("a", "platform-link-button", "Open Audit Logs");
+        link.href = "platform-admin-audit-events.html";
+        panel.append(link);
+        const actions = Object.entries(data.events_by_action || {})
+            .filter(function (entry) { return entry[1] > 0; })
+            .slice(0, 12);
+        if (actions.length === 0) {
+            panel.append(ui.element("p", "platform-empty", "No recent platform-admin activity found."));
+            return panel;
+        }
+        panel.append(renderTable(
+            ["Action", "Events"],
+            actions.map(function (entry) {
+                return [entry[0], ui.formatInteger(entry[1])];
+            }),
+            "Recent platform-admin action counts"
+        ));
+        return panel;
+    }
+
     function renderPlanPanel(plans) {
         const panel = ui.element("section", "platform-panel");
         panel.append(ui.element("h2", "", "Plan distribution"));
@@ -126,7 +308,15 @@
     }
 
     function alertLink(alert) {
-        return companyLink(alert.company_id, "Investigate");
+        if (Number.isSafeInteger(alert.company_id) && alert.company_id > 0) {
+            return companyLink(alert.company_id, "Investigate");
+        }
+        if (typeof alert.investigation_url === "string" && alert.investigation_url.trim()) {
+            const link = ui.element("a", "", "Investigate");
+            link.href = alert.investigation_url;
+            return link;
+        }
+        return ui.element("span", "", "Not available");
     }
 
     function fallbackOperationalAlerts(attentionCompanies) {
@@ -176,7 +366,7 @@
         const panel = ui.element("section", "platform-panel");
         panel.append(
             ui.element("h2", "", "Operational alerts"),
-            ui.element("p", "platform-note", "Read-only subscription alerts derived from the platform operations overview. Investigate a company before taking any external operational step.")
+            ui.element("p", "platform-note", "Read-only platform operational alerts derived from safe aggregate monitoring data. Investigate before taking any external operational step.")
         );
         const operationalAlerts = overview && overview.operational_alerts ? overview.operational_alerts : {};
         const alerts = Array.isArray(operationalAlerts.alerts)
@@ -196,35 +386,59 @@
             panel.append(ui.element("p", "platform-empty", "No operational alerts found."));
             return panel;
         }
-        const rows = alerts.map(function (alert) {
-            const details = alert && alert.details ? alert.details : {};
-            return [
-                ui.statusBadge(alert.severity),
-                alert.summary || alert.type,
-                companyLink(alert.company_id, alert.company_name),
-                ui.statusBadge(alert.company_status),
-                ui.statusBadge(details.subscription_status),
-                details.plan_name || details.plan_code,
-                ui.formatDate(details.current_period_end),
-                ui.formatDate(details.status_updated_at),
-                alertLink(alert)
-            ];
+        const companyAlerts = alerts.filter(function (alert) {
+            return Number.isSafeInteger(alert.company_id) && alert.company_id > 0;
         });
-        panel.append(renderTable(
-            [
-                "Severity",
-                "Summary",
-                "Company",
-                "Company status",
-                "Subscription status",
-                "Plan",
-                "Current period end",
-                "Status updated",
-                "Investigate"
-            ],
-            rows,
-            "Operational alerts"
-        ));
+        const aggregateAlerts = alerts.filter(function (alert) {
+            return !Number.isSafeInteger(alert.company_id) || alert.company_id <= 0;
+        });
+        if (companyAlerts.length > 0) {
+            const rows = companyAlerts.map(function (alert) {
+                const details = alert && alert.details ? alert.details : {};
+                return [
+                    ui.statusBadge(alert.severity),
+                    alert.summary || alert.type,
+                    companyLink(alert.company_id, alert.company_name),
+                    ui.statusBadge(alert.company_status),
+                    ui.statusBadge(details.subscription_status || "n/a"),
+                    details.plan_name || details.plan_code,
+                    ui.formatDate(details.current_period_end || null),
+                    ui.formatDate(details.status_updated_at || null),
+                    alertLink(alert)
+                ];
+            });
+            panel.append(renderTable(
+                [
+                    "Severity",
+                    "Summary",
+                    "Company",
+                    "Company status",
+                    "Subscription status",
+                    "Plan",
+                    "Current period end",
+                    "Status updated",
+                    "Investigate"
+                ],
+                rows,
+                "Company-specific operational alerts"
+            ));
+        }
+        if (aggregateAlerts.length > 0) {
+            const rows = aggregateAlerts.map(function (alert) {
+                const details = alert && alert.details ? alert.details : {};
+                return [
+                    ui.statusBadge(alert.severity),
+                    alert.summary || alert.type,
+                    ui.formatInteger(details.count || 0),
+                    alertLink(alert)
+                ];
+            });
+            panel.append(renderTable(
+                ["Severity", "Summary", "Count", "Investigate"],
+                rows,
+                "Platform-wide operational alerts"
+            ));
+        }
         return panel;
     }
 
@@ -252,6 +466,7 @@
             metric("Total companies", companies.total || 0),
             metric("Active companies", companies.active || 0),
             metric("Inactive companies", companies.inactive || 0),
+            metric("Active users", companies.active_users || 0),
             metric("Trialing", byStatus.trialing || 0),
             metric("Active subscriptions", byStatus.active || 0),
             metric("Past due", byStatus.past_due || 0),
@@ -271,6 +486,11 @@
             refreshed,
             renderStatusPanel(byStatus),
             renderPlanPanel(subscriptions.by_plan || []),
+            renderSupportPanel(overview.support || {}),
+            renderMessagingPanel(overview.messaging || {}),
+            renderBillingAttentionPanel(overview.billing_attention || {}),
+            renderAiUsagePanel(overview.ai_usage || {}),
+            renderPlatformActivityPanel(overview.platform_admin_activity || {}),
             renderOperationalAlertsPanel(overview),
             renderAttentionPanel(overview.attention_companies || [])
         );

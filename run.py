@@ -23,7 +23,7 @@ if __name__ == "__main__":
     port = int(os.getenv("FLASK_PORT", "8000"))
     
     print("\n" + "=" * 50)
-    print(f" 🚀 LOCALHOST LINK: http://localhost:{port} ")
+    print(f" [START] LOCALHOST LINK: http://localhost:{port} ")
     print("=" * 50 + "\n")
 
     app.run(

@@ -75,7 +75,7 @@ def _direct_table_operations(paths):
 
 # Highest migration number currently in data/. Bump this deliberately when a
 # new migration is added, so numbering conflicts surface as a test failure.
-HIGHEST_MIGRATION_NUMBER = 29
+HIGHEST_MIGRATION_NUMBER = 37
 
 
 def test_027_keeps_its_selected_migration_number():

@@ -1,4 +1,5 @@
-﻿from functools import wraps
+from functools import wraps
+
 from flask import g, jsonify
 
 
@@ -12,16 +13,7 @@ def get_current_company_id():
 
 
 def role_required(*allowed_roles):
-    """Decorator that checks the current user's role against allowed roles.
-
-    Usage:
-        @role_required("admin", "owner")
-        def some_route():
-            ...
-
-    Returns 403 JSON if the user's role is not in the allowed list.
-    Comparison is case-insensitive.
-    """
+    """Decorator that checks the current user's role against allowed roles."""
     allowed = set(r.lower() for r in allowed_roles)
 
     def decorator(f):
@@ -31,10 +23,12 @@ def role_required(*allowed_roles):
             if not user_role or user_role.lower() not in allowed:
                 return jsonify({
                     "status": "error",
-                    "message": "You do not have permission to perform this action."
+                    "message": "You do not have permission to perform this action.",
                 }), 403
             return f(*args, **kwargs)
+
         return decorated
+
     return decorator
 
 

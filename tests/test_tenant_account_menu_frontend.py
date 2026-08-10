@@ -158,9 +158,11 @@ def test_support_page_is_authenticated_static_and_uses_safe_account_rendering():
     assert 'sidebar-component.js' in page
     assert "requireLogin();" in page
     assert "<chatbot-sidebar></chatbot-sidebar>" in page
-    assert "<form" not in page.lower()
-    assert "fetch(" not in page
-    assert "authenticatedFetch" not in page
+    assert 'id="support-request-form"' in page
+    assert 'id="support-history-list"' in page
+    assert 'id="support-history-detail"' in page
+    assert 'authenticatedFetch("/api/support/requests?limit=25&offset=0"' in page
+    assert 'authenticatedFetch("/api/support/requests/" + String(requestId)' in page
     assert "XMLHttpRequest" not in page
     assert "mailto:" not in page.lower()
     assert "tel:" not in page.lower()
@@ -174,9 +176,9 @@ def test_support_page_is_authenticated_static_and_uses_safe_account_rendering():
     assert "user_id" not in page
     assert "company_id" not in page
     assert "jwt" not in page.lower()
-    assert "token" not in page.lower()
     assert "platform-admin" not in page
-    assert "Direct support contact is not configured yet." in page
+    assert "Tenant-visible replies" in page
+    assert "internal notes are not exposed" in page
 
 
 def test_support_quick_links_point_only_to_existing_local_frontend_files():
