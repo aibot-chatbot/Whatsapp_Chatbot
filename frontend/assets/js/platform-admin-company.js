@@ -61,6 +61,81 @@
         return panel;
     }
 
+    function lifecycleErrorMessage(error) {
+        const code = error && error.code;
+        if (code === "protected_company") return "Protected platform-admin companies cannot be suspended.";
+        if (code === "no_change") return "No lifecycle change is required.";
+        if (code === "company_not_found") return "The company no longer exists or is unavailable.";
+        if (code === "platform_admin_access_denied") return "Your platform-admin access is no longer active.";
+        return "The company lifecycle request could not be completed safely.";
+    }
+
+    function companyLifecyclePanel(company, reload) {
+        const panel = ui.element("section", "platform-panel");
+        const title = ui.element("h2", "", "Operational state");
+        const status = String(company.status || "").toLowerCase();
+        const description = status === "inactive"
+            ? "Tenant operational activity is blocked. Platform-admin investigation remains available."
+            : "Tenant operational activity is currently allowed.";
+        const feedback = ui.element("p", "platform-form-feedback");
+        const actions = ui.element("div", "platform-toolbar");
+        const button = ui.element(
+            "button",
+            status === "inactive" ? "platform-button platform-button-primary" : "platform-button platform-button-danger",
+            status === "inactive" ? "Restore company" : "Suspend company"
+        );
+        button.type = "button";
+        button.addEventListener("click", async function () {
+            const isRestore = status === "inactive";
+            const confirmed = window.confirm(
+                isRestore
+                    ? "Restore tenant operational access for this company?"
+                    : "Suspend this company? Tenant operational activity will be blocked while support and history remain available."
+            );
+            if (!confirmed) return;
+            button.disabled = true;
+            feedback.textContent = isRestore ? "Restoring company..." : "Suspending company...";
+            try {
+                await ui.runRequest("company-lifecycle", function (signal) {
+                    return isRestore
+                        ? PlatformAdminApi.restoreCompany(company.id, { signal: signal })
+                        : PlatformAdminApi.suspendCompany(company.id, { signal: signal });
+                });
+                feedback.textContent = isRestore ? "Company restored." : "Company suspended.";
+                try {
+                    await reload();
+                } catch (refreshError) {
+                    if (refreshError && refreshError.category === "access_denied") {
+                        ui.handleError(refreshError);
+                        return;
+                    }
+                    feedback.textContent = "The change succeeded, but the refreshed company state could not be loaded. Use Retry to reload safely.";
+                    retry.hidden = false;
+                }
+            } catch (error) {
+                if (!ui.handleError(error) && (!error || error.category !== "aborted")) {
+                    feedback.textContent = lifecycleErrorMessage(error);
+                    button.disabled = false;
+                }
+            }
+        });
+        const retry = ui.element("button", "platform-button", "Retry");
+        retry.type = "button";
+        retry.hidden = true;
+        retry.addEventListener("click", reload);
+        actions.append(button, retry);
+        panel.append(
+            title,
+            definitionList([
+                ["Current state", null, ui.statusBadge(company.status)],
+                ["Effect", description]
+            ]),
+            actions,
+            feedback
+        );
+        return panel;
+    }
+
     function makeInitialListState(extra) {
         return Object.assign({
             loaded: false,
@@ -1066,6 +1141,12 @@
         const back = ui.element("a", "platform-link-button", "Back to companies");
         back.href = "platform-admin-companies.html";
         const actions = ui.element("div", "platform-state-actions");
+        if (title.indexOf("Unable") === 0) {
+            const retry = ui.element("button", "platform-button platform-button-primary", "Retry");
+            retry.type = "button";
+            retry.addEventListener("click", initializeCompanyDetail);
+            actions.append(retry);
+        }
         actions.append(back);
         card.append(heading, ui.element("p", "", message), actions);
         root.replaceChildren(card);
@@ -1104,7 +1185,16 @@
             return;
         }
 
-        root.replaceChildren(pageHeader(company), companyPanel(company), ui.element("div", "platform-loading", "Loading billing summaries..."));
+        async function reload() {
+            await initializeCompanyDetail();
+        }
+
+        root.replaceChildren(
+            pageHeader(company),
+            companyPanel(company),
+            companyLifecyclePanel(company, reload),
+            ui.element("div", "platform-loading", "Loading billing summaries...")
+        );
         try {
             const summaries = await Promise.all([
                 ui.runRequest("company-subscription", function (signal) {
@@ -1117,6 +1207,7 @@
             root.replaceChildren(
                 pageHeader(company),
                 companyPanel(company),
+                companyLifecyclePanel(company, reload),
                 subscriptionPanel(summaries[0] ? summaries[0].subscription : null),
                 subscriptionHistoryPanel(companyId),
                 billingOrdersPanel(companyId),

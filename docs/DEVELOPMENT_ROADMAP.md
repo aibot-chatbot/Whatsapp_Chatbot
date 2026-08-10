@@ -22,8 +22,8 @@
 
 The initial read-only backend is implemented with a separate database-backed
 platform-admin allowlist, per-request fail-closed authorization, dedicated
-cross-tenant repositories, twelve GET-only endpoints, and audit-before-response
-enforcement. Tenant roles and JWT claims do not grant platform access. The
+cross-tenant repositories, a twelve GET-route investigation inventory, and
+audit-before-response enforcement. Tenant roles and JWT claims do not grant platform access. The
 later users/chatbots company-inspection endpoints and Platform Operations
 overview endpoint, plus the subscription-history and AI-credit transaction-history
 investigation endpoints, Audit Logs viewer, and billing-order history endpoint are
@@ -35,8 +35,8 @@ existing attention-company data without adding a route or page.
 All proposed Phase 2 alert types remain deferred under the design contract in
 `docs/PLATFORM_ADMIN_OPERATIONAL_ALERTS_CONTRACT.md`.
 
-At the current HEAD, localhost manual verification recorded on 2026-08-03
-passed for the complete twelve-route read-only stack: dashboard, operational
+In the current local implementation, localhost manual verification recorded on 2026-08-03
+passed for the complete twelve-route read-only investigation stack: dashboard, operational
 alerts, company directory/detail, subscription summary/history, AI-credit usage
 and transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
 billing-order audit filters, and local revocation with Access Denied and stale
@@ -45,6 +45,9 @@ platform-admin endpoints remain the only endpoint set recorded as staging
 verified; later extensions remain application-only/local-tested unless separately
 staged. Operational Alerts added no endpoint or page, and the billing-order
 audit-filter fix added no route or backend behavior change.
+The complete platform-admin surface additionally includes separately approved
+bounded support-case, platform-admin user-management, and company lifecycle
+mutation routes; those later mutation routes are not staging verified.
 The read-only smoke helper was also exercised locally on 2026-08-03 against
 localhost: all twelve checks passed with an approved company ID, required-only
 checks passed with child checks skipped when no company ID was supplied, and
@@ -56,6 +59,39 @@ documented in `docs/PLATFORM_ADMIN_ACCESS_LIFECYCLE.md`; it is policy-only and
 does not authorize mapping changes or production access.
 Its evidence checklist covers approval, revocation, smoke checks, audit-log
 review, redaction, and environment-specific evidence boundaries.
+Platform-admin User Management Phase 4 is implemented locally with a bounded
+directory/detail surface, add-existing-user workflow, and activate/deactivate
+controls. Migration 034 is applied and structurally verified only in the
+approved main shared-testing Supabase with fake/team data. Company 29 is
+explicitly registered as the protected internal company for main shared-testing
+only; it is not a staging or production protected-company designation and is
+not hardcoded into the application. Shared testing currently has only one
+active user in company 29, user 32, and that user already has the sole
+platform-admin mapping, so the successful create-mapping shared-testing E2E
+remains pending until a second approved active fake/team user exists. Migration
+035 is applied and verified only in the approved main shared-testing Supabase
+with fake/team data; it corrected only the Phase 4 RPC audit endpoint metadata,
+preserved RPC ownership/security/EXECUTE posture, did not create mappings, did
+not create Phase 4 mutation audit events merely by application, and did not
+alter existing audit rows. No staging verification or production readiness is
+claimed.
+Platform-admin Tenant and Company Administration Phase 5 is implemented
+locally with bounded company suspend/restore controls and centralized
+company-operational enforcement for tenant mutation, messaging, widget,
+broadcast, AI, and billing mutation paths. Migration 036 is applied and
+verified only in the approved main shared-testing Supabase with fake/team data:
+`companies.status` is constrained to non-null `active`/`inactive`, companies
+table privileges were tightened to no browser-role direct access and
+service_role `SELECT`, `INSERT`, and `UPDATE` only, and the suspend/restore
+RPCs remain service-role-only `SECURITY INVOKER` functions with
+`search_path=pg_catalog`. Real shared-testing lifecycle verification suspended
+and restored non-protected company 23, left company 23 active after cleanup,
+created audit events 355 and 356 with safe lifecycle metadata only, and
+verified protected company 29 cannot be suspended. No live tenant-runtime
+suspension E2E was performed because company 23 has no users or chatbots and
+the verification intentionally avoided risking another tenant. Runtime
+enforcement is covered by automated local tests. No staging verification or
+production readiness is claimed.
 subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
@@ -64,7 +100,7 @@ AI-credit alerts, billing-order attention alerts, inactive-company alerts,
 no-current-chatbot alerts, payment reconciliation, checkout recovery, retry
 payment, manual crediting, subscription activation, plan changes,
 no-subscription counting, global activity, usage aggregation, charts, exports, audit export, audit
-editing/deletion, and write controls remain deferred.
+editing/deletion, and overview remediation/write controls remain deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
 shell, a fresh `/me` authorization gate on every page, an allowlisted
@@ -72,7 +108,8 @@ GET/POST/PATCH client, in-memory request cancellation/state clearing, the Platfo
 overview, the server-paginated company directory, safe company billing/AI-credit
 detail views, typed subscription operational alerts, and lazy read-only subscription-history, AI-credit transaction-history,
 billing-order history, and company users/chatbots sections. A later bounded frontend-only platform-admin
-Support Workspace adds a read-only investigation hub that reuses the existing
+Support Workspace adds tenant investigation with controlled internal case
+operations. It reuses the existing
 operations overview and company directory APIs, highlights attention companies,
 and links into the existing company detail investigation page.
 Support Cases Phase 1 is implemented for internal platform-admin use and is
@@ -80,10 +117,31 @@ verified in the main shared testing Supabase with fake/team data; this is not
 staging or production verification. The feature adds bounded internal case create/list/detail,
 redacted notes, status/priority updates, append-only case events, and audited
 writes. It is separate from tenant `support.html` and does not add customer
-messaging, impersonation, billing actions, exports, charts, or production use.
-SQL execution now requires project/ref/environment preflight evidence recorded
-in the platform-admin access lifecycle. Future SQL is limited to confirmed
-local/dev or approved staging targets; production remains blocked.
+messaging, impersonation, billing actions, exports, charts, or production use
+in Phase 2.
+Platform-admin Support Case Operations Phase 2 is implemented and verified only
+in the main shared testing Supabase with fake/team data. It adds
+assignment/reassignment/unassignment to active platform-admin mappings,
+explicit status transitions, priority updates, internal-note creation, and an
+ordered activity timeline. Migration 032 executed successfully in main
+shared-testing only; fake/team verification covered least-privilege grants,
+RLS/policies, service-role-only RPC execution, assignment/status/priority/note
+mutations, no-op and invalid-transition rejection without extra event/audit
+rows, and close/reopen `closed_at` behavior. This is not staging or production
+verification.
+Platform-admin Tenant Communication Phase 3 and Migration 033 are verified only
+in the main shared-testing Supabase with fake/team data. It adds tenant-visible reply creation/listing for converted
+support cases, tenant request history/detail with public replies, safe
+`tenant_reply_created` activity, safe reply audit metadata, and a pending
+`in_app` support notification outbox. This is not staging verification and does
+not establish production readiness. Existing billing
+notification and email helpers were not reused for support delivery, and
+attachments are deferred because the available media attachment subsystem is a
+public bot-media mechanism rather than private support storage.
+SQL execution requires project/ref/environment preflight evidence recorded in
+the platform-admin access lifecycle. Future SQL is limited to confirmed
+local/dev, the approved main shared-testing environment with fake/team data, or
+approved staging targets. Production remains blocked.
 Tenant support submission is governed by
 `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`. The backend endpoint is
 implemented locally and the bounded frontend form is implemented locally.
@@ -103,7 +161,8 @@ applied there and browser/API E2E passed locally: request 1 was reviewed then
 converted, creating internal case 2 once. This is not staging verification or
 production readiness, and production remains blocked. RLS/EXECUTE, audit
 metadata, RPC security, and the mapping baseline remained safe.
-Assignment UI, customer contact, SLA, and other future concepts remain deferred
+Customer contact, SLA, escalation automation, analytics, bulk actions, and
+other future concepts remain deferred
 under `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`. The ordinary
 tenant sidebar does not expose platform navigation.
 The Audit Logs viewer adds a separate read-only page and one audited backend
@@ -118,9 +177,12 @@ idempotency, raw-error, reconciliation, retry, activation, manual-credit,
 export/download, chart, and write behavior.
 Authenticated tenant pages now use a shared top-right account menu for Profile,
 Support, and Logout. Support now includes the local backend submission endpoint
-and a bounded frontend request form. Migration 030 and local browser/API E2E
+and a bounded frontend request form plus local request history/detail with
+tenant-visible replies. Migration 030 and local browser/API E2E
 verification are recorded only in the main shared testing Supabase with
-fake/team data; this is not staging verification or production readiness. Active
+fake/team data; Phase 3 and Migration 033 are verified only in the main
+shared-testing Supabase with fake/team data and are not staging verification or
+production readiness. Active
 platform admins can discover a Platform Administration link only after a lazy live
 `/api/platform-admin/me` check. This menu visibility does not replace the
 platform page's fresh authorization gate.

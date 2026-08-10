@@ -29,6 +29,11 @@ from app.decorators.auth_decorator import token_required
 from app.rate_limit import limiter
 from app.services.ai_router import OPERATION_CHAT_REPLY, generate_response
 from app.services.billing_guard import BillingLimitError
+from app.services.company_status_service import (
+    CompanyOperationalStatusError,
+    company_operational_required,
+    ensure_company_operational,
+)
 from app.services.web_widget_service import (
     WidgetError,
     assert_session_quota,
@@ -103,6 +108,14 @@ def _load_widget_or_error():
     """Resolve + origin-check the widget for the current request."""
     public_key = request.view_args.get("public_key")
     widget, bot = resolve_public_widget(public_key)
+    try:
+        ensure_company_operational(bot.get("company_id"))
+    except CompanyOperationalStatusError:
+        raise WidgetError(
+            "This chatbot is temporarily unavailable.",
+            status=403,
+            code="company_suspended",
+        )
 
     origin = request.headers.get("Origin") or request.headers.get("Referer")
     if not is_origin_allowed(widget, origin):
@@ -311,6 +324,7 @@ def _embed_urls(widget):
 
 @widget_blueprint.route("/api/bots/<int:chatbot_id>/widget", methods=["GET"])
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def get_bot_widget(chatbot_id):
     try:
@@ -333,6 +347,7 @@ def get_bot_widget(chatbot_id):
 
 @widget_blueprint.route("/api/bots/<int:chatbot_id>/widget", methods=["PUT", "PATCH"])
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def put_bot_widget(chatbot_id):
     try:
@@ -361,6 +376,7 @@ def put_bot_widget(chatbot_id):
     "/api/bots/<int:chatbot_id>/widget/regenerate-key", methods=["POST"]
 )
 @token_required
+@company_operational_required
 @role_required("admin", "owner")
 def post_regenerate_widget_key(chatbot_id):
     try:

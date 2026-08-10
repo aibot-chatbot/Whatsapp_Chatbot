@@ -39,6 +39,8 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/audit-events",
             "/api/platform-admin/companies",
             "/api/platform-admin/companies/<int:company_id>",
+            "/api/platform-admin/companies/<int:company_id>/suspend",
+            "/api/platform-admin/companies/<int:company_id>/restore",
             "/api/platform-admin/companies/<int:company_id>/subscription",
             "/api/platform-admin/companies/<int:company_id>/subscription-history",
             "/api/platform-admin/companies/<int:company_id>/ai-credit-usage",
@@ -47,8 +49,16 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/companies/<int:company_id>/users",
             "/api/platform-admin/companies/<int:company_id>/chatbots",
             "/api/platform-admin/support-cases",
+            "/api/platform-admin/support-case-assignees",
             "/api/platform-admin/support-cases/<int:case_id>",
+            "/api/platform-admin/support-cases/<int:case_id>/replies",
             "/api/platform-admin/support-cases/<int:case_id>/notes",
+            "/api/platform-admin/support-cases/<int:case_id>/assignment",
+            "/api/platform-admin/support-cases/<int:case_id>/status",
+            "/api/platform-admin/support-cases/<int:case_id>/priority",
+            "/api/platform-admin/platform-admin-users",
+            "/api/platform-admin/platform-admin-users/<int:mapping_id>",
+            "/api/platform-admin/platform-admin-users/<int:mapping_id>/active",
             "/api/platform-admin/tenant-support-requests",
             "/api/platform-admin/tenant-support-requests/<int:request_id>",
             "/api/platform-admin/tenant-support-requests/<int:request_id>/convert",
@@ -59,11 +69,26 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertTrue(all(
             value == {"GET"}
             for key, value in methods.items()
-            if "support-cases" not in key and "tenant-support-requests" not in key
+            if "support-cases" not in key
+            and "support-case-assignees" not in key
+            and "platform-admin-users" not in key
+            and "tenant-support-requests" not in key
+            and not key.endswith("/suspend")
+            and not key.endswith("/restore")
         ))
+        self.assertEqual(methods["/api/platform-admin/companies/<int:company_id>/suspend"], {"POST"})
+        self.assertEqual(methods["/api/platform-admin/companies/<int:company_id>/restore"], {"POST"})
         self.assertEqual(methods["/api/platform-admin/support-cases"], {"GET", "POST"})
-        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>"], {"GET", "PATCH"})
+        self.assertEqual(methods["/api/platform-admin/support-case-assignees"], {"GET"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>"], {"GET"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/replies"], {"GET", "POST"})
         self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/notes"], {"POST"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/assignment"], {"PATCH"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/status"], {"PATCH"})
+        self.assertEqual(methods["/api/platform-admin/support-cases/<int:case_id>/priority"], {"PATCH"})
+        self.assertEqual(methods["/api/platform-admin/platform-admin-users"], {"GET", "POST"})
+        self.assertEqual(methods["/api/platform-admin/platform-admin-users/<int:mapping_id>"], {"GET"})
+        self.assertEqual(methods["/api/platform-admin/platform-admin-users/<int:mapping_id>/active"], {"PATCH"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests"], {"GET"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>"], {"GET", "PATCH"})
         self.assertEqual(methods["/api/platform-admin/tenant-support-requests/<int:request_id>/convert"], {"POST"})
@@ -73,12 +98,13 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 21)
+        self.assertEqual(len(rules), 32)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")
                 .replace("<int:case_id>", "1")
                 .replace("<int:request_id>", "1")
+                .replace("<int:mapping_id>", "3")
             )
             method = next(iter(rule.methods - {"HEAD", "OPTIONS"}))
             with self.subTest(path=path):
@@ -92,6 +118,36 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["data"]["id"], 200)
         service.assert_called_once_with(200, 3)
+
+    def test_company_suspend_and_restore_routes_use_path_actor_and_empty_body(self):
+        with patch.object(
+            platform_admin_service,
+            "suspend_company",
+            return_value={"company": {"id": 200, "new_status": "inactive"}},
+        ) as service:
+            response = self.client.post("/api/platform-admin/companies/200/suspend", json={}, headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["company"]["new_status"], "inactive")
+        service.assert_called_once_with(200, {}, 3)
+
+        with patch.object(
+            platform_admin_service,
+            "restore_company",
+            return_value={"company": {"id": 200, "new_status": "active"}},
+        ) as service:
+            response = self.client.post("/api/platform-admin/companies/200/restore", json={}, headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["company"]["new_status"], "active")
+        service.assert_called_once_with(200, {}, 3)
+
+    def test_company_lifecycle_rejects_unsafe_browser_fields(self):
+        response = self.client.post(
+            "/api/platform-admin/companies/200/suspend",
+            json={"actor_platform_admin_user_id": 1, "status": "inactive", "role": "owner"},
+            headers=self.headers,
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json["code"], "invalid_request")
 
     def test_invalid_list_parameters_have_stable_400_codes(self):
         cases = {

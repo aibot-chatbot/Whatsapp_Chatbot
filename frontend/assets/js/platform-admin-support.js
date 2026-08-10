@@ -11,6 +11,7 @@
         caseResults: null,
         caseDetail: null,
         caseError: null,
+        caseAssignees: [],
         tenantRequestResults: null,
         tenantRequestDetail: null,
         tenantRequestError: null,
@@ -40,6 +41,37 @@
         const link = ui.element("a", "platform-link-button", "Open internal case #" + String(caseId));
         link.href = "platform-admin-support.html?case_id=" + String(caseId);
         return link;
+    }
+
+    function labelFor(value) {
+        const labels = {
+            open: "Open",
+            in_progress: "In progress",
+            waiting_for_tenant: "Waiting for tenant",
+            resolved: "Resolved",
+            closed: "Closed",
+            low: "Low",
+            normal: "Normal",
+            high: "High",
+            urgent: "Urgent",
+            created: "Case created",
+            note_added: "Internal note",
+            status_changed: "Status changed",
+            priority_changed: "Priority changed",
+            assignment_changed: "Assignment changed",
+            tenant_reply_created: "Tenant-visible reply",
+            pending: "Pending",
+            sent: "Sent",
+            failed: "Failed"
+        };
+        return labels[value] || safeValue(value);
+    }
+
+    function assigneeLabel(assigneeId) {
+        if (!Number.isSafeInteger(assigneeId) || assigneeId <= 0) return "Unassigned";
+        const match = state.caseAssignees.find(function (item) { return item.id === assigneeId; });
+        if (match) return "Admin mapping #" + String(match.id) + " (user #" + String(match.user_id) + ")";
+        return "Admin mapping #" + String(assigneeId);
     }
 
     function clearTenantRequestState() {
@@ -304,6 +336,88 @@
         return { field: field, input: select };
     }
 
+    function renderPublicReplySection(current, data) {
+        const section = panel(
+            "Tenant-visible conversation",
+            "Replies in this section are visible to the tenant. Internal notes stay separate."
+        );
+        const sourceRequest = data && data.source_tenant_request;
+        const replies = data && Array.isArray(data.public_replies) ? data.public_replies : [];
+        const notifications = data && Array.isArray(data.reply_notifications)
+            ? data.reply_notifications
+            : [];
+        if (!sourceRequest) {
+            section.append(ui.element("p", "platform-empty", "Tenant replies require a converted tenant support request."));
+            return section;
+        }
+        section.append(cardLine("Conversation request", "Request #" + String(sourceRequest.request_id)));
+        if (!replies.length) {
+            section.append(ui.element("p", "platform-empty", "No tenant-visible replies have been sent."));
+        } else {
+            section.append(table(
+                ["Author", "Reply", "Notification", "Created"],
+                replies.map(function (reply) {
+                    const notification = notifications.find(function (item) {
+                        return item.reply_id === reply.reply_id && item.channel === "in_app";
+                    });
+                    return [
+                        "Platform admin",
+                        reply.redacted_body,
+                        notification ? labelFor(notification.status) : "Pending",
+                        ui.formatDate(reply.created_at)
+                    ];
+                }),
+                "Tenant-visible support replies"
+            ));
+        }
+
+        const replyForm = ui.element("form", "platform-support-search");
+        const replyField = ui.element("div", "platform-field");
+        const replyLabel = ui.element("label", "", "Tenant-visible redacted reply");
+        replyLabel.htmlFor = "platform-support-case-public-reply";
+        const replyInput = ui.element("textarea", "platform-input");
+        replyInput.id = "platform-support-case-public-reply";
+        replyInput.maxLength = 4000;
+        replyInput.required = true;
+        const warning = ui.element(
+            "p",
+            "platform-note",
+            "This reply will be visible to the tenant. Do not include passwords, tokens, provider payloads, payment details, or private customer conversation content."
+        );
+        replyField.append(replyLabel, replyInput, warning);
+        const replyButton = ui.element("button", "platform-button platform-button-primary", "Send reply to tenant");
+        replyButton.type = "submit";
+        replyForm.append(replyField, replyButton);
+        replyForm.addEventListener("submit", async function (event) {
+            event.preventDefault();
+            const body = replyInput.value.trim();
+            if (!body) {
+                if (state.caseError) state.caseError.textContent = "Tenant-visible reply cannot be empty.";
+                return;
+            }
+            if (!window.confirm("Send this reply to the tenant?")) return;
+            replyButton.disabled = true;
+            try {
+                await ui.runRequest("support-case-public-reply", function (signal) {
+                    return PlatformAdminApi.createSupportCaseReply(current.id, {
+                        redacted_body: body
+                    }, { signal: signal });
+                });
+                replyInput.value = "";
+                await openSupportCase(current.id, { preserveOnFailure: true });
+                await loadSupportCases();
+            } catch (error) {
+                if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The tenant-visible reply could not be sent.";
+            } finally {
+                if (replyButton.isConnected) {
+                    replyButton.disabled = false;
+                }
+            }
+        });
+        section.append(replyForm);
+        return section;
+    }
+
     function renderCaseDetail(data) {
         if (!state.caseDetail) return;
         const current = data && data.case ? data.case : null;
@@ -313,65 +427,147 @@
         }
         const section = panel(
             "Internal support case detail",
-            "Internal platform notes only. This view contains no customer conversation or external communication controls."
+            "Tenant investigation with controlled internal case operations. Internal notes and tenant-visible replies are separate."
         );
         section.append(
             ui.element("h3", "", safeValue(current.title)),
             cardLine("Case ID", current.id),
-            cardLine("Company ID", current.company_id),
-            cardLine("Status", current.status),
-            cardLine("Priority", current.priority),
+            cardLine("Company", companyLink(current.company_id, "Open company investigation")),
+            cardLine("Status", labelFor(current.status)),
+            cardLine("Priority", labelFor(current.priority)),
+            cardLine("Assignee", assigneeLabel(current.assigned_platform_admin_user_id)),
+            cardLine("Original tenant request", data.source_tenant_request
+                ? "Tenant request #" + String(data.source_tenant_request.request_id)
+                : "Not available"),
             cardLine("Redacted summary", current.redacted_summary),
             cardLine("Updated", ui.formatDate(current.updated_at))
         );
         const events = Array.isArray(data.events) ? data.events : [];
-        section.append(ui.element("h3", "", "Append-only case events"));
+        section.append(ui.element("h3", "", "Case activity timeline"));
         if (!events.length) section.append(ui.element("p", "platform-empty", "No case events recorded."));
         else section.append(table(
-            ["Event", "Actor mapping", "Status", "Priority", "Redacted note", "Created"],
+            ["Activity", "Actor mapping", "Change", "Internal note", "Created"],
             events.map(function (event) {
-                return [event.event_type, event.actor_platform_admin_user_id,
-                    event.new_status || event.old_status, event.new_priority || event.old_priority,
-                    event.redacted_note, ui.formatDate(event.created_at)];
+                let change = "";
+                if (event.event_type === "status_changed") {
+                    change = labelFor(event.old_status) + " to " + labelFor(event.new_status);
+                } else if (event.event_type === "priority_changed") {
+                    change = labelFor(event.old_priority) + " to " + labelFor(event.new_priority);
+                } else if (event.event_type === "assignment_changed") {
+                    change = assigneeLabel(event.old_assigned_platform_admin_user_id) + " to " +
+                        assigneeLabel(event.new_assigned_platform_admin_user_id);
+                } else if (event.event_type === "created") {
+                    change = labelFor(event.new_status) + " / " + labelFor(event.new_priority);
+                } else if (event.event_type === "tenant_reply_created") {
+                    change = event.tenant_support_reply_id
+                        ? "Reply #" + String(event.tenant_support_reply_id)
+                        : "";
+                }
+                return [labelFor(event.event_type), event.actor_platform_admin_user_id,
+                    change, event.redacted_note, ui.formatDate(event.created_at)];
             }),
             "Support-case events"
         ));
 
         const controls = ui.element("div", "platform-support-actions");
-        const status = selectField("Status", "platform-support-case-status", [
-            { value: "open", label: "Open" },
-            { value: "in_progress", label: "In progress" },
-            { value: "resolved", label: "Resolved" },
-            { value: "closed", label: "Closed" }
-        ], current.status);
+        const transitions = Array.isArray(data.status_transitions) ? data.status_transitions : [];
+        const status = selectField("Next status", "platform-support-case-status", transitions.map(function (value) {
+            return { value: value, label: labelFor(value) };
+        }), "");
+        if (!transitions.length) {
+            const option = ui.element("option", "", "No status transitions available");
+            option.value = "";
+            status.input.append(option);
+            status.input.disabled = true;
+        }
         const priority = selectField("Priority", "platform-support-case-priority", [
             { value: "low", label: "Low" },
             { value: "normal", label: "Normal" },
             { value: "high", label: "High" },
             { value: "urgent", label: "Urgent" }
         ], current.priority);
-        const update = ui.element("button", "platform-button platform-button-primary", "Update case");
-        update.type = "button";
-        update.addEventListener("click", async function () {
+        const currentAssigneeValue = current.assigned_platform_admin_user_id
+            ? String(current.assigned_platform_admin_user_id)
+            : "";
+        const assigneeValues = [{ value: "", label: "Unassigned" }].concat(state.caseAssignees.map(function (item) {
+            return { value: String(item.id), label: assigneeLabel(item.id) };
+        }));
+        const assignee = selectField("Assignee", "platform-support-case-assignee", assigneeValues, currentAssigneeValue);
+        const updateStatus = ui.element("button", "platform-button", "Update status");
+        updateStatus.type = "button";
+        updateStatus.disabled = !transitions.length;
+        updateStatus.addEventListener("click", async function () {
+            if (!status.input.value || updateStatus.disabled) return;
+            updateStatus.disabled = true;
             try {
                 await ui.runRequest("support-case-update", function (signal) {
-                    return PlatformAdminApi.updateSupportCase(current.id, {
-                        status: status.input.value, priority: priority.input.value
+                    return PlatformAdminApi.updateSupportCaseStatus(current.id, {
+                        status: status.input.value
                     }, { signal: signal });
                 });
                 await openSupportCase(current.id);
                 await loadSupportCases();
             } catch (error) {
                 if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The case could not be updated.";
+                updateStatus.disabled = false;
             }
         });
-        controls.append(status.field, priority.field, update);
+        const updatePriority = ui.element("button", "platform-button", "Update priority");
+        updatePriority.type = "button";
+        function refreshPriorityButton() {
+            updatePriority.disabled = priority.input.value === current.priority;
+        }
+        priority.input.addEventListener("change", refreshPriorityButton);
+        refreshPriorityButton();
+        updatePriority.addEventListener("click", async function () {
+            if (updatePriority.disabled) return;
+            updatePriority.disabled = true;
+            try {
+                await ui.runRequest("support-case-priority", function (signal) {
+                    return PlatformAdminApi.updateSupportCasePriority(current.id, {
+                        priority: priority.input.value
+                    }, { signal: signal });
+                });
+                await openSupportCase(current.id);
+                await loadSupportCases();
+            } catch (error) {
+                if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The priority could not be updated.";
+                refreshPriorityButton();
+            }
+        });
+        const updateAssignee = ui.element("button", "platform-button", "Update assignee");
+        updateAssignee.type = "button";
+        function refreshAssigneeButton() {
+            updateAssignee.disabled = assignee.input.value === currentAssigneeValue;
+        }
+        assignee.input.addEventListener("change", refreshAssigneeButton);
+        refreshAssigneeButton();
+        updateAssignee.addEventListener("click", async function () {
+            if (updateAssignee.disabled) return;
+            updateAssignee.disabled = true;
+            const selected = assignee.input.value ? Number(assignee.input.value) : null;
+            try {
+                await ui.runRequest("support-case-assignment", function (signal) {
+                    return PlatformAdminApi.assignSupportCase(current.id, {
+                        assigned_platform_admin_user_id: selected
+                    }, { signal: signal });
+                });
+                await openSupportCase(current.id);
+                await loadSupportCases();
+            } catch (error) {
+                if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The assignee could not be updated.";
+                refreshAssigneeButton();
+            }
+        });
+        controls.append(assignee.field, updateAssignee, status.field, updateStatus, priority.field, updatePriority);
         section.append(controls);
 
         const noteForm = ui.element("form", "platform-support-search");
         const noteField = ui.element("div", "platform-field");
         const noteLabel = ui.element("label", "", "Redacted internal note");
+        noteLabel.htmlFor = "platform-support-case-note";
         const noteInput = ui.element("textarea", "platform-input");
+        noteInput.id = "platform-support-case-note";
         noteInput.maxLength = 2000;
         noteInput.required = true;
         noteField.append(noteLabel, noteInput);
@@ -380,29 +576,57 @@
         noteForm.append(noteField, noteButton);
         noteForm.addEventListener("submit", async function (event) {
             event.preventDefault();
+            const note = noteInput.value.trim();
+            if (!note) {
+                if (state.caseError) state.caseError.textContent = "Internal note cannot be empty.";
+                return;
+            }
+            noteButton.disabled = true;
             try {
                 await ui.runRequest("support-case-note", function (signal) {
                     return PlatformAdminApi.addSupportCaseNote(current.id, {
-                        redacted_note: noteInput.value
+                        redacted_note: note
                     }, { signal: signal });
                 });
                 noteInput.value = "";
                 await openSupportCase(current.id);
             } catch (error) {
                 if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The internal note could not be added.";
+                noteButton.disabled = false;
             }
         });
         section.append(noteForm);
-        state.caseDetail.replaceChildren(section);
+        state.caseDetail.replaceChildren(section, renderPublicReplySection(current, data));
     }
 
-    async function openSupportCase(caseId) {
+    async function openSupportCase(caseId, options) {
+        const config = options || {};
         try {
             const data = await ui.runRequest("support-case-detail", function (signal) {
                 return PlatformAdminApi.getSupportCase(caseId, { signal: signal });
             });
+            try {
+                const replyData = await ui.runRequest("support-case-public-replies", function (signal) {
+                    return PlatformAdminApi.listSupportCaseReplies(caseId, { signal: signal });
+                });
+                data.public_replies = replyData && Array.isArray(replyData.replies) ? replyData.replies : [];
+                data.reply_notifications = replyData && Array.isArray(replyData.notifications) ? replyData.notifications : [];
+                if (!data.source_tenant_request && replyData && replyData.source_tenant_request) {
+                    data.source_tenant_request = replyData.source_tenant_request;
+                }
+            } catch (error) {
+                data.public_replies = [];
+                data.reply_notifications = [];
+                if (!ui.handleError(error) && state.caseError) {
+                    state.caseError.textContent = "Tenant-visible replies could not be loaded.";
+                }
+            }
             renderCaseDetail(data);
         } catch (error) {
+            if (config.preserveOnFailure) {
+                if (state.caseError) state.caseError.textContent = "The support case could not be refreshed.";
+                return;
+            }
             if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "The support case could not be loaded.";
         }
     }
@@ -431,6 +655,20 @@
             ));
         } catch (error) {
             if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "Support cases are temporarily unavailable.";
+        }
+    }
+
+    async function loadSupportCaseAssignees() {
+        try {
+            const data = await ui.runRequest("support-case-assignees", function (signal) {
+                return PlatformAdminApi.listSupportCaseAssignees({ signal: signal });
+            });
+            state.caseAssignees = data && Array.isArray(data.assignees) ? data.assignees : [];
+        } catch (error) {
+            state.caseAssignees = [];
+            if (!ui.handleError(error) && state.caseError) {
+                state.caseError.textContent = "Support-case assignees are temporarily unavailable.";
+            }
         }
     }
 
@@ -602,7 +840,7 @@
     function renderTenantSupportRequests() {
         const section = panel(
             "Tenant-submitted support requests",
-            "Read-only intake review. Approved review, close, and conversion controls are available after Migration 031 is applied. Assignment, replies, billing, exports, charts, messaging, email, attachments, and impersonation remain excluded."
+            "Tenant investigation with controlled internal case operations. Approved review, close, and conversion controls remain bounded. Tenant-visible replies are bounded platform-admin workflows. Billing, exports, charts, email, attachments, and impersonation remain excluded."
         );
         state.tenantRequestError = ui.element("p", "platform-inline-error");
         state.tenantRequestError.setAttribute("aria-live", "polite");
@@ -618,7 +856,7 @@
     function renderSupportCases() {
         const section = panel(
             "Internal support cases",
-            "Localhost-only internal tracking for redacted investigation notes. Cases are not customer-facing."
+            "Internal tracking for redacted investigation notes and controlled tenant-visible replies. Internal notes are not customer-facing."
         );
         state.caseError = ui.element("p", "platform-inline-error");
         state.caseError.setAttribute("aria-live", "polite");
@@ -668,7 +906,7 @@
         const titleGroup = ui.element("div");
         titleGroup.append(
             ui.element("h1", "", "Support Workspace"),
-            ui.element("p", "", "Read-only tenant investigation for platform administrators. This workspace does not message tenants, but may perform approved internal review, close, and conversion actions after Migration 031 is applied.")
+            ui.element("p", "", "Tenant investigation with controlled internal case operations. Tenant replies are explicit support-case writes; billing, export, impersonation, attachment, email, and SLA actions remain excluded.")
         );
         header.append(titleGroup, renderQuickNavigation());
         root.replaceChildren(
@@ -691,8 +929,14 @@
                 renderSupportCases(),
                 renderTenantSupportRequests()
             );
+            await loadSupportCaseAssignees();
             await loadSupportCases();
             await loadTenantSupportRequests();
+            const params = new URLSearchParams(window.location.search);
+            const caseId = Number(params.get("case_id"));
+            if (Number.isSafeInteger(caseId) && caseId > 0) {
+                await openSupportCase(caseId);
+            }
         } catch (error) {
             if (!ui.handleError(error) && (!error || error.category !== "aborted")) {
                 root.replaceChildren(ui.element("p", "platform-empty", "Support workspace data is temporarily unavailable."));

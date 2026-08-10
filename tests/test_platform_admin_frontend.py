@@ -12,6 +12,7 @@ PAGES = [
     FRONTEND / "platform-admin-companies.html",
     FRONTEND / "platform-admin-company.html",
     FRONTEND / "platform-admin-support.html",
+    FRONTEND / "platform-admin-users.html",
     FRONTEND / "platform-admin-audit-events.html",
 ]
 API = FRONTEND / "assets" / "js" / "platform-admin-api.js"
@@ -20,6 +21,7 @@ DASHBOARD = FRONTEND / "assets" / "js" / "platform-admin-dashboard.js"
 COMPANIES = FRONTEND / "assets" / "js" / "platform-admin-companies.js"
 COMPANY = FRONTEND / "assets" / "js" / "platform-admin-company.js"
 SUPPORT = FRONTEND / "assets" / "js" / "platform-admin-support.js"
+PLATFORM_ADMIN_USERS = FRONTEND / "assets" / "js" / "platform-admin-users.js"
 AUDIT_EVENTS = FRONTEND / "assets" / "js" / "platform-admin-audit-events.js"
 CSS = FRONTEND / "assets" / "css" / "platform-admin.css"
 SIDEBAR = FRONTEND / "sidebar-component.js"
@@ -35,7 +37,14 @@ class TestPlatformAdminPageGate(unittest.TestCase):
     def setUpClass(cls):
         cls.pages = {path.name: read(path) for path in PAGES}
         cls.shell = read(SHELL)
-        cls.controllers = [read(DASHBOARD), read(COMPANIES), read(COMPANY), read(SUPPORT), read(AUDIT_EVENTS)]
+        cls.controllers = [
+            read(DASHBOARD),
+            read(COMPANIES),
+            read(COMPANY),
+            read(SUPPORT),
+            read(PLATFORM_ADMIN_USERS),
+            read(AUDIT_EVENTS),
+        ]
 
     def test_all_pages_begin_in_blocking_checking_access_state(self):
         for name, html in self.pages.items():
@@ -51,6 +60,7 @@ class TestPlatformAdminPageGate(unittest.TestCase):
             "platform-admin-companies.html": "platform-admin-companies.js",
             "platform-admin-company.html": "platform-admin-company.js",
             "platform-admin-support.html": "platform-admin-support.js",
+            "platform-admin-users.html": "platform-admin-users.js",
             "platform-admin-audit-events.html": "platform-admin-audit-events.js",
         }
         for name, html in self.pages.items():
@@ -100,10 +110,11 @@ class TestPlatformAdminShell(unittest.TestCase):
     def test_dedicated_shell_has_only_approved_navigation(self):
         for label in [
             "Platform Administration",
-            "Internal / Read Only",
+            "Internal / Controlled Access",
             "Dashboard",
             "Companies",
             "Support",
+            "Platform Admins",
             "Audit Logs",
             "Return to Tenant App",
             "Logout",
@@ -175,7 +186,13 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "getOverview",
                 "listCompanies",
                 "listAuditEvents",
+                "listPlatformAdminUsers",
+                "getPlatformAdminUser",
+                "createPlatformAdminUser",
+                "setPlatformAdminUserActive",
                 "getCompany",
+                "suspendCompany",
+                "restoreCompany",
                 "getCompanySubscription",
                 "listCompanySubscriptionHistory",
                 "getCompanyAiCreditUsage",
@@ -186,24 +203,73 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "listSupportCases",
                 "createSupportCase",
                 "getSupportCase",
+                "listSupportCaseAssignees",
                 "listTenantSupportRequests",
                 "getTenantSupportRequest",
                 "updateTenantSupportRequest",
                 "convertTenantSupportRequest",
                 "addSupportCaseNote",
-                "updateSupportCase",
+                "listSupportCaseReplies",
+                "createSupportCaseReply",
+                "assignSupportCase",
+                "updateSupportCaseStatus",
+                "updateSupportCasePriority",
             ],
         )
 
     def test_client_uses_allowlisted_methods_and_has_no_generic_public_request(self):
         self.assertIn('const requestMethod = method || "GET"', self.api)
         self.assertIn('method: requestMethod', self.api)
-        self.assertIn('"POST"', self.api)
-        self.assertIn('"PATCH"', self.api)
         self.assertNotIn('method: "PUT"', self.api)
         self.assertNotIn('method: "DELETE"', self.api)
+        self.assertNotIn('"PUT"', self.api)
+        self.assertNotIn('"DELETE"', self.api)
         self.assertNotIn("request: platformFetch", self.api)
+        self.assertNotIn("mutation: platformFetch", self.api)
+        self.assertNotIn("publicRequest", self.api)
+        self.assertNotIn("genericMutation", self.api)
         self.assertNotIn("/api/admin/billing", self.api)
+        approved_mutations = {
+            "createSupportCase": ("/support-cases", "POST"),
+            "updateTenantSupportRequest": ("/tenant-support-requests/\" + String(requestId)", "PATCH"),
+            "convertTenantSupportRequest": ("/tenant-support-requests/\" + String(requestId) + \"/convert", "POST"),
+            "addSupportCaseNote": ("/support-cases/\" + id + \"/notes", "POST"),
+            "createSupportCaseReply": ("/support-cases/\" + id + \"/replies", "POST"),
+            "assignSupportCase": ("/support-cases/\" + id + \"/assignment", "PATCH"),
+            "updateSupportCaseStatus": ("/support-cases/\" + id + \"/status", "PATCH"),
+            "updateSupportCasePriority": ("/support-cases/\" + id + \"/priority", "PATCH"),
+            "createPlatformAdminUser": ("/platform-admin-users", "POST"),
+            "setPlatformAdminUserActive": ("/platform-admin-users/\" + id + \"/active", "PATCH"),
+            "suspendCompany": ("/companies/\" + id + \"/suspend", "POST"),
+            "restoreCompany": ("/companies/\" + id + \"/restore", "POST"),
+        }
+        seen_mutations = {}
+        for function_name, body in re.findall(
+            r"function (\w+)\([^)]*\) \{(.*?)\n    \}",
+            self.api,
+            flags=re.S,
+        ):
+            if '"POST"' not in body and '"PATCH"' not in body:
+                continue
+            seen_mutations[function_name] = body
+        self.assertEqual(set(seen_mutations), set(approved_mutations))
+        for function_name, (path_fragment, method) in approved_mutations.items():
+            body = seen_mutations[function_name]
+            self.assertIn(path_fragment, body)
+            self.assertIn(f'"{method}"', body)
+        for forbidden in (
+            "/billing",
+            "/companies/\" + id + \"/users",
+            "/companies/\" + id + \"/subscription",
+            "/companies/\" + id + \"/ai-credit",
+            "/companies/\" + id + \"/billing-orders",
+            "/chatbots",
+            "/imperson",
+            "/export",
+            "/delete",
+            "/messages",
+        ):
+            self.assertNotIn(forbidden, "\n".join(seen_mutations.values()))
 
     def test_tenant_support_intake_viewer_is_get_only_and_validates_display_paths(self):
         list_function = re.search(
@@ -225,6 +291,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         for function_name in (
             "updateTenantSupportRequest",
             "convertTenantSupportRequest",
+            "listSupportCaseReplies",
+            "createSupportCaseReply",
         ):
             self.assertIn(function_name + ":", self.api)
 
@@ -265,6 +333,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         self.assertIn("companyId <= 0", validator)
         for function_name in [
             "getCompany",
+            "suspendCompany",
+            "restoreCompany",
             "getCompanySubscription",
             "listCompanySubscriptionHistory",
             "getCompanyAiCreditUsage",
@@ -280,6 +350,27 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             ).group(1)
             self.assertLess(body.index("requireCompanyId(companyId)"), body.index("platformFetch("))
 
+    def test_company_lifecycle_controls_are_bounded_and_confirmed(self):
+        company = read(COMPANY)
+        self.assertIn("Operational state", company)
+        self.assertIn("Suspend company", company)
+        self.assertIn("Restore company", company)
+        self.assertIn("window.confirm", company)
+        self.assertIn("Tenant operational activity will be blocked", company)
+        self.assertIn("button.disabled = true", company)
+        self.assertIn("PlatformAdminApi.suspendCompany", company)
+        self.assertIn("PlatformAdminApi.restoreCompany", company)
+        self.assertIn("protected_company", company)
+        for forbidden in (
+            "delete company",
+            "impersonat",
+            "password reset",
+            "manual credit",
+            "role selector",
+            "subscription mutation",
+        ):
+            self.assertNotIn(forbidden, company.casefold())
+
     def test_support_case_ids_use_invalid_case_id_validator(self):
         validator = re.search(
             r"function requireCaseId\(caseId\) \{(.*?)\n    \}",
@@ -287,7 +378,15 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             flags=re.S,
         ).group(1)
         self.assertIn('"invalid_case_id"', validator)
-        for function_name in ["getSupportCase", "addSupportCaseNote", "updateSupportCase"]:
+        for function_name in [
+            "getSupportCase",
+            "addSupportCaseNote",
+            "listSupportCaseReplies",
+            "createSupportCaseReply",
+            "assignSupportCase",
+            "updateSupportCaseStatus",
+            "updateSupportCasePriority",
+        ]:
             body = re.search(
                 rf"function {function_name}\(caseId,.*?\) \{{(.*?)\n    \}}",
                 self.api,
@@ -341,12 +440,16 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, payload)
         for forbidden_control in (
-            "support-request-inbox", "support-request-history",
+            "support-request-inbox",
             "support-request-message", "send message", "email integration",
             "type=\"file\"", "billing-action", "impersonation-control",
             "support-request-export", "support-request-chart",
         ):
             self.assertNotIn(forbidden_control, page.lower())
+        self.assertIn("Support History", page)
+        self.assertIn('authenticatedFetch("/api/support/requests?limit=25&offset=0"', page)
+        self.assertIn('authenticatedFetch("/api/support/requests/" + String(requestId)', page)
+        self.assertIn("Tenant-visible replies", page)
 
     def test_dashboard_uses_single_operations_overview_request(self):
         self.assertEqual(self.dashboard.count("PlatformAdminApi.getOverview({"), 1)
@@ -409,16 +512,23 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
 
     def test_support_workspace_has_internal_case_states_and_safe_controls(self):
         for marker in [
-            "Read-only tenant investigation",
+            "Tenant investigation with controlled internal case operations",
             "Internal support cases",
-            "Cases are not customer-facing",
-            "does not message tenants",
-            "approved internal review, close, and conversion actions",
-            "after Migration 031 is applied",
+            "Internal notes are not customer-facing",
+            "Tenant-visible conversation",
+            "Send reply to tenant",
+            "This reply will be visible to the tenant",
+            "PlatformAdminApi.listSupportCaseReplies",
+            "PlatformAdminApi.createSupportCaseReply",
+            'ui.runRequest("support-case-public-reply"',
+            "replyButton.disabled = true;",
+            "} finally {",
+            "replyButton.isConnected",
+            "billing, export, impersonation, attachment, email, and SLA actions remain excluded",
             "Tenant-submitted support requests",
             "rendered as text only",
             "Approved review, close, and conversion controls",
-            "Assignment, replies, billing, exports, charts, messaging, email, attachments, and impersonation remain excluded",
+            "Tenant-visible replies are bounded platform-admin workflows",
             "Mark reviewed",
             "Close request",
             "Convert to internal case",
@@ -454,13 +564,59 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             "Create internal case",
             "Redacted summary",
             "Add internal note",
-            "Update case",
-            "Append-only case events",
+            "Update status",
+            "Update priority",
+            "Update assignee",
+            "Case activity timeline",
             "PlatformAdminApi.createSupportCase",
             "PlatformAdminApi.addSupportCaseNote",
-            "PlatformAdminApi.updateSupportCase",
+            "PlatformAdminApi.assignSupportCase",
+            "PlatformAdminApi.updateSupportCaseStatus",
+            "PlatformAdminApi.updateSupportCasePriority",
         ]:
             self.assertIn(marker, self.support)
+
+    def test_platform_admin_user_management_page_is_bounded_to_mapping_lifecycle(self):
+        page = read(FRONTEND / "platform-admin-users.html")
+        controller = read(PLATFORM_ADMIN_USERS)
+        self.assertIn("Platform Admin Management", controller)
+        self.assertIn("PlatformAdminShell.start({ onAuthorized: initialize })", controller)
+        for marker in [
+            "PlatformAdminApi.listPlatformAdminUsers",
+            "PlatformAdminApi.createPlatformAdminUser",
+            "PlatformAdminApi.setPlatformAdminUserActive",
+            "Existing user ID",
+            "protected internal company",
+            "Invitations and new-account creation are not supported here.",
+            "Recent platform activity",
+            "Bootstrap/unknown",
+            "Self-deactivation is rejected by policy.",
+            "The final active platform admin cannot be deactivated.",
+            "window.confirm",
+            "button.disabled = true;",
+            "} finally {",
+            "button.isConnected",
+            "recoverableOnFailure",
+            "Platform-admin directory refresh failed. Retry to load the current state.",
+            "Retry",
+            "isAuthorizationFailure",
+        ]:
+            self.assertIn(marker, controller)
+        for forbidden in [
+            "PlatformAdminApi.listCompanyUsers",
+            "PlatformAdminApi.getCompany(",
+            "company_id",
+            "created_by_user_id",
+            "users.role",
+            "role selector",
+            "type = \"password\"",
+            "Impersonate",
+            "Delete Company",
+            "Suspend Company",
+            "Change Plan",
+            "Billing Orders",
+        ]:
+            self.assertNotIn(forbidden, controller + page)
 
     def test_audit_log_viewer_uses_shell_client_and_safe_metadata_summary(self):
         self.assertIn("Audit Logs", read(FRONTEND / "platform-admin-audit-events.html"))
@@ -479,8 +635,21 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             "company_id",
             "status",
             "priority",
+            "target_platform_admin_user_id",
+            "target_user_id",
+            "old_is_active",
+            "new_is_active",
         ]:
             self.assertIn('"' + safe_key + '"', self.audit_events)
+        for action in [
+            "platform_admin.user.list",
+            "platform_admin.user.read",
+            "platform_admin.user.create",
+            "platform_admin.user.activate",
+            "platform_admin.user.deactivate",
+        ]:
+            self.assertIn(action, self.audit_events)
+        self.assertIn("platform_admin_users", self.audit_events)
         self.assertNotIn("JSON.stringify", self.audit_events)
         self.assertNotIn("textarea", self.audit_events)
         for forbidden in [
@@ -766,19 +935,42 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             self.assertIn(status, read(SHELL))
 
     def test_api_values_are_rendered_as_text_not_html(self):
-        sources = "\n".join([read(API), read(SHELL), self.dashboard, self.companies, self.company, self.support])
+        sources = "\n".join([
+            read(API),
+            read(SHELL),
+            self.dashboard,
+            self.companies,
+            self.company,
+            self.support,
+            read(PLATFORM_ADMIN_USERS),
+        ])
         self.assertNotIn("innerHTML", sources)
         self.assertIn("textContent", sources)
 
     def test_no_raw_error_logging_or_unsupported_routes(self):
-        sources = "\n".join([read(API), read(SHELL), self.dashboard, self.companies, self.company, self.support])
+        sources = "\n".join([
+            read(API),
+            read(SHELL),
+            self.dashboard,
+            self.companies,
+            self.company,
+            self.support,
+            read(PLATFORM_ADMIN_USERS),
+        ])
         self.assertNotIn("console.", sources)
         self.assertNotIn("/api/admin/billing", sources)
-        for method in ["POST", "PUT", "PATCH", "DELETE"]:
+        for method in ["PUT", "DELETE"]:
             self.assertNotIn(f'method: "{method}"', sources)
 
     def test_no_mutation_or_impersonation_controls_exist(self):
-        pages_and_controllers = "\n".join(read(path) for path in PAGES) + self.dashboard + self.companies + self.company + self.support
+        pages_and_controllers = (
+            "\n".join(read(path) for path in PAGES)
+            + self.dashboard
+            + self.companies
+            + self.company
+            + self.support
+            + read(PLATFORM_ADMIN_USERS)
+        )
         for label in [
             "Change Plan",
             "Cancel Subscription",
@@ -815,7 +1007,15 @@ class TestPlatformAdminResponsiveIsolation(unittest.TestCase):
         self.assertNotIn("platform administration", sidebar)
 
     def test_flow_builder_and_broadcast_files_are_not_referenced(self):
-        sources = "\n".join(read(path) for path in PAGES + [API, SHELL, DASHBOARD, COMPANIES, COMPANY, SUPPORT])
+        sources = "\n".join(read(path) for path in PAGES + [
+            API,
+            SHELL,
+            DASHBOARD,
+            COMPANIES,
+            COMPANY,
+            SUPPORT,
+            PLATFORM_ADMIN_USERS,
+        ])
         self.assertNotIn("flow-builder", sources.lower())
         self.assertNotIn("broadcast", sources.lower())
 

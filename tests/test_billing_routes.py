@@ -59,6 +59,12 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
         app = create_app()
         app.config["TESTING"] = True
         self.client = app.test_client()
+        self.company_status_patch = patch(
+            "app.services.company_status_service.get_company_status_by_id",
+            return_value={"id": 42, "status": "active"},
+        )
+        self.company_status_patch.start()
+        self.addCleanup(self.company_status_patch.stop)
         self.valid_amount = 2_000_000  # RM2.00
         self.valid_body = {"amount_micro_myr": self.valid_amount}
 
@@ -143,6 +149,20 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 201)
+
+    def test_suspended_company_cannot_create_topup_checkout(self):
+        with patch(
+            "app.services.company_status_service.get_company_status_by_id",
+            return_value={"id": 42, "status": "inactive"},
+        ), self._patch_jwt_decode(), self._patch_user_repo(), self._patch_checkout_service() as service:
+            resp = self.client.post(
+                "/api/billing/toyyibpay/checkout",
+                json=self.valid_body,
+                headers={"Authorization": "Bearer test-token"},
+            )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.get_json()["code"], "company_suspended")
+        service.assert_not_called()
 
     def test_valid_response_contains_safe_fields(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
@@ -341,6 +361,12 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         app = create_app()
         app.config["TESTING"] = True
         self.client = app.test_client()
+        self.company_status_patch = patch(
+            "app.services.company_status_service.get_company_status_by_id",
+            return_value={"id": 42, "status": "active"},
+        )
+        self.company_status_patch.start()
+        self.addCleanup(self.company_status_patch.stop)
         self.valid_body = {"plan_code": "essential"}
         self.service_result = {
             "order_reference": "00000000-0000-0000-0000-000000000001",
@@ -421,6 +447,20 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 200)
+
+    def test_suspended_company_cannot_create_subscription_checkout(self):
+        with patch(
+            "app.services.company_status_service.get_company_status_by_id",
+            return_value={"id": 42, "status": "inactive"},
+        ), self._patch_jwt_decode(), self._patch_user_repo(), self._patch_checkout_service() as service:
+            resp = self.client.post(
+                "/api/billing/subscription/checkout",
+                json=self.valid_body,
+                headers={"Authorization": "Bearer test-token"},
+            )
+        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.get_json()["code"], "company_suspended")
+        service.assert_not_called()
 
     def test_valid_response_contains_required_fields(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():

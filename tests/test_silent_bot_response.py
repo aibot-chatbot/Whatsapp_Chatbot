@@ -132,7 +132,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_workflow,
         mock_processed_supa,
     ):
-        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1}
+        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42}
         mock_is_processed.return_value = False
         mock_get_conv.return_value = {"id": 100}
         mock_generate.return_value = "<SILENT_BOT_RESPONSE>"
@@ -177,7 +177,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_send,
         mock_processed_supa,
     ):
-        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "phone_number_id": "12345", "access_token": "tok"}
+        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "phone_number_id": "12345", "access_token": "tok"}
         mock_is_processed.return_value = False
         mock_get_conv.return_value = {"id": 100}
         mock_generate.return_value = "Hello! How can I help you?"
@@ -234,7 +234,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_conv_supa,
         mock_processed_supa,
     ):
-        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "bot_token": "tok"}
+        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "bot_token": "tok"}
         mock_is_processed.return_value = False
         mock_get_conv.return_value = {"id": 100, "customer_phone": "+60123456789"}
         mock_generate.return_value = "<SILENT_BOT_RESPONSE>"
@@ -283,7 +283,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_conv_supa,
         mock_processed_supa,
     ):
-        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "bot_token": "tok"}
+        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "bot_token": "tok"}
         mock_is_processed.return_value = False
         mock_get_conv.return_value = {"id": 100, "customer_phone": "+60123456789"}
         mock_generate.return_value = "Hi there! How can I help?"
@@ -337,7 +337,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_conv_supa,
         mock_processed_supa,
     ):
-        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "api_key": "test-api-key"}
+        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "api_key": "test-api-key"}
         mock_extract.return_value = {
             "event": "messages.received",
             "message_id": "wsg-1",
@@ -385,7 +385,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_conv_supa,
         mock_processed_supa,
     ):
-        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "api_key": "test-api-key"}
+        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "api_key": "test-api-key"}
         mock_extract.return_value = {
             "event": "messages.received",
             "message_id": "wsg-2",
