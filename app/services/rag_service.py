@@ -458,7 +458,14 @@ def _format_knowledge_chunk(source_label, content):
     return f"{source_label}:\n{content}"
 
 
-def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
+def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
+    """Retrieve context for a reply.
+
+    ``conversation_id`` is optional and additive: when supplied, keyword lookup
+    over this conversation's remembered facts runs *alongside* the existing
+    vector/menu-code retrieval, never in place of it. Omitting it reproduces
+    the previous behaviour exactly.
+    """
     try:
         query_words = clean_query_words(query)
         query_embedding = None
@@ -620,6 +627,64 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
                         graph_facts.append(_format_knowledge_chunk("Relational Graph Connections", graph_facts_str))
         except Exception as graph_err:
             logging.error(f"[GraphRAG] Failed to query graph edges: {graph_err}")
+
+        # --- CONVERSATION-SCOPED MEMORY (keyword lookup over node labels) ---
+        # Runs beside the vector path above, not instead of it: an exact term
+        # the embedding misses ("remind me of my name") still hits. Only labels
+        # that survive clean_query_words are recallable -- see the "Label form
+        # is a constraint" note in conversation_memory_service.
+        memory_facts = []
+        if conversation_id:
+            try:
+                from app.services import conversation_memory_service
+
+                # Plan gate (data/034 conversation_memory), checked on read as
+                # well as on write: a tenant who downgrades must stop recalling
+                # the facts stored while they were entitled. Returns a code
+                # instead of raising, so the except below cannot turn a plan
+                # denial into a "recall failed" line.
+                memory_denial = (
+                    conversation_memory_service.conversation_memory_denial(chatbot_id)
+                )
+                if memory_denial:
+                    logging.info(
+                        "[ConversationMemory] recall skipped for chatbot_id=%s "
+                        "conversation_id=%s: plan denies conversation memory "
+                        "(code=%s)",
+                        chatbot_id,
+                        conversation_id,
+                        memory_denial,
+                    )
+                    recalled = []
+                else:
+                    recalled = conversation_memory_service.recall_conversation_facts(
+                        chatbot_id=chatbot_id,
+                        conversation_id=conversation_id,
+                        query=query,
+                    )
+                if recalled:
+                    logging.info(
+                        "[ConversationMemory] recalled %s fact(s) for conversation_id=%s",
+                        len(recalled),
+                        conversation_id,
+                    )
+                    memory_facts.append(
+                        _format_knowledge_chunk(
+                            "Known facts about this customer",
+                            "\n".join(recalled),
+                        )
+                    )
+            except Exception as memory_err:
+                # Degrade to document context only; never fail the reply.
+                logging.error(
+                    "[ConversationMemory] recall failed for chatbot_id=%s "
+                    "conversation_id=%s: %s",
+                    chatbot_id,
+                    conversation_id,
+                    memory_err,
+                )
+
+        graph_facts = memory_facts + graph_facts
 
         if not context_chunks and not graph_facts:
             logging.info("No relevant PDF, supporting website chunks, or graph connections found.")
