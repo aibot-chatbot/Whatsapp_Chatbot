@@ -60,6 +60,23 @@ def operations_overview():
     return _execute(lambda: platform_admin_service.get_operations_overview(_actor_id()))
 
 
+@platform_admin_bp.get("/billing/overview")
+def billing_overview():
+    return _execute(lambda: platform_admin_service.get_billing_overview(_actor_id()))
+
+
+@platform_admin_bp.get("/billing/companies")
+def billing_companies():
+    return _execute(lambda: platform_admin_service.list_billing_companies(
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+        subscription_status=request.args.get("subscription_status"),
+        plan=request.args.get("plan"),
+        attention=request.args.get("attention"),
+    ))
+
+
 @platform_admin_bp.get("/audit-events")
 def audit_events():
     return _execute(lambda: platform_admin_service.list_audit_events(

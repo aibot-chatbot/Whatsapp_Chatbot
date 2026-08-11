@@ -42,6 +42,8 @@ AUDIT_OUTCOMES = {"success", "not_found"}
 PLATFORM_ADMIN_ENDPOINTS = {
     "identity": "/api/platform-admin/me",
     "operations_overview": "/api/platform-admin/overview",
+    "billing_overview": "/api/platform-admin/billing/overview",
+    "billing_company_list": "/api/platform-admin/billing/companies",
     "company_list": "/api/platform-admin/companies",
     "company_detail": "/api/platform-admin/companies/<company_id>",
     "company_subscription": "/api/platform-admin/companies/<company_id>/subscription",
@@ -108,6 +110,26 @@ AUDIT_EVENT_SCHEMAS = {
         "optional_metadata": set(),
         "outcomes": {"success"},
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["operations_overview"],
+    },
+    "platform_admin.billing.overview.read": {
+        "resource_type": "platform_billing_overview",
+        "resource_id": _resource_id_none,
+        "required_metadata": {"outcome", "endpoint", "http_method", "generated_at"},
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["billing_overview"],
+    },
+    "platform_admin.billing.company_list": {
+        "resource_type": "platform_billing_companies",
+        "resource_id": _resource_id_none,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "limit", "offset",
+            "subscription_status_filter_applied", "plan_filter_applied",
+            "attention_filter_applied", "returned_count",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["billing_company_list"],
     },
     "platform_admin.company.list": {
         "resource_type": "company",
@@ -616,6 +638,22 @@ def _validate_metadata_schema(action, schema, metadata):
     if action == "platform_admin.operations.overview.read":
         _non_negative_integer(metadata["attention_company_count"], "attention_company_count", maximum=10)
         _parse_timezone_aware_iso_datetime(metadata["generated_at"], "generated_at")
+
+    if action == "platform_admin.billing.overview.read":
+        _parse_timezone_aware_iso_datetime(metadata["generated_at"], "generated_at")
+
+    if action == "platform_admin.billing.company_list":
+        _bounded_integer(metadata["limit"], "limit", 1, 100)
+        _non_negative_integer(metadata["offset"], "offset")
+        for key in (
+            "subscription_status_filter_applied",
+            "plan_filter_applied",
+            "attention_filter_applied",
+        ):
+            _boolean(metadata[key], key)
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
+        if metadata["returned_count"] > metadata["limit"]:
+            raise ValueError("returned_count cannot exceed limit")
 
     if action == "platform_admin.company.ai_credit_usage.read":
         if metadata["outcome"] == "not_found":

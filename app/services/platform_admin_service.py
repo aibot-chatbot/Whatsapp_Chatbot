@@ -4,6 +4,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.database import platform_admin_repository
+from app.database import platform_billing_oversight_repository
 from app.database import platform_billing_repository
 from app.database import platform_chatbot_repository
 from app.database import platform_company_repository
@@ -225,6 +226,9 @@ SAFE_AUDIT_METADATA_KEYS = {
     "returned_count",
     "attention_company_count",
     "generated_at",
+    "subscription_status_filter_applied",
+    "plan_filter_applied",
+    "attention_filter_applied",
     "period_start",
     "period_end",
     "action_filter_applied",
@@ -1647,6 +1651,92 @@ def get_operations_overview(actor_id):
         "http_method": "GET",
         "attention_company_count": len(attention),
         "generated_at": generated_at,
+    })
+    return result
+
+
+def get_billing_overview(actor_id):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["billing_overview"]
+    try:
+        result = platform_billing_oversight_repository.get_billing_overview_for_platform_admin()
+    except Exception:
+        logger.error("Platform billing overview lookup failed")
+        _data_unavailable()
+    _audit(actor_id, "platform_admin.billing.overview.read", "platform_billing_overview", None, {
+        "outcome": "success",
+        "endpoint": endpoint,
+        "http_method": "GET",
+        "generated_at": result["generated_at"],
+    })
+    return result
+
+
+def list_billing_companies(
+    actor_id, *, limit=None, offset=None, subscription_status=None, plan=None, attention=None
+):
+    actor_id = _validated_actor_id(actor_id)
+    endpoint = platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["billing_company_list"]
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
+    normalized_status = subscription_status.strip().lower() if isinstance(subscription_status, str) else subscription_status
+    if normalized_status not in platform_billing_oversight_repository.SUBSCRIPTION_STATUSES + (None,):
+        _validation("invalid_status", "subscription_status is not supported.")
+    normalized_plan = None
+    if plan is not None:
+        if not isinstance(plan, str):
+            _validation("invalid_plan", "plan is not supported.")
+        normalized_plan = plan.strip().lower()
+        if not normalized_plan or len(normalized_plan) > 50:
+            _validation("invalid_plan", "plan is not supported.")
+    normalized_attention = None
+    if attention is not None:
+        if not isinstance(attention, str):
+            _validation("invalid_attention", "attention must be true or false.")
+        raw = attention.strip().lower()
+        if raw in {"true", "1", "yes"}:
+            normalized_attention = True
+        elif raw in {"false", "0", "no"}:
+            normalized_attention = False
+        else:
+            _validation("invalid_attention", "attention must be true or false.")
+    try:
+        rows, total = platform_billing_oversight_repository.list_billing_companies_for_platform_admin(
+            limit=limit,
+            offset=offset,
+            subscription_status=normalized_status,
+            plan=normalized_plan,
+            attention=normalized_attention,
+        )
+    except Exception:
+        logger.error("Platform billing company directory lookup failed")
+        _data_unavailable()
+    result = {
+        "companies": rows,
+        "pagination": {
+            "limit": limit,
+            "offset": offset,
+            "returned": len(rows),
+            "total": total,
+            "has_more": offset + len(rows) < total,
+        },
+        "filters": {
+            "subscription_status": normalized_status,
+            "plan": normalized_plan,
+            "attention": normalized_attention,
+        },
+        "ordering": {"by": "company_id", "order": "asc"},
+    }
+    _audit(actor_id, "platform_admin.billing.company_list", "platform_billing_companies", None, {
+        "outcome": "success",
+        "endpoint": endpoint,
+        "http_method": "GET",
+        "limit": limit,
+        "offset": offset,
+        "subscription_status_filter_applied": normalized_status is not None,
+        "plan_filter_applied": normalized_plan is not None,
+        "attention_filter_applied": normalized_attention is not None,
+        "returned_count": len(rows),
     })
     return result
 
