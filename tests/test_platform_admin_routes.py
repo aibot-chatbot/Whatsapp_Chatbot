@@ -245,6 +245,8 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual({rule.rule for rule in rules}, {
             "/api/platform-admin/me",
             "/api/platform-admin/overview",
+            "/api/platform-admin/billing/overview",
+            "/api/platform-admin/billing/companies",
             "/api/platform-admin/audit-events",
             "/api/platform-admin/companies",
             "/api/platform-admin/companies/<int:company_id>",
@@ -307,7 +309,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 32)
+        self.assertEqual(len(rules), 34)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")
@@ -357,6 +359,131 @@ class PlatformAdminRouteTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json["code"], "invalid_request")
+
+    def test_billing_overview_route_is_read_only_audited_and_sanitized(self):
+        overview = {
+            "generated_at": "2026-08-10T00:00:00+00:00",
+            "subscriptions": {"by_status": {"active": 3}, "by_plan": {"free": 6}, "active_plan_catalogue": []},
+            "subscription_orders": {
+                "orders_by_status": {"pending": 5},
+                "pending_count": 5,
+                "failed_count": 0,
+                "reconciliation_required_count": 0,
+                "activation_statuses": {},
+                "activation_status_unset_count": 6,
+                "activation_types": {"initial_purchase": 1},
+                "activation_type_unset_count": 1,
+            },
+            "topup_orders": {"orders_by_status": {"failed": 10}, "pending_count": 3, "failed_count": 10, "credited_count": 1},
+            "ai_credit": {
+                "balance_row_count": 6,
+                "depleted_company_count": 0,
+                "total_included_balance_micro_myr": 100,
+                "total_topup_balance_micro_myr": 200,
+                "transactions_by_type": {"usage_debit": 153},
+            },
+            "ai_usage": {
+                "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+                "requests_by_status": {"completed": 479},
+                "recent_request_count": 9,
+                "recent_total_tokens": 1234,
+            },
+            "billing_notifications": {"by_type_severity_read_state": []},
+            "subscription_lifecycle": {
+                "pending_plan_change_count": 0,
+                "scheduled_cancellation_count": 0,
+                "pending_plan_and_cancellation_count": 0,
+            },
+        }
+        with patch.object(
+            platform_admin_service.platform_billing_oversight_repository,
+            "get_billing_overview_for_platform_admin",
+            return_value=overview,
+        ) as repo, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ) as audit:
+            response = self.client.get("/api/platform-admin/billing/overview", headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["topup_orders"]["failed_count"], 10)
+        repo.assert_called_once_with()
+        self.assertEqual(audit.call_args.args[0], 3)
+        self.assertEqual(audit.call_args.args[1], "platform_admin.billing.overview.read")
+        self.assertEqual(audit.call_args.args[2], "platform_billing_overview")
+        self.assertIsNone(audit.call_args.args[3])
+
+        with patch.object(
+            platform_admin_service.platform_billing_oversight_repository,
+            "get_billing_overview_for_platform_admin",
+            side_effect=RuntimeError("Supabase payment_reference detail"),
+        ):
+            unavailable = self.client.get("/api/platform-admin/billing/overview", headers=self.headers)
+        self.assertEqual(unavailable.status_code, 503)
+        self.assertEqual(unavailable.json["code"], "platform_admin_data_unavailable")
+        self.assertNotIn("payment_reference", unavailable.get_data(as_text=True))
+
+    def test_billing_company_directory_route_bounds_filters_and_audits(self):
+        rows = [{
+            "company_id": 23,
+            "company_name": "Safe Tenant",
+            "company_status": "active",
+            "current_plan": {"code": "free", "name": "Free"},
+            "subscription_status": "active",
+            "current_period_start": "2026-08-01T00:00:00+00:00",
+            "current_period_end": "2026-09-01T00:00:00+00:00",
+            "pending_plan_change": False,
+            "cancellation_scheduled": False,
+            "ai_credit_total_balance_micro_myr": 123,
+            "subscription_order_attention": {"pending_count": 1},
+            "topup_order_attention": {"failed_count": 1},
+        }]
+        with patch.object(
+            platform_admin_service.platform_billing_oversight_repository,
+            "list_billing_companies_for_platform_admin",
+            return_value=(rows, 1),
+        ) as repo, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ) as audit:
+            response = self.client.get(
+                "/api/platform-admin/billing/companies?limit=10&offset=5&subscription_status=active&plan=Free&attention=true",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["data"]["companies"][0]["company_id"], 23)
+        repo.assert_called_once_with(
+            limit=10,
+            offset=5,
+            subscription_status="active",
+            plan="free",
+            attention=True,
+        )
+        metadata = audit.call_args.args[4]
+        self.assertEqual(audit.call_args.args[1], "platform_admin.billing.company_list")
+        self.assertEqual(audit.call_args.args[2], "platform_billing_companies")
+        self.assertEqual(metadata["limit"], 10)
+        self.assertEqual(metadata["offset"], 5)
+        self.assertTrue(metadata["subscription_status_filter_applied"])
+        self.assertTrue(metadata["plan_filter_applied"])
+        self.assertTrue(metadata["attention_filter_applied"])
+        self.assertEqual(metadata["returned_count"], 1)
+
+    def test_billing_company_directory_rejects_invalid_filters_without_repository_call(self):
+        for query, code in (
+            ("subscription_status=paused", "invalid_status"),
+            ("plan=%20", "invalid_plan"),
+            ("attention=maybe", "invalid_attention"),
+        ):
+            with self.subTest(query=query), patch.object(
+                platform_admin_service.platform_billing_oversight_repository,
+                "list_billing_companies_for_platform_admin",
+            ) as repo:
+                response = self.client.get(f"/api/platform-admin/billing/companies?{query}", headers=self.headers)
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json["code"], code)
+            repo.assert_not_called()
 
     def test_invalid_list_parameters_have_stable_400_codes(self):
         cases = {

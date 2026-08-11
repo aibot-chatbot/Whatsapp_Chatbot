@@ -5,6 +5,8 @@
     const ACTIONS = [
         "platform_admin.identity.read",
         "platform_admin.operations.overview.read",
+        "platform_admin.billing.overview.read",
+        "platform_admin.billing.company_list",
         "platform_admin.company.list",
         "platform_admin.company.read",
         "platform_admin.company.subscription.read",
@@ -37,6 +39,8 @@
     const RESOURCE_TYPES = [
         "platform_admin",
         "platform_operations_overview",
+        "platform_billing_overview",
+        "platform_billing_companies",
         "company",
         "company_subscription",
         "company_subscription_history",
@@ -75,6 +79,9 @@
         "created_after_filter_applied",
         "created_before_filter_applied",
         "company_filter_applied",
+        "subscription_status_filter_applied",
+        "plan_filter_applied",
+        "attention_filter_applied",
         "priority_filter_applied",
         "company_id",
         "status",

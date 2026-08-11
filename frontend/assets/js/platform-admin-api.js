@@ -13,6 +13,8 @@
         "invalid_offset",
         "invalid_search",
         "invalid_status",
+        "invalid_plan",
+        "invalid_attention",
         "invalid_state",
         "invalid_transaction_type",
         "invalid_action",
@@ -142,6 +144,22 @@
     function getOverview(options) {
         const config = options || {};
         return platformFetch("/overview", config.signal);
+    }
+
+    function getBillingOverview(options) {
+        const config = options || {};
+        return platformFetch("/billing/overview", config.signal);
+    }
+
+    function listBillingCompanies(options) {
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit || 25));
+        params.set("offset", String(config.offset || 0));
+        if (config.subscriptionStatus) params.set("subscription_status", config.subscriptionStatus);
+        if (config.plan) params.set("plan", config.plan);
+        if (typeof config.attention === "boolean") params.set("attention", String(config.attention));
+        return platformFetch("/billing/companies?" + params.toString(), config.signal);
     }
 
     function listCompanies(options) {
@@ -378,6 +396,8 @@
     window.PlatformAdminApi = Object.freeze({
         getMe: getMe,
         getOverview: getOverview,
+        getBillingOverview: getBillingOverview,
+        listBillingCompanies: listBillingCompanies,
         listCompanies: listCompanies,
         listAuditEvents: listAuditEvents,
         listPlatformAdminUsers: listPlatformAdminUsers,

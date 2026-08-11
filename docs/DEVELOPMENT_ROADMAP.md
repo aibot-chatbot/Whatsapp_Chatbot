@@ -123,6 +123,23 @@ dashboard rendered and the Temporarily Unavailable state disappeared. This is
 not staging verification and does not establish production readiness.
 Unsupported aggregate values fail closed. Browser E2E is not claimed because
 local `npm`/Playwright dependencies are unavailable.
+Platform-admin Billing & Subscription Oversight Phase 7 is implemented locally
+as a read-only platform-admin Billing & Subscriptions surface. Migration 038 is
+applied and verified only in the approved main shared-testing Supabase with
+fake/team data. It adds `public.get_platform_admin_billing_overview()`,
+`public.get_platform_admin_billing_companies(integer, integer, text, text,
+boolean)`, and updates `public.get_platform_admin_monitoring_overview()` so
+Phase 7 read actions and resource types are counted in Platform-admin Activity.
+All three functions are owned by `postgres`, are `SECURITY INVOKER`, use
+`search_path=pg_catalog`, and are executable only by `service_role`. Local
+runtime verification returned 200 for `/api/platform-admin/me`,
+`/api/platform-admin/overview`, `/api/platform-admin/billing/overview`, and
+`/api/platform-admin/billing/companies?limit=25&offset=0`; the Platform Billing
+& Subscriptions frontend rendered successfully. The directory includes
+companies without subscriptions using the null-subscription contract, applies
+status/plan/attention filters in PostgreSQL, counts before pagination, orders
+by `company_id ASC`, and applies `LIMIT/OFFSET` inside PostgreSQL. This is not
+staging verification and does not establish production readiness.
 Subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
@@ -137,6 +154,10 @@ payment reconciliation actions, checkout recovery, retry payment, manual
 crediting, subscription activation, plan changes, no-subscription counting,
 global activity drilldowns, charts, exports, audit export, audit editing/
 deletion, and overview remediation/write controls remain deferred.
+Phase 7 keeps manual AI-credit adjustment, payment reconciliation mutation,
+refund, subscription correction/override, manual plan change, direct balance
+editing, payment retry mutation, manual credit reversal, and billing
+impersonation/remediation controls deferred.
 
 The separate read-only frontend is also implemented with a dedicated platform
 shell, a fresh `/me` authorization gate on every page, an allowlisted

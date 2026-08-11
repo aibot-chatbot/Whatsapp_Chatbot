@@ -500,6 +500,32 @@ verified.
   is not staging verification and does not establish production readiness.
   Unsupported aggregate values fail closed. Browser E2E is not claimed because
   local `npm`/Playwright dependencies are unavailable.
+- Platform-admin Billing & Subscription Oversight Phase 7 is implemented
+  locally as a read-only Platform Billing & Subscriptions page with
+  `GET /api/platform-admin/billing/overview` and
+  `GET /api/platform-admin/billing/companies`. Migration 038 is applied and
+  verified only in the approved main shared-testing Supabase with fake/team
+  data. It adds `public.get_platform_admin_billing_overview()`,
+  `public.get_platform_admin_billing_companies(integer, integer, text, text,
+  boolean)`, and updates `public.get_platform_admin_monitoring_overview()` so
+  `platform_admin.billing.overview.read`, `platform_admin.billing.company_list`,
+  `platform_billing_overview`, and `platform_billing_companies` are included in
+  Platform-admin Activity. Local runtime verification returned 200 for
+  `/api/platform-admin/me`, `/api/platform-admin/overview`,
+  `/api/platform-admin/billing/overview`, and
+  `/api/platform-admin/billing/companies?limit=25&offset=0`; the frontend
+  rendered Subscription status, Plan distribution, Active plan catalogue,
+  Subscription order attention, AI-credit top-up attention, AI Credit Overview
+  with MYR-formatted balances, Billing Notifications, Subscription lifecycle,
+  and Tenant Billing Directory. Companies without subscriptions are included
+  with `subscription_status = null`, `current_plan = null`, null period dates,
+  and false pending/cancellation flags. Filtering, counting, stable
+  `company_id ASC` ordering, and pagination happen inside PostgreSQL. Phase 7
+  remains read-only: manual AI-credit adjustment, payment reconciliation
+  mutation, refund, subscription correction/override, manual plan change,
+  direct balance editing, payment retry mutation, manual credit reversal, and
+  billing impersonation/remediation controls remain deferred. This is not
+  staging verification and does not establish production readiness.
 - The lifecycle document now includes a redacted access, revocation, smoke,
   audit-log, and localhost/staging/production evidence checklist; it does not
   change the current local-only verification boundary.
