@@ -43,7 +43,7 @@ def create_app():
     app = Flask(__name__,
                 template_folder=os.path.join(root_dir, 'frontend'),
                 static_folder=os.path.join(root_dir, 'frontend'),
-                static_url_path='')
+                static_url_path='/static')
 
     CORS(app, resources={r"/*": {"origins": "*"}})
 

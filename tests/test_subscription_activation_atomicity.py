@@ -79,6 +79,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         self.mock_plan = {
             "id": 20,
             "code": "essential",
+            "billing_interval": "monthly",
             "included_ai_credit_micro_myr": 5000000,
             "name": "Essential",
         }
@@ -104,6 +105,11 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         result1 = process_subscription_payment_callback(self.valid_callback)
         self.assertEqual(result1["status"], "activated_and_credited")
         mock_claim_seq.assert_called_once()
+        _, cond_kwargs = mock_cond_activate.call_args
+        from app.services.billing_period_service import calculate_current_period_end
+        period_start = cond_kwargs["period_start_iso"]
+        expected_end = calculate_current_period_end(period_start, "monthly").isoformat()
+        self.assertEqual(cond_kwargs["period_end_iso"], expected_end)
 
         mock_claim_seq.reset_mock()
         mock_claim_seq.side_effect = RuntimeError("Already claimed by another order")
@@ -230,6 +236,11 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         result = process_subscription_payment_callback(callback)
         self.assertEqual(result["status"], "legacy_order_activated")
         self.assertEqual(result["order_reference"], "legacy-001")
+        _, kwargs = mock_update_sub.call_args
+        from app.services.billing_period_service import calculate_current_period_end
+        period_start = kwargs["updates"]["current_period_start"]
+        expected_end = calculate_current_period_end(period_start, "monthly").isoformat()
+        self.assertEqual(kwargs["updates"]["current_period_end"], expected_end)
 
     @patch(_SVC + "._claim_activation_sequence")
     @patch(_SVC + "._get_order_by_gateway")
