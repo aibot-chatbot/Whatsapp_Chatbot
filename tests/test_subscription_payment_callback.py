@@ -77,6 +77,7 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
         self.mock_plan = {
             "id": 20,
             "code": "essential",
+            "billing_interval": "monthly",
             "included_ai_credit_micro_myr": 5000000,
             "name": "Essential",
         }
@@ -112,11 +113,17 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
         self.assertEqual(kwargs["subscription_id"], 10)
         self.assertEqual(kwargs["updates"]["status"], "active")
         self.assertIsNone(kwargs["updates"]["trial_ends_at"])
+        from app.services.billing_period_service import calculate_current_period_end
+        period_start = kwargs["updates"]["current_period_start"]
+        expected_end = calculate_current_period_end(period_start, "monthly").isoformat()
+        self.assertEqual(kwargs["updates"]["current_period_end"], expected_end)
 
         mock_add_included_credit.assert_called_once()
         _, credit_kwargs = mock_add_included_credit.call_args
         self.assertEqual(credit_kwargs["company_id"], 42)
         self.assertEqual(credit_kwargs["amount_micro_myr"], 5000000)
+        self.assertEqual(credit_kwargs["period_start"], period_start)
+        self.assertEqual(credit_kwargs["period_end"], expected_end)
 
         mock_convert.assert_called_once_with(42, "essential")
 
@@ -212,6 +219,11 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
 
         self.assertEqual(result["status"], "legacy_order_activated")
         mock_convert.assert_called_once_with(42, "essential")
+        _, kwargs = mock_update_sub.call_args
+        from app.services.billing_period_service import calculate_current_period_end
+        period_start = kwargs["updates"]["current_period_start"]
+        expected_end = calculate_current_period_end(period_start, "monthly").isoformat()
+        self.assertEqual(kwargs["updates"]["current_period_end"], expected_end)
 
 
 class TestToyyibpayRouteDetection(unittest.TestCase):

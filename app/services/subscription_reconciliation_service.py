@@ -30,6 +30,10 @@ from app.database.company_subscription_repository import (
 from app.services.ai_credit_service import (
     allocate_subscription_included_credit as _add_included_credit,
 )
+from app.services.billing_period_service import (
+    calculate_current_period_end,
+    validate_current_period,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -142,9 +146,26 @@ def _retry_activation(order: dict, now_iso: str) -> dict:
     plan_code = plan.get("code", "").lower()
     plan_included_credit = plan.get("included_ai_credit_micro_myr", 0) or 0
 
-    from dateutil.relativedelta import relativedelta
-    period_end = datetime.now(timezone.utc) + relativedelta(months=1)
+    period_start = datetime.fromisoformat(now_iso)
+    billing_interval = plan.get("billing_interval")
+    period_end = calculate_current_period_end(period_start, billing_interval)
     period_end_iso = period_end.isoformat()
+    try:
+        validate_current_period(now_iso, period_end_iso, billing_interval)
+    except ValueError as exc:
+        logger.error(
+            "Refusing reconciliation activation with invalid billing period "
+            "for company %s order %s plan_id=%s: %s",
+            company_id,
+            order_reference,
+            new_plan_id,
+            exc,
+        )
+        return {
+            "outcome": "manual_review_required",
+            "order_status": status,
+            "message": "Invalid billing period calculated during reconciliation.",
+        }
 
     # Try to claim the activation sequence if not already claimed
     from app.database.company_subscription_order_repository import claim_subscription_activation_sequence as _claim

@@ -58,6 +58,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
     def setUp(self):
         app = create_app()
         app.config["TESTING"] = True
+        self.app = app
         self.client = app.test_client()
         self.company_status_patch = patch(
             "app.services.company_status_service.get_company_status_by_id",
@@ -134,6 +135,17 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertNotEqual(resp.status_code, 404)
+
+    def test_route_registered_once_as_post_only_billing_endpoint(self):
+        rules = [
+            rule for rule in self.app.url_map.iter_rules()
+            if rule.rule == "/api/billing/toyyibpay/checkout"
+        ]
+
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0].endpoint, "billing.toyyibpay_checkout")
+        self.assertIn("POST", rules[0].methods)
+        self.assertNotIn("GET", rules[0].methods)
 
     def test_get_returns_405(self):
         resp = self.client.get("/api/billing/toyyibpay/checkout")
@@ -360,6 +372,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
     def setUp(self):
         app = create_app()
         app.config["TESTING"] = True
+        self.app = app
         self.client = app.test_client()
         self.company_status_patch = patch(
             "app.services.company_status_service.get_company_status_by_id",
@@ -407,6 +420,17 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertNotEqual(resp.status_code, 404)
+
+    def test_route_registered_once_as_post_only_billing_endpoint(self):
+        rules = [
+            rule for rule in self.app.url_map.iter_rules()
+            if rule.rule == "/api/billing/subscription/checkout"
+        ]
+
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0].endpoint, "billing.subscription_checkout")
+        self.assertIn("POST", rules[0].methods)
+        self.assertNotIn("GET", rules[0].methods)
 
     def test_get_returns_405(self):
         resp = self.client.get("/api/billing/subscription/checkout")

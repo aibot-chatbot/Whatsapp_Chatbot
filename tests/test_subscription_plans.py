@@ -900,7 +900,7 @@ class TestDefaultSubscription(unittest.TestCase):
     def test_creates_free_subscription_when_none_exists(self, mock_get_latest, mock_get_current, mock_create, mock_get_plan, mock_get_existing):
         mock_get_existing.return_value = None
         mock_get_latest.return_value = None
-        mock_get_plan.return_value = {"id": 1, "code": "free"}
+        mock_get_plan.return_value = {"id": 1, "code": "free", "billing_interval": "monthly"}
         mock_create.return_value = {"id": 100, "company_id": 42, "plan_id": 1}
         mock_get_current.return_value = {
             "id": 100,
@@ -949,7 +949,7 @@ class TestDefaultSubscription(unittest.TestCase):
     def test_concurrent_duplicate_handled_gracefully(self, mock_get_latest, mock_create, mock_get_plan, mock_get_existing):
         mock_get_existing.return_value = {"id": 300, "company_id": 42, "plan_id": 1}
         mock_get_latest.return_value = None
-        mock_get_plan.return_value = {"id": 1, "code": "free"}
+        mock_get_plan.return_value = {"id": 1, "code": "free", "billing_interval": "monthly"}
         mock_create.side_effect = Exception("duplicate")
         with patch("app.services.billing_service.get_current_subscription") as mock_current:
             mock_current.return_value = {
@@ -967,7 +967,7 @@ class TestDefaultSubscription(unittest.TestCase):
         self, mock_create, mock_get_plan, mock_get_existing
     ):
         mock_get_existing.side_effect = [None, None]
-        mock_get_plan.return_value = {"id": 1, "code": "free"}
+        mock_get_plan.return_value = {"id": 1, "code": "free", "billing_interval": "monthly"}
         mock_create.side_effect = Exception("constraint violation")
         with self.assertRaises(Exception):
             ensure_default_company_subscription(42)

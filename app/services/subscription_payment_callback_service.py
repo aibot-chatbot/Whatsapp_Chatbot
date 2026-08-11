@@ -36,6 +36,10 @@ from app.services.billing_service import (
     get_current_subscription,
     convert_trial_ai_configuration,
 )
+from app.services.billing_period_service import (
+    calculate_current_period_end,
+    validate_current_period,
+)
 from app.services.ai_credit_service import (
     allocate_subscription_included_credit as _add_included_credit,
 )
@@ -229,10 +233,25 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
     plan_code = plan.get("code", "").lower()
     plan_included_credit = plan.get("included_ai_credit_micro_myr", 0) or 0
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    from dateutil.relativedelta import relativedelta
-    period_end = datetime.now(timezone.utc) + relativedelta(months=1)
+    period_start = datetime.now(timezone.utc)
+    now_iso = period_start.isoformat()
+    billing_interval = plan.get("billing_interval")
+    period_end = calculate_current_period_end(period_start, billing_interval)
     period_end_iso = period_end.isoformat()
+    try:
+        validate_current_period(now_iso, period_end_iso, billing_interval)
+    except ValueError as exc:
+        logger.error(
+            "Refusing to activate subscription with invalid billing period "
+            "for company %s order %s plan_id=%s: %s",
+            company_id,
+            order_reference,
+            new_plan_id,
+            exc,
+        )
+        raise RuntimeError(
+            f"Invalid billing period calculated for order {order_reference!r}"
+        ) from exc
 
     # ---- Step 1: Claim activation sequence atomically ----
     # Orders with an activation_sequence_key (from 009 migration onward) get
