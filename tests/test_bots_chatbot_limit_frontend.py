@@ -7,12 +7,14 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BOTS_HTML = ROOT / "frontend" / "bots.html"
+SHARED_UI_JS = ROOT / "frontend" / "assets" / "js" / "shared-ui.js"
 
 
 class TestBotsChatbotLimitFrontend(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.html = BOTS_HTML.read_text(encoding="utf-8", errors="replace")
+        cls.shared_ui = SHARED_UI_JS.read_text(encoding="utf-8", errors="replace")
 
     def test_loads_chatbot_usage_from_billing_usage_endpoint(self):
         self.assertIn('authenticatedFetch("/api/billing/usage")', self.html)
@@ -84,7 +86,7 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
             flags=re.S,
         ).group(0)
         self.assertIn("if (!canCreateChatbot())", open_fn)
-        self.assertIn('alert(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");', open_fn)
+        self.assertIn('showToast(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");', open_fn)
         self.assertIn("return;", open_fn)
         self.assertIn("create-modal", open_fn)
 
@@ -113,7 +115,7 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
             flags=re.S,
         ).group(0)
         self.assertIn("if (!canCreateChatbot())", create_fn)
-        self.assertIn('alert(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");', create_fn)
+        self.assertIn('showToast(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");', create_fn)
         self.assertIn("return;", create_fn)
 
     def test_create_submit_guard_does_not_depend_on_tab(self):
@@ -203,7 +205,7 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
         )
 
     def test_bot_remove_ui_uses_archive_wording(self):
-        self.assertIn("<h2>Archive Bot</h2>", self.html)
+        self.assertIn('<h2 id="archive-modal-title">Archive Bot</h2>', self.html)
         self.assertIn("Archive this bot and remove it from active use?", self.html)
         self.assertIn("will be preserved", self.html)
         self.assertIn(">Archive Bot</button>", self.html)
@@ -223,8 +225,58 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
             self.html,
             flags=re.S,
         ).group(0)
-        self.assertIn('currentBotView === "archived" ? "/api/bots/archived" : "/api/bots"', fetch_fn)
-        self.assertIn('renderBotCard(bot, currentBotView === "archived")', fetch_fn)
+        self.assertIn('requestedView === "archived" ? "/api/bots/archived" : "/api/bots"', fetch_fn)
+        self.assertIn("renderFilteredBots();", fetch_fn)
+        render_filtered_fn = re.search(
+            r"function renderFilteredBots\(\) \{.*?\n        \}",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn('renderBotCard(bot, currentBotView === "archived")', render_filtered_fn)
+
+    def test_stitch_design_tokens_and_dense_controls_are_present(self):
+        self.assertIn("--canvas: #0e0f11;", self.html)
+        self.assertIn("--panel: #16181b;", self.html)
+        self.assertIn("--primary: #3e9c89;", self.html)
+        self.assertIn('font-family: "Space Grotesk"', self.html)
+        self.assertIn('font-family: "JetBrains Mono"', self.html)
+        self.assertIn('id="bot-search"', self.html)
+        self.assertIn('id="bot-status-filter"', self.html)
+        self.assertIn('setAttribute("variant", "control-room")', self.html)
+        self.assertIn(':host([variant="control-room"]) .account-button', self.shared_ui)
+
+    def test_bot_rendering_escapes_user_controlled_text(self):
+        render_fn = re.search(
+            r"function renderBotCard\(bot, archived\) \{.*?\n        \}",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn('escapeHtml(bot.bot_name || "Unnamed Bot")', render_fn)
+        self.assertIn('escapeHtml(bot.bot_description || "No description provided.")', render_fn)
+        self.assertIn("function escapeHtml(value)", self.html)
+
+    def test_stale_bot_requests_cannot_replace_the_current_view(self):
+        fetch_fn = re.search(
+            r"async function fetchBots\(\) \{.*?\n        \}",
+            self.html,
+            flags=re.S,
+        ).group(0)
+        self.assertIn("const requestGeneration = ++botsRequestGeneration;", fetch_fn)
+        self.assertIn("const requestedView = currentBotView;", fetch_fn)
+        self.assertIn("loadedBots = [];", fetch_fn)
+        self.assertIn("requestGeneration !== botsRequestGeneration || requestedView !== currentBotView", fetch_fn)
+        self.assertIn('requestedView === "archived" ? "/api/bots/archived" : "/api/bots"', fetch_fn)
+
+    def test_stitch_shell_and_dialog_accessibility_contract(self):
+        self.assertIn('class="app-shell"', self.html)
+        self.assertIn('class="side-rail" aria-label="Primary navigation"', self.html)
+        self.assertNotIn('class="rail-link" href="conversations.html"', self.html)
+        self.assertNotIn('class="rail-link" href="broadcast.html"', self.html)
+        self.assertNotIn('class="rail-link" href="reports.html"', self.html)
+        self.assertIn('role="dialog" aria-modal="true" aria-labelledby="create-modal-title"', self.html)
+        self.assertIn('for="permanent-delete-confirm-name"', self.html)
+        self.assertIn('function openDialog(dialogId, preferredSelector)', self.html)
+        self.assertIn('if (event.key === "Escape")', self.html)
 
     def test_archived_cards_show_restore_and_permanent_delete(self):
         render_fn = re.search(

@@ -7,7 +7,7 @@
     <title>Dashboard | AI Chatbot </title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/shared-glass.css">
     <script src="assets/js/shared-ui.js"></script>
     <style>
@@ -357,24 +357,84 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
 </head>
 
-<body>
+<body class="dashboard-page">
 
     <script src="sidebar-component.js"></script>
     <chatbot-sidebar></chatbot-sidebar>
 
     <main class="main-container">
         <div class="header">
-            <div>
-                <h1 id="dashboard-title">Dashboard</h1>
-                <p id="dashboard-subtitle">Welcome back! Here's the live overview of your Chatbot's configuration and
-                    usage.</p>
+            <div class="dashboard-heading">
+                <a class="dashboard-back-link" href="bots.html">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M5 12h14"/></svg>
+                    My bots
+                </a>
+                <h1 id="dashboard-title">Overview</h1>
+                <p id="dashboard-subtitle">Loading the selected bot's setup and usage overview...</p>
             </div>
-            <div class="glass-card dashboard-date-pill" id="dashboard-date-pill">
+            <div class="glass-card dashboard-date-pill" id="dashboard-date-pill" role="status" aria-label="Current dashboard date and time">
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
                 <span id="date-display">--</span>
             </div>
         </div>
+
+        <div class="stats-grid">
+            <div class="glass-card">
+                <div class="stat-label">Total Users</div>
+                <div class="stat-val" id="stat-total-users">...</div>
+                <div style="color: var(--text-dim); font-size: 0.8rem;">Unique phone numbers</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Total Messages</div>
+                <div class="stat-val" id="stat-total-msgs">...</div>
+                <div style="color: var(--text-dim); font-size: 0.8rem;">Overall interaction volume</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Active Profile</div>
+                <div class="stat-val" id="stat-active-profile" style="font-size: 1.3rem; margin-top: 18px;">...</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Active Primary Knowledge</div>
+                <div class="stat-val" id="stat-active-pdf" style="font-size: 1.3rem; margin-top: 18px;">...</div>
+            </div>
+        </div>
+
+        <section class="glass-card dashboard-guide" aria-labelledby="dashboard-guide-title">
+            <div class="section-heading-row">
+                <div>
+                    <h2 class="section-heading" id="dashboard-guide-title">
+                        <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 16V9a3 3 0 0 1 3-3h7"/></svg>
+                        What would you like to do?
+                    </h2>
+                    <p class="section-description">Use these shortcuts in order when setting up a new bot, or jump directly to daily operations.</p>
+                </div>
+            </div>
+            <div class="guide-grid">
+                <a class="guide-link" href="new_prompt.html" data-dashboard-link data-manage-only="true">
+                    <span class="guide-icon"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg></span>
+                    <span class="guide-copy"><strong>Configure AI</strong><span>Choose the bot's profile and reply behavior.</span></span>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                </a>
+                <a class="guide-link" href="new_linkdocs.html" data-dashboard-link data-manage-only="true">
+                    <span class="guide-icon"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h13a3 3 0 0 1 3 3v11H7a3 3 0 0 0-3 3V5Z"/><path d="M7 19h13M8 9h8M8 13h6"/></svg></span>
+                    <span class="guide-copy"><strong>Add knowledge</strong><span>Upload the sources the bot should use.</span></span>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                </a>
+                <a class="guide-link" href="testbot.html" data-dashboard-link data-manage-only="true">
+                    <span class="guide-icon"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 8a3 3 0 0 0 2.6 4.5h8.8A3 3 0 0 0 19 17l-5-8V3M8 15h8"/></svg></span>
+                    <span class="guide-copy"><strong>Test a reply</strong><span>Check an answer before connecting customers.</span></span>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                </a>
+                <a class="guide-link" href="conversations.html" data-dashboard-link>
+                    <span class="guide-icon"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></svg></span>
+                    <span class="guide-copy"><strong>Open inbox</strong><span>Review conversations and follow-up work.</span></span>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                </a>
+            </div>
+        </section>
 
         <div class="glass-card bot-health">
             <div class="bot-health-header">
@@ -417,32 +477,11 @@
             <div class="health-warnings" id="bot-health-warnings"></div>
         </div>
 
-        <div class="stats-grid">
-            <div class="glass-card">
-                <div class="stat-label">Total Users</div>
-                <div class="stat-val" id="stat-total-users">...</div>
-                <div style="color: var(--text-dim); font-size: 0.8rem;">Unique phone numbers</div>
-            </div>
-            <div class="glass-card">
-                <div class="stat-label">Total Messages</div>
-                <div class="stat-val" id="stat-total-msgs">...</div>
-                <div style="color: var(--text-dim); font-size: 0.8rem;">Overall interaction volume</div>
-            </div>
-            <div class="glass-card">
-                <div class="stat-label">Active Profile</div>
-                <div class="stat-val" id="stat-active-profile" style="font-size: 1.3rem; margin-top: 18px;">...</div>
-            </div>
-            <div class="glass-card">
-                <div class="stat-label">Active Primary Knowledge</div>
-                <div class="stat-val" id="stat-active-pdf" style="font-size: 1.3rem; margin-top: 18px;">...</div>
-            </div>
-        </div>
-
         <!-- Live AI Workflow Section -->
-        <div class="glass-card" style="margin-bottom: 24px;">
+        <div class="glass-card live-workflow" style="margin-bottom: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3 class="section-title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 1.4rem;">⚡</span> Live AI Workflow
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-12h-7V2Z"/></svg> Live AI Workflow
                 </h3>
                 <div id="workflow-status-badge" class="badge"
                     style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Idle</div>
@@ -506,7 +545,7 @@
         <div class="content-sections">
             <div class="glass-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h3 class="section-title" style="margin: 0;">📉 Usage Analytics (Last 7 Days)</h3>
+                    <h3 class="section-title" style="margin: 0;"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg> Usage analytics (last 7 days)</h3>
                 </div>
                 <div id="chart-container"
                     style="height: 200px; display: flex; align-items: flex-end; gap: 10px; padding-top: 20px;">
@@ -519,7 +558,7 @@
                 </div>
             </div>
             <div class="glass-card">
-                <h3 class="section-title">📜 Recent History</h3>
+                <h3 class="section-title"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg> Recent history</h3>
                 <table class="activity-table">
                     <thead>
                         <tr>
@@ -567,6 +606,7 @@
             }
 
             updateDate();
+            updateDashboardLinks();
             window.addEventListener('resize', () => {
                 updateDate();
                 updateAccountMenuHeaderOffset();
@@ -591,6 +631,27 @@
                 const formatted = now.toLocaleDateString(undefined, options);
                 dateEl.textContent = formatted;
             }
+        }
+
+        function updateDashboardLinks() {
+            let role = "";
+            try {
+                const user = JSON.parse(sessionStorage.getItem("user") || "null");
+                role = String(user?.role || "").toLowerCase();
+            } catch (_) {
+                role = "";
+            }
+
+            const canManage = role === "owner" || role === "admin";
+            document.querySelectorAll('[data-dashboard-link]').forEach(link => {
+                const url = new URL(link.getAttribute('href'), window.location.href);
+                url.searchParams.set('bot_id', selectedBotId);
+                link.href = `${url.pathname.split('/').pop()}${url.search}`;
+
+                if (link.dataset.manageOnly === "true" && !canManage) {
+                    link.hidden = true;
+                }
+            });
         }
 
         function updateAccountMenuHeaderOffset(event) {
@@ -624,8 +685,10 @@
                     return;
                 }
 
-                document.getElementById("dashboard-title").innerText =
-                    `${result.data.bot_name} Dashboard`;
+                const botName = result.data.bot_name || "Selected bot";
+                document.getElementById("dashboard-title").innerText = "Overview";
+                document.getElementById("dashboard-subtitle").innerText =
+                    `${botName} · Live setup, health, and usage in one place.`;
 
             } catch (err) {
                 console.error("Failed to fetch selected bot", err);
@@ -980,12 +1043,16 @@
             data.forEach((val, i) => {
                 const percentage = (val / maxVal) * 100;
                 const bar = document.createElement('div');
+                bar.className = 'chart-bar';
                 bar.style.flex = "1";
                 bar.style.backgroundColor = i === data.length - 1 ? "var(--accent)" : "var(--primary)";
                 bar.style.height = `${Math.max(percentage, 5)}%`; // minimum 5% height to show it exists
                 bar.style.borderRadius = "4px";
                 bar.style.transition = "height 1s ease";
                 bar.title = `${val} messages`;
+                bar.tabIndex = 0;
+                bar.setAttribute('role', 'img');
+                bar.setAttribute('aria-label', `${labels[i]}: ${val} messages`);
                 container.appendChild(bar);
 
                 const label = document.createElement('div');
