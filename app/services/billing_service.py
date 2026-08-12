@@ -8,6 +8,9 @@ from app.services.billing_period_service import (
     log_current_period_anomaly,
     parse_period_datetime,
 )
+from app.services.free_trial_status_service import (
+    resolve_effective_subscription_status,
+)
 
 from app.database.subscription_plan_repository import (
     get_active_plans as _get_active_plans,
@@ -159,6 +162,8 @@ def get_current_subscription(company_id):
             "included_ai_credit_micro_myr": plan.get("included_ai_credit_micro_myr", 0),
             "model_access_tier": plan.get("model_access_tier", "economy"),
         }
+
+    result.update(resolve_effective_subscription_status(result, plan))
 
     return result
 
