@@ -13,8 +13,11 @@
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <!-- Loaded after shared-glass so the control-room system wins, matching
+         the migration pattern already used by index.html and bots.html. -->
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
     <script>requireLogin();requireAdminOrOwner();</script>
@@ -620,7 +623,7 @@
     </style>
 </head>
 
-<body>
+<body class="dashboard-page">
     <div id="root"></div>
 
     <script type="text/babel">
