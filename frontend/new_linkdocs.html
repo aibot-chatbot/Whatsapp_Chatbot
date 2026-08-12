@@ -11,6 +11,9 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Import Vis.js for Knowledge Graph visualization -->
     <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <!-- Pinned to match bots.html. Icons replace the emoji this page used as
+         controls; DESIGN.md lists emoji controls under "Avoid". -->
+    <script src="https://unpkg.com/lucide@1.31.0"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -627,6 +630,39 @@
     <div id="root"></div>
 
     <script type="text/babel">
+
+// Renders a lucide icon inside React. createIcons() writes raw DOM, so it is
+// re-run in an effect on every mount and name change; otherwise React's next
+// render wipes the SVG. aria-hidden because every call site pairs the icon
+// with a visible text label.
+function Icon({ name, size = 16, style = {}, className = "" }) {
+    const host = React.useRef(null);
+    React.useEffect(() => {
+        const el = host.current;
+        if (!el || !window.lucide) return;
+        el.innerHTML = "";
+        const slot = document.createElement("i");
+        slot.setAttribute("data-lucide", name);
+        el.appendChild(slot);
+        try { window.lucide.createIcons({ root: el }); } catch (e) { /* icon unavailable */ }
+        const svg = el.querySelector("svg");
+        if (svg) {
+            svg.setAttribute("width", size);
+            svg.setAttribute("height", size);
+            svg.style.display = "block";
+        }
+    }, [name, size]);
+    return React.createElement("span", {
+        ref: host,
+        className: ("dl-icon " + className).trim(),
+        "aria-hidden": "true",
+        style: Object.assign({
+            width: size, height: size, display: "inline-flex",
+            alignItems: "center", justifyContent: "center", flexShrink: 0
+        }, style)
+    });
+}
+
         const { useState, useEffect } = React;
 
         function GraphVisualizer({ botId, activeFile }) {
@@ -1306,14 +1342,14 @@
 
                     {error ? (
                         <div style={{ margin: "auto", textAlign: "center", color: "var(--text-dim)", maxWidth: "450px", padding: "20px" }}>
-                            <div style={{ fontSize: "40px", marginBottom: "16px" }}>🕸️</div>
+                            <div style={{ fontSize: "40px", marginBottom: "16px" }}><Icon name="network" size={40} /></div>
                             <div style={{ fontSize: "16px", fontWeight: "600", marginBottom: "8px", color: "var(--text-main)" }}>
                                 {error.includes("402") || error.toLowerCase().includes("payment required") || error.toLowerCase().includes("failed") && (error.toLowerCase().includes("credit") || error.toLowerCase().includes("extract")) ? "Payment Required" : "Graph Empty or Unavailable"}
                             </div>
                             <p style={{ fontSize: "14px", lineHeight: "1.5", marginBottom: "16px" }}>{error}</p>
                             {(error.includes("402") || error.toLowerCase().includes("payment required") || error.toLowerCase().includes("credit")) && (
                                 <a href={`pricing.html?bot_id=${botId}`} className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "8px 18px", fontSize: "0.85rem", textDecoration: "none", borderRadius: "8px" }}>
-                                    💳 Upgrade Plan / Recharge Credits
+                                    <Icon name="credit-card" size={16} /> Upgrade Plan / Recharge Credits
                                 </a>
                             )}
                         </div>
@@ -1517,7 +1553,7 @@
                                                     onClick={() => setIsAddingNode(true)}
                                                     style={{ width: "100%", padding: "10px 16px", borderRadius: "12px", fontSize: "0.85rem" }}
                                                 >
-                                                    ➕ Add New Entity
+                                                    <Icon name="plus" size={16} /> Add New Entity
                                                 </button>
                                             </div>
                                         </div>
@@ -1734,7 +1770,7 @@
 
                                 {/* Description note */}
                                 <div style={{ fontSize: "0.8rem", color: "var(--text-dim)", lineHeight: "1.4", display: "flex", gap: "8px", alignItems: "flex-start", background: "rgba(59, 130, 246, 0.05)", padding: "10px 12px", borderRadius: "10px", borderLeft: "3px solid #3b82f6" }}>
-                                    <span>💡</span>
+                                    <span><Icon name="lightbulb" size={16} /></span>
                                     <span>This link helps the AI retrieve context from both entities simultaneously during conversation matching.</span>
                                 </div>
 
@@ -2085,14 +2121,14 @@
                                 <span>
                                     <span className="spinner"></span> Scanning...
                                 </span>
-                            ) : "🔍 Scan Graph for Gaps"}
+                            ) : <><Icon name="search" size={14} /> Scan Graph for Gaps</>}
                         </button>
                     </div>
 
                     {error && (
                         <div style={{ padding: "16px 20px", borderRadius: "12px", background: "rgba(220, 53, 69, 0.08)", border: "1px solid rgba(220, 53, 69, 0.25)", marginBottom: "20px", fontSize: "0.9rem" }}>
                             <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-                                <span style={{ fontSize: "1.2rem", marginTop: "-2px" }}>⚠️</span>
+                                <span style={{ fontSize: "1.2rem", marginTop: "-2px" }}><Icon name="triangle-alert" size={18} /></span>
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontWeight: "700", color: "#ff6b6b", marginBottom: "6px", textTransform: "uppercase", fontSize: "0.82rem", letterSpacing: "0.5px" }}>
                                         {error.includes("402") || error.toLowerCase().includes("payment required") || error.toLowerCase().includes("credit") ? "Payment Required" : "Error Encountered"}
@@ -2103,7 +2139,7 @@
                                     {(error.includes("402") || error.toLowerCase().includes("payment required") || error.toLowerCase().includes("credit")) && (
                                         <div style={{ marginTop: "12px" }}>
                                             <a href={`pricing.html?bot_id=${botId}`} className="btn btn-primary" style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 14px", fontSize: "0.82rem", textDecoration: "none", borderRadius: "8px" }}>
-                                                💳 Upgrade Plan / Recharge Credits
+                                                <Icon name="credit-card" size={16} /> Upgrade Plan / Recharge Credits
                                             </a>
                                         </div>
                                     )}
@@ -2114,7 +2150,7 @@
 
                     {successMsg && (
                         <div style={{ padding: "12px 16px", borderRadius: "8px", background: "rgba(40, 167, 69, 0.1)", border: "1px solid rgba(40, 167, 69, 0.2)", color: "#2ebd59", marginBottom: "20px", fontSize: "0.9rem" }}>
-                            ✅ {successMsg}
+                            <Icon name="circle-check" size={16} /> {successMsg}
                         </div>
                     )}
 
@@ -2152,7 +2188,7 @@
 
                     {!loading && questions.length === 0 && !successMsg && (
                         <div style={{ textAlign: "center", padding: "40px 20px", border: "1px dashed var(--border)", borderRadius: "12px" }}>
-                            <div style={{ fontSize: "40px", marginBottom: "16px" }}>🎯</div>
+                            <div style={{ fontSize: "40px", marginBottom: "16px" }}><Icon name="target" size={40} /></div>
                             <h4 style={{ margin: "0 0 8px 0", fontSize: "1rem", color: "var(--text)" }}>Ready to Refine Knowledge</h4>
                             <p style={{ margin: 0, fontSize: "0.85rem", color: "var(--text-dim)", maxWidth: "480px", marginLeft: "auto", marginRight: "auto", lineHeight: "1.5" }}>
                                 Click the "Scan Graph for Gaps" button above. The AI will look at your active PDF's entities and relations to find missing or ambiguous information that needs clarification.
@@ -3009,7 +3045,7 @@
 
                         {status.text && (
                             <div className={`status-message ${status.type}`}>
-                                {status.type === "success" ? "✨" : status.type === "deleted" ? "🗑️" : "⚠️"} {status.text}
+                                {status.type === "success" ? <Icon name="sparkles" size={16} /> : status.type === "deleted" ? <Icon name="trash-2" size={16} /> : <Icon name="triangle-alert" size={16} />} {status.text}
                             </div>
                         )}
 
@@ -3105,7 +3141,7 @@
                                     </div>
 
                                     <button className="btn btn-primary" type="button" onClick={openModal}>
-                                        ➕ Add Knowledge Source
+                                        <Icon name="plus" size={16} /> Add Knowledge Source
                                     </button>
                                 </div>
 
@@ -3136,7 +3172,7 @@
                                                         <tr key={index}>
                                                             <td>
                                                                 <div className="name-cell">
-                                                                    <span>{websiteSource ? "🔗" : "📄"}</span>
+                                                                    <span>{websiteSource ? <Icon name="link" size={16} /> : <Icon name="file-text" size={16} />}</span>
                                                                     <span>{f.file_name}</span>
                                                                 </div>
                                                             </td>
@@ -3182,7 +3218,7 @@
                                                                                     fontSize: "1rem"
                                                                                 }}
                                                                             >
-                                                                                📖
+                                                                                <Icon name="book-open" size={16} />
                                                                             </button>
                                                                             <button
                                                                                 className="btn"
@@ -3202,7 +3238,7 @@
                                                                                     fontSize: "1rem"
                                                                                 }}
                                                                             >
-                                                                                📜
+                                                                                <Icon name="scroll-text" size={16} />
                                                                             </button>
                                                                         </React.Fragment>
                                                                     )}
@@ -3397,7 +3433,7 @@
 
                                     {file && (
                                         <div style={{ marginTop: "12px", fontSize: "0.85rem", color: "var(--primary)", fontWeight: 600 }}>
-                                            📄 Selected: {file.name}
+                                            <Icon name="file-text" size={14} /> Selected: {file.name}
                                         </div>
                                     )}
                                     {isUploading && (
@@ -3498,7 +3534,7 @@
                         <div className="modal-content" style={{ maxWidth: "800px", width: "90%", maxHeight: "85vh", display: "flex", flexDirection: "column", padding: "30px", border: "1px solid var(--glass-border)", background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--glass-border)", paddingBottom: "12px", marginBottom: "16px" }}>
                                 <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "700" }}>Knowledge Source README.md</h3>
-                                <button className="btn" onClick={closeReadmeModal} style={{ padding: "4px 12px", fontSize: "0.85rem", background: "rgba(255,255,255,0.05)", border: "1px solid var(--glass-border)" }}>✕ Close</button>
+                                <button className="btn" onClick={closeReadmeModal} style={{ padding: "4px 12px", fontSize: "0.85rem", background: "rgba(255,255,255,0.05)", border: "1px solid var(--glass-border)" }}><Icon name="x" size={14} /> Close</button>
                             </div>
 
                             {/* Search bar row */}
@@ -3515,7 +3551,7 @@
                                     flexWrap: "wrap"
                                 }}>
                                     <div style={{ position: "relative", flex: 1, minWidth: "200px" }}>
-                                        <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", opacity: 0.5, pointerEvents: "none" }}>🔍</span>
+                                        <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", opacity: 0.5, pointerEvents: "none" }}><Icon name="search" size={14} /></span>
                                         <input
                                             type="text"
                                             placeholder="Search word in README..."
@@ -3546,7 +3582,7 @@
                                                     fontSize: "0.9rem"
                                                 }}
                                             >
-                                                ✕
+                                                <Icon name="x" size={14} />
                                             </button>
                                         )}
                                     </div>
@@ -3578,7 +3614,7 @@
                                                 }}
                                                 title="Previous Match"
                                             >
-                                                ◀ Prev
+                                                <Icon name="chevron-left" size={14} /> Prev
                                             </button>
 
                                             <button
@@ -3599,7 +3635,7 @@
                                                 }}
                                                 title="Next Match"
                                             >
-                                                Next ▶
+                                                Next <Icon name="chevron-right" size={14} />
                                             </button>
                                         </div>
                                     )}
@@ -3624,7 +3660,7 @@
                         <div className="modal-content" style={{ maxWidth: "600px", width: "90%", maxHeight: "80vh", display: "flex", flexDirection: "column", padding: "30px", border: "1px solid var(--glass-border)", background: "var(--card-bg)" }} onClick={(e) => e.stopPropagation()}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--glass-border)", paddingBottom: "12px", marginBottom: "16px" }}>
                                 <h3 style={{ margin: 0, fontSize: "1.2rem", fontWeight: "700" }}>Document Modification History</h3>
-                                <button className="btn" onClick={() => setIsHistoryOpen(false)} style={{ padding: "4px 12px", fontSize: "0.85rem", background: "rgba(255,255,255,0.05)", border: "1px solid var(--glass-border)" }}>✕ Close</button>
+                                <button className="btn" onClick={() => setIsHistoryOpen(false)} style={{ padding: "4px 12px", fontSize: "0.85rem", background: "rgba(255,255,255,0.05)", border: "1px solid var(--glass-border)" }}><Icon name="x" size={14} /> Close</button>
                             </div>
                             {/* Filter Pills */}
                             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
@@ -3744,7 +3780,7 @@
                                                                             transition: "transform 0.25s ease",
                                                                             transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
                                                                             display: "inline-block"
-                                                                        }}>▼</span>
+                                                                        }}><Icon name="chevron-down" size={12} /></span>
                                                                     )}
                                                                 </div>
                                                             </div>
@@ -3839,7 +3875,7 @@
                     {/* Custom Delete Confirmation Modal */}
                     <div className={`modal-backdrop ${fileToDelete ? "open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) setFileToDelete(null); }}>
                         <div className="modal-content" style={{ maxWidth: "420px", textAlign: "center", padding: "40px 30px" }}>
-                            <div style={{ fontSize: "48px", marginBottom: "20px" }}>🗑️</div>
+                            <div style={{ fontSize: "48px", marginBottom: "20px" }}><Icon name="trash-2" size={48} /></div>
                             <h2 style={{ marginBottom: "12px" }}>Delete Document?</h2>
                             <p style={{ color: "var(--text-dim)", fontSize: "0.95rem", marginBottom: "32px", lineHeight: "1.5" }}>
                                 Are you sure you want to delete <strong>{fileToDelete}</strong>?<br />
