@@ -28,6 +28,11 @@ from app.database.company_subscription_repository import (
     update_subscription_status_if_current as _update_status_conditional,
     update_company_subscription as _update_sub,
 )
+from app.database.subscription_plan_repository import get_plan_by_id
+from app.services.free_trial_status_service import (
+    parse_iso_datetime,
+    resolve_effective_subscription_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +51,86 @@ ALLOWED_TRANSITIONS = {
 
 _VALID_STATUSES = frozenset(ALLOWED_TRANSITIONS.keys()) | {"active",
     "past_due", "expired", "cancelled", "trialing"}
+
+_SOURCE_STATE_PROTECTING_ACTIVATION_STATUSES = frozenset({
+    "claimed",
+    "activated",
+    "credit_pending",
+    "conflict",
+})
+
+
+def _same_source_snapshot(order: dict, subscription: dict) -> bool:
+    return (
+        order.get("subscription_id") == subscription.get("id")
+        and order.get("source_plan_id") == subscription.get("plan_id")
+        and (order.get("source_status") or "").strip().lower()
+        == (subscription.get("status") or "").strip().lower()
+        and str(order.get("source_period_start") or "")
+        == str(subscription.get("current_period_start") or "")
+        and str(order.get("source_period_end") or "")
+        == str(subscription.get("current_period_end") or "")
+    )
+
+
+def _has_source_state_dependent_subscription_order(
+    subscription: dict,
+    *,
+    now: datetime,
+) -> bool:
+    """Return True when changing status could invalidate an in-flight checkout.
+
+    A live payable pending order must keep its captured source subscription
+    state valid until the checkout is resolved. Paid/partially activated orders
+    also protect the source state because reconciliation may still need the
+    same snapshot to finish safely.
+    """
+    company_id = subscription.get("company_id")
+    if not company_id:
+        return False
+
+    try:
+        from app.database.company_subscription_order_repository import (
+            list_subscription_orders_for_company,
+        )
+
+        orders = list_subscription_orders_for_company(
+            company_id=company_id,
+            limit=100,
+        )
+    except Exception:
+        logger.exception(
+            "Could not inspect subscription orders before lifecycle transition "
+            "for company %s; failing closed.",
+            company_id,
+        )
+        return True
+
+    for order in orders:
+        if not _same_source_snapshot(order, subscription):
+            continue
+
+        status = (order.get("status") or "").strip().lower()
+        activation_status = (order.get("activation_status") or "").strip().lower()
+
+        if (
+            status == "pending"
+            and not order.get("paid_at")
+            and not order.get("credited_at")
+            and order.get("gateway_order_id")
+            and order.get("checkout_url")
+        ):
+            expires_at = parse_iso_datetime(order.get("expires_at"))
+            if expires_at is None or expires_at > now:
+                return True
+
+        if status == "paid" or order.get("reconciliation_required"):
+            return True
+
+        if activation_status in _SOURCE_STATE_PROTECTING_ACTIVATION_STATUSES:
+            return True
+
+    return False
 
 
 def transition_subscription_status(
@@ -502,6 +587,19 @@ def process_subscription_expiry(
 
     current_status = (subscription.get("status") or "").strip().lower()
     sub_id = subscription.get("id")
+    plan = None
+    try:
+        plan = get_plan_by_id(subscription.get("plan_id"))
+    except Exception:
+        logger.exception(
+            "Could not load subscription plan before expiry processing for company %d",
+            company_id,
+        )
+    effective = resolve_effective_subscription_status(
+        subscription,
+        plan,
+        now=now,
+    )
 
     # Already expired or cancelled -> idempotent
     if current_status in ("expired", "cancelled"):
@@ -524,7 +622,32 @@ def process_subscription_expiry(
     target_status = "expired"
     grace_period_used = False
 
-    if current_status == "trialing":
+    if (
+        effective["is_free_trial"]
+        and effective["trial_expired"]
+        and not effective["trial_missing"]
+        and current_status in ("trialing", "active")
+    ):
+        if _has_source_state_dependent_subscription_order(subscription, now=now):
+            logger.info(
+                "Deferring physical Free trial expiry for company %d because "
+                "an unresolved source-state subscription order exists.",
+                company_id,
+            )
+            return {
+                "processed": False,
+                "company_id": company_id,
+                "from_status": current_status,
+                "to_status": current_status,
+                "reason": "Free trial expired; source-state checkout pending",
+                "idempotent": True,
+                "grace_period_used": False,
+                "protected_by_pending_checkout": True,
+            }
+        reason = "Trial period ended"
+        target_status = "expired"
+
+    elif current_status == "trialing":
         trial_end = subscription.get("trial_ends_at")
         if trial_end and trial_end <= now_iso:
             reason = "Trial period ended"
@@ -772,6 +895,14 @@ def _process_single_subscription(sub: dict, now: datetime | None = None) -> dict
     company_id = sub.get("company_id")
     sub_id = sub.get("id")
     current_status = (sub.get("status") or "").strip().lower()
+    plan = None
+    try:
+        plan = get_plan_by_id(sub.get("plan_id"))
+    except Exception:
+        logger.exception(
+            "Could not load subscription plan for lifecycle candidate %s",
+            sub_id,
+        )
 
     # Already expired or cancelled
     if current_status in ("expired", "cancelled"):
@@ -841,6 +972,15 @@ def _process_single_subscription(sub: dict, now: datetime | None = None) -> dict
                 "error": str(exc),
             }
             logger.warning("Downgrade blocked info: %s", downgrade_blocked_info)
+    effective = resolve_effective_subscription_status(sub, plan, now=now)
+    if (
+        effective["is_free_trial"]
+        and effective["trial_expired"]
+        and not effective["trial_missing"]
+        and current_status in ("trialing", "active")
+    ):
+        return process_subscription_expiry(company_id, now=now)
+
     # --- 3. Normal active/past_due period expiry ---
     if current_status in ("active", "past_due"):
         period_end = sub.get("current_period_end")

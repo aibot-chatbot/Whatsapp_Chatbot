@@ -235,6 +235,19 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_essential_active_future_period_allowed(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 2,
+            "status": "active",
+            "current_period_end": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+        }
+        mock_plan.return_value = ESSENTIAL_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_ESSENTIAL)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
     def test_advanced_active(self, mock_sub, mock_plan):
         mock_sub.return_value = {"plan_id": 3, "status": "active"}
         mock_plan.return_value = ADVANCED_PLAN
@@ -245,6 +258,19 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_advanced_active_future_period_allowed(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 3,
+            "status": "active",
+            "current_period_end": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+        }
+        mock_plan.return_value = ADVANCED_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_ADVANCED)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
     def test_pro_active(self, mock_sub, mock_plan):
         mock_sub.return_value = {"plan_id": 4, "status": "active"}
         mock_plan.return_value = PRO_PLAN
@@ -252,6 +278,46 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
         self.assertTrue(policy.allowed)
         self.assertEqual(policy.access_state, STATE_PRO)
         self.assertEqual(policy.max_model_tier, "premium")
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_pro_active_future_period_allowed(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 4,
+            "status": "active",
+            "current_period_end": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+        }
+        mock_plan.return_value = PRO_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_PRO)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_active_paid_expired_period_denied_cleanly(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 3,
+            "status": "active",
+            "current_period_end": (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),
+        }
+        mock_plan.return_value = ADVANCED_PLAN
+        policy = resolve_ai_access(1)
+        self.assertFalse(policy.allowed)
+        self.assertEqual(policy.access_state, "unknown")
+        self.assertIn("period has ended", policy.denial_reason)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_active_paid_malformed_period_does_not_name_error(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 3,
+            "status": "active",
+            "current_period_end": "not-a-date",
+        }
+        mock_plan.return_value = ADVANCED_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_ADVANCED)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")

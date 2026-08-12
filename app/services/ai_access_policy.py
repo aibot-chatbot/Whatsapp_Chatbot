@@ -14,6 +14,10 @@ from app.database.company_subscription_repository import (
     get_company_subscription as _get_company_subscription,
 )
 from app.database.subscription_plan_repository import get_plan_by_id
+from app.services.free_trial_status_service import (
+    parse_iso_datetime,
+    resolve_effective_subscription_status,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,18 +73,6 @@ class AIAccessPolicy:
     denial_reason: str | None = None
 
 
-def _parse_iso_datetime(raw_value):
-    if not raw_value:
-        return None
-    try:
-        dt = datetime.fromisoformat(str(raw_value))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
-    except (ValueError, TypeError):
-        return None
-
-
 def resolve_ai_access(company_id, *, now=None):
     if now is None:
         now = datetime.now(timezone.utc)
@@ -120,10 +112,16 @@ def resolve_ai_access(company_id, *, now=None):
     if plan:
         plan_code = (plan.get("code") or "").lower().strip()
 
+    free_entitlement = resolve_effective_subscription_status(
+        subscription,
+        plan,
+        now=now,
+    )
+
     # trialing (must be Free plan)
     if status == STATUS_TRIALING and plan_code == PLAN_CODE_FREE:
-        trial_end = _parse_iso_datetime(trial_ends_at_raw)
-        if trial_end is not None and trial_end > now:
+        trial_end = parse_iso_datetime(trial_ends_at_raw)
+        if free_entitlement["trial_active"] and trial_end is not None:
             return AIAccessPolicy(
                 allowed=True, access_state=STATE_ACTIVE_TRIAL,
                 api_route=ROUTE_DIRECT_DEEPSEEK,
@@ -145,7 +143,7 @@ def resolve_ai_access(company_id, *, now=None):
         # the scheduled expiry processor is delayed.
         period_end_raw = subscription.get("current_period_end")
         if period_end_raw:
-            period_end_dt = _parse_iso_datetime(period_end_raw)
+            period_end_dt = parse_iso_datetime(period_end_raw)
             if period_end_dt is not None and period_end_dt <= now:
                 return AIAccessPolicy(
                     allowed=False, access_state=STATE_UNKNOWN,
@@ -179,8 +177,8 @@ def resolve_ai_access(company_id, *, now=None):
             # within their trial window.  Without a valid trial_ends_at
             # the subscription is denied with a trial-expired message so
             # that an unlimited free state is never silently granted.
-            trial_end = _parse_iso_datetime(trial_ends_at_raw)
-            if trial_end is not None and trial_end > now:
+            trial_end = parse_iso_datetime(trial_ends_at_raw)
+            if free_entitlement["trial_active"] and trial_end is not None:
                 return AIAccessPolicy(
                     allowed=True, access_state=STATE_ACTIVE_TRIAL,
                     api_route=ROUTE_DIRECT_DEEPSEEK,
