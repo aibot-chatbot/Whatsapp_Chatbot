@@ -32,6 +32,15 @@ class ToyyibPayConfigError(Exception):
     and ValueError to HTTP 400.
     """
 
+
+class ToyyibPayBillRejectedError(RuntimeError):
+    """Raised when ToyyibPay explicitly rejects createBill with no bill."""
+
+
+class ToyyibPayBillCreationAmbiguousError(RuntimeError):
+    """Raised when createBill outcome is uncertain after gateway contact."""
+
+
 # ---------------------------------------------------------------------------
 # Environment variable names
 # ---------------------------------------------------------------------------
@@ -149,6 +158,7 @@ def create_bill(
     customer_email: str,
     customer_phone: str | None = None,
     description: str = "AI Credit Top-Up",
+    bill_expiry_days: int | None = None,
 ) -> dict:
     """Create a ToyyibPay bill for an AI credit top-up.
 
@@ -181,6 +191,14 @@ def create_bill(
         raise ValueError("customer_email must be a non-empty string")
     if not description:
         description = "AI Credit Top-Up"
+    if bill_expiry_days is not None:
+        if (
+            isinstance(bill_expiry_days, bool)
+            or not isinstance(bill_expiry_days, int)
+            or bill_expiry_days < 1
+            or bill_expiry_days > 100
+        ):
+            raise ValueError("bill_expiry_days must be an integer between 1 and 100")
 
     amount_cent = micro_myr_to_cent(amount_micro_myr)
 
@@ -209,6 +227,8 @@ def create_bill(
         "billContentEmail": f"Thank you for your AI credit top-up of RM{amount_cent // 100} {amount_cent % 100:02d}",
         "billChargeToCustomer": "0",
     }
+    if bill_expiry_days is not None:
+        payload["billExpiryDays"] = str(bill_expiry_days)
 
     logger.info(
         "Creating ToyyibPay bill for order %s, amount %d cent",
@@ -222,19 +242,19 @@ def create_bill(
             timeout=_DEFAULT_TIMEOUT_SECONDS,
         )
     except requests.exceptions.Timeout:
-        raise RuntimeError(
+        raise ToyyibPayBillCreationAmbiguousError(
             f"ToyyibPay createBill request timed out after "
             f"{_DEFAULT_TIMEOUT_SECONDS}s for order {order_reference!r}"
         )
     except requests.exceptions.ConnectionError as exc:
-        raise RuntimeError(
+        raise ToyyibPayBillCreationAmbiguousError(
             f"ToyyibPay createBill connection failed for order "
             f"{order_reference!r}: {exc}"
         )
 
     if response.status_code != 200:
         _log_safe_error(response)
-        raise RuntimeError(
+        raise ToyyibPayBillCreationAmbiguousError(
             f"ToyyibPay createBill returned HTTP {response.status_code} "
             f"for order {order_reference!r}"
         )
@@ -243,7 +263,7 @@ def create_bill(
         result = response.json()
     except ValueError:
         body_piece = (response.text or "")[:300].replace(chr(10), " ").replace(chr(13), " ")
-        raise RuntimeError(
+        raise ToyyibPayBillCreationAmbiguousError(
             f"ToyyibPay createBill returned non-JSON response; "
             f"HTTP {response.status_code}; "
             f"content_type='{response.headers.get('Content-Type', '')}'; "
@@ -251,8 +271,15 @@ def create_bill(
             f"for order {order_reference!r}"
         )
 
+    if isinstance(result, dict) and str(result.get("status", "")).strip().lower() == "error":
+        logger.error(
+            "ToyyibPay createBill rejected order %s with provider error category",
+            order_reference,
+        )
+        raise ToyyibPayBillRejectedError("ToyyibPay createBill rejected the request")
+
     if not isinstance(result, list) or len(result) == 0:
-        raise RuntimeError(
+        raise ToyyibPayBillCreationAmbiguousError(
             f"ToyyibPay createBill returned unexpected structure for "
             f"order {order_reference!r}: {result!r}"
         )
@@ -260,21 +287,21 @@ def create_bill(
     bill = result[0]
 
     if not isinstance(bill, dict):
-        raise RuntimeError(
+        raise ToyyibPayBillCreationAmbiguousError(
             "ToyyibPay createBill response first element is not a dictionary"
         )
 
     raw_bill_code = bill.get("BillCode")
 
     if raw_bill_code is None or not isinstance(raw_bill_code, str):
-        raise RuntimeError(
+        raise ToyyibPayBillCreationAmbiguousError(
             "ToyyibPay createBill response has invalid BillCode type"
         )
 
     bill_code = raw_bill_code.strip()
 
     if not bill_code:
-        raise RuntimeError(
+        raise ToyyibPayBillCreationAmbiguousError(
             "ToyyibPay createBill response has empty BillCode"
         )
 

@@ -289,3 +289,13 @@ def test_authenticated_pricing_uses_explicit_customer_feature_allowlist():
     assert "Object.keys(features)" not in pricing
     assert "key.replace(/_/g" not in pricing
     assert "features[key] === true" in pricing
+
+
+def test_authenticated_pricing_redirects_only_for_valid_checkout_url():
+    pricing = _read(FRONTEND / "pricing.html")
+
+    assert 'authenticatedFetch("/api/billing/subscription/checkout"' in pricing
+    assert 'body.status === "success" && body.data && body.data.checkout_url' in pricing
+    assert 'checkoutUrl.indexOf("http://") === 0 || checkoutUrl.indexOf("https://") === 0' in pricing
+    assert "window.location.assign(checkoutUrl)" in pricing
+    assert 'showPricingError(body.message || "Failed to create checkout. Please try again.")' in pricing
