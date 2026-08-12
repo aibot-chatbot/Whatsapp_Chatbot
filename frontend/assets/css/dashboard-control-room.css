@@ -665,3 +665,64 @@ body.dashboard-page {
     }
 }
 
+
+/* ── Message-traffic chart ──────────────────────────────────────────────
+   The value is printed above each bar rather than hidden in a title
+   tooltip, because a tooltip does not exist on touch and the number is the
+   point of the chart. The busiest day is marked, since that encodes
+   something true; colouring the last bar encoded only its position.
+   Bars grow with transform, never height, so the reveal stays on the
+   compositor. */
+.dashboard-page .chart-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: stretch;
+    gap: 6px;
+    min-width: 0;
+}
+
+.dashboard-page .chart-value {
+    font-family: "JetBrains Mono", monospace;
+    font-size: 11px;
+    line-height: 1;
+    text-align: center;
+    color: var(--control-text-dim, #8a9096);
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .chart-col:hover .chart-value,
+.dashboard-page .chart-col:focus-within .chart-value {
+    color: var(--control-text, #f2f3f4);
+}
+
+.dashboard-page .chart-bar {
+    transform-origin: bottom center;
+    animation: chart-bar-rise 420ms cubic-bezier(.2, 0, 0, 1) backwards;
+}
+
+.dashboard-page .chart-col:hover .chart-bar,
+.dashboard-page .chart-col:focus-within .chart-bar {
+    opacity: 1;
+}
+
+/* The busiest day in the range. Marked by weight, not by hue, so the chart
+   still reads for anyone who cannot separate the two colours. */
+.dashboard-page .chart-bar.is-peak {
+    opacity: 1;
+}
+
+.dashboard-page .chart-col.is-peak .chart-value {
+    color: var(--control-accent, #3e9c89);
+    font-weight: 600;
+}
+
+@keyframes chart-bar-rise {
+    from { transform: scaleY(0); opacity: 0; }
+    to   { transform: scaleY(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-page .chart-bar { animation: none; }
+}

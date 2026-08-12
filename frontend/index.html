@@ -1039,21 +1039,42 @@
             labelsContainer.innerHTML = "";
 
             const maxVal = Math.max(...data, 10); // Minimum scale 10
+            const peakVal = Math.max(...data);
+            const peakIndex = peakVal > 0 ? data.indexOf(peakVal) : -1;
+            const total = data.reduce((sum, n) => sum + n, 0);
+
+            // One figure, described once. Previously every bar carried
+            // role="img", so a screen reader met seven images, not a chart.
+            container.setAttribute('role', 'img');
+            container.setAttribute('aria-label',
+                `Messages per day. ${total} in total${peakIndex >= 0
+                    ? `, busiest on ${labels[peakIndex]} with ${peakVal}`
+                    : ''}.`);
 
             data.forEach((val, i) => {
                 const percentage = (val / maxVal) * 100;
+                const isPeak = i === peakIndex && peakVal > 0;
+
+                const col = document.createElement('div');
+                col.className = isPeak ? 'chart-col is-peak' : 'chart-col';
+                col.tabIndex = 0;
+
+                // The number is printed, not hidden in a title tooltip. A
+                // tooltip does not exist on touch, and the number is the whole
+                // point of the chart.
+                const value = document.createElement('div');
+                value.className = 'chart-value';
+                value.textContent = val;
+
                 const bar = document.createElement('div');
-                bar.className = 'chart-bar';
-                bar.style.flex = "1";
-                bar.style.backgroundColor = i === data.length - 1 ? "var(--accent)" : "var(--primary)";
-                bar.style.height = `${Math.max(percentage, 5)}%`; // minimum 5% height to show it exists
-                bar.style.borderRadius = "4px";
-                bar.style.transition = "height 1s ease";
-                bar.title = `${val} messages`;
-                bar.tabIndex = 0;
-                bar.setAttribute('role', 'img');
-                bar.setAttribute('aria-label', `${labels[i]}: ${val} messages`);
-                container.appendChild(bar);
+                bar.className = isPeak ? 'chart-bar is-peak' : 'chart-bar';
+                // Height sets the layout once; the reveal animates transform,
+                // so it stays on the compositor instead of triggering layout.
+                bar.style.height = `${Math.max(percentage, 5)}%`;
+                bar.style.animationDelay = `${i * 45}ms`;
+
+                col.append(value, bar);
+                container.appendChild(col);
 
                 const label = document.createElement('div');
                 label.style.flex = "1";
