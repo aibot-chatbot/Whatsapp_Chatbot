@@ -28,7 +28,7 @@ from app.database.company_subscription_repository import (
     get_company_subscription,
 )
 from app.services.ai_credit_service import (
-    allocate_subscription_included_credit as _add_included_credit,
+    ensure_company_ai_credit as _ensure_company_ai_credit,
 )
 from app.services.billing_period_service import (
     calculate_current_period_end,
@@ -256,21 +256,14 @@ def _retry_credit(
     if plan_included_credit > 0:
         if not activation_seq_key:
             return {"outcome": "manual_review_required", "order_status": status, "message": "Missing activation_sequence_key for credit idempotency."}
-        credit_key = f"sub_credit_{activation_seq_key}"
-        payment_ref = order.get("payment_reference") or f"recon-{order_reference}"
         try:
-            # Use canonical subscription included credit function
-            # that correctly targets the included balance bucket
-            result = _add_included_credit(
-                company_id=company_id,
-                amount_micro_myr=plan_included_credit,
-                idempotency_key=credit_key,
-                payment_reference=payment_ref,
-                period_start=None,
-                period_end=None,
-                description=f"Subscription {plan_code} included AI credit (reconciliation, seq={activation_seq_key})",
+            result = _ensure_company_ai_credit(company_id)
+            logger.info(
+                "Credit retry for %s: period_changed=%s included_granted=%s",
+                order_reference,
+                result.get("period_changed"),
+                result.get("included_credit_granted_micro_myr"),
             )
-            logger.info("Credit retry for %s: %s", order_reference, result.get("status"))
         except Exception as exc:
             logger.error("Credit retry failed for %s: %s", order_reference, exc)
             try:
@@ -296,7 +289,7 @@ def _retry_credit(
     # Generate completion notification
     try:
         from app.services.billing_notification_service import notify_reconciliation_completed
-        notify_reconciliation_completed(company_id=company_id_val, order_reference=order_reference)
+        notify_reconciliation_completed(company_id=company_id, order_reference=order_reference)
     except Exception as notify_err:
         logger.warning("Failed to send reconciliation notification for %s: %s", order_reference, notify_err)
 
