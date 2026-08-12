@@ -44,6 +44,7 @@
 |---|---|---|
 | Chatbot creation | Implemented | Backend and frontend exist |
 | Chatbot listing | Implemented | Company-scoped |
+| Chatbot archive, restore, and permanent deletion | Verified complete | Active and archived lists are company-scoped; authenticated archive listing plus admin/owner restore and permanent-delete routes are covered by focused route tests. Permanent deletion still depends on Migration 022 being deployed in the target Supabase environment |
 | Chatbot editing | Implemented | Requires broader route tests |
 | Chatbot deletion | Implemented | Requires deletion-flow verification |
 | Prompt configuration | Implemented | Profile and deployment flow exists |
