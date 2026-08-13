@@ -48,7 +48,7 @@
 | Chatbot deletion | Implemented | Requires deletion-flow verification |
 | Prompt configuration | Implemented | Profile and deployment flow exists |
 | Model selection | Implemented | Model catalog and settings UI exist |
-| Automated menu or flow generation | Obsolete | Feature scrubbed per user request |
+| Flow Builder runtime | Implemented | Flow Builder remains part of the active chatbot system. Backend flow save/fetch routes, V3 draft/published persistence, AI Router interception, Test Bot integration, flow execution, safe AI/RAG handoff, and legacy `flow_data` compatibility are covered by `tests/test_flow_builder_runtime.py`; broader UI and live-channel flow verification remain needed |
 | Media Attachments | Implemented | Backend, UI, and webhook dispatch created |
 | Message style & welcome menu buttons | Implemented | Welcome-menu buttons always render regardless of the interactive-buttons toggle (per product decision). The `[BUTTONS: ...]` tag is now stripped from the reply before markdown formatting on both Telegram and WhatsApp so buttons reliably render. Welcome-menu AI generation is capped at 3 labels to match the UI. Regression tests added in `tests/test_message_style_buttons.py` |
 
@@ -79,7 +79,7 @@
 | DeepSeek routing | Implemented | External API verification required |
 | Gemini usage | Implemented | Used in AI and/or embedding flows; verify exact active paths |
 | AI usage logging | Implemented | Integrated with AI-credit charging |
-| Provider fallback behavior | Needs investigation | Confirm current failure and fallback rules |
+| Provider fallback behavior | Implemented | Cross-provider fallback is disabled; selected-provider failures return the safe generic chatbot failure response without trying another provider |
 
 ## Messaging Integrations
 

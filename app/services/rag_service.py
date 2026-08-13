@@ -17,6 +17,9 @@ load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
+# Compatibility name used by older RAG tests and PDF-specific callers.
+get_active_pdf_knowledge_file = get_active_knowledge_file
+
 STOPWORDS = {
     "is", "am", "are", "the", "a", "an", "of", "to", "for", "and", "or", "in",
     "on", "at", "by", "with", "do", "does", "did", "what", "when", "how", "can",
@@ -470,7 +473,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3):
             "website": 0,
         }
 
-        active_pdf = get_active_knowledge_file(chatbot_id)
+        active_pdf = get_active_pdf_knowledge_file(chatbot_id)
         supporting_files = get_supporting_knowledge_files(chatbot_id)
         has_supporting_websites = bool(supporting_files)
         pdf_limit = max(1, top_k - 1) if has_supporting_websites else top_k
