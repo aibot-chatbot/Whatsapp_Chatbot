@@ -176,13 +176,15 @@ A typical chatbot response flow is:
 2. Resolve company, chatbot, and conversation context.
 3. Deduplicate the inbound message when applicable.
 4. Load chatbot configuration and active knowledge settings.
-5. Retrieve relevant knowledge chunks.
-6. Build model context.
-7. Route the request to the configured model/provider.
-8. Record usage.
-9. Apply AI-credit charging when enabled.
-10. Save the response.
-11. Send the response back through the originating channel.
+5. Check for an applicable active/published Flow Builder flow scoped by company and chatbot.
+6. If a flow handles the message, return the flow response.
+7. If no flow applies, the flow is invalid, or the flow hands off to AI/RAG, retrieve relevant knowledge chunks.
+8. Build model context.
+9. Route the request to the configured model/provider.
+10. Record usage.
+11. Apply AI-credit charging when enabled.
+12. Save the response.
+13. Send the response back through the originating channel.
 
 ## Messaging Integration Flow
 

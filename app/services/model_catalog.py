@@ -255,40 +255,6 @@ def get_default_model(provider):
     return models[0].get("value")
 
 
-def get_fallback_model(primary_provider, max_model_tier):
-    """Select the best available model from an alternative provider that fits the user's tier."""
-    if max_model_tier is None:
-        return None, None
-        
-    if primary_provider == "deepseek":
-        fallback_providers = ["openai", "google", "anthropic"]
-    else:
-        fallback_providers = [p for p in OPENROUTER_PROVIDER_KEYS if p != primary_provider]
-        
-    for provider in fallback_providers:
-        config = MODEL_CATALOG.get(provider)
-        if not config:
-            continue
-            
-        models = config.get("models", [])
-        best_model = None
-        best_rank = -1
-        
-        for m in models:
-            model_val = m.get("value")
-            if is_model_allowed_for_tier(model_val, max_model_tier):
-                model_tier = get_model_tier(model_val)
-                model_rank = MODEL_TIER_RANK.get(model_tier, -1)
-                if model_rank > best_rank:
-                    best_rank = model_rank
-                    best_model = model_val
-                    
-        if best_model:
-            return provider, best_model
-            
-    return None, None
-
-
 def is_valid_provider(provider):
     return provider in MODEL_CATALOG
 

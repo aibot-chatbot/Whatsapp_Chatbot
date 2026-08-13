@@ -34,6 +34,7 @@ from app.routes.dev_billing_routes import dev_billing_bp
 from app.routes.platform_admin_routes import platform_admin_bp
 from app.routes.support_routes import support_bp
 from app.routes.widget_routes import widget_blueprint
+from app.routes.flow_routes import flow_blueprint
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -106,6 +107,7 @@ def create_app():
     app.register_blueprint(platform_admin_bp)
     app.register_blueprint(support_bp)
     app.register_blueprint(widget_blueprint)
+    app.register_blueprint(flow_blueprint)
     if app.config.get("ENABLE_DEV_BILLING_ROUTES"):
         app.register_blueprint(dev_billing_bp)
 
