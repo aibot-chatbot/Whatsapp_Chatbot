@@ -36,8 +36,12 @@ from app.services.billing_service import (
     get_current_subscription,
     convert_trial_ai_configuration,
 )
+from app.services.billing_period_service import (
+    calculate_current_period_end,
+    validate_current_period,
+)
 from app.services.ai_credit_service import (
-    allocate_subscription_included_credit as _add_included_credit,
+    ensure_company_ai_credit as _ensure_company_ai_credit,
 )
 
 logger = logging.getLogger(__name__)
@@ -178,9 +182,7 @@ def _mark_order_paid(order_reference, payment_reference, paid_at=None):
 
 
 def _mark_order_credited(order_reference, credited_at=None):
-    updates = {}
-    if credited_at:
-        updates["credited_at"] = credited_at
+    updates = {"credited_at": credited_at or _now_iso()}
     _update_order_status(order_reference=order_reference, status="credited", **updates)
     logger.info("Subscription order %s marked as credited", order_reference)
 
@@ -229,10 +231,25 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
     plan_code = plan.get("code", "").lower()
     plan_included_credit = plan.get("included_ai_credit_micro_myr", 0) or 0
 
-    now_iso = datetime.now(timezone.utc).isoformat()
-    from dateutil.relativedelta import relativedelta
-    period_end = datetime.now(timezone.utc) + relativedelta(months=1)
+    period_start = datetime.now(timezone.utc)
+    now_iso = period_start.isoformat()
+    billing_interval = plan.get("billing_interval")
+    period_end = calculate_current_period_end(period_start, billing_interval)
     period_end_iso = period_end.isoformat()
+    try:
+        validate_current_period(now_iso, period_end_iso, billing_interval)
+    except ValueError as exc:
+        logger.error(
+            "Refusing to activate subscription with invalid billing period "
+            "for company %s order %s plan_id=%s: %s",
+            company_id,
+            order_reference,
+            new_plan_id,
+            exc,
+        )
+        raise RuntimeError(
+            f"Invalid billing period calculated for order {order_reference!r}"
+        ) from exc
 
     # ---- Step 1: Claim activation sequence atomically ----
     # Orders with an activation_sequence_key (from 009 migration onward) get
@@ -245,6 +262,14 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 order_reference=order_reference,
                 activation_sequence_key=activation_sequence_key,
             )
+            try:
+                _update_activation_state(
+                    order_reference=order_reference,
+                    activation_status="claimed",
+                    activation_claimed_at=now_iso,
+                )
+            except Exception:
+                logger.warning("Could not set activation_status=claimed on order %s", order_reference)
         except RuntimeError as exc:
             # The activation sequence is already claimed.  If this exact order
             # previously claimed it (e.g. a previous attempt failed after claiming
@@ -363,6 +388,14 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
     else:
         # Historical order without source-state fields: legacy fallback
         _used_legacy_path = True
+        try:
+            _update_activation_state(
+                order_reference=order_reference,
+                activation_status="claimed",
+                activation_claimed_at=now_iso,
+            )
+        except Exception:
+            logger.warning("Could not set activation_status=claimed on legacy order %s", order_reference)
         subscription_updates = {
             "plan_id": new_plan_id,
             "status": "active",
@@ -387,26 +420,29 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
         "Subscription activated for company %d (order %s, plan %s, seq_key=%s)",
         company_id, order_reference, plan_code, activation_sequence_key,
     )
+    try:
+        _update_activation_state(
+            order_reference=order_reference,
+            activation_status="activated",
+            activation_completed_at=now_iso,
+        )
+    except Exception:
+        logger.warning("Could not set activation_status=activated on order %s", order_reference)
 
     # ---- Step 4: Grant included AI credit ----
     # Idempotency key is tied to activation_sequence_key so two orders
     # against the same sequence key cannot both grant credit.
     if plan_included_credit > 0:
-        credit_idempotency_key = f"sub_credit_{activation_sequence_key}"
         try:
-            _add_included_credit(
-                company_id=company_id,
-                amount_micro_myr=plan_included_credit,
-                idempotency_key=credit_idempotency_key,
-                payment_reference=callback_txn_id,
-                period_start=now_iso,
-                period_end=period_end_iso,
-                plan_code=plan_code,
-                description=(
-                    f"Subscription {plan_code} included AI credit "
-                    f"(sequence {activation_sequence_key})"
-                ),
+            _update_activation_state(
+                order_reference=order_reference,
+                activation_status="credit_pending",
+                reconciliation_required=True,
             )
+        except Exception:
+            logger.warning("Could not set activation_status=credit_pending on order %s", order_reference)
+        try:
+            _ensure_company_ai_credit(company_id)
         except Exception as exc:
             logger.error(
                 "CRITICAL: Failed to grant included AI credit for company %d "
@@ -423,8 +459,29 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 )
             except Exception:
                 pass
+            return {
+                "status": "activation_credit_pending",
+                "idempotent": False,
+                "order_reference": order_reference,
+                "order_status": "paid",
+                "company_id": company_id,
+                "plan_code": plan_code,
+                "activation_sequence_key": activation_sequence_key,
+                "legacy_activation": _used_legacy_path,
+                "message": "Subscription activated but included AI credit is pending reconciliation.",
+            }
     else:
         logger.info("Plan %s has no included AI credit for company %d", plan_code, company_id)
+
+    try:
+        _update_activation_state(
+            order_reference=order_reference,
+            activation_status="completed",
+            credit_granted_at=now_iso,
+            reconciliation_required=False,
+        )
+    except Exception:
+        logger.warning("Could not set activation_status=completed on order %s", order_reference)
 
     # ---- Step 5: Convert trial chatbot configuration ----
     try:

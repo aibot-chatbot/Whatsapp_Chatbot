@@ -44,6 +44,19 @@ from app.database.subscription_plan_repository import get_plan_by_id as _get_pla
 billing_bp = Blueprint("billing", __name__, url_prefix="/api/billing")
 
 
+def _validate_toyyibpay_customer_phone(customer_phone: str | None) -> str | None:
+    """Return a normalized ToyyibPay phone string or None when invalid."""
+    if not customer_phone:
+        return None
+    stripped_phone = re.sub(r"[\s\-\(\)]", "", customer_phone)
+    if not re.match(r"^\+?\d+$", stripped_phone):
+        return None
+    digits_phone = stripped_phone.lstrip("+")
+    if len(digits_phone) < 8 or len(digits_phone) > 15:
+        return None
+    return stripped_phone
+
+
 @billing_bp.route("/plans", methods=["GET"])
 @token_required
 def fetch_plans():
@@ -418,19 +431,8 @@ def toyyibpay_checkout():
 
 
         # Validate phone before proceeding
-        if not customer_phone:
-            return jsonify({
-                "status": "error",
-                "message": "A valid phone number is required before creating a ToyyibPay checkout."
-            }), 400
-        stripped_phone = re.sub(r"[\s\-\(\)]", "", customer_phone)
-        if not re.match(r"^\+?\d+$", stripped_phone):
-            return jsonify({
-                "status": "error",
-                "message": "A valid phone number is required before creating a ToyyibPay checkout."
-            }), 400
-        digits_phone = stripped_phone.lstrip("+")
-        if len(digits_phone) < 8 or len(digits_phone) > 15:
+        normalized_phone = _validate_toyyibpay_customer_phone(customer_phone)
+        if not normalized_phone:
             return jsonify({
                 "status": "error",
                 "message": "A valid phone number is required before creating a ToyyibPay checkout."
@@ -466,7 +468,7 @@ def toyyibpay_checkout():
             customer_email=customer_email,
             customer_name=customer_name,
             idempotency_key=idempotency_key,
-            customer_phone=customer_phone,
+            customer_phone=normalized_phone,
         )
 
         return jsonify({
@@ -624,6 +626,12 @@ def subscription_checkout():
                 "status": "error",
                 "message": "Authenticated user has no email."
             }), 400
+        normalized_phone = _validate_toyyibpay_customer_phone(customer_phone)
+        if not normalized_phone:
+            return jsonify({
+                "status": "error",
+                "message": "A valid phone number is required before creating a ToyyibPay checkout."
+            }), 400
 
         result = create_subscription_checkout(
             company_id=company_id,
@@ -631,7 +639,7 @@ def subscription_checkout():
             plan_code=plan_code,
             customer_name=customer_name,
             customer_email=customer_email,
-            customer_phone=customer_phone,
+            customer_phone=normalized_phone,
         )
 
         return jsonify({
@@ -640,6 +648,7 @@ def subscription_checkout():
                 "order_reference": result["order_reference"],
                 "checkout_url": result["checkout_url"],
                 "amount_sen": result["amount_sen"],
+                "expires_at": result.get("expires_at"),
             },
         }), 200
 
@@ -649,11 +658,11 @@ def subscription_checkout():
             "message": str(e),
         }), 400
 
-    except RuntimeError as e:
-        logging.error("Subscription checkout failed: %s", e)
+    except RuntimeError:
+        logging.exception("Subscription checkout failed")
         return jsonify({
             "status": "error",
-            "message": str(e),
+            "message": "Unable to create checkout. Please try again later.",
         }), 502
 
     except Exception:

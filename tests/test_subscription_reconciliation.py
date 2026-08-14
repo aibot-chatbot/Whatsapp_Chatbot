@@ -5,7 +5,7 @@ os.environ.setdefault("SECRET_KEY", "test-secret")
 import sys
 sys.path.insert(0, "C:\\Users\\User\\PycharmProjects\\python-whatsapp-bot-main")
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import ANY, patch, MagicMock
 import types
 _m = types.ModuleType("google")
 _m.genai = types.ModuleType("google.genai")
@@ -61,8 +61,8 @@ class TestReconciliationService(unittest.TestCase):
         self.p1 = patch('app.database.company_subscription_order_repository.supabase', self.ms)
         self.p1.start()
         self.p2 = patch('app.services.subscription_reconciliation_service.conditional_activate_subscription')
-        self.p2.start()
-        self.p3 = patch('app.services.subscription_reconciliation_service._add_included_credit')
+        self.mc = self.p2.start()
+        self.p3 = patch('app.services.subscription_reconciliation_service._ensure_company_ai_credit')
         self.mt = self.p3.start()
         self.p4 = patch('app.services.subscription_reconciliation_service.update_company_subscription')
         self.mu = self.p4.start()
@@ -113,15 +113,111 @@ class TestReconciliationService(unittest.TestCase):
         self._mock_order({'order_reference':'r1','status':'paid','activation_status':'not_started','new_plan_id':1,'subscription_id':10,'company_id':42,'activation_sequence_key':None,'order_schema_version':None,'source_plan_id':None,'source_status':None})
         self.mu.return_value = {'id':10}
         with patch('app.services.subscription_reconciliation_service.get_plan_by_id') as mp:
-            mp.return_value = {'id':1,'code':'essential','included_ai_credit_micro_myr':0,'name':'Essential'}
-            with patch('app.services.subscription_reconciliation_service._add_included_credit'):
+            mp.return_value = {'id':1,'code':'essential','billing_interval':'monthly','included_ai_credit_micro_myr':0,'name':'Essential'}
+            with patch('app.services.subscription_reconciliation_service._ensure_company_ai_credit'):
                 r = self.svc.reconcile_subscription_order('r1')
                 self.assertIn(r['outcome'], ['credit_retry_completed', 'manual_review_required'])
+                _, kwargs = self.mu.call_args
+                from app.services.billing_period_service import calculate_current_period_end
+                period_start = kwargs['updates']['current_period_start']
+                expected_end = calculate_current_period_end(period_start, 'monthly').isoformat()
+                self.assertEqual(kwargs['updates']['current_period_end'], expected_end)
+
+    def test_atomic_paid_recovery_uses_monthly_period(self):
+        self._mock_order({
+            'order_reference': 'r2',
+            'status': 'paid',
+            'activation_status': 'not_started',
+            'new_plan_id': 1,
+            'subscription_id': 10,
+            'company_id': 42,
+            'activation_sequence_key': 'company:42:upgrade-from:1:period:2026-07-01',
+            'order_schema_version': 2,
+            'source_plan_id': 1,
+            'source_status': 'active',
+            'source_period_start': '2026-07-01T00:00:00+00:00',
+            'source_period_end': '2026-08-01T00:00:00+00:00',
+        })
+        self.mc.return_value = {'id': 10}
+        self.mt.return_value = {'status': 'applied'}
+        with patch('app.services.subscription_reconciliation_service.get_plan_by_id') as mp:
+            mp.return_value = {'id': 1, 'code': 'essential', 'billing_interval': 'monthly', 'included_ai_credit_micro_myr': 0, 'name': 'Essential'}
+            r = self.svc.reconcile_subscription_order('r2')
+        self.assertIn(r['outcome'], ['credit_retry_completed', 'manual_review_required'])
+        _, kwargs = self.mc.call_args
+        from app.services.billing_period_service import calculate_current_period_end
+        period_start = kwargs['period_start_iso']
+        expected_end = calculate_current_period_end(period_start, 'monthly').isoformat()
+        self.assertEqual(kwargs['period_end_iso'], expected_end)
 
     def test_conflict_retry_rejected(self):
         self._mock_order({'order_reference':'r1','status':'paid','activation_status':'conflict'})
         r = self.svc.reconcile_subscription_order('r1')
         self.assertEqual(r['outcome'], 'activation_already_claimed')
+
+    def test_credit_pending_retries_credit_without_reactivation(self):
+        self._mock_order({
+            'order_reference': 'r16',
+            'status': 'credited',
+            'activation_status': 'credit_pending',
+            'new_plan_id': 7,
+            'subscription_id': 9,
+            'company_id': 34,
+            'activation_sequence_key': 'company:34:initial-from:9:trial:2026-08-19T03:07:02.646645+00:00',
+            'order_schema_version': 2,
+            'source_plan_id': 1,
+            'source_status': 'trial',
+            'payment_reference': 'DEV_TEST_PAYMENT',
+        })
+        self.mt.return_value = {
+            'status': 'ensured',
+            'period_changed': True,
+            'included_credit_granted_micro_myr': 20000000,
+        }
+        with patch('app.services.subscription_reconciliation_service.get_plan_by_id') as mp, \
+             patch('app.services.subscription_reconciliation_service._update_state') as update_state, \
+             patch('app.database.company_subscription_order_repository.update_subscription_order_status') as mark_credited:
+            mp.return_value = {
+                'id': 7,
+                'code': 'advanced',
+                'billing_interval': 'monthly',
+                'included_ai_credit_micro_myr': 20000000,
+                'name': 'Advanced',
+            }
+            mark_credited.return_value = {'id': 16, 'status': 'credited'}
+            r = self.svc.reconcile_subscription_order('r16')
+
+        self.assertEqual(r['outcome'], 'credit_retry_completed')
+        self.mc.assert_not_called()
+        self.mu.assert_not_called()
+        self.mt.assert_called_once_with(34)
+        update_state.assert_called_with(
+            'r16',
+            activation_status='completed',
+            credit_granted_at=ANY,
+            reconciliation_required=False,
+        )
+        mark_credited.assert_called_once()
+        _, mark_kwargs = mark_credited.call_args
+        self.assertEqual(mark_kwargs['order_reference'], 'r16')
+        self.assertEqual(mark_kwargs['status'], 'credited')
+        self.assertIsNotNone(mark_kwargs['credited_at'])
+
+    def test_completed_reconciliation_is_idempotent_and_does_not_duplicate_credit(self):
+        self._mock_order({
+            'order_reference': 'r17',
+            'status': 'credited',
+            'activation_status': 'completed',
+            'reconciliation_required': False,
+            'new_plan_id': 7,
+            'company_id': 34,
+        })
+
+        r = self.svc.reconcile_subscription_order('r17')
+
+        self.assertEqual(r['outcome'], 'already_completed')
+        self.mt.assert_not_called()
+        self.mc.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()

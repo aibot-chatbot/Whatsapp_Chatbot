@@ -468,6 +468,8 @@ from app.services.billing_guard import (
 )
 
 FREE_PLAN_WITH_LIMITS = {
+    "status": "trialing",
+    "trial_ends_at": "2099-01-01T00:00:00+00:00",
     "plan": {
         "id": 1,
         "name": "Free",
@@ -721,6 +723,22 @@ class TestBillingGuard(unittest.TestCase):
 
     @patch("app.services.billing_guard.get_current_subscription")
     @patch("app.services.billing_guard.get_company_usage")
+    def test_expired_free_trial_denies_before_usage_check(self, mock_usage, mock_sub):
+        expired_free = {
+            **FREE_PLAN_WITH_LIMITS,
+            "status": "active",
+            "trial_ends_at": "2026-01-01T00:00:00+00:00",
+        }
+        mock_sub.return_value = expired_free
+
+        with self.assertRaises(BillingLimitError) as ctx:
+            can_create_chatbot(COMPANY_ID)
+
+        self.assertEqual(ctx.exception.code, "no_subscription")
+        mock_usage.assert_not_called()
+
+    @patch("app.services.billing_guard.get_current_subscription")
+    @patch("app.services.billing_guard.get_company_usage")
     def test_storage_usage_unavailable_denies(self, mock_usage, mock_sub):
         mock_sub.return_value = FREE_PLAN_WITH_LIMITS
         mock_usage.return_value = None
@@ -900,7 +918,7 @@ class TestDefaultSubscription(unittest.TestCase):
     def test_creates_free_subscription_when_none_exists(self, mock_get_latest, mock_get_current, mock_create, mock_get_plan, mock_get_existing):
         mock_get_existing.return_value = None
         mock_get_latest.return_value = None
-        mock_get_plan.return_value = {"id": 1, "code": "free"}
+        mock_get_plan.return_value = {"id": 1, "code": "free", "billing_interval": "monthly"}
         mock_create.return_value = {"id": 100, "company_id": 42, "plan_id": 1}
         mock_get_current.return_value = {
             "id": 100,
@@ -949,7 +967,7 @@ class TestDefaultSubscription(unittest.TestCase):
     def test_concurrent_duplicate_handled_gracefully(self, mock_get_latest, mock_create, mock_get_plan, mock_get_existing):
         mock_get_existing.return_value = {"id": 300, "company_id": 42, "plan_id": 1}
         mock_get_latest.return_value = None
-        mock_get_plan.return_value = {"id": 1, "code": "free"}
+        mock_get_plan.return_value = {"id": 1, "code": "free", "billing_interval": "monthly"}
         mock_create.side_effect = Exception("duplicate")
         with patch("app.services.billing_service.get_current_subscription") as mock_current:
             mock_current.return_value = {
@@ -967,7 +985,7 @@ class TestDefaultSubscription(unittest.TestCase):
         self, mock_create, mock_get_plan, mock_get_existing
     ):
         mock_get_existing.side_effect = [None, None]
-        mock_get_plan.return_value = {"id": 1, "code": "free"}
+        mock_get_plan.return_value = {"id": 1, "code": "free", "billing_interval": "monthly"}
         mock_create.side_effect = Exception("constraint violation")
         with self.assertRaises(Exception):
             ensure_default_company_subscription(42)
@@ -1186,6 +1204,63 @@ class TestPriceAndCreditSerialization(unittest.TestCase):
         sub = get_current_subscription(42)
         self.assertIsInstance(sub["plan"]["price"], str)
         self.assertEqual(sub["plan"]["price"], "10000000")
+
+    @patch("app.services.billing_service.get_plan_by_id")
+    @patch("app.services.billing_service._get_company_subscription")
+    def test_subscription_response_exposes_effective_free_trial_status(self, mock_get_sub, mock_get_plan):
+        """Free subscriptions expose effective trial fields without rewriting raw status."""
+        mock_get_sub.return_value = {
+            "id": 10,
+            "company_id": 42,
+            "plan_id": 1,
+            "status": "active",
+            "trial_ends_at": "2026-01-01T00:00:00+00:00",
+        }
+        mock_get_plan.return_value = {
+            "id": 1,
+            "name": "Free",
+            "code": "free",
+            "price": 0,
+            "included_ai_credit_micro_myr": 1000000,
+        }
+
+        from app.services.billing_service import get_current_subscription
+        sub = get_current_subscription(42)
+
+        self.assertEqual(sub["status"], "active")
+        self.assertEqual(sub["raw_status"], "active")
+        self.assertEqual(sub["effective_status"], "expired")
+        self.assertTrue(sub["trial_expired"])
+        self.assertEqual(sub["trial_status"], "expired")
+
+    @patch("app.services.billing_service.get_plan_by_id")
+    @patch("app.services.billing_service._get_company_subscription")
+    def test_subscription_response_marks_missing_free_trial_as_expired(self, mock_get_sub, mock_get_plan):
+        """Legacy active Free rows with no trial_ends_at fail closed for presentation."""
+        mock_get_sub.return_value = {
+            "id": 10,
+            "company_id": 42,
+            "plan_id": 1,
+            "status": "active",
+            "trial_ends_at": None,
+        }
+        mock_get_plan.return_value = {
+            "id": 1,
+            "name": "Free",
+            "code": "free",
+            "price": 0,
+            "included_ai_credit_micro_myr": 1000000,
+        }
+
+        from app.services.billing_service import get_current_subscription
+        sub = get_current_subscription(42)
+
+        self.assertEqual(sub["status"], "active")
+        self.assertEqual(sub["raw_status"], "active")
+        self.assertEqual(sub["effective_status"], "expired")
+        self.assertTrue(sub["trial_expired"])
+        self.assertTrue(sub["trial_missing"])
+        self.assertEqual(sub["trial_status"], "missing")
 
     # ----- Consistency: both functions behave the same -----
 

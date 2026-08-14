@@ -13,6 +13,7 @@ sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
 
 import unittest
 from unittest.mock import patch, MagicMock
+import requests
 
 import types
 
@@ -34,6 +35,8 @@ with patch("app.database.db.supabase", MagicMock()):
     from app.services.toyyibpay_service import (
         ToyyibPayConfig,
         ToyyibPayConfigError,
+        ToyyibPayBillRejectedError,
+        ToyyibPayBillCreationAmbiguousError,
         micro_myr_to_cent,
         create_bill,
         verify_callback_hash,
@@ -144,6 +147,120 @@ class TestToyyibPayCreateBill(unittest.TestCase):
         self.assertIn("checkout_url", result)
         self.assertEqual(result["checkout_url"], 
                          "https://toyyibpay.com/ABC123")
+
+    @patch("app.services.toyyibpay_service.requests.post")
+    def test_bill_expiry_days_is_sent_when_provided(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [{"BillCode": "ABC123"}]
+        mock_post.return_value = mock_response
+
+        create_bill(
+            order_reference="11111111-1111-4111-8111-111111111111",
+            amount_micro_myr=1_000_000,
+            customer_email="test@example.com",
+            customer_name="Test User",
+            description="Top-up",
+            bill_expiry_days=1,
+        )
+
+        _, kwargs = mock_post.call_args
+        self.assertEqual(kwargs["data"]["billExpiryDays"], "1")
+
+    def test_invalid_bill_expiry_days_rejected(self):
+        with self.assertRaises(ValueError):
+            create_bill(
+                order_reference="11111111-1111-4111-8111-111111111111",
+                amount_micro_myr=1_000_000,
+                customer_email="test@example.com",
+                customer_name="Test User",
+                description="Top-up",
+                bill_expiry_days=0,
+            )
+
+    @patch("app.services.toyyibpay_service.requests.post")
+    def test_provider_error_response_rejected_with_bounded_message(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "status": "error",
+            "msg": "billPhone parameter is empty",
+        }
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(ToyyibPayBillRejectedError) as ctx:
+            create_bill(
+                order_reference="11111111-1111-4111-8111-111111111111",
+                amount_micro_myr=1_000_000,
+                customer_email="test@example.com",
+                customer_name="Test User",
+                description="Top-up",
+            )
+
+        self.assertEqual(str(ctx.exception), "ToyyibPay createBill rejected the request")
+        self.assertNotIn("billPhone parameter is empty", str(ctx.exception))
+
+    @patch("app.services.toyyibpay_service.requests.post")
+    def test_non_json_response_is_ambiguous(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.side_effect = ValueError("not json")
+        mock_response.text = "not json"
+        mock_response.headers = {"Content-Type": "text/plain"}
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(ToyyibPayBillCreationAmbiguousError):
+            create_bill(
+                order_reference="11111111-1111-4111-8111-111111111111",
+                amount_micro_myr=1_000_000,
+                customer_email="test@example.com",
+                customer_name="Test User",
+                description="Top-up",
+            )
+
+    @patch("app.services.toyyibpay_service.requests.post")
+    def test_unexpected_response_structure_is_ambiguous(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"status": "ok"}
+        mock_post.return_value = mock_response
+
+        with self.assertRaises(ToyyibPayBillCreationAmbiguousError):
+            create_bill(
+                order_reference="11111111-1111-4111-8111-111111111111",
+                amount_micro_myr=1_000_000,
+                customer_email="test@example.com",
+                customer_name="Test User",
+                description="Top-up",
+            )
+
+    @patch("app.services.toyyibpay_service.requests.post")
+    def test_timeout_is_ambiguous(self, mock_post):
+        mock_post.side_effect = requests.exceptions.Timeout()
+
+        with self.assertRaises(ToyyibPayBillCreationAmbiguousError):
+            create_bill(
+                order_reference="11111111-1111-4111-8111-111111111111",
+                amount_micro_myr=1_000_000,
+                customer_email="test@example.com",
+                customer_name="Test User",
+                description="Top-up",
+            )
+
+    @patch("app.services.toyyibpay_service.requests.post")
+    def test_connection_error_is_ambiguous(self, mock_post):
+        mock_post.side_effect = requests.exceptions.ConnectionError("network uncertain")
+
+        with self.assertRaises(ToyyibPayBillCreationAmbiguousError):
+            create_bill(
+                order_reference="11111111-1111-4111-8111-111111111111",
+                amount_micro_myr=1_000_000,
+                customer_email="test@example.com",
+                customer_name="Test User",
+                description="Top-up",
+            )
+
+
     @patch("app.services.toyyibpay_service.requests.post")
     def test_billcode_with_spaces_normalized(self, mock_post):
         """BillCode with surrounding whitespace is stripped."""

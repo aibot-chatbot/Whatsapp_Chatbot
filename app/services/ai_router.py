@@ -50,6 +50,29 @@ from app.database.subscription_plan_repository import get_plan_by_id
 
 from app.database.ai_usage_repository import insert_usage_log
 
+
+FLOW_RUNTIME_FAILURE_REPLY = "Sorry, I'm having trouble replying right now. Please try again later."
+
+
+def _flow_runtime_failed_result():
+    from types import SimpleNamespace
+
+    return SimpleNamespace(status="failed", reply=None, handled=False, should_handoff_to_ai=False)
+
+
+def _try_process_flow_message(company_id, chatbot_id, message, customer_id, source_channel):
+    try:
+        from app.services.flow_executor_service import process_flow_message
+    except ImportError as exc:
+        logging.exception("Flow executor import failed for chatbot %s: %s", chatbot_id, exc)
+        return _flow_runtime_failed_result()
+
+    try:
+        return process_flow_message(company_id, chatbot_id, message, str(customer_id), source_channel=source_channel)
+    except Exception as exc:
+        logging.exception("Flow executor runtime failed for chatbot %s: %s", chatbot_id, exc)
+        return _flow_runtime_failed_result()
+
 def _usd_to_micro_usd(raw_cost) -> int | None:
     """Convert a USD cost value to integer micro-USD using Decimal arithmetic.
 
@@ -967,8 +990,6 @@ def call_provider(
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY):
     """Generate a response using the appropriate AI provider..."""
 
-    # (Custom flow engine removed due to missing module)
-
     # Enforce billing usage logging...
     from app.services.ai_credit_service import is_ai_credit_enforcement_enabled
     from app.services.company_status_service import ensure_company_operational
@@ -989,13 +1010,17 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         company_id = bot.get("company_id")
         ensure_company_operational(company_id)
 
-        # --- PHASE 3: INTERCEPT WITH CUSTOM FLOW ENGINE ---
-        from app.services.flow_executor_service import process_flow_message
-        flow_reply = process_flow_message(chatbot_id, message, str(customer_id))
-        if flow_reply:
-            logging.info(f"Custom Flow triggered for bot {chatbot_id} on keyword match.")
-            return flow_reply
-        # --------------------------------------------------
+        flow_result = _try_process_flow_message(company_id, chatbot_id, message, customer_id, source_channel)
+        if flow_result.handled:
+            logging.info("Flow Builder handled message for bot %s.", chatbot_id)
+            return flow_result.reply
+        if not flow_result.should_handoff_to_ai:
+            logging.error(
+                "Flow Builder runtime failed for company %s chatbot %s; returning safe fallback.",
+                company_id,
+                chatbot_id,
+            )
+            return FLOW_RUNTIME_FAILURE_REPLY
 
         selected_provider, model_name = normalize_model_selection(
             selected_provider,
@@ -1027,57 +1052,18 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 return clean_ai_reply(result.text)
 
             logging.warning(
-                f"Provider {selected_provider} returned an error reply. Initiating failover."
+                "Provider %s returned an error reply. Cross-provider fallback is disabled.",
+                selected_provider,
             )
 
         except BillingLimitError:
             raise
         except Exception as provider_error:
-            logging.error(f"Provider {selected_provider} failed: {provider_error}. Initiating failover.")
-
-        # Subscription-aware Cross-provider failover
-        from app.services.ai_access_policy import resolve_ai_access
-        from app.services.model_catalog import get_fallback_model
-        
-        policy = resolve_ai_access(company_id)
-        backup_provider, backup_model = get_fallback_model(selected_provider, policy.max_model_tier)
-        
-        if not backup_provider or not backup_model:
-            logging.error(f"No valid fallback provider/model available for tier '{policy.max_model_tier}'. Failover aborted.")
-            return "Sorry, I'm having trouble replying right now. Please try again later."
-        
-        logging.info(f"Failing over to {backup_provider} for Bot {chatbot_id}")
-        
-        try:
-            import threading
-            from app.services.email_service import send_provider_failover_email
-            
-            # Send notification asynchronously so it doesn't block the chat response
-            if company_id:
-                threading.Thread(
-                    target=send_provider_failover_email, 
-                    args=(company_id, selected_provider, backup_provider, chatbot_id)
-                ).start()
-            
-            result = call_provider(
-                backup_provider,
-                message,
-                customer_id,
-                chatbot_id,
-                model_name=backup_model,
-                temperature=temperature,
-                source_channel=source_channel,
-                company_id=company_id,
+            logging.error(
+                "Provider %s failed: %s. Cross-provider fallback is disabled.",
+                selected_provider,
+                provider_error,
             )
-            
-            if _should_log_provider_usage(result) and company_id:
-                _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=2)
-                
-            if not is_error_reply(result.text):
-                return clean_ai_reply(result.text)
-                
-        except Exception as backup_error:
-            logging.error(f"Backup provider {backup_provider} also failed: {backup_error}")
 
         return "Sorry, I'm having trouble replying right now. Please try again later."
 
@@ -1236,11 +1222,7 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         result = _call_deepseek_direct(prompt, selected_model, selected_temperature, json_response)
     elif selected_provider in OPENROUTER_PROVIDER_KEYS:
         _check_ai_credit_before_provider(company_id)
-        try:
-            result = _call_openrouter_direct(prompt, selected_model, selected_temperature)
-        except Exception as e:
-            logging.warning("OpenRouter returned error (%s). Falling back to direct DeepSeek API for system call.", e)
-            result = _call_deepseek_direct(prompt, "deepseek-chat", selected_temperature, json_response)
+        result = _call_openrouter_direct(prompt, selected_model, selected_temperature)
     else:
         logging.warning("Unsupported system AI provider: %s (fail-closed)", selected_provider)
         raise RuntimeError(f"Unsupported AI provider: {selected_provider}. This path should not be reached because _get_system_provider_for_enforcement already validates permitted providers.")

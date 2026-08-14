@@ -235,6 +235,19 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_essential_active_future_period_allowed(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 2,
+            "status": "active",
+            "current_period_end": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+        }
+        mock_plan.return_value = ESSENTIAL_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_ESSENTIAL)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
     def test_advanced_active(self, mock_sub, mock_plan):
         mock_sub.return_value = {"plan_id": 3, "status": "active"}
         mock_plan.return_value = ADVANCED_PLAN
@@ -245,6 +258,19 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_advanced_active_future_period_allowed(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 3,
+            "status": "active",
+            "current_period_end": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+        }
+        mock_plan.return_value = ADVANCED_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_ADVANCED)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
     def test_pro_active(self, mock_sub, mock_plan):
         mock_sub.return_value = {"plan_id": 4, "status": "active"}
         mock_plan.return_value = PRO_PLAN
@@ -252,6 +278,46 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
         self.assertTrue(policy.allowed)
         self.assertEqual(policy.access_state, STATE_PRO)
         self.assertEqual(policy.max_model_tier, "premium")
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_pro_active_future_period_allowed(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 4,
+            "status": "active",
+            "current_period_end": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
+        }
+        mock_plan.return_value = PRO_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_PRO)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_active_paid_expired_period_denied_cleanly(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 3,
+            "status": "active",
+            "current_period_end": (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),
+        }
+        mock_plan.return_value = ADVANCED_PLAN
+        policy = resolve_ai_access(1)
+        self.assertFalse(policy.allowed)
+        self.assertEqual(policy.access_state, "unknown")
+        self.assertIn("period has ended", policy.denial_reason)
+
+    @patch("app.services.ai_access_policy.get_plan_by_id")
+    @patch("app.services.ai_access_policy._get_company_subscription")
+    def test_active_paid_malformed_period_does_not_name_error(self, mock_sub, mock_plan):
+        mock_sub.return_value = {
+            "plan_id": 3,
+            "status": "active",
+            "current_period_end": "not-a-date",
+        }
+        mock_plan.return_value = ADVANCED_PLAN
+        policy = resolve_ai_access(1)
+        self.assertTrue(policy.allowed)
+        self.assertEqual(policy.access_state, STATE_ADVANCED)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
@@ -1268,12 +1334,17 @@ class TestFallbackIsolation(unittest.TestCase):
 
         mock_route.return_value = ("deepseek", "deepseek-chat")
         from app.services.ai_router import generate_response
-        result = generate_response("Hello", 1, 1)
+        with patch(
+            "app.services.ai_router._try_process_flow_message",
+            return_value=types.SimpleNamespace(status="no_flow", reply=None, handled=False, should_handoff_to_ai=True),
+        ):
+            result = generate_response("Hello", 1, 1)
 
         mock_call.assert_called_once()
         called_provider = mock_call.call_args[0][0]
         self.assertEqual(called_provider, "deepseek")
         self.assertIn("trouble", result)
+        mock_resolve.assert_not_called()
 
     @patch("app.services.ai_router.get_bot_by_id")
     @patch("app.services.ai_router._route_for_enforcement")
@@ -1298,12 +1369,17 @@ class TestFallbackIsolation(unittest.TestCase):
         mock_route.return_value = ("google", "google/gemini-3.5-flash")
 
         from app.services.ai_router import generate_response
-        result = generate_response("Hello", 1, 1)
+        with patch(
+            "app.services.ai_router._try_process_flow_message",
+            return_value=types.SimpleNamespace(status="no_flow", reply=None, handled=False, should_handoff_to_ai=True),
+        ):
+            result = generate_response("Hello", 1, 1)
 
         mock_call.assert_called_once()
         called_provider = mock_call.call_args[0][0]
         self.assertEqual(called_provider, "google")
         self.assertIn("trouble", result)
+        mock_resolve.assert_not_called()
 
     @patch("app.services.ai_router.get_bot_by_id")
     @patch("app.services.ai_router._route_for_enforcement")
@@ -1328,12 +1404,17 @@ class TestFallbackIsolation(unittest.TestCase):
 
         mock_route.return_value = ("deepseek", "deepseek-chat")
         from app.services.ai_router import generate_response
-        result = generate_response("Hello", 1, 1)
+        with patch(
+            "app.services.ai_router._try_process_flow_message",
+            return_value=types.SimpleNamespace(status="no_flow", reply=None, handled=False, should_handoff_to_ai=True),
+        ):
+            result = generate_response("Hello", 1, 1)
 
         mock_call.assert_called_once()
         called_provider = mock_call.call_args[0][0]
         self.assertEqual(called_provider, "deepseek")
         self.assertIn("trouble", result)
+        mock_resolve.assert_not_called()
 
     @patch("app.services.ai_router.get_bot_by_id")
     @patch("app.services.ai_router._route_for_enforcement")
@@ -1358,12 +1439,17 @@ class TestFallbackIsolation(unittest.TestCase):
         mock_route.return_value = ("openai", "openai/gpt-4.1")
 
         from app.services.ai_router import generate_response
-        result = generate_response("Hello", 1, 1)
+        with patch(
+            "app.services.ai_router._try_process_flow_message",
+            return_value=types.SimpleNamespace(status="no_flow", reply=None, handled=False, should_handoff_to_ai=True),
+        ):
+            result = generate_response("Hello", 1, 1)
 
         mock_call.assert_called_once()
         called_provider = mock_call.call_args[0][0]
         self.assertEqual(called_provider, "openai")
         self.assertIn("trouble", result)
+        mock_resolve.assert_not_called()
 
     @patch("app.services.ai_router.get_bot_by_id")
     @patch("app.services.ai_router.call_provider")
@@ -1376,6 +1462,118 @@ class TestFallbackIsolation(unittest.TestCase):
 
         self.assertIn("trouble", result)
         mock_call.assert_not_called()
+
+    def test_ai_router_has_no_provider_fallback_runtime_references(self):
+        import inspect
+        from app.services import ai_router
+
+        source = inspect.getsource(ai_router)
+
+        self.assertNotIn("get_fallback_model", source)
+        self.assertNotIn("send_provider_failover_email", source)
+        self.assertNotIn("Falling back to direct DeepSeek", source)
+
+
+# ============================================================
+# TestSystemProviderFallbackIsolation (5 tests)
+# ============================================================
+
+class TestSystemProviderFallbackIsolation(unittest.TestCase):
+    """Tests that system/background AI calls do not cross providers."""
+
+    def _patch_system_gateways(self, provider="openai", model="openai/gpt-4.1"):
+        return (
+            patch("app.services.ai_router.get_bot_by_id", return_value={
+                "id": 1,
+                "ai_provider": provider,
+                "model_name": model,
+                "temperature": 0.3,
+                "company_id": 42,
+            }),
+            patch("app.services.company_status_service.ensure_company_operational"),
+            patch("app.services.ai_router._get_system_provider_for_enforcement", return_value=(provider, model)),
+            patch("app.services.ai_router._check_ai_credit_before_provider"),
+            patch("app.services.ai_router._make_usage_log"),
+        )
+
+    def test_paid_openrouter_system_call_failure_does_not_call_deepseek_direct(self):
+        from app.services import ai_router
+
+        bot_patch, company_patch, route_patch, credit_patch, usage_patch = self._patch_system_gateways()
+        with bot_patch, company_patch, route_patch, credit_patch, usage_patch, \
+             patch.object(ai_router, "_call_openrouter_direct", side_effect=RuntimeError("OpenRouter failed")) as openrouter_call, \
+             patch.object(ai_router, "_call_deepseek_direct") as deepseek_call:
+            with self.assertRaises(RuntimeError):
+                ai_router.generate_system_response("Summarize", 1)
+
+        openrouter_call.assert_called_once()
+        deepseek_call.assert_not_called()
+
+    def test_openrouter_system_exception_does_not_invoke_another_provider(self):
+        from app.services import ai_router
+
+        bot_patch, company_patch, route_patch, credit_patch, usage_patch = self._patch_system_gateways(
+            provider="google",
+            model="google/gemini-3.5-flash",
+        )
+        with bot_patch, company_patch, route_patch, credit_patch, usage_patch, \
+             patch.object(ai_router, "_call_openrouter_direct", side_effect=RuntimeError("OpenRouter failed")) as openrouter_call, \
+             patch.object(ai_router, "_call_deepseek_direct") as deepseek_call, \
+             patch.object(ai_router, "_call_gemini_direct") as gemini_call:
+            with self.assertRaises(RuntimeError):
+                ai_router.generate_system_response("Summarize", 1)
+
+        openrouter_call.assert_called_once()
+        deepseek_call.assert_not_called()
+        gemini_call.assert_not_called()
+
+    def test_deepseek_system_calls_remain_deepseek_only(self):
+        from app.services import ai_router
+
+        bot_patch, company_patch, route_patch, credit_patch, usage_patch = self._patch_system_gateways(
+            provider="deepseek",
+            model="deepseek-chat",
+        )
+        with bot_patch, company_patch, route_patch, credit_patch, usage_patch, \
+             patch.object(ai_router, "_call_deepseek_direct", return_value=MagicMock(text="Done", is_provider_response=False)) as deepseek_call, \
+             patch.object(ai_router, "_call_openrouter_direct") as openrouter_call:
+            result = ai_router.generate_system_response("Summarize", 1)
+
+        self.assertEqual(result, "Done")
+        deepseek_call.assert_called_once()
+        openrouter_call.assert_not_called()
+
+    @patch("app.services.ai_router.generate_system_response")
+    @patch("app.database.knowledge_graph_repository.upsert_node")
+    @patch("app.database.knowledge_graph_repository.upsert_edge")
+    def test_graphrag_provider_failure_keeps_safe_chunk_processing(self, mock_edge, mock_node, mock_gsr):
+        mock_gsr.side_effect = RuntimeError("AI provider failed")
+
+        from app.services.knowledge_service import extract_and_store_graph_supabase
+        extract_and_store_graph_supabase(["Some text"], chatbot_id=1, file_id=1)
+
+        mock_gsr.assert_called_once()
+        mock_node.assert_not_called()
+        mock_edge.assert_not_called()
+
+    @patch("app.services.report_service.get_transcript_logs")
+    @patch("app.services.report_service.get_bot_by_id")
+    @patch("app.services.report_service.generate_system_response")
+    def test_report_provider_failure_keeps_safe_error_response(self, mock_gsr, mock_get_bot, mock_logs):
+        mock_logs.return_value = [{"phone": "60123456789", "chat": "User: Hi"}]
+        mock_get_bot.return_value = {
+            "id": 1,
+            "ai_provider": "openai",
+            "model_name": "openai/gpt-4.1",
+            "company_id": 1,
+        }
+        mock_gsr.side_effect = RuntimeError("AI provider failed")
+
+        from app.services.report_service import generate_weekly_report
+        result = generate_weekly_report(chatbot_id=1, days=7)
+
+        mock_gsr.assert_called_once()
+        self.assertIn("error occurred", result.lower())
 
 
 

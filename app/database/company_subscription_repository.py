@@ -373,7 +373,8 @@ def get_due_subscriptions(now_iso: str | None = None, batch_size: int = 100) -> 
     """Fetch subscriptions whose billing period or trial has expired.
 
     Returns subscriptions with status in (trialing, active, past_due) where:
-      - status = trialing AND trial_ends_at IS NOT NULL AND trial_ends_at <= now
+      - status IN (trialing, active) AND trial_ends_at IS NOT NULL
+        AND trial_ends_at <= now
       - status IN (active, past_due) AND current_period_end IS NOT NULL
         AND current_period_end <= now
 
@@ -397,13 +398,14 @@ def get_due_subscriptions(now_iso: str | None = None, batch_size: int = 100) -> 
     if not isinstance(batch_size, int) or batch_size < 1:
         raise ValueError("batch_size must be a positive integer")
 
-    # Query 1: trialing subscriptions with expired trial
+    # Query 1: Free trial candidates with expired trial_ends_at. Active is
+    # included for historical rows that predate trialing status.
     # (trial_ends_at IS NOT NULL AND trial_ends_at <= now)
     trialing_response = (
         supabase
         .table(TABLE_NAME)
         .select("*")
-        .eq("status", "trialing")
+        .in_("status", ["trialing", "active"])
         .is_("trial_ends_at", "not.null")
         .lte("trial_ends_at", now_iso)
         .order("id", desc=False)
@@ -435,7 +437,7 @@ def get_due_subscriptions(now_iso: str | None = None, batch_size: int = 100) -> 
 
     def _expiry_key(row: dict) -> tuple[str, int]:
         status = (row.get("status") or "").strip().lower()
-        if status == "trialing":
+        if status in ("trialing", "active") and row.get("trial_ends_at"):
             ts = row.get("trial_ends_at", "") or ""
         else:
             ts = row.get("current_period_end", "") or ""

@@ -29,6 +29,9 @@ PyMuPDF>=1.24,<2.0
 # Date utilities (subscription lifecycle)
 python-dateutil>=2.8,<3.0
 
+# IANA timezone database for zoneinfo on Windows
+tzdata>=2024.1
+
 # ── Production Note ─────────────────────────────────────────────────
 # For multi-worker production, configure RATELIMIT_STORAGE_URI=redis://...
 # and install: redis>=5.0,<6.0

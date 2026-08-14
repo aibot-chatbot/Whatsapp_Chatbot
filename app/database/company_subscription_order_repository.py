@@ -147,6 +147,23 @@ def get_subscription_order_by_gateway_id(
     return _single_row(response, "get_subscription_order_by_gateway_id")
 
 
+def get_subscription_order_by_activation_sequence_key(
+    activation_sequence_key: str,
+) -> dict | None:
+    """Fetch a single order by its deterministic activation sequence key."""
+    if not activation_sequence_key:
+        return None
+    response = (
+        supabase
+        .table(TABLE)
+        .select("*")
+        .eq("activation_sequence_key", activation_sequence_key)
+        .limit(1)
+        .execute()
+    )
+    return _single_row(response, "get_subscription_order_by_activation_sequence_key")
+
+
 
 def get_subscription_order_by_reference_and_company(
     order_reference: str,
@@ -294,6 +311,156 @@ def update_subscription_order_status(
         raise RuntimeError(
             f"update_subscription_order_status: update returned no rows "
             f"(order_reference={order_reference})"
+        )
+    return rows[0]
+
+
+def expire_pending_subscription_order_for_checkout_retry(
+    order_reference: str,
+    activation_sequence_key: str,
+    expired_activation_sequence_key: str,
+    now_iso: str | None = None,
+) -> dict:
+    """Expire an unpaid pre-activation checkout and release its source key.
+
+    This is intentionally narrow: only a still-pending order with no payment,
+    no credit, no activation status, and the exact canonical activation key can
+    be expired this way. The replacement key preserves history while freeing the
+    canonical source-state key for a fresh checkout attempt.
+    """
+    if not order_reference:
+        raise ValueError("order_reference is required")
+    if not activation_sequence_key:
+        raise ValueError("activation_sequence_key is required")
+    if not expired_activation_sequence_key:
+        raise ValueError("expired_activation_sequence_key is required")
+    if expired_activation_sequence_key == activation_sequence_key:
+        raise ValueError("expired_activation_sequence_key must differ from activation_sequence_key")
+
+    timestamp = now_iso or _now_iso()
+    updates = {
+        "status": "expired",
+        "activation_status": None,
+        "activation_error_code": "checkout_expired_unpaid",
+        "activation_error_message": "Pending checkout expired before payment or activation began.",
+        "reconciliation_required": False,
+        "activation_sequence_key": expired_activation_sequence_key,
+        "updated_at": timestamp,
+    }
+
+    response = (
+        supabase
+        .table(TABLE)
+        .update(updates)
+        .eq("order_reference", order_reference)
+        .eq("status", "pending")
+        .is_("activation_status", "null")
+        .eq("reconciliation_required", False)
+        .is_("paid_at", "null")
+        .is_("credited_at", "null")
+        .lte("expires_at", timestamp)
+        .eq("activation_sequence_key", activation_sequence_key)
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        existing = get_subscription_order_by_reference(order_reference)
+        if existing:
+            status = (existing.get("status") or "").strip().lower()
+            existing_key = existing.get("activation_sequence_key")
+            activation_status = existing.get("activation_status")
+            if (
+                status == "expired"
+                and existing_key == expired_activation_sequence_key
+                and existing_key != activation_sequence_key
+                and activation_status is None
+                and existing.get("reconciliation_required") is False
+                and existing.get("paid_at") is None
+                and existing.get("credited_at") is None
+            ):
+                return existing
+            current = existing.get("status")
+            raise RuntimeError(
+                f"Cannot expire subscription order {order_reference!r}: "
+                f"current status is {current!r}"
+            )
+        raise RuntimeError(
+            f"expire_pending_subscription_order_for_checkout_retry: "
+            f"order {order_reference!r} not found"
+        )
+    return rows[0]
+
+
+def fail_pending_subscription_order_without_gateway_and_release_key(
+    order_reference: str,
+    activation_sequence_key: str,
+    released_activation_sequence_key: str,
+    now_iso: str | None = None,
+) -> dict:
+    """Fail a definite no-bill checkout and release its source key.
+
+    Used only when the application knows no gateway bill exists. Ambiguous
+    gateway outcomes must keep the canonical activation key for support review.
+    """
+    if not order_reference:
+        raise ValueError("order_reference is required")
+    if not activation_sequence_key:
+        raise ValueError("activation_sequence_key is required")
+    if not released_activation_sequence_key:
+        raise ValueError("released_activation_sequence_key is required")
+    if released_activation_sequence_key == activation_sequence_key:
+        raise ValueError("released_activation_sequence_key must differ from activation_sequence_key")
+
+    timestamp = now_iso or _now_iso()
+    updates = {
+        "status": "failed",
+        "activation_status": None,
+        "reconciliation_required": False,
+        "activation_sequence_key": released_activation_sequence_key,
+        "updated_at": timestamp,
+    }
+
+    response = (
+        supabase
+        .table(TABLE)
+        .update(updates)
+        .eq("order_reference", order_reference)
+        .eq("status", "pending")
+        .is_("activation_status", "null")
+        .eq("reconciliation_required", False)
+        .is_("paid_at", "null")
+        .is_("credited_at", "null")
+        .is_("gateway_order_id", "null")
+        .is_("checkout_url", "null")
+        .eq("activation_sequence_key", activation_sequence_key)
+        .execute()
+    )
+    rows = response.data or []
+    if not rows:
+        existing = get_subscription_order_by_reference(order_reference)
+        if existing:
+            status = (existing.get("status") or "").strip().lower()
+            existing_key = existing.get("activation_sequence_key")
+            if (
+                status == "failed"
+                and existing_key == released_activation_sequence_key
+                and existing_key != activation_sequence_key
+                and existing.get("activation_status") is None
+                and existing.get("reconciliation_required") is False
+                and existing.get("paid_at") is None
+                and existing.get("credited_at") is None
+                and existing.get("gateway_order_id") is None
+                and existing.get("checkout_url") is None
+            ):
+                return existing
+            current = existing.get("status")
+            raise RuntimeError(
+                f"Cannot fail subscription order {order_reference!r}: "
+                f"current status is {current!r}"
+            )
+        raise RuntimeError(
+            "fail_pending_subscription_order_without_gateway_and_release_key: "
+            f"order {order_reference!r} not found"
         )
     return rows[0]
 

@@ -165,6 +165,92 @@ class TestProcessSubscriptionExpiry(unittest.TestCase):
         self.assertFalse(result["processed"])
         self.assertTrue(result["idempotent"])
 
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    @patch("app.services.subscription_lifecycle_service.get_plan_by_id")
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.services.subscription_lifecycle_service._update_status_conditional")
+    def test_active_free_with_expired_trial_transitions_to_expired(
+        self,
+        mock_update,
+        mock_latest,
+        mock_plan,
+        mock_orders,
+    ):
+        """Legacy active Free rows with expired trial_ends_at are trial-expired."""
+        mock_plan.return_value = {"id": 1, "code": "free"}
+        mock_orders.return_value = []
+        mock_latest.return_value = _mk_sub({
+            "id": 1,
+            "company_id": 42,
+            "plan_id": 1,
+            "status": "active",
+            "trial_ends_at": HOUR_AGO,
+            "current_period_end": MONTH_AHEAD,
+        })
+        mock_update.return_value = _mk_sub({"status": "expired"})
+
+        result = process_subscription_expiry(42, now=NOW)
+
+        self.assertTrue(result["processed"])
+        self.assertEqual(result["from_status"], "active")
+        self.assertEqual(result["to_status"], "expired")
+        self.assertEqual(result["reason"], "Trial period ended")
+        mock_update.assert_called_once_with(
+            subscription_id=1,
+            company_id=42,
+            expected_status="active",
+            target_status="expired",
+        )
+
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    @patch("app.services.subscription_lifecycle_service.get_plan_by_id")
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.services.subscription_lifecycle_service._update_status_conditional")
+    def test_active_free_expiry_deferred_for_live_payable_checkout(
+        self,
+        mock_update,
+        mock_latest,
+        mock_plan,
+        mock_orders,
+    ):
+        """Lifecycle does not mutate source status under a live checkout."""
+        sub = _mk_sub({
+            "id": 5,
+            "company_id": 29,
+            "plan_id": 1,
+            "status": "active",
+            "trial_ends_at": HOUR_AGO,
+            "current_period_start": MONTH_AGO,
+            "current_period_end": MONTH_AHEAD,
+        })
+        mock_plan.return_value = {"id": 1, "code": "free"}
+        mock_latest.return_value = sub
+        mock_orders.return_value = [{
+            "id": 15,
+            "company_id": 29,
+            "subscription_id": 5,
+            "status": "pending",
+            "activation_status": None,
+            "reconciliation_required": False,
+            "paid_at": None,
+            "credited_at": None,
+            "gateway_order_id": "bill-123",
+            "checkout_url": "https://pay.example/checkout",
+            "expires_at": HOUR_AHEAD,
+            "source_plan_id": 1,
+            "source_status": "active",
+            "source_period_start": MONTH_AGO,
+            "source_period_end": MONTH_AHEAD,
+        }]
+
+        result = process_subscription_expiry(29, now=NOW)
+
+        self.assertFalse(result["processed"])
+        self.assertTrue(result["idempotent"])
+        self.assertTrue(result["protected_by_pending_checkout"])
+        self.assertEqual(result["to_status"], "active")
+        mock_update.assert_not_called()
+
     @patch("app.services.subscription_lifecycle_service._get_latest_sub")
     def test_already_expired_idempotent(self, mock_latest):
         """Already expired subscription returns idempotent."""
@@ -284,6 +370,7 @@ class TestRenewalCheckout(unittest.TestCase):
     """Tests that checkout service allows renewal for expired/past_due."""
 
     @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    @patch("app.services.subscription_checkout_service.get_subscription_order_by_activation_sequence_key")
     @patch("app.services.subscription_checkout_service.create_bill")
     @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
     @patch("app.services.subscription_checkout_service.create_subscription_order")
@@ -292,9 +379,11 @@ class TestRenewalCheckout(unittest.TestCase):
     @patch("app.services.subscription_checkout_service.update_subscription_order_status")
     def test_expired_can_renew(
         self, mock_update_status, mock_get_sub, mock_get_plan,
-        mock_create_order, mock_config, mock_create_bill, mock_list_orders
+        mock_create_order, mock_config, mock_create_bill, mock_get_sequence,
+        mock_list_orders
     ):
         mock_list_orders.return_value = []
+        mock_get_sequence.return_value = None
         """Expired subscription can create checkout for same plan."""
         mock_get_sub.return_value = {
             "id": 1, "company_id": 42, "plan_id": 2, "status": "expired",

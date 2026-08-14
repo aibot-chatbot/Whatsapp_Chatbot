@@ -15,6 +15,7 @@ sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
 import unittest
 from unittest.mock import patch, MagicMock, call
 import types
+from datetime import datetime, timedelta
 
 # Mock broken dependencies before any app import
 if "google" not in sys.modules:
@@ -69,6 +70,7 @@ class TestTrialAiCreditInitialisation(unittest.TestCase):
         self.create_sub_patch = patch("app.services.billing_service._create_company_subscription")
         self.get_plan_patch = patch("app.services.billing_service.get_plan_by_code", return_value={
             "id": 1, "code": "free", "name": "Free",
+            "billing_interval": "monthly",
             "included_ai_credit_micro_myr": 1000000,
         })
         self.mock_get_latest = self.get_latest_patch.start()
@@ -96,6 +98,18 @@ class TestTrialAiCreditInitialisation(unittest.TestCase):
         """New trial subscription triggers AI-credit initialisation."""
         result = ensure_default_company_subscription(99)
         mock_init.assert_called_once_with(99)
+
+    @patch("app.services.billing_service.ensure_company_ai_credit")
+    def test_new_trial_subscription_gets_seven_day_trial(self, mock_init):
+        """New Free subscriptions are trialing with trial_ends_at seven days later."""
+        ensure_default_company_subscription(99)
+
+        payload = self.mock_create_sub.call_args.args[0]
+        start = datetime.fromisoformat(payload["starts_at"])
+        trial_end = datetime.fromisoformat(payload["trial_ends_at"])
+
+        self.assertEqual(payload["status"], "trialing")
+        self.assertEqual(trial_end - start, timedelta(days=7))
 
     @patch("app.services.billing_service.ensure_company_ai_credit")
     def test_existing_subscription_skips_credit_init(self, mock_init):

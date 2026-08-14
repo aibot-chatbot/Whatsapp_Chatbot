@@ -77,6 +77,7 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
         self.mock_plan = {
             "id": 20,
             "code": "essential",
+            "billing_interval": "monthly",
             "included_ai_credit_micro_myr": 5000000,
             "name": "Essential",
         }
@@ -85,19 +86,23 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".update_company_subscription")
-    @patch(_SVC + "._add_included_credit")
+    @patch(_SVC + "._ensure_company_ai_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_successful_payment_activation(
         self, mock_convert, mock_update_status,
-        mock_add_included_credit, mock_update_sub,
+        mock_ensure_company_ai_credit, mock_update_sub,
         mock_get_plan, mock_get_order, mock_claim_period,
     ):
         mock_get_order.return_value = self.mock_order
         mock_get_plan.return_value = self.mock_plan
         mock_update_sub.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "paid"}
-        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
+        mock_ensure_company_ai_credit.return_value = {
+            "status": "ensured",
+            "period_changed": True,
+            "included_credit_granted_micro_myr": 5000000,
+        }
 
         result = process_subscription_payment_callback(self.valid_callback)
 
@@ -112,11 +117,12 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
         self.assertEqual(kwargs["subscription_id"], 10)
         self.assertEqual(kwargs["updates"]["status"], "active")
         self.assertIsNone(kwargs["updates"]["trial_ends_at"])
+        from app.services.billing_period_service import calculate_current_period_end
+        period_start = kwargs["updates"]["current_period_start"]
+        expected_end = calculate_current_period_end(period_start, "monthly").isoformat()
+        self.assertEqual(kwargs["updates"]["current_period_end"], expected_end)
 
-        mock_add_included_credit.assert_called_once()
-        _, credit_kwargs = mock_add_included_credit.call_args
-        self.assertEqual(credit_kwargs["company_id"], 42)
-        self.assertEqual(credit_kwargs["amount_micro_myr"], 5000000)
+        mock_ensure_company_ai_credit.assert_called_once_with(42)
 
         mock_convert.assert_called_once_with(42, "essential")
 
@@ -194,24 +200,149 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
     @patch(_SVC + "._get_order_by_gateway")
     @patch(_SVC + ".get_plan_by_id")
     @patch(_SVC + ".update_company_subscription")
-    @patch(_SVC + "._add_included_credit")
+    @patch(_SVC + "._ensure_company_ai_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
     def test_trial_conversion_called(
         self, mock_convert, mock_update_status,
-        mock_add_included_credit, mock_update_sub,
+        mock_ensure_company_ai_credit, mock_update_sub,
         mock_get_plan, mock_get_order, mock_claim_period,
     ):
         mock_get_order.return_value = self.mock_order
         mock_get_plan.return_value = self.mock_plan
         mock_update_sub.return_value = {"id": 10, "status": "active"}
         mock_update_status.return_value = {"id": 1, "status": "paid"}
-        mock_add_included_credit.return_value = {"status": "applied", "transaction_id": 99}
+        mock_ensure_company_ai_credit.return_value = {
+            "status": "ensured",
+            "period_changed": True,
+            "included_credit_granted_micro_myr": 5000000,
+        }
 
         result = process_subscription_payment_callback(self.valid_callback)
 
         self.assertEqual(result["status"], "legacy_order_activated")
         mock_convert.assert_called_once_with(42, "essential")
+        _, kwargs = mock_update_sub.call_args
+        from app.services.billing_period_service import calculate_current_period_end
+        period_start = kwargs["updates"]["current_period_start"]
+        expected_end = calculate_current_period_end(period_start, "monthly").isoformat()
+        self.assertEqual(kwargs["updates"]["current_period_end"], expected_end)
+
+    @patch("app.database.company_subscription_order_repository.claim_subscription_billing_period")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".update_company_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_activation_state")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_credit_grant_failure_leaves_paid_credit_pending_not_credited(
+        self, mock_convert, mock_update_status, mock_update_activation_state,
+        mock_ensure_company_ai_credit, mock_update_sub,
+        mock_get_plan, mock_get_order, mock_claim_period,
+    ):
+        mock_get_order.return_value = self.mock_order
+        mock_get_plan.return_value = self.mock_plan
+        mock_update_sub.return_value = {"id": 10, "status": "active"}
+        mock_update_status.return_value = {"id": 1, "status": "paid"}
+        mock_ensure_company_ai_credit.side_effect = RuntimeError(
+            "invalid input value for transaction_type subscription_included"
+        )
+
+        result = process_subscription_payment_callback(self.valid_callback)
+
+        self.assertEqual(result["status"], "activation_credit_pending")
+        self.assertEqual(result["order_status"], "paid")
+        mock_update_sub.assert_called_once()
+        mock_ensure_company_ai_credit.assert_called_once_with(42)
+        mock_convert.assert_not_called()
+        mock_update_status.assert_any_call(
+            order_reference="abc-123",
+            status="paid",
+            payment_reference="txn-001",
+            paid_at="2026-07-08T12:00:00Z",
+        )
+        credited_calls = [
+            call for call in mock_update_status.call_args_list
+            if call.kwargs.get("status") == "credited"
+        ]
+        self.assertEqual(credited_calls, [])
+        self.assertTrue(any(
+            call.kwargs.get("activation_status") == "credit_pending"
+            and call.kwargs.get("activation_error_code") == "credit_grant_failed"
+            and call.kwargs.get("reconciliation_required") is True
+            for call in mock_update_activation_state.call_args_list
+        ))
+
+    @patch(_SVC + "._claim_activation_sequence")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".conditional_activate_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_activation_state")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_free_trial_to_advanced_uses_authoritative_advanced_credit_period(
+        self, mock_convert, mock_update_status, mock_update_activation_state,
+        mock_ensure_company_ai_credit, mock_cond_activate,
+        mock_get_plan, mock_get_order, mock_claim_seq,
+    ):
+        advanced_order = dict(self.mock_order)
+        advanced_order.update({
+            "new_plan_id": 7,
+            "amount_sen": 8900,
+            "source_plan_id": 1,
+            "source_period_start": "2026-08-12T03:07:02.646645+00:00",
+            "source_period_end": "2026-08-19T03:07:02.646645+00:00",
+            "source_status": "trial",
+            "activation_type": "initial",
+            "activation_sequence_key": (
+                "company:42:initial-from:10:trial:"
+                "2026-08-19T03:07:02.646645+00:00"
+            ),
+            "order_schema_version": 2,
+        })
+        advanced_plan = {
+            "id": 7,
+            "code": "advanced",
+            "billing_interval": "monthly",
+            "included_ai_credit_micro_myr": 20000000,
+            "name": "Advanced",
+        }
+        callback = dict(self.valid_callback)
+        callback["amount_sen"] = 8900
+
+        mock_get_order.return_value = advanced_order
+        mock_get_plan.return_value = advanced_plan
+        mock_cond_activate.return_value = {"id": 10, "status": "active", "plan_id": 7}
+        mock_update_status.return_value = {"id": 1, "status": "credited"}
+        mock_ensure_company_ai_credit.return_value = {
+            "status": "ensured",
+            "period_changed": True,
+            "included_credit_granted_micro_myr": 20000000,
+            "topup_balance_micro_myr": 0,
+        }
+
+        result = process_subscription_payment_callback(callback)
+
+        self.assertEqual(result["status"], "activated_and_credited")
+        self.assertEqual(result["plan_code"], "advanced")
+        mock_cond_activate.assert_called_once()
+        _, activate_kwargs = mock_cond_activate.call_args
+        self.assertEqual(activate_kwargs["target_plan_id"], 7)
+        self.assertEqual(activate_kwargs["expected_status"], "trial")
+        mock_ensure_company_ai_credit.assert_called_once_with(42)
+        mock_convert.assert_called_once_with(42, "advanced")
+        mock_update_status.assert_any_call(
+            order_reference="abc-123",
+            status="credited",
+            credited_at="2026-07-08T12:00:00Z",
+        )
+        self.assertTrue(any(
+            call.kwargs.get("activation_status") == "completed"
+            and call.kwargs.get("reconciliation_required") is False
+            for call in mock_update_activation_state.call_args_list
+        ))
 
 
 class TestToyyibpayRouteDetection(unittest.TestCase):

@@ -11,6 +11,7 @@ PAGES = [
     FRONTEND / "platform-admin.html",
     FRONTEND / "platform-admin-companies.html",
     FRONTEND / "platform-admin-company.html",
+    FRONTEND / "platform-admin-billing.html",
     FRONTEND / "platform-admin-support.html",
     FRONTEND / "platform-admin-users.html",
     FRONTEND / "platform-admin-audit-events.html",
@@ -20,6 +21,7 @@ SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
 DASHBOARD = FRONTEND / "assets" / "js" / "platform-admin-dashboard.js"
 COMPANIES = FRONTEND / "assets" / "js" / "platform-admin-companies.js"
 COMPANY = FRONTEND / "assets" / "js" / "platform-admin-company.js"
+PLATFORM_BILLING = FRONTEND / "assets" / "js" / "platform-admin-billing.js"
 SUPPORT = FRONTEND / "assets" / "js" / "platform-admin-support.js"
 PLATFORM_ADMIN_USERS = FRONTEND / "assets" / "js" / "platform-admin-users.js"
 AUDIT_EVENTS = FRONTEND / "assets" / "js" / "platform-admin-audit-events.js"
@@ -41,6 +43,7 @@ class TestPlatformAdminPageGate(unittest.TestCase):
             read(DASHBOARD),
             read(COMPANIES),
             read(COMPANY),
+            read(PLATFORM_BILLING),
             read(SUPPORT),
             read(PLATFORM_ADMIN_USERS),
             read(AUDIT_EVENTS),
@@ -59,6 +62,7 @@ class TestPlatformAdminPageGate(unittest.TestCase):
             "platform-admin.html": "platform-admin-dashboard.js",
             "platform-admin-companies.html": "platform-admin-companies.js",
             "platform-admin-company.html": "platform-admin-company.js",
+            "platform-admin-billing.html": "platform-admin-billing.js",
             "platform-admin-support.html": "platform-admin-support.js",
             "platform-admin-users.html": "platform-admin-users.js",
             "platform-admin-audit-events.html": "platform-admin-audit-events.js",
@@ -113,6 +117,7 @@ class TestPlatformAdminShell(unittest.TestCase):
             "Internal / Controlled Access",
             "Dashboard",
             "Companies",
+            "Billing",
             "Support",
             "Platform Admins",
             "Audit Logs",
@@ -184,6 +189,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             [
                 "getMe",
                 "getOverview",
+                "getBillingOverview",
+                "listBillingCompanies",
                 "listCompanies",
                 "listAuditEvents",
                 "listPlatformAdminUsers",
@@ -660,10 +667,17 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("does not expose raw metadata or tenant records", self.audit_events)
         self.assertIn("Safe metadata summary", self.audit_events)
         self.assertIn("METADATA_KEYS", self.audit_events)
+        self.assertIn("platform_admin.billing.overview.read", self.audit_events)
+        self.assertIn("platform_admin.billing.company_list", self.audit_events)
+        self.assertIn("platform_billing_overview", self.audit_events)
+        self.assertIn("platform_billing_companies", self.audit_events)
         self.assertIn("platform_admin.company.billing_orders.read", self.audit_events)
         self.assertIn("company_billing_orders", self.audit_events)
         for safe_key in [
             "company_filter_applied",
+            "subscription_status_filter_applied",
+            "plan_filter_applied",
+            "attention_filter_applied",
             "priority_filter_applied",
             "company_id",
             "status",
@@ -683,6 +697,39 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         ]:
             self.assertIn(action, self.audit_events)
         self.assertIn("platform_admin_users", self.audit_events)
+
+    def test_platform_billing_page_is_read_only_and_uses_bounded_client_methods(self):
+        page = read(FRONTEND / "platform-admin-billing.html")
+        controller = read(PLATFORM_BILLING)
+        self.assertIn('active-page="billing"', page)
+        self.assertIn("Platform Billing & Subscriptions", controller)
+        self.assertIn("PlatformAdminShell.start({ onAuthorized: initializeBillingPage })", controller)
+        self.assertIn("PlatformAdminApi.getBillingOverview", controller)
+        self.assertIn("PlatformAdminApi.listBillingCompanies", controller)
+        self.assertIn("platform-admin-company.html?company_id=", controller)
+        self.assertIn("Tenant Billing Directory", controller)
+        self.assertIn("AI-credit top-up attention", controller)
+        self.assertIn("formatSen(plan.price_sen)", controller)
+        self.assertNotIn("plan.price)", controller)
+        self.assertIn('moneyMetric("Included balance", credit.total_included_balance_micro_myr)', controller)
+        self.assertIn('moneyMetric("Top-up balance", credit.total_topup_balance_micro_myr)', controller)
+        self.assertIn('ui.formatMicroMyr(value || 0)', controller)
+        self.assertNotIn("innerHTML", controller)
+        for forbidden in [
+            "manual adjustment",
+            "refund action",
+            "retry payment",
+            "change plan",
+            "impersonate",
+            "delete company",
+            "password reset",
+            "service_role",
+            '"post"',
+            '"patch"',
+            '"put"',
+            '"delete"',
+        ]:
+            self.assertNotIn(forbidden, controller.lower())
         self.assertNotIn("JSON.stringify", self.audit_events)
         self.assertNotIn("textarea", self.audit_events)
         for forbidden in [
@@ -974,6 +1021,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             self.dashboard,
             self.companies,
             self.company,
+            read(PLATFORM_BILLING),
             self.support,
             read(PLATFORM_ADMIN_USERS),
         ])
@@ -987,6 +1035,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             self.dashboard,
             self.companies,
             self.company,
+            read(PLATFORM_BILLING),
             self.support,
             read(PLATFORM_ADMIN_USERS),
         ])
@@ -1001,6 +1050,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             + self.dashboard
             + self.companies
             + self.company
+            + read(PLATFORM_BILLING)
             + self.support
             + read(PLATFORM_ADMIN_USERS)
         )

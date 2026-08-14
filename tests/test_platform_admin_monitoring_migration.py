@@ -148,9 +148,17 @@ def test_monitoring_rpc_filters_audit_activity_to_current_contract():
     sql = _sql()
     assert "and e.action in (" in sql
     assert "and e.resource_type in (" in sql
-    for action in platform_admin_repository.AUDIT_EVENT_SCHEMAS:
+    phase_6_actions = [
+        action for action in platform_admin_repository.AUDIT_EVENT_SCHEMAS
+        if not action.startswith("platform_admin.billing.")
+    ]
+    for action in phase_6_actions:
         assert f"'{action}'" in sql
-    for resource_type in platform_admin_repository.ALLOWED_RESOURCE_TYPES:
+    phase_6_resource_types = [
+        resource_type for resource_type in platform_admin_repository.ALLOWED_RESOURCE_TYPES
+        if not resource_type.startswith("platform_billing_")
+    ]
+    for resource_type in phase_6_resource_types:
         assert f"'{resource_type}'" in sql
     assert "'platform_admin.support_case.update'" not in sql
     assert "delete from public.platform_admin_audit_events" not in sql
