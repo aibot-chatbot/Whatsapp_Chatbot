@@ -862,14 +862,14 @@
                                             <span id="billing-interval" style="color:var(--text-main);">&mdash;</span>
                                         </div>
                                         <div class="form-row" id="trial-info-row" style="display:none;">
-                                            <label>Trial</label>
+                                            <label id="trial-info-label">Trial</label>
                                             <span id="trial-info-text" style="color:var(--text-main);">&mdash;</span>
                                         </div>
-                                        <div class="form-row" style="margin-bottom:0;">
+                                        <div class="form-row" id="billing-period-start-row" style="margin-bottom:0;">
                                             <label>Period Start</label>
                                             <span id="billing-period-start" style="color:var(--text-main);">&mdash;</span>
                                         </div>
-                                        <div class="form-row" style="margin-bottom:0;">
+                                        <div class="form-row" id="billing-period-end-row" style="margin-bottom:0;">
                                             <label>Period End</label>
                                             <span id="billing-period-end" style="color:var(--text-main);">&mdash;</span>
                                         </div>
@@ -1663,6 +1663,7 @@
             var map = {
                 "active": "Active",
                 "trialing": "Trialing",
+                "trial_expired": "Trial Expired",
                 "past_due": "Past Due",
                 "cancelled": "Cancelled",
                 "expired": "Expired"
@@ -1675,12 +1676,44 @@
             var colors = {
                 "active": { bg: "rgba(16,185,129,0.12)", text: "#10b981", border: "rgba(16,185,129,0.25)" },
                 "trialing": { bg: "rgba(59,130,246,0.12)", text: "#3b82f6", border: "rgba(59,130,246,0.25)" },
+                "trial_expired": { bg: "rgba(239,68,68,0.12)", text: "#ef4444", border: "rgba(239,68,68,0.25)" },
                 "past_due": { bg: "rgba(245,158,11,0.12)", text: "#f59e0b", border: "rgba(245,158,11,0.25)" },
                 "cancelled": { bg: "rgba(148,163,184,0.12)", text: "#94a3b8", border: "rgba(148,163,184,0.25)" },
                 "expired": { bg: "rgba(239,68,68,0.12)", text: "#ef4444", border: "rgba(239,68,68,0.25)" }
             };
             var c = colors[status] || { bg: "rgba(148,163,184,0.12)", text: "#94a3b8", border: "rgba(148,163,184,0.25)" };
             return "<span style=\"display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.8rem;font-weight:600;background:" + c.bg + ";color:" + c.text + ";border:1px solid " + c.border + ";\">" + label + "</span>";
+        }
+
+        function resolveFreeBillingDisplayState(subData) {
+            var status = ((subData && subData.status) || "").toLowerCase();
+            var effectiveStatus = ((subData && subData.effective_status) || "").toLowerCase();
+            var trialStatus = ((subData && subData.trial_status) || "").toLowerCase();
+            var hasTrialEnd = !!(subData && subData.trial_ends_at);
+            var trialMissing = !!(subData && subData.trial_missing) || trialStatus === "missing" || !hasTrialEnd;
+            var trialExpired = !!(subData && subData.trial_expired)
+                || effectiveStatus === "expired"
+                || trialStatus === "expired"
+                || trialStatus === "missing"
+                || status === "expired";
+            var trialActive = !trialExpired && (
+                !!(subData && subData.trial_active)
+                || effectiveStatus === "trialing"
+                || trialStatus === "active"
+                || status === "trialing"
+            );
+
+            if (!trialActive) {
+                trialExpired = true;
+            }
+
+            return {
+                badgeStatus: trialActive ? "trialing" : "trial_expired",
+                trialActive: trialActive,
+                trialExpired: trialExpired,
+                trialMissing: trialExpired && trialMissing,
+                trialLabel: trialExpired ? (trialMissing ? "Trial End" : "Trial Ended") : "Trial Ends"
+            };
         }
 
         function buildUsageRow(label, used, limit, isStorage) {
@@ -1993,22 +2026,42 @@ async function loadBillingInfo() {
 
             // Fill plan information
             var plan = subData.plan || {};
+            var planCode = (plan.code || "").toLowerCase();
+            var isFreePlan = planCode === "free";
+            var freeDisplay = isFreePlan ? resolveFreeBillingDisplayState(subData) : null;
+            var displayStatus = isFreePlan ? freeDisplay.badgeStatus : (subData.effective_status || subData.status);
             document.getElementById("billing-plan-name").textContent = plan.name || "\u2014";
-            document.getElementById("billing-status").innerHTML = buildStatusBadge(subData.status);
-            document.getElementById("billing-interval").textContent = formatBillingInterval(plan.billing_interval);
-            document.getElementById("billing-period-start").textContent = formatBillingDate(subData.current_period_start);
+            document.getElementById("billing-status").innerHTML = buildStatusBadge(displayStatus);
+            document.getElementById("billing-interval").textContent = isFreePlan ? "7-day trial" : formatBillingInterval(plan.billing_interval);
+            var periodStartRow = document.getElementById("billing-period-start-row");
+            var periodEndRow = document.getElementById("billing-period-end-row");
+            if (periodStartRow) periodStartRow.style.display = isFreePlan ? "none" : "";
+            if (periodEndRow) periodEndRow.style.display = isFreePlan ? "none" : "";
+            if (!isFreePlan) {
+                document.getElementById("billing-period-start").textContent = formatBillingDate(subData.current_period_start);
+            }
 
             // Trial info
             var trialRow = document.getElementById("trial-info-row");
+            var trialLabel = document.getElementById("trial-info-label");
             var trialText = document.getElementById("trial-info-text");
-            if (subData.status === "trialing" && subData.trial_ends_at) {
+            if (isFreePlan) {
                 if (trialRow) trialRow.style.display = "";
+                if (trialLabel) trialLabel.textContent = freeDisplay.trialLabel;
                 if (trialText) {
-                    var trialEnd = new Date(subData.trial_ends_at);
-                    var now = new Date();
-                    var daysLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
-                    var dateStr = trialEnd.toLocaleDateString();
-                    trialText.innerHTML = "Expires " + dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) - uses <strong>DeepSeek AI</strong> only";
+                    if (freeDisplay.trialMissing) {
+                        trialText.textContent = "unavailable - upgrade to continue";
+                    } else {
+                        var trialEnd = new Date(subData.trial_ends_at);
+                        var now = new Date();
+                        var daysLeft = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
+                        var dateStr = formatBillingDate(subData.trial_ends_at);
+                        if (freeDisplay.trialExpired) {
+                            trialText.textContent = dateStr + " - upgrade to continue";
+                        } else {
+                            trialText.innerHTML = dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) - uses <strong>DeepSeek AI</strong> only";
+                        }
+                    }
                 }
             } else {
                 if (trialRow) trialRow.style.display = "none";
@@ -2019,7 +2072,9 @@ async function loadBillingInfo() {
             if (usageData && usageData.period && usageData.period.end) {
                 periodEnd = usageData.period.end;
             }
-            document.getElementById("billing-period-end").textContent = formatBillingDate(periodEnd);
+            if (!isFreePlan) {
+                document.getElementById("billing-period-end").textContent = formatBillingDate(periodEnd);
+            }
 
             // Show renewal status info
             var renewInfo = document.getElementById("renewal-status-info");

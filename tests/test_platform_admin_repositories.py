@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from app.database import platform_admin_repository
+from app.database import platform_billing_oversight_repository
 from app.database import platform_billing_repository
 from app.database import platform_chatbot_repository
 from app.database import platform_company_repository
@@ -91,6 +92,132 @@ def monitoring_rpc_payload():
             "events_by_action": {},
             "events_by_resource_type": {},
         },
+    }
+
+
+def billing_overview_rpc_payload():
+    return {
+        "generated_at": "2026-08-10T00:00:00+00:00",
+        "subscriptions": {
+            "by_status": {"active": 3, "trialing": 4},
+            "by_plan": {"free": 6, "pro": 1},
+            "active_plan_catalogue": [
+                {
+                    "code": "free",
+                    "name": "Free",
+                    "billing_interval": "monthly",
+                    "currency": "MYR",
+                    "price_sen": 0,
+                    "included_ai_credit_micro_myr": 0,
+                }
+            ],
+        },
+        "subscription_orders": {
+            "orders_by_status": {"pending": 5, "credited": 1},
+            "pending_count": 5,
+            "failed_count": 0,
+            "reconciliation_required_count": 0,
+            "activation_statuses": {},
+            "activation_status_unset_count": 6,
+            "activation_types": {"initial_purchase": 1, "upgrade": 1},
+            "activation_type_unset_count": 1,
+        },
+        "topup_orders": {
+            "orders_by_status": {"credited": 1, "failed": 10, "pending": 3},
+            "pending_count": 3,
+            "failed_count": 10,
+            "credited_count": 1,
+        },
+        "ai_credit": {
+            "balance_row_count": 6,
+            "depleted_company_count": 0,
+            "total_included_balance_micro_myr": 988577,
+            "total_topup_balance_micro_myr": 57780259,
+            "transactions_by_type": {
+                "expiry": 2,
+                "included_credit_grant": 8,
+                "reversal": 1,
+                "topup_purchase": 2,
+                "usage_debit": 153,
+            },
+        },
+        "ai_usage": {
+            "window": {"days": 7, "since": "2026-08-03T00:00:00+00:00"},
+            "requests_by_status": {"completed": 479},
+            "recent_request_count": 9,
+            "recent_total_tokens": 1008509,
+        },
+        "billing_notifications": {
+            "by_type_severity_read_state": [
+                {
+                    "notification_type": "ai_credit_critical",
+                    "severity": "critical",
+                    "is_read": True,
+                    "count": 2,
+                }
+            ]
+        },
+        "subscription_lifecycle": {
+            "pending_plan_change_count": 0,
+            "scheduled_cancellation_count": 0,
+            "pending_plan_and_cancellation_count": 0,
+        },
+    }
+
+
+def billing_directory_rpc_payload():
+    return {
+        "companies": [
+            {
+                "company_id": 23,
+                "company_name": "Safe Tenant",
+                "company_status": "active",
+                "current_plan": {"code": "free", "name": "Free"},
+                "subscription_status": "active",
+                "current_period_start": "2026-08-01T00:00:00+00:00",
+                "current_period_end": "2026-09-01T00:00:00+00:00",
+                "pending_plan_change": False,
+                "cancellation_scheduled": False,
+                "ai_credit_total_balance_micro_myr": 150,
+                "subscription_order_attention": {
+                    "pending_count": 1,
+                    "failed_count": 1,
+                    "reconciliation_required_count": 1,
+                    "activation_failed_count": 1,
+                    "activation_conflict_count": 0,
+                },
+                "topup_order_attention": {
+                    "pending_count": 0,
+                    "failed_count": 1,
+                    "credited_count": 1,
+                },
+            },
+            {
+                "company_id": 24,
+                "company_name": "Unsubscribed Tenant",
+                "company_status": "active",
+                "current_plan": None,
+                "subscription_status": None,
+                "current_period_start": None,
+                "current_period_end": None,
+                "pending_plan_change": False,
+                "cancellation_scheduled": False,
+                "ai_credit_total_balance_micro_myr": 75,
+                "subscription_order_attention": {
+                    "pending_count": 0,
+                    "failed_count": 0,
+                    "reconciliation_required_count": 0,
+                    "activation_failed_count": 0,
+                    "activation_conflict_count": 0,
+                },
+                "topup_order_attention": {
+                    "pending_count": 0,
+                    "failed_count": 1,
+                    "credited_count": 0,
+                },
+            },
+        ],
+        "pagination": {"total": 2, "limit": 10, "offset": 0},
     }
 
 
@@ -687,6 +814,7 @@ class PlatformAdminRepositoryTests(unittest.TestCase):
             platform_admin_repository,
             platform_company_repository,
             platform_billing_repository,
+            platform_billing_oversight_repository,
             platform_company_user_repository,
             platform_chatbot_repository,
             platform_monitoring_repository,
@@ -694,6 +822,230 @@ class PlatformAdminRepositoryTests(unittest.TestCase):
             source = inspect.getsource(module)
             self.assertNotIn('.select("*")', source)
             self.assertNotIn(".select('*')", source)
+
+    def test_billing_oversight_repository_uses_single_bounded_rpc_for_overview(self):
+        rpc = MagicMock()
+        rpc.execute.return_value = SimpleNamespace(data=billing_overview_rpc_payload())
+        with patch.object(platform_billing_oversight_repository.supabase, "rpc", return_value=rpc) as rpc_call, \
+             patch.object(platform_billing_oversight_repository.supabase, "table") as table:
+            result = platform_billing_oversight_repository.get_billing_overview_for_platform_admin()
+        rpc_call.assert_called_once_with("get_platform_admin_billing_overview")
+        table.assert_not_called()
+        self.assertEqual(result["subscription_orders"]["activation_status_unset_count"], 6)
+        self.assertEqual(result["topup_orders"]["failed_count"], 10)
+        self.assertEqual(result["ai_credit"]["transactions_by_type"]["usage_debit"], 153)
+        self.assertEqual(result["subscriptions"]["active_plan_catalogue"][0]["price_sen"], 0)
+        self.assertNotIn("price", result["subscriptions"]["active_plan_catalogue"][0])
+        self.assertNotIn("payment_reference", str(result))
+        self.assertNotIn("checkout_url", str(result))
+
+    def test_billing_oversight_repository_rejects_unknown_domain_values(self):
+        cases = [
+            ("subscriptions", "by_status", "paused"),
+            ("subscription_orders", "orders_by_status", "manual_review"),
+            ("subscription_orders", "activation_statuses", "activation_failed"),
+            ("subscription_orders", "activation_types", "manual_override"),
+            ("topup_orders", "orders_by_status", "refunded_elsewhere"),
+            ("ai_credit", "transactions_by_type", "secret_credit"),
+            ("ai_usage", "requests_by_status", "queued"),
+        ]
+        for section, field, unknown_value in cases:
+            payload = billing_overview_rpc_payload()
+            payload[section][field][unknown_value] = 1
+            rpc = MagicMock()
+            rpc.execute.return_value = SimpleNamespace(data=payload)
+            with self.subTest(section=section, field=field), patch.object(
+                platform_billing_oversight_repository.supabase, "rpc", return_value=rpc,
+            ):
+                with self.assertRaises(RuntimeError):
+                    platform_billing_oversight_repository.get_billing_overview_for_platform_admin()
+
+    def test_billing_oversight_repository_rejects_negative_boolean_and_missing_counts(self):
+        malformed_payloads = [
+            {**billing_overview_rpc_payload(), "generated_at": ""},
+            {
+                **billing_overview_rpc_payload(),
+                "topup_orders": {**billing_overview_rpc_payload()["topup_orders"], "failed_count": True},
+            },
+            {
+                **billing_overview_rpc_payload(),
+                "ai_credit": {**billing_overview_rpc_payload()["ai_credit"], "balance_row_count": -1},
+            },
+            {
+                **billing_overview_rpc_payload(),
+                "billing_notifications": {"by_type_severity_read_state": [{"notification_type": "x", "severity": "secret", "is_read": True, "count": 1}]},
+            },
+            {
+                **billing_overview_rpc_payload(),
+                "subscription_lifecycle": {**billing_overview_rpc_payload()["subscription_lifecycle"], "pending_plan_change_count": False},
+            },
+        ]
+        for payload in malformed_payloads:
+            rpc = MagicMock()
+            rpc.execute.return_value = SimpleNamespace(data=payload)
+            with self.subTest(payload=payload), patch.object(
+                platform_billing_oversight_repository.supabase, "rpc", return_value=rpc,
+            ):
+                    with self.assertRaises(RuntimeError):
+                        platform_billing_oversight_repository.get_billing_overview_for_platform_admin()
+
+    def test_billing_oversight_repository_rejects_extra_nested_overview_fields(self):
+        for section in (
+            "subscriptions",
+            "subscription_orders",
+            "topup_orders",
+            "ai_credit",
+            "ai_usage",
+            "billing_notifications",
+            "subscription_lifecycle",
+        ):
+            payload = billing_overview_rpc_payload()
+            payload[section]["extra_secret"] = 1
+            rpc = MagicMock()
+            rpc.execute.return_value = SimpleNamespace(data=payload)
+            with self.subTest(section=section), patch.object(
+                platform_billing_oversight_repository.supabase, "rpc", return_value=rpc,
+            ):
+                with self.assertRaises(RuntimeError):
+                    platform_billing_oversight_repository.get_billing_overview_for_platform_admin()
+
+        payload = billing_overview_rpc_payload()
+        payload["subscriptions"]["active_plan_catalogue"][0]["extra_secret"] = 1
+        rpc = MagicMock()
+        rpc.execute.return_value = SimpleNamespace(data=payload)
+        with patch.object(platform_billing_oversight_repository.supabase, "rpc", return_value=rpc):
+            with self.assertRaises(RuntimeError):
+                platform_billing_oversight_repository.get_billing_overview_for_platform_admin()
+
+        payload = billing_overview_rpc_payload()
+        payload["billing_notifications"]["by_type_severity_read_state"][0]["extra_secret"] = 1
+        rpc = MagicMock()
+        rpc.execute.return_value = SimpleNamespace(data=payload)
+        with patch.object(platform_billing_oversight_repository.supabase, "rpc", return_value=rpc):
+            with self.assertRaises(RuntimeError):
+                platform_billing_oversight_repository.get_billing_overview_for_platform_admin()
+
+    def test_billing_oversight_repository_rpc_failure_is_sanitized(self):
+        rpc = MagicMock()
+        rpc.execute.side_effect = RuntimeError("gateway payload payment_reference exposed")
+        with patch.object(platform_billing_oversight_repository.supabase, "rpc", return_value=rpc):
+            with self.assertRaisesRegex(RuntimeError, "Platform billing overview lookup failed"):
+                platform_billing_oversight_repository.get_billing_overview_for_platform_admin()
+
+    def test_billing_company_directory_uses_one_bounded_rpc_and_no_table_scan(self):
+        rpc = MagicMock()
+        rpc.execute.return_value = SimpleNamespace(data=billing_directory_rpc_payload())
+        with patch.object(platform_billing_oversight_repository.supabase, "rpc", return_value=rpc) as rpc_call, \
+             patch.object(platform_billing_oversight_repository.supabase, "table") as table:
+            rows, total = platform_billing_oversight_repository.list_billing_companies_for_platform_admin(
+                limit=10, offset=0, subscription_status="active", plan="free", attention=True,
+            )
+        rpc_call.assert_called_once_with("get_platform_admin_billing_companies", {
+            "p_limit": 10,
+            "p_offset": 0,
+            "p_subscription_status": "active",
+            "p_plan": "free",
+            "p_attention": True,
+        })
+        table.assert_not_called()
+        self.assertEqual(total, 2)
+        self.assertEqual(rows[0]["company_id"], 23)
+        self.assertNotIn("investigation_url", rows[0])
+        self.assertEqual(rows[0]["ai_credit_total_balance_micro_myr"], 150)
+        self.assertEqual(rows[0]["subscription_order_attention"]["pending_count"], 1)
+        self.assertEqual(rows[0]["topup_order_attention"]["credited_count"], 1)
+        self.assertEqual(rows[1]["company_id"], 24)
+        self.assertIsNone(rows[1]["subscription_status"])
+        self.assertIsNone(rows[1]["current_plan"])
+        self.assertIsNone(rows[1]["current_period_start"])
+        self.assertIsNone(rows[1]["current_period_end"])
+        self.assertFalse(rows[1]["pending_plan_change"])
+        self.assertFalse(rows[1]["cancellation_scheduled"])
+        self.assertEqual(rows[1]["topup_order_attention"]["failed_count"], 1)
+
+    def test_billing_company_directory_rejects_malformed_rpc_rows_and_pagination(self):
+        malformed_payloads = [
+            {**billing_directory_rpc_payload(), "pagination": {"total": 1, "limit": 101, "offset": 0}},
+            {**billing_directory_rpc_payload(), "pagination": {"total": True, "limit": 10, "offset": 0}},
+            {
+                **billing_directory_rpc_payload(),
+                "companies": [{**billing_directory_rpc_payload()["companies"][0], "company_status": "deleted"}],
+            },
+            {
+                **billing_directory_rpc_payload(),
+                "companies": [{**billing_directory_rpc_payload()["companies"][0], "subscription_status": "paused"}],
+            },
+            {
+                **billing_directory_rpc_payload(),
+                "companies": [{**billing_directory_rpc_payload()["companies"][0], "ai_credit_total_balance_micro_myr": -1}],
+            },
+            {
+                **billing_directory_rpc_payload(),
+                "companies": [{**billing_directory_rpc_payload()["companies"][0], "current_period_end": "not-a-date"}],
+            },
+            {
+                **billing_directory_rpc_payload(),
+                "companies": [{**billing_directory_rpc_payload()["companies"][0], "current_plan": {"code": "free"}}],
+            },
+            {
+                **billing_directory_rpc_payload(),
+                "companies": [{
+                    **billing_directory_rpc_payload()["companies"][0],
+                    "subscription_order_attention": {
+                        **billing_directory_rpc_payload()["companies"][0]["subscription_order_attention"],
+                        "pending_count": True,
+                    },
+                }],
+            },
+            {
+                **billing_directory_rpc_payload(),
+                "companies": [{**billing_directory_rpc_payload()["companies"][0], "extra": "field"}],
+            },
+            {
+                **billing_directory_rpc_payload(),
+                "companies": [{
+                    **billing_directory_rpc_payload()["companies"][0],
+                    "subscription_order_attention": {
+                        **billing_directory_rpc_payload()["companies"][0]["subscription_order_attention"],
+                        "secret_count": 1,
+                    },
+                }],
+            },
+        ]
+        for payload in malformed_payloads:
+            rpc = MagicMock()
+            rpc.execute.return_value = SimpleNamespace(data=payload)
+            with self.subTest(payload=payload), patch.object(
+                platform_billing_oversight_repository.supabase, "rpc", return_value=rpc,
+            ):
+                with self.assertRaises(RuntimeError):
+                    platform_billing_oversight_repository.list_billing_companies_for_platform_admin(
+                        limit=10, offset=0,
+                    )
+
+    def test_billing_company_directory_rpc_failure_is_sanitized(self):
+        rpc = MagicMock()
+        rpc.execute.side_effect = RuntimeError("gateway raw_error exposed")
+        with patch.object(platform_billing_oversight_repository.supabase, "rpc", return_value=rpc):
+            with self.assertRaisesRegex(RuntimeError, "Platform billing company directory lookup failed"):
+                platform_billing_oversight_repository.list_billing_companies_for_platform_admin(
+                    limit=10, offset=0,
+                )
+
+    def test_billing_oversight_repository_source_avoids_financial_mutations_and_unsafe_fields(self):
+        source = inspect.getsource(platform_billing_oversight_repository)
+        for forbidden in (
+            ".insert(",
+            ".update(",
+            ".delete(",
+            "payment_reference",
+            "checkout_url",
+            "gateway",
+            "idempotency",
+            "raw_error",
+            "payload",
+        ):
+            self.assertNotIn(forbidden, source)
 
     def test_monitoring_repository_uses_single_bounded_rpc_for_aggregates(self):
         rpc = MagicMock()

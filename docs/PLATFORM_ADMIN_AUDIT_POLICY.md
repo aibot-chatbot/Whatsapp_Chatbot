@@ -8,8 +8,9 @@ platform-admin endpoint set, including the application-only operations overview,
 company-user, chatbot, subscription-history, AI-credit transaction-history,
 billing-order history, support-case operations, tenant-visible support replies,
 audit-log viewer extensions, and the Phase 4 platform-admin user-management
-actions, the Phase 5 bounded tenant/company lifecycle actions, and the Phase 6
-read-only platform monitoring overview aggregates. It does
+actions, the Phase 5 bounded tenant/company lifecycle actions, the Phase 6
+read-only platform monitoring overview aggregates, and the Phase 7 read-only
+billing/subscription oversight actions. It does
 not authorize production deployment, retention deletion, staging readiness, or
 production mapping activation.
 
@@ -63,6 +64,14 @@ syntax. It adds no audit mutation action, writes no rows, keeps RPC EXECUTE
 service-role-only, and filters platform-admin activity monitoring to current
 approved audit actions and resource types. Historical audit rows were not
 deleted or modified. No staging or production readiness is claimed.
+Platform-admin Billing & Subscription Oversight Phase 7 and Migration 038 are
+applied and verified only in the approved main shared-testing Supabase with
+fake/team data plus localhost frontend/API verification. Migration 038 adds the
+read-only billing overview RPC, the bounded billing company directory RPC, and
+updates the existing Phase 6 monitoring RPC so Phase 7 read actions and resource
+types are included in Platform-admin Activity. It adds no financial mutation
+controls, no writes, no dynamic SQL, no RLS weakening, and no table grant
+weakening. No staging or production readiness is claimed.
 
 | Action | Resource type | Resource ID | Outcomes | Required metadata | Optional metadata | Endpoint |
 |---|---|---|---|---|---|---|
@@ -79,6 +88,8 @@ deleted or modified. No staging or production readiness is claimed.
 | `platform_admin.company.users.read` | `company_users` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/users` |
 | `platform_admin.company.chatbots.read` | `company_chatbots` | Requested company ID as positive integer text | `success`, `not_found` | `outcome`, `endpoint`, `http_method`; plus `limit`, `offset`, `sort_by`, `sort_order`, `search_applied`, `state_filter`, and `returned_count` when `outcome = success` | None | `/api/platform-admin/companies/<company_id>/chatbots` |
 | `platform_admin.operations.overview.read` | `platform_operations_overview` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `attention_company_count`, `generated_at` | None | `/api/platform-admin/overview` |
+| `platform_admin.billing.overview.read` | `platform_billing_overview` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `generated_at` | None | `/api/platform-admin/billing/overview` |
+| `platform_admin.billing.company_list` | `platform_billing_companies` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, `subscription_status_filter_applied`, `plan_filter_applied`, `attention_filter_applied`, `returned_count` | None | `/api/platform-admin/billing/companies` |
 | `platform_admin.audit_events.list` | `platform_admin_audit_events` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, `action_filter_applied`, `resource_type_filter_applied`, `actor_user_id_filter_applied`, `resource_id_filter_applied`, `created_after_filter_applied`, `created_before_filter_applied`, `returned_count` | None | `/api/platform-admin/audit-events` |
 | `platform_admin.support_case.list` | `platform_support_cases` | `NULL` | `success` | `outcome`, `endpoint`, `http_method`, `limit`, `offset`, filter-applied flags, `returned_count` | None | `/api/platform-admin/support-cases` |
 | `platform_admin.support_case.read` | `platform_support_cases` | Case ID | `success`, `not_found` | `outcome`, `endpoint`, `http_method` | None | `/api/platform-admin/support-cases/<case_id>` |
@@ -142,6 +153,9 @@ resource_id_filter_applied
 created_after_filter_applied
 created_before_filter_applied
 company_filter_applied
+subscription_status_filter_applied
+plan_filter_applied
+attention_filter_applied
 priority_filter_applied
 company_id
 status
@@ -177,6 +191,24 @@ or metadata fields require an explicit schema and tests before use.
 | `outcome` | `success` or `not_found` as applicable |
 | `endpoint` | The fixed route template from the approved action table; never a full URL or query string |
 | `http_method` | `GET` for approved investigation actions; `POST` or `PATCH` only for the explicitly approved bounded support-case, platform-admin user-management, and company lifecycle actions |
+
+### Platform billing-list fields
+
+These fields are present only on
+`platform_admin.billing.company_list` successful read events.
+
+| Field | Allowed value |
+|---|---|
+| `limit` | Validated integer 1-100 |
+| `offset` | Validated non-negative integer |
+| `subscription_status_filter_applied` | Boolean only; never the filter value |
+| `plan_filter_applied` | Boolean only; never the plan code |
+| `attention_filter_applied` | Boolean only |
+| `returned_count` | Non-negative count for this page; must not exceed `limit` or 100 |
+
+Phase 7 billing audit metadata must not include financial values, company names,
+payment references, gateway/customer identifiers, checkout URLs, idempotency
+keys, raw reconciliation errors, or raw row payloads.
 
 ### Company-list fields
 

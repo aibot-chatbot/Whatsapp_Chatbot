@@ -6,6 +6,10 @@ company-wide and not per-bot.
 
 import os
 import re
+import json
+import shutil
+import subprocess
+import tempfile
 import unittest
 
 
@@ -145,6 +149,142 @@ class TestProfileUIPolish(unittest.TestCase):
         # One remaining is in formatMicroMyr itself, that's expected
         self.assertLessEqual(len(old_pattern), 1,
             f"Found {len(old_pattern)} instances of /1000000).toFixed(2) - expected at most 1")
+
+    def test_free_trial_uses_effective_status_fields(self):
+        """Profile uses API effective trial fields for Free-plan display."""
+        self.assertIn("subData.trial_expired", self.html)
+        self.assertIn("subData.trial_active", self.html)
+        self.assertIn("subData.effective_status", self.html)
+        self.assertIn("resolveFreeBillingDisplayState(subData)", self.html)
+        self.assertIn('"trial_expired": "Trial Expired"', self.html)
+
+    def test_free_trial_hides_monthly_accounting_period(self):
+        """Free plans should not present monthly period_end as trial expiry."""
+        self.assertIn('id="billing-period-start-row"', self.html)
+        self.assertIn('id="billing-period-end-row"', self.html)
+        self.assertIn('periodStartRow.style.display = isFreePlan ? "none" : ""', self.html)
+        self.assertIn('periodEndRow.style.display = isFreePlan ? "none" : ""', self.html)
+
+    def test_free_trial_shows_trial_ended_copy(self):
+        """Expired Free trial display encourages upgrade using trial_ends_at."""
+        self.assertIn('trialLabel.textContent = freeDisplay.trialLabel', self.html)
+        self.assertIn('"Trial Ended"', self.html)
+        self.assertIn('"Trial End"', self.html)
+        self.assertIn('upgrade to continue', self.html)
+        self.assertIn('"7-day trial"', self.html)
+
+    def test_paid_plan_status_path_unchanged(self):
+        """Paid plans keep using effective/raw paid status, not Free trial labels."""
+        self.assertIn(
+            'var displayStatus = isFreePlan ? freeDisplay.badgeStatus : (subData.effective_status || subData.status);',
+            self.html,
+        )
+
+
+class TestFreeBillingDisplayResolver(unittest.TestCase):
+    """Execute the Profile Free-trial display resolver for key states."""
+
+    @classmethod
+    def setUpClass(cls):
+        with open(PROFILE_PATH, "r", encoding="utf-8", errors="replace") as f:
+            cls.html = f.read()
+        cls.node_path = shutil.which("node") or shutil.which("nodejs")
+        if cls.node_path is None:
+            raise unittest.SkipTest("Node.js not available - skipping resolver execution")
+
+        start = cls.html.index("function resolveFreeBillingDisplayState")
+        brace = cls.html.index("{", start)
+        depth = 0
+        end = None
+        for idx in range(brace, len(cls.html)):
+            char = cls.html[idx]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    end = idx + 1
+                    break
+        if end is None:
+            raise AssertionError("Could not extract resolveFreeBillingDisplayState")
+        cls.resolver_js = cls.html[start:end]
+
+    def _resolve(self, sub_data):
+        script = self.resolver_js + "\nconsole.log(JSON.stringify(resolveFreeBillingDisplayState(INPUT)));"
+        script = "const INPUT = " + json.dumps(sub_data) + ";\n" + script
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".js", delete=False, encoding="utf-8") as tmp:
+            tmp.write(script)
+            tmp_path = tmp.name
+        try:
+            result = subprocess.run(
+                [self.node_path, tmp_path],
+                capture_output=True,
+                text=True,
+                timeout=15,
+                check=True,
+            )
+        finally:
+            os.unlink(tmp_path)
+        return json.loads(result.stdout)
+
+    def test_active_raw_free_expired_trial_displays_trial_expired(self):
+        result = self._resolve({
+            "status": "active",
+            "effective_status": "expired",
+            "trial_expired": True,
+            "trial_missing": False,
+            "trial_status": "expired",
+            "trial_ends_at": "2026-07-23T02:12:51.880632+00:00",
+        })
+        self.assertEqual(result["badgeStatus"], "trial_expired")
+        self.assertEqual(result["trialLabel"], "Trial Ended")
+
+    def test_trialing_raw_free_expired_trial_displays_trial_expired(self):
+        result = self._resolve({
+            "status": "trialing",
+            "effective_status": "expired",
+            "trial_expired": True,
+            "trial_status": "expired",
+            "trial_ends_at": "2026-07-23T02:12:51.880632+00:00",
+        })
+        self.assertEqual(result["badgeStatus"], "trial_expired")
+        self.assertEqual(result["trialLabel"], "Trial Ended")
+
+    def test_db_expired_free_displays_trial_expired(self):
+        result = self._resolve({
+            "status": "expired",
+            "effective_status": "expired",
+            "trial_expired": True,
+            "trial_status": "expired",
+            "trial_ends_at": "2026-07-21T03:08:34.741265+00:00",
+        })
+        self.assertEqual(result["badgeStatus"], "trial_expired")
+        self.assertEqual(result["trialLabel"], "Trial Ended")
+
+    def test_missing_trial_end_displays_trial_expired_without_fake_date(self):
+        result = self._resolve({
+            "status": "active",
+            "effective_status": "expired",
+            "trial_expired": True,
+            "trial_missing": True,
+            "trial_status": "missing",
+            "trial_ends_at": None,
+        })
+        self.assertEqual(result["badgeStatus"], "trial_expired")
+        self.assertEqual(result["trialLabel"], "Trial End")
+        self.assertTrue(result["trialMissing"])
+
+    def test_future_free_trial_displays_trialing(self):
+        result = self._resolve({
+            "status": "trialing",
+            "effective_status": "trialing",
+            "trial_active": True,
+            "trial_expired": False,
+            "trial_status": "active",
+            "trial_ends_at": "2099-01-01T00:00:00+00:00",
+        })
+        self.assertEqual(result["badgeStatus"], "trialing")
+        self.assertEqual(result["trialLabel"], "Trial Ends")
 
 
 class TestTransactionTypeLabels(unittest.TestCase):

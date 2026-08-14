@@ -1293,7 +1293,7 @@ function formatBytes(bytes) {
                         <div className="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-label="Delete entity">
                             <div className="kw-modal-head">
                                 <div>
-                                    <h2>Delete this entity?</h2>
+                                    <h2>Delete Node?</h2>
                                     <p>
                                         {deleteNodeTarget ? deleteNodeTarget.label : ""} and every relationship attached to it will be removed from the graph.
                                     </p>
@@ -1312,7 +1312,7 @@ function formatBytes(bytes) {
                         <div className="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-label="Delete relationship">
                             <div className="kw-modal-head">
                                 <div>
-                                    <h2>Delete this relationship?</h2>
+                                    <h2>Delete Relationship?</h2>
                                     <p>
                                         {deleteRelationTarget
                                             ? `${deleteRelationTarget.sourceLabel} ${deleteRelationTarget.displayRel} ${deleteRelationTarget.targetLabel} will no longer be linked.`

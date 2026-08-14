@@ -14,6 +14,9 @@ from app.services.billing_service import (
     get_current_subscription,
     ensure_default_company_subscription,
 )
+from app.services.free_trial_status_service import (
+    resolve_effective_subscription_status,
+)
 from app.database.invite_repository import count_valid_pending_invitations
 
 logger = logging.getLogger(__name__)
@@ -108,6 +111,18 @@ def _resolve_company_subscription(company_id: int) -> dict | None:
         return None
 
     if subscription is not None:
+        effective = resolve_effective_subscription_status(
+            subscription,
+            subscription.get("plan"),
+        )
+        if effective["is_free_trial"] and effective["trial_expired"]:
+            logger.info(
+                "Company %s: Free trial entitlement is expired or invalid; "
+                "denying guard check.",
+                company_id,
+            )
+            return None
+
         # Scheduler-safe guard: if the subscription is active but
         # current_period_end has passed, treat it as expired for
         # limit-enforcement purposes.  This protects the billing

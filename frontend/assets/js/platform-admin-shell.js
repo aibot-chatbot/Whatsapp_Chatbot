@@ -231,6 +231,8 @@
             dashboard.href = "platform-admin.html";
             const companies = element("a", "", "Companies");
             companies.href = "platform-admin-companies.html";
+            const billing = element("a", "", "Billing");
+            billing.href = "platform-admin-billing.html";
             const support = element("a", "", "Support");
             support.href = "platform-admin-support.html";
             const platformAdmins = element("a", "", "Platform Admins");
@@ -240,10 +242,11 @@
             const active = this.getAttribute("active-page");
             if (active === "dashboard") dashboard.setAttribute("aria-current", "page");
             if (active === "companies") companies.setAttribute("aria-current", "page");
+            if (active === "billing") billing.setAttribute("aria-current", "page");
             if (active === "support") support.setAttribute("aria-current", "page");
             if (active === "platform-admin-users") platformAdmins.setAttribute("aria-current", "page");
             if (active === "audit-events") auditEvents.setAttribute("aria-current", "page");
-            nav.append(dashboard, companies, support, platformAdmins, auditEvents);
+            nav.append(dashboard, companies, billing, support, platformAdmins, auditEvents);
 
             const footer = element("div", "platform-shell-footer");
             this.operator = element("div", "platform-operator");

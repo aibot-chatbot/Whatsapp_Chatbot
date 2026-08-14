@@ -58,6 +58,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
     def setUp(self):
         app = create_app()
         app.config["TESTING"] = True
+        self.app = app
         self.client = app.test_client()
         self.company_status_patch = patch(
             "app.services.company_status_service.get_company_status_by_id",
@@ -134,6 +135,17 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertNotEqual(resp.status_code, 404)
+
+    def test_route_registered_once_as_post_only_billing_endpoint(self):
+        rules = [
+            rule for rule in self.app.url_map.iter_rules()
+            if rule.rule == "/api/billing/toyyibpay/checkout"
+        ]
+
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0].endpoint, "billing.toyyibpay_checkout")
+        self.assertIn("POST", rules[0].methods)
+        self.assertNotIn("GET", rules[0].methods)
 
     def test_get_returns_405(self):
         resp = self.client.get("/api/billing/toyyibpay/checkout")
@@ -360,6 +372,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
     def setUp(self):
         app = create_app()
         app.config["TESTING"] = True
+        self.app = app
         self.client = app.test_client()
         self.company_status_patch = patch(
             "app.services.company_status_service.get_company_status_by_id",
@@ -372,6 +385,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             "order_reference": "00000000-0000-0000-0000-000000000001",
             "checkout_url": "https://toyyibpay.com/test-checkout",
             "amount_sen": 3900,
+            "expires_at": "2026-08-13T00:00:00+00:00",
         }
 
     def _patch_jwt_decode(self):
@@ -392,6 +406,14 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             return_value=MOCK_USER,
         )
 
+    def _patch_billing_get_user_with_phone(self, phone):
+        user = dict(MOCK_USER)
+        user["phone"] = phone
+        return patch(
+            "app.routes.billing_routes.get_user_by_id",
+            return_value=user,
+        )
+
     def _patch_checkout_service(self, return_value=None, side_effect=None):
         if return_value is None:
             return_value = self.service_result
@@ -407,6 +429,17 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
             resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertNotEqual(resp.status_code, 404)
+
+    def test_route_registered_once_as_post_only_billing_endpoint(self):
+        rules = [
+            rule for rule in self.app.url_map.iter_rules()
+            if rule.rule == "/api/billing/subscription/checkout"
+        ]
+
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0].endpoint, "billing.subscription_checkout")
+        self.assertIn("POST", rules[0].methods)
+        self.assertNotIn("GET", rules[0].methods)
 
     def test_get_returns_405(self):
         resp = self.client.get("/api/billing/subscription/checkout")
@@ -441,6 +474,40 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             resp = self.client.post("/api/billing/subscription/checkout", data="not-json", content_type="application/json", headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 400)
 
+    def test_missing_phone_returns_400_before_subscription_order_creation(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone(None), self._patch_checkout_service() as service:
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn("valid phone number", resp.get_json()["message"])
+        service.assert_not_called()
+
+    def test_whitespace_phone_returns_400_before_subscription_order_creation(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("   "), self._patch_checkout_service() as service:
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+
+        self.assertEqual(resp.status_code, 400)
+        service.assert_not_called()
+
+    def test_invalid_phone_returns_400_and_checkout_service_not_called(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("abc-123"), self._patch_checkout_service() as service:
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+
+        self.assertEqual(resp.status_code, 400)
+        service.assert_not_called()
+
+    def test_request_body_phone_is_ignored(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("+60 12-345 6789"), self._patch_checkout_service() as service:
+            resp = self.client.post(
+                "/api/billing/subscription/checkout",
+                json={"plan_code": "essential", "customer_phone": "abc"},
+                headers={"Authorization": "Bearer test-token"},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        _, kwargs = service.call_args
+        self.assertEqual(kwargs["customer_phone"], "+60123456789")
+
     # ----- Successful checkout -----
 
     def test_valid_checkout_returns_200(self):
@@ -471,6 +538,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             self.assertIn("order_reference", result)
             self.assertIn("checkout_url", result)
             self.assertIn("amount_sen", result)
+            self.assertIn("expires_at", result)
             self.assertEqual(result["amount_sen"], 3900)
 
     def test_service_receives_correct_params(self):
@@ -480,6 +548,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             _, kwargs = mock_service.call_args
             self.assertEqual(kwargs["company_id"], 42)
             self.assertEqual(kwargs["plan_code"], "essential")
+            self.assertEqual(kwargs["customer_phone"], "+60123456789")
 
     # ----- Error handling -----
 
@@ -488,10 +557,47 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 400)
 
+    def test_checkout_conflict_returns_business_message_without_raw_database_details(self):
+        conflict_message = (
+            "A pending subscription checkout already exists for this billing period. "
+            "Please complete or wait for the existing order to expire."
+        )
+
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=ValueError(conflict_message)):
+            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "advanced"}, headers={"Authorization": "Bearer test-token"})
+
+        self.assertEqual(resp.status_code, 400)
+        data = resp.get_json()
+        self.assertEqual(data["message"], conflict_message)
+        self.assertNotIn("idx_cso_activation_sequence_key", str(data))
+        self.assertNotIn("duplicate key", str(data).lower())
+
+    def test_incomplete_checkout_conflict_returns_business_message(self):
+        conflict_message = (
+            "A pending subscription checkout was started, but its payment link is not available. "
+            "Please contact support so we can safely reset this checkout."
+        )
+
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=ValueError(conflict_message)):
+            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "advanced"}, headers={"Authorization": "Bearer test-token"})
+
+        self.assertEqual(resp.status_code, 400)
+        self.assertEqual(resp.get_json()["message"], conflict_message)
+
     def test_service_runtime_error_returns_502(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=RuntimeError("Gateway error")):
             resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
             self.assertEqual(resp.status_code, 502)
+            self.assertEqual(resp.get_json()["message"], "Unable to create checkout. Please try again later.")
+
+    def test_service_runtime_error_does_not_expose_internal_details(self):
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=RuntimeError("idx_cso_activation_sequence_key payment secret")):
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+
+        body = resp.get_json()
+        self.assertEqual(resp.status_code, 502)
+        self.assertNotIn("idx_cso_activation_sequence_key", str(body))
+        self.assertNotIn("payment secret", str(body))
 
     # ----- No activation -----
 

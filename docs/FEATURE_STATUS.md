@@ -49,7 +49,7 @@
 | Chatbot deletion | Implemented | Requires deletion-flow verification |
 | Prompt configuration | Implemented | Profile and deployment flow exists |
 | Model selection | Implemented | Model catalog and settings UI exist |
-| Automated menu or flow generation | Obsolete | Feature scrubbed per user request |
+| Flow Builder runtime | Implemented | Flow Builder remains part of the active chatbot system. Backend flow save/fetch routes, V3 draft/published persistence, AI Router interception, Test Bot integration, flow execution, safe AI/RAG handoff, and legacy `flow_data` compatibility are covered by `tests/test_flow_builder_runtime.py`; broader UI and live-channel flow verification remain needed |
 | Media Attachments | Implemented | Backend, UI, and webhook dispatch created |
 | Persona field unification (migration 031) | Partially implemented | `bot_config_fields.py` makes the canonical/legacy column mapping single-source and writes NULL into the deprecated `business_objective`/`response_style`/`prompt_text` mirrors. Migration `data/031_unify_bot_config_persona_fields.sql` is unapplied everywhere and its mandatory SELECT-only preflight `scripts/bot_configs_persona_unification_preflight.sql` is unrun; section 10 must be exported to the restricted archive before applying because divergent legacy values become unrecoverable. Deploying the code before the migration fails every `bot_configs` write with `23502`. See `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md` |
 | Derived persona from ingested documents | Partially implemented | `persona_derivation_service.py` fills `company_name`, `business_description`, and `tone` from the client's uploaded PDF after `POST /upload-pdf`, through `ai_router` so billing and tier enforcement apply; a non-JSON reply writes nothing. 73+32+14 focused tests pass plus real-browser `tests/browser/testbot-persona.spec.js`. Blocked from delivering its stated benefit: `rag_service.get_deployed_settings` returns `DEFAULT_SETTINGS` when `chatbots.deployed_profile_name` is blank, so an undeployed bot still replies "Your Company" — exactly the never-opened-the-form population targeted. A test pins the gap; closing it is separate create-RPC/promotion work. Residual stored prompt-injection risk: up to 1000 characters of document-chosen prose reach the serving system prompt as asserted company fact (structural newline/control-character lever closed, semantic lever open). Whether `tone` should be excluded from placeholder-matching is an open design call |
@@ -86,7 +86,7 @@
 | DeepSeek routing | Implemented | External API verification required |
 | Gemini usage | Implemented | Used in AI and/or embedding flows; verify exact active paths |
 | AI usage logging | Implemented | Integrated with AI-credit charging |
-| Provider fallback behavior | Needs investigation | Confirm current failure and fallback rules |
+| Provider fallback behavior | Implemented | Cross-provider fallback is disabled; selected-provider failures return the safe generic chatbot failure response without trying another provider |
 
 ## Messaging Integrations
 
@@ -511,6 +511,32 @@ verified.
   is not staging verification and does not establish production readiness.
   Unsupported aggregate values fail closed. Browser E2E is not claimed because
   local `npm`/Playwright dependencies are unavailable.
+- Platform-admin Billing & Subscription Oversight Phase 7 is implemented
+  locally as a read-only Platform Billing & Subscriptions page with
+  `GET /api/platform-admin/billing/overview` and
+  `GET /api/platform-admin/billing/companies`. Migration 038 is applied and
+  verified only in the approved main shared-testing Supabase with fake/team
+  data. It adds `public.get_platform_admin_billing_overview()`,
+  `public.get_platform_admin_billing_companies(integer, integer, text, text,
+  boolean)`, and updates `public.get_platform_admin_monitoring_overview()` so
+  `platform_admin.billing.overview.read`, `platform_admin.billing.company_list`,
+  `platform_billing_overview`, and `platform_billing_companies` are included in
+  Platform-admin Activity. Local runtime verification returned 200 for
+  `/api/platform-admin/me`, `/api/platform-admin/overview`,
+  `/api/platform-admin/billing/overview`, and
+  `/api/platform-admin/billing/companies?limit=25&offset=0`; the frontend
+  rendered Subscription status, Plan distribution, Active plan catalogue,
+  Subscription order attention, AI-credit top-up attention, AI Credit Overview
+  with MYR-formatted balances, Billing Notifications, Subscription lifecycle,
+  and Tenant Billing Directory. Companies without subscriptions are included
+  with `subscription_status = null`, `current_plan = null`, null period dates,
+  and false pending/cancellation flags. Filtering, counting, stable
+  `company_id ASC` ordering, and pagination happen inside PostgreSQL. Phase 7
+  remains read-only: manual AI-credit adjustment, payment reconciliation
+  mutation, refund, subscription correction/override, manual plan change,
+  direct balance editing, payment retry mutation, manual credit reversal, and
+  billing impersonation/remediation controls remain deferred. This is not
+  staging verification and does not establish production readiness.
 - The lifecycle document now includes a redacted access, revocation, smoke,
   audit-log, and localhost/staging/production evidence checklist; it does not
   change the current local-only verification boundary.

@@ -1,9 +1,16 @@
 import logging
 from datetime import datetime, timezone, timedelta
 
-from dateutil.relativedelta import relativedelta
 from app.services.ai_access_policy import TRIAL_DURATION_DAYS
 from app.services.ai_credit_service import ensure_company_ai_credit
+from app.services.billing_period_service import (
+    calculate_current_period_end,
+    log_current_period_anomaly,
+    parse_period_datetime,
+)
+from app.services.free_trial_status_service import (
+    resolve_effective_subscription_status,
+)
 
 from app.database.subscription_plan_repository import (
     get_active_plans as _get_active_plans,
@@ -85,6 +92,11 @@ def get_current_subscription(company_id):
         return None
 
     plan = get_plan_by_id(subscription.get("plan_id"))
+    log_current_period_anomaly(
+        subscription,
+        plan,
+        context="get_current_subscription",
+    )
 
     subscription_status = (subscription.get("status") or "").lower().strip()
     can_renew = subscription_status in ("expired", "past_due", "cancelled")
@@ -151,6 +163,8 @@ def get_current_subscription(company_id):
             "model_access_tier": plan.get("model_access_tier", "economy"),
         }
 
+    result.update(resolve_effective_subscription_status(result, plan))
+
     return result
 
 
@@ -159,18 +173,7 @@ def _parse_utc_datetime(raw_value):
 
     Returns None if the value is empty or cannot be parsed.
     """
-    if not raw_value:
-        return None
-
-    if isinstance(raw_value, datetime):
-        dt = raw_value
-    else:
-        dt = datetime.fromisoformat(str(raw_value).replace("Z", "+00:00"))
-
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-
-    return dt
+    return parse_period_datetime(raw_value)
 
 
 def _resolve_billing_period(subscription, plan):
@@ -205,14 +208,7 @@ def _resolve_billing_period(subscription, plan):
             return period_start, period_end, "stored"
 
     # current_period_end is missing - calculate from start using the plan interval
-    if billing_interval == "monthly":
-        period_end = period_start + relativedelta(months=1)
-    elif billing_interval == "yearly":
-        period_end = period_start + relativedelta(years=1)
-    else:
-        raise ValueError(
-            f"Unsupported billing_interval: {billing_interval}"
-        )
+    period_end = calculate_current_period_end(period_start, billing_interval)
 
     return period_start, period_end, "calculated"
 
@@ -244,6 +240,12 @@ def get_company_usage(company_id):
 
     if not plan:
         return None
+
+    log_current_period_anomaly(
+        subscription,
+        plan,
+        context="get_company_usage",
+    )
 
     period_start, period_end, end_source = _resolve_billing_period(
         subscription, plan
@@ -352,7 +354,10 @@ def ensure_default_company_subscription(company_id):
     plan_id = free_plan["id"]
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
-    period_end = now + relativedelta(months=1)
+    period_end = calculate_current_period_end(
+        now,
+        free_plan.get("billing_interval"),
+    )
     period_end_iso = period_end.isoformat()
 
     trial_end = now + timedelta(days=TRIAL_DURATION_DAYS)

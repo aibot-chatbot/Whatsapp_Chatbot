@@ -460,6 +460,7 @@ class TestBotArchiveRoutes(unittest.TestCase):
 
         app = create_app()
         app.config["TESTING"] = True
+        self.app = app
         self.client = app.test_client()
 
     def _patch_auth(self):
@@ -499,6 +500,25 @@ class TestBotArchiveRoutes(unittest.TestCase):
     @patch("app.routes.bot_routes.list_archived_bots")
     def test_archived_bots_endpoint_hides_raw_backend_error(self, mock_list):
         mock_list.side_effect = Exception("permission denied for table chatbots")
+    def test_archived_bots_route_registered_once_as_get_endpoint(self):
+        rules = [
+            rule for rule in self.app.url_map.iter_rules()
+            if rule.rule == "/api/bots/archived"
+        ]
+
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0].endpoint, "bots.fetch_archived_bots")
+        self.assertIn("GET", rules[0].methods)
+        self.assertNotIn("POST", rules[0].methods)
+
+    def test_archived_bots_endpoint_requires_authentication(self):
+        response = self.client.get("/api/bots/archived")
+
+        self.assertEqual(response.status_code, 401)
+
+    @patch("app.routes.bot_routes.list_archived_bots")
+    def test_archived_bots_endpoint_returns_empty_list(self, mock_list):
+        mock_list.return_value = []
 
         with self._patch_auth(), self._patch_user():
             response = self.client.get(
@@ -510,6 +530,40 @@ class TestBotArchiveRoutes(unittest.TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(payload["message"], "Unable to load archived bots. Please try again or contact support.")
         self.assertNotIn("chatbots", payload["message"])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["data"], [])
+        mock_list.assert_called_once_with(42)
+
+    @patch("app.routes.bot_routes.list_bots")
+    def test_active_bots_endpoint_still_returns_active_list(self, mock_list):
+        mock_list.return_value = [{"id": 8, "status": "active", "deleted_at": None}]
+
+        with self._patch_auth(), self._patch_user():
+            response = self.client.get(
+                "/api/bots",
+                headers={"Authorization": "Bearer token"},
+            )
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload["status"], "success")
+        self.assertEqual(payload["data"][0]["status"], "active")
+        mock_list.assert_called_once_with(42)
+
+    @patch("app.routes.bot_routes.list_archived_bots")
+    def test_archived_bots_endpoint_does_not_call_active_listing(self, mock_archived):
+        mock_archived.return_value = [{"id": 7, "status": "archived"}]
+
+        with self._patch_auth(), self._patch_user(), patch("app.routes.bot_routes.list_bots") as mock_active:
+            response = self.client.get(
+                "/api/bots/archived",
+                headers={"Authorization": "Bearer token"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mock_archived.assert_called_once_with(42)
+        mock_active.assert_not_called()
 
     @patch("app.routes.bot_routes.restore_archived_bot")
     def test_restore_endpoint_returns_restored_bot(self, mock_restore):
