@@ -726,3 +726,2354 @@ body.dashboard-page {
 @media (prefers-reduced-motion: reduce) {
     .dashboard-page .chart-bar { animation: none; }
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   KNOWLEDGE WORKSPACE
+   Components for frontend/new_linkdocs.html. Everything is namespaced
+   `kw-` under `.dashboard-page` so it cannot reach the dashboard or bot
+   screens that share this file. Tokens come from :root above; no new
+   palette is introduced.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.dashboard-page .kw-page {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+.dashboard-page .kw-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .kw-page :focus-visible {
+    outline: 2px solid var(--control-accent-hover);
+    outline-offset: 2px;
+    border-radius: 6px;
+}
+
+/* ── Header ────────────────────────────────────────────────────────── */
+
+.dashboard-page .kw-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .kw-header h1 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+}
+
+.dashboard-page .kw-header-sub {
+    margin-top: 6px;
+    max-width: 46ch;
+    color: var(--control-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.dashboard-page .kw-header-aside {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+/* The split button keeps its own height; a stretch container would blow it up
+   to match the readiness card beside it. */
+.dashboard-page .kw-header-aside .kw-split-btn {
+    align-self: center;
+    height: 40px;
+}
+
+/* ── Readiness card ────────────────────────────────────────────────── */
+
+.dashboard-page .kw-readiness {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 18px;
+    padding: 14px 18px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+}
+
+.dashboard-page .kw-readiness-body {
+    min-width: 0;
+}
+
+.dashboard-page .kw-readiness-title {
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .kw-readiness-figures {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 9px;
+}
+
+.dashboard-page .kw-figure {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--control-text-secondary);
+    white-space: nowrap;
+}
+
+.dashboard-page .kw-figure b {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    color: var(--control-text);
+}
+
+.dashboard-page .kw-readiness-foot {
+    margin-top: 9px;
+    padding-top: 9px;
+    border-top: 1px solid var(--control-border);
+    color: var(--control-text-tertiary);
+    font-size: 11px;
+}
+
+/* ── Donut gauge ───────────────────────────────────────────────────── */
+
+.dashboard-page .kw-gauge {
+    position: relative;
+    width: 74px;
+    height: 74px;
+    flex: 0 0 auto;
+}
+
+.dashboard-page .kw-gauge svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.dashboard-page .kw-gauge-track {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.09);
+    stroke-width: 7;
+}
+
+.dashboard-page .kw-gauge-fill {
+    fill: none;
+    stroke: var(--control-accent);
+    stroke-width: 7;
+    stroke-linecap: round;
+}
+
+.dashboard-page .kw-gauge-label {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+}
+
+.dashboard-page .kw-gauge-value {
+    font-family: var(--font-mono);
+    font-size: 17px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    color: var(--control-text);
+}
+
+.dashboard-page .kw-gauge-caption {
+    font-size: 10px;
+    line-height: 1;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--control-text-secondary);
+}
+
+/* ── Status dots ───────────────────────────────────────────────────── */
+
+.dashboard-page .kw-dot {
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--control-text-secondary);
+}
+
+.dashboard-page .kw-dot-ready { background: var(--control-accent); }
+.dashboard-page .kw-dot-review { background: var(--control-warning); }
+.dashboard-page .kw-dot-off { background: var(--control-danger); }
+
+/* ── Buttons ───────────────────────────────────────────────────────── */
+
+.dashboard-page .kw-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 15px;
+    color: var(--control-text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    transition: background 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1),
+                transform 120ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-btn:hover:not(:disabled) {
+    background: var(--control-raised);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.dashboard-page .kw-btn:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.dashboard-page .kw-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.dashboard-page .kw-btn-primary {
+    color: #06120f;
+    font-weight: 600;
+    background: var(--control-accent);
+    border-color: var(--control-accent);
+}
+
+.dashboard-page .kw-btn-primary:hover:not(:disabled) {
+    background: var(--control-accent-hover);
+    border-color: var(--control-accent-hover);
+}
+
+.dashboard-page .kw-btn-primary:active:not(:disabled) {
+    background: var(--control-accent-press);
+}
+
+.dashboard-page .kw-btn-danger {
+    color: #e39a8d;
+    border-color: rgba(166, 86, 72, 0.4);
+}
+
+.dashboard-page .kw-btn-danger:hover:not(:disabled) {
+    background: rgba(166, 86, 72, 0.14);
+    border-color: rgba(166, 86, 72, 0.6);
+}
+
+.dashboard-page .kw-btn-icon {
+    width: 40px;
+    padding: 0;
+}
+
+.dashboard-page .kw-key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 5px;
+    color: inherit;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    background: rgba(0, 0, 0, 0.22);
+    border: 1px solid rgba(0, 0, 0, 0.28);
+    border-radius: 4px;
+    opacity: 0.75;
+}
+
+.dashboard-page .kw-btn:not(.kw-btn-primary) .kw-key {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: var(--control-border);
+}
+
+/* Split button: primary action + dropdown caret sharing one silhouette. */
+
+.dashboard-page .kw-split-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+}
+
+.dashboard-page .kw-split-btn > .kw-btn:first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.dashboard-page .kw-split-btn > .kw-btn:last-child {
+    width: 34px;
+    padding: 0;
+    margin-left: -1px;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.22);
+}
+
+.dashboard-page .kw-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 40;
+    min-width: 232px;
+    padding: 6px;
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+}
+
+.dashboard-page .kw-menu-item {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px;
+    color: var(--control-text);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    transition: background 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-menu-item:hover:not(:disabled),
+.dashboard-page .kw-menu-item:focus-visible {
+    background: var(--control-raised);
+}
+
+.dashboard-page .kw-menu-item:disabled {
+    cursor: not-allowed;
+}
+
+.dashboard-page .kw-menu-item:disabled .kw-menu-title {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .kw-menu-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-radius: 7px;
+}
+
+.dashboard-page .kw-menu-item:disabled .kw-menu-icon {
+    color: var(--control-text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.dashboard-page .kw-menu-title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-weight: 500;
+}
+
+.dashboard-page .kw-menu-note {
+    display: block;
+    margin-top: 2px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+/* ── Stat strip ────────────────────────────────────────────────────────
+   Hairline dividers rather than five boxes: the tiles are one reading,
+   not five cards. Numbers are mono and tabular so the row stays aligned
+   as counts change. */
+
+.dashboard-page .kw-stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.dashboard-page .kw-stat {
+    min-width: 0;
+    padding: 16px 18px;
+    border-left: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-stat:first-child {
+    border-left: 0;
+}
+
+.dashboard-page .kw-stat-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.dashboard-page .kw-stat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-radius: 7px;
+}
+
+.dashboard-page .kw-stat-label {
+    min-width: 0;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.3;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .kw-stat-value {
+    margin-top: 12px;
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 27px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+}
+
+.dashboard-page .kw-stat-unit {
+    margin-top: 4px;
+    color: var(--control-text-tertiary);
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* ── Tab bar ───────────────────────────────────────────────────────── */
+
+.dashboard-page .kw-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-tab {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-height: 64px;
+    padding: 12px 16px;
+    color: var(--control-text-secondary);
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-tab:hover {
+    color: var(--control-text);
+}
+
+.dashboard-page .kw-tab[aria-selected="true"] {
+    color: var(--control-text);
+    border-bottom-color: var(--control-accent);
+}
+
+.dashboard-page .kw-tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    color: var(--control-text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                background 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-tab[aria-selected="true"] .kw-tab-icon {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.3);
+}
+
+.dashboard-page .kw-tab-copy {
+    min-width: 0;
+}
+
+.dashboard-page .kw-tab-title {
+    display: block;
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.dashboard-page .kw-tab-note {
+    display: block;
+    margin-top: 2px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ── Toolbar ───────────────────────────────────────────────────────── */
+
+.dashboard-page .kw-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .kw-search {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1 1 260px;
+    min-width: 0;
+    max-width: 420px;
+}
+
+.dashboard-page .kw-search > .dashboard-page-none,
+.dashboard-page .kw-search-icon {
+    position: absolute;
+    left: 12px;
+    display: inline-flex;
+    color: var(--control-text-secondary);
+    pointer-events: none;
+}
+
+.dashboard-page .kw-search input {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 62px 0 36px;
+    color: var(--control-text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    outline: none;
+    transition: border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-search input::placeholder {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .kw-search input:focus {
+    border-color: rgba(62, 156, 137, 0.55);
+}
+
+.dashboard-page .kw-search-hint {
+    position: absolute;
+    right: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 6px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--control-border);
+    border-radius: 5px;
+    pointer-events: none;
+}
+
+.dashboard-page .kw-select {
+    min-height: 40px;
+    padding: 0 30px 0 12px;
+    color: var(--control-text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    cursor: pointer;
+    background-color: var(--control-sunken);
+    background-image: linear-gradient(45deg, transparent 50%, var(--control-text-secondary) 50%),
+                      linear-gradient(135deg, var(--control-text-secondary) 50%, transparent 50%);
+    background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    outline: none;
+    appearance: none;
+    transition: border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-select:focus {
+    border-color: rgba(62, 156, 137, 0.55);
+}
+
+.dashboard-page .kw-select option {
+    background: var(--control-panel);
+    color: var(--control-text);
+}
+
+/* ── Split layout: content + detail rail ───────────────────────────── */
+
+.dashboard-page .kw-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+}
+
+.dashboard-page .kw-split.has-rail {
+    grid-template-columns: minmax(0, 1fr) 336px;
+}
+
+/* ── Data table ────────────────────────────────────────────────────── */
+
+.dashboard-page .kw-table-wrap {
+    min-width: 0;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.dashboard-page .kw-table-scroll {
+    overflow-x: auto;
+}
+
+.dashboard-page .kw-table {
+    width: 100%;
+    /* Below this the action labels wrap and row heights go ragged. The wrapper
+       scrolls instead, which keeps the rows on one rhythm when the detail rail
+       is open. */
+    min-width: 760px;
+    border-collapse: collapse;
+}
+
+.dashboard-page .kw-table th {
+    padding: 11px 16px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-table td {
+    padding: 13px 16px;
+    color: var(--control-text);
+    font-size: 13px;
+    vertical-align: middle;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dashboard-page .kw-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.dashboard-page .kw-row {
+    cursor: pointer;
+    transition: background 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-row:hover td {
+    background: rgba(255, 255, 255, 0.022);
+}
+
+/* The selected row is marked on the leading cell so the rule sits flush
+   with the table edge instead of shifting the row. */
+.dashboard-page .kw-row td:first-child {
+    box-shadow: inset 2px 0 0 transparent;
+}
+
+.dashboard-page .kw-row.is-selected td {
+    background: rgba(62, 156, 137, 0.07);
+}
+
+.dashboard-page .kw-row.is-selected td:first-child {
+    box-shadow: inset 2px 0 0 var(--control-accent);
+}
+
+/* The name column gets a floor so file names break at sensible points instead
+   of shredding a word per line once the rail or a narrow viewport squeezes the
+   table. Everything past the floor scrolls. */
+.dashboard-page .kw-table th:first-child,
+.dashboard-page .kw-table td:first-child {
+    min-width: 240px;
+}
+
+.dashboard-page .kw-source-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    max-width: 320px;
+}
+
+.dashboard-page .kw-source-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 7px;
+}
+
+.dashboard-page .kw-source-name {
+    min-width: 0;
+    font-weight: 500;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-cell-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    line-height: 1.3;
+}
+
+.dashboard-page .kw-cell-stack b {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+.dashboard-page .kw-cell-stack span {
+    color: var(--control-text-tertiary);
+    font-size: 11px;
+}
+
+.dashboard-page .kw-muted {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .kw-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+
+/* With the rail open the table loses ~340px. Type and Size are both repeated
+   in the rail's overview, so they give way rather than the row actions, which
+   exist nowhere else. Nothing is hidden that the reader cannot still see. */
+@media (min-width: 1181px) {
+    .dashboard-page .kw-split.has-rail .kw-table {
+        min-width: 560px;
+    }
+
+    .dashboard-page .kw-split.has-rail .kw-table th:nth-child(2),
+    .dashboard-page .kw-split.has-rail .kw-table td:nth-child(2),
+    .dashboard-page .kw-split.has-rail .kw-table th:nth-child(5),
+    .dashboard-page .kw-split.has-rail .kw-table td:nth-child(5) {
+        display: none;
+    }
+}
+
+/* Inline text actions: icon + label, quiet until touched. */
+.dashboard-page .kw-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 40px;
+    padding: 0 9px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                background 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-action:hover:not(:disabled) {
+    color: var(--control-text);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.dashboard-page .kw-action:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.dashboard-page .kw-action-danger:hover:not(:disabled) {
+    color: #e39a8d;
+    background: rgba(166, 86, 72, 0.14);
+}
+
+.dashboard-page .kw-table-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 11px 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-table-foot-text {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+.dashboard-page .kw-pager {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.dashboard-page .kw-pager-page {
+    min-width: 40px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.dashboard-page .kw-rows-per-page {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+/* ── Pills and badges ──────────────────────────────────────────────── */
+
+.dashboard-page .kw-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 26px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    border: 1px solid var(--control-border);
+    border-radius: 999px;
+}
+
+.dashboard-page .kw-pill-ready {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.26);
+}
+
+.dashboard-page .kw-pill-review {
+    color: var(--control-warning);
+    background: rgba(196, 121, 90, 0.12);
+    border-color: rgba(196, 121, 90, 0.26);
+}
+
+.dashboard-page .kw-pill-off {
+    color: #cf8578;
+    background: rgba(166, 86, 72, 0.12);
+    border-color: rgba(166, 86, 72, 0.26);
+}
+
+.dashboard-page .kw-badge {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+}
+
+.dashboard-page .kw-badge-primary {
+    color: var(--control-accent);
+    border-color: rgba(62, 156, 137, 0.45);
+}
+
+.dashboard-page .kw-badge-support {
+    color: var(--control-text-secondary);
+}
+
+/* ── Detail rail ───────────────────────────────────────────────────── */
+
+.dashboard-page .kw-rail {
+    position: sticky;
+    top: 20px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.dashboard-page .kw-rail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 16px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-rail-ident {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-width: 0;
+}
+
+.dashboard-page .kw-rail-title {
+    min-width: 0;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-rail-badges {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 7px;
+}
+
+.dashboard-page .kw-rail-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-rail-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 40px;
+    padding: 0 10px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 8px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                background 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-rail-nav-item:hover {
+    color: var(--control-text);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.dashboard-page .kw-rail-nav-item[aria-selected="true"] {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+}
+
+.dashboard-page .kw-rail-nav-label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .kw-counter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+    height: 20px;
+    padding: 0 7px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+}
+
+.dashboard-page .kw-rail-nav-item[aria-selected="true"] .kw-counter {
+    color: var(--control-accent);
+    background: rgba(62, 156, 137, 0.18);
+}
+
+.dashboard-page .kw-rail-body {
+    padding: 16px;
+}
+
+.dashboard-page .kw-deflist {
+    display: grid;
+    grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+    gap: 0;
+}
+
+.dashboard-page .kw-deflist dt,
+.dashboard-page .kw-deflist dd {
+    padding: 9px 0;
+    font-size: 12px;
+    line-height: 1.45;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dashboard-page .kw-deflist dt {
+    padding-right: 16px;
+    color: var(--control-text-secondary);
+    white-space: nowrap;
+}
+
+.dashboard-page .kw-deflist dd {
+    min-width: 0;
+    color: var(--control-text);
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-deflist dd.kw-mono {
+    font-size: 11px;
+}
+
+.dashboard-page .kw-deflist dt:last-of-type,
+.dashboard-page .kw-deflist dd:last-of-type {
+    border-bottom: 0;
+}
+
+.dashboard-page .kw-rail-foot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-rail-foot > .kw-btn:first-child {
+    flex: 1 1 auto;
+}
+
+/* ── Empty and locked states ───────────────────────────────────────── */
+
+.dashboard-page .kw-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 56px 24px;
+    text-align: center;
+}
+
+.dashboard-page .kw-empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    margin-bottom: 4px;
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+}
+
+.dashboard-page .kw-empty h3 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.dashboard-page .kw-empty p {
+    max-width: 44ch;
+    color: var(--control-text-secondary);
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.dashboard-page .kw-locked {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.dashboard-page .kw-locked-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    color: var(--control-warning);
+    background: rgba(196, 121, 90, 0.12);
+    border-radius: 8px;
+}
+
+.dashboard-page .kw-locked h4 {
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dashboard-page .kw-locked p {
+    margin-top: 4px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.dashboard-page .kw-locked-actions {
+    margin-top: 12px;
+}
+
+/* ── Status banner ─────────────────────────────────────────────────── */
+
+.dashboard-page .kw-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.5;
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.dashboard-page .kw-banner-success {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.26);
+}
+
+.dashboard-page .kw-banner-error,
+.dashboard-page .kw-banner-deleted {
+    color: #cf8578;
+    background: rgba(166, 86, 72, 0.1);
+    border-color: rgba(166, 86, 72, 0.26);
+}
+
+.dashboard-page .kw-nextstep {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 14px 16px;
+    border: 1px solid rgba(62, 156, 137, 0.26);
+    border-radius: 10px;
+}
+
+.dashboard-page .kw-nextstep strong {
+    display: block;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.dashboard-page .kw-nextstep span {
+    display: block;
+    margin-top: 3px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* ── Graph tab ─────────────────────────────────────────────────────── */
+
+.dashboard-page .kw-graph-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .kw-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .kw-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    padding: 0 11px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--control-border);
+    border-radius: 999px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                background 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-chip:hover {
+    color: var(--control-text);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.dashboard-page .kw-chip[aria-pressed="true"] {
+    color: var(--control-text);
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* The marker carries the entity colour used on the canvas, so the chip
+   and the node read as the same object. */
+.dashboard-page .kw-chip-marker {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 auto;
+    border-radius: 2px;
+    opacity: 0.45;
+    transition: opacity 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-chip[aria-pressed="true"] .kw-chip-marker {
+    opacity: 1;
+}
+
+.dashboard-page .kw-chip-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: var(--control-text-tertiary);
+}
+
+.dashboard-page .kw-canvas-wrap {
+    position: relative;
+    min-width: 0;
+    height: 620px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.dashboard-page .kw-canvas {
+    width: 100%;
+    height: 100%;
+}
+
+.dashboard-page .kw-canvas-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    background: rgba(10, 11, 13, 0.78);
+}
+
+.dashboard-page .kw-progress {
+    width: 180px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.dashboard-page .kw-progress-fill {
+    height: 100%;
+    background: var(--control-accent);
+    transform-origin: left center;
+    transition: transform 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-hovercard {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 5;
+    max-width: 300px;
+    padding: 11px 13px;
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-left-width: 2px;
+    border-radius: 9px;
+}
+
+.dashboard-page .kw-hovercard-type {
+    color: var(--control-text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .kw-hovercard-name {
+    margin: 4px 0 3px;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-hovercard p {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+/* Legend sits over the canvas bottom-left, where the force layout leaves
+   the most reliable dead space. */
+.dashboard-page .kw-legend {
+    position: absolute;
+    bottom: 14px;
+    left: 14px;
+    z-index: 4;
+    max-width: 268px;
+    padding: 12px 14px;
+    background: rgba(22, 24, 27, 0.94);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.dashboard-page .kw-legend-title {
+    color: var(--control-text-secondary);
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .kw-legend-keys {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 9px;
+}
+
+.dashboard-page .kw-legend-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+}
+
+.dashboard-page .kw-legend-figures {
+    display: flex;
+    gap: 22px;
+    margin-top: 12px;
+    padding-top: 11px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-legend-figure b {
+    display: block;
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 21px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+}
+
+.dashboard-page .kw-legend-figure span {
+    display: block;
+    margin-top: 2px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+}
+
+.dashboard-page .kw-rail-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+}
+
+.dashboard-page .kw-idrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 7px 10px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+}
+
+.dashboard-page .kw-idrow code {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .kw-iconbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 auto;
+    color: var(--control-text-secondary);
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                background 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-iconbtn:hover {
+    color: var(--control-text);
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.dashboard-page .kw-subhead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 9px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .kw-connections {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 168px;
+    overflow-y: auto;
+}
+
+.dashboard-page .kw-connection {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 28px;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+}
+
+.dashboard-page .kw-connection-rel {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .kw-connection-target {
+    margin-top: 3px;
+    color: var(--control-text);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-desc {
+    padding: 11px 12px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-rail-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+/* Composition donut with a legend of shares. */
+.dashboard-page .kw-composition {
+    display: grid;
+    grid-template-columns: 108px minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+}
+
+.dashboard-page .kw-composition svg {
+    display: block;
+    width: 108px;
+    height: 108px;
+    transform: rotate(-90deg);
+}
+
+.dashboard-page .kw-composition-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 176px;
+    overflow-y: auto;
+}
+
+.dashboard-page .kw-composition-row {
+    display: grid;
+    grid-template-columns: 9px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+}
+
+.dashboard-page .kw-composition-row > span:nth-child(2) {
+    min-width: 0;
+    color: var(--control-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .kw-composition-row b,
+.dashboard-page .kw-composition-row i {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    font-style: normal;
+    font-weight: 500;
+}
+
+.dashboard-page .kw-composition-row b { color: var(--control-text); }
+.dashboard-page .kw-composition-row i { color: var(--control-text-tertiary); }
+
+.dashboard-page .kw-swatch {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+}
+
+/* ── Refinement tab ────────────────────────────────────────────────── */
+
+.dashboard-page .kw-refine {
+    display: grid;
+    grid-template-columns: 288px minmax(0, 1fr) 312px;
+    gap: 16px;
+    align-items: start;
+}
+
+.dashboard-page .kw-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.dashboard-page .kw-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dashboard-page .kw-panel-body {
+    padding: 16px;
+}
+
+.dashboard-page .kw-queue {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 560px;
+    padding: 10px;
+    overflow-y: auto;
+}
+
+.dashboard-page .kw-queue-item {
+    display: block;
+    width: 100%;
+    padding: 12px;
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--control-border);
+    border-left: 2px solid transparent;
+    border-radius: 9px;
+    transition: background 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-queue-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.dashboard-page .kw-queue-item[aria-current="true"] {
+    background: rgba(62, 156, 137, 0.07);
+    border-left-color: var(--control-accent);
+}
+
+.dashboard-page .kw-queue-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.dashboard-page .kw-queue-index {
+    color: var(--control-text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .kw-queue-question {
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.45;
+}
+
+.dashboard-page .kw-queue-source {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+}
+
+.dashboard-page .kw-queue-source span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Three-step progress: Source, Graph, Question. */
+.dashboard-page .kw-steps {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .kw-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.dashboard-page .kw-step-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    color: var(--control-text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--control-border);
+    border-radius: 50%;
+}
+
+.dashboard-page .kw-step.is-done { color: var(--control-text); }
+
+.dashboard-page .kw-step.is-done .kw-step-mark {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.4);
+}
+
+.dashboard-page .kw-step.is-current { color: var(--control-text); }
+
+.dashboard-page .kw-step.is-current .kw-step-mark {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: var(--control-accent);
+}
+
+.dashboard-page .kw-step-sep {
+    width: 16px;
+    height: 1px;
+    background: var(--control-border);
+}
+
+.dashboard-page .kw-scanchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 30px;
+    padding: 0 11px;
+    color: var(--control-accent);
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--control-accent-subtle);
+    border: 1px solid rgba(62, 156, 137, 0.26);
+    border-radius: 999px;
+}
+
+.dashboard-page .kw-spinner {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+    border: 1.5px solid rgba(62, 156, 137, 0.28);
+    border-top-color: var(--control-accent);
+    border-radius: 50%;
+    animation: kw-spin 720ms linear infinite;
+}
+
+.dashboard-page .kw-spinner-lg {
+    width: 26px;
+    height: 26px;
+    border-width: 2px;
+}
+
+@keyframes kw-spin {
+    to { transform: rotate(360deg); }
+}
+
+.dashboard-page .kw-field {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.dashboard-page .kw-field + .kw-field {
+    margin-top: 18px;
+}
+
+.dashboard-page .kw-field-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.dashboard-page .kw-label {
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .kw-count {
+    color: var(--control-text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .kw-count.is-over {
+    color: var(--control-warning);
+}
+
+.dashboard-page .kw-input,
+.dashboard-page .kw-textarea {
+    width: 100%;
+    padding: 11px 13px;
+    color: var(--control-text);
+    font-family: var(--font-body);
+    font-size: 13px;
+    line-height: 1.55;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    outline: none;
+    transition: border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-input { min-height: 40px; }
+
+.dashboard-page .kw-input:focus,
+.dashboard-page .kw-textarea:focus {
+    border-color: rgba(62, 156, 137, 0.55);
+}
+
+.dashboard-page .kw-input::placeholder,
+.dashboard-page .kw-textarea::placeholder {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .kw-textarea {
+    resize: vertical;
+}
+
+.dashboard-page .kw-readonly {
+    padding: 11px 13px;
+    color: var(--control-text);
+    font-size: 13px;
+    line-height: 1.55;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+}
+
+.dashboard-page .kw-help {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.dashboard-page .kw-console {
+    max-height: 190px;
+    padding: 12px 14px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.7;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    overflow-y: auto;
+}
+
+.dashboard-page .kw-console-line {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-console-line::before {
+    content: "> ";
+    color: var(--control-accent);
+}
+
+.dashboard-page .kw-evidence-quote {
+    padding: 11px 12px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.65;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-left: 2px solid rgba(62, 156, 137, 0.45);
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-evidence-quote mark {
+    color: var(--control-accent);
+    background: transparent;
+    font-weight: 500;
+}
+
+.dashboard-page .kw-evidence-source {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 10px 12px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+}
+
+.dashboard-page .kw-evidence-source span {
+    min-width: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-bottombar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+}
+
+.dashboard-page .kw-bottombar-status strong {
+    display: block;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.dashboard-page .kw-bottombar-status span {
+    display: block;
+    margin-top: 2px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+.dashboard-page .kw-bottombar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* ── Modals ────────────────────────────────────────────────────────── */
+
+.dashboard-page .kw-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(6, 7, 9, 0.72);
+}
+
+.dashboard-page .kw-backdrop.is-open {
+    display: flex;
+}
+
+.dashboard-page .kw-modal {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 540px;
+    max-height: calc(100vh - 48px);
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
+    animation: kw-modal-in 180ms cubic-bezier(.2, 0, 0, 1);
+    overflow: hidden;
+}
+
+@keyframes kw-modal-in {
+    from { transform: translateY(8px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+}
+
+.dashboard-page .kw-modal-wide { max-width: 820px; }
+.dashboard-page .kw-modal-narrow { max-width: 430px; }
+
+.dashboard-page .kw-modal-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-modal-head h2 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.dashboard-page .kw-modal-head p {
+    margin-top: 4px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.dashboard-page .kw-modal-body {
+    flex: 1 1 auto;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.dashboard-page .kw-modal-foot {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 14px 20px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-segment {
+    display: inline-flex;
+    padding: 3px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+}
+
+.dashboard-page .kw-segment button {
+    min-height: 34px;
+    padding: 0 14px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 7px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                background 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-segment button[aria-selected="true"] {
+    color: var(--control-text);
+    background: var(--control-raised);
+}
+
+.dashboard-page .kw-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 34px 20px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    cursor: pointer;
+    background: var(--control-sunken);
+    border: 1px dashed rgba(255, 255, 255, 0.16);
+    border-radius: 11px;
+    transition: border-color 180ms cubic-bezier(.2, 0, 0, 1),
+                background 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .kw-drop:hover {
+    color: var(--control-text);
+    background: var(--control-raised);
+    border-color: rgba(62, 156, 137, 0.5);
+}
+
+.dashboard-page .kw-checklist {
+    max-height: 240px;
+    padding: 4px 12px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    overflow-y: auto;
+}
+
+.dashboard-page .kw-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.dashboard-page .kw-check:last-child { border-bottom: 0; }
+
+.dashboard-page .kw-check input {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    accent-color: var(--control-accent);
+    cursor: pointer;
+}
+
+.dashboard-page .kw-check label {
+    min-width: 0;
+    color: var(--control-text);
+    font-size: 12px;
+    line-height: 1.45;
+    cursor: pointer;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .kw-scroll-panel {
+    max-height: 58vh;
+    padding: 18px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    overflow-y: auto;
+}
+
+.dashboard-page .kw-log {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    padding: 11px 13px;
+    text-align: left;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+}
+
+.dashboard-page .kw-log-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.dashboard-page .kw-log-cat {
+    color: var(--control-accent);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .kw-log-time {
+    color: var(--control-text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.dashboard-page .kw-log-action {
+    color: var(--control-text);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.dashboard-page .kw-qa {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 10px 12px;
+    border-left: 2px solid rgba(62, 156, 137, 0.45);
+    border-radius: 0 8px 8px 0;
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dashboard-page .kw-qa-q {
+    color: var(--control-text);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.5;
+}
+
+.dashboard-page .kw-qa-a {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* README markdown surface */
+.dashboard-page .kw-md h1,
+.dashboard-page .kw-md h2,
+.dashboard-page .kw-md h3 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    line-height: 1.3;
+}
+
+.dashboard-page .kw-md h1 { margin: 20px 0 10px; font-size: 19px; font-weight: 700; }
+.dashboard-page .kw-md h2 { margin: 18px 0 9px; padding-bottom: 6px; font-size: 16px; font-weight: 600; border-bottom: 1px solid var(--control-border); }
+.dashboard-page .kw-md h3 { margin: 14px 0 7px; font-size: 14px; font-weight: 600; }
+.dashboard-page .kw-md p,
+.dashboard-page .kw-md li { color: var(--control-text-secondary); font-size: 13px; line-height: 1.65; }
+.dashboard-page .kw-md p { margin-bottom: 10px; }
+.dashboard-page .kw-md ul { padding-left: 20px; margin-bottom: 14px; list-style: disc; }
+.dashboard-page .kw-md li { margin-bottom: 5px; }
+.dashboard-page .kw-md strong { color: var(--control-text); font-weight: 600; }
+.dashboard-page .kw-md table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.dashboard-page .kw-md th,
+.dashboard-page .kw-md td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--control-border); }
+.dashboard-page .kw-md th { color: var(--control-text-secondary); font-weight: 500; }
+.dashboard-page .kw-md td { color: var(--control-text-secondary); }
+.dashboard-page .kw-md mark { padding: 0 2px; color: #06120f; background: var(--control-accent); border-radius: 2px; }
+.dashboard-page .kw-md mark.is-active { background: var(--control-warning); }
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+    .dashboard-page .kw-split.has-rail,
+    .dashboard-page .kw-refine {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .kw-rail {
+        position: static;
+    }
+
+    .dashboard-page .kw-stats {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .dashboard-page .kw-stat:nth-child(3n + 1) { border-left: 0; }
+    .dashboard-page .kw-stat:nth-child(n + 4) { border-top: 1px solid var(--control-border); }
+}
+
+@media (max-width: 900px) {
+    .dashboard-page .kw-tab-note { display: none; }
+
+    .dashboard-page .kw-tab {
+        min-height: 56px;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-page .kw-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .dashboard-page .kw-header-aside {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    /* Stacked header: the primary action spans the column rather than floating
+       centred under the readiness card. */
+    .dashboard-page .kw-header-aside .kw-split-btn {
+        align-self: stretch;
+    }
+
+    .dashboard-page .kw-split-btn > .kw-btn:first-child {
+        flex: 1 1 auto;
+    }
+
+    .dashboard-page .kw-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dashboard-page .kw-stat,
+    .dashboard-page .kw-stat:nth-child(3n + 1) { border-left: 1px solid var(--control-border); }
+    .dashboard-page .kw-stat:nth-child(odd) { border-left: 0; }
+    .dashboard-page .kw-stat:nth-child(n + 3) { border-top: 1px solid var(--control-border); }
+
+    /* An odd tile count would otherwise leave a hole in the last row. */
+    .dashboard-page .kw-stat:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+    .dashboard-page .kw-tab {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+        padding: 12px 8px;
+        justify-items: center;
+        text-align: center;
+    }
+
+    .dashboard-page .kw-tab-icon { display: none; }
+    .dashboard-page .kw-tab-title { font-size: 13px; }
+
+    .dashboard-page .kw-canvas-wrap { height: 460px; }
+
+    .dashboard-page .kw-legend { display: none; }
+
+    .dashboard-page .kw-composition {
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: center;
+    }
+
+    .dashboard-page .kw-search { max-width: none; }
+
+    .dashboard-page .kw-modal-head,
+    .dashboard-page .kw-modal-body,
+    .dashboard-page .kw-modal-foot {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+}
+
+@media (max-width: 560px) {
+    .dashboard-page .kw-stats { grid-template-columns: minmax(0, 1fr); }
+
+    .dashboard-page .kw-stat,
+    .dashboard-page .kw-stat:nth-child(odd) { border-left: 0; }
+    .dashboard-page .kw-stat:nth-child(n + 2) { border-top: 1px solid var(--control-border); }
+
+    .dashboard-page .kw-readiness {
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: start;
+    }
+}
