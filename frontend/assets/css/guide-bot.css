@@ -79,6 +79,7 @@ body.guide-offset-chat-input .guide-bot-window {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
 }
 
 .bot-header h3 {
@@ -123,6 +124,7 @@ body.guide-offset-chat-input .guide-bot-window {
     background: rgba(255, 255, 255, 0.05);
     display: flex;
     gap: 10px;
+    flex-shrink: 0;
 }
 
 .bot-input-area input {
@@ -154,3 +156,57 @@ body.guide-offset-chat-input .guide-bot-window {
     50% { opacity: 0.6; }
     100% { opacity: 1; }
 }
+
+.bot-quick-replies {
+    padding: 12px 20px;
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    background: rgba(15, 23, 42, 0.4);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    scrollbar-width: none; /* Firefox */
+    flex-shrink: 0;
+}
+
+.bot-quick-replies::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
+.quick-reply-btn {
+    background: rgba(255, 255, 255, 0.05);
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.quick-reply-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
+.bot-header-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+#clear-bot-history {
+    background: none;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    font-size: 1rem;
+    transition: color 0.2s;
+}
+
+#clear-bot-history:hover {
+    color: #ef4444;
+}
+

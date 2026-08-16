@@ -289,18 +289,18 @@
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
                         <div id="tier-card-economy" class="glass-card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-color: rgba(255,255,255,0.05); position: relative; transition: all 0.3s ease;">
                             <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Economy Tier</div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-top: 6px;">DeepSeek V4 Flash</div>
-                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Fast, cost-efficient, standard intelligence. Included in Free / Trials.</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: var(--accent); margin-top: 6px;">Gemini, Qwen, Mistral</div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Fast, cost-efficient, standard intelligence. Included in Essential plan.</div>
                         </div>
                         <div id="tier-card-standard" class="glass-card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-color: rgba(255,255,255,0.05); position: relative; transition: all 0.3s ease;">
                             <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Standard Tier</div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: #60a5fa; margin-top: 6px;">GPT-4o Mini, Gemini Pro</div>
-                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Advanced reasoning for standard business workflows. Included in Advanced.</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #60a5fa; margin-top: 6px;">ChatGPT, Claude Sonnet 4</div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Plus all Economy models. Included in Advanced plan.</div>
                         </div>
                         <div id="tier-card-premium" class="glass-card" style="padding: 16px; background: rgba(15, 23, 42, 0.4); border-color: rgba(255,255,255,0.05); position: relative; transition: all 0.3s ease;">
                             <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-dim); text-transform: uppercase;">Premium Tier</div>
-                            <div style="font-size: 1.1rem; font-weight: 700; color: #a855f7; margin-top: 6px;">Claude 3.5 Sonnet, GPT-4o</div>
-                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Highest intelligence, complex analysis and agent workflows. Included in Pro.</div>
+                            <div style="font-size: 1.1rem; font-weight: 700; color: #a855f7; margin-top: 6px;">Claude Opus 4.7, Grok</div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 8px;">Highest intelligence workflows. Included in Pro plan.</div>
                         </div>
                     </div>
                 </div>
@@ -659,10 +659,15 @@
             providerSelect.appendChild(defaultOption);
 
             Object.entries(modelOptions).forEach(([providerKey, providerInfo]) => {
-                const option = document.createElement("option");
-                option.value = providerKey;
-                option.textContent = providerInfo.label || providerKey;
-                providerSelect.appendChild(option);
+                const models = providerInfo.models || [];
+                const hasAllowedModel = models.some(opt => isModelAllowedForAccess(opt));
+                
+                if (hasAllowedModel) {
+                    const option = document.createElement("option");
+                    option.value = providerKey;
+                    option.textContent = providerInfo.label || providerKey;
+                    providerSelect.appendChild(option);
+                }
             });
         }
 
