@@ -1,4 +1,4 @@
--- 031_unify_bot_config_persona_fields_rollback.sql
+-- 039_unify_bot_config_persona_fields_rollback.sql
 --
 -- ###########################################################################
 -- # NOT A MIGRATION. DO NOT APPLY AS PART OF A SEQUENTIAL RUN OF data/*.sql.#
@@ -15,7 +15,7 @@
 -- path. Note also that data/ already contains two 029_ files, so there is no
 -- automated in-order runner for this directory to mislead.
 --
--- Reverses data/031_unify_bot_config_persona_fields.sql.
+-- Reverses data/039_unify_bot_config_persona_fields.sql.
 --
 -- DEPLOY ORDER FOR THE ROLLBACK -- the mirror image of the forward order:
 --   1. Roll the application code back first (the old code writes both column

@@ -1,4 +1,4 @@
--- 034_gate_new_capability_feature_flags.sql
+-- 042_gate_new_capability_feature_flags.sql
 -- Idempotent migration configuring the subscription plan feature flags for
 -- three newly built capabilities:
 --

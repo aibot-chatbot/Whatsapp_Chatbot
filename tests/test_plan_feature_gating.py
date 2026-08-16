@@ -234,7 +234,7 @@ class TestMigration034(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        matches = sorted(DATA_DIR.glob("034_*.sql"))
+        matches = sorted(DATA_DIR.glob("042_*.sql"))
         cls.forward = [p for p in matches if "rollback" not in p.name.lower()]
         cls.sql = (
             _without_comments(cls.forward[0].read_text(encoding="utf-8-sig"))
@@ -288,7 +288,7 @@ class TestMigration034(unittest.TestCase):
                 self.assertIs(flags.get(key), False)
 
     def test_a_rollback_exists(self):
-        self.assertTrue(sorted(DATA_DIR.glob("034_*rollback*.sql")))
+        self.assertTrue(sorted(DATA_DIR.glob("042_*rollback*.sql")))
 
     def test_it_touches_no_price_limit_or_model_tier(self):
         for column in (

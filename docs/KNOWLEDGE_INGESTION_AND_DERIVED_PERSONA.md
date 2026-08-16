@@ -14,7 +14,7 @@ Do not follow this document as a "how to use it" guide. Follow it as a
 | Single-call ingestion endpoint (`POST /api/knowledge/ingest`) | Implemented | **No.** Review verdict is BLOCK; see [Blockers](#blockers-single-call-ingestion) |
 | Derived persona and provenance | Implemented | Partly. Storage and override behavior work; the derived value does not reach replies for an undeployed bot |
 | Conversation graph memory | Implemented | **No.** Migration cannot be certified, write path is not tenant-filtered, PII has no expiry |
-| Migrations `031` → `032` → `033` | Not applied anywhere | **No.** Two mandatory preflights are unrun |
+| Migrations `039` → `040` → `041` | Not applied anywhere | **No.** Two mandatory preflights are unrun |
 
 Related documents:
 
@@ -270,7 +270,7 @@ describes, so a value and its provenance can never disagree.
 |---|---|---|
 | `client_entered` | The client typed it | Never |
 | `derived` | Read out of an ingested document | Yes — a later ingest refreshes it |
-| *(key absent)* | Unknown. Every row written before migration `032` | Only if the stored value is blank or byte-identical to the system placeholder |
+| *(key absent)* | Unknown. Every row written before migration `040` | Only if the stored value is blank or byte-identical to the system placeholder |
 
 There is **deliberately no backfill**. Marking every pre-existing row
 `client_entered` would freeze the whole existing tenant base on "Your Company",
@@ -284,7 +284,7 @@ the first derivation. The loss is bounded and self-healing — the field then
 carries `derived`, and the moment the client retypes it, it becomes
 `client_entered` and is permanent.
 
-### Legacy column unification (migration `031`)
+### Legacy column unification (migration `039`)
 
 Three persona values were historically stored under two column names each, and
 both writer services kept the pair in sync by hand:
@@ -297,7 +297,7 @@ both writer services kept the pair in sync by hand:
 
 `app/services/bot_config_fields.py` is now the single definition of that mapping.
 Reads prefer the canonical column and fall back to the legacy one for rows the
-`031` backfill has not reached. Writes populate the canonical column and write
+`039` backfill has not reached. Writes populate the canonical column and write
 SQL `NULL` into the legacy one, so a row touched by this code can never leave a
 stale mirror for the fallback to resurrect.
 
@@ -345,7 +345,7 @@ fences retrieved chunks. That is a change to the serving prompt and is not made.
 `tone` is the field most likely to be deliberately set to its placeholder value
 (`Friendly` is the form default). Excluding it from the "unknown provenance +
 value equals placeholder ⇒ derivable" rule would remove the accepted loss
-described above, at the cost of never deriving a tone for a pre-`032` row.
+described above, at the cost of never deriving a tone for a pre-`040` row.
 Unresolved.
 
 ### Verification evidence
@@ -387,7 +387,7 @@ Consumer: `conversation_memory_service.recall_conversation_facts`, called from
 Recall runs **beside** the vector path, never instead of it. Omitting
 `conversation_id` reproduces the previous behavior exactly.
 
-Storage is a new relation, `public.conversation_graph_nodes` (migration `033`).
+Storage is a new relation, `public.conversation_graph_nodes` (migration `041`).
 It deliberately does not extend `knowledge_graph_nodes`: that table is uniquely
 keyed on `(chatbot_id, name)`, so two concurrent conversations that both learned
 a customer name would collide on one row and overwrite each other — a
@@ -400,13 +400,13 @@ action.
 
 ### Blockers (conversation memory)
 
-**C1 — Migration `033` cannot be certified without a live catalog capture.**
+**C1 — Migration `041` cannot be certified without a live catalog capture.**
 
 `public.chatbots` and `public.conversations` have no `CREATE TABLE` anywhere in
-this repository, so the `bigint` column types and the `ON DELETE` behavior `033`
+this repository, so the `bigint` column types and the `ON DELETE` behavior `041`
 assumes are unverified. Run `scripts/conversation_graph_nodes_preflight.sql`
 (SELECT-only) in the Supabase SQL Editor and attach every result set to the
-change record **before** applying `033`. Without it, three failure modes are
+change record **before** applying `041`. Without it, three failure modes are
 open: incompatible FK types (`42804`), no unique constraint on the parent key
 (`42830`), and — the silent one — a pre-existing relation of a different shape
 turning `CREATE TABLE IF NOT EXISTS` into a no-op that reports success while
@@ -427,7 +427,7 @@ derives `conversation_id` from `get_or_create_conversation(chatbot_id=...)`. It
 becomes live the moment any caller accepts a conversation id from a request.
 
 Required before that: the composite foreign key documented in the "TENANCY IS
-NOT ENFORCED BY THIS SCHEMA" section of `data/033_conversation_graph_nodes.sql`,
+NOT ENFORCED BY THIS SCHEMA" section of `data/041_conversation_graph_nodes.sql`,
 which needs `UNIQUE (id, chatbot_id)` on `public.conversations`.
 
 **C3 — Recall is exact-match on a single normalised ASCII token.**
@@ -532,16 +532,16 @@ key-presence preservation only changes behavior for a partial API body sent to
 
 ---
 
-## 5. Operator Procedure: Migrations `031` → `032` → `033`
+## 5. Operator Procedure: Migrations `039` → `040` → `041`
 
 ### Ordering is strict
 
 ```text
-031_unify_bot_config_persona_fields.sql
+039_unify_bot_config_persona_fields.sql
         ↓
-032_bot_config_persona_provenance.sql
+040_bot_config_persona_provenance.sql
         ↓
-033_conversation_graph_nodes.sql
+041_conversation_graph_nodes.sql
 ```
 
 Each is deploy-order-sensitive in the same direction: **apply the migration
@@ -550,9 +550,9 @@ which is deliberate — but it fails every write on the affected table.
 
 | Migration | If code is deployed first | Failure |
 |---|---|---|
-| `031` | The new code writes SQL `NULL` into the legacy columns rather than omitting them. If those columns are still `NOT NULL`, every `bot_configs` INSERT and UPDATE is rejected | `23502` not-null violation |
-| `032` | The new code writes `persona_provenance` on every `bot_configs` INSERT and UPDATE. If the column does not exist, PostgREST rejects the write | `PGRST204` |
-| `033` | Every memory write targets a table that does not exist | PostgREST schema error; replies still succeed because the producer swallows and logs |
+| `039` | The new code writes SQL `NULL` into the legacy columns rather than omitting them. If those columns are still `NOT NULL`, every `bot_configs` INSERT and UPDATE is rejected | `23502` not-null violation |
+| `040` | The new code writes `persona_provenance` on every `bot_configs` INSERT and UPDATE. If the column does not exist, PostgREST rejects the write | `PGRST204` |
+| `041` | Every memory write targets a table that does not exist | PostgREST schema error; replies still succeed because the producer swallows and logs |
 
 Old code keeps working against the migrated schema in every case. The unsafe
 direction is only ever code-before-migration.
@@ -566,11 +566,11 @@ meta-commands, so these scripts are the `\d+` substitute.
 
 | Migration | Preflight | Why it is mandatory |
 |---|---|---|
-| `031` | `scripts/bot_configs_persona_unification_preflight.sql` | There is no `CREATE TABLE` for `public.bot_configs` in this repository. The preflight is the only record of which `NOT NULL` constraints step 2 relaxes — without it the rollback is best-effort, not exact. Section 10 must be **exported before** `031` is applied, because divergent legacy values become unrecoverable afterwards |
-| `032` | `scripts/bot_configs_persona_unification_preflight.sql` (section 1) | Recommended, not required — `032` is purely additive. Keep the column inventory as the record that step 1 had nothing to abort on |
-| `033` | `scripts/conversation_graph_nodes_preflight.sql` | `public.chatbots` and `public.conversations` have no `CREATE TABLE` in this repository, so `033`'s FK column types and `ON DELETE` behavior are assumed, not observed |
+| `039` | `scripts/bot_configs_persona_unification_preflight.sql` | There is no `CREATE TABLE` for `public.bot_configs` in this repository. The preflight is the only record of which `NOT NULL` constraints step 2 relaxes — without it the rollback is best-effort, not exact. Section 10 must be **exported before** `039` is applied, because divergent legacy values become unrecoverable afterwards |
+| `040` | `scripts/bot_configs_persona_unification_preflight.sql` (section 1) | Recommended, not required — `040` is purely additive. Keep the column inventory as the record that step 1 had nothing to abort on |
+| `041` | `scripts/conversation_graph_nodes_preflight.sql` | `public.chatbots` and `public.conversations` have no `CREATE TABLE` in this repository, so `041`'s FK column types and `ON DELETE` behavior are assumed, not observed |
 
-**Customer-content warning:** section 10 of the `031` preflight returns tenant
+**Customer-content warning:** section 10 of the `039` preflight returns tenant
 business text, not just identifiers. Route its output to the restricted archive
 used for migration 028 manifests — not into a ticket or a chat transcript.
 
@@ -578,11 +578,11 @@ used for migration 028 manifests — not into a ticket or a chat transcript.
 
 | Migration | Change | Reversible |
 |---|---|---|
-| `031` | Backfills canonical persona columns from legacy ones; relaxes `NOT NULL` on `business_objective`, `response_style`, `prompt_text`. Only relaxes, never tightens. Adds, drops, and renames nothing | `data/031_unify_bot_config_persona_fields_rollback.sql`; exact only with preflight section 2 output |
-| `032` | Adds `bot_configs.persona_provenance jsonb DEFAULT '{}'`. Catalog-only on PostgreSQL 11+; no table rewrite. **No backfill by design** | `data/032_bot_config_persona_provenance_rollback.sql` |
-| `033` | Creates `public.conversation_graph_nodes` with two `ON DELETE CASCADE` foreign keys and `UNIQUE (conversation_id, label)` | `data/033_conversation_graph_nodes_rollback.sql` |
+| `039` | Backfills canonical persona columns from legacy ones; relaxes `NOT NULL` on `business_objective`, `response_style`, `prompt_text`. Only relaxes, never tightens. Adds, drops, and renames nothing | `data/039_unify_bot_config_persona_fields_rollback.sql`; exact only with preflight section 2 output |
+| `040` | Adds `bot_configs.persona_provenance jsonb DEFAULT '{}'`. Catalog-only on PostgreSQL 11+; no table rewrite. **No backfill by design** | `data/040_bot_config_persona_provenance_rollback.sql` |
+| `041` | Creates `public.conversation_graph_nodes` with two `ON DELETE CASCADE` foreign keys and `UNIQUE (conversation_id, label)` | `data/041_conversation_graph_nodes_rollback.sql` |
 
-Both `031` and `033` set `SET LOCAL lock_timeout = '5s'`. `033`'s inline foreign
+Both `039` and `041` set `SET LOCAL lock_timeout = '5s'`. `041`'s inline foreign
 keys take `SHARE ROW EXCLUSIVE` on `public.conversations` and `public.chatbots`,
 which blocks writes on the product's two hottest tables while the statement
 waits. The hold itself is instantaneous (nothing is scanned), so the only real
@@ -598,8 +598,8 @@ quieter window — every statement is idempotent.
 - [ ] `scripts/conversation_graph_nodes_preflight.sql` run; items A–E confirmed
 - [ ] Human approval recorded, per `docs/DATABASE_AND_RPC.md` schema-change rules
 - [ ] Applied to a non-production environment first
-- [ ] Migration applied **before** the application deploy, in `031` → `032` →
-      `033` order
+- [ ] Migration applied **before** the application deploy, in `039` → `040` →
+      `041` order
 - [ ] Blockers B1, B2, B3, C2, and C4 resolved or explicitly accepted in writing
 
 ---
@@ -608,11 +608,11 @@ quieter window — every statement is idempotent.
 
 | Object | Kind | Migration | Notes |
 |---|---|---|---|
-| `bot_configs.business_description` | existing column, now canonical | `031` | Legacy mirror `business_objective` deprecated and NULLed on write |
-| `bot_configs.tone` | existing column, now canonical | `031` | Legacy mirror `response_style` deprecated |
-| `bot_configs.custom_prompt` | existing column, now canonical | `031` | Legacy mirror `prompt_text` deprecated |
-| `bot_configs.persona_provenance` | new `jsonb` column | `032` | `{field: "client_entered" \| "derived"}`; absent key means unknown |
-| `conversation_graph_nodes` | new table | `033` | Conversation-scoped facts; `UNIQUE (conversation_id, label)`; both FKs `ON DELETE CASCADE` |
+| `bot_configs.business_description` | existing column, now canonical | `039` | Legacy mirror `business_objective` deprecated and NULLed on write |
+| `bot_configs.tone` | existing column, now canonical | `039` | Legacy mirror `response_style` deprecated |
+| `bot_configs.custom_prompt` | existing column, now canonical | `039` | Legacy mirror `prompt_text` deprecated |
+| `bot_configs.persona_provenance` | new `jsonb` column | `040` | `{field: "client_entered" \| "derived"}`; absent key means unknown |
+| `conversation_graph_nodes` | new table | `041` | Conversation-scoped facts; `UNIQUE (conversation_id, label)`; both FKs `ON DELETE CASCADE` |
 
 ## 7. New and Changed Modules
 

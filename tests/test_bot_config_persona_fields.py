@@ -18,8 +18,8 @@ from unittest.mock import patch
 
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
-MIGRATION = DATA_DIR / "031_unify_bot_config_persona_fields.sql"
-ROLLBACK = DATA_DIR / "031_unify_bot_config_persona_fields_rollback.sql"
+MIGRATION = DATA_DIR / "039_unify_bot_config_persona_fields.sql"
+ROLLBACK = DATA_DIR / "039_unify_bot_config_persona_fields_rollback.sql"
 
 CANONICAL_FIELDS = ("business_description", "tone", "custom_prompt")
 LEGACY_FIELDS = ("business_objective", "response_style", "prompt_text")
@@ -546,7 +546,7 @@ class PersonaBackfillMigrationTests(unittest.TestCase):
         self.assertIn("cannot", text)
 
     def test_no_migration_number_collision(self):
-        siblings = sorted(p.name for p in DATA_DIR.glob("031_*.sql"))
+        siblings = sorted(p.name for p in DATA_DIR.glob("039_*.sql"))
 
         self.assertEqual(siblings, sorted([MIGRATION.name, ROLLBACK.name]))
 

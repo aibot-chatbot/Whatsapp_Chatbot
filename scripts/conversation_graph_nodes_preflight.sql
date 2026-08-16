@@ -2,7 +2,7 @@
 READ-ONLY REVIEW SCRIPT
 
 Purpose: preflight public.chatbots and public.conversations before applying
-data/033_conversation_graph_nodes.sql. Run this file in the Supabase SQL Editor
+data/041_conversation_graph_nodes.sql. Run this file in the Supabase SQL Editor
 and attach every result set to the change record.
 
 Why this file exists: 033 declares two inline foreign keys against tables that

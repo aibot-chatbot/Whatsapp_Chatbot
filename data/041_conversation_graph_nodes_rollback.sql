@@ -1,5 +1,5 @@
--- 033_conversation_graph_nodes_rollback.sql
--- Reverses data/033_conversation_graph_nodes.sql.
+-- 041_conversation_graph_nodes_rollback.sql
+-- Reverses data/041_conversation_graph_nodes.sql.
 --
 -- DESTRUCTIVE: dropping the table discards every remembered conversation fact.
 -- Those rows are customer personal data (names, contact details) and are not

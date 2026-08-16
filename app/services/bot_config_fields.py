@@ -149,7 +149,7 @@ def persona_write_payload(values: Mapping[str, Any] | None) -> dict[str, str | N
     ``NOT NULL``.  ``values`` reaches here straight from ``request.get_json()``
     in ``profile_service.save_profile``, so it is not necessarily well typed.
 
-    Requires ``data/031_unify_bot_config_persona_fields.sql`` to have been
+    Requires ``data/039_unify_bot_config_persona_fields.sql`` to have been
     applied first -- it drops the NOT NULL that may still guard the legacy
     columns.  Applying the code first surfaces as a loud 23502 not-null
     violation on write, never as silent data loss.

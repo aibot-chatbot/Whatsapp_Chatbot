@@ -2,7 +2,7 @@
 READ-ONLY REVIEW SCRIPT
 
 Purpose: preflight public.bot_configs before applying
-data/031_unify_bot_config_persona_fields.sql. Run this file in the Supabase SQL
+data/039_unify_bot_config_persona_fields.sql. Run this file in the Supabase SQL
 Editor and attach every result set to the change record.
 
 Why this file exists: 031's prerequisite was written as `\d+ public.bot_configs`,

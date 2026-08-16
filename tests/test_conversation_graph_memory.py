@@ -49,7 +49,7 @@ from unittest.mock import patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MIGRATION_PATH = PROJECT_ROOT / "data" / "033_conversation_graph_nodes.sql"
+MIGRATION_PATH = PROJECT_ROOT / "data" / "041_conversation_graph_nodes.sql"
 
 
 def _without_comments(sql: str) -> str:
@@ -697,7 +697,7 @@ class TestMigration033(unittest.TestCase):
         self.assertNotIn("knowledge_graph_edges", self.executable)
 
     def test_a_rollback_exists(self):
-        rollback = PROJECT_ROOT / "data" / "033_conversation_graph_nodes_rollback.sql"
+        rollback = PROJECT_ROOT / "data" / "041_conversation_graph_nodes_rollback.sql"
         self.assertTrue(rollback.exists(), f"missing rollback: {rollback}")
 
 
