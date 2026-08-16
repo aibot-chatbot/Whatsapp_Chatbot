@@ -1074,10 +1074,11 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         return "Sorry, I'm having trouble replying right now. Please try again later."
 
 
-def _call_deepseek_direct(prompt, model, temperature, json_response=False):
-    """Call DeepSeek directly with a plain prompt (no chat pipeline).
+def _call_deepseek_direct(prompt, model, temperature, json_response=False, stream=False):
+    """Call Deepseek directly with a plain prompt.
 
-    Returns a _ProviderResult with the generated text and usage metadata.
+    Returns a _ProviderResult with the generated text and usage metadata,
+    or the stream iterator if stream=True.
     """
     from openai import OpenAI
     import os
@@ -1092,12 +1093,16 @@ def _call_deepseek_direct(prompt, model, temperature, json_response=False):
         "model": model or "deepseek-chat",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
-        "stream": False,
+        "stream": stream,
     }
     if json_response:
         kwargs["response_format"] = {"type": "json_object"}
 
     response = client.chat.completions.create(**kwargs)
+    
+    if stream:
+        return response
+
     reply = response.choices[0].message.content
     if reply:
         text = reply.strip()

@@ -40,7 +40,7 @@ def verify_chatbot_access(chatbot_id):
     response = (
         supabase
         .table("chatbots")
-        .select("id, company_id")
+        .select("id, company_id, bot_name")
         .eq("id", chatbot_id)
         .eq("company_id", company_id)
         .is_("deleted_at", "null")

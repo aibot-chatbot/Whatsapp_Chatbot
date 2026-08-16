@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing | AI Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-rgb: 59, 130, 246;
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Outfit', sans-serif; }
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59,130,246,0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16,185,129,0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+        .main-container { flex-grow: 1; padding: 50px 60px; max-width: 100%; width: 100%; }
+        .header { margin-bottom: 24px; }
+        .header h1 { font-size: 1.7rem; font-weight: 700; }
+        .header p { color: var(--text-dim); margin-top: 6px; font-size: 0.95rem; }
+        .plans-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-top: 30px; }
+        .plan-card {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 28px 24px;
+            backdrop-filter: blur(12px);
+            transition: all 0.2s;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .plan-card:hover { border-color: rgba(255,255,255,0.2); transform: translateY(-2px); }
+        .plan-card.current-plan { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary), 0 4px 24px rgba(59,130,246,0.15); }
+        .plan-badge {
+            position: absolute; top: -10px; right: 20px;
+            background: var(--primary); color: white;
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            padding: 4px 12px; border-radius: 20px; letter-spacing: 0.5px;
+        }
+        .plan-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 4px; }
+        .plan-price { font-size: 1.8rem; font-weight: 700; margin: 8px 0 4px; }
+        .plan-price .interval { font-size: 0.85rem; font-weight: 400; color: var(--text-dim); }
+        .plan-price .free-text { font-size: 1.2rem; color: var(--accent); }
+        .plan-desc { font-size: 0.85rem; color: var(--text-dim); margin-bottom: 16px; }
+        .plan-features { list-style: none; flex-grow: 1; margin-bottom: 20px; }
+        .plan-features li {
+            padding: 8px 0; font-size: 0.88rem;
+            display: flex; align-items: center; gap: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+        }
+        .plan-features li:last-child { border-bottom: none; }
+        .plan-features .check { color: var(--accent); flex-shrink: 0; }
+        .plan-features .cross { color: var(--text-dim); opacity: 0.4; flex-shrink: 0; }
+        .plan-features .label { color: var(--text-dim); font-size: 0.78rem; }
+        .plan-footer { margin-top: auto; }
+        .btn-upgrade {
+            display: block; width: 100%; text-align: center;
+            padding: 12px; border-radius: 12px; border: none;
+            font-weight: 600; font-size: 0.9rem; cursor: pointer;
+            transition: all 0.15s; text-decoration: none;
+        }
+        .btn-upgrade.primary-bg {
+            background: var(--primary); color: white;
+        }
+        .btn-upgrade.primary-bg:hover { background: #2563eb; }
+        .btn-upgrade.current {
+            background: rgba(255,255,255,0.06); color: var(--text-dim);
+            cursor: default; border: 1px solid var(--glass-border);
+        }
+        .btn-upgrade.coming-soon {
+            background: rgba(255,255,255,0.04); color: var(--text-dim);
+            border: 1px solid var(--glass-border); cursor: default;
+            font-size: 0.82rem;
+        }
+        #pricing-loading, #pricing-error { padding: 40px 0; text-align: center; color: var(--text-dim); }
+        #pricing-loading .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (max-width: 768px) {
+            .main-container { padding: 24px 20px; }
+            .plans-grid { grid-template-columns: 1fr; }
+            .plan-card.current-plan { order: -1; }
+        }
+    </style>
+</head>
+
+<body>
+    <chatbot-sidebar></chatbot-sidebar>
+    <script src="sidebar-component.js"></script>
+    <script src="assets/js/auth.js"></script>
+
+    <div class="main-container">
+        <div class="header">
+            <h1><i data-lucide="credit-card" style="width:24px;height:24px;vertical-align:middle;margin-right:8px;"></i>Pricing &amp; Plans</h1>
+            <p>Compare available plans and features. Upgrade to unlock more capabilities.</p>
+        </div>
+
+        <div id="pricing-loading">
+            <i data-lucide="loader-2" class="spin" style="width:20px;height:20px;color:var(--primary);"></i>
+            <span style="margin-left:8px;">Loading plans...</span>
+        </div>
+        <div id="pricing-error" style="display:none;">
+            Unable to load pricing information. Please try again later.
+        </div>
+        <div id="pricing-content" style="display:none;">
+            <div class="plans-grid" id="plans-grid"></div>
+        </div>
+    </div>
+
+    <script>
+        refreshIcons();
+
+        function formatPrice(price, currency, interval) {
+            if (price === null || price === undefined) return "Free";
+            var num = parseFloat(price);
+            if (isNaN(num) || num <= 0) return "Free";
+            var curr = currency || "MYR";
+            var intv = interval || "monthly";
+            var label = intv.charAt(0).toUpperCase() + intv.slice(1);
+            return {
+                amount: "RM " + num.toFixed(2),
+                interval: "/ " + label
+            };
+        }
+
+        function formatLimit(val, isStorage) {
+            if (val === null || val === undefined) return "Unlimited";
+            if (isStorage) {
+                if (val >= 1073741824) return (val / 1073741824).toFixed(0) + " GB";
+                if (val >= 1048576) return (val / 1048576).toFixed(0) + " MB";
+                if (val >= 1024) return (val / 1024).toFixed(0) + " KB";
+                return val + " B";
+            }
+            return val;
+        }
+
+        function formatAiCredit(microMyr) {
+            if (microMyr === null || microMyr === undefined) return "None";
+            var myr = (Number(microMyr) / 1000000).toFixed(2);
+            if (myr <= 0) return "None";
+            return "RM " + myr;
+        }
+
+        function pluralize(value, singular, plural) {
+            return value === 1 ? singular : plural;
+        }
+
+        function appendIcon(parent, icon, className) {
+            var span = document.createElement("span");
+            span.className = className || icon;
+            var i = document.createElement("i");
+            i.setAttribute("data-lucide", icon);
+            i.style.width = "16px";
+            i.style.height = "16px";
+            span.appendChild(i);
+            parent.appendChild(span);
+        }
+
+        function appendText(parent, text) {
+            parent.appendChild(document.createTextNode(text));
+        }
+
+        function appendLabel(parent, text) {
+            var label = document.createElement("span");
+            label.className = "label";
+            label.textContent = text;
+            parent.appendChild(label);
+        }
+
+        function appendPrice(priceNode, price, currency, interval) {
+            var formatted = formatPrice(price, currency, interval);
+            if (formatted === "Free") {
+                var free = document.createElement("span");
+                free.className = "free-text";
+                free.textContent = "Free";
+                priceNode.appendChild(free);
+                return;
+            }
+            appendText(priceNode, formatted.amount + " ");
+            var intv = document.createElement("span");
+            intv.className = "interval";
+            intv.textContent = formatted.interval;
+            priceNode.appendChild(intv);
+        }
+
+        function buildFeatureItem(singularLabel, pluralLabel, value, isStorage, key) {
+            var display = formatLimit(value, isStorage);
+            var label = isStorage ? singularLabel : pluralize(value, singularLabel, pluralLabel);
+            var icon = (value !== null && value !== undefined && value > 0) ? "check" : "cross";
+            var item = document.createElement("li");
+            item.dataset.featureKey = key;
+            item.dataset.enabled = icon === "check" ? "true" : "false";
+            appendIcon(item, icon);
+            appendText(item, " " + display + " ");
+            appendLabel(item, label);
+            return item;
+        }
+
+        function buildFlagItem(key, enabled) {
+            var labels = {
+                "ai_assisted_menu_generation": "AI-Assisted Menu Generation",
+                "ai_generated_reports": "AI-Generated Reports",
+                "crm_lead_assignment": "CRM Lead Assignment",
+                "single_website_scraping": "Single Website Scraping",
+                "batch_website_scraping": "Batch Website Scraping"
+            };
+            var label = labels[key];
+            var icon = enabled ? "check" : "cross";
+            var item = document.createElement("li");
+            item.dataset.featureKey = key;
+            item.dataset.enabled = enabled ? "true" : "false";
+            appendIcon(item, icon);
+            appendText(item, " " + label);
+            return item;
+        }
+
+        var CUSTOMER_FEATURE_FLAGS = [
+            "ai_assisted_menu_generation",
+            "ai_generated_reports",
+            "crm_lead_assignment",
+            "single_website_scraping",
+            "batch_website_scraping"
+        ];
+
+        function buildModelItem(code, tier) {
+            var item = document.createElement("li");
+            item.dataset.featureKey = "model_access_tier";
+            item.dataset.enabled = "true";
+            appendIcon(item, "check");
+            if (code === "free") {
+                appendText(item, " AI Models: ");
+                appendLabel(item, "DeepSeek Only");
+            } else {
+                var safeTier = tier || "economy";
+                appendText(item, " " + safeTier.charAt(0).toUpperCase() + safeTier.slice(1) + " Model Tier");
+            }
+            return item;
+        }
+
+        function buildAiCreditItem(microMyr) {
+            var item = document.createElement("li");
+            item.dataset.featureKey = "included_ai_credit_micro_myr";
+            item.dataset.enabled = "true";
+            appendIcon(item, "check");
+            appendText(item, " AI Credit: ");
+            appendLabel(item, formatAiCredit(microMyr));
+            return item;
+        }
+
+        function buildButton(className, text, icon, onClick) {
+            var button = document.createElement("button");
+            button.className = className;
+            button.type = "button";
+            if (icon) {
+                var i = document.createElement("i");
+                i.setAttribute("data-lucide", icon);
+                i.setAttribute("size", "18");
+                button.appendChild(i);
+                appendText(button, " ");
+            }
+            appendText(button, text);
+            if (onClick) button.addEventListener("click", onClick);
+            return button;
+        }
+
+        function buildStaticAction(className, text, compact) {
+            var node = document.createElement("div");
+            node.className = className;
+            if (compact) node.style.fontSize = "0.8rem";
+            node.textContent = text;
+            return node;
+        }
+
+        function getBotQuery() { var p = new URLSearchParams(window.location.search); var bId = p.get("bot_id"); return bId ? "?bot_id=" + encodeURIComponent(bId) : ""; }
+
+        async function loadPricing() {
+            var loading = document.getElementById("pricing-loading");
+            var errorDiv = document.getElementById("pricing-error");
+            var contentDiv = document.getElementById("pricing-content");
+            var grid = document.getElementById("plans-grid");
+
+            try {
+                // Fetch plans and current subscription in parallel
+                var plansRes = await authenticatedFetch("/api/billing/plans");
+                var plansJson = await plansRes.json();
+                var plans = plansJson.status === "success" ? (plansJson.data || []) : [];
+
+                var subRes = await authenticatedFetch("/api/billing/subscription");
+                var subJson = await subRes.json();
+                var subscription = subJson.status === "success" ? subJson.data : null;
+                var currentPlanCode = subscription && subscription.plan ? (subscription.plan.code || "").toLowerCase() : null;
+
+                if (loading) loading.style.display = "none";
+                if (plans.length === 0) {
+                    if (errorDiv) { errorDiv.style.display = "block"; errorDiv.textContent = "No plans available."; }
+                    return;
+                }
+                if (contentDiv) contentDiv.style.display = "block";
+
+                // Sort plans: Free first, then Essential, Advanced, Pro
+                var order = { "free": 0, "essential": 1, "advanced": 2, "pro": 3 };
+                plans.sort(function(a, b) {
+                    var aCode = (a.code || "").toLowerCase();
+                    var bCode = (b.code || "").toLowerCase();
+                    var aRank = Object.prototype.hasOwnProperty.call(order, aCode) ? order[aCode] : 99;
+                    var bRank = Object.prototype.hasOwnProperty.call(order, bCode) ? order[bCode] : 99;
+                    return aRank - bRank;
+                });
+
+                grid.replaceChildren();
+                plans.forEach(function(plan) {
+                    var code = (plan.code || "").toLowerCase();
+                    var isCurrent = code === currentPlanCode;
+                    var name = plan.name || code.charAt(0).toUpperCase() + code.slice(1);
+                    var desc = plan.description || "";
+                    var features = plan.feature_flags || {};
+                    var tier = plan.model_access_tier || "economy";
+
+                    var card = document.createElement("div");
+                    card.className = "plan-card" + (isCurrent ? " current-plan" : "");
+                    if (isCurrent) {
+                        var badge = document.createElement("div");
+                        badge.className = "plan-badge";
+                        badge.textContent = "Current";
+                        card.appendChild(badge);
+                    }
+
+                    var nameNode = document.createElement("div");
+                    nameNode.className = "plan-name";
+                    nameNode.textContent = name;
+                    card.appendChild(nameNode);
+
+                    var priceNode = document.createElement("div");
+                    priceNode.className = "plan-price";
+                    appendPrice(priceNode, plan.price, plan.currency, plan.billing_interval);
+                    card.appendChild(priceNode);
+
+                    var descNode = document.createElement("div");
+                    descNode.className = "plan-desc";
+                    descNode.textContent = desc;
+                    card.appendChild(descNode);
+
+                    var featuresList = document.createElement("ul");
+                    featuresList.className = "plan-features";
+                    featuresList.appendChild(buildFeatureItem("Chatbot", "Chatbots", plan.chatbot_limit, false, "chatbot_limit"));
+                    featuresList.appendChild(buildFeatureItem("Team Member", "Team Members", plan.team_member_limit, false, "team_member_limit"));
+                    featuresList.appendChild(buildFeatureItem("Channel", "Channels", plan.channel_limit, false, "channel_limit"));
+                    featuresList.appendChild(buildFeatureItem("Knowledge File", "Knowledge Files", plan.knowledge_file_limit, false, "knowledge_file_limit"));
+                    featuresList.appendChild(buildFeatureItem("Storage", "Storage", plan.knowledge_storage_limit_bytes, true, "knowledge_storage_limit_bytes"));
+                    featuresList.appendChild(buildModelItem(code, tier));
+                    featuresList.appendChild(buildAiCreditItem(plan.included_ai_credit_micro_myr));
+
+                    CUSTOMER_FEATURE_FLAGS.forEach(function(key) {
+                        var enabled = typeof features === "object" && features !== null && features[key] === true;
+                        featuresList.appendChild(buildFlagItem(key, enabled));
+                    });
+                    card.appendChild(featuresList);
+
+                    var footer = document.createElement("div");
+                    footer.className = "plan-footer";
+                    var subStatus = subscription ? (subscription.status || "").toLowerCase() : "";
+                    var planRank = { "free": 0, "essential": 1, "advanced": 2, "pro": 3 };
+                    var currentRank = isCurrent ? (planRank[code] ?? -1) : -1;
+                    var prevCurrentCode = currentPlanCode || "";
+                    var prevCurrentRank = planRank[prevCurrentCode] ?? -1;
+                    var thisRank = planRank[code] ?? -1;
+                    var isFree = code === "free";
+                    var isTrialOrNoSub = (subStatus === "trialing" || subStatus === "" || subStatus === null || !subscription);
+
+                    var hasCancellationScheduled = subscription && subscription.cancellation_effective_at != null;
+                    var hasDowngradeScheduled = subscription && subscription.pending_plan != null;
+                    var isDowngradeTarget = hasDowngradeScheduled && subscription.pending_plan && subscription.pending_plan.code && subscription.pending_plan.code.toLowerCase() === code;
+                    if (isCurrent) {
+                        // Current plan card
+                        if (code === "free" && subStatus === "trialing") {
+                            footer.appendChild(buildStaticAction("btn-upgrade current", "Current Trial"));
+                        } else if (isDowngradeTarget) {
+                            footer.appendChild(buildStaticAction("btn-upgrade current", "Scheduled"));
+                        } else if (hasCancellationScheduled) {
+                            footer.appendChild(buildStaticAction("btn-upgrade current", "Cancelling at period end", true));
+                        } else {
+                            footer.appendChild(buildStaticAction("btn-upgrade current", "Current Plan"));
+                        }
+                    } else if (isFree) {
+                        // Free card - only relevant for non-free current users
+                        if (isTrialOrNoSub) {
+                            footer.appendChild(buildStaticAction("btn-upgrade coming-soon", "Free Plan"));
+                        } else {
+                            footer.appendChild(buildStaticAction("btn-upgrade coming-soon", "Trial plan for new accounts only", true));
+                        }
+                    } else if (subStatus === "past_due" || subStatus === "expired") {
+                        // Expired/past due paid user
+                        if (thisRank > prevCurrentRank) {
+                            footer.appendChild(buildButton("btn-upgrade primary-bg", "Renew & Upgrade", "zap", function() { handleUpgrade(code); }));
+                        } else if (thisRank < prevCurrentRank) {
+                            var changeButton = buildButton("btn-upgrade", "Change on Renewal", null, function() { handleDowngrade(code); });
+                            changeButton.style.cssText = "background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;";
+                            footer.appendChild(changeButton);
+                        } else {
+                            footer.appendChild(buildButton("btn-upgrade primary-bg", "Renew Plan", "zap", function() { handleUpgrade(code); }));
+                        }
+                    } else if (prevCurrentRank > 0 && thisRank < prevCurrentRank) {
+                        // Paid user looking at lower paid plan
+                        var downgradeButton = buildButton("btn-upgrade", "Downgrade", "arrow-down", function() { handleDowngrade(code); });
+                        downgradeButton.style.cssText = "background:rgba(255,255,255,0.06);color:var(--text-dim);border:1px solid var(--glass-border);border-radius:12px;padding:12px;cursor:pointer;width:100%;";
+                        footer.appendChild(downgradeButton);
+                    } else {
+                        // Upgrade (trial, free without trial, or paid user looking at higher plan)
+                        footer.appendChild(buildButton("btn-upgrade primary-bg", "Upgrade", "zap", function() { handleUpgrade(code); }));
+                    }
+                    card.appendChild(footer);
+                    grid.appendChild(card);
+                });
+                refreshIcons();
+            } catch (e) {
+                console.error("Failed to load pricing:", e);
+                if (loading) loading.style.display = "none";
+                if (errorDiv) errorDiv.style.display = "block";
+            }
+        }
+
+
+        function subConfirmModal(title, msg, confirmLabel, confirmColor, onConfirm) {
+            var overlay = document.createElement("div");
+            overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;";
+            var modal = document.createElement("div");
+            modal.style.cssText = "background:var(--card-bg);border:1px solid var(--glass-border);border-radius:16px;padding:28px;max-width:420px;width:90%;box-shadow:0 25px 50px rgba(0,0,0,0.5);";
+            var heading = document.createElement("h3");
+            heading.style.cssText = "font-size:1.1rem;font-weight:600;color:var(--text-main);margin:0 0 12px 0;";
+            heading.textContent = title;
+            var body = document.createElement("p");
+            body.style.cssText = "font-size:0.9rem;color:var(--text-dim);line-height:1.5;margin:0 0 20px 0;white-space:pre-line;";
+            body.textContent = msg;
+            var actions = document.createElement("div");
+            actions.style.cssText = "display:flex;gap:10px;justify-content:flex-end;";
+            var cancel = document.createElement("button");
+            cancel.id = "pricing-modal-cancel";
+            cancel.type = "button";
+            cancel.style.cssText = "padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer;border:none;background:rgba(255,255,255,0.08);color:var(--text-main);";
+            cancel.textContent = "Cancel";
+            var confirm = document.createElement("button");
+            confirm.id = "pricing-modal-confirm";
+            confirm.type = "button";
+            confirm.style.cssText = "padding:10px 20px;border-radius:10px;font-weight:600;font-size:0.85rem;cursor:pointer;border:none;background:" + (confirmColor || 'var(--danger,#ef4444)') + ";color:white;";
+            confirm.textContent = confirmLabel;
+            actions.append(cancel, confirm);
+            modal.append(heading, body, actions);
+            overlay.appendChild(modal);
+            document.body.appendChild(overlay);
+            document.getElementById("pricing-modal-confirm").addEventListener("click", function() {
+                document.body.removeChild(overlay); if (onConfirm) onConfirm();
+            });
+            document.getElementById("pricing-modal-cancel").addEventListener("click", function() { document.body.removeChild(overlay); });
+            overlay.addEventListener("click", function(e) { if (e.target === overlay) document.body.removeChild(overlay); });
+        }
+
+        var _downgradeRequesting = false;
+
+        async function handleDowngrade(planCode) {
+            if (_downgradeRequesting) return;
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/downgrade-check/" + encodeURIComponent(planCode));
+                var body = await res.json();
+                if (body.status === "success" && body.data) {
+                    var d = body.data;
+                    if (d.eligible) {
+                        var dateStr = new Date(d.effective_at).toLocaleDateString();
+                        var planDisplay = d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1);
+                        subConfirmModal("Schedule Downgrade to " + planDisplay,
+                            "Your current plan will remain active until " + dateStr + ". After that your plan changes, paid access expires, and you must renew. No resources deleted. No refund.",
+                            "Confirm Downgrade", "#2563eb", async function() {
+                                _downgradeRequesting = true;
+                                try {
+                                    var schedRes = await authenticatedFetch("/api/billing/subscription/downgrade", {
+                                        method: "POST",
+                                        headers: {"Content-Type": "application/json"},
+                                        body: JSON.stringify({target_plan_code: planCode})
+                                    });
+                                    var schedBody = await schedRes.json();
+                                    if (schedBody.status === "success") {
+                                        loadPricing();
+                                    } else {
+                                        alert(schedBody.message || "Failed to schedule downgrade.");
+                                    }
+                                } catch (e) {
+                                    console.error("Downgrade scheduling failed:", e);
+                                    alert("Network error. Please try again.");
+                                }
+                                _downgradeRequesting = false;
+                            }
+                        );
+                    } else {
+                        var msg = "Cannot downgrade to " + d.target_plan.charAt(0).toUpperCase() + d.target_plan.slice(1) + ".\n\nThe following resources exceed the target plan limits:\n";
+                        d.blocking_items.forEach(function(item) {
+                            msg += "- " + item.resource.replace(/_/g, " ") + ": " + item.used + " used, limit " + item.limit + " (excess: " + item.excess + ")\n";
+                        });
+                        msg += "\nNo data will be deleted automatically. Please reduce usage before downgrading.";
+                        subConfirmModal("Downgrade Blocked", msg, "OK", "var(--text-dim)", null);
+                    }
+                } else {
+                    alert("Downgrade check failed: " + (body.message || "Unknown error"));
+                }
+            } catch (e) {
+                console.error("Downgrade check failed:", e);
+                alert("Unable to check downgrade eligibility. Please try again.");
+            }
+        }
+        async function handleUpgrade(planCode) {
+            try {
+                var res = await authenticatedFetch("/api/billing/subscription/checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ plan_code: planCode })
+                });
+                var body = await res.json();
+                if (body.status === "success" && body.data && body.data.checkout_url) {
+                    var checkoutUrl = body.data.checkout_url;
+                    var orderRef = body.data.order_reference;
+                    if (typeof orderRef === "string" && orderRef.length > 0) {
+                        sessionStorage.setItem("pending_subscription_order_reference", orderRef);
+                    }
+                    if (checkoutUrl.indexOf("http://") === 0 || checkoutUrl.indexOf("https://") === 0) {
+                        window.location.assign(checkoutUrl);
+                    } else {
+                        showPricingError("Invalid checkout URL returned. Please try again.");
+                    }
+                } else {
+                    showPricingError(body.message || "Failed to create checkout. Please try again.");
+                }
+            } catch (e) {
+                console.error("Upgrade failed:", e);
+                showPricingError("An unexpected error occurred. Please try again.");
+            }
+        }
+
+        function showPricingError(msg) {
+            var errorDiv = document.getElementById("pricing-error");
+            if (errorDiv) {
+                errorDiv.textContent = msg;
+                errorDiv.style.display = "block";
+                setTimeout(function() { errorDiv.style.display = "none"; }, 8000);
+            }
+        }
+        loadPricing();
+    </script>
+</body>
+</html>

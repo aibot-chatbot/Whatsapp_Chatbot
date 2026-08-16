@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | AI CHATBOT</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.4);
+            --bg: #030816;
+            --card-bg: rgba(15, 23, 42, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Ambient Background Elements */
+        .blob {
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
+            filter: blur(80px);
+            z-index: -1;
+            animation: float 20s infinite alternate cubic-bezier(0.45, 0, 0.55, 1);
+        }
+
+        .blob-1 { top: -10%; left: -10%; }
+        .blob-2 { bottom: -10%; right: -10%; background: radial-gradient(circle, rgba(16, 185, 129, 0.2) 0%, transparent 70%); }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(100px, 50px) scale(1.1); }
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 440px;
+            padding: 40px;
+            background: var(--card-bg);
+            backdrop-filter: blur(30px);
+            border: 1px solid var(--glass-border);
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+            animation: fadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo-area {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .logo-icon {
+            width: 64px;
+            height: 64px;
+            background: linear-gradient(135deg, var(--primary), #10b981);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            box-shadow: 0 10px 30px var(--primary-glow);
+        }
+
+        .logo-text {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            background: linear-gradient(to bottom, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+            margin-left: 4px;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 14px 20px;
+            color: white;
+            font-size: 1rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+            background: rgba(15, 23, 42, 0.4);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+        }
+
+        .password-field {
+            position: relative;
+        }
+
+        .password-field input {
+            padding-right: 76px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-dim);
+            border-radius: 10px;
+            padding: 6px 10px;
+            font-family: inherit;
+            font-size: 0.78rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .password-toggle:hover {
+            color: white;
+            border-color: rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-login {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 16px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px var(--primary-glow);
+        }
+
+        .btn-login:active { transform: translateY(0); }
+
+        .login-error {
+            background: rgba(239,68,68,0.12);
+            border: 1px solid rgba(239,68,68,0.25);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 16px;
+            color: #f87171;
+            font-size: 0.85rem;
+            display: none;
+            text-align: center;
+        }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            position: absolute;
+            left: 50%;
+            margin-left: -10px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .btn-login.loading .btn-text { visibility: hidden; }
+        .btn-login.loading .loader { display: block; }
+
+        .footer-links {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .footer-links a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .footer-links a:hover { text-decoration: underline; }
+
+        .divider {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 24px 0;
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+        .divider::before, .divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--glass-border);
+        }
+
+        .btn-google {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            padding: 14px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.3s;
+            font-family: 'Outfit', sans-serif;
+        }
+        .btn-google:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: rgba(255,255,255,0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        }
+
+        /* Modal overlay */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-box {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 36px;
+            width: 100%;
+            max-width: 400px;
+            animation: fadeIn 0.3s ease;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+        }
+        .modal-box h3 {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .modal-box p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+        .btn-confirm {
+            width: 100%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Outfit', sans-serif;
+            position: relative;
+        }
+        .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 8px 20px var(--primary-glow); }
+        @media (max-width: 480px) {
+            body {
+                overflow: auto;
+            }
+            .login-container {
+                padding: 24px 20px;
+                border-radius: 24px;
+                max-width: calc(100% - 24px);
+                margin: 16px auto;
+            }
+            .logo-area {
+                margin-bottom: 24px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <div class="login-container">
+        <div class="logo-area">
+            <div class="logo-icon">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path><path d="M12 6v6l4 2"></path></svg>
+            </div>
+            <div class="logo-text">AI CHATBOT</div>
+            <p style="color: var(--text-dim); margin-top: 8px; font-size: 0.9rem;">Sign in to your weightless dashboard</p>
+        </div>
+
+        <form id="login-form">
+            <div class="input-group">
+                <label>Email Address</label>
+                <input type="email" placeholder="name@company.com" required autocomplete="off">
+            </div>
+
+            <div class="input-group">
+                <label>Password</label>
+                <div class="password-field">
+                    <input type="password" id="login-password" placeholder="••••••••" required autocomplete="new-password">
+                    <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('login-password', this)">Show</button>
+                </div>
+
+            </div>
+
+            <div class="login-error" id="login-error" role="alert" aria-live="polite"></div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 24px; font-size: 0.85rem; padding: 0 4px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    <input type="checkbox" style="width:16px; height:16px;"> Remember me
+                </label>
+                <a href="forgot.html" style="color: var(--text-dim); text-decoration:none;">Forgot?</a>
+            </div>
+
+            <button type="submit" class="btn-login" id="login-btn">
+                <span class="btn-text">Get Started</span>
+                <div class="loader"></div>
+            </button>
+        </form>
+
+        <div class="divider">or continue with</div>
+
+        <div style="display: flex; justify-content: center; width: 100%;">
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="rectangular"
+                 data-theme="outline"
+                 data-text="continue_with"
+                 data-size="large"
+                 data-width="400">
+            </div>
+        </div>
+
+        <div class="footer-links" style="margin-top: 20px;">
+            Don't have an account? <a href="register.html">Create one free</a>
+        </div>
+    </div>
+
+    <!-- Company Name Modal for new Google users -->
+    <div class="modal-overlay" id="company-modal">
+        <div class="modal-box">
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+                <div style="width:42px;height:42px;background:linear-gradient(135deg,var(--primary),#10b981);border-radius:12px;display:flex;align-items:center;justify-content:center;">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                </div>
+                <h3>One last step 🎉</h3>
+            </div>
+            <p>Welcome! Since you're new here, please enter your company name to set up your workspace.</p>
+            <div class="input-group" style="margin-bottom:20px;">
+                <label>Company Name</label>
+                <input type="text" id="modal-company-name" placeholder="Your Company Sdn Bhd" style="border-radius:14px;">
+            </div>
+            <button class="btn-confirm" id="btn-confirm-company" onclick="submitGoogleWithCompany()">
+                <span class="btn-confirm-text">Complete Sign Up</span>
+                <div class="loader" id="confirm-loader" style="position:absolute;left:50%;margin-left:-10px;"></div>
+            </button>
+            <button onclick="closeCompanyModal()" style="width:100%;background:none;border:none;color:var(--text-dim);padding:12px;cursor:pointer;font-family:inherit;margin-top:8px;">Cancel</button>
+        </div>
+    </div>
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        const loginForm = document.getElementById('login-form');
+        const loginBtn = document.getElementById('login-btn');
+
+        loginForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const email = loginForm.querySelector('input[type="email"]').value;
+            const password = document.getElementById('login-password').value;
+
+            loginBtn.classList.add('loading');
+
+            try {
+                const response = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password
+                    })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    if (result.status === "unverified") {
+                        sessionStorage.setItem("pending_verification_email", result.email || email);
+                        document.getElementById("login-error").textContent = result.message;
+                        document.getElementById("login-error").style.display = "block";
+                        window.location.href = "verify-email.html";
+                        return;
+                    }
+                    var errMsg = document.getElementById("login-error");
+                    errMsg.textContent = result.error || result.message || "Login failed";
+                    errMsg.style.display = "block";
+                    loginBtn.classList.remove('loading');
+                    return;
+                }
+
+                if (!establishAuthenticatedSession(result.user, result.token)) {
+                    var sessionError = document.getElementById("login-error");
+                    sessionError.textContent = "Login could not be completed. Please try again.";
+                    sessionError.style.display = "block";
+                    loginBtn.classList.remove('loading');
+                    return;
+                }
+
+                window.location.href = "bots.html";
+
+            } catch (error) {
+                console.error("Login error:", error);
+                var errMsg = document.getElementById("login-error");
+                errMsg.textContent = "Cannot connect to server. Please try again.";
+                errMsg.style.display = "block";
+                loginBtn.classList.remove('loading');
+            }
+        });
+
+
+        // Clear login error when user types
+        document.querySelector('#login-form input[type=email]').addEventListener('input', function() {
+            document.getElementById("login-error").style.display = "none";
+        });
+        document.getElementById("login-password").addEventListener("input", function() {
+            document.getElementById("login-error").style.display = "none";
+        });
+
+        // ---- Google OAuth Logic ----
+        let _pendingGoogleCredential = null;
+
+        function togglePasswordVisibility(inputId, button) {
+            const input = document.getElementById(inputId);
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            button.textContent = isHidden ? 'Hide' : 'Show';
+            button.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+        }
+
+        function handleGoogleLogin() {
+            if (typeof google === 'undefined' || !google.accounts) {
+                alert('Google Sign-In is not configured yet.\n\nPlease add your GOOGLE_CLIENT_ID to the .env file and set data-client_id on the Google script tag.');
+                return;
+            }
+            google.accounts.id.prompt();
+        }
+
+        function onGoogleCredentialResponse(response) {
+            sendGoogleCredential(response.credential, null);
+        }
+
+        async function sendGoogleCredential(credential, companyName) {
+            try {
+                const res = await fetch('/api/auth/google', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ credential, company_name: companyName || '' })
+                });
+                const result = await res.json();
+
+                if (result.status === 'needs_company') {
+                    // Keep the original Google credential in memory only while the modal is open.
+                    _pendingGoogleCredential = credential;
+                    document.getElementById('company-modal').classList.add('open');
+                    setTimeout(() => document.getElementById('modal-company-name').focus(), 100);
+                    return;
+                }
+
+                if (result.status === 'success') {
+                    if (!establishAuthenticatedSession(result.user, result.token)) {
+                        alert('Sign-in could not be completed. Please try again.');
+                        return;
+                    }
+                    window.location.href = 'bots.html';
+                } else {
+                    alert(result.message || 'Google sign-in failed. Please try again.');
+                }
+            } catch (err) {
+                console.error('Google auth error:', err);
+                alert('Cannot connect to server. Please try again.');
+            }
+        }
+
+        async function submitGoogleWithCompany() {
+            const companyName = document.getElementById('modal-company-name').value.trim();
+            if (!companyName) {
+                document.getElementById('modal-company-name').focus();
+                return;
+            }
+            const btn = document.getElementById('btn-confirm-company');
+            btn.querySelector('.btn-confirm-text').style.visibility = 'hidden';
+            btn.querySelector('#confirm-loader').style.display = 'block';
+            btn.disabled = true;
+
+            await sendGoogleCredential(_pendingGoogleCredential, companyName);
+
+            btn.querySelector('.btn-confirm-text').style.visibility = '';
+            btn.querySelector('#confirm-loader').style.display = 'none';
+            btn.disabled = false;
+        }
+
+        function closeCompanyModal() {
+            document.getElementById('company-modal').classList.remove('open');
+            _pendingGoogleCredential = null;
+        }
+
+        // Allow Enter key in company modal
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('modal-company-name').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submitGoogleWithCompany();
+            });
+        });
+
+        // Check for deactivation message from previous session
+        (function() {
+            var msg = sessionStorage.getItem("deactivated_message");
+            if (msg) {
+                sessionStorage.removeItem("deactivated_message");
+                var errEl = document.getElementById("login-error");
+                if (errEl) {
+                    errEl.textContent = msg;
+                    errEl.style.display = "block";
+                }
+            }
+        })();
+    </script>
+
+    <!-- Google Identity Services - replace YOUR_CLIENT_ID with your actual Client ID from .env -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <div id="g_id_onload"
+         data-client_id="255732339270-qo1r1j1il5kkifb5igh8n1dvbl3cl49n.apps.googleusercontent.com"
+         data-callback="onGoogleCredentialResponse"
+         data-auto_prompt="false">
+    </div>
+</body>
+</html>

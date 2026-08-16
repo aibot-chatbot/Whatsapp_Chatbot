@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Platform Administration | Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/platform-admin.css">
+    <script defer src="assets/js/auth.js"></script>
+    <script defer src="assets/js/platform-admin-api.js"></script>
+    <script defer src="assets/js/platform-admin-shell.js"></script>
+    <script defer src="assets/js/platform-admin-dashboard.js"></script>
+</head>
+<body class="platform-body">
+    <a class="platform-skip-link" href="#platform-main">Skip to main content</a>
+    <section id="platform-access-state" class="platform-access-state" aria-live="polite" aria-busy="true">
+        <div class="platform-state-card">
+            <div class="platform-spinner" aria-hidden="true"></div>
+            <h1>Checking access</h1>
+            <p>Confirming your current platform authorization.</p>
+        </div>
+    </section>
+    <div id="platform-app" hidden>
+        <div class="platform-layout">
+            <platform-admin-shell active-page="dashboard"></platform-admin-shell>
+            <main id="platform-main" class="platform-main" tabindex="-1">
+                <div id="platform-page-content" data-platform-sensitive></div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>
