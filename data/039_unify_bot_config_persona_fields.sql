@@ -1,4 +1,4 @@
--- 031_unify_bot_config_persona_fields.sql
+-- 039_unify_bot_config_persona_fields.sql
 -- Unify the three persona values in public.bot_configs that were stored under
 -- two column names each, onto one canonical column per value:
 --
@@ -201,6 +201,6 @@ COMMIT;
 -- rollback then refills the column from the canonical value. Preflight
 -- section 11 is the only copy that will survive.
 --
--- Rollback: data/031_unify_bot_config_persona_fields_rollback.sql
+-- Rollback: data/039_unify_bot_config_persona_fields_rollback.sql
 -- Preflight: scripts/bot_configs_persona_unification_preflight.sql
 -- ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
--- 034_gate_new_capability_feature_flags_rollback.sql
--- Reverses 034_gate_new_capability_feature_flags.sql by removing the three
+-- 042_gate_new_capability_feature_flags_rollback.sql
+-- Reverses 042_gate_new_capability_feature_flags.sql by removing the three
 -- keys it added, restoring the pre-migration state where the keys were absent.
 --
 -- !! STOP.  THIS IS NOT A "DISABLE THE FEATURE" SCRIPT.  IT GIVES THE THREE

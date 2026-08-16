@@ -500,6 +500,18 @@ class TestBotArchiveRoutes(unittest.TestCase):
     @patch("app.routes.bot_routes.list_archived_bots")
     def test_archived_bots_endpoint_hides_raw_backend_error(self, mock_list):
         mock_list.side_effect = Exception("permission denied for table chatbots")
+
+        with self._patch_auth(), self._patch_user():
+            response = self.client.get(
+                "/api/bots/archived",
+                headers={"Authorization": "Bearer token"},
+            )
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(payload["message"], "Unable to load archived bots. Please try again or contact support.")
+        self.assertNotIn("chatbots", payload["message"])
+
     def test_archived_bots_route_registered_once_as_get_endpoint(self):
         rules = [
             rule for rule in self.app.url_map.iter_rules()
@@ -527,9 +539,6 @@ class TestBotArchiveRoutes(unittest.TestCase):
             )
 
         payload = response.get_json()
-        self.assertEqual(response.status_code, 500)
-        self.assertEqual(payload["message"], "Unable to load archived bots. Please try again or contact support.")
-        self.assertNotIn("chatbots", payload["message"])
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["status"], "success")
         self.assertEqual(payload["data"], [])

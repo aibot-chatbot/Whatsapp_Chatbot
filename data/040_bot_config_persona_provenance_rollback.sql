@@ -1,5 +1,5 @@
--- 032_bot_config_persona_provenance_rollback.sql
--- Undo data/032_bot_config_persona_provenance.sql.
+-- 040_bot_config_persona_provenance_rollback.sql
+-- Undo data/040_bot_config_persona_provenance.sql.
 --
 -- WHAT THIS CANNOT RESTORE. Everything. The provenance record is information
 -- that exists nowhere else: it is created at write time by observing WHO wrote
@@ -48,5 +48,5 @@ COMMIT;
 --   WHERE table_schema = 'public' AND table_name = 'bot_configs'
 --     AND column_name = 'persona_provenance';
 --
--- Forward migration: data/032_bot_config_persona_provenance.sql
+-- Forward migration: data/040_bot_config_persona_provenance.sql
 -- ---------------------------------------------------------------------------

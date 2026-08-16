@@ -25,9 +25,9 @@ The application uses privileged server-side credentials. Database access must re
 - `profiles`
 
 `bot_configs` stores three persona values that were historically duplicated
-across two column names each. Migration `031` makes `business_description`,
+across two column names each. Migration `039` makes `business_description`,
 `tone`, and `custom_prompt` canonical and deprecates `business_objective`,
-`response_style`, and `prompt_text`. Migration `032` adds a
+`response_style`, and `prompt_text`. Migration `040` adds a
 `persona_provenance` jsonb column recording whether each persona value was typed
 by the client or derived from an ingested document. Neither migration has been
 applied to any environment; see
@@ -46,7 +46,7 @@ applied to any environment; see
 - `chat_history`
 - `crm_leads`
 - `agent_actions`
-- `conversation_graph_nodes` (migration `033`, unapplied)
+- `conversation_graph_nodes` (migration `041`, unapplied)
 
 `conversation_graph_nodes` holds conversation-scoped facts learned mid-chat. It
 is deliberately separate from the document knowledge-graph tables, which are
@@ -267,8 +267,8 @@ case, the migration carries a mandatory SELECT-only preflight script under
 `scripts/` whose output must be attached to the change record before the
 migration is applied. Current examples:
 
-- `scripts/bot_configs_persona_unification_preflight.sql` (migration `031`)
-- `scripts/conversation_graph_nodes_preflight.sql` (migration `033`)
+- `scripts/bot_configs_persona_unification_preflight.sql` (migration `039`)
+- `scripts/conversation_graph_nodes_preflight.sql` (migration `041`)
 
 Preflight output can contain tenant business text. Route it to the restricted
 archive used for migration 028 manifests, not into a ticket or chat transcript.

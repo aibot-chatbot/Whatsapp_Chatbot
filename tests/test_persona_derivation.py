@@ -28,8 +28,8 @@ from app.services.billing_guard import BillingLimitError
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 VIEWS_PY = ROOT / "app" / "views.py"
-MIGRATION = DATA_DIR / "032_bot_config_persona_provenance.sql"
-ROLLBACK = DATA_DIR / "032_bot_config_persona_provenance_rollback.sql"
+MIGRATION = DATA_DIR / "040_bot_config_persona_provenance.sql"
+ROLLBACK = DATA_DIR / "040_bot_config_persona_provenance_rollback.sql"
 
 DERIVED_FIELDS = ("company_name", "business_description", "tone")
 
@@ -1184,7 +1184,7 @@ class ProvenanceMigrationTests(unittest.TestCase):
             self.assertNotIn(f"drop column if exists {canonical}", code)
 
     def test_no_migration_number_collision(self):
-        siblings = sorted(p.name for p in DATA_DIR.glob("032_*.sql"))
+        siblings = sorted(p.name for p in DATA_DIR.glob("040_*.sql"))
 
         self.assertEqual(siblings, sorted([MIGRATION.name, ROLLBACK.name]))
 

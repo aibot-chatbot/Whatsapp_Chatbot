@@ -1,4 +1,4 @@
--- 032_bot_config_persona_provenance.sql
+-- 040_bot_config_persona_provenance.sql
 -- Record WHERE each persona value in public.bot_configs came from, so a later
 -- document ingest can refresh a value the system derived without ever
 -- overwriting one the client typed.
@@ -13,7 +13,7 @@
 --     (key absent)      unknown -> adjudicated by value, see BACKFILL below
 --
 -- SHAPE CAVEAT -- same situation as 030_bot_media_attachments.sql:5-8 and
--- 031_unify_bot_config_persona_fields.sql:17-27: there is NO CREATE TABLE for
+-- 039_unify_bot_config_persona_fields.sql:17-27: there is NO CREATE TABLE for
 -- public.bot_configs anywhere in this repository, so its column list,
 -- nullability and constraints are unknown here. Unlike 031 that does not block
 -- this file, because everything below is purely ADDITIVE: adding one column
@@ -139,5 +139,5 @@ COMMIT;
 --   SELECT DISTINCT jsonb_each_text.value
 --   FROM public.bot_configs, jsonb_each_text(persona_provenance);
 --
--- Rollback: data/032_bot_config_persona_provenance_rollback.sql
+-- Rollback: data/040_bot_config_persona_provenance_rollback.sql
 -- ---------------------------------------------------------------------------

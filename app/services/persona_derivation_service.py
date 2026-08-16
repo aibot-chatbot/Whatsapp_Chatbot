@@ -92,7 +92,7 @@ ERROR_ENTITLEMENT_UNVERIFIED: Final[str] = "persona_entitlement_unverified"
 
 # ── Plan gate ─────────────────────────────────────────────────────────────
 #: Derivation costs one LLM call per upload, so it is a paid capability
-#: (data/034_gate_new_capability_feature_flags.sql; Free is denied).
+#: (data/042_gate_new_capability_feature_flags.sql; Free is denied).
 PERSONA_PLAN_FEATURE: Final[str] = "ai_derived_persona"
 
 # ── Bounds ────────────────────────────────────────────────────────────────

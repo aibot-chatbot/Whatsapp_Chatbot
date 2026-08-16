@@ -1295,7 +1295,8 @@ function formatBytes(bytes) {
                                 <div>
                                     <h2>Delete Node?</h2>
                                     <p>
-                                        {deleteNodeTarget ? deleteNodeTarget.label : ""} and every relationship attached to it will be removed from the graph.
+                                        {deleteNodeTarget ? `"${deleteNodeTarget.label}" will be removed from the graph. ` : ""}
+                                        Deleting this node will also remove its connected relationships.
                                     </p>
                                 </div>
                             </div>
@@ -1315,8 +1316,9 @@ function formatBytes(bytes) {
                                     <h2>Delete Relationship?</h2>
                                     <p>
                                         {deleteRelationTarget
-                                            ? `${deleteRelationTarget.sourceLabel} ${deleteRelationTarget.displayRel} ${deleteRelationTarget.targetLabel} will no longer be linked.`
+                                            ? `${deleteRelationTarget.sourceLabel} ${deleteRelationTarget.displayRel} ${deleteRelationTarget.targetLabel} will no longer be linked. `
                                             : ""}
+                                        This relationship will be permanently removed.
                                     </p>
                                 </div>
                             </div>
@@ -3484,7 +3486,7 @@ function formatBytes(bytes) {
                                         )}
                                         {isUploading && (
                                             <p className="kw-help" style={{ marginTop: "12px" }}>
-                                                Uploading and training. This can take a few minutes; keep this page open.
+                                                Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh.
                                             </p>
                                         )}
                                     </div>

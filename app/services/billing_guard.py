@@ -389,7 +389,7 @@ def can_accept_team_invitation(company_id: int) -> bool:
 #
 # Registering a key here gates NOTHING on its own: can_use_plan_feature
 # returns True when feature_flags is NULL/not-a-dict (:435-436) or lacks
-# the key (:439-440). data/034_gate_new_capability_feature_flags.sql is the
+# the key (:439-440). data/042_gate_new_capability_feature_flags.sql is the
 # real gate: every key below must be set explicitly on every plan code there.
 PLAN_FEATURES = frozenset({
     "batch_website_scraping",

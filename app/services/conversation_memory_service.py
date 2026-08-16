@@ -65,7 +65,7 @@ from app.services.billing_guard import (
 )
 
 #: Plan feature gating both halves of this module
-#: (data/034_gate_new_capability_feature_flags.sql; Free is denied).  Memory
+#: (data/042_gate_new_capability_feature_flags.sql; Free is denied).  Memory
 #: adds no LLM call, so it is priced as an Essential-and-up convenience rather
 #: than as a cost recovery.
 CONVERSATION_MEMORY_FEATURE = "conversation_memory"

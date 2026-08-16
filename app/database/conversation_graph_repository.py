@@ -13,14 +13,14 @@ payload column, not a predicate. An upsert carrying a ``conversation_id`` owned 
 another tenant therefore does not select zero rows -- it takes the ``DO UPDATE``
 branch and rewrites that row's ``chatbot_id`` and value. Nothing in the schema
 prevents it either: see the "TENANCY IS NOT ENFORCED BY THIS SCHEMA" section of
-``data/033_conversation_graph_nodes.sql`` for the composite foreign key that
+``data/041_conversation_graph_nodes.sql`` for the composite foreign key that
 would. It is not reachable from untrusted input today because the only producer
 derives ``conversation_id`` from ``get_or_create_conversation(chatbot_id=...)``;
 do not add a caller that accepts a conversation id from a request before that
 constraint exists.
 
 Lifetime is the conversation's lifetime: both foreign keys are
-``ON DELETE CASCADE`` (see ``data/033_conversation_graph_nodes.sql``), so
+``ON DELETE CASCADE`` (see ``data/041_conversation_graph_nodes.sql``), so
 deleting a conversation or a chatbot removes its facts with it. There is no
 independent expiry -- a fact is as durable as the conversation that produced it.
 

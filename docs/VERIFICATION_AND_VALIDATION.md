@@ -244,7 +244,7 @@ Nothing below changes runtime behaviour. Each line is one command and one file.
    only, so the hook stays fast enough to survive.
 5. Add a CI workflow running the suite, the linters and pip-audit. Start it advisory, not
    blocking, until the 60 pre-existing failures are resolved.
-6. Write the missing preflights for migrations 032 and 034 following the two that exist.
+6. Write the missing preflights for migrations 040 and 042 following the two that exist.
 7. Fix `HIGHEST_MIGRATION_NUMBER` in
    `tests/test_crm_agent_actions_hardening_migration.py` and
    `tests/test_crm_agent_actions_orphan_cleanup_migration.py`.

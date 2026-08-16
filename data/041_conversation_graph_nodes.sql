@@ -1,4 +1,4 @@
--- 033_conversation_graph_nodes.sql
+-- 041_conversation_graph_nodes.sql
 -- Conversation-scoped graph memory: facts the bot learns mid-chat (the
 -- customer's name, a contact detail, a stated interest) persisted as nodes that
 -- a later turn in the SAME conversation can recall by keyword.
