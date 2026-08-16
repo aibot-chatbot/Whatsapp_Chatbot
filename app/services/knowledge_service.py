@@ -433,6 +433,31 @@ def fetch_and_parse_url(url):
     return text_content
 
 
+def scrape_pages(urls) -> tuple[list[dict], list[dict]]:
+    """Fetch and parse each URL, tolerating per-page failures.
+
+    Shared by the /api/knowledge/scrape-extract route and the unified
+    ingestion service so the fetch-and-collect loop exists in one place.
+
+    Returns:
+        (pages, failures) where pages is a list of
+        ``{"url": str, "content": str}`` for every page that parsed, and
+        failures is a list of ``{"url": str, "error": str}`` for the pages
+        that did not. A page that fails never aborts the pages around it.
+    """
+    pages: list[dict] = []
+    failures: list[dict] = []
+
+    for url in urls:
+        try:
+            pages.append({"url": url, "content": fetch_and_parse_url(url)})
+        except Exception as e:
+            logging.error(f"Failed to scrape URL {url}: {e}")
+            failures.append({"url": url, "error": str(e)})
+
+    return pages, failures
+
+
 def scrape_website_url(url, chatbot_id, company_id=None):
     text_content = fetch_and_parse_url(url)
 

@@ -497,6 +497,21 @@ class TestBotArchiveRoutes(unittest.TestCase):
         self.assertEqual(payload["data"][0]["status"], "archived")
         mock_list.assert_called_once_with(42)
 
+    @patch("app.routes.bot_routes.list_archived_bots")
+    def test_archived_bots_endpoint_hides_raw_backend_error(self, mock_list):
+        mock_list.side_effect = Exception("permission denied for table chatbots")
+
+        with self._patch_auth(), self._patch_user():
+            response = self.client.get(
+                "/api/bots/archived",
+                headers={"Authorization": "Bearer token"},
+            )
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(payload["message"], "Unable to load archived bots. Please try again or contact support.")
+        self.assertNotIn("chatbots", payload["message"])
+
     def test_archived_bots_route_registered_once_as_get_endpoint(self):
         rules = [
             rule for rule in self.app.url_map.iter_rules()
@@ -595,6 +610,21 @@ class TestBotArchiveRoutes(unittest.TestCase):
         self.assertEqual(payload["status"], "error")
         self.assertEqual(payload["code"], "chatbot_limit")
         mock_restore.assert_called_once_with(7, 42)
+
+    @patch("app.routes.bot_routes.restore_archived_bot")
+    def test_restore_endpoint_hides_raw_backend_error(self, mock_restore):
+        mock_restore.side_effect = Exception("permission denied for function restore_bot")
+
+        with self._patch_auth(), self._patch_user():
+            response = self.client.post(
+                "/api/bots/7/restore",
+                headers={"Authorization": "Bearer token"},
+            )
+
+        payload = response.get_json()
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(payload["message"], "Unable to restore bot. Please try again or contact support.")
+        self.assertNotIn("restore_bot", payload["message"])
 
     @patch("app.routes.bot_routes.permanently_delete_archived_bot")
     def test_permanent_delete_endpoint_requires_exact_confirmation(self, mock_delete):

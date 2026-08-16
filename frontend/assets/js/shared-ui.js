@@ -262,6 +262,14 @@ function formatTimeSimple(dateStr) {
                 .logout{color:#f87171;}
                 .logout:hover,.logout:focus-visible{background:rgba(239,68,68,.12);color:#fecaca;}
                 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+                :host([variant="control-room"]){font-family:'Geist',system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#f2f3f4;}
+                :host([variant="control-room"]) .account-button{min-height:40px;border-color:#2b2f34;border-radius:8px;background:#16181b;padding:5px 9px 5px 6px;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;}
+                :host([variant="control-room"]) .account-button:hover,:host([variant="control-room"]) .account-button:focus-visible{border-color:#3e9c89;background:#1e2125;box-shadow:0 0 0 2px rgba(62,156,137,.18);}
+                :host([variant="control-room"]) .avatar{border-radius:7px;background:rgba(62,156,137,.13);border-color:rgba(62,156,137,.28);color:#4ab09b;}
+                :host([variant="control-room"]) .menu{top:calc(100% + 8px);background:#16181b;border-color:#2b2f34;border-radius:10px;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;}
+                :host([variant="control-room"]) .item{border-radius:7px;color:#8a9096;}
+                :host([variant="control-room"]) .item:hover,:host([variant="control-room"]) .item:focus-visible{background:#1e2125;color:#f2f3f4;}
+                :host([variant="control-room"]) .platform-item{color:#4ab09b;}
                 @media (max-width:640px){.label{display:none}.account-button{padding:6px}.menu{right:0;min-width:min(246px,calc(100vw - 24px));}.email,.name{max-width:190px;}}
             `;
 

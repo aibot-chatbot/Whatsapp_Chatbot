@@ -15,6 +15,11 @@ from app.services.knowledge_service import (
     scrape_website_urls_batch,
     extract_business_knowledge,
     save_refined_knowledge_chunks,
+    scrape_pages,
+)
+from app.services.knowledge_ingestion_service import (
+    ingest_website_sources,
+    summarize_report,
 )
 
 knowledge_blueprint = Blueprint("knowledge", __name__)
@@ -235,7 +240,10 @@ def scrape_website_knowledge():
         can_use_plan_feature(g.company_id, "single_website_scraping")
         # Check subscription limit before knowledge file creation
         can_upload_knowledge_file(g.company_id)
-        result = scrape_website_url(data["url"], chatbot_id)
+        # company_id is required for the storage quota check inside
+        # scrape_website_url (knowledge_service.py:443-444); omitting it
+        # silently skips the check.
+        result = scrape_website_url(data["url"], chatbot_id, company_id=g.company_id)
         return jsonify({
             "status": "success",
             "data": result
@@ -352,7 +360,6 @@ def scrape_batch_website():
 @role_required("admin", "owner")
 def scrape_extract_website():
     try:
-        from app.services.knowledge_service import fetch_and_parse_url
         data = request.get_json()
         if not data or "urls" not in data or not isinstance(data["urls"], list):
             return jsonify({
@@ -382,26 +389,17 @@ def scrape_extract_website():
                 "message": "At least one URL must be selected."
             }), 400
 
-        combined_content_list = []
-        failed_urls = []
         primary_url = urls[0]
+        pages, failures = scrape_pages(urls)
+        failed_urls = [failure["url"] for failure in failures]
 
-        for url in urls:
-            try:
-                content = fetch_and_parse_url(url)
-                combined_content_list.append(content)
-            except Exception as e:
-                import logging
-                logging.error(f"Failed to scrape URL {url} for extraction: {e}")
-                failed_urls.append(url)
-
-        if not combined_content_list:
+        if not pages:
             return jsonify({
                 "status": "error",
                 "message": f"Failed to scrape any of the selected URLs. Errors: {failed_urls}"
             }), 400
 
-        combined_text = "\n\n".join(combined_content_list)
+        combined_text = "\n\n".join(page["content"] for page in pages)
 
         # Call the LLM refiner
         refined_text = extract_business_knowledge(combined_text, chatbot_id=chatbot_id)
@@ -462,7 +460,11 @@ def scrape_embed_website():
             text_content=text_content,
             file_name=file_name,
             primary_url=primary_url,
-            chatbot_id=chatbot_id
+            chatbot_id=chatbot_id,
+            # company_id is required for the storage quota check inside
+            # save_refined_knowledge_chunks (knowledge_service.py:673-674);
+            # omitting it silently skips the check.
+            company_id=g.company_id
         )
 
         return jsonify({
@@ -487,6 +489,99 @@ def scrape_embed_website():
             "message": str(e)
         }), 500
 
+
+@knowledge_blueprint.route("/api/knowledge/ingest", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+def ingest_knowledge_sources():
+    """Run the whole website ingestion pipeline in a single call.
+
+    Composes the four stages that /api/knowledge/scrape-analyze,
+    -scrape-batch, -scrape-extract and -scrape-embed expose individually.
+    Those endpoints are unchanged and still work; this is a composition over
+    them, not a replacement.
+
+    Body:
+        {"sources": [ "https://example.com"
+                    | {"url": str, "urls": [str], "discover_links": bool,
+                       "max_pages": int, "file_name": str} , ... ]}
+
+    Returns 200 when at least one source was ingested — including the partial
+    case, where already-ingested sources are kept and the failures are named
+    per source in data.sources[].error_code / .error_message. Returns 400 only
+    when every source failed, mirroring scrape-extract's existing behaviour.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        if not isinstance(data, dict):
+            return jsonify({
+                "status": "error",
+                "message": "Request body must be a JSON object"
+            }), 400
+
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        # Plan gate for this endpoint's own capability (data/034). Checked
+        # first so a plan without single-call ingestion is told exactly that.
+        can_use_plan_feature(g.company_id, "unified_knowledge_ingestion")
+        # Same gates, in the same order, as the staged chain this composes:
+        # the plan feature the chain actually enforces (scrape-extract), then
+        # the file quota, checked before the billed LLM extraction below.
+        # Kept as well as the gate above: this endpoint scrapes many pages per
+        # source, so dropping it would hand batch scraping to a plan that pays
+        # for single-page scraping only.
+        can_use_plan_feature(g.company_id, "batch_website_scraping")
+        can_upload_knowledge_file(g.company_id)
+
+        report = ingest_website_sources(
+            sources=data.get("sources"),
+            chatbot_id=chatbot_id,
+            company_id=g.company_id,
+        )
+        message = summarize_report(report)
+
+        if report["status"] == "failed":
+            return jsonify({
+                "status": "error",
+                "message": message,
+                "data": report
+            }), 400
+
+        return jsonify({
+            "status": "success",
+            "message": message,
+            "data": report
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+            "details": e.details or {}
+        }), 403
+    except Exception as e:
+        logging.error(f"[Ingest] Unified ingestion failed: {e}")
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
 
 
 @knowledge_blueprint.route("/api/knowledge/graph", methods=["GET"])
