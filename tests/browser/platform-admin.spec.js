@@ -212,7 +212,8 @@ const operationsOverview = {
   companies: {
     total: 2,
     active: 1,
-    inactive: 1
+    inactive: 1,
+    active_users: 7
   },
   subscriptions: {
     by_status: {
@@ -226,6 +227,126 @@ const operationsOverview = {
       { code: "free", name: "Free", count: 1 },
       { code: "pro", name: "Pro <img src=x onerror=window.__planXss=true>", count: 1 }
     ]
+  },
+  support: {
+    cases_by_status: {
+      open: 3,
+      in_progress: 2,
+      waiting_for_tenant: 1,
+      resolved: 4,
+      closed: 8
+    },
+    cases_by_priority: {
+      low: 2,
+      normal: 5,
+      high: 2,
+      urgent: 1
+    },
+    open_case_count: 6,
+    tenant_requests_by_status: {
+      new: 2,
+      reviewed: 1,
+      converted: 3,
+      closed: 4
+    },
+    unresolved_tenant_request_count: 3
+  },
+  messaging: {
+    messages_by_delivery_status: {
+      received: 12,
+      sent: 18,
+      pending: 4,
+      sending: 2,
+      failed: 3,
+      retrying: 5,
+      permanent_failed: 1
+    },
+    retry_backlog_count: 5,
+    channel_health: {
+      telegram: {
+        total: 4,
+        active: 3,
+        inactive: 1,
+        attention_required: 1,
+        by_connection_status: { connected: 3, disconnected: 1, pending: 0, error: 0 }
+      },
+      wasender: {
+        total: 2,
+        active: 1,
+        inactive: 1,
+        attention_required: 1,
+        by_connection_status: { connected: 1, disconnected: 0, pending: 0, error: 1 }
+      },
+      meta_whatsapp: {
+        total: 3,
+        active: 2,
+        inactive: 1,
+        attention_required: 1,
+        by_connection_status: { connected: 2, disconnected: 0, pending: 1, error: 0 }
+      }
+    },
+    broadcast_campaigns_by_status: {
+      draft: 1,
+      scheduled: 2,
+      running: 1,
+      completed: 5,
+      failed: 1,
+      cancelled: 0
+    },
+    broadcast_recipients_by_status: {
+      pending: 6,
+      sent: 11,
+      delivered: 14,
+      read: 9,
+      failed: 2,
+      skipped: 1
+    }
+  },
+  billing_attention: {
+    orders_by_status: {
+      pending: 4,
+      created: 2,
+      paid: 7,
+      credited: 6,
+      failed: 3,
+      expired: 1,
+      cancelled: 1
+    },
+    pending_order_count: 4,
+    failed_order_count: 3,
+    reconciliation_required_count: 2,
+    activation_statuses: { pending: 2, activated: 6, failed: 1 },
+    activation_status_unset_count: 1
+  },
+  ai_usage: {
+    window: { days: 7, since: "2026-07-22T00:00:00+00:00" },
+    requests_by_status: { completed: 25, failed: 3 },
+    recent_request_count: 28,
+    recent_total_tokens: 42000,
+    credit_transactions_by_type: {
+      included_credit_grant: 2,
+      trial_credit_grant: 1,
+      usage_debit: 20,
+      topup_purchase: 4,
+      refund: 1,
+      manual_adjustment: 1,
+      expiry: 1,
+      reversal: 0
+    },
+    depleted_balance_company_count: 2
+  },
+  platform_admin_activity: {
+    window: { days: 7, since: "2026-07-22T00:00:00+00:00" },
+    recent_event_count: 9,
+    events_by_action: {
+      platform_support_case_reply_created: 3,
+      platform_support_case_assigned: 2,
+      platform_company_viewed: 4
+    },
+    events_by_resource_type: {
+      platform_support_case: 5,
+      company: 4
+    }
   },
   attention_companies: [
     {
@@ -833,22 +954,47 @@ test.describe("platform-admin dashboard and directory", () => {
     await openPlatformPage(page, "/platform-admin.html", ({ url }) => defaultHandler({ url }));
     await expect(metricCard(page, "Total companies")).toContainText("2");
     await expect(metricCard(page, "Active companies")).toContainText("1");
-    await expect(metricCard(page, "Inactive companies")).toContainText("1");
-    await expect(metricCard(page, "Trialing")).toContainText("1");
-    await expect(metricCard(page, "Past due")).toContainText("1");
-    await expect(page.getByRole("heading", { name: "Subscription status" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Plan distribution" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Operational alerts" })).toBeVisible();
+    await expect(metricCard(page, "Active users")).toContainText("7");
+    await expect(metricCard(page, "Open support cases")).toContainText("6");
+    await expect(page.getByRole("heading", { name: "Needs Attention" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Support Operations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Messaging Health" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI Usage" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Billing Health" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Subscription status" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Plan distribution" })).toHaveCount(0);
     await expect(metricCard(page, "Total alerts")).toContainText("2");
     await expect(metricCard(page, "Critical alerts")).toContainText("1");
     await expect(metricCard(page, "Warning alerts")).toContainText("1");
     await expect(metricCard(page, "Info alerts")).toContainText("0");
-    await expect(page.getByRole("cell", { name: "Subscription is past due" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Subscription is expired" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Pro <img src=x onerror=window.__alertPlanXss=true>" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Expired Tenant <svg onload=window.__expiredAlertXss=true>" })).toHaveAttribute("href", "platform-admin-company.html?company_id=43");
+    await expect(page.getByText("Subscription is past due")).toBeVisible();
+    await expect(page.getByText("Subscription is expired")).toBeVisible();
+    await expect(page.getByRole("link", { name: "View Company" }).nth(1)).toHaveAttribute("href", "platform-admin-company.html?company_id=43");
+    await expect(metricCard(page, "Open cases")).toContainText("6");
+    await expect(metricCard(page, "Urgent cases")).toContainText("1");
+    await expect(page.locator(".platform-chart", { hasText: "Case status" })).toContainText("Open");
+    await expect(page.locator(".platform-chart", { hasText: "Case status" })).toContainText("3");
+    await expect(page.locator(".platform-chart", { hasText: "Priority distribution" })).toHaveCount(0);
+    await expect(page.locator(".platform-chart", { hasText: "Delivery health" })).toContainText("Successful or received");
+    await expect(page.locator(".platform-chart", { hasText: "Delivery health" })).toContainText("30");
+    await expect(metricCard(page, "Retry backlog")).toContainText("5");
+    await expect(metricCard(page, "Channel attention")).toContainText("3");
+    await expect(page.locator(".platform-channel-card", { hasText: "Telegram" })).toContainText("3 Connected");
+    await expect(page.locator(".platform-channel-card", { hasText: "Wasender" })).toContainText("1 Error");
+    await expect(metricCard(page, "Recent AI requests")).toContainText("28");
+    await expect(metricCard(page, "Recent tokens")).toContainText("42,000");
+    const aiRequestStatus = page.locator(".platform-chart", {
+      has: page.getByRole("heading", { name: "Request status", exact: true })
+    });
+    await expect(aiRequestStatus).toContainText("completed");
+    await expect(aiRequestStatus).toContainText("25");
+    await expect(page.locator(".platform-chart", { hasText: "Credit activity" })).toHaveCount(0);
+    await expect(metricCard(page, "Failed orders")).toContainText("3");
+    await expect(metricCard(page, "Reconciliation required")).toContainText("2");
+    await expect(page.locator(".platform-chart", { hasText: "Order status" })).toHaveCount(0);
+    await expect(metricCard(page, "Recent audit events")).toContainText("9");
+    await expect(page.locator(".platform-compact-metric-row", { hasText: "platform_company_viewed" })).toContainText("4");
     await expect(page.getByRole("heading", { name: "Companies requiring attention" })).toBeVisible();
-    await expect(page.getByRole("cell", { name: "Pro <img src=x onerror=window.__planXss=true>" }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: "Example Tenant <script>window.__xss = true</script>" }).first()).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
     await expect(page.locator("script", { hasText: "window.__xss = true" })).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => window.__xss)).toBeUndefined();
@@ -864,6 +1010,17 @@ test.describe("platform-admin dashboard and directory", () => {
       if (url.pathname === "/api/platform-admin/overview") {
         return success({
           ...operationsOverview,
+          support: {
+            cases_by_status: { open: 0, in_progress: 0, waiting_for_tenant: 0, resolved: 0, closed: 0 },
+            cases_by_priority: { low: 0, normal: 0, high: 0, urgent: 0 },
+            open_case_count: 0,
+            tenant_requests_by_status: { new: 0, reviewed: 0, converted: 0, closed: 0 },
+            unresolved_tenant_request_count: 0
+          },
+          messaging: {},
+          ai_usage: {},
+          billing_attention: {},
+          platform_admin_activity: {},
           attention_companies: [],
           operational_alerts: {
             alerts: [],
@@ -876,8 +1033,45 @@ test.describe("platform-admin dashboard and directory", () => {
     });
     await expect(page.getByText("No operational alerts found.")).toBeVisible();
     await expect(page.getByText("No past-due or expired companies found.")).toBeVisible();
+    await expect(page.getByText("No support cases found.")).toBeVisible();
     expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
     expect(calls.filter(call => call.path === "/api/platform-admin/companies")).toHaveLength(0);
+  });
+
+  test("dashboard remains usable at mobile width", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openPlatformPage(page, "/platform-admin.html", ({ url }) => defaultHandler({ url }));
+
+    await expect(metricCard(page, "Total companies")).toBeVisible();
+    await expect(metricCard(page, "Active companies")).toBeVisible();
+    await expect(metricCard(page, "Open support cases")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Needs Attention" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Support Operations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Messaging Health" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI Usage" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Billing Health" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Companies requiring attention" })).toBeVisible();
+    await expect(page.locator(".platform-attention-company-cards")).toBeVisible();
+    await expect(page.locator(".platform-attention-company-card", { hasText: "Example Tenant" })).toBeVisible();
+    await expect(page.locator(".platform-table-wrap", { hasText: "Companies requiring attention" })).toBeHidden();
+    await expect(page.locator(".platform-chart", { hasText: "Case status" })).toBeVisible();
+    await expect(page.locator(".platform-chart", { hasText: "Delivery health" })).toBeVisible();
+    await expect(page.locator(".platform-chart", {
+      has: page.getByRole("heading", { name: "Request status", exact: true })
+    })).toBeVisible();
+    await expect(page.locator(".platform-compact-metric-list").last()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
+  });
+
+  test("dashboard keeps attention companies visible at tablet width", async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await openPlatformPage(page, "/platform-admin.html", ({ url }) => defaultHandler({ url }));
+
+    await expect(page.getByRole("heading", { name: "Companies requiring attention" })).toBeVisible();
+    await expect(page.locator(".platform-table-wrap", { hasText: "Companies requiring attention" })).toBeVisible();
+    await expect(page.locator(".platform-attention-company-cards")).toBeHidden();
+    await expect(page.getByRole("link", { name: "Example Tenant <script>window.__xss = true</script>" }).first()).toBeVisible();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 2)).toBe(true);
   });
 
   test("dashboard derives operational alerts from legacy attention response", async ({ page }) => {
@@ -904,7 +1098,7 @@ test.describe("platform-admin dashboard and directory", () => {
     });
     await expect(metricCard(page, "Total alerts")).toContainText("1");
     await expect(metricCard(page, "Critical alerts")).toContainText("1");
-    await expect(page.getByRole("cell", { name: "Subscription is expired" })).toBeVisible();
+    await expect(page.getByText("Subscription is expired")).toBeVisible();
     await expect(page.getByRole("link", { name: "Legacy Tenant <script>window.__legacyAlertXss=true</script>" }).first()).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
     await expect.poll(() => page.evaluate(() => window.__legacyAlertXss)).toBeUndefined();
   });
@@ -1266,13 +1460,14 @@ test.describe("platform-admin audit log viewer", () => {
     await expect(page.getByText("must-not-render")).toHaveCount(0);
     await expect(page.getByText("raw_payload")).toHaveCount(0);
     await expect(page.getByText("token")).toHaveCount(0);
-    await expect(page.getByRole("table").getByText("outcome")).toBeVisible();
-    await expect(page.getByRole("table").getByText("endpoint")).toBeVisible();
-    await expect(page.getByRole("table").getByText("http_method")).toBeVisible();
+    await expect(page.getByRole("table").getByText("outcome").first()).toBeVisible();
+    await expect(page.getByRole("table").getByText("endpoint").first()).toBeVisible();
+    await expect(page.getByRole("table").getByText("http_method").first()).toBeVisible();
     await expect(page.getByRole("cell", { name: "platform_admin.company.suspend" })).toBeVisible();
-    await expect(page.getByRole("table").getByText("company_id")).toBeVisible();
-    await expect(page.getByRole("table").getByText("old_status")).toBeVisible();
-    await expect(page.getByRole("table").getByText("new_status")).toBeVisible();
+    const auditTable = page.getByRole("table");
+    await expect(auditTable.locator("dt", { hasText: /^company_id$/ })).toBeVisible();
+    await expect(auditTable.locator("dt", { hasText: /^old_status$/ })).toBeVisible();
+    await expect(auditTable.locator("dt", { hasText: /^new_status$/ })).toBeVisible();
     await expect(page.getByText("raw_metadata")).toHaveCount(0);
     await expect(page.getByText("provider_payload")).toHaveCount(0);
     expect(await page.evaluate(() => window.__auditActionXss || window.__auditResourceXss || false)).toBe(false);
@@ -1548,7 +1743,7 @@ test.describe("platform-admin company detail", () => {
     const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => defaultHandler({ url }));
     await expect(page.getByRole("heading", { name: "Example Tenant <script>window.__xss = true</script>" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Operational state" })).toBeVisible();
-    await expect(page.getByText("Active", { exact: true })).toBeVisible();
+    await expect(page.getByText("active", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Suspend company" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Subscription", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "AI-credit and usage" })).toBeVisible();
@@ -1643,7 +1838,7 @@ test.describe("platform-admin company detail", () => {
     await page.getByRole("button", { name: "Suspend company" }).click();
     await expect(page.getByText("Protected platform-admin companies cannot be suspended.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Suspend company" })).toBeEnabled();
-    await expect(page.getByText("Active", { exact: true })).toBeVisible();
+    await expect(page.getByText("active", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("raw protected registry detail")).toHaveCount(0);
   });
 
@@ -2181,7 +2376,6 @@ test.describe("platform-admin navigation and role independence", () => {
 
 async function assertReadOnlyBoundary(page) {
   for (const forbidden of [
-    "Suspend Company",
     "Manage Users",
     "Edit User",
     "Deactivate User",

@@ -20,6 +20,21 @@
 
 ### Phase 4L update - Platform-admin controls
 
+Current Superadmin roadmap order after this milestone:
+
+1. Completed current milestone: Phase 1 foundation, Phase 1.5 RLS/security
+   foundation, Phase 2 support operations, Phase 3 tenant communication
+   baseline, and Phase 6 monitoring/visualization dashboard.
+2. Next: Phase 5 Tenant / Company Administration.
+3. Then: Phase 7 Billing / Subscription Oversight.
+4. Later: broader Phase 4 Platform Admin User Management expansion. A bounded
+   platform-admin mapping-management surface already exists; the broader
+   lifecycle expansion remains intentionally deferred.
+
+This roadmap status reflects repository/local and recorded main shared-testing
+evidence only where stated. It does not claim staging or production readiness
+for the current Superadmin milestone.
+
 The initial read-only backend is implemented with a separate database-backed
 platform-admin allowlist, per-request fail-closed authorization, dedicated
 cross-tenant repositories, a twelve GET-route investigation inventory, and
@@ -119,10 +134,22 @@ company/subscription overview reads remain separate from the monitoring RPC.
 Runtime verification against the approved main shared-testing Supabase plus
 localhost frontend/API returned 200 for `/api/platform-admin/me`, the
 monitoring RPC, and `/api/platform-admin/overview`; the Platform Operations
-dashboard rendered and the Temporarily Unavailable state disappeared. This is
-not staging verification and does not establish production readiness.
-Unsupported aggregate values fail closed. Browser E2E is not claimed because
-local `npm`/Playwright dependencies are unavailable.
+dashboard rendered and the Temporarily Unavailable state disappeared.
+The current milestone also verifies the local repository/source tests and the
+full Platform Admin browser suite. The dashboard is intentionally a concise
+operations summary rather than a full analytics explorer; detailed
+investigation remains on the Companies, Company Detail, Support, Billing, and
+Audit Logs pages. It preserves safe aggregate visibility into company counts,
+active users, support workload/status, operational alerts, messaging
+delivery/channel health, retry backlog, AI request/token activity, depleted
+AI-credit balance signals, billing/order attention, companies requiring
+attention, and aggregate platform-admin activity. The Superadmin UI polish
+also makes Dashboard, Companies, Company Detail, Support, Billing, Audit Logs,
+and Platform Admin Management visually consistent with shared page hierarchy,
+cards/panels/tables, clearer filters, mobile card alternatives, responsive
+behavior, and reduced dashboard information density. This is not staging
+verification and does not establish production readiness. Unsupported
+aggregate values fail closed.
 Platform-admin Billing & Subscription Oversight Phase 7 is implemented locally
 as a read-only platform-admin Billing & Subscriptions surface. Migration 038 is
 applied and verified only in the approved main shared-testing Supabase with

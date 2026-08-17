@@ -47,6 +47,23 @@ sections for:
   approved action, and safe counts by approved resource type. Raw audit
   metadata is not returned.
 
+The Platform Operations dashboard is intentionally a first-level operations
+summary, not a full aggregate explorer. It keeps the top-level focus on total
+companies, active companies, active users, open support cases, Needs Attention,
+compact Support Operations, Messaging Health, AI Usage, Billing Health,
+Companies Requiring Attention, and compact Platform-admin Activity. More
+detailed investigation belongs on the dedicated Companies, Company Detail,
+Support, Billing, and Audit Logs pages.
+
+The dashboard deliberately keeps detailed distributions out of the first-level
+view when they add noise to the command center. Examples include tenant
+footprint, subscription status and plan distributions, support priority
+distribution, tenant request distribution, detailed delivery-status and
+broadcast distributions, AI-credit transaction-type distribution, billing
+order-status distribution, and large platform-admin action charts. The API may
+continue returning safe aggregates for tests and future dedicated views; the
+dashboard does not need to render every returned value.
+
 ## Operational Alerts
 
 Existing subscription alerts remain. Phase 6 adds these deterministic
@@ -144,6 +161,14 @@ These metrics are intentionally not implemented in Phase 6:
 - AI low-balance metric: no approved low-balance threshold exists.
 - Generic background job health: no durable authoritative job telemetry exists.
 - Provider cost monitoring: intentionally excluded from the dashboard.
+- Fabricated historical trends: no bucketed time-series contract exists for
+  the dashboard.
+- Real-time online users: no reliable active-session source exists.
+- Detailed provider incident/error telemetry: current monitoring is coarse
+  aggregate health only.
+- Financial mutation controls: the monitoring dashboard is read-only.
+- Raw message content, AI prompts/responses, raw audit metadata, and raw
+  financial/provider payloads are intentionally excluded.
 
 ## Shared-testing Inspection Evidence
 
@@ -199,10 +224,12 @@ rows were not deleted or modified.
 ## Verification Evidence
 
 Focused Phase 6 automated tests passed, the broader platform-admin selector
-passed, Python compilation passed, JavaScript syntax validation passed, and
-`git diff --check` passed. Browser E2E was blocked locally because `npm` was
-not available and the Playwright package was absent from local `node_modules`;
-no browser pass is claimed.
+passed, Python/source regression passed, JavaScript syntax validation passed,
+the full Platform Admin Playwright browser spec passed, and `git diff --check`
+passed. Browser coverage verifies the concise dashboard structure, non-zero
+visualizations, all-zero/missing-data behavior, protected navigation, mobile
+dashboard behavior, and the polished Superadmin pages for Companies, Company
+Detail, Support, Billing, Audit Logs, and Platform Admin Management.
 
 During Phase 6 verification, a Phase 5 broadcast regression test exposed a
 Meta WhatsApp helper-name compatibility issue. The compatibility wrapper

@@ -171,6 +171,120 @@ class TestPlatformAdminShell(unittest.TestCase):
         self.assertIn('aria-label", "Platform Administration navigation"', self.shell)
 
 
+class TestPlatformAdminDashboardVisualization(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.dashboard = read(DASHBOARD)
+        cls.css = read(CSS)
+
+    def test_dashboard_uses_existing_overview_api_without_extra_fetches(self):
+        self.assertIn("PlatformAdminApi.getOverview({ signal: signal })", self.dashboard)
+        self.assertNotIn("getBillingOverview", self.dashboard)
+        self.assertNotIn("listCompanies(", self.dashboard)
+        self.assertNotIn("platformFetch", self.dashboard)
+        self.assertIn('window.PlatformAdminDashboard = Object.freeze', self.dashboard)
+
+    def test_dashboard_has_visual_sections_for_supported_phase_6_contract(self):
+        for label in (
+            "Needs Attention",
+            "Support Operations",
+            "Messaging Health",
+            "AI Usage",
+            "Billing Health",
+            "Companies requiring attention",
+            "Platform Admin Activity",
+        ):
+            self.assertIn(label, self.dashboard)
+        for helper in (
+            "renderDistribution",
+            "deliveryHealthRows",
+            "renderChannelHealth",
+            "renderOverviewCards",
+            "renderAttentionCompanyCards",
+            "compactMetricList",
+        ):
+            self.assertIn(f"function {helper}", self.dashboard)
+        self.assertIn("platform-dashboard-health-grid", self.dashboard)
+
+    def test_dashboard_keeps_top_level_cards_focused(self):
+        overview_cards = re.search(
+            r"function renderOverviewCards\(overview\) \{(.*?)\n    \}",
+            self.dashboard,
+            flags=re.S,
+        ).group(1)
+        for label in (
+            "Total companies",
+            "Active companies",
+            "Active users",
+            "Open support cases",
+        ):
+            self.assertIn(label, overview_cards)
+        for crowded_label in ("Trialing", "Past due", "Expired", "Inactive companies"):
+            self.assertNotIn(crowded_label, overview_cards)
+        for first_level_detail in (
+            "Tenant footprint",
+            "Plan distribution",
+            "Broadcast campaign status",
+            "Broadcast recipient status",
+            "Credit activity",
+            "Order status",
+        ):
+            self.assertNotIn(first_level_detail, self.dashboard)
+
+    def test_visualizations_handle_zero_and_missing_values_without_nan(self):
+        for marker in (
+            "function count(value)",
+            "function valueFrom(map, key)",
+            "platform-segment-empty",
+            "total === 0",
+            "No support cases found.",
+            "No message delivery rows found.",
+            "No AI request rows found.",
+            "compactMetricList",
+        ):
+            self.assertIn(marker, self.dashboard)
+        self.assertNotIn("innerHTML", self.dashboard)
+        self.assertNotIn("insertAdjacentHTML", self.dashboard)
+
+    def test_dashboard_security_copy_excludes_sensitive_data_domains(self):
+        for copy in (
+            "No SLA or overdue status is inferred.",
+            "No message text, phone numbers, provider payloads, or raw provider errors are shown.",
+            "Prompts, responses, provider payloads, and provider costs are excluded.",
+            "Financial writes, refunds, plan changes, credit changes, and reconciliation mutations are not available here.",
+            "Raw audit metadata is not shown on this dashboard.",
+        ):
+            self.assertIn(copy, self.dashboard)
+        for forbidden in (
+            "support reply body",
+            "redacted_note",
+            "phone_number",
+            "provider_payload",
+            "api_key",
+            "access_token",
+            "prompt_text",
+            "response_text",
+        ):
+            self.assertNotIn(forbidden, self.dashboard)
+
+    def test_native_css_visualization_classes_are_responsive(self):
+        for css_class in (
+            ".platform-kpi-grid",
+            ".platform-chart",
+            ".platform-segmented-meter",
+            ".platform-bar-row",
+            ".platform-alert-card",
+            ".platform-channel-card",
+            ".platform-visual-grid",
+            ".platform-attention-company-cards",
+            ".platform-attention-company-card",
+        ):
+            self.assertIn(css_class, self.css)
+        self.assertIn("@media (max-width: 900px)", self.css)
+        self.assertIn("@media (max-width: 767px)", self.css)
+        self.assertIn(".platform-attention-company-cards {\n        display: grid;", self.css)
+
+
 class TestPlatformAdminApiClient(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -474,23 +588,26 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("platform-admin-company.html?", self.dashboard)
         self.assertIn("Number.isSafeInteger(company.company_id)", self.dashboard)
         for marker in [
-            "Support operations",
-            "Messaging & integrations",
-            "Billing attention",
-            "AI usage & credits",
-            "Platform-admin activity",
+            "Support Operations",
+            "Messaging Health",
+            "Billing Health",
+            "AI Usage",
+            "Platform Admin Activity",
+            "Case status",
+            "Delivery health",
+            "Channel Health",
+            "Request status",
+            "platform-dashboard-health-grid",
+            "platform-compact-metric-list",
             "Open Support Workspace",
-            "Open Audit Logs",
-            "No message text, phone numbers, or provider errors are displayed.",
-            "No prompts, responses, provider payloads, or low-balance threshold are shown.",
-            "Raw audit metadata is available nowhere on this dashboard.",
-            "Broadcast campaign status",
-            "Read-only platform operational alerts derived from safe aggregate monitoring data.",
-            "Company-specific operational alerts",
-            "Platform-wide operational alerts",
-            '["Severity", "Summary", "Count", "Investigate"]',
-            "companyAlerts",
-            "aggregateAlerts",
+            "View Audit Logs",
+            "View Billing Details",
+            "No SLA or overdue status is inferred.",
+            "No message text, phone numbers, provider payloads, or raw provider errors are shown.",
+            "Prompts, responses, provider payloads, and provider costs are excluded.",
+            "Raw audit metadata is not shown on this dashboard.",
+            "platform-segmented-meter",
+            "platform-bar-row",
         ]:
             self.assertIn(marker, self.dashboard)
         self.assertNotIn("Read-only subscription alerts derived from the platform operations overview", self.dashboard)
@@ -1100,7 +1217,9 @@ class TestPlatformAdminResponsiveIsolation(unittest.TestCase):
         ])
         self.assertNotIn("flow-builder", sources.lower())
         self.assertNotIn("broadcast", sources.lower())
-        self.assertIn("Broadcast campaign status", read(DASHBOARD))
+        dashboard = read(DASHBOARD)
+        self.assertIn("Delivery health", dashboard)
+        self.assertNotIn("Broadcast campaign status", dashboard)
 
 
 if __name__ == "__main__":

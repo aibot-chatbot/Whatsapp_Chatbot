@@ -142,7 +142,7 @@ class PlatformAdminMonitoringDocsTests(unittest.TestCase):
                 "approved main shared-testing supabase with fake/team data",
                 "not staging verification",
                 "does not establish production readiness",
-                "browser e2e is not claimed",
+                "full platform admin browser suite",
             ]:
                 with self.subTest(phrase=phrase):
                     self.assertIn(phrase, docs_flat)
