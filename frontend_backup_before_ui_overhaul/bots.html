@@ -1,0 +1,1319 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bots | AI Chatbot</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 60px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .header {
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 8px;
+            font-size: 1.1rem;
+        }
+
+        .create-btn {
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 20px var(--primary-glow);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .create-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px var(--primary-glow);
+            background: linear-gradient(135deg, #4f8bf9, #3b82f6);
+        }
+
+        .bots-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* ===== Glass Cards (from shared-glass.css) ===== */
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(59, 130, 246, 0.1);
+        }
+
+        .glass-card:hover::before {
+            opacity: 1;
+        }
+
+        .bot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .bot-icon {
+            background: rgba(59, 130, 246, 0.15);
+            padding: 10px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .active-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .inactive-badge {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--text-dim);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .bot-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .bot-desc {
+            color: var(--text-dim);
+            margin-bottom: auto;
+            line-height: 1.5;
+            font-size: 0.95rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .bot-meta-container {
+            display: flex;
+            gap: 16px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+
+        .bot-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 6px 12px;
+            border-radius: 10px;
+        }
+
+        .bot-actions {
+            display: flex;
+            gap: 12px;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 16px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .action-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .edit-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+        }
+
+        .edit-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .delete-btn {
+            background: rgba(239, 68, 68, 0.05);
+            color: #ef4444;
+        }
+
+        .delete-btn:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        /* Empty State */
+        .empty-state {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            text-align: center;
+            background: var(--card-bg);
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+        }
+
+        .empty-icon {
+            background: rgba(59, 130, 246, 0.1);
+            padding: 24px;
+            border-radius: 50%;
+            margin-bottom: 24px;
+        }
+
+        .empty-state h2 {
+            font-size: 2rem;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+
+        .empty-state p {
+            color: var(--text-dim);
+            max-width: 450px;
+            margin-bottom: 32px;
+            line-height: 1.6;
+            font-size: 1.05rem;
+        }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-card {
+            width: 440px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 24px;
+            padding: 32px;
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-overlay.show .modal-card {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-card h2 {
+            margin-bottom: 24px;
+            font-size: 1.5rem;
+        }
+
+        .modal-card label {
+            display: block;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .modal-card input,
+        .modal-card textarea,
+        .modal-card select {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            transition: all 0.2s;
+        }
+
+        .modal-card input:focus,
+        .modal-card textarea:focus,
+        .modal-card select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .modal-card textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 32px;
+        }
+
+        .cancel-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            padding: 12px 24px;
+            border-radius: 14px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .cancel-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .danger-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+            transition: all 0.2s;
+        }
+
+        .danger-btn:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        .loading-state {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: var(--text-dim);
+            font-size: 1.2rem;
+        }
+
+        /* --- Onboarding Tour Styles --- */
+        .tour-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            display: none;
+            pointer-events: none;
+            transition: all 0.5s ease;
+        }
+
+        .tour-spotlight {
+            position: absolute;
+            background: transparent;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
+            border-radius: 12px;
+            z-index: 2001;
+            display: none;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            border: 2px solid var(--primary);
+        }
+
+        .tour-tooltip {
+            position: absolute;
+            width: 320px;
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            z-index: 2002;
+            display: none;
+            flex-direction: column;
+            gap: 12px;
+            color: white;
+            pointer-events: auto;
+        }
+
+        .tour-tooltip h4 {
+            color: var(--primary);
+            font-size: 1.1rem;
+        }
+
+        .tour-tooltip p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+
+        .tour-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+        }
+
+        .tour-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .redirect-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 0.92rem;
+            font-weight: 600;
+            background: rgba(239,68,68,0.15);
+            border: 1px solid rgba(239,68,68,0.3);
+            color: #f87171;
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            opacity: 0;
+            transition: opacity 0.4s ease;
+            pointer-events: none;
+            max-width: 90vw;
+            text-align: center;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+        }
+        .redirect-toast.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    /* ===== User Dropdown (top-right) ===== */
+    </style>
+</head>
+
+<body>
+    <div id="redirect-toast" class="redirect-toast" role="alert"></div>
+    <main class="main-container">
+        <div class="header">
+            <div>
+                <h1>Home Page - My Bots</h1>
+                <p>Manage all AI chatbots in your system.</p>
+            </div>
+            <div style="display: flex; gap: 12px;">
+                <button class="cancel-btn" onclick="window.restartOnboarding()"
+                    style="display: flex; align-items: center; gap: 8px;">
+                    💡 Help?
+                </button>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+                    <button class="create-btn" onclick="openCreateModal()" data-create-bot-trigger="true" disabled title="Checking chatbot limit...">
+                        <i data-lucide="plus"></i> Create Bot
+                    </button>
+                </div>
+                <tenant-account-menu></tenant-account-menu>
+            </div>
+
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 18px 0;flex-wrap:wrap;">
+            <div style="display:flex;gap:8px;">
+                <button id="active-bots-tab" class="cancel-btn" onclick="setBotView('active')" style="padding:10px 16px;">Active Bots</button>
+                <button id="archived-bots-tab" class="cancel-btn" onclick="setBotView('archived')" style="padding:10px 16px;">Archived Bots</button>
+            </div>
+            <div id="bot-view-message" style="color:var(--text-dim);font-size:0.9rem;"></div>
+        </div>
+
+        <div id="bots-grid" class="bots-grid">
+            <div class="loading-state">
+                <i data-lucide="loader-2" class="lucide-spin" style="margin-right: 12px;"></i> Loading bots...
+            </div>
+        </div>
+
+        <!-- Create/Edit Modal -->
+        <div id="create-modal" class="modal-overlay">
+            <div class="modal-card">
+                <h2>Create New Bot</h2>
+
+                <label>Bot Name</label>
+                <input id="bot-name" type="text" placeholder="Example: Travel Bot">
+
+                <label>Description</label>
+                <textarea id="bot-description" placeholder="What is this bot for?"></textarea>
+
+                <label>Language</label>
+                <input id="bot-language" type="text" value="English">
+
+                <label>Tone</label>
+                <select id="bot-tone">
+                    <option value="Friendly">Friendly</option>
+                    <option value="Professional">Professional</option>
+                    <option value="Formal">Formal</option>
+                </select>
+
+                <div class="modal-actions">
+                    <button class="cancel-btn" onclick="closeCreateModal()">Cancel</button>
+                    <button id="submit-create-btn" class="create-btn" onclick="createBot()" style="margin: 0;">Create</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Modal -->
+        <div id="delete-modal" class="modal-overlay">
+            <div class="modal-card">
+                <h2>Archive Bot</h2>
+                <p style="color: var(--text-dim); line-height: 1.6;">
+                    Archive this bot and remove it from active use? Its knowledge files, conversations,
+                    messages, channels, CRM records, agent actions, and usage history will be preserved.
+                </p>
+
+                <div class="modal-actions">
+                    <button class="cancel-btn" onclick="closeDeleteModal()">Cancel</button>
+                    <button class="danger-btn" onclick="confirmDeleteBot()">Archive Bot</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Permanent Delete Modal -->
+        <div id="permanent-delete-modal" class="modal-overlay">
+            <div class="modal-card">
+                <h2>Permanently Delete Bot</h2>
+                <p style="color: var(--danger); line-height: 1.6; font-weight: 600;">
+                    This permanently deletes the bot. This cannot be undone.
+                </p>
+                <p style="color: var(--text-dim); line-height: 1.6;">
+                    Related data may be removed, including knowledge files, conversations, messages,
+                    channels, CRM records, agent actions, and graph data.
+                </p>
+                <label>Type the exact bot name to confirm</label>
+                <input id="permanent-delete-confirm-name" type="text" autocomplete="off">
+                <div id="permanent-delete-helper" style="color:var(--text-dim);font-size:0.85rem;margin-top:-4px;margin-bottom:12px;"></div>
+                <div id="permanent-delete-error" style="display:none;color:var(--danger);font-size:0.85rem;margin-top:-8px;margin-bottom:12px;">
+                    Type the exact bot name to permanently delete this bot.
+                </div>
+
+                <div class="modal-actions">
+                    <button class="cancel-btn" onclick="closePermanentDeleteModal()">Cancel</button>
+                    <button id="permanent-delete-confirm-btn" class="danger-btn" onclick="confirmPermanentDeleteBot()" disabled>Permanently Delete</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Onboarding Tour Elements -->
+    <div id="tour-overlay" class="tour-overlay"></div>
+    <div id="tour-spotlight" class="tour-spotlight"></div>
+    <div id="tour-tooltip" class="tour-tooltip">
+        <h4 id="tour-title">Welcome!</h4>
+        <p id="tour-text">Step text goes here.</p>
+        <div class="tour-actions">
+            <span id="tour-step-count" style="font-size: 0.8rem; color: var(--text-dim);">Step 1 of 2</span>
+            <button id="tour-next-btn" class="tour-btn" onclick="nextTourStep()">Next</button>
+        </div>
+    </div>
+
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        // Initialize lucide icons for the static parts
+        lucide.createIcons();
+
+        requireLogin();
+        
+        function showToast(msg, duration = 4000) {
+            const toast = document.getElementById("redirect-toast");
+            if (toast) {
+                toast.textContent = msg;
+                toast.classList.add("show");
+                if (window.toastTimeout) clearTimeout(window.toastTimeout);
+                window.toastTimeout = setTimeout(() => {
+                    toast.classList.remove("show");
+                }, duration);
+                toast.onclick = () => { toast.classList.remove("show"); };
+            }
+        }
+
+        // Show redirect permission message as toast
+        (function() {
+            var msg = sessionStorage.getItem("redirect_message");
+            if (msg) {
+                sessionStorage.removeItem("redirect_message");
+                showToast(msg);
+            }
+        })();
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadChatbotUsage();
+            fetchBots();
+            setupGridDelegation();
+            setupPermanentDeleteConfirmation();
+        });
+
+        let chatbotEntitlement = {
+            loaded: false,
+            used: 0,
+            limit: null
+        };
+        let currentBotView = "active";
+        let selectedPermanentDeleteBotId = null;
+        let selectedPermanentDeleteBotName = "";
+        let permanentDeleteConfirmationTouched = false;
+
+        function getChatbotLimitMessage() {
+            return "Chatbot limit reached. Archive an existing bot or upgrade your plan to create more bots.";
+        }
+
+        function getRestoreLimitMessage() {
+            return "Chatbot limit reached. Archive another active bot or upgrade your plan before restoring this bot.";
+        }
+
+        function isChatbotLimitReached() {
+            if (!chatbotEntitlement.loaded || chatbotEntitlement.limit === null) {
+                return false;
+            }
+            return chatbotEntitlement.used >= chatbotEntitlement.limit;
+        }
+
+        function canCreateChatbot() {
+            return chatbotEntitlement.loaded && !isChatbotLimitReached();
+        }
+
+        function applyChatbotLimitState() {
+            const loading = !chatbotEntitlement.loaded;
+            const limitReached = isChatbotLimitReached();
+            // Button is only disabled if we're still loading the usage details.
+            // When limit is reached, we keep it enabled so the user can click it
+            // and see the custom red toast warning block.
+            document.querySelectorAll('[data-create-bot-trigger="true"]').forEach((button) => {
+                button.disabled = loading;
+                button.title = loading ? "Checking chatbot limit..." : "Create Bot";
+            });
+        }
+
+        async function loadChatbotUsage() {
+            try {
+                const response = await authenticatedFetch("/api/billing/usage");
+                const result = await response.json();
+                const chatbots = result.status === "success" && result.data && result.data.usage
+                    ? result.data.usage.chatbots
+                    : null;
+
+                if (!chatbots) {
+                    chatbotEntitlement = { loaded: false, used: 0, limit: null };
+                    applyChatbotLimitState();
+                    return;
+                }
+
+                const used = Number(chatbots.used || 0);
+                const rawLimit = chatbots.limit;
+                const limit = rawLimit === null || rawLimit === undefined ? null : Number(rawLimit);
+
+                chatbotEntitlement = {
+                    loaded: true,
+                    used: Number.isFinite(used) ? used : 0,
+                    limit: limit !== null && Number.isFinite(limit) ? limit : null
+                };
+                applyChatbotLimitState();
+            } catch (error) {
+                console.error("Failed to load chatbot usage:", error);
+                chatbotEntitlement = { loaded: false, used: 0, limit: null };
+                applyChatbotLimitState();
+            }
+        }
+
+        function setupGridDelegation() {
+            document.getElementById("bots-grid").addEventListener("click", (e) => {
+                const restoreBtn = e.target.closest(".restore-btn");
+                if (restoreBtn) {
+                    e.stopPropagation();
+                    const botId = restoreBtn.getAttribute("data-bot-id");
+                    restoreBot(botId);
+                    return;
+                }
+
+                const permanentDeleteBtn = e.target.closest(".permanent-delete-btn");
+                if (permanentDeleteBtn) {
+                    e.stopPropagation();
+                    const botId = permanentDeleteBtn.getAttribute("data-bot-id");
+                    const botName = permanentDeleteBtn.getAttribute("data-bot-name") || "";
+                    openPermanentDeleteModal(botId, botName);
+                    return;
+                }
+
+                const editBtn = e.target.closest(".edit-btn");
+                if (editBtn) {
+                    e.stopPropagation();
+                    const botId = editBtn.getAttribute("data-bot-id");
+                    openEditBot(botId);
+                    return;
+                }
+
+                const deleteBtn = e.target.closest(".delete-btn");
+                if (deleteBtn) {
+                    e.stopPropagation();
+                    const botId = deleteBtn.getAttribute("data-bot-id");
+                    deleteBot(botId);
+                    return;
+                }
+
+                const card = e.target.closest(".glass-card");
+                if (card) {
+                    if (currentBotView === "archived") {
+                        return;
+                    }
+                    const botId = card.getAttribute("data-bot-id");
+                    openBot(botId);
+                }
+            });
+        }
+
+        function setBotView(view) {
+            currentBotView = view === "archived" ? "archived" : "active";
+            updateBotViewTabs();
+            applyChatbotLimitState();
+            fetchBots();
+        }
+
+        function updateBotViewTabs() {
+            const activeTab = document.getElementById("active-bots-tab");
+            const archivedTab = document.getElementById("archived-bots-tab");
+            const message = document.getElementById("bot-view-message");
+
+            if (activeTab) {
+                activeTab.style.background = currentBotView === "active" ? "var(--primary)" : "rgba(255,255,255,0.08)";
+                activeTab.style.color = currentBotView === "active" ? "white" : "var(--text-main)";
+            }
+            if (archivedTab) {
+                archivedTab.style.background = currentBotView === "archived" ? "var(--primary)" : "rgba(255,255,255,0.08)";
+                archivedTab.style.color = currentBotView === "archived" ? "white" : "var(--text-main)";
+            }
+            if (message) {
+                message.textContent = currentBotView === "archived"
+                    ? "Archived bots are preserved and cannot be edited until restored."
+                    : "";
+            }
+        }
+
+        async function fetchBots() {
+            const grid = document.getElementById("bots-grid");
+            updateBotViewTabs();
+            grid.innerHTML = `
+                <div class="loading-state">
+                    <i data-lucide="loader-2" class="lucide-spin" style="margin-right: 12px;"></i> Loading bots...
+                </div>
+            `;
+            lucide.createIcons();
+
+            try {
+                const endpoint = currentBotView === "archived" ? "/api/bots/archived" : "/api/bots";
+                const response = await authenticatedFetch(endpoint);
+                const result = await response.json();
+
+                if (result.status !== "success") {
+                    grid.innerHTML = `<div class="empty-state">Failed to load bots.</div>`;
+                    return;
+                }
+
+                const bots = result.data;
+
+                if (!bots || bots.length === 0) {
+                    if (currentBotView === "archived") {
+                        grid.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-icon">
+                                    <i data-lucide="archive" style="width: 48px; height: 48px; color: var(--primary);"></i>
+                                </div>
+                                <h2>No Archived Bots</h2>
+                                <p>Archived bots will appear here after you remove them from active use.</p>
+                            </div>
+                        `;
+                        lucide.createIcons();
+                        applyChatbotLimitState();
+                        return;
+                    }
+
+                    grid.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">
+                                <i data-lucide="bot" style="width: 48px; height: 48px; color: var(--primary);"></i>
+                            </div>
+                            <h2>No Bots Created Yet</h2>
+                            <p>Get started by creating your first AI Chatbot. You'll be able to upload knowledge files, define custom prompts, and integrate it with WhatsApp.</p>
+                            <button class="create-btn" onclick="openCreateModal()" data-create-bot-trigger="true">
+                                <i data-lucide="plus"></i> Create Your First Bot
+                            </button>
+                        </div>
+                    `;
+                    lucide.createIcons();
+                    applyChatbotLimitState();
+
+                    return;
+                }
+
+                grid.innerHTML = bots.map(bot => renderBotCard(bot, currentBotView === "archived")).join("");
+
+                // Re-initialize icons for the new dynamically added DOM elements
+                lucide.createIcons();
+                applyChatbotLimitState();
+
+
+            } catch (error) {
+                console.error(error);
+                grid.innerHTML = `<div class="empty-state">Error loading bots.</div>`;
+            }
+        }
+
+        function renderBotCard(bot, archived) {
+            const statusLabel = archived ? "Archived" : (bot.is_active ? "Active" : "Inactive");
+            const statusClass = archived ? "inactive-badge" : (bot.is_active ? "active-badge" : "inactive-badge");
+            const actions = archived
+                ? `
+                    <button class="action-btn restore-btn" data-bot-id="${bot.id}">
+                        <i data-lucide="rotate-ccw" style="width: 16px; height: 16px; pointer-events: none;"></i> Restore
+                    </button>
+                    <button class="action-btn permanent-delete-btn" data-bot-id="${bot.id}" data-bot-name="${escapeHtmlAttribute(bot.bot_name || "")}">
+                        <i data-lucide="trash-2" style="width: 16px; height: 16px; pointer-events: none;"></i> Permanently Delete
+                    </button>
+                `
+                : `
+                    <button class="action-btn edit-btn" data-bot-id="${bot.id}">
+                        <i data-lucide="edit-2" style="width: 16px; height: 16px; pointer-events: none;"></i> Edit
+                    </button>
+                    <button class="action-btn delete-btn" data-bot-id="${bot.id}">
+                        <i data-lucide="archive" style="width: 16px; height: 16px; pointer-events: none;"></i> Archive
+                    </button>
+                `;
+
+            return `
+                    <div class="glass-card" data-bot-id="${bot.id}" data-bot-view="${archived ? "archived" : "active"}">
+                        <div class="bot-header">
+                            <div class="bot-icon">
+                                <i data-lucide="${archived ? "archive" : "cpu"}" style="width: 28px; height: 28px; color: var(--primary);"></i>
+                            </div>
+                            <span class="badge ${statusClass}">${statusLabel}</span>
+                        </div>
+                        <div class="bot-title">${bot.bot_name || "Unnamed Bot"}</div>
+                        <div class="bot-desc">${bot.bot_description || "No description provided."}</div>
+                        <div class="bot-meta">Tone: ${bot.tone || "Not set"}</div>
+                        <div class="bot-meta">Language: ${bot.language || "Not set"}</div>
+                        <span class="badge">${statusLabel}</span>
+
+                        <div class="bot-meta-container">
+                            <div class="bot-meta"><i data-lucide="mic" style="width: 14px; height: 14px;"></i> ${bot.tone || "Not set"}</div>
+                            <div class="bot-meta"><i data-lucide="globe" style="width: 14px; height: 14px;"></i> ${bot.language || "Not set"}</div>
+                        </div>
+
+                        <div class="bot-actions">
+                            ${actions}
+                        </div>
+                    </div>
+                `;
+        }
+
+        function escapeHtmlAttribute(value) {
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/"/g, "&quot;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+        }
+
+        function openBot(botId) {
+            sessionStorage.setItem("selectedBotId", botId);
+            window.location.href = `index.html?bot_id=${botId}`;
+        }
+
+        function openCreateModal() {
+            if (!canCreateChatbot()) {
+                showToast(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");
+                applyChatbotLimitState();
+                return;
+            }
+
+            document.getElementById("bot-name").value = "";
+            document.getElementById("bot-description").value = "";
+            document.getElementById("bot-language").value = "English";
+            document.getElementById("bot-tone").value = "Friendly";
+
+            document.querySelector("#create-modal h2").innerText = "Create New Bot";
+
+            const createBtn = document.querySelector("#create-modal .create-btn");
+            createBtn.innerHTML = "Create"; // remove icon for modal
+            createBtn.onclick = createBot;
+
+            document.getElementById("create-modal").classList.add("show");
+        }
+
+        function closeCreateModal() {
+            document.getElementById("create-modal").classList.remove("show");
+        }
+
+        async function createBot() {
+            if (!canCreateChatbot()) {
+                showToast(chatbotEntitlement.loaded ? getChatbotLimitMessage() : "Checking chatbot limit. Please try again in a moment.");
+                applyChatbotLimitState();
+                return;
+            }
+
+            const botName = document.getElementById("bot-name").value.trim();
+            const botDescription = document.getElementById("bot-description").value.trim();
+            const botLanguage = document.getElementById("bot-language").value.trim();
+            const botTone = document.getElementById("bot-tone").value;
+
+            if (!botName) {
+                showToast("Bot name is required");
+                return;
+            }
+
+            const submitBtn = document.getElementById("submit-create-btn");
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="lucide-spin" data-lucide="loader-2"></i> Creating...';
+            if (window.lucide) window.lucide.createIcons();
+
+            try {
+                const response = await authenticatedFetch("/api/bots", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        bot_name: botName,
+                        bot_description: botDescription,
+                        language: botLanguage,
+                        tone: botTone
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    document.getElementById("bot-name").value = "";
+                    document.getElementById("bot-description").value = "";
+                    document.getElementById("bot-language").value = "English";
+                    document.getElementById("bot-tone").value = "Friendly";
+
+                    closeCreateModal();
+                    window.location.href = `index.html?bot_id=${result.data.id}`;
+                } else {
+                    showToast(result.message || "Failed to create bot");
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            } catch (error) {
+                console.error("Error creating bot:", error);
+                showToast("An error occurred. Please try again.");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        }
+
+        // ===== DELETE BOT =====
+
+        let selectedDeleteBotId = null;
+
+        function deleteBot(botId) {
+            selectedDeleteBotId = botId;
+            document.getElementById("delete-modal").classList.add("show");
+        }
+
+        function closeDeleteModal() {
+            selectedDeleteBotId = null;
+            document.getElementById("delete-modal").classList.remove("show");
+        }
+
+        async function confirmDeleteBot() {
+            if (!selectedDeleteBotId) return;
+
+            const response = await authenticatedFetch(`/api/bots/${selectedDeleteBotId}`, {
+                method: "DELETE"
+            });
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                closeDeleteModal();
+                await loadChatbotUsage();
+                applyChatbotLimitState();
+                fetchBots();
+            } else {
+                alert(result.message || "Failed to archive bot");
+            }
+        }
+
+        async function restoreBot(botId) {
+            if (!botId) return;
+
+            const response = await authenticatedFetch(`/api/bots/${botId}/restore`, {
+                method: "POST"
+            });
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                await loadChatbotUsage();
+                currentBotView = "active";
+                updateBotViewTabs();
+                applyChatbotLimitState();
+                fetchBots();
+            } else if (result.code === "chatbot_limit") {
+                alert(getRestoreLimitMessage());
+            } else {
+                alert(result.message || "Failed to restore bot");
+            }
+        }
+
+        function openPermanentDeleteModal(botId, botName) {
+            selectedPermanentDeleteBotId = botId;
+            selectedPermanentDeleteBotName = botName || "";
+            const helper = document.getElementById("permanent-delete-helper");
+            if (helper) helper.textContent = `Type "${selectedPermanentDeleteBotName}" to enable permanent delete.`;
+            resetPermanentDeleteConfirmation();
+            document.getElementById("permanent-delete-modal").classList.add("show");
+        }
+
+        function closePermanentDeleteModal() {
+            selectedPermanentDeleteBotId = null;
+            selectedPermanentDeleteBotName = "";
+            resetPermanentDeleteConfirmation();
+            document.getElementById("permanent-delete-modal").classList.remove("show");
+        }
+
+        function setupPermanentDeleteConfirmation() {
+            const input = document.getElementById("permanent-delete-confirm-name");
+            if (!input) return;
+            input.addEventListener("input", function() {
+                permanentDeleteConfirmationTouched = true;
+                updatePermanentDeleteButtonState(true);
+            });
+        }
+
+        function resetPermanentDeleteConfirmation() {
+            permanentDeleteConfirmationTouched = false;
+            const input = document.getElementById("permanent-delete-confirm-name");
+            const button = document.getElementById("permanent-delete-confirm-btn");
+            if (input) input.value = "";
+            if (button) button.disabled = true;
+            hidePermanentDeleteError();
+        }
+
+        function getPermanentDeleteTypedName() {
+            const input = document.getElementById("permanent-delete-confirm-name");
+            return input ? input.value.trim() : "";
+        }
+
+        function isPermanentDeleteNameExactMatch() {
+            return getPermanentDeleteTypedName() === selectedPermanentDeleteBotName;
+        }
+
+        function showPermanentDeleteError() {
+            const error = document.getElementById("permanent-delete-error");
+            if (error) error.style.display = "block";
+        }
+
+        function hidePermanentDeleteError() {
+            const error = document.getElementById("permanent-delete-error");
+            if (error) error.style.display = "none";
+        }
+
+        function updatePermanentDeleteButtonState(showErrorWhenInvalid) {
+            const button = document.getElementById("permanent-delete-confirm-btn");
+            const matches = isPermanentDeleteNameExactMatch();
+            if (button) button.disabled = !matches;
+            if (matches) {
+                hidePermanentDeleteError();
+            } else if (showErrorWhenInvalid && permanentDeleteConfirmationTouched) {
+                showPermanentDeleteError();
+            }
+            return !!matches;
+        }
+
+        function validatePermanentDeleteName(showErrorWhenInvalid = false) {
+            return updatePermanentDeleteButtonState(showErrorWhenInvalid);
+        }
+
+        async function confirmPermanentDeleteBot() {
+            if (!selectedPermanentDeleteBotId) return;
+
+            permanentDeleteConfirmationTouched = true;
+            if (!validatePermanentDeleteName(true)) {
+                showPermanentDeleteError();
+                return;
+            }
+
+            const response = await authenticatedFetch(`/api/bots/${selectedPermanentDeleteBotId}/permanent`, {
+                method: "DELETE",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    confirm_bot_name: getPermanentDeleteTypedName()
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                closePermanentDeleteModal();
+                await loadChatbotUsage();
+                applyChatbotLimitState();
+                fetchBots();
+            } else {
+                alert(result.message || "Failed to permanently delete bot");
+            }
+        }
+
+        // ===== EDIT BOT =====
+
+        async function openEditBot(botId) {
+            const response = await authenticatedFetch(`/api/bots/${botId}`);
+            const result = await response.json();
+
+            if (result.status !== "success") {
+                alert("Failed to load bot");
+                return;
+            }
+
+            const bot = result.data;
+
+            document.getElementById("bot-name").value = bot.bot_name || "";
+            document.getElementById("bot-description").value = bot.bot_description || "";
+            document.getElementById("bot-language").value = bot.language || "English";
+            document.getElementById("bot-tone").value = bot.tone || "Friendly";
+
+            document.querySelector("#create-modal h2").innerText = "Edit Bot";
+
+            document.getElementById("create-modal").classList.add("show");
+
+            // change create button to update
+            const createBtn = document.querySelector("#create-modal .create-btn");
+            createBtn.innerHTML = "Update";
+            createBtn.onclick = () => updateBot(botId);
+        }
+
+        async function updateBot(botId) {
+            const botName = document.getElementById("bot-name").value.trim();
+            const botDescription = document.getElementById("bot-description").value.trim();
+            const botLanguage = document.getElementById("bot-language").value.trim();
+            const botTone = document.getElementById("bot-tone").value;
+
+            const response = await authenticatedFetch(`/api/bots/${botId}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    bot_name: botName,
+                    bot_description: botDescription,
+                    language: botLanguage,
+                    tone: botTone
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === "success") {
+                closeCreateModal();
+                fetchBots();
+
+                // reset button back to create
+                const createBtn = document.querySelector("#create-modal .create-btn");
+                createBtn.innerHTML = "Create";
+                createBtn.onclick = createBot;
+            } else {
+                alert(result.message || "Failed to update bot");
+            }
+        }
+
+        // --- ONBOARDING TOUR LOGIC ---
+        let currentTourStep = 0;
+        const tourSteps = [
+            {
+                title: "Bot Management",
+                text: "Welcome to your AI Hub! Here you can see all your active chatbots and monitor their status at a glance.",
+                element: ".header h1",
+                position: "bottom"
+            },
+            {
+                title: "Expand Your Reach",
+                text: "Ready to go live? Use the '+ Create Bot' button to launch a new AI instance for your business.",
+                element: ".create-btn",
+                position: "left"
+            }
+        ];
+
+        function startOnboarding() {
+            if (localStorage.getItem('onboarding_complete') === 'true') return;
+            window.restartOnboarding();
+        }
+
+        window.restartOnboarding = function () {
+            document.getElementById('tour-overlay').style.display = 'block';
+            document.getElementById('tour-spotlight').style.display = 'block';
+            document.getElementById('tour-tooltip').style.display = 'flex';
+            showTourStep(0);
+        };
+
+        function showTourStep(stepIndex) {
+
+            currentTourStep = stepIndex;
+            const step = tourSteps[stepIndex];
+            const target = document.querySelector(step.element);
+
+            if (!target) return endTour();
+
+            const rect = target.getBoundingClientRect();
+            const spotlight = document.getElementById('tour-spotlight');
+            const tooltip = document.getElementById('tour-tooltip');
+
+            // Position Spotlight
+            spotlight.style.width = `${rect.width + 20}px`;
+            spotlight.style.height = `${rect.height + 20}px`;
+            spotlight.style.top = `${rect.top - 10}px`;
+            spotlight.style.left = `${rect.left - 10}px`;
+
+            // Update Content
+            document.getElementById('tour-title').innerText = step.title;
+            document.getElementById('tour-text').innerText = step.text;
+            document.getElementById('tour-step-count').innerText = `Step ${stepIndex + 1} of ${tourSteps.length}`;
+            document.getElementById('tour-next-btn').innerText = stepIndex === tourSteps.length - 1 ? "Finish" : "Next";
+
+            // Position Tooltip
+            const tooltipRect = tooltip.getBoundingClientRect();
+            if (step.position === "bottom") {
+                tooltip.style.top = `${rect.bottom + 20}px`;
+                tooltip.style.left = `${rect.left}px`;
+            } else if (step.position === "left") {
+                tooltip.style.top = `${rect.top}px`;
+                tooltip.style.left = `${rect.left - 340}px`;
+            }
+        }
+
+        function nextTourStep() {
+            if (currentTourStep < tourSteps.length - 1) {
+                showTourStep(currentTourStep + 1);
+            } else {
+                endTour();
+            }
+        }
+
+        function endTour() {
+            document.getElementById('tour-overlay').style.display = 'none';
+            document.getElementById('tour-spotlight').style.display = 'none';
+            document.getElementById('tour-tooltip').style.display = 'none';
+            localStorage.setItem('onboarding_complete', 'true');
+        }
+
+        // Trigger tour after bots are loaded
+        const originalFetchBots = fetchBots;
+        fetchBots = async () => {
+            await originalFetchBots();
+            setTimeout(startOnboarding, 1000);
+        };
+
+    </script>
+
+</body>
+
+</html>
+

@@ -1,0 +1,335 @@
+/* ===== Shared Glass Card System ===== */
+/* Import this file before page-specific styles to get consistent glass cards. */
+
+/* Base glass card — most refined version from CRM */
+.glass-card {
+    background: var(--card-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    padding: 24px;
+    border-radius: 20px;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Fix dropdown options being white-on-white */
+select option {
+    background-color: var(--card-bg, #0f172a);
+    color: var(--text-color, #ffffff);
+}
+
+.glass-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: 0 12px 36px -8px rgba(59, 130, 246, 0.12);
+}
+
+/* ===== Shared Chat Transcript Styles ===== */
+.chat-transcript {
+    flex-grow: 1;
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.message-row {
+    display: flex;
+    width: 100%;
+}
+
+.message-row.user,
+.message-row.agent {
+    justify-content: flex-end;
+}
+
+.message-row.bot {
+    justify-content: flex-start;
+}
+
+.message-bubble {
+    max-width: 70%;
+    padding: 12px 16px;
+    border-radius: 16px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    word-wrap: break-word;
+}
+
+.message-row.user .message-bubble {
+    background: var(--bubble-user, var(--primary));
+    color: var(--bubble-user-text, #ffffff);
+    border-bottom-right-radius: 4px;
+    box-shadow: 0 4px 15px var(--primary-glow, rgba(59, 130, 246, 0.2));
+}
+
+.message-row.agent .message-bubble {
+    background: var(--bubble-agent, #10b981);
+    color: #ffffff;
+    border-bottom-right-radius: 4px;
+}
+
+.message-row.bot .message-bubble {
+    background: var(--bubble-bot, rgba(30, 41, 59, 0.9));
+    color: var(--bubble-bot-text, var(--text-main, #f8fafc));
+    border: 1px solid var(--glass-border);
+    border-bottom-left-radius: 4px;
+}
+
+.message-time {
+    font-size: 0.7rem;
+    margin-top: 6px;
+    opacity: 0.7;
+    display: block;
+}
+
+.message-sender {
+    font-size: 0.7rem;
+    margin-bottom: 4px;
+    opacity: 0.7;
+    display: block;
+}
+
+/* ===== Shared Action Buttons ===== */
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-main, #f8fafc);
+    cursor: pointer;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    font-family: inherit;
+    transition: all 0.2s;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.action-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.16);
+    transform: translateY(-1px);
+}
+
+.action-btn.primary {
+    background: var(--primary, #3b82f6);
+    border-color: rgba(59, 130, 246, 0.3);
+    color: #ffffff;
+}
+
+.action-btn.primary:hover {
+    background: #2563eb;
+    box-shadow: 0 0 12px -3px rgba(59, 130, 246, 0.4);
+}
+
+.action-btn.danger {
+    background: rgba(239, 68, 68, 0.1);
+    border-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+}
+
+.action-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.18);
+}
+
+.action-btn.success {
+    background: var(--accent, #10b981);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #ffffff;
+}
+
+.action-btn.success:hover {
+    background: #059669;
+}
+
+.action-btn.ghost {
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.02);
+    color: var(--text-dim, #94a3b8);
+}
+
+.action-btn.ghost:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-main, #f8fafc);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+.action-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.68;
+}
+
+/* ===== Shared Scrollbar Styles ===== */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* ==========================================================================
+   ===== GLOBAL RESPONSIVE ENGINE =====
+   ========================================================================== */
+
+/* ── Base Container Layout Stacking ── */
+body,
+#root,
+div:has(> chatbot-sidebar) {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+}
+
+@media (max-width: 768px) {
+    /* Stack sidebar and content vertically on mobile */
+    body,
+    #root,
+    div:has(> chatbot-sidebar) {
+        flex-direction: column !important;
+        overflow-x: hidden !important;
+    }
+
+    /* Force the main container to span full width cleanly */
+    .main-container {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 24px 16px !important;
+        margin: 0 !important;
+        flex-grow: 1 !important;
+        box-sizing: border-box !important;
+    }
+
+    /* ── Header Stacking & Button Scaling ── */
+    .header {
+        flex-direction: column !important;
+        align-items: stretch !important;
+        gap: 16px !important;
+        width: 100% !important;
+    }
+
+    .header > div {
+        width: 100% !important;
+    }
+
+    /* Make buttons full-width for easier thumb tapping on mobile */
+    .header button,
+    .header a,
+    .header .btn,
+    .header .create-btn,
+    .header .cancel-btn {
+        width: 100% !important;
+        justify-content: center !important;
+        display: flex !important;
+    }
+
+    /* ── Auto-Reflow Fixed Grids to Single Column ── */
+    .stats-grid,
+    .bots-grid,
+    .health-grid,
+    .content-sections,
+    .stats-row,
+    .plans-grid,
+    .platforms-grid,
+    .crm-mid-section,
+    .crm-modal-grid,
+    .grid-2,
+    .grid-3,
+    .grid-4,
+    div[class*="grid"]:not([class*="timeline"]):not([class*="toggle"]) {
+        grid-template-columns: 1fr !important;
+        gap: 16px !important;
+    }
+
+    /* Hide horizontal line and stack workflow nodes in index.html */
+    .main-container div[style*="justify-content: space-between"][style*="position: relative"] {
+        flex-direction: column !important;
+        gap: 24px !important;
+    }
+
+    .main-container div[style*="position: absolute"][style*="height: 2px"] {
+        display: none !important;
+    }
+
+    /* ── Responsive Tables & Horizontal Scroll Areas ── */
+    .table-wrap,
+    .table-area,
+    .table-responsive,
+    .glass-card:has(table) {
+        width: 100% !important;
+        overflow-x: auto !important;
+        display: block !important;
+        -webkit-overflow-scrolling: touch !important;
+        border-radius: 12px !important;
+    }
+
+    .table-wrap table,
+    .table-area table,
+    .table-responsive table,
+    .glass-card table,
+    .enhanced-table {
+        min-width: 650px !important;
+        width: 100% !important;
+    }
+
+    /* ── Form Inputs & Controls ── */
+    .input-group,
+    .form-row,
+    .crm-filter-row {
+        grid-template-columns: 1fr !important;
+        flex-direction: column !important;
+        width: 100% !important;
+    }
+
+    .crm-filter-search-row {
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+    }
+
+    .crm-filter-search-row input,
+    .crm-filter-search-row button {
+        width: 100% !important;
+    }
+
+    /* ── Modal Dialog Scaling ── */
+    .modal-card,
+    .modal-content,
+    .modal {
+        width: calc(100% - 32px) !important;
+        max-width: 100% !important;
+        margin: 16px auto !important;
+        padding: 20px !important;
+        box-sizing: border-box !important;
+    }
+
+    .modal-actions,
+    .crm-modal-actions {
+        flex-direction: column !important;
+        gap: 10px !important;
+        width: 100% !important;
+    }
+
+    .modal-actions button,
+    .crm-modal-actions button {
+        width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        justify-content: center !important;
+    }
+}

@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Support | AI Chatbot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
+    <script src="sidebar-component.js"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 42%),
+                radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 42%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            width: 100%;
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 52px 56px 80px;
+        }
+
+        .header {
+            margin-bottom: 28px;
+            padding-right: 180px;
+        }
+
+        .header h1 {
+            font-size: 2.15rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #ffffff, #cbd5e1);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 8px;
+            font-size: 1rem;
+            line-height: 1.6;
+            max-width: 760px;
+        }
+
+        .support-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.8fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .section-title {
+            color: var(--text-main);
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 14px;
+        }
+
+        .section-subtitle {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 16px;
+        }
+
+        .account-card {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .account-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.16);
+            border: 1px solid rgba(59, 130, 246, 0.28);
+            color: #bfdbfe;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex: 0 0 auto;
+        }
+
+        .account-lines {
+            min-width: 0;
+        }
+
+        .account-name {
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .account-email {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            margin-top: 3px;
+            overflow-wrap: anywhere;
+        }
+
+        .topic-list {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .topic-card {
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 12px;
+            padding: 16px;
+        }
+
+        .topic-card h2 {
+            font-size: 0.98rem;
+            margin-bottom: 8px;
+        }
+
+        .topic-card p {
+            color: var(--text-dim);
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
+        .quick-links {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+
+        .quick-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            color: var(--text-main);
+            text-decoration: none;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            background: rgba(255, 255, 255, 0.035);
+            border-radius: 10px;
+            padding: 11px 13px;
+            font-weight: 600;
+            transition: background 0.18s, border-color 0.18s, transform 0.18s;
+        }
+
+        .quick-link:hover,
+        .quick-link:focus-visible {
+            background: rgba(59, 130, 246, 0.12);
+            border-color: rgba(59, 130, 246, 0.32);
+            outline: none;
+            transform: translateY(-1px);
+        }
+
+        .quick-link span:last-child {
+            color: var(--text-dim);
+            font-weight: 700;
+        }
+
+        .notice {
+            border-color: rgba(245, 158, 11, 0.24);
+            background: rgba(245, 158, 11, 0.08);
+        }
+
+        .notice p {
+            color: #fcd34d;
+            line-height: 1.55;
+            font-size: 0.92rem;
+        }
+
+        .support-request {
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .support-request-form {
+            display: grid;
+            gap: 14px;
+        }
+
+        .support-request-form label {
+            color: var(--text-dim);
+            font-size: 0.88rem;
+            font-weight: 600;
+        }
+
+        .support-request-form input,
+        .support-request-form select,
+        .support-request-form textarea {
+            width: 100%;
+            margin-top: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 9px;
+            padding: 10px 12px;
+            color: var(--text-main);
+            background: rgba(15, 23, 42, 0.72);
+            font-size: 0.95rem;
+        }
+
+        .support-request-form textarea {
+            min-height: 130px;
+            resize: vertical;
+        }
+
+        .support-request-form input:focus,
+        .support-request-form select:focus,
+        .support-request-form textarea:focus {
+            outline: 2px solid rgba(59, 130, 246, 0.55);
+            outline-offset: 1px;
+        }
+
+        .support-request-warning {
+            color: #fcd34d;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
+        .support-request-submit {
+            width: fit-content;
+            border: 0;
+            border-radius: 9px;
+            padding: 10px 16px;
+            color: #fff;
+            background: var(--primary);
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .support-request-submit:disabled {
+            cursor: wait;
+            opacity: 0.65;
+        }
+
+        .support-request-status {
+            min-height: 1.4em;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .support-request-status.error {
+            color: #fca5a5;
+        }
+
+        .support-request-status.success {
+            color: #86efac;
+        }
+
+        .support-history-layout {
+            display: grid;
+            grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+            gap: 16px;
+        }
+
+        .support-history-list,
+        .support-history-detail {
+            min-height: 130px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.46);
+            padding: 12px;
+            color: var(--text-dim);
+        }
+
+        .support-history-item {
+            display: block;
+            width: 100%;
+            margin-bottom: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.04);
+            text-align: left;
+            cursor: pointer;
+        }
+
+        .support-history-item:hover,
+        .support-history-item:focus-visible {
+            outline: none;
+            border-color: rgba(59, 130, 246, 0.36);
+            background: rgba(59, 130, 246, 0.12);
+        }
+
+        .support-history-detail h3 {
+            color: var(--text-main);
+            font-size: 0.98rem;
+            margin: 0 0 10px;
+        }
+
+        .support-history-line {
+            display: grid;
+            grid-template-columns: 110px minmax(0, 1fr);
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .support-history-label {
+            color: var(--text-dim);
+            font-weight: 700;
+        }
+
+        .support-history-value {
+            color: var(--text-main);
+            overflow-wrap: anywhere;
+        }
+
+        .support-reply-message {
+            margin-top: 10px;
+            border-left: 3px solid rgba(16, 185, 129, 0.65);
+            padding: 8px 0 8px 12px;
+            color: var(--text-main);
+        }
+
+        .support-reply-message p {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .support-reply-meta {
+            color: #86efac;
+            font-size: 0.82rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        @media (max-width: 1020px) {
+            .support-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header {
+                padding-right: 86px;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .main-container {
+                padding: 28px 16px 56px;
+            }
+
+            .header {
+                padding-right: 70px;
+            }
+
+            .header h1 {
+                font-size: 1.8rem;
+            }
+
+            .topic-list {
+                grid-template-columns: 1fr;
+            }
+
+            .support-history-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .support-history-line {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <chatbot-sidebar></chatbot-sidebar>
+    <main class="main-container">
+        <header class="header">
+            <h1>Support</h1>
+            <p>Find self-service guidance for common product tasks, account settings, billing review, and workspace setup.</p>
+        </header>
+
+        <div class="support-grid">
+            <section class="glass-card">
+                <div class="section-title">Common Help Topics</div>
+                <p class="section-subtitle">Use these starting points to resolve setup and account questions without leaving the tenant app.</p>
+                <div class="topic-list">
+                    <article class="topic-card">
+                        <h2>Chatbot Setup</h2>
+                        <p>Create or review bots from My Bots, then open a bot dashboard to configure its operating pages.</p>
+                    </article>
+                    <article class="topic-card">
+                        <h2>Knowledge Files</h2>
+                        <p>Use Documents to manage primary PDFs, supporting website knowledge, refinement questions, and graph data for a selected bot.</p>
+                    </article>
+                    <article class="topic-card">
+                        <h2>AI Model Settings</h2>
+                        <p>Use Tune AI to review provider and model settings. Admin or owner permissions may be required for changes.</p>
+                    </article>
+                    <article class="topic-card">
+                        <h2>Messaging Integrations</h2>
+                        <p>Use Integrations to connect or review WhatsApp, Telegram, and Wasender channels for a selected bot.</p>
+                    </article>
+                    <article class="topic-card">
+                        <h2>Conversations And CRM</h2>
+                        <p>Use Inbox &amp; Chat for customer messages and CRM / Leads for follow-up tracking, assignment, and lead status review.</p>
+                    </article>
+                    <article class="topic-card">
+                        <h2>Team And Profile</h2>
+                        <p>Use Profile for personal and workspace information. Owners and admins can manage team membership from Team Members.</p>
+                    </article>
+                    <article class="topic-card">
+                        <h2>Billing And AI Credits</h2>
+                        <p>Use Billing to review subscriptions, payment history, AI-credit balances, and manual-review payment states. This page accepts only redacted support requests and tenant-visible support replies.</p>
+                    </article>
+                </div>
+
+                <section class="support-request" aria-labelledby="support-request-title">
+                    <div class="section-title" id="support-request-title">Submit a Support Request</div>
+                    <p class="section-subtitle">Send a redacted request for review. Tenant-visible replies will appear in your support history.</p>
+                    <p class="support-request-warning">Do not include passwords, tokens, cookies, payment details, provider payloads, or private customer conversation content.</p>
+                    <form class="support-request-form" id="support-request-form" novalidate>
+                        <label for="support-request-category">Category
+                            <select id="support-request-category" name="category" required>
+                                <option value="">Select a category</option>
+                                <option value="technical">Technical</option>
+                                <option value="account">Account</option>
+                                <option value="chatbot">Chatbot</option>
+                                <option value="integration">Integration</option>
+                                <option value="billing_question">Billing question</option>
+                                <option value="ai_credits">AI credits</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </label>
+                        <label for="support-request-title-input">Subject
+                            <input id="support-request-title-input" name="title" type="text" maxlength="160" required>
+                        </label>
+                        <label for="support-request-description">Redacted description
+                            <textarea id="support-request-description" name="redacted_description" maxlength="2000" required></textarea>
+                        </label>
+                        <button class="support-request-submit" id="support-request-submit" type="submit">Submit request</button>
+                        <p class="support-request-status" id="support-request-status" role="status" aria-live="polite"></p>
+                    </form>
+                </section>
+
+                <section class="support-request" aria-labelledby="support-history-title">
+                    <div class="section-title" id="support-history-title">Support History</div>
+                    <p class="section-subtitle">Your submitted requests and tenant-visible replies for this signed-in account.</p>
+                    <div class="support-history-layout">
+                        <div class="support-history-list" id="support-history-list" aria-live="polite">Loading support requests...</div>
+                        <div class="support-history-detail" id="support-history-detail" aria-live="polite">Select a request to view its conversation.</div>
+                    </div>
+                </section>
+            </section>
+
+            <aside>
+                <section class="glass-card account-card" aria-labelledby="account-context-title">
+                    <div class="account-avatar" id="support-account-initials" aria-hidden="true">A</div>
+                    <div class="account-lines">
+                        <div class="section-title" id="account-context-title">Account Context</div>
+                        <div class="account-name" id="support-account-name">Signed in</div>
+                        <div class="account-email" id="support-account-email">Account details unavailable</div>
+                    </div>
+                </section>
+
+                <section class="glass-card" style="margin-top:22px;">
+                    <div class="section-title">Quick Links</div>
+                    <nav class="quick-links" aria-label="Support quick links">
+                        <a class="quick-link" href="bots.html" data-support-link><span>My Bots</span><span>Go</span></a>
+                        <a class="quick-link" href="profile.html" data-support-link><span>Profile</span><span>Go</span></a>
+                        <a class="quick-link" href="team.html" data-support-link><span>Team Members</span><span>Go</span></a>
+                        <a class="quick-link" href="pricing.html" data-support-link><span>Billing</span><span>Go</span></a>
+                        <a class="quick-link" href="integration.html" data-support-link><span>Integrations</span><span>Go</span></a>
+                        <a class="quick-link" href="new_linkdocs.html" data-support-link><span>Documents</span><span>Go</span></a>
+                        <a class="quick-link" href="model_settings.html" data-support-link><span>Tune AI</span><span>Go</span></a>
+                        <a class="quick-link" href="conversations.html" data-support-link><span>Inbox &amp; Chat</span><span>Go</span></a>
+                        <a class="quick-link" href="crm.html" data-support-link><span>CRM / Leads</span><span>Go</span></a>
+                        <a class="quick-link" href="reports.html" data-support-link><span>Reports</span><span>Go</span></a>
+                    </nav>
+                </section>
+
+                <section class="glass-card notice" style="margin-top:22px;">
+                    <div class="section-title">Support Request Status</div>
+                    <p>Requests are submitted for internal review. Replies shown here are tenant-visible support messages only; email sending, attachments, billing actions, and internal notes are not exposed.</p>
+                </section>
+            </aside>
+        </div>
+    </main>
+
+    <script>
+        (function () {
+            function parseStoredUser() {
+                try {
+                    var parsed = JSON.parse(sessionStorage.getItem("user") || "null");
+                    return parsed && typeof parsed === "object" ? parsed : null;
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            function initialsFor(label) {
+                var words = String(label || "A").trim().split(/\s+/).filter(Boolean);
+                var initials = words.slice(0, 2).map(function (word) {
+                    return word.charAt(0).toUpperCase();
+                }).join("");
+                return initials || "A";
+            }
+
+            var user = parseStoredUser();
+            var fullName = user && typeof user.full_name === "string" ? user.full_name.trim() : "";
+            var email = user && typeof user.email === "string" ? user.email.trim() : "";
+            var displayName = fullName || "Signed in";
+            var initialsSource = fullName || email || "Signed in";
+
+            document.getElementById("support-account-initials").textContent = initialsFor(initialsSource);
+            document.getElementById("support-account-name").textContent = displayName;
+            document.getElementById("support-account-email").textContent = email || "Account details unavailable";
+        })();
+
+        (function () {
+            var form = document.getElementById("support-request-form");
+            var submitButton = document.getElementById("support-request-submit");
+            var status = document.getElementById("support-request-status");
+            var category = document.getElementById("support-request-category");
+            var title = document.getElementById("support-request-title-input");
+            var description = document.getElementById("support-request-description");
+            var historyList = document.getElementById("support-history-list");
+            var historyDetail = document.getElementById("support-history-detail");
+            var historySequence = 0;
+            var allowedCategories = new Set([
+                "technical", "account", "chatbot", "integration",
+                "billing_question", "ai_credits", "other"
+            ]);
+
+            function showStatus(message, state) {
+                status.textContent = message;
+                status.className = "support-request-status" + (state ? " " + state : "");
+            }
+
+            function validateForm(values) {
+                if (!allowedCategories.has(values.category)) return "Select a valid support category.";
+                if (!values.title || values.title.length > 160) return "Subject must contain 1 to 160 characters.";
+                if (!values.redacted_description || values.redacted_description.length > 2000) {
+                    return "Description must contain 1 to 2000 characters.";
+                }
+                return "";
+            }
+
+            function element(tag, className, text) {
+                var node = document.createElement(tag);
+                if (className) node.className = className;
+                if (text !== undefined && text !== null) node.textContent = String(text);
+                return node;
+            }
+
+            function formatDate(value) {
+                if (!value) return "Not available";
+                var date = new Date(value);
+                if (Number.isNaN(date.getTime())) return String(value);
+                return date.toLocaleString();
+            }
+
+            function line(label, value) {
+                var item = element("div", "support-history-line");
+                item.append(element("span", "support-history-label", label));
+                item.append(element("span", "support-history-value", value || "Not available"));
+                return item;
+            }
+
+            function renderHistoryList(requests) {
+                historyList.replaceChildren();
+                if (!requests.length) {
+                    historyList.append(element("p", "support-request-status", "No support requests yet."));
+                    return;
+                }
+                requests.forEach(function (item) {
+                    var button = element(
+                        "button",
+                        "support-history-item",
+                        "#" + item.request_id + " - " + item.category + " - " + item.status
+                    );
+                    button.type = "button";
+                    button.addEventListener("click", function () {
+                        loadSupportRequestDetail(item.request_id);
+                    });
+                    historyList.append(button);
+                });
+            }
+
+            function renderHistoryDetail(data) {
+                var requestData = data && data.request ? data.request : null;
+                var replies = data && Array.isArray(data.replies) ? data.replies : [];
+                historyDetail.replaceChildren();
+                if (!requestData) {
+                    historyDetail.append(element("p", "support-request-status", "Select a request to view its conversation."));
+                    return;
+                }
+                historyDetail.append(
+                    element("h3", "", requestData.title || "Support request"),
+                    line("Status", requestData.status),
+                    line("Category", requestData.category),
+                    line("Submitted", formatDate(requestData.created_at)),
+                    line("Updated", formatDate(requestData.updated_at)),
+                    line("Description", requestData.redacted_description)
+                );
+                historyDetail.append(element("h3", "", "Tenant-visible replies"));
+                if (!replies.length) {
+                    historyDetail.append(element("p", "support-request-status", "No replies yet."));
+                    return;
+                }
+                replies.forEach(function (reply) {
+                    var message = element("article", "support-reply-message");
+                    message.append(
+                        element("div", "support-reply-meta", "Platform support - " + formatDate(reply.created_at)),
+                        element("p", "", reply.redacted_body)
+                    );
+                    historyDetail.append(message);
+                });
+            }
+
+            async function loadSupportHistory() {
+                var sequence = ++historySequence;
+                historyList.textContent = "Loading support requests...";
+                try {
+                    var response = await authenticatedFetch("/api/support/requests?limit=25&offset=0", {
+                        method: "GET",
+                        headers: { "Accept": "application/json" }
+                    });
+                    var result = await response.json().catch(function () { return null; });
+                    if (sequence !== historySequence) return;
+                    if (!response.ok || !result || result.status !== "success") {
+                        historyList.textContent = "Support history could not be loaded.";
+                        return;
+                    }
+                    renderHistoryList((result.data && result.data.requests) || []);
+                } catch (_) {
+                    if (sequence === historySequence) historyList.textContent = "Support history could not be loaded.";
+                }
+            }
+
+            async function loadSupportRequestDetail(requestId) {
+                var sequence = ++historySequence;
+                historyDetail.textContent = "Loading support conversation...";
+                try {
+                    var response = await authenticatedFetch("/api/support/requests/" + String(requestId), {
+                        method: "GET",
+                        headers: { "Accept": "application/json" }
+                    });
+                    var result = await response.json().catch(function () { return null; });
+                    if (sequence !== historySequence) return;
+                    if (!response.ok || !result || result.status !== "success") {
+                        historyDetail.textContent = "Support conversation could not be loaded.";
+                        return;
+                    }
+                    renderHistoryDetail(result.data);
+                } catch (_) {
+                    if (sequence === historySequence) historyDetail.textContent = "Support conversation could not be loaded.";
+                }
+            }
+
+            form.addEventListener("submit", async function (event) {
+                event.preventDefault();
+                var values = {
+                    category: category.value.trim(),
+                    title: title.value.trim(),
+                    redacted_description: description.value.trim()
+                };
+                var validationError = validateForm(values);
+                if (validationError) {
+                    showStatus(validationError, "error");
+                    return;
+                }
+
+                submitButton.disabled = true;
+                submitButton.textContent = "Submitting...";
+                showStatus("Submitting support request...", "");
+                try {
+                    var response = await authenticatedFetch("/api/support/requests", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(values)
+                    });
+                    var result = await response.json().catch(function () { return null; });
+                    if (response.status === 429) {
+                        showStatus("Too many requests. Please try again later.", "error");
+                        return;
+                    }
+                    if (!response.ok) {
+                        if (result && result.code === "invalid_category") {
+                            showStatus("Select a valid support category.", "error");
+                        } else if (result && (result.code === "invalid_title" || result.code === "invalid_redacted_description")) {
+                            showStatus("Review the subject and redacted description.", "error");
+                        } else {
+                            showStatus("Support request could not be submitted.", "error");
+                        }
+                        return;
+                    }
+                    var requestId = result && result.data && result.data.request_id;
+                    if (!Number.isSafeInteger(requestId) || requestId <= 0) {
+                        showStatus("Support request could not be confirmed.", "error");
+                        return;
+                    }
+                    showStatus("Request received. Reference: #" + requestId, "success");
+                    form.reset();
+                    loadSupportHistory();
+                } catch (_) {
+                    showStatus("Support request could not be submitted.", "error");
+                } finally {
+                    submitButton.disabled = false;
+                    submitButton.textContent = "Submit request";
+                }
+            });
+            loadSupportHistory();
+        })();
+    </script>
+</body>
+</html>

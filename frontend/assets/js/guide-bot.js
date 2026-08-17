@@ -147,17 +147,25 @@ function initGuidanceBot() {
 
     // Chat functionality
 
-    async function sendMessage() {
-        const text = botInput?.value.trim();
+    async function sendMessage(presetText = null) {
+        const text = presetText || botInput?.value.trim();
         if (!text) return;
 
         const urlParams = new URLSearchParams(window.location.search);
         const botId = urlParams.get("bot_id");
+        const currentPath = window.location.pathname.split('/').pop() || 'index.html';
 
         renderMessage("user", text);
         if (botInput) botInput.value = '';
 
         const token = sessionStorage.getItem('token');
+        
+        // Create an empty bot message container for streaming
+        const botMsgDiv = document.createElement('div');
+        botMsgDiv.className = `message bot`;
+        messageArea.appendChild(botMsgDiv);
+        messageArea.scrollTop = messageArea.scrollHeight;
+        
         try {
             const response = await fetch('/api/guide/chat', {
                 method: 'POST',
@@ -167,14 +175,53 @@ function initGuidanceBot() {
                 },
                 body: JSON.stringify({
                     message: text,
-                    bot_id: botId
+                    bot_id: botId,
+                    current_page: currentPath
                 })
             });
-            const data = await response.json();
+            
+            const contentType = response.headers.get('content-type');
+            if (!response.ok || (contentType && contentType.includes('application/json'))) {
+                const data = await response.json();
+                botMsgDiv.innerHTML = data.reply || data.error || "Connection error.";
+                saveMessage("bot", data.reply || data.error);
+                return;
+            }
 
-            renderMessage("bot", data.reply || data.error);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let fullReply = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value, { stream: true });
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const dataStr = line.slice(6);
+                        if (dataStr === '[DONE]') break;
+                        
+                        try {
+                            const data = JSON.parse(dataStr);
+                            if (data.reply) {
+                                fullReply += data.reply;
+                                botMsgDiv.innerHTML = parseMarkdown(fullReply);
+                                messageArea.scrollTop = messageArea.scrollHeight;
+                            }
+                        } catch (e) {
+                            console.error("Error parsing SSE JSON", e);
+                        }
+                    }
+                }
+            }
+            saveMessage("bot", fullReply);
+            
         } catch (error) {
-            renderMessage("bot", "Sorry, I'm having trouble connecting right now.");
+            botMsgDiv.innerHTML = "Sorry, I'm having trouble connecting right now.";
+            saveMessage("bot", "Sorry, I'm having trouble connecting right now.");
         }
     }
 
@@ -288,9 +335,27 @@ function initGuidanceBot() {
     // Initial load
     const hasHistory = loadHistory();
 
-    sendBtn?.addEventListener('click', sendMessage);
+    sendBtn?.addEventListener('click', () => sendMessage());
     botInput?.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
+    });
+
+    // Clear history
+    const clearBtn = document.getElementById('clear-bot-history');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+            localStorage.removeItem(STORAGE_KEY);
+            if (messageArea) messageArea.innerHTML = '';
+            ensureInitialGreeting();
+        });
+    }
+
+    // Quick replies
+    document.querySelectorAll('.quick-reply-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const question = e.target.textContent;
+            sendMessage(question);
+        });
     });
 
     botWindow.classList.remove('active');
