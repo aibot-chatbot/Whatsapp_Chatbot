@@ -417,6 +417,152 @@ const operationsOverview = {
   }
 };
 
+const billingOverview = {
+  generated_at: "2026-08-10T00:00:00+00:00",
+  subscriptions: {
+    by_status: { trialing: 2, active: 8, past_due: 1, expired: 1, cancelled: 1 },
+    by_plan: {
+      free: 3,
+      pro: 4,
+      "advanced<script>window.__billingPlanCodeXss=true</script>": 1
+    },
+    active_plan_catalogue: [
+      {
+        code: "free",
+        name: "Free",
+        billing_interval: "monthly",
+        currency: "MYR",
+        price_sen: 0,
+        included_ai_credit_micro_myr: 0
+      },
+      {
+        code: "pro",
+        name: "Pro <img src=x onerror=window.__billingCatalogueXss=true>",
+        billing_interval: "monthly",
+        currency: "MYR",
+        price_sen: 3900,
+        included_ai_credit_micro_myr: 20000000
+      }
+    ]
+  },
+  subscription_orders: {
+    orders_by_status: { pending: 2, created: 1, paid: 3, credited: 4, failed: 1, expired: 1, cancelled: 0 },
+    pending_count: 3,
+    failed_count: 1,
+    reconciliation_required_count: 2,
+    activation_statuses: {
+      not_started: 1,
+      claimed: 1,
+      activated: 2,
+      credit_pending: 1,
+      completed: 4,
+      conflict: 1,
+      failed: 1
+    },
+    activation_status_unset_count: 5,
+    activation_types: { initial_purchase: 3, renewal: 2, upgrade: 1 },
+    activation_type_unset_count: 4
+  },
+  topup_orders: {
+    orders_by_status: { pending: 1, claimed: 1, paid: 2, credited: 3, failed: 1, expired: 0, cancelled: 0 },
+    pending_count: 1,
+    failed_count: 1,
+    credited_count: 3
+  },
+  ai_credit: {
+    balance_row_count: 12,
+    depleted_company_count: 2,
+    total_included_balance_micro_myr: 45000000,
+    total_topup_balance_micro_myr: 6000000,
+    transactions_by_type: {
+      included_credit_grant: 5,
+      trial_credit_grant: 2,
+      usage_debit: 44,
+      topup_purchase: 3,
+      refund: 1,
+      manual_adjustment: 0,
+      expiry: 1,
+      reversal: 1
+    }
+  },
+  ai_usage: {
+    window: { days: 7, since: "2026-08-03T00:00:00+00:00" },
+    requests_by_status: { completed: 52, failed: 4 },
+    recent_request_count: 56,
+    recent_total_tokens: 89000
+  },
+  billing_notifications: {
+    by_type_severity_read_state: [
+      { notification_type: "payment_confirmed", severity: "info", is_read: false, count: 2 },
+      { notification_type: "activation_failed<script>window.__billingNoticeXss=true</script>", severity: "critical", is_read: false, count: 1 }
+    ]
+  },
+  subscription_lifecycle: {
+    pending_plan_change_count: 2,
+    scheduled_cancellation_count: 1,
+    pending_plan_and_cancellation_count: 1
+  }
+};
+
+const billingCompanies = {
+  companies: [
+    {
+      company_id: 42,
+      company_name: "Example Tenant <script>window.__billingCompanyXss=true</script>",
+      company_status: "active",
+      current_plan: {
+        code: "pro",
+        name: "Pro <img src=x onerror=window.__billingDirectoryPlanXss=true>"
+      },
+      subscription_status: "past_due",
+      current_period_start: "2026-07-01T00:00:00+00:00",
+      current_period_end: "2026-08-01T00:00:00+00:00",
+      pending_plan_change: true,
+      cancellation_scheduled: false,
+      ai_credit_total_balance_micro_myr: 26000000,
+      subscription_order_attention: {
+        pending_count: 1,
+        failed_count: 1,
+        reconciliation_required_count: 1,
+        activation_failed_count: 0,
+        activation_conflict_count: 1
+      },
+      topup_order_attention: {
+        pending_count: 1,
+        failed_count: 0,
+        credited_count: 2
+      }
+    },
+    {
+      company_id: 43,
+      company_name: "No Subscription Tenant",
+      company_status: "inactive",
+      current_plan: null,
+      subscription_status: null,
+      current_period_start: null,
+      current_period_end: null,
+      pending_plan_change: false,
+      cancellation_scheduled: false,
+      ai_credit_total_balance_micro_myr: 0,
+      subscription_order_attention: {
+        pending_count: 0,
+        failed_count: 0,
+        reconciliation_required_count: 0,
+        activation_failed_count: 0,
+        activation_conflict_count: 0
+      },
+      topup_order_attention: {
+        pending_count: 0,
+        failed_count: 0,
+        credited_count: 0
+      }
+    }
+  ],
+  pagination: { limit: 25, offset: 0, returned: 2, total: 2, has_more: false },
+  filters: { subscription_status: null, plan: null, attention: null },
+  ordering: { by: "company_id", order: "asc" }
+};
+
 const userList = {
   users: [
     {
@@ -756,6 +902,8 @@ async function openPlatformPage(page, path, handler, user) {
 function defaultHandler({ url }) {
   if (url.pathname === "/api/platform-admin/me") return success(identity);
   if (url.pathname === "/api/platform-admin/overview") return success(operationsOverview);
+  if (url.pathname === "/api/platform-admin/billing/overview") return success(billingOverview);
+  if (url.pathname === "/api/platform-admin/billing/companies") return success(billingCompanies);
   if (url.pathname === "/api/platform-admin/audit-events") return success(auditEvents);
   if (url.pathname === "/api/platform-admin/platform-admin-users") return success(platformAdminUsers);
   if (url.pathname === "/api/platform-admin/platform-admin-users/7002/active") {
@@ -1019,7 +1167,10 @@ test.describe("platform-admin dashboard and directory", () => {
     await expect.poll(() => page.evaluate(() => window.__alertPlanXss)).toBeUndefined();
     await expect.poll(() => page.evaluate(() => window.__expiredAlertXss)).toBeUndefined();
     await expect(page.getByText("Internal / Controlled Access")).toBeVisible();
-    await assertReadOnlyBoundary(page);
+    for (const forbidden of ["Reconcile", "Refund", "Retry payment", "Grant credits", "Reverse credits", "Change plan", "Edit balance", "Impersonate"]) {
+      await expect(page.getByRole("button", { name: forbidden })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: forbidden })).toHaveCount(0);
+    }
   });
 
   test("dashboard performs one overview request after authorization and handles empty attention", async ({ page }) => {
@@ -1180,6 +1331,140 @@ test.describe("platform-admin dashboard and directory", () => {
     await openPlatformPage(page, "/platform-admin-companies.html", ({ url }) => defaultHandler({ url }));
     const href = await page.getByRole("link", { name: "View details" }).first().getAttribute("href");
     expect(href).toBe("platform-admin-company.html?company_id=42");
+  });
+});
+
+test.describe("platform-admin billing oversight", () => {
+  test("billing overview loading state appears before protected data renders", async ({ page }) => {
+    let releaseOverview;
+    const overviewGate = new Promise(resolve => {
+      releaseOverview = resolve;
+    });
+    await openPlatformPage(page, "/platform-admin-billing.html", async ({ url }) => {
+      if (url.pathname === "/api/platform-admin/billing/overview") {
+        await overviewGate;
+        return success(billingOverview);
+      }
+      return defaultHandler({ url });
+    });
+
+    await expect(page.getByText("Loading platform billing oversight...")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Platform Billing & Subscriptions" })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Tenant Billing Directory" })).toHaveCount(0);
+
+    releaseOverview();
+    await expect(page.getByRole("heading", { name: "Platform Billing & Subscriptions" })).toBeVisible();
+  });
+
+  test("billing page renders read-only overview directory and safe desktop table", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-billing.html", ({ url }) => defaultHandler({ url }));
+
+    await expect(page.getByRole("heading", { name: "Platform Billing & Subscriptions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Subscription status" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Subscription order attention" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI-credit top-up attention" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI Credit Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Billing Notifications" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Subscription lifecycle" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tenant Billing Directory" })).toBeVisible();
+    await expect(metricCard(page, "Pending orders")).toContainText("3");
+    await expect(metricCard(page, "Reconciliation required")).toContainText("2");
+    await expect(metricCard(page, "Depleted companies")).toContainText("2");
+    await expect(metricCard(page, "Recent requests")).toContainText("56");
+    await expect(page.getByRole("cell", { name: "active" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "pro" }).first()).toBeVisible();
+    await expect(page.getByRole("cell", { name: "MYR 39.00" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "activation_failed<script>window.__billingNoticeXss=true</script>" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Example Tenant <script>window.__billingCompanyXss=true</script>" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "No subscription", exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Example Tenant <script>window.__billingCompanyXss=true</script>" })).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
+    await expect(page.locator("section[aria-label='Tenant billing directory mobile cards']")).toBeHidden();
+    await expect.poll(() => page.evaluate(() => window.__billingPlanCodeXss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__billingCatalogueXss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__billingNoticeXss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__billingCompanyXss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__billingDirectoryPlanXss)).toBeUndefined();
+    expect(calls.some(call => call.path === "/api/platform-admin/billing/overview")).toBe(true);
+    expect(calls.some(call => call.path === "/api/platform-admin/billing/companies")).toBe(true);
+    expect(calls.every(call => call.method === "GET")).toBe(true);
+    for (const forbidden of ["Reconcile", "Refund", "Retry payment", "Grant credits", "Reverse credits", "Change plan", "Edit balance", "Impersonate"]) {
+      await expect(page.getByRole("button", { name: forbidden })).toHaveCount(0);
+      await expect(page.getByRole("link", { name: forbidden })).toHaveCount(0);
+    }
+  });
+
+  test("billing filters preserve existing API parameters and empty state", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-billing.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/billing/companies" && url.searchParams.get("attention") === "true") {
+        return success({
+          ...billingCompanies,
+          companies: [],
+          pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false },
+          filters: { subscription_status: "past_due", plan: "pro", attention: true }
+        });
+      }
+      return defaultHandler({ url });
+    });
+
+    const directory = page.locator("section.platform-panel", { hasText: "Tenant Billing Directory" });
+    await directory.getByLabel("Subscription status").selectOption("past_due");
+    await directory.getByLabel("Plan code").fill("Pro");
+    await directory.getByLabel("Attention").selectOption("true");
+    await directory.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByText("No tenant billing rows match the current filters.")).toBeVisible();
+
+    const urls = calls
+      .filter(call => call.path === "/api/platform-admin/billing/companies")
+      .map(call => new URL("http://test" + call.search));
+    expect(urls.some(url => (
+      url.searchParams.get("subscription_status") === "past_due" &&
+      url.searchParams.get("plan") === "Pro" &&
+      url.searchParams.get("attention") === "true"
+    ))).toBe(true);
+  });
+
+  test("billing unavailable and access denial states are sanitized", async ({ page }) => {
+    await openPlatformPage(page, "/platform-admin-billing.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/billing/overview") {
+        return failure(503, "platform_admin_data_unavailable", "gateway raw provider payload");
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "Temporarily Unavailable" })).toBeVisible();
+    await expect(page.getByText("gateway raw provider payload")).toHaveCount(0);
+
+    await openPlatformPage(page, "/platform-admin-billing.html", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/me") return failure(403, "platform_admin_access_denied");
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "Access Denied" })).toBeVisible();
+    await expect(page.getByText("Platform Billing & Subscriptions")).toHaveCount(0);
+  });
+
+  test("billing mobile viewport shows overview cards and tenant directory cards", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openPlatformPage(page, "/platform-admin-billing.html", ({ url }) => defaultHandler({ url }));
+
+    await expect(page.getByRole("heading", { name: "Platform Billing & Subscriptions" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Subscription status" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Subscription order attention" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "AI Credit Overview" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tenant Billing Directory" })).toBeVisible();
+    await expect(page.getByText("Subscription status counts mobile cards")).toHaveCount(0);
+    await expect(page.locator("section[aria-label='Subscription status counts mobile cards']")).toBeVisible();
+    await expect(page.locator("section[aria-label='Active plan catalogue mobile cards']")).toBeVisible();
+    const mobileDirectory = page.locator("section[aria-label='Tenant billing directory mobile cards']");
+    await expect(mobileDirectory).toBeVisible();
+    await expect(mobileDirectory.getByRole("heading", { name: "Example Tenant <script>window.__billingCompanyXss=true</script>" })).toBeVisible();
+    await expect(mobileDirectory.getByText("No subscription", { exact: true })).toBeVisible();
+    await expect(mobileDirectory.getByText("Attention items").first()).toBeVisible();
+    const firstCompanyLink = mobileDirectory.getByRole("link", { name: "View Company" }).first();
+    await expect(firstCompanyLink).toHaveAttribute("href", "platform-admin-company.html?company_id=42");
+    await expect(page.locator(".platform-table-wrap").first()).toBeHidden();
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
+    await firstCompanyLink.click();
+    await expect(page).toHaveURL(/platform-admin-company\.html\?company_id=42$/);
+    await expect(page.getByRole("heading", { name: "Example Tenant <script>window.__xss = true</script>" })).toBeVisible();
   });
 });
 

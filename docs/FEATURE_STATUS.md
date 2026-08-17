@@ -554,12 +554,13 @@ verified.
   alternatives, responsive behavior, and reduced dashboard information density.
   This is not staging verification and does not establish production readiness.
   Unsupported aggregate values fail closed.
-- Platform-admin Billing & Subscription Oversight Phase 7 is implemented
-  locally as a read-only Platform Billing & Subscriptions page with
+- Platform-admin Billing & Subscription Oversight Phase 7 is implemented for
+  the current read-only milestone as a Platform Billing & Subscriptions page with
   `GET /api/platform-admin/billing/overview` and
   `GET /api/platform-admin/billing/companies`. Migration 038 is applied and
   verified only in the approved main shared-testing Supabase with fake/team
-  data. It adds `public.get_platform_admin_billing_overview()`,
+  data. Migration 043 was not required and was not created. It adds
+  `public.get_platform_admin_billing_overview()`,
   `public.get_platform_admin_billing_companies(integer, integer, text, text,
   boolean)`, and updates `public.get_platform_admin_monitoring_overview()` so
   `platform_admin.billing.overview.read`, `platform_admin.billing.company_list`,
@@ -574,12 +575,24 @@ verified.
   and Tenant Billing Directory. Companies without subscriptions are included
   with `subscription_status = null`, `current_plan = null`, null period dates,
   and false pending/cancellation flags. Filtering, counting, stable
-  `company_id ASC` ordering, and pagination happen inside PostgreSQL. Phase 7
-  remains read-only: manual AI-credit adjustment, payment reconciliation
-  mutation, refund, subscription correction/override, manual plan change,
-  direct balance editing, payment retry mutation, manual credit reversal, and
-  billing impersonation/remediation controls remain deferred. This is not
-  staging verification and does not establish production readiness.
+  `company_id ASC` ordering, and pagination happen inside PostgreSQL.
+  Responsive/accessibility hardening was verified locally through source and
+  Playwright browser tests: desktop tables remain available, mobile Billing
+  overview and Tenant Billing Directory cards remain visible below 767px, the
+  directory filters have explicit labels for Subscription status, Plan code,
+  and Attention, hostile Billing values render as text, and mobile View Company
+  navigation opens `platform-admin-company.html?company_id=<id>`. Latest focused
+  evidence is 54 frontend source tests with 14 subtests, a 5-test Billing
+  browser group, and a 70-test full Platform Admin browser suite. A broader
+  Phase 7 regression scope previously passed with 153 tests and 271 subtests.
+  Phase 7 remains read-only: manual AI-credit adjustment, payment
+  reconciliation mutation, refund, subscription correction/override, manual
+  plan change, direct balance editing, payment retry mutation, manual credit
+  reversal, and billing impersonation/remediation controls remain deferred.
+  Direct balance editing is not appropriate for this milestone. Subscription
+  history is persisted `company_subscriptions` records, not a true
+  event-sourced plan/status transition history. This is not staging
+  verification and does not establish production readiness.
 - The lifecycle document now includes a redacted access, revocation, smoke,
   audit-log, and localhost/staging/production evidence checklist; it does not
   change the current local-only verification boundary.
