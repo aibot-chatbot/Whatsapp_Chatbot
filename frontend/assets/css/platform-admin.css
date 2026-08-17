@@ -253,6 +253,8 @@ a {
     justify-content: space-between;
     gap: 1.5rem;
     margin-bottom: 1.75rem;
+    padding-bottom: 1.1rem;
+    border-bottom: 1px solid rgba(148, 196, 210, 0.16);
 }
 
 .platform-page-header h1 {
@@ -277,6 +279,16 @@ a {
     padding: 1.35rem;
 }
 
+.platform-panel > h2:first-child,
+.platform-panel > h3:first-child {
+    margin-bottom: 0.45rem;
+}
+
+.platform-panel > p.platform-muted,
+.platform-panel > p.platform-note {
+    max-width: 58rem;
+}
+
 .platform-panel + .platform-panel {
     margin-top: 1rem;
 }
@@ -291,6 +303,34 @@ a {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 1rem;
     margin-bottom: 1.25rem;
+}
+
+.platform-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.platform-card {
+    min-width: 0;
+    padding: 1.1rem;
+    border: 1px solid var(--platform-border);
+    border-radius: 0.9rem;
+    background: rgba(7, 21, 29, 0.68);
+}
+
+.platform-card-label {
+    display: block;
+    color: var(--platform-muted);
+    font-size: 0.82rem;
+}
+
+.platform-card-value {
+    display: block;
+    margin-top: 0.45rem;
+    color: var(--platform-text);
+    font-size: 1.7rem;
 }
 
 .platform-metric {
@@ -358,11 +398,51 @@ a {
     opacity: 0.55;
 }
 
+.platform-inline-form {
+    display: grid;
+    grid-template-columns: minmax(12rem, 1fr) auto;
+    align-items: end;
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.platform-inline-form label {
+    display: grid;
+    gap: 0.35rem;
+    color: var(--platform-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.platform-inline-form input {
+    width: 100%;
+    min-height: 2.7rem;
+    padding: 0.62rem 0.72rem;
+    border: 1px solid var(--platform-border);
+    border-radius: 0.65rem;
+    background: #091923;
+    color: var(--platform-text);
+}
+
+.platform-form-status,
+.platform-error,
+.platform-muted {
+    color: var(--platform-muted);
+}
+
+.platform-error {
+    color: #fecdd3;
+}
+
 .platform-toolbar {
     display: grid;
     grid-template-columns: minmax(14rem, 2fr) repeat(3, minmax(8rem, 1fr));
     gap: 0.85rem;
     margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(148, 196, 210, 0.14);
+    border-radius: 0.9rem;
+    background: rgba(7, 21, 29, 0.56);
 }
 
 .platform-support-actions {
@@ -386,6 +466,10 @@ a {
     align-items: end;
     gap: 0.85rem;
     margin: 1rem 0;
+    padding: 1rem;
+    border: 1px solid rgba(148, 196, 210, 0.14);
+    border-radius: 0.9rem;
+    background: rgba(7, 21, 29, 0.56);
 }
 
 .platform-support-results {
@@ -426,12 +510,13 @@ a {
 
 .platform-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
 }
 
 .platform-table th,
 .platform-table td {
-    padding: 0.85rem 0.7rem;
+    padding: 0.95rem 0.8rem;
     border-bottom: 1px solid var(--platform-border);
     text-align: left;
     vertical-align: top;
@@ -441,6 +526,11 @@ a {
     color: var(--platform-muted);
     font-size: 0.8rem;
     letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.platform-table tbody tr:hover {
+    background: rgba(148, 196, 210, 0.05);
 }
 
 .platform-company-cards {
@@ -479,6 +569,7 @@ a {
     border: 1px solid var(--platform-border);
     border-radius: 0.8rem;
     background: rgba(7, 21, 29, 0.75);
+    overflow-wrap: anywhere;
 }
 
 .platform-company-card + .platform-company-card {
@@ -531,6 +622,9 @@ a {
     padding: 2.5rem 1rem;
     text-align: center;
     color: var(--platform-muted);
+    border: 1px dashed rgba(148, 196, 210, 0.2);
+    border-radius: 0.9rem;
+    background: rgba(7, 21, 29, 0.36);
 }
 
 .platform-loading {
@@ -543,6 +637,371 @@ a {
 .platform-note {
     color: var(--platform-muted);
     font-size: 0.88rem;
+}
+
+.platform-eyebrow {
+    margin: 0 0 0.45rem;
+    color: var(--platform-accent);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.platform-dashboard-stack {
+    display: grid;
+    gap: 1rem;
+}
+
+.platform-dashboard-health-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.platform-dashboard-header {
+    margin-bottom: 0.5rem;
+}
+
+.platform-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.platform-dashboard-panel {
+    display: grid;
+    gap: 1rem;
+}
+
+.platform-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.platform-panel-header h2 {
+    margin-bottom: 0.3rem;
+}
+
+.platform-panel-header .platform-note {
+    margin: 0;
+}
+
+.platform-dashboard-small-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-bottom: 0;
+}
+
+.platform-dashboard-metric {
+    min-height: 7rem;
+    padding: 1rem;
+}
+
+.platform-metric-note {
+    display: block;
+    margin-top: 0.55rem;
+    color: var(--platform-muted);
+    font-size: 0.82rem;
+}
+
+.platform-metric-good {
+    border-color: rgba(34, 211, 167, 0.34);
+}
+
+.platform-metric-attention {
+    border-color: rgba(251, 191, 36, 0.42);
+}
+
+.platform-metric-danger {
+    border-color: rgba(251, 113, 133, 0.42);
+}
+
+.platform-alert-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.platform-alert-list,
+.platform-channel-grid,
+.platform-visual-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.platform-visual-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.platform-alert-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.platform-alert-card,
+.platform-channel-card,
+.platform-chart {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--platform-border);
+    border-radius: 0.8rem;
+    background: rgba(7, 21, 29, 0.68);
+}
+
+.platform-alert-title,
+.platform-chart-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.platform-alert-title {
+    justify-content: flex-start;
+}
+
+.platform-chart-heading h3,
+.platform-channel-card h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.platform-chart-heading span {
+    color: var(--platform-muted);
+    font-size: 0.84rem;
+    white-space: nowrap;
+}
+
+.platform-segmented-meter {
+    display: flex;
+    width: 100%;
+    height: 0.85rem;
+    margin: 1rem 0;
+    overflow: hidden;
+    border: 1px solid rgba(148, 196, 210, 0.16);
+    border-radius: 999px;
+    background: rgba(148, 196, 210, 0.08);
+}
+
+.platform-segment {
+    min-width: 0.25rem;
+}
+
+.platform-segment-good,
+.platform-bar-fill-good,
+.platform-dot-good {
+    background: var(--platform-accent);
+}
+
+.platform-segment-info,
+.platform-bar-fill-info,
+.platform-dot-info {
+    background: var(--platform-info);
+}
+
+.platform-segment-attention,
+.platform-bar-fill-attention,
+.platform-dot-attention {
+    background: var(--platform-warning);
+}
+
+.platform-segment-danger,
+.platform-bar-fill-danger,
+.platform-dot-danger {
+    background: var(--platform-danger);
+}
+
+.platform-segment-neutral,
+.platform-bar-fill-neutral,
+.platform-dot-neutral,
+.platform-segment-empty {
+    background: rgba(157, 183, 192, 0.42);
+}
+
+.platform-segment-empty {
+    color: transparent;
+}
+
+.platform-bar-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.platform-bar-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.4rem 0.8rem;
+    align-items: center;
+}
+
+.platform-bar-label {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.45rem;
+    overflow-wrap: anywhere;
+    color: var(--platform-text);
+}
+
+.platform-dot {
+    width: 0.58rem;
+    height: 0.58rem;
+    flex: 0 0 auto;
+    border-radius: 999px;
+}
+
+.platform-bar-track {
+    grid-column: 1 / -1;
+    height: 0.5rem;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(148, 196, 210, 0.12);
+}
+
+.platform-bar-fill {
+    display: block;
+    height: 100%;
+    min-width: 0;
+    border-radius: inherit;
+}
+
+.platform-chart-empty {
+    padding: 0.75rem 0 0;
+}
+
+.platform-compact-metric-list {
+    display: grid;
+    gap: 0.7rem;
+}
+
+.platform-compact-metric-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid rgba(148, 196, 210, 0.14);
+    border-radius: 0.75rem;
+    background: rgba(7, 21, 29, 0.52);
+}
+
+.platform-compact-metric-row span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--platform-muted);
+}
+
+.platform-compact-metric-row strong {
+    color: var(--platform-text);
+}
+
+.platform-compact-metric-good {
+    border-color: rgba(34, 211, 167, 0.24);
+}
+
+.platform-compact-metric-attention {
+    border-color: rgba(251, 191, 36, 0.34);
+}
+
+.platform-compact-metric-danger {
+    border-color: rgba(251, 113, 133, 0.34);
+}
+
+.platform-channel-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.platform-channel-heading {
+    grid-column: 1 / -1;
+    margin: 0;
+    color: var(--platform-text);
+    font-size: 1rem;
+}
+
+.platform-channel-card {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.platform-channel-card .platform-note {
+    margin: 0;
+}
+
+.platform-channel-metrics {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.platform-channel-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.36rem 0.55rem;
+    border: 1px solid var(--platform-border);
+    border-radius: 999px;
+    color: var(--platform-muted);
+    font-size: 0.8rem;
+}
+
+.platform-channel-pill-good {
+    border-color: rgba(34, 211, 167, 0.34);
+    color: #a7f3d0;
+}
+
+.platform-channel-pill-attention {
+    border-color: rgba(251, 191, 36, 0.42);
+    color: #fde68a;
+}
+
+.platform-channel-pill-danger {
+    border-color: rgba(251, 113, 133, 0.42);
+    color: #fecdd3;
+}
+
+.platform-attention-company-cards {
+    display: none;
+}
+
+.platform-attention-company-card {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid var(--platform-border);
+    border-radius: 0.8rem;
+    background: rgba(7, 21, 29, 0.75);
+}
+
+.platform-attention-company-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.platform-attention-company-card-header a:first-child {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--platform-text);
+    font-weight: 700;
+}
+
+.platform-attention-company-details {
+    display: grid;
+    gap: 0.35rem;
+    margin: 0.9rem 0 0;
+}
+
+.platform-attention-company-details dt {
+    color: var(--platform-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.platform-attention-company-details dd {
+    margin: 0 0 0.35rem;
+    color: var(--platform-text);
 }
 
 @media (max-width: 900px) {
@@ -580,25 +1039,53 @@ a {
     .platform-toolbar {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
+
+    .platform-kpi-grid,
+    .platform-dashboard-health-grid,
+    .platform-dashboard-small-grid,
+    .platform-alert-summary,
+    .platform-channel-grid,
+    .platform-visual-grid,
+    .platform-alert-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 767px) {
     .platform-grid,
+    .platform-summary-grid,
     .platform-definition-grid,
     .platform-toolbar,
     .platform-support-search,
-    .platform-audit-filters {
+    .platform-audit-filters,
+    .platform-inline-form {
         grid-template-columns: 1fr;
     }
 
     .platform-page-header,
+    .platform-panel-header,
     .platform-pagination {
         align-items: stretch;
         flex-direction: column;
     }
 
+    .platform-kpi-grid,
+    .platform-dashboard-health-grid,
+    .platform-dashboard-small-grid,
+    .platform-alert-summary,
+    .platform-channel-grid,
+    .platform-visual-grid,
+    .platform-alert-list {
+        grid-template-columns: 1fr;
+    }
+
     .platform-table-wrap {
         display: none;
+    }
+
+    .platform-attention-company-cards {
+        display: grid;
+        gap: 0.85rem;
     }
 
     .platform-company-cards {

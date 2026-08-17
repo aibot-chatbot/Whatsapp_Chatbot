@@ -496,10 +496,27 @@ verified.
   Runtime verification against the approved main shared-testing Supabase plus
   localhost frontend/API returned 200 for `/api/platform-admin/me`, the
   monitoring RPC, and `/api/platform-admin/overview`; the Platform Operations
-  dashboard rendered and the Temporarily Unavailable state disappeared. This
-  is not staging verification and does not establish production readiness.
-  Unsupported aggregate values fail closed. Browser E2E is not claimed because
-  local `npm`/Playwright dependencies are unavailable.
+  dashboard rendered and the Temporarily Unavailable state disappeared.
+  The current milestone also verifies the local repository/source tests and a
+  full Platform Admin browser suite for the visual dashboard and Superadmin UI
+  polish. The dashboard is intentionally a concise operations summary rather
+  than a full analytics explorer: detailed investigation remains on Companies,
+  Company Detail, Support, Billing, and Audit Logs. It preserves read-only
+  aggregate visibility into company counts, active users, support workload,
+  support status, operational alerts, messaging delivery/channel health, retry
+  backlog, AI request/token activity, depleted AI-credit balance signals,
+  billing/order attention, companies requiring attention, and aggregate
+  platform-admin activity. It deliberately excludes unsupported SLA/overdue
+  metrics, generic failed-job monitoring, fabricated trends, real-time online
+  users, detailed provider incident telemetry, financial mutation controls, raw
+  message content, AI prompt/response content, raw audit metadata, and raw
+  financial/provider payloads. The Superadmin workspace now has a more
+  consistent operational UI across Dashboard, Companies, Company Detail,
+  Support, Billing, Audit Logs, and Platform Admin Management, including shared
+  page hierarchy, improved panels/tables/cards, clearer filters, mobile card
+  alternatives, responsive behavior, and reduced dashboard information density.
+  This is not staging verification and does not establish production readiness.
+  Unsupported aggregate values fail closed.
 - Platform-admin Billing & Subscription Oversight Phase 7 is implemented
   locally as a read-only Platform Billing & Subscriptions page with
   `GET /api/platform-admin/billing/overview` and

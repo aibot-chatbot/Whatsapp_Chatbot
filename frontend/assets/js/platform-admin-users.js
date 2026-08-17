@@ -72,6 +72,18 @@
         return wrap;
     }
 
+    function pageHeader() {
+        const header = el("header", "platform-page-header");
+        const copy = el("div");
+        copy.append(
+            el("p", "platform-eyebrow", "Controlled access"),
+            el("h1", "", "Platform Admin Management"),
+            el("p", "platform-muted", "Manage dedicated platform-admin mappings only. Tenant role management, invitations, password resets, impersonation, deletion, billing actions, and company suspension are excluded.")
+        );
+        header.append(copy);
+        return header;
+    }
+
     function addForm() {
         const section = el("section", "platform-panel");
         section.append(
@@ -200,8 +212,7 @@
         const status = el("p", "platform-form-status");
         status.id = "platform-admin-user-status";
         root.replaceChildren(
-            el("h1", "", "Platform Admin Management"),
-            el("p", "platform-muted", "Manage dedicated platform-admin mappings only. Tenant role management, invitations, password resets, impersonation, deletion, billing actions, and company suspension are excluded."),
+            pageHeader(),
             summary(state.rows),
             addForm(),
             status,
