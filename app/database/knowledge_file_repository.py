@@ -255,3 +255,18 @@ def get_active_knowledge_file(chatbot_id: int):
         return None
 
     return result.data[0] if result.data else None
+
+
+# Backwards-compatible alias.
+#
+# `get_active_pdf_knowledge_file` was renamed to `get_active_knowledge_file`
+# and its `file_type == "pdf"` filter deliberately dropped, so a non-PDF
+# knowledge file can be the active one. The rename left 20 callers in
+# knowledge_routes.py and knowledge_service.py pointing at the old name; they
+# are lazy imports, so they fail at call time rather than at startup.
+#
+# This alias restores them without renaming 36 call sites across 9 files.
+# Note the semantic change it inherits: callers no longer get a PDF-only
+# result. Removing the alias and updating the call sites is the tidier fix and
+# belongs with whoever owns the rename.
+get_active_pdf_knowledge_file = get_active_knowledge_file

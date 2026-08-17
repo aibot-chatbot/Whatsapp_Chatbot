@@ -44,12 +44,16 @@
 |---|---|---|
 | Chatbot creation | Implemented | Backend and frontend exist |
 | Chatbot listing | Implemented | Company-scoped |
+| Chatbot archive, restore, and permanent deletion | Verified complete | Active and archived lists are company-scoped; authenticated archive listing plus admin/owner restore and permanent-delete routes are covered by focused route tests. Permanent deletion still depends on Migration 022 being deployed in the target Supabase environment |
 | Chatbot editing | Implemented | Requires broader route tests |
 | Chatbot deletion | Implemented | Requires deletion-flow verification |
 | Prompt configuration | Implemented | Profile and deployment flow exists |
 | Model selection | Implemented | Model catalog and settings UI exist |
 | Flow Builder runtime | Implemented | Flow Builder remains part of the active chatbot system. Backend flow save/fetch routes, V3 draft/published persistence, AI Router interception, Test Bot integration, flow execution, safe AI/RAG handoff, and legacy `flow_data` compatibility are covered by `tests/test_flow_builder_runtime.py`; broader UI and live-channel flow verification remain needed |
 | Media Attachments | Implemented | Backend, UI, and webhook dispatch created |
+| Persona field unification (migration 039) | Partially implemented | `bot_config_fields.py` makes the canonical/legacy column mapping single-source and writes NULL into the deprecated `business_objective`/`response_style`/`prompt_text` mirrors. Migration `data/039_unify_bot_config_persona_fields.sql` is unapplied everywhere and its mandatory SELECT-only preflight `scripts/bot_configs_persona_unification_preflight.sql` is unrun; section 10 must be exported to the restricted archive before applying because divergent legacy values become unrecoverable. Deploying the code before the migration fails every `bot_configs` write with `23502`. See `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md` |
+| Derived persona from ingested documents | Partially implemented | `persona_derivation_service.py` fills `company_name`, `business_description`, and `tone` from the client's uploaded PDF after `POST /upload-pdf`, through `ai_router` so billing and tier enforcement apply; a non-JSON reply writes nothing. 73+32+14 focused tests pass plus real-browser `tests/browser/testbot-persona.spec.js`. Blocked from delivering its stated benefit: `rag_service.get_deployed_settings` returns `DEFAULT_SETTINGS` when `chatbots.deployed_profile_name` is blank, so an undeployed bot still replies "Your Company" — exactly the never-opened-the-form population targeted. A test pins the gap; closing it is separate create-RPC/promotion work. Residual stored prompt-injection risk: up to 1000 characters of document-chosen prose reach the serving system prompt as asserted company fact (structural newline/control-character lever closed, semantic lever open). Whether `tone` should be excluded from placeholder-matching is an open design call |
+| Persona provenance and client override | Implemented | `bot_configs.persona_provenance` jsonb tags each derivable field `client_entered` or `derived` in the same INSERT/UPDATE as the value, so the two cannot disagree. A client edit flips the marker to `client_entered` and re-ingestion never overwrites it. Partial profile saves preserve omitted persona fields by key presence; `custom_prompt`, `bot_name`, `additional_instructions`, and `out_of_scope_reply` are still full-replaced. Migration `data/040_bot_config_persona_provenance.sql` is unapplied everywhere and must be applied before the code or every settings/profile save fails with `PGRST204`. No backfill by design: pre-existing rows read as unknown and are adjudicated by value. Client procedure documented in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md` |
 | Message style & welcome menu buttons | Implemented | Welcome-menu buttons always render regardless of the interactive-buttons toggle (per product decision). The `[BUTTONS: ...]` tag is now stripped from the reply before markdown formatting on both Telegram and WhatsApp so buttons reliably render. Welcome-menu AI generation is capped at 3 labels to match the UI. Regression tests added in `tests/test_message_style_buttons.py` |
 
 
@@ -67,6 +71,9 @@
 | RAG response flow | Implemented | Quality and adversarial testing remain |
 | Knowledge graph visualization | Implemented | Graph rendering and node/edge CRUD in new_linkdocs.html |
 | Knowledge graph editing | Implemented | Add, rename, delete nodes; add, delete edges; focused route tests exist |
+| Single-call website ingestion (`POST /api/knowledge/ingest`) | Partially implemented | Composes analyze→scrape→extract→embed in one call with per-source per-stage progress, partial success, and no roll-back of ingested siblings; reuses the four staged services, which are unchanged. 41+19 focused route tests pass. **Review verdict BLOCK — do not enable behind a proxy.** (i) The synchronous run cannot finish in any realistic proxy window: 40s of timeout budget per page (Jina 25s then static 15s) x up to 10 sources x 5 default pages is ~35 minutes before LLM and embedding calls, and over two hours at the `max_pages` ceiling of 20; `requests`' timeout is a between-bytes read gap, not a wall clock, so per-page cost is genuinely unbounded. A proxy kill loses the report, and with no idempotency key a retry re-scrapes, re-charges storage, and re-runs the billed extraction. (ii) A source can report `succeeded` with zero chunks persisted — `save_refined_knowledge_chunks` writes the quota-consuming `knowledge_files` row first and then swallows every chunking/embedding failure. (iii) **Websites only; it does not accept uploaded documents.** See `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md` |
+| Website scraping storage-quota enforcement | Partially implemented | Two of three quota-skip instances are fixed in the current working tree (`knowledge_routes.py:246`, `:467` now pass `company_id`). The third is unfixed: `knowledge_routes.py:334` calls `scrape_website_urls_batch(data["urls"], chatbot_id)` with no `company_id`, and the storage check inside it is guarded by `if company_id:`, so `POST /api/knowledge/scrape-batch` writes knowledge files with no storage-quota check at all |
+| Conversation graph memory and keyword recall | Partially implemented | `conversation_graph_nodes` persists facts learned mid-chat (name, contact, interest) and recalls them beside the vector path; the producer reuses the existing pure-regex extractor, so no LLM call and no billing change. 35 tests plus 16 subtests pass. Blocked: (i) migration `data/041_conversation_graph_nodes.sql` cannot be certified without running `scripts/conversation_graph_nodes_preflight.sql` — `chatbots` and `conversations` have no `CREATE TABLE` in this repository, and a pre-existing relation would make `CREATE TABLE IF NOT EXISTS` a silent no-op; (ii) the write path is not tenant-filtered — the upsert conflict target is `(conversation_id, label)` and `chatbot_id` is a payload column, so a mismatched pair re-tenants another chatbot's PII row. Unreachable today only because `conversation_id` is server-derived; (iii) recall is exact-match on a single normalised ASCII token, so "what's my phone number" does not find a fact stored under `contact`, and only `name`/`contact`/`interest` are extracted (no order numbers); (iv) raw customer name, email, and phone are persisted with no expiry, in a codebase that had deliberately avoided persisting these values |
 | Compiled README generation | Implemented | Automatically updates bot_<id>_readme.md on PDF uploads, graph mutations, and Q&A submissions |
 | README popup viewer | Verified complete | Modal dialog next to the active PDF file in new_linkdocs.html showing parsed markdown with search, results count, next/prev navigation buttons, and scroll focus |
 
@@ -196,6 +203,10 @@ Latest recorded full automated suite:
 - Database-level protection against concurrent duplicate pending invitations
 - Trusted reverse-proxy/client-IP handling for public rate-limit keys
 - Redis or equivalent shared production limiter storage for multi-worker enforcement
+- Live shape of `public.bot_configs`, `public.chatbots`, and `public.conversations` (no `CREATE TABLE` for any of them exists in this repository; migrations 039/040/041 all depend on catalog captures that have not been taken)
+- Retention and data-subject-deletion policy for customer PII persisted in `conversation_graph_nodes`
+- Wall-clock bounding and idempotency for synchronous multi-page scraping requests
+- Whether a `derived` persona value should be fenced in the serving system prompt the way retrieved chunks are
 
 ## Document Maintenance
 
@@ -606,10 +617,54 @@ environment in repository configuration, lack of staging verification for the
 latest extensions, pending production ownership/executor approval, and pending
 monitoring, rollback, and backup evidence.
 
+## Guided Knowledge Ingestion, Derived Persona, and Conversation Memory
+
+**Status: Implemented locally; unmerged; three of four workstreams blocked;
+migrations unapplied everywhere**
+
+All of this work exists in the working tree only. No migration in the
+`039` → `040` → `041` sequence has been applied to any environment, and two of
+the three have a mandatory SELECT-only preflight that has not been run. Full
+detail, including the client-facing override procedure and the operator
+migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
+
+- `POST /api/knowledge/ingest` runs the four website-scraping stages in one
+  call with per-source per-stage progress and partial success. Gated on
+  `batch_website_scraping` and the knowledge-file quota, checked before the
+  billed extraction. Review verdict is BLOCK on three grounds: no wall-clock
+  bound and no idempotency key on a synchronous run that can exceed any proxy
+  window; a source that reports `succeeded` with zero chunks persisted while
+  storage is charged; and an unfixed third quota-skip at
+  `app/routes/knowledge_routes.py:334`. It covers websites only and does not
+  accept uploaded documents.
+- Persona derivation fills `company_name`, `business_description`, and `tone`
+  from the client's own uploaded document, tagging each `client_entered` or
+  `derived` in `bot_configs.persona_provenance`. A client edit flips the marker
+  and re-ingestion then leaves the value alone permanently. The override
+  procedure is the one clean, shippable part of this work.
+- The derived persona does not reach generated replies for a bot whose
+  `chatbots.deployed_profile_name` is blank, which is the population the feature
+  targets. A residual stored prompt-injection risk remains: the structural lever
+  is closed, the semantic one is not.
+- Conversation graph memory persists mid-chat facts and recalls them by exact
+  keyword beside the vector path, adding no LLM call and no billing change.
+  Blocked on an uncertified migration, a write path that is not tenant-filtered,
+  single-ASCII-token exact-match recall, and unexpiring raw customer PII.
+- Recorded focused test evidence at the current working tree: 73 + 32 + 14
+  persona, 35 (plus 16 subtests) conversation memory, 41 + 19 ingestion routes.
+  Real-browser Playwright coverage for the derived persona exists as
+  `tests/browser/testbot-persona.spec.js`. This is local evidence against a
+  working tree; it is not staging verification and not production readiness.
+
 ## Platform Limitations
 
 | Limitation | Status |
 |---|---|
+| Single-call website ingestion | Blocked. Synchronous run is unbounded and non-idempotent; `succeeded` can mean zero chunks persisted; websites only, no uploaded documents |
+| Derived persona reaching replies | Blocked for bots with a blank `chatbots.deployed_profile_name`; requires separate create-RPC/promotion work |
+| Conversation memory recall quality | Exact match on a single ASCII token; only `name`, `contact`, and `interest` are extracted |
+| Conversation memory PII retention | No expiry; cleanup only by conversation or chatbot cascade |
+| Migrations 039/040/041 | Unapplied everywhere; two mandatory preflights unrun |
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, operational alerts, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Platform-admin Support Workspace | Implemented as tenant investigation with controlled internal case operations; Support Cases Phase 2/Migration 032 and Tenant Communication Phase 3/Migration 033 are verified only in main shared testing Supabase with fake/team data. No live chat, generic messaging, impersonation, billing actions, exports, charts, SLA automation, staging readiness, or production use |
 | Platform-admin Tenant and Company Administration | Runtime implemented locally with company suspend/restore controls and tenant operational-status enforcement; Migration 036 is applied and verified only in main shared-testing Supabase with fake/team data. Company 23 suspend/restore and company 29 protected-company rejection are verified there; no live tenant-runtime suspension E2E, staging readiness, or production use |

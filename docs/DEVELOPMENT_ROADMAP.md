@@ -18,6 +18,10 @@
 >
 > ---
 
+### Bot management reliability and UI refresh - 2026-08-11
+
+The bot management workspace now follows the Aveon Control Room v2 Stitch design system with a dense responsive operations layout, search and status filtering, accessible loading/empty/error states, and non-blocking chatbot-limit guidance. The previously disconnected archived-bot frontend is reconnected to authenticated, tenant-scoped backend list/restore/permanent-delete routes. Focused route and frontend regression coverage is current; live Supabase schema verification remains environment-specific, and permanent deletion requires Migration 022 in the target environment.
+
 ### Phase 4L update - Platform-admin controls
 
 Current Superadmin roadmap order after this milestone:

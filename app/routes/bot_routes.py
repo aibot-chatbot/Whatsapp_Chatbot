@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, current_app, jsonify, request, g
 
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
@@ -70,10 +70,11 @@ def fetch_archived_bots():
             "message": str(e)
         }), 401
 
-    except Exception as e:
+    except Exception:
+        current_app.logger.exception("Unable to list archived bots")
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": "Unable to load archived bots. Please try again or contact support."
         }), 500
 
 
@@ -231,10 +232,11 @@ def restore_existing_bot(bot_id):
             "message": str(e)
         }), 404
 
-    except Exception as e:
+    except Exception:
+        current_app.logger.exception("Unable to restore archived bot id=%s", bot_id)
         return jsonify({
             "status": "error",
-            "message": str(e)
+            "message": "Unable to restore bot. Please try again or contact support."
         }), 500
 
 
@@ -247,11 +249,7 @@ def permanently_delete_existing_bot(bot_id):
         confirm_bot_name = data.get("confirm_bot_name")
         company_id = get_current_company_id()
 
-        permanently_delete_archived_bot(
-            bot_id,
-            company_id,
-            confirm_bot_name,
-        )
+        permanently_delete_archived_bot(bot_id, company_id, confirm_bot_name)
 
         return jsonify({
             "status": "success",
@@ -271,6 +269,12 @@ def permanently_delete_existing_bot(bot_id):
             "code": e.code,
             "message": str(e)
         }), status_code
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
 
     except Exception:
         return jsonify({

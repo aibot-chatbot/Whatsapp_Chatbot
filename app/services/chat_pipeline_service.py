@@ -108,6 +108,42 @@ def prepare_chat_prompt(
                 e,
             )
 
+        # Persist what this turn revealed about the customer as conversation-
+        # scoped graph nodes, so a later turn can recall it. analyze_agent_intent
+        # is pure regex, so these fields are already extracted for free -- this
+        # adds no LLM call and no billing change.
+        try:
+            from app.services import conversation_memory_service
+
+            # Plan gate (data/034 conversation_memory). Resolved through
+            # conversation_memory_denial, which returns instead of raising, so
+            # a denial cannot be caught below and logged as a store failure --
+            # "not on your plan" and "the write broke" must stay distinct.
+            memory_denial = conversation_memory_service.conversation_memory_denial(
+                chatbot_id
+            )
+            if memory_denial:
+                logging.info(
+                    "[ConversationMemory] not stored for chatbot_id=%s "
+                    "conversation_id=%s: plan denies conversation memory (code=%s)",
+                    chatbot_id,
+                    conversation.get("id"),
+                    memory_denial,
+                )
+            else:
+                conversation_memory_service.remember_conversation_facts(
+                    chatbot_id=chatbot_id,
+                    conversation_id=conversation.get("id"),
+                    extracted_fields=agent_decision.get("extracted_fields"),
+                )
+        except Exception as e:
+            logging.warning(
+                "[ConversationMemory] store failed for chatbot_id=%s conversation_id=%s: %s",
+                chatbot_id,
+                conversation.get("id"),
+                e,
+            )
+
         # Trigger email notification for handoff requests after the CRM attempt
         # so staff-attention lead creation is not skipped by the early return.
         if agent_decision.get("intent") == "handoff_request":
@@ -156,6 +192,7 @@ def prepare_chat_prompt(
     context_chunks = retrieve_relevant_chunks(
         message,
         chatbot_id=chatbot_id,
+        conversation_id=conversation.get("id"),
     )
 
     logging.info(f"[ChatPipeline] Retrieved chunks: {len(context_chunks)}")
