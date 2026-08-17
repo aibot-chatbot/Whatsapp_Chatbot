@@ -653,6 +653,9 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn('ui.runRequest("support-company-lookup"', self.support)
         self.assertIn("PlatformAdminApi.listCompanies({", self.support)
         self.assertIn("PlatformAdminApi.listSupportCases({", self.support)
+        self.assertIn('parsePositiveQueryId("company_id")', self.support)
+        self.assertIn("companyId: state.companyFilterId || undefined", self.support)
+        self.assertIn("filtered to company #", self.support)
         self.assertIn("PlatformAdminApi.createSupportCase(", self.support)
         self.assertIn("PlatformAdminApi.getSupportCase(", self.support)
         for forbidden_call in [
@@ -780,6 +783,11 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("PlatformAdminShell.start({ onAuthorized: initializeAuditLogViewer })", self.audit_events)
         self.assertIn('ui.runRequest("audit-events"', self.audit_events)
         self.assertIn("PlatformAdminApi.listAuditEvents({", self.audit_events)
+        self.assertIn("function applyUrlFilters()", self.audit_events)
+        self.assertIn('params.get("resource_type")', self.audit_events)
+        self.assertIn('params.get("resource_id")', self.audit_events)
+        self.assertIn("RESOURCE_TYPES.indexOf(resourceType) !== -1", self.audit_events)
+        self.assertIn("^[A-Za-z0-9_.:-]+$", self.audit_events)
         self.assertIn("Read-only platform-admin activity history", self.audit_events)
         self.assertIn("does not expose raw metadata or tenant records", self.audit_events)
         self.assertIn("Safe metadata summary", self.audit_events)
@@ -899,6 +907,8 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("PlatformAdminApi.listCompanyBillingOrders(companyId", self.company)
         self.assertIn("PlatformAdminApi.listCompanyUsers(companyId", self.company)
         self.assertIn("PlatformAdminApi.listCompanyChatbots(companyId", self.company)
+        self.assertIn("PlatformAdminApi.listTenantSupportRequests({", self.company)
+        self.assertIn("PlatformAdminApi.listSupportCases({", self.company)
         initialize = re.search(
             r"async function initializeCompanyDetail\(\) \{(.*?)\n    \}",
             self.company,
@@ -913,6 +923,42 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertLess(company_fetch, subscription_history_panel)
         self.assertLess(company_fetch, billing_orders_panel)
         self.assertLess(company_fetch, ai_fetch)
+
+    def test_company_detail_support_history_is_lazy_safe_and_company_scoped(self):
+        initialize = re.search(
+            r"async function initializeCompanyDetail\(\) \{(.*?)\n    \}",
+            self.company,
+            flags=re.S,
+        ).group(1)
+        company_fetch = initialize.index("PlatformAdminApi.getCompany(companyId")
+        support_panel = initialize.index("supportHistoryPanel(companyId)")
+        self.assertLess(company_fetch, support_panel)
+        for marker in [
+            "Support history",
+            "Load support history",
+            "Loading support history...",
+            "Open Support Workspace",
+            "platform-admin-support.html?",
+            'params.set("company_id", String(companyId))',
+            'ui.runRequest("company-support-requests"',
+            'ui.runRequest("company-support-cases"',
+            "companyId: companyId",
+            "Tenant support requests",
+            "Internal support cases",
+            "Internal notes and reply bodies are excluded",
+        ]:
+            self.assertIn(marker, self.company)
+
+    def test_company_detail_links_to_company_scoped_platform_admin_audit(self):
+        for marker in [
+            "Platform Admin activity for this company",
+            "This is not a tenant application audit history.",
+            "Open Audit Logs",
+            "platform-admin-audit-events.html?",
+            'params.set("resource_type", "company")',
+            'params.set("resource_id", String(companyId))',
+        ]:
+            self.assertIn(marker, self.company)
 
     def test_subscription_history_is_lazy_read_only_and_uses_bounded_contract(self):
         initialize = re.search(

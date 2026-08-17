@@ -2,6 +2,11 @@ from flask import Blueprint, jsonify, request, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_use_plan_feature, BillingLimitError
+from app.services.company_status_service import (
+    CompanyOperationalStatusError,
+    company_operational_required,
+    ensure_company_operational,
+)
 import logging
 
 from app.services.knowledge_service import (
@@ -80,6 +85,7 @@ def get_current_active_pdf():
 @knowledge_blueprint.route("/api/knowledge/set-active", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def set_current_active_pdf():
     try:
         data = request.get_json()
@@ -125,6 +131,7 @@ def set_current_active_pdf():
 @knowledge_blueprint.route("/api/knowledge/toggle-support", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def toggle_supporting_knowledge_source():
     try:
         data = request.get_json() or {}
@@ -180,6 +187,7 @@ def toggle_supporting_knowledge_source():
 @knowledge_blueprint.route("/api/knowledge/files/<path:file_name>", methods=["DELETE"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def delete_uploaded_pdf(file_name):
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -217,6 +225,7 @@ def delete_uploaded_pdf(file_name):
 @knowledge_blueprint.route("/api/knowledge/scrape", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def scrape_website_knowledge():
     try:
         data = request.get_json()
@@ -270,6 +279,7 @@ def scrape_website_knowledge():
 @knowledge_blueprint.route("/api/knowledge/scrape-analyze", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def scrape_analyze_website():
     try:
         data = request.get_json()
@@ -310,6 +320,7 @@ def scrape_analyze_website():
 @knowledge_blueprint.route("/api/knowledge/scrape-batch", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def scrape_batch_website():
     try:
         data = request.get_json()
@@ -358,6 +369,7 @@ def scrape_batch_website():
 @knowledge_blueprint.route("/api/knowledge/scrape-extract", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def scrape_extract_website():
     try:
         data = request.get_json()
@@ -429,6 +441,7 @@ def scrape_extract_website():
 @knowledge_blueprint.route("/api/knowledge/scrape-embed", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def scrape_embed_website():
     try:
         data = request.get_json()
@@ -493,6 +506,7 @@ def scrape_embed_website():
 @knowledge_blueprint.route("/api/knowledge/ingest", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def ingest_knowledge_sources():
     """Run the whole website ingestion pipeline in a single call.
 
@@ -628,6 +642,7 @@ def get_knowledge_graph_data():
 
         # 3. If no nodes exist, auto-trigger extraction synchronously
         if not nodes_check.data:
+            ensure_company_operational(g.company_id)
             logging.info(f"[GraphRAG] No nodes found for active file_id={file_id}. Running auto-extraction...")
             chunks_data = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
             chunks = [c["content"] for c in chunks_data]
@@ -756,6 +771,12 @@ def get_knowledge_graph_data():
                 "edges": formatted_edges
             }
         }), 200
+    except CompanyOperationalStatusError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": e.message
+        }), e.status_code
     except Exception as e:
         return jsonify({
             "status": "error",
@@ -766,6 +787,7 @@ def get_knowledge_graph_data():
 @knowledge_blueprint.route("/api/knowledge/refinement/questions", methods=["GET"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def get_refinement_questions():
     chatbot_id = request.args.get("chatbot_id", type=int)
     if not chatbot_id:
@@ -956,6 +978,7 @@ def get_refinement_questions():
 @knowledge_blueprint.route("/api/knowledge/refinement/submit", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def submit_refinement_answers():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -1047,6 +1070,7 @@ def submit_refinement_answers():
 @knowledge_blueprint.route("/api/knowledge/graph/node", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def save_graph_node():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -1115,6 +1139,7 @@ def save_graph_node():
 @knowledge_blueprint.route("/api/knowledge/graph/node", methods=["DELETE"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def delete_graph_node_route():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -1168,6 +1193,7 @@ def delete_graph_node_route():
 @knowledge_blueprint.route("/api/knowledge/graph/edge", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def save_graph_edge():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -1236,6 +1262,7 @@ def save_graph_edge():
 @knowledge_blueprint.route("/api/knowledge/graph/edge", methods=["DELETE"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def delete_graph_edge_route():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -1302,7 +1329,7 @@ def get_knowledge_readme():
         verify_chatbot_access(chatbot_id)
 
         from app.services.knowledge_service import get_or_generate_readme
-        readme_content = get_or_generate_readme(chatbot_id, file_id)
+        readme_content = get_or_generate_readme(chatbot_id, file_id, company_id=g.company_id)
 
         return jsonify({
             "status": "success",
@@ -1310,6 +1337,12 @@ def get_knowledge_readme():
                 "content": readme_content
             }
         }), 200
+    except CompanyOperationalStatusError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": e.message
+        }), e.status_code
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:

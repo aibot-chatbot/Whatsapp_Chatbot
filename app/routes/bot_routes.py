@@ -3,6 +3,7 @@ from flask import Blueprint, current_app, jsonify, request, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
 from app.services.billing_guard import can_create_chatbot, can_use_plan_feature, BillingLimitError
+from app.services.company_status_service import company_operational_required
 from app.services.bot_service import (
     list_bots,
     list_archived_bots,
@@ -106,6 +107,7 @@ def fetch_bot(bot_id):
 @bot_blueprint.route("/api/bots", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def create_new_bot():
     try:
         data = request.get_json() or {}
@@ -143,6 +145,7 @@ def create_new_bot():
 @bot_blueprint.route("/api/bots/<int:bot_id>", methods=["PUT"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def update_existing_bot(bot_id):
     try:
         data = request.get_json() or {}
@@ -180,6 +183,7 @@ def update_existing_bot(bot_id):
 @bot_blueprint.route("/api/bots/<int:bot_id>", methods=["DELETE"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def delete_existing_bot(bot_id):
     try:
         company_id = get_current_company_id()
@@ -207,6 +211,7 @@ def delete_existing_bot(bot_id):
 @bot_blueprint.route("/api/bots/<int:bot_id>/restore", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def restore_existing_bot(bot_id):
     try:
         company_id = get_current_company_id()
@@ -243,6 +248,7 @@ def restore_existing_bot(bot_id):
 @bot_blueprint.route("/api/bots/<int:bot_id>/permanent", methods=["DELETE"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def permanently_delete_existing_bot(bot_id):
     try:
         data = request.get_json(silent=True) or {}
@@ -287,6 +293,7 @@ def permanently_delete_existing_bot(bot_id):
 @bot_blueprint.route("/api/bots/<int:bot_id>/generate-welcome-menu", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def generate_bot_welcome_menu(bot_id):
     try:
         company_id = get_current_company_id()

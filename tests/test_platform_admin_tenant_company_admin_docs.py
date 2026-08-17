@@ -28,15 +28,22 @@ class PlatformAdminTenantCompanyAdminDocsTest(unittest.TestCase):
 
     def test_phase_five_contract_records_scope_and_exclusions(self):
         for phrase in [
-            "platform-admin tenant and company administration phase 5 is implemented locally",
+            "platform-admin tenant and company administration phase 5 is implemented and verified",
             "migration 036 was applied and verified only in the approved main shared-testing supabase with fake/team data",
             "this is not staging verification and does not establish production readiness",
             "impersonation",
+            "arbitrary tenant data access",
+            "raw tenant messages",
+            "ai prompts or responses",
+            "provider payloads",
+            "api credentials",
+            "payment secrets",
             "company deletion",
             "tenant role administration",
             "password reset",
             "manual credit adjustment",
             "arbitrary subscription or billing mutation",
+            "true tenant application audit history",
             "suspension reason fields",
             "users.role` never grants platform-admin authority",
         ]:
@@ -55,7 +62,11 @@ class PlatformAdminTenantCompanyAdminDocsTest(unittest.TestCase):
             "workspace and profile mutations",
             "team role and status mutations",
             "telegram, wasender, and meta whatsapp inbound processing",
-            "ai chat generation and system/background ai generation",
+            "ai chat generation, `/api/chat/test`, and system/background ai generation",
+            "knowledge pdf upload",
+            "missing graph cannot trigger pdf parsing",
+            "refinement-question generation is blocked before sse streaming",
+            "missing readme cannot trigger generation or write fallback",
             "billing checkout, top-up, retry, cancellation, undo-cancellation, downgrade",
         ]:
             with self.subTest(phrase=phrase):
@@ -73,6 +84,9 @@ class PlatformAdminTenantCompanyAdminDocsTest(unittest.TestCase):
             "unsent pending recipients are marked failed with a sanitized reason",
             "normal runtime code calls the migration 036 rpcs",
             "it does not directly update `companies.status`",
+            "`post /upload-pdf` in `app/views.py`",
+            "`post /api/chat/test` is an operational tenant ai action",
+            "`403 company_suspended` contract",
         ]:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.contract_flat)
@@ -97,8 +111,20 @@ class PlatformAdminTenantCompanyAdminDocsTest(unittest.TestCase):
             "0 inactive companies after test cleanup",
             "0 invalid or null company statuses",
             "company 23 final status is `active`",
+            "approved fake/team company 34",
+            "`autobot company`",
+            "chatbot 52",
+            "audit event 527",
+            "audit event 538",
+            "audit event 541",
+            "audit event 542",
+            "`post /upload-pdf` rejected with http 403",
+            "`post /api/chat/test?chatbot_id=52` returned http 403",
+            "ai usage rows remained `0` before and after",
+            "ai-credit transaction count remained `3` before and after",
+            "included balance remained `20000000` micro-myr",
+            "crm mutation was not exercised live",
             "company 29 remained active and protected",
-            "no live tenant-runtime suspension e2e was performed",
         ]:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.contract_flat)
@@ -114,6 +140,10 @@ class PlatformAdminTenantCompanyAdminDocsTest(unittest.TestCase):
             "`old_status`, `new_status`",
             "audit event 355",
             "audit event 356",
+            "audit event 527",
+            "audit event 538",
+            "audit event 541",
+            "audit event 542",
             "safe fixed lifecycle metadata only",
         ]:
             with self.subTest(phrase=phrase):
@@ -146,11 +176,15 @@ class PlatformAdminTenantCompanyAdminDocsTest(unittest.TestCase):
     def test_status_docs_record_phase_five_without_staging_or_production_claims(self):
         for docs_flat in [self.feature_status_flat, self.roadmap_flat]:
             for phrase in [
-                "platform-admin tenant and company administration phase 5 is implemented locally",
+                "platform-admin tenant and company administration phase 5 is implemented and verified",
                 "migration 036 is applied and verified only in the approved main shared-testing supabase with fake/team data",
                 "company 23",
+                "company 34",
+                "autobot company",
+                "chatbot 52",
                 "company 29",
-                "no live tenant-runtime suspension e2e",
+                "`/api/chat/test`",
+                "crm mutation was not exercised live",
                 "staging verification",
                 "production readiness",
             ]:

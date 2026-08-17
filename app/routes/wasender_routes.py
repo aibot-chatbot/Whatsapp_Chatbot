@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_connect_channel, BillingLimitError
+from app.services.company_status_service import company_operational_required
 from app.database.bot_repository import get_bot_by_id
 from app.database.wasender_channel_repository import (
     create_wasender_channel,
@@ -54,6 +55,7 @@ def safe_wasender_channel(channel: dict):
 @wasender_blueprint.route("/api/wasender/connect", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def connect_wasender():
     """
     Save WasenderAPI channel details for a chatbot.
@@ -205,6 +207,7 @@ def list_wasender_channels():
 @wasender_blueprint.route("/api/wasender/channels/<int:channel_id>/disconnect", methods=["PUT"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def disconnect_wasender(channel_id):
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)

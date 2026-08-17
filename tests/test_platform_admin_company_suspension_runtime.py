@@ -1,4 +1,7 @@
+import io
 import inspect
+import os
+import tempfile
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
@@ -7,8 +10,22 @@ from flask import Flask, g
 
 from app import create_app
 from app.database import platform_admin_repository, platform_company_repository
-from app.routes import billing_routes, broadcast_routes, profile_routes, user_routes, widget_routes
+from app.routes import (
+    billing_routes,
+    bot_routes,
+    broadcast_routes,
+    chat_routes,
+    crm_routes,
+    knowledge_routes,
+    profile_routes,
+    telegram_routes,
+    user_routes,
+    wasender_routes,
+    whatsapp_routes,
+    widget_routes,
+)
 from app.services import platform_admin_service
+from app.services import knowledge_service
 from app.services.company_status_service import (
     CompanyOperationalStatusError,
     ensure_company_operational,
@@ -193,6 +210,45 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
             ),
         )
 
+    def _active_auth(self):
+        return (
+            patch(
+                "app.decorators.auth_decorator.jwt.decode",
+                return_value={"user_id": 1, "company_id": 42, "role": "admin"},
+            ),
+            patch("app.database.user_repository.get_user_by_id", return_value=AUTH_USER),
+            patch(
+                "app.services.company_status_service.get_company_status_by_id",
+                return_value={"id": 42, "status": "active"},
+            ),
+        )
+
+    class _Query:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def select(self, *_args, **_kwargs):
+            return self
+
+        def eq(self, *_args, **_kwargs):
+            return self
+
+        def limit(self, *_args, **_kwargs):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=self.rows)
+
+    class _Supabase:
+        def __init__(self, table_rows):
+            self.table_rows = {key: list(value) for key, value in table_rows.items()}
+
+        def table(self, name):
+            rows = self.table_rows.get(name, [])
+            if rows and isinstance(rows[0], list):
+                return TenantOperationalRouteGuardTests._Query(rows.pop(0))
+            return TenantOperationalRouteGuardTests._Query(rows)
+
     def test_profile_create_and_delete_are_blocked_before_repository_mutation(self):
         auth, user, status = self._auth()
         with auth, user, status, \
@@ -294,6 +350,333 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
         create_log.assert_not_called()
         update_status.assert_not_called()
         worker.assert_not_called()
+
+    def test_chatbot_mutations_are_blocked_before_billing_or_repository_mutation(self):
+        auth, user, status = self._auth()
+        with auth, user, status, \
+             patch("app.routes.bot_routes.can_create_chatbot") as can_create, \
+             patch("app.routes.bot_routes.add_bot") as add_bot, \
+             patch("app.routes.bot_routes.edit_bot") as edit_bot, \
+             patch("app.routes.bot_routes.remove_bot") as remove_bot, \
+             patch("app.routes.bot_routes.restore_archived_bot") as restore_bot, \
+             patch("app.routes.bot_routes.permanently_delete_archived_bot") as permanent_delete:
+            create_response = self.client.post(
+                "/api/bots",
+                headers=self.headers,
+                json={"bot_name": "Sales"},
+            )
+            edit_response = self.client.put(
+                "/api/bots/9",
+                headers=self.headers,
+                json={"bot_name": "Support"},
+            )
+            archive_response = self.client.delete(
+                "/api/bots/9",
+                headers=self.headers,
+            )
+            restore_response = self.client.post(
+                "/api/bots/9/restore",
+                headers=self.headers,
+            )
+            delete_response = self.client.delete(
+                "/api/bots/9/permanent",
+                headers=self.headers,
+                json={"confirm_bot_name": "Sales"},
+            )
+        for response in [create_response, edit_response, archive_response, restore_response, delete_response]:
+            with self.subTest(status=response.status_code):
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.get_json()["code"], "company_suspended")
+        can_create.assert_not_called()
+        add_bot.assert_not_called()
+        edit_bot.assert_not_called()
+        remove_bot.assert_not_called()
+        restore_bot.assert_not_called()
+        permanent_delete.assert_not_called()
+
+    def test_knowledge_mutations_are_blocked_before_external_or_database_side_effects(self):
+        auth, user, status = self._auth()
+        with auth, user, status, \
+             patch("app.routes.knowledge_routes.set_active_pdf") as set_active, \
+             patch("app.routes.knowledge_routes.delete_pdf_file") as delete_file, \
+             patch("app.routes.knowledge_routes.discover_website_links") as discover_links, \
+             patch("app.routes.knowledge_routes.scrape_pages") as scrape_pages, \
+             patch("app.routes.knowledge_routes.ingest_website_sources") as ingest:
+            active_response = self.client.post(
+                "/api/knowledge/set-active?chatbot_id=9",
+                headers=self.headers,
+                json={"file_name": "guide.pdf"},
+            )
+            delete_response = self.client.delete(
+                "/api/knowledge/files/guide.pdf?chatbot_id=9",
+                headers=self.headers,
+            )
+            analyze_response = self.client.post(
+                "/api/knowledge/scrape-analyze?chatbot_id=9",
+                headers=self.headers,
+                json={"url": "https://example.test"},
+            )
+            extract_response = self.client.post(
+                "/api/knowledge/scrape-extract?chatbot_id=9",
+                headers=self.headers,
+                json={"urls": ["https://example.test"]},
+            )
+            ingest_response = self.client.post(
+                "/api/knowledge/ingest?chatbot_id=9",
+                headers=self.headers,
+                json={"sources": ["https://example.test"]},
+            )
+        for response in [active_response, delete_response, analyze_response, extract_response, ingest_response]:
+            with self.subTest(status=response.status_code):
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.get_json()["code"], "company_suspended")
+        set_active.assert_not_called()
+        delete_file.assert_not_called()
+        discover_links.assert_not_called()
+        scrape_pages.assert_not_called()
+        ingest.assert_not_called()
+
+    def test_knowledge_graph_existing_graph_remains_readable_for_inactive_company(self):
+        auth, user, status = self._auth()
+        fake_supabase = self._Supabase({
+            "knowledge_graph_nodes": [
+                [{"id": 1}],
+                [{"name": "support", "label": "Topic", "properties": {"description": "Help"}}],
+            ],
+            "knowledge_graph_edges": [[]],
+        })
+        with auth, user, status, \
+             patch("app.routes.knowledge_routes.verify_chatbot_access", return_value={"company_id": 42}), \
+             patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file", return_value={"id": 5, "file_name": "guide.pdf"}), \
+             patch("app.database.db.supabase", fake_supabase), \
+             patch("app.routes.knowledge_routes.ensure_company_operational", side_effect=AssertionError("read-only graph should not require operational status")) as ensure_operational, \
+             patch("app.services.knowledge_service.extract_and_store_graph_supabase") as extract_graph:
+            response = self.client.get(
+                "/api/knowledge/graph?chatbot_id=9",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "success")
+        ensure_operational.assert_not_called()
+        extract_graph.assert_not_called()
+
+    def test_knowledge_graph_missing_graph_is_blocked_before_self_healing_side_effects(self):
+        auth, user, status = self._auth()
+        fake_supabase = self._Supabase({
+            "knowledge_graph_nodes": [[]],
+        })
+        with auth, user, status, \
+             patch("app.routes.knowledge_routes.verify_chatbot_access", return_value={"company_id": 42}), \
+             patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file", return_value={"id": 5, "file_name": "guide.pdf"}), \
+             patch("app.database.db.supabase", fake_supabase), \
+             patch("app.database.knowledge_chunk_repository.get_chunks_by_file_for_chatbot") as get_chunks, \
+             patch("app.services.rag_service.generate_embedding") as generate_embedding, \
+             patch("app.database.knowledge_chunk_repository.save_knowledge_chunk") as save_chunk, \
+             patch("app.services.knowledge_service.extract_and_store_graph_supabase") as extract_graph:
+            response = self.client.get(
+                "/api/knowledge/graph?chatbot_id=9",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["code"], "company_suspended")
+        get_chunks.assert_not_called()
+        generate_embedding.assert_not_called()
+        save_chunk.assert_not_called()
+        extract_graph.assert_not_called()
+
+    def test_pdf_upload_is_blocked_before_file_or_rag_side_effects(self):
+        auth, user, status = self._auth()
+        with auth, user, status, \
+             patch("app.views.verify_chatbot_access") as verify_access, \
+             patch("app.views.can_upload_knowledge_file") as file_limit, \
+             patch("app.views.can_upload_knowledge_storage") as storage_limit, \
+             patch("app.views.save_uploaded_pdf") as save_pdf, \
+             patch("app.views.derive_persona_for_upload") as derive_persona:
+            response = self.client.post(
+                "/upload-pdf?chatbot_id=9",
+                headers=self.headers,
+                data={"pdf_file": (io.BytesIO(b"%PDF-1.4\n"), "guide.pdf")},
+                content_type="multipart/form-data",
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["code"], "company_suspended")
+        verify_access.assert_not_called()
+        file_limit.assert_not_called()
+        storage_limit.assert_not_called()
+        save_pdf.assert_not_called()
+        derive_persona.assert_not_called()
+
+    def test_test_chat_is_blocked_before_ai_router_for_inactive_company(self):
+        auth, user, status = self._auth()
+        with auth, user, status, \
+             patch("app.routes.chat_routes.verify_chatbot_access") as verify_access, \
+             patch("app.routes.chat_routes.generate_response") as generate_response:
+            response = self.client.post(
+                "/api/chat/test?chatbot_id=9",
+                headers=self.headers,
+                json={"message": "Hello"},
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["code"], "company_suspended")
+        verify_access.assert_not_called()
+        generate_response.assert_not_called()
+
+    def test_test_chat_active_company_success_contract_is_unchanged(self):
+        auth, user, status = self._active_auth()
+        with auth, user, status, \
+             patch("app.routes.chat_routes.verify_chatbot_access", return_value={"id": 9, "company_id": 42}) as verify_access, \
+             patch("app.routes.chat_routes.generate_response", return_value="Hello back") as generate_response:
+            response = self.client.post(
+                "/api/chat/test?chatbot_id=9",
+                headers=self.headers,
+                json={"message": "Hello"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"status": "success", "reply": "Hello back"})
+        verify_access.assert_called_once_with(9)
+        generate_response.assert_called_once_with(
+            "Hello",
+            "test_user",
+            chatbot_id=9,
+            source_channel="web",
+            operation_type=chat_routes.OPERATION_TEST_CHAT,
+        )
+
+    def test_refinement_questions_are_blocked_before_sse_or_ai_generation(self):
+        auth, user, status = self._auth()
+        with auth, user, status, \
+             patch("app.routes.knowledge_routes.verify_chatbot_access") as verify_access, \
+             patch("app.services.ai_router.generate_system_response") as generate_response, \
+             patch("app.services.rag_service.generate_embedding") as generate_embedding:
+            response = self.client.get(
+                "/api/knowledge/refinement/questions?chatbot_id=9",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.content_type, "application/json")
+        self.assertEqual(response.get_json()["code"], "company_suspended")
+        verify_access.assert_not_called()
+        generate_response.assert_not_called()
+        generate_embedding.assert_not_called()
+
+    def test_readme_get_existing_file_remains_readable_for_inactive_company(self):
+        auth, user, status = self._auth()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            readme_path = os.path.join(tmpdir, "bot_9_5_readme.md")
+            with open(readme_path, "w", encoding="utf-8") as handle:
+                handle.write("# Existing README")
+            with auth, user, status, \
+                 patch.object(knowledge_service, "DATA_FOLDER", tmpdir), \
+                 patch("app.routes.knowledge_routes.verify_chatbot_access", return_value={"company_id": 42}), \
+                 patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file", return_value={"id": 5, "file_name": "guide.pdf"}), \
+                 patch("app.services.knowledge_service.generate_and_save_knowledge_readme") as generate_readme:
+                response = self.client.get(
+                    "/api/knowledge/readme?chatbot_id=9&file_id=5",
+                    headers=self.headers,
+                )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"]["content"], "# Existing README")
+        generate_readme.assert_not_called()
+
+    def test_readme_get_missing_file_is_blocked_before_generation_for_inactive_company(self):
+        auth, user, status = self._auth()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with auth, user, status, \
+                 patch.object(knowledge_service, "DATA_FOLDER", tmpdir), \
+                 patch("app.routes.knowledge_routes.verify_chatbot_access", return_value={"company_id": 42}), \
+                 patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file", return_value={"id": 5, "file_name": "guide.pdf"}), \
+                 patch("app.services.knowledge_service.generate_and_save_knowledge_readme") as generate_readme:
+                response = self.client.get(
+                    "/api/knowledge/readme?chatbot_id=9&file_id=5",
+                    headers=self.headers,
+                )
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["code"], "company_suspended")
+        generate_readme.assert_not_called()
+
+    def test_crm_mutations_are_blocked_before_feature_or_repository_mutation(self):
+        auth, user, status = self._auth()
+        with auth, user, status, \
+             patch("app.routes.crm_routes.can_use_plan_feature") as feature_gate, \
+             patch("app.routes.crm_routes.verify_chatbot_access") as verify_access, \
+             patch("app.routes.crm_routes.update_crm_lead_status_notes") as update_lead, \
+             patch("app.routes.crm_routes.upsert_crm_lead_by_conversation") as upsert_lead:
+            update_response = self.client.patch(
+                "/api/crm/leads/7",
+                headers=self.headers,
+                json={"chatbot_id": 9, "status": "qualified", "assigned_to": 5},
+            )
+            upsert_response = self.client.post(
+                "/api/crm/leads/upsert",
+                headers=self.headers,
+                json={"chatbot_id": 9, "conversation_id": 22, "assigned_to": 5},
+            )
+        self.assertEqual(update_response.status_code, 403)
+        self.assertEqual(update_response.get_json()["code"], "company_suspended")
+        self.assertEqual(upsert_response.status_code, 403)
+        self.assertEqual(upsert_response.get_json()["code"], "company_suspended")
+        feature_gate.assert_not_called()
+        verify_access.assert_not_called()
+        update_lead.assert_not_called()
+        upsert_lead.assert_not_called()
+
+    def test_integration_config_mutations_are_blocked_before_provider_or_channel_writes(self):
+        auth, user, status = self._auth()
+        with auth, user, status, \
+             patch("app.routes.telegram_routes.validate_telegram_bot_token") as telegram_validate, \
+             patch("app.routes.telegram_routes.create_telegram_channel") as create_telegram, \
+             patch("app.routes.telegram_routes.delete_telegram_webhook") as delete_telegram_hook, \
+             patch("app.routes.wasender_routes.create_wasender_channel") as create_wasender, \
+             patch("app.routes.wasender_routes.disconnect_wasender_channel") as disconnect_wasender, \
+             patch("app.routes.whatsapp_routes.exchange_embedded_signup_code") as meta_exchange, \
+             patch("app.routes.whatsapp_routes.upsert_whatsapp_channel_by_phone_number_id") as upsert_whatsapp, \
+             patch("app.routes.whatsapp_routes.disconnect_whatsapp_channel_record") as disconnect_whatsapp:
+            telegram_connect = self.client.post(
+                "/api/telegram/connect?chatbot_id=9",
+                headers=self.headers,
+                json={"bot_token": "123:abc", "webhook_base_url": "https://example.test"},
+            )
+            telegram_disconnect = self.client.put(
+                "/api/telegram/channels/4/disconnect?chatbot_id=9",
+                headers=self.headers,
+            )
+            wasender_connect = self.client.post(
+                "/api/wasender/connect?chatbot_id=9",
+                headers=self.headers,
+                json={"api_key": "secret", "phone_number": "+60123456789", "webhook_base_url": "https://example.test"},
+            )
+            wasender_disconnect = self.client.put(
+                "/api/wasender/channels/4/disconnect?chatbot_id=9",
+                headers=self.headers,
+            )
+            whatsapp_connect = self.client.post(
+                "/api/whatsapp/embedded-signup/complete?chatbot_id=9",
+                headers=self.headers,
+                json={"code": "code", "waba_id": "waba", "phone_number_id": "phone"},
+            )
+            whatsapp_disconnect = self.client.put(
+                "/api/whatsapp/channels/4/disconnect?chatbot_id=9",
+                headers=self.headers,
+            )
+        for response in [
+            telegram_connect,
+            telegram_disconnect,
+            wasender_connect,
+            wasender_disconnect,
+            whatsapp_connect,
+            whatsapp_disconnect,
+        ]:
+            with self.subTest(status=response.status_code):
+                self.assertEqual(response.status_code, 403)
+                self.assertEqual(response.get_json()["code"], "company_suspended")
+        telegram_validate.assert_not_called()
+        create_telegram.assert_not_called()
+        delete_telegram_hook.assert_not_called()
+        create_wasender.assert_not_called()
+        disconnect_wasender.assert_not_called()
+        meta_exchange.assert_not_called()
+        upsert_whatsapp.assert_not_called()
+        disconnect_whatsapp.assert_not_called()
 
     def test_broadcast_worker_fails_closed_if_company_suspends_after_scheduling(self):
         auth, user, status = self._auth()
@@ -542,6 +925,12 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
 
     def test_phase5_operational_mutation_inventory_is_guarded(self):
         guarded_routes = [
+            bot_routes.create_new_bot,
+            bot_routes.update_existing_bot,
+            bot_routes.delete_existing_bot,
+            bot_routes.restore_existing_bot,
+            bot_routes.permanently_delete_existing_bot,
+            bot_routes.generate_bot_welcome_menu,
             profile_routes.update_workspace,
             user_routes.update_current_user,
             user_routes.change_password,
@@ -561,6 +950,30 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
             billing_routes.undo_cancel_subscription,
             billing_routes.schedule_downgrade,
             billing_routes.clear_downgrade,
+            chat_routes.test_chat,
+            knowledge_routes.set_current_active_pdf,
+            knowledge_routes.toggle_supporting_knowledge_source,
+            knowledge_routes.delete_uploaded_pdf,
+            knowledge_routes.scrape_website_knowledge,
+            knowledge_routes.scrape_analyze_website,
+            knowledge_routes.scrape_batch_website,
+            knowledge_routes.scrape_extract_website,
+            knowledge_routes.scrape_embed_website,
+            knowledge_routes.ingest_knowledge_sources,
+            knowledge_routes.submit_refinement_answers,
+            knowledge_routes.save_graph_node,
+            knowledge_routes.delete_graph_node_route,
+            knowledge_routes.save_graph_edge,
+            knowledge_routes.delete_graph_edge_route,
+            crm_routes.update_crm_lead,
+            crm_routes.upsert_crm_lead,
+            telegram_routes.connect_telegram,
+            telegram_routes.disconnect_telegram_channel,
+            telegram_routes.reconnect_telegram_channel,
+            wasender_routes.connect_wasender,
+            wasender_routes.disconnect_wasender,
+            whatsapp_routes.complete_embedded_signup,
+            whatsapp_routes.disconnect_whatsapp_channel,
         ]
         for route in guarded_routes:
             with self.subTest(route=route.__name__):

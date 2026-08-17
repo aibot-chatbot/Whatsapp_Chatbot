@@ -383,6 +383,44 @@
         });
     }
 
+    function supportWorkspaceHref(companyId) {
+        const params = new URLSearchParams();
+        params.set("company_id", String(companyId));
+        return "platform-admin-support.html?" + params.toString();
+    }
+
+    function companyAuditHref(companyId) {
+        const params = new URLSearchParams();
+        params.set("resource_type", "company");
+        params.set("resource_id", String(companyId));
+        return "platform-admin-audit-events.html?" + params.toString();
+    }
+
+    function tenantSupportRequestRows(requests) {
+        return requests.map(function (request) {
+            return [
+                request.request_id,
+                request.title,
+                request.category,
+                ui.statusBadge(request.status),
+                request.priority,
+                ui.formatDate(request.created_at)
+            ];
+        });
+    }
+
+    function supportCaseRows(cases) {
+        return cases.map(function (supportCase) {
+            return [
+                supportCase.id,
+                supportCase.title,
+                ui.statusBadge(supportCase.status),
+                supportCase.priority,
+                ui.formatDate(supportCase.updated_at)
+            ];
+        });
+    }
+
     function planName(plan) {
         if (!plan) return "Not available";
         return safeValue(plan.name || plan.code);
@@ -916,6 +954,122 @@
         return panel;
     }
 
+    function supportHistoryPanel(companyId) {
+        const state = { loaded: false, loading: false };
+        const panel = ui.element("section", "platform-panel");
+        const header = ui.element("header", "platform-page-header");
+        const title = ui.element("div");
+        title.append(
+            ui.element("h2", "", "Support history"),
+            ui.element("p", "", "Company-scoped tenant requests and internal cases. Internal notes and reply bodies are excluded from this summary.")
+        );
+        const actions = ui.element("div", "platform-toolbar");
+        const toggle = ui.element("button", "platform-button", "Load support history");
+        toggle.type = "button";
+        const workspace = ui.element("a", "platform-link-button", "Open Support Workspace");
+        workspace.href = supportWorkspaceHref(companyId);
+        actions.append(toggle, workspace);
+        header.append(title, actions);
+        const body = ui.element("div");
+        body.hidden = true;
+        panel.append(header, body);
+
+        function renderLoaded(data) {
+            const tenantRequests = data && Array.isArray(data.tenantRequests) ? data.tenantRequests : [];
+            const cases = data && Array.isArray(data.cases) ? data.cases : [];
+            body.replaceChildren();
+            body.append(ui.element("h3", "", "Tenant support requests"));
+            if (!tenantRequests.length) {
+                body.append(sectionStateCard("No tenant support requests found for this company."));
+            } else {
+                const requestHeaders = ["Request ID", "Title", "Category", "Status", "Priority", "Created"];
+                body.append(renderTable(requestHeaders, tenantSupportRequestRows(tenantRequests), function (cells) {
+                    return rowCard(requestHeaders, cells);
+                }));
+            }
+            body.append(ui.element("h3", "", "Internal support cases"));
+            if (!cases.length) {
+                body.append(sectionStateCard("No internal support cases found for this company."));
+            } else {
+                const caseHeaders = ["Case ID", "Title", "Status", "Priority", "Updated"];
+                body.append(renderTable(caseHeaders, supportCaseRows(cases), function (cells) {
+                    return rowCard(caseHeaders, cells);
+                }));
+            }
+        }
+
+        async function load() {
+            state.loaded = true;
+            state.loading = true;
+            body.hidden = false;
+            body.replaceChildren(ui.element("div", "platform-loading", "Loading support history..."));
+            toggle.textContent = "Hide support history";
+            try {
+                const results = await Promise.all([
+                    ui.runRequest("company-support-requests", function (signal) {
+                        return PlatformAdminApi.listTenantSupportRequests({
+                            companyId: companyId,
+                            limit: 10,
+                            offset: 0,
+                            signal: signal,
+                        });
+                    }),
+                    ui.runRequest("company-support-cases", function (signal) {
+                        return PlatformAdminApi.listSupportCases({
+                            companyId: companyId,
+                            limit: 10,
+                            offset: 0,
+                            signal: signal,
+                        });
+                    })
+                ]);
+                renderLoaded({
+                    tenantRequests: results[0] && results[0].requests,
+                    cases: results[1] && results[1].cases,
+                });
+            } catch (error) {
+                if (error && (error.category === "unauthenticated" || error.category === "access_denied")) {
+                    ui.handleError(error);
+                } else if (error && error.category === "not_found") {
+                    showCompanyNotFoundState();
+                } else if (!error || error.category !== "aborted") {
+                    body.replaceChildren(sectionStateCard(
+                        "Support history could not be loaded safely.",
+                        "Retry",
+                        load
+                    ));
+                }
+            } finally {
+                state.loading = false;
+            }
+        }
+
+        toggle.addEventListener("click", function () {
+            if (!state.loaded) {
+                load();
+                return;
+            }
+            body.hidden = !body.hidden;
+            toggle.textContent = body.hidden ? "Show support history" : "Hide support history";
+        });
+        return panel;
+    }
+
+    function companyAuditPanel(companyId) {
+        const panel = ui.element("section", "platform-panel");
+        const header = ui.element("header", "platform-page-header");
+        const title = ui.element("div");
+        title.append(
+            ui.element("h2", "", "Platform Admin activity for this company"),
+            ui.element("p", "", "Opens the existing safe audit viewer filtered to company resources. This is not a tenant application audit history.")
+        );
+        const link = ui.element("a", "platform-link-button", "Open Audit Logs");
+        link.href = companyAuditHref(companyId);
+        header.append(title, link);
+        panel.append(header);
+        return panel;
+    }
+
     function lazyListPanel(config) {
         const panel = ui.element("section", "platform-panel");
         const header = ui.element("header", "platform-page-header");
@@ -1213,6 +1367,8 @@
                 billingOrdersPanel(companyId),
                 aiCreditPanel(summaries[1]),
                 aiCreditTransactionsPanel(companyId),
+                supportHistoryPanel(companyId),
+                companyAuditPanel(companyId),
                 usersPanel(companyId),
                 chatbotsPanel(companyId)
             );

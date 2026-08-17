@@ -2,14 +2,15 @@
 
 ## Status
 
-Platform-admin Tenant and Company Administration Phase 5 is implemented locally.
-Migration 036 was applied and verified only in the approved main shared-testing
-Supabase with fake/team data. This is not staging verification and does not
-establish production readiness.
+Platform-admin Tenant and Company Administration Phase 5 is implemented and
+verified for the current milestone in the approved main shared-testing Supabase
+with fake/team data. Migration 036 was applied and verified only in the
+approved main shared-testing Supabase with fake/team data. This is not staging
+verification and does not establish production readiness.
 Platform-admin Tenant and Company Administration Phase 5 and Migration 036 are
 applied and verified only to the extent described in this contract; runtime
-tenant suspension enforcement is locally tested, while database lifecycle
-verification is limited to main shared testing.
+tenant suspension enforcement is covered by automated local tests plus bounded
+representative main shared-testing verification.
 
 This contract records the permanent Phase 5 runtime, database, audit, and
 verification boundary. It supersedes the temporary Phase 5 working notes.
@@ -22,6 +23,12 @@ admins:
 - reuse existing read-only company list/detail, subscription, usage, company
   users, company chatbots, support, and audit surfaces;
 - inspect safe tenant configuration and operational state;
+- investigate company support history from Company Detail using existing
+  company-scoped support APIs;
+- navigate from Company Detail to the Support Workspace with
+  `company_id=<company_id>`;
+- navigate from Company Detail to company-related Platform Admin Audit Logs
+  with `resource_type=company` and `resource_id=<company_id>`;
 - suspend a company by setting `companies.status` from `active` to `inactive`;
 - restore a company by setting `companies.status` from `inactive` to `active`;
 - audit every approved lifecycle mutation.
@@ -32,9 +39,22 @@ Explicitly excluded:
 - company deletion;
 - tenant user deletion;
 - tenant role administration;
+- tenant impersonation;
+- arbitrary tenant data access;
+- raw tenant messages;
+- AI prompts or responses;
+- provider payloads;
+- API credentials;
+- payment secrets;
+- unrestricted configuration inspection;
 - password reset;
 - manual credit adjustment;
 - arbitrary subscription or billing mutation;
+- financial mutation controls;
+- true tenant application audit history;
+- Phase 4 platform-admin account-management expansion;
+- Phase 6 duplicate monitoring;
+- Phase 7 financial mutation controls;
 - arbitrary configuration mutation;
 - arbitrary SQL execution;
 - suspension reason fields;
@@ -83,9 +103,27 @@ Blocked tenant operational areas include:
 - Telegram, Wasender, and Meta WhatsApp inbound processing;
 - broadcasts, including creation, start, worker startup, and per-recipient
   dispatch checks;
-- AI chat generation and system/background AI generation;
+- AI chat generation, `/api/chat/test`, and system/background AI generation;
+- chatbot create, edit, archive, restore, permanent delete, and welcome-menu
+  generation;
+- knowledge PDF upload, active-knowledge changes, supporting-knowledge changes,
+  deletion, website scraping, extraction, embedding, unified ingestion,
+  refinement submission, and graph mutations;
+- implicit-write knowledge reads: missing graph self-healing, refinement
+  question generation, and missing README generation;
+- CRM mutation routes;
+- Telegram, Wasender, and Meta WhatsApp configuration mutations;
 - billing checkout, top-up, retry, cancellation, undo-cancellation, downgrade,
   and downgrade-clear mutation actions.
+
+Qualified knowledge reads while inactive:
+
+- an existing knowledge graph remains readable;
+- an existing README remains readable;
+- a missing graph cannot trigger PDF parsing, embedding generation, chunk
+  writes, or graph extraction;
+- refinement-question generation is blocked before SSE streaming and AI work;
+- a missing README cannot trigger generation or write fallback.
 
 ## Enforcement Architecture
 
@@ -94,10 +132,10 @@ the authoritative company row from the database using a server-derived company
 ID. It requires status `active`; missing, null, unknown, or inactive company
 state fails closed with a stable `company_suspended` style application error.
 
-`company_operational_required` protects tenant mutation routes that derive
-company authority from the authenticated tenant context. Chatbot, widget,
-webhook, and AI paths use direct authoritative checks from server-loaded
-chatbot, channel, or bot records.
+`company_operational_required` protects tenant mutation and operational routes
+that derive company authority from the authenticated tenant context. Chatbot,
+widget, webhook, and AI paths use either the route guard or direct
+authoritative checks from server-loaded chatbot, channel, or bot records.
 
 System/background AI derives `company_id` from the chatbot record, checks
 operational status before provider selection, then passes that bot-derived
@@ -114,6 +152,20 @@ failed.
 Low-level provider send helpers do not independently query company status.
 Normal application entry points are guarded before provider calls, message
 writes, usage logging, or AI-credit charging.
+
+The legacy PDF upload entry point is `POST /upload-pdf` in `app/views.py`. It
+uses `@token_required`, `@role_required("admin", "owner")`, and
+`@company_operational_required`, so suspended-company rejection occurs before
+file processing, quota checks, `save_uploaded_pdf`, embeddings, chunk writes,
+graph generation, README/history generation, chatbot runtime changes, or
+persona derivation.
+
+`POST /api/chat/test` is an operational tenant AI action. It now uses
+`@company_operational_required` after authentication and role authorization.
+The AI router already blocked provider, usage, and credit work for suspended
+companies; the repaired route boundary returns the centralized
+`403 company_suspended` contract instead of wrapping the router fallback as
+HTTP 200 success.
 
 ## Platform-admin Lifecycle API
 
@@ -237,9 +289,91 @@ Verified audit rows:
 - `resource_id = 23`;
 - safe fixed lifecycle metadata only.
 
-No live tenant-runtime suspension E2E was performed because company 23 has no
-users or chatbots and the verification intentionally avoided risking another
-tenant. Runtime enforcement is covered by automated local tests.
+The initial lifecycle target, company 23, had no users or chatbots, so the
+first verification intentionally avoided tenant-runtime mutation checks on
+another tenant. Later controlled main shared-testing runtime verification used
+approved fake/team company 34, `Autobot Company`, with chatbot 52. Company 34
+was non-protected, had one tenant user and one chatbot, and was restored to
+`active` after every live test.
+
+Representative runtime verification for company 34 confirmed:
+
+- lifecycle: `active` to `inactive` to `active`;
+- audit event 527: `platform_admin.company.suspend`;
+- audit event 538: `platform_admin.company.restore`;
+- protected company 29 suspend was rejected with HTTP 400 /
+  `protected_company`, and company 29 remained active;
+- chatbot mutation rejected with HTTP 403 / `company_suspended`, and the
+  chatbot row was unchanged;
+- `POST /api/knowledge/set-active` rejected with HTTP 403 /
+  `company_suspended`, and knowledge state was unchanged;
+- `POST /upload-pdf` rejected with HTTP 403 / `company_suspended`, with no new
+  knowledge file, chunk, graph, README/history, persona derivation, or chatbot
+  runtime change;
+- a dummy Telegram connect request rejected with HTTP 403 /
+  `company_suspended`, with no provider/channel state change;
+- Company Detail, company users, company chatbots, subscription, AI-credit
+  usage, AI-credit transactions, billing orders, company-scoped support cases,
+  company-scoped tenant support requests, and company-filtered Platform Admin
+  audit events remained available to Platform Admins while inactive;
+- tenant `GET /api/bots` and `GET /api/support/requests` remained available as
+  intended safe read/support paths;
+- knowledge graph and README safe reads did not create missing knowledge state;
+- company-scoped support cases and tenant support requests returned HTTP 200,
+  and suspension did not block intended support investigation/read access.
+
+The final targeted test-chat re-verification again used company 34 and chatbot
+52:
+
+- lifecycle: `active` to `inactive` to `active`;
+- audit event 541: `platform_admin.company.suspend`;
+- audit event 542: `platform_admin.company.restore`;
+- `POST /api/chat/test?chatbot_id=52` returned HTTP 403 with
+  `status = error` and `code = company_suspended`;
+- AI usage rows remained `0` before and after;
+- AI-credit transaction count remained `3` before and after;
+- included balance remained `20000000` micro-MYR;
+- top-up balance remained `0`;
+- no provider execution was observed;
+- chatbot runtime/configuration remained unchanged.
+
+CRM mutation was not exercised live because selected fake/team company 34 had
+no suitable CRM lead. No risky conversation or customer data was manufactured
+for this gate. CRM suspension enforcement is covered by automated local tests.
+
+Lifecycle audit metadata in the company 34 verification remained bounded to
+safe lifecycle fields such as `company_id`, `endpoint`, `http_method`,
+`old_status`, `new_status`, and `outcome`. Audit event IDs are evidence from
+the approved main shared-testing environment only and are not portable across
+environments.
+
+The latest live gate directly reconfirmed company 29 is protected, protected
+suspend is rejected, company 34 lifecycle works, and no invalid or null company
+status was observed. Function ownership and grant internals were not newly
+re-introspected during the latest live gate; prior Migration 036 verification
+evidence remains the source for those details.
+
+## Company Detail Investigation
+
+Company Detail now provides bounded investigation for:
+
+- company profile and operational state;
+- current subscription context;
+- AI-credit usage;
+- subscription history;
+- AI-credit transactions;
+- billing orders;
+- company users;
+- company chatbots and safe configuration summary;
+- support history using existing company-scoped support APIs;
+- navigation to the Support Workspace with `company_id=<company_id>`;
+- navigation to Audit Logs with `resource_type=company` and
+  `resource_id=<company_id>`.
+
+The audit integration is company-related Platform Admin activity, not true
+tenant application audit history. A general authoritative tenant application
+audit-history source does not currently exist; this is not a blocker for the
+current Phase 5 milestone.
 
 ## Verification Limits
 

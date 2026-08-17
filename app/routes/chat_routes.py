@@ -5,6 +5,7 @@ from app.utils.access_control import verify_chatbot_access, role_required
 # import your existing chatbot function
 from app.services.ai_router import generate_response, OPERATION_TEST_CHAT
 from app.services.billing_guard import BillingLimitError
+from app.services.company_status_service import company_operational_required
 
 # create blueprint
 chat_blueprint = Blueprint("chat", __name__)
@@ -13,6 +14,7 @@ chat_blueprint = Blueprint("chat", __name__)
 @chat_blueprint.route("/api/chat/test", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def test_chat():
     try:
         data = request.get_json()

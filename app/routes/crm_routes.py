@@ -11,6 +11,7 @@ from app.database.crm_lead_repository import (
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access
 from app.services.billing_guard import can_use_plan_feature, BillingLimitError
+from app.services.company_status_service import company_operational_required
 
 
 crm_blueprint = Blueprint("crm", __name__)
@@ -75,6 +76,7 @@ def get_crm_leads():
 
 @crm_blueprint.route("/api/crm/leads/<int:lead_id>", methods=["PATCH"])
 @token_required
+@company_operational_required
 def update_crm_lead(lead_id):
     try:
         data = request.get_json(silent=True) or {}
@@ -157,6 +159,7 @@ def update_crm_lead(lead_id):
 
 @crm_blueprint.route("/api/crm/leads/upsert", methods=["POST"])
 @token_required
+@company_operational_required
 def upsert_crm_lead():
     try:
         data = request.get_json(silent=True) or {}

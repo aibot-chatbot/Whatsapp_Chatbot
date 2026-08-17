@@ -16,7 +16,8 @@
         tenantRequestDetail: null,
         tenantRequestError: null,
         tenantRequestLoadSequence: 0,
-        tenantRequestConversionCaseId: null
+        tenantRequestConversionCaseId: null,
+        companyFilterId: null
     };
 
     function safeValue(value) {
@@ -41,6 +42,13 @@
         const link = ui.element("a", "platform-link-button", "Open internal case #" + String(caseId));
         link.href = "platform-admin-support.html?case_id=" + String(caseId);
         return link;
+    }
+
+    function parsePositiveQueryId(name) {
+        const raw = new URLSearchParams(window.location.search).get(name);
+        if (!raw || !/^[1-9][0-9]*$/.test(raw)) return null;
+        const parsed = Number(raw);
+        return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
     }
 
     function labelFor(value) {
@@ -634,7 +642,12 @@
     async function loadSupportCases() {
         try {
             const data = await ui.runRequest("support-case-list", function (signal) {
-                return PlatformAdminApi.listSupportCases({ limit: 25, offset: 0, signal: signal });
+                return PlatformAdminApi.listSupportCases({
+                    companyId: state.companyFilterId || undefined,
+                    limit: 25,
+                    offset: 0,
+                    signal: signal
+                });
             });
             const cases = data && Array.isArray(data.cases) ? data.cases : [];
             if (!state.caseResults) return;
@@ -803,7 +816,12 @@
         }
         try {
             const data = await ui.runRequest("tenant-support-request-list", function (signal) {
-                return PlatformAdminApi.listTenantSupportRequests({ limit: 25, offset: 0, signal: signal });
+                return PlatformAdminApi.listTenantSupportRequests({
+                    companyId: state.companyFilterId || undefined,
+                    limit: 25,
+                    offset: 0,
+                    signal: signal
+                });
             });
             if (sequence !== state.tenantRequestLoadSequence || !state.tenantRequestResults) return;
             const requests = data && Array.isArray(data.requests) ? data.requests : [];
@@ -904,9 +922,12 @@
         const root = document.getElementById("platform-page-content");
         const header = ui.element("header", "platform-page-header");
         const titleGroup = ui.element("div");
+        const description = state.companyFilterId
+            ? "Tenant investigation filtered to company #" + String(state.companyFilterId) + ". Tenant replies are explicit support-case writes; billing, export, impersonation, attachment, email, and SLA actions remain excluded."
+            : "Tenant investigation with controlled internal case operations. Tenant replies are explicit support-case writes; billing, export, impersonation, attachment, email, and SLA actions remain excluded.";
         titleGroup.append(
             ui.element("h1", "", "Support Workspace"),
-            ui.element("p", "", "Tenant investigation with controlled internal case operations. Tenant replies are explicit support-case writes; billing, export, impersonation, attachment, email, and SLA actions remain excluded.")
+            ui.element("p", "", description)
         );
         header.append(titleGroup, renderQuickNavigation());
         root.replaceChildren(
@@ -916,6 +937,7 @@
     }
 
     async function initializeSupportWorkspace() {
+        state.companyFilterId = parsePositiveQueryId("company_id");
         renderWorkspaceSkeleton();
         const root = document.getElementById("platform-page-content");
         try {

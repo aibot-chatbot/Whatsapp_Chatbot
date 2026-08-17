@@ -49,9 +49,14 @@ EXECUTE posture, did not create mappings, did not create Phase 4 mutation audit
 events merely by application, and did not alter existing audit rows.
 Platform-admin Tenant and Company Administration Phase 5 and Migration 036 are
 applied and verified only in the approved main shared-testing Supabase with
-fake/team data. This verified company 23 suspend/restore lifecycle audit rows
-and company 29 protected-company rejection, but it is not staging verification
-and does not establish production readiness.
+fake/team data. This verified company 23 suspend/restore lifecycle audit rows,
+company 34 controlled runtime suspend/restore evidence, and company 29
+protected-company rejection, but it is not staging verification and does not
+establish production readiness. Company 34 (`Autobot Company`, chatbot 52) was
+left active after shared-testing. Lifecycle audit evidence in that environment
+includes company 23 audit events 355/356, company 34 representative runtime
+audit events 527/538, and company 34 targeted `/api/chat/test` audit events
+541/542. Audit event IDs are not portable across environments.
 Platform-admin Platform Monitoring Phase 6 is implemented locally as a
 read-only extension of `GET /api/platform-admin/overview`; it reuses
 `platform_admin.operations.overview.read` and adds no mutation audit actions.
