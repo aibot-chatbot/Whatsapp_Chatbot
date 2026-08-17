@@ -12,6 +12,7 @@ from .utils.whatsapp_utils import (
     is_valid_whatsapp_message,
 )
 from app.services.knowledge_service import save_uploaded_pdf
+from app.services.persona_derivation_service import derive_persona_for_upload
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_upload_knowledge_storage, BillingLimitError
 
@@ -125,8 +126,19 @@ def upload_pdf():
         can_upload_knowledge_storage(g.company_id, incoming_size)
         result = save_uploaded_pdf(file, chatbot_id)
 
+        # Fill company_name / business_description / tone from the document the
+        # client just uploaded, so a client who never opened the settings form
+        # does not get a bot introducing itself as an assistant for "Your
+        # Company". Never overwrites a value the client typed, and never fails
+        # the upload -- the outcome is reported instead of raised.
+        derivation = derive_persona_for_upload(chatbot_id)
+
         return jsonify({
-            "message": result["message"]
+            "message": result["message"],
+            "persona_derivation": {
+                "status": derivation.status,
+                "error_code": derivation.error_code,
+            },
         }), 200
 
     except BillingLimitError as e:

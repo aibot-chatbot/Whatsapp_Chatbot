@@ -24,6 +24,15 @@ The application uses privileged server-side credentials. Database access must re
 - `bot_configs`
 - `profiles`
 
+`bot_configs` stores three persona values that were historically duplicated
+across two column names each. Migration `039` makes `business_description`,
+`tone`, and `custom_prompt` canonical and deprecates `business_objective`,
+`response_style`, and `prompt_text`. Migration `040` adds a
+`persona_provenance` jsonb column recording whether each persona value was typed
+by the client or derived from an ingested document. Neither migration has been
+applied to any environment; see
+`docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
+
 ### Knowledge
 
 - `knowledge_files`
@@ -37,6 +46,14 @@ The application uses privileged server-side credentials. Database access must re
 - `chat_history`
 - `crm_leads`
 - `agent_actions`
+- `conversation_graph_nodes` (migration `041`, unapplied)
+
+`conversation_graph_nodes` holds conversation-scoped facts learned mid-chat. It
+is deliberately separate from the document knowledge-graph tables, which are
+uniquely keyed per chatbot and would collide across concurrent conversations.
+Its write path is **not** tenant-filtered — the upsert conflict target excludes
+`chatbot_id` — so no caller may accept a conversation identifier from a request
+until the composite foreign key documented in the migration exists.
 
 ### Messaging channels
 
@@ -243,6 +260,18 @@ Before changing schema:
 5. Document deployment order.
 6. Obtain human approval.
 7. Apply production changes separately from application code deployment when necessary.
+
+Several tables in this system have no `CREATE TABLE` in the repository, so a
+migration against them cannot assert the shape it is altering. Where that is the
+case, the migration carries a mandatory SELECT-only preflight script under
+`scripts/` whose output must be attached to the change record before the
+migration is applied. Current examples:
+
+- `scripts/bot_configs_persona_unification_preflight.sql` (migration `039`)
+- `scripts/conversation_graph_nodes_preflight.sql` (migration `041`)
+
+Preflight output can contain tenant business text. Route it to the restricted
+archive used for migration 028 manifests, not into a ticket or chat transcript.
 
 ## Open Verification Items
 

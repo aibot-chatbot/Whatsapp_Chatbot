@@ -124,3 +124,7 @@ graphify-out/
 
 # Generated code-graph artifact - large, rebuilt locally, never shared
 .understand-anything/
+
+# Generated knowledge-base artifacts (contain tenant document content)
+data/bot_*_readme.md
+data/bot_*_history.json

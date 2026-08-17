@@ -1,16 +1,28 @@
 from datetime import datetime, timezone
 
 from app.database.db import supabase
+from app.services.bot_config_fields import (
+    PROVENANCE_CLIENT,
+    PROVENANCE_COLUMN,
+    SYSTEM_PLACEHOLDER_VALUES,
+    merge_persona_write,
+    persona_provenance_payload,
+    persona_write_payload,
+    resolve_persona_fields,
+    resolve_persona_provenance,
+)
 from app.services.profile_service import get_profile_by_name
 
 TABLE_NAME = "bot_configs"
 CHATBOTS_TABLE = "chatbots"
 
+# The three placeholders come from bot_config_fields so the provenance rule
+# that recognises them (may_derive) cannot drift away from what is written.
 DEFAULT_SETTINGS = {
     "bot_name": "AI Assistant",
-    "company_name": "Your Company",
-    "business_description": "No business description provided.",
-    "tone": "Friendly",
+    "company_name": SYSTEM_PLACEHOLDER_VALUES["company_name"],
+    "business_description": SYSTEM_PLACEHOLDER_VALUES["business_description"],
+    "tone": SYSTEM_PLACEHOLDER_VALUES["tone"],
     "additional_instructions": "",
     "custom_prompt": "",
     "active_profile": "",
@@ -23,18 +35,22 @@ def _now_iso():
 
 def _row_to_settings(row):
     if not row:
-        return DEFAULT_SETTINGS.copy()
+        # A fresh dict every call: DEFAULT_SETTINGS.copy() is shallow, and the
+        # provenance value is mutable.
+        return {**DEFAULT_SETTINGS, PROVENANCE_COLUMN: {}}
 
     return {
         "bot_name": row.get("bot_name") or "",
         "company_name": row.get("company_name") or "",
-        "business_description": row.get("business_description")
-        or row.get("business_objective")
-        or "",
-        "tone": row.get("tone") or row.get("response_style") or "",
         "additional_instructions": row.get("additional_instructions") or "",
-        "custom_prompt": row.get("custom_prompt") or row.get("prompt_text") or "",
         "active_profile": row.get("profile_name") or "",
+        **resolve_persona_fields(row),
+        # Unknown markers are dropped: absent means unknown, everywhere.
+        PROVENANCE_COLUMN: {
+            field: marker
+            for field, marker in resolve_persona_provenance(row).items()
+            if marker
+        },
     }
 
 
@@ -121,8 +137,20 @@ def get_settings():
     return _row_to_settings(active_row)
 
 
-def update_settings(new_data, chatbot_id):
-    current_settings = DEFAULT_SETTINGS.copy()
+def update_settings(new_data, chatbot_id, source=PROVENANCE_CLIENT):
+    """Write the active bot_configs row for ``chatbot_id``.
+
+    Args:
+        new_data: The fields to apply.  For ``source=PROVENANCE_CLIENT`` a key
+            that is absent leaves the stored value alone; a key present but
+            blank clears it.
+        chatbot_id: Owning chatbot.  Callers must have verified access.
+        source: ``PROVENANCE_CLIENT`` (a human edit, the default) or
+            ``PROVENANCE_DERIVED`` (values derived from ingested documents).
+            A derived write silently skips any field the client has typed --
+            see ``bot_config_fields.may_derive``.
+    """
+    current_settings = {**DEFAULT_SETTINGS, PROVENANCE_COLUMN: {}}
 
     existing_active_response = (
         supabase
@@ -139,7 +167,17 @@ def update_settings(new_data, chatbot_id):
     if existing_active_rows:
         current_settings = _row_to_settings(existing_active_rows[0])
 
+    persona = merge_persona_write(
+        current_settings,
+        current_settings.get(PROVENANCE_COLUMN),
+        new_data or {},
+        source=source,
+    )
+
     current_settings.update(new_data)
+    # The merge is authoritative for the three derivable fields: it is what
+    # enforces "a derivation never overwrites a client override".
+    current_settings.update(persona.values)
 
     active_profile = current_settings.get("active_profile", "")
 
@@ -152,13 +190,9 @@ def update_settings(new_data, chatbot_id):
         "profile_name": active_profile,
         "bot_name": current_settings.get("bot_name", ""),
         "company_name": current_settings.get("company_name", ""),
-        "business_description": current_settings.get("business_description", ""),
-        "tone": current_settings.get("tone", ""),
         "additional_instructions": current_settings.get("additional_instructions", ""),
-        "custom_prompt": current_settings.get("custom_prompt", ""),
-        "prompt_text": current_settings.get("custom_prompt", ""),
-        "business_objective": current_settings.get("business_description", ""),
-        "response_style": current_settings.get("tone", ""),
+        **persona_write_payload(current_settings),
+        **persona_provenance_payload(persona.provenance),
         "updated_at": _now_iso(),
         "is_active": True,
     }
