@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bot Configuration | AI CHATBOT</title>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();requireAdminOrOwner();</script>
+    <script src="sidebar-component.js"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.82);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --error: #ef4444;
+            --warning: #f59e0b;
+            --input-bg: rgba(15, 23, 42, 0.72);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.10) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        #root {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+
+        .nav-list {
+            list-style: none;
+            flex-grow: 1;
+        }
+
+        .nav-item {
+            margin-bottom: 8px;
+        }
+
+        .nav-link {
+            text-decoration: none;
+            color: var(--text-dim);
+            padding: 12px 16px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            transform: translateX(5px);
+        }
+
+        .nav-link.active {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 20px var(--primary-glow);
+        }
+
+        .dropdown-container {
+            margin-bottom: 8px;
+        }
+
+        .dropdown-toggle {
+            width: 100%;
+            justify-content: space-between;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .dropdown-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease-in-out;
+            padding-left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .dropdown-container.open .dropdown-content {
+            max-height: 500px;
+            margin-top: 8px;
+            padding-bottom: 8px;
+        }
+
+        .chevron {
+            transition: transform 0.3s;
+            opacity: 0.5;
+        }
+
+        .dropdown-container.open .chevron {
+            transform: rotate(180deg);
+            opacity: 1;
+        }
+
+        .sub-link {
+            font-size: 0.9rem;
+            padding: 10px 16px;
+        }
+
+        .logout-btn {
+            margin-top: auto;
+            color: #ef4444;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            text-decoration: none;
+            font-weight: 600;
+            border-radius: 12px;
+            transition: background 0.3s;
+        }
+
+        .logout-btn:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .main-container {
+            flex: 1;
+            padding: 50px 60px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 8px;
+            font-size: 0.98rem;
+        }
+
+        .section-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.08rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .section-subtitle {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            margin-bottom: 16px;
+            line-height: 1.5;
+        }
+
+        .context-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .context-item,
+        .preview-card {
+            background: rgba(15, 23, 42, 0.55);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 16px;
+        }
+
+        .context-item {
+            min-height: 88px;
+        }
+
+        .context-label,
+        .preview-label {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+        }
+
+        .context-value,
+        .preview-value {
+            font-size: 0.98rem;
+            font-weight: 600;
+            line-height: 1.45;
+            word-break: break-all;
+            overflow-wrap: anywhere;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            border: 1px solid transparent;
+        }
+
+        .status-neutral {
+            background: rgba(148, 163, 184, 0.12);
+            color: #cbd5e1;
+            border-color: rgba(148, 163, 184, 0.2);
+        }
+
+        .status-success {
+            background: rgba(16, 185, 129, 0.12);
+            color: #86efac;
+            border-color: rgba(16, 185, 129, 0.25);
+        }
+
+        .status-error {
+            background: rgba(239, 68, 68, 0.12);
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.25);
+        }
+
+        .status-warning {
+            background: rgba(245, 158, 11, 0.12);
+            color: #fcd34d;
+            border-color: rgba(245, 158, 11, 0.25);
+        }
+
+        .match-result-box {
+            margin-top: 14px;
+            padding: 14px;
+            border-radius: 14px;
+            text-align: left;
+            font-size: 13px;
+            line-height: 1.55;
+            border: 1px solid transparent;
+        }
+
+        .match-result-box.success {
+            background: rgba(16, 185, 129, 0.08);
+            border-color: rgba(16, 185, 129, 0.35);
+            color: #86efac;
+        }
+
+        .match-result-box.error {
+            background: rgba(239, 68, 68, 0.08);
+            border-color: rgba(239, 68, 68, 0.35);
+            color: #fca5a5;
+        }
+
+        .match-result-box.warning {
+            background: rgba(245, 158, 11, 0.08);
+            border-color: rgba(245, 158, 11, 0.35);
+            color: #fcd34d;
+        }
+
+        .match-result-title {
+            font-size: 13px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .field-group {
+            text-align: left;
+        }
+
+        label {
+            display: block;
+            font-size: 0.84rem;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        input,
+        select,
+        textarea {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            padding: 14px 16px;
+            color: white;
+            font-size: 0.96rem;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
+            background: rgba(15, 23, 42, 0.82);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 110px;
+        }
+
+        .form-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 10px;
+            align-items: end;
+        }
+
+        .preview-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .preview-full {
+            grid-column: 1 / -1;
+        }
+
+        .btn-primary,
+        .btn-secondary,
+        .btn-danger,
+        .inline-btn {
+            padding: 12px 14px;
+            border-radius: 14px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease, opacity 0.2s ease;
+            min-height: 50px;
+        }
+
+        .btn-primary {
+            border: none;
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #2563eb;
+        }
+
+        .btn-secondary,
+        .inline-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover:not(:disabled),
+        .inline-btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.08);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-primary:active:not(:disabled),
+        .btn-secondary:active:not(:disabled),
+        .btn-danger:active:not(:disabled),
+        .inline-btn:active:not(:disabled) {
+            transform: scale(0.98);
+        }
+
+        .btn-primary:disabled,
+        .btn-secondary:disabled,
+        .btn-danger:disabled,
+        .inline-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        .button-stack {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+            flex-wrap: wrap;
+        }
+
+        .button-stack .btn-primary,
+        .button-stack .btn-secondary,
+        .button-stack .btn-danger {
+            width: auto;
+            min-width: 210px;
+        }
+
+        .status-message {
+            margin-top: 16px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .status-message.success {
+            color: var(--accent);
+        }
+
+        .status-message.error {
+            color: var(--error);
+        }
+
+        .mode-badge {
+            display: inline-block;
+            padding: 7px 11px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+            background: rgba(59, 130, 246, 0.12);
+            color: #93c5fd;
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            margin-bottom: 10px;
+        }
+
+        .empty-preview {
+            color: var(--text-dim);
+            font-size: 14px;
+            padding: 6px 0;
+        }
+
+        .row-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 1100px) {
+            #root {
+                flex-direction: column;
+            }
+
+            .main-container {
+                padding: 28px 20px;
+            }
+        }
+
+        @media (max-width: 700px) {
+
+            .context-grid,
+            .preview-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .field-row {
+                grid-template-columns: 1fr;
+            }
+
+            .button-stack {
+                flex-direction: column;
+            }
+
+            .button-stack .btn-primary,
+            .button-stack .btn-secondary,
+            .button-stack .btn-danger {
+                min-width: 100%;
+            }
+
+            .header h1 {
+                font-size: 1.9rem;
+            }
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+        }
+
+        .modal-overlay.open {
+            display: flex;
+        }
+
+        /* Modal Content Box */
+        .modal-content {
+            background: #0f172a;
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 700px;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 30px;
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 24px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script>
+const {
+  useState,
+  useEffect,
+  useRef
+} = React;
+function App() {
+  const emptyForm = {
+    profileName: "",
+    botName: "",
+    companyName: "",
+    businessDescription: "",
+    tone: "",
+    additionalInstructions: "",
+    customPrompt: ""
+  };
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlBotId = urlParams.get("bot_id");
+  const storedBotId = sessionStorage.getItem("selectedBotId");
+  if (!urlBotId && storedBotId) {
+    window.location.href = `new_prompt.html?bot_id=${encodeURIComponent(storedBotId)}`;
+    return null;
+  }
+  if (!urlBotId) {
+    window.location.href = "bots.html";
+    return null;
+  }
+  const selectedBotId = urlBotId;
+  sessionStorage.setItem("selectedBotId", selectedBotId);
+  const botQuery = `?chatbot_id=${selectedBotId}`;
+  const pageQuery = `?bot_id=${selectedBotId}`;
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isCheckingMatch, setIsCheckingMatch] = useState(false);
+  const configFormRef = useRef(null);
+  const [botName, setBotName] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [businessDescription, setBusinessDescription] = useState("");
+  const [tone, setTone] = useState("");
+  const [extractionMode, setExtractionMode] = useState("manual");
+  const [extractionPrompt, setExtractionPrompt] = useState("");
+  const [extractedButtons, setExtractedButtons] = useState([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionMessage, setExtractionMessage] = useState("");
+
+  const handleExtractDocument = async () => {
+    setIsExtracting(true);
+    setExtractionMessage("Extracting data from document...");
+    try {
+        const response = await fetch(`/api/settings/extract-document-data?chatbot_id=${selectedBotId}`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + localStorage.getItem("access_token")
+            },
+            body: JSON.stringify({ prompt: extractionPrompt })
+        });
+        const data = await response.json();
+        if (data.status === "success") {
+            setExtractedButtons(data.data);
+            setExtractionMessage("Extracted successfully.");
+        } else {
+            setExtractionMessage("Extraction failed: " + data.message);
+        }
+    } catch (error) {
+        setExtractionMessage("Error: " + error.message);
+    } finally {
+        setIsExtracting(false);
+    }
+  };
+  const [additionalInstructions, setAdditionalInstructions] = useState("");
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [activePdf, setActivePdf] = useState("");
+  const [supportingWebsites, setSupportingWebsites] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+  const [profileName, setProfileName] = useState("");
+  const [selectedProfile, setSelectedProfile] = useState("");
+  const [activeProfile, setActiveProfile] = useState("");
+  const [previewProfile, setPreviewProfile] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [formMode, setFormMode] = useState("create");
+  const [sessionStatus, setSessionStatus] = useState({
+    type: "",
+    text: ""
+  });
+  const [formStatus, setFormStatus] = useState({
+    type: "",
+    text: ""
+  });
+  const [matchResult, setMatchResult] = useState(null);
+  const [profileToDelete, setProfileToDelete] = useState(null);
+  const [currentBotName, setCurrentBotName] = useState("");
+  const getDeployButtonHint = () => {
+    if (!activePdf) return "Please select active primary knowledge first.";
+    if (!activeProfile) return "Please set an active profile first.";
+    if (!matchResult) return "Please check match first before deploying.";
+    if (matchResult.validation_status === "unavailable" || matchResult.match === null) return "Validation is temporarily unavailable. Please try again before deploying.";
+    if (!matchResult.match) return "Current profile and primary knowledge do not match. Please fix them before deploying.";
+    return "Deploy the current matched profile and primary knowledge to all connected channels.";
+  };
+  const fetchBotInfo = async () => {
+    try {
+      const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setCurrentBotName(data.data.bot_name || "Bot");
+      }
+    } catch (error) {
+      setCurrentBotName("Bot");
+    }
+  };
+  const fetchActivePdf = async () => {
+    try {
+      const response = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setActivePdf(data.data?.file_name || "");
+      } else {
+        setActivePdf("");
+      }
+    } catch (error) {
+      setActivePdf("");
+    }
+  };
+  const getKnowledgeType = item => {
+    const explicitType = (item?.file_type || "").toLowerCase();
+    if (explicitType) return explicitType;
+    const name = item?.file_name || item?.name || "";
+    return name.startsWith("http://") || name.startsWith("https://") ? "url" : "pdf";
+  };
+  const fetchSupportingWebsites = async () => {
+    try {
+      const response = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
+      const data = await response.json();
+      if (data.status === "success") {
+        const websites = (data.data || []).filter(item => getKnowledgeType(item) === "url");
+        setSupportingWebsites(websites);
+      } else {
+        setSupportingWebsites([]);
+      }
+    } catch (error) {
+      setSupportingWebsites([]);
+    }
+  };
+  const fetchProfiles = async () => {
+    try {
+      const response = await authenticatedFetch(`/api/profiles${botQuery}`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setProfiles(data.data || []);
+      } else {
+        setFormStatus({
+          type: "error",
+          text: "Failed to load profiles."
+        });
+      }
+    } catch (error) {
+      setFormStatus({
+        type: "error",
+        text: "Failed to connect to backend."
+      });
+    }
+  };
+  const fetchActiveProfile = async () => {
+    try {
+      const response = await authenticatedFetch(`/api/settings?chatbot_id=${selectedBotId}`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setActiveProfile(data.data?.active_profile || "");
+      } else {
+        setActiveProfile("");
+      }
+    } catch (error) {
+      setActiveProfile("");
+    }
+  };
+  const getSelectedProfileObject = () => {
+    return profiles.find(p => p.name === selectedProfile) || null;
+  };
+  const fillFormFromProfile = profile => {
+    if (!profile) return;
+    setProfileName(profile.name || "");
+    setBotName(profile.bot_name || "");
+    setCompanyName(profile.company_name || "");
+    setBusinessDescription(profile.business_description || "");
+    setTone(profile.tone || "");
+    setAdditionalInstructions(profile.additional_instructions || "");
+    setCustomPrompt(profile.custom_prompt || "");
+  };
+  const clearForm = () => {
+    setProfileName(emptyForm.profileName);
+    setBotName(emptyForm.botName);
+    setCompanyName(emptyForm.companyName);
+    setBusinessDescription(emptyForm.businessDescription);
+    setTone(emptyForm.tone);
+    setAdditionalInstructions(emptyForm.additionalInstructions);
+    setCustomPrompt(emptyForm.customPrompt);
+    setFormMode("create");
+    setFormStatus({
+      type: "success",
+      text: "Form cleared. You can create a new profile now."
+    });
+  };
+  const handleDeleteProfile = async () => {
+    const nameToDelete = previewProfile && previewProfile.name || selectedProfile || profileName.trim();
+    if (!nameToDelete) {
+      setFormStatus({
+        type: "error",
+        text: "No profile selected for deletion."
+      });
+      return;
+    }
+    setProfileToDelete(nameToDelete);
+  };
+  const confirmDeleteProfile = async () => {
+    if (!profileToDelete) return;
+    const nameToDelete = profileToDelete;
+    setProfileToDelete(null);
+    try {
+      const response = await authenticatedFetch(`/api/profiles/${encodeURIComponent(nameToDelete)}${botQuery}`, {
+        method: "DELETE"
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        if (activeProfile === nameToDelete) {
+          setActiveProfile("");
+        }
+        setPreviewProfile(null);
+        setSelectedProfile("");
+        setProfileName("");
+        setBotName("");
+        setCompanyName("");
+        setBusinessDescription("");
+        setTone("");
+        setAdditionalInstructions("");
+        setCustomPrompt("");
+        setFormMode("create");
+        await fetchProfiles();
+        setFormStatus({
+          type: "success",
+          text: `Profile "${nameToDelete}" deleted.`
+        });
+      } else {
+        setFormStatus({
+          type: "error",
+          text: data.message || "Failed to delete profile."
+        });
+      }
+    } catch (error) {
+      setFormStatus({
+        type: "error",
+        text: "Failed to connect to backend."
+      });
+    }
+  };
+  const handlePreviewProfile = () => {
+    if (!selectedProfile) {
+      setFormStatus({
+        type: "error",
+        text: "Please select a profile first."
+      });
+      return;
+    }
+    const profile = getSelectedProfileObject();
+    if (!profile) {
+      setFormStatus({
+        type: "error",
+        text: "Selected profile not found."
+      });
+      return;
+    }
+    setPreviewProfile(profile);
+    setFormStatus({
+      type: "success",
+      text: `Previewing profile "${profile.name}".`
+    });
+  };
+  const handleSetActiveProfile = async (targetProfileName = null) => {
+    const nameToActivate = targetProfileName || selectedProfile;
+    if (!nameToActivate) {
+      setFormStatus({
+        type: "error",
+        text: "Please select a profile first."
+      });
+      return;
+    }
+    const profile = profiles.find(p => p.name === nameToActivate);
+    if (!profile) {
+      setFormStatus({
+        type: "error",
+        text: "Selected profile not found."
+      });
+      return;
+    }
+    try {
+      setPreviewProfile(profile);
+      setActiveProfile(profile.name || "");
+      await authenticatedFetch(`/api/settings/active-profile?chatbot_id=${selectedBotId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          active_profile: profile.name || ""
+        })
+      });
+      setMatchResult(null);
+      setSessionStatus({
+        type: "",
+        text: ""
+      });
+      setFormStatus({
+        type: "success",
+        text: `Profile "${profile.name}" set as active.`
+      });
+    } catch (error) {
+      setFormStatus({
+        type: "error",
+        text: "Failed to connect to backend."
+      });
+    }
+  };
+  const handleEditProfileToForm = () => {
+    if (!selectedProfile) {
+      setFormStatus({
+        type: "error",
+        text: "Please select a profile first."
+      });
+      return;
+    }
+    const profile = getSelectedProfileObject();
+    if (!profile) {
+      setFormStatus({
+        type: "error",
+        text: "Selected profile not found."
+      });
+      return;
+    }
+    setPreviewProfile(profile);
+    fillFormFromProfile(profile);
+    setFormMode("edit");
+    setIsModalOpen(true); // Open the popup
+    setFormStatus({
+      type: "success",
+      text: `Profile "${profile.name}" loaded into form for editing.`
+    });
+  };
+
+  //     setTimeout(() => {
+  //         if (configFormRef.current) {
+  //             configFormRef.current.scrollIntoView({
+  //                 behavior: "smooth",
+  //                 block: "start"
+  //             });
+  //         }
+  //     }, 100);
+  // };
+
+  const handleSaveProfile = async () => {
+    if (!profileName.trim()) {
+      setFormStatus({
+        type: "error",
+        text: "Please enter a profile name."
+      });
+      return;
+    }
+    setIsSavingProfile(true);
+    setFormStatus({
+      type: "",
+      text: ""
+    });
+    try {
+      const response = await authenticatedFetch(`/api/profiles${botQuery}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          name: profileName,
+          bot_name: botName,
+          company_name: companyName,
+          business_description: businessDescription,
+          tone: tone,
+          additional_instructions: additionalInstructions,
+          custom_prompt: customPrompt
+        })
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        const savedProfile = {
+          name: profileName.trim(),
+          bot_name: botName,
+          company_name: companyName,
+          business_description: businessDescription,
+          tone: tone,
+          additional_instructions: additionalInstructions,
+          custom_prompt: customPrompt
+        };
+        setPreviewProfile(savedProfile);
+        setSelectedProfile(profileName.trim());
+        setFormStatus({
+          type: "success",
+          text: `Profile "${profileName}" saved successfully and is now active.`
+        });
+        await fetchProfiles();
+        await fetchActiveProfile();
+        setFormMode("edit");
+      } else {
+        setFormStatus({
+          type: "error",
+          text: data.message || "Failed to save profile."
+        });
+      }
+    } catch (error) {
+      setFormStatus({
+        type: "error",
+        text: "Failed to connect to backend."
+      });
+    } finally {
+      setIsSavingProfile(false);
+    }
+  };
+  const handleCheckMatch = async () => {
+    if (!activePdf) {
+      setSessionStatus({
+        type: "error",
+        text: "No active primary knowledge selected."
+      });
+      return;
+    }
+    if (!activeProfile) {
+      setSessionStatus({
+        type: "error",
+        text: "Please set an active profile first."
+      });
+      return;
+    }
+    setIsCheckingMatch(true);
+    setMatchResult(null);
+    setSessionStatus({
+      type: "",
+      text: ""
+    });
+    try {
+      const response = await authenticatedFetch(`/api/match/check?chatbot_id=${selectedBotId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          profile_name: activeProfile
+        })
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        setMatchResult(data.data);
+      } else {
+        setSessionStatus({
+          type: "error",
+          text: data.message || "Failed to check match."
+        });
+      }
+    } catch (error) {
+      setSessionStatus({
+        type: "error",
+        text: "Failed to connect to backend."
+      });
+    } finally {
+      setIsCheckingMatch(false);
+    }
+  };
+  const getMatchStatusMeta = () => {
+    if (isCheckingMatch) {
+      return {
+        className: "status-warning",
+        text: "Checking match..."
+      };
+    }
+    if (!matchResult) {
+      return {
+        className: "status-neutral",
+        text: "Not checked yet"
+      };
+    }
+    if (matchResult.match) {
+      return {
+        className: "status-success",
+        text: "Ready to Deploy"
+      };
+    }
+    if (matchResult.validation_status === "unavailable" || matchResult.match === null) {
+      return {
+        className: "status-warning",
+        text: "Validation unavailable"
+      };
+    }
+    return {
+      className: "status-error",
+      text: "Mismatch detected"
+    };
+  };
+  const handleDeployToLiveBot = async () => {
+    if (!activePdf) {
+      setSessionStatus({
+        type: "error",
+        text: "Please select active primary knowledge first."
+      });
+      return;
+    }
+    if (!activeProfile) {
+      setSessionStatus({
+        type: "error",
+        text: "Please set an active profile first."
+      });
+      return;
+    }
+    if (!matchResult) {
+      setSessionStatus({
+        type: "error",
+        text: "Please check match first before deploying to live bot."
+      });
+      return;
+    }
+    if (matchResult.validation_status === "unavailable" || matchResult.match === null) {
+      setSessionStatus({
+        type: "error",
+        text: "Validation is temporarily unavailable. Please try again before deploying."
+      });
+      return;
+    }
+    if (!matchResult.match) {
+      setSessionStatus({
+        type: "error",
+        text: "Current profile and primary knowledge do not match. Please fix them before deploying."
+      });
+      return;
+    }
+    try {
+      const response = await authenticatedFetch(`/api/settings/apply-profile?chatbot_id=${selectedBotId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          profile_name: activeProfile
+        })
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        setSessionStatus({
+          type: "success",
+          text: data.message || "Bot deployed successfully. Connected channels will now use this profile and primary knowledge."
+        });
+        setTimeout(() => {
+          window.location.href = `testbot.html${pageQuery}`;
+        }, 1200);
+      } else {
+        setSessionStatus({
+          type: "error",
+          text: data.message || "Failed to deploy bot settings."
+        });
+      }
+    } catch (error) {
+      setSessionStatus({
+        type: "error",
+        text: "Failed to connect to backend."
+      });
+    }
+  };
+  useEffect(() => {
+    fetchBotInfo();
+    fetchProfiles();
+    fetchActivePdf();
+    fetchSupportingWebsites();
+    fetchActiveProfile();
+  }, []);
+  const matchStatus = getMatchStatusMeta();
+  const enabledSupportingWebsites = supportingWebsites.filter(item => item.is_enabled !== false);
+  const disabledSupportingWebsites = supportingWebsites.filter(item => item.is_enabled === false);
+  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("chatbot-sidebar", null), /*#__PURE__*/React.createElement("main", {
+    className: "main-container"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "header",
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "flex-start",
+      flexWrap: "wrap",
+      gap: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", null, "Bot Configuration (", currentBotName || "Bot", ")"), /*#__PURE__*/React.createElement("p", null, "Manage your primary knowledge, supporting websites, saved profiles, and live bot setup in one place.")), /*#__PURE__*/React.createElement("button", {
+    className: "btn-primary",
+    type: "button",
+    onClick: () => {
+      clearForm();
+      setIsModalOpen(true);
+    }
+  }, "➕ Add Profile")), /*#__PURE__*/React.createElement("div", {
+    className: "section-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "section-title"
+  }, "Profile Library"), /*#__PURE__*/React.createElement("div", {
+    className: "section-subtitle"
+  }, "Browse saved profiles, preview their details, then choose one to activate or edit."), /*#__PURE__*/React.createElement("div", {
+    className: "field-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Choose Profile"), /*#__PURE__*/React.createElement("div", {
+    className: "field-row"
+  }, /*#__PURE__*/React.createElement("select", {
+    value: selectedProfile,
+    onChange: e => {
+      const val = e.target.value;
+      setSelectedProfile(val);
+      setPreviewProfile(null); // Hide preview when selection changes
+      if (val) {
+        handleSetActiveProfile(val);
+      }
+    }
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Select a saved profile"), profiles.map((profile, index) => /*#__PURE__*/React.createElement("option", {
+    key: index,
+    value: profile.name
+  }, profile.name))), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => {
+      if (previewProfile && selectedProfile && previewProfile.name === selectedProfile) {
+        setPreviewProfile(null);
+      } else {
+        handlePreviewProfile();
+      }
+    },
+    className: "inline-btn"
+  }, previewProfile && selectedProfile && previewProfile.name === selectedProfile ? "Close Preview" : "Preview")), formStatus.text && !isModalOpen && /*#__PURE__*/React.createElement("div", {
+    className: `status-message ${formStatus.type}`,
+    style: {
+      justifyContent: "flex-start",
+      marginTop: "12px"
+    }
+  }, formStatus.type === "success" ? "✨" : "⚠️", " ", formStatus.text)), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "section-title",
+    style: {
+      fontSize: "14px",
+      marginBottom: "12px"
+    }
+  }, "Profile Details"), !previewProfile ? /*#__PURE__*/React.createElement("div", {
+    className: "empty-preview"
+  }, "No profile selected for preview.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
+    className: "preview-grid"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "preview-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "preview-label"
+  }, "Profile Name"), /*#__PURE__*/React.createElement("div", {
+    className: "preview-value"
+  }, previewProfile.name || "-")), /*#__PURE__*/React.createElement("div", {
+    className: "preview-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "preview-label"
+  }, "Tone"), /*#__PURE__*/React.createElement("div", {
+    className: "preview-value"
+  }, previewProfile.tone || "-")), /*#__PURE__*/React.createElement("div", {
+    className: "preview-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "preview-label"
+  }, "Bot Name"), /*#__PURE__*/React.createElement("div", {
+    className: "preview-value"
+  }, previewProfile.bot_name || "-")), /*#__PURE__*/React.createElement("div", {
+    className: "preview-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "preview-label"
+  }, "Company Name"), /*#__PURE__*/React.createElement("div", {
+    className: "preview-value"
+  }, previewProfile.company_name || "-")), /*#__PURE__*/React.createElement("div", {
+    className: "preview-card preview-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "preview-label"
+  }, "Business Description"), /*#__PURE__*/React.createElement("div", {
+    className: "preview-value"
+  }, previewProfile.business_description || "-")), /*#__PURE__*/React.createElement("div", {
+    className: "preview-card preview-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "preview-label"
+  }, "Additional Instructions"), /*#__PURE__*/React.createElement("div", {
+    className: "preview-value"
+  }, previewProfile.additional_instructions || "-")), /*#__PURE__*/React.createElement("div", {
+    className: "preview-card preview-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "preview-label"
+  }, "Custom Prompt Template"), /*#__PURE__*/React.createElement("div", {
+    className: "preview-value",
+    style: {
+      whiteSpace: "pre-wrap"
+    }
+  }, previewProfile.custom_prompt || "-"))), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "flex-end",
+      gap: "12px",
+      marginTop: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: handleDeleteProfile,
+    className: "btn-danger",
+    style: {
+      minWidth: "160px"
+    }
+  }, "Delete Profile"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: handleEditProfileToForm,
+    className: "btn-secondary",
+    style: {
+      minWidth: "160px"
+    }
+  }, "Edit in Form"))))), /*#__PURE__*/React.createElement("div", {
+    className: "section-card"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "section-title"
+  }, "Live Bot Setup"), /*#__PURE__*/React.createElement("div", {
+    className: "section-subtitle"
+  }, "Review the active primary knowledge, supporting websites, and profile before validating or deploying them to your connected channels."), /*#__PURE__*/React.createElement("div", {
+    className: "context-grid"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "context-item"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "context-label"
+  }, "Active Primary Knowledge"), /*#__PURE__*/React.createElement("div", {
+    className: "context-value",
+    style: {
+      fontSize: activePdf.length > 25 ? '0.82rem' : '0.98rem'
+    }
+  }, activePdf || "No active primary knowledge selected")), /*#__PURE__*/React.createElement("div", {
+    className: "context-item"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "context-label"
+  }, "Active Profile"), /*#__PURE__*/React.createElement("div", {
+    className: "context-value"
+  }, activeProfile || "No active profile selected")), /*#__PURE__*/React.createElement("div", {
+    className: "context-item",
+    style: {
+      gridColumn: "1 / -1"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "context-label"
+  }, "Supporting Websites"), /*#__PURE__*/React.createElement("div", {
+    className: "context-value"
+  }, enabledSupportingWebsites.length, " enabled", disabledSupportingWebsites.length > 0 ? ` / ${disabledSupportingWebsites.length} disabled` : ""), /*#__PURE__*/React.createElement("div", {
+    style: {
+      marginTop: "10px",
+      color: "var(--text-dim)",
+      fontSize: "0.86rem",
+      lineHeight: "1.5"
+    }
+  }, enabledSupportingWebsites.length === 0 ? /*#__PURE__*/React.createElement("span", null, "No supporting websites enabled") : /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "grid",
+      gap: "6px"
+    }
+  }, enabledSupportingWebsites.slice(0, 5).map((site, index) => /*#__PURE__*/React.createElement("div", {
+    key: index,
+    style: {
+      wordBreak: "break-all",
+      overflowWrap: "anywhere"
+    }
+  }, site.file_name || site.name || "Supporting website")), enabledSupportingWebsites.length > 5 && /*#__PURE__*/React.createElement("div", null, "+", enabledSupportingWebsites.length - 5, " more supporting websites"))))), /*#__PURE__*/React.createElement("div", {
+    className: "row-actions"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: `status-badge ${matchStatus.className}`
+  }, matchStatus.text), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: "12px",
+      flexWrap: "wrap"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "btn-primary",
+    onClick: handleCheckMatch,
+    disabled: isCheckingMatch,
+    style: {
+      width: "auto",
+      minWidth: "230px"
+    }
+  }, isCheckingMatch ? "Checking Match..." : "Validate Primary Knowledge & Profile"), /*#__PURE__*/React.createElement("button", {
+    className: "btn-secondary",
+    onClick: handleDeployToLiveBot,
+    title: getDeployButtonHint(),
+    style: {
+      width: "auto",
+      minWidth: "200px"
+    }
+  }, "Deploy to Live Bot"))), matchResult && /*#__PURE__*/React.createElement("div", {
+    className: `match-result-box ${matchResult.match ? "success" : matchResult.validation_status === "unavailable" || matchResult.match === null ? "warning" : "error"}`
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "match-result-title"
+  }, matchResult.match ? "✅ Validation Result" : "⚠️ Validation Result"), /*#__PURE__*/React.createElement("div", null, matchResult.reason)), sessionStatus.text && /*#__PURE__*/React.createElement("div", {
+    className: `status-message ${sessionStatus.type}`,
+    style: {
+      justifyContent: "flex-start"
+    }
+  }, sessionStatus.type === "success" ? "✨" : "⚠️", " ", sessionStatus.text))), isModalOpen && /*#__PURE__*/React.createElement("div", {
+    className: "modal-overlay open",
+    onClick: e => {
+      if (e.target === e.currentTarget) setIsModalOpen(false);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-content"
+  }, /*#__PURE__*/React.createElement("button", {
+    className: "close-modal",
+    onClick: () => setIsModalOpen(false)
+  }, "×"), /*#__PURE__*/React.createElement("div", {
+    className: "section-title",
+    style: {
+      fontSize: "1.4rem"
+    }
+  }, formMode === "edit" ? "Edit Profile Configuration" : "Create Profile Configuration"), /*#__PURE__*/React.createElement("div", {
+    className: "section-subtitle",
+    style: {
+      marginBottom: "20px"
+    }
+  }, formMode === "edit" ? "Make changes to your bot profile below." : "Fill in the details for your new bot profile."), /*#__PURE__*/React.createElement("div", {
+    className: "mode-badge"
+  }, formMode === "edit" ? "Edit Mode" : "Create Mode"), /*#__PURE__*/React.createElement("div", {
+    className: "form-grid"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "field-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Profile Name"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: profileName,
+    onChange: e => setProfileName(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "field-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Bot Name"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: botName,
+    onChange: e => setBotName(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "field-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Company Name"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: companyName,
+    onChange: e => setCompanyName(e.target.value)
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "field-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Business Description"), /*#__PURE__*/React.createElement("textarea", {
+    value: businessDescription,
+    onChange: e => setBusinessDescription(e.target.value),
+    rows: "4"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "field-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Tone"), /*#__PURE__*/React.createElement("select", {
+    value: tone,
+    onChange: e => setTone(e.target.value)
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "Select tone"), /*#__PURE__*/React.createElement("option", {
+    value: "Friendly"
+  }, "Friendly"), /*#__PURE__*/React.createElement("option", {
+    value: "Professional"
+  }, "Professional"), /*#__PURE__*/React.createElement("option", {
+    value: "Formal"
+  }, "Formal"))), /*#__PURE__*/React.createElement("div", {
+    className: "field-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Additional Instructions"), /*#__PURE__*/React.createElement("textarea", {
+    value: additionalInstructions,
+    onChange: e => setAdditionalInstructions(e.target.value),
+    rows: "6"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "field-group"
+  }, /*#__PURE__*/React.createElement("label", null, "Custom Prompt Template"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "12px",
+      color: "var(--text-dim)",
+      marginBottom: "8px"
+    }
+  }, "Optional: Override the default prompt structure. Available variables: ", '{bot_name}', ", ", '{company_name}', ", ", '{business_description}', ", ", '{tone}', ", ", '{context}', ", ", '{conversation}', ", ", '{message}'), /*#__PURE__*/React.createElement("textarea", {
+    value: customPrompt,
+    onChange: e => setCustomPrompt(e.target.value),
+    rows: "8",
+    placeholder: "Leave blank to use the default static prompt structure..."
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "button-stack"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: async () => {
+      await handleSaveProfile();
+      setIsModalOpen(false); // Close modal after saving
+    },
+    disabled: isSavingProfile,
+    className: "btn-primary"
+  }, isSavingProfile ? "Saving..." : formMode === "edit" ? "Update Profile" : "Save Profile"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: () => setIsModalOpen(false),
+    className: "btn-secondary"
+  }, "Cancel")), formStatus.text && /*#__PURE__*/React.createElement("div", {
+    className: `status-message ${formStatus.type}`
+  }, formStatus.text)))), /*#__PURE__*/React.createElement("div", {
+    className: `modal-overlay ${profileToDelete ? "open" : ""}`,
+    onClick: e => {
+      if (e.target === e.currentTarget) setProfileToDelete(null);
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "modal-content",
+    style: {
+      maxWidth: "420px",
+      textAlign: "center",
+      padding: "40px 30px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      fontSize: "48px",
+      marginBottom: "20px"
+    }
+  }, "🗑️"), /*#__PURE__*/React.createElement("div", {
+    className: "section-title",
+    style: {
+      fontSize: "1.6rem",
+      marginBottom: "12px"
+    }
+  }, "Delete Profile?"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      color: "var(--text-dim)",
+      fontSize: "0.95rem",
+      marginBottom: "32px",
+      lineHeight: "1.6"
+    }
+  }, "Are you sure you want to delete ", /*#__PURE__*/React.createElement("strong", null, profileToDelete), "?", /*#__PURE__*/React.createElement("br", null), "This action cannot be undone."), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "center",
+      gap: "16px"
+    }
+  }, /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn-secondary",
+    onClick: () => setProfileToDelete(null),
+    style: {
+      minWidth: "120px"
+    }
+  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    className: "btn-danger",
+    onClick: confirmDeleteProfile,
+    style: {
+      minWidth: "120px"
+    }
+  }, "Delete")))));
+}
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(/*#__PURE__*/React.createElement(App, null));
+</script>
+</body>
+
+</html>
+

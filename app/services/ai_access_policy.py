@@ -1,4 +1,4 @@
-﻿"""Central AI-access and provider-routing policy.
+"""Central AI-access and provider-routing policy.
 
 This module is the single authority for determining whether a company
 may use AI generation, which API route to use, and which access
@@ -48,8 +48,8 @@ STATE_UNKNOWN = "unknown"
 TRIAL_DURATION_DAYS = 7
 
 TRIAL_PROVIDER = "deepseek"
-DEFAULT_TRIAL_MODEL = "deepseek-v4-flash"
-TRIAL_MODEL = "deepseek-v4-flash"
+DEFAULT_TRIAL_MODEL = "deepseek-chat"
+TRIAL_MODEL = "deepseek-chat"
 
 OPENROUTER_PROVIDER_FAMILIES = frozenset({
     "openai",

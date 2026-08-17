@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Broadcast Campaigns | AI CHATBOT</title>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin(); requireAdminOrOwner();</script>
+    <script src="sidebar-component.js"></script>
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.82);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --input-bg: rgba(15, 23, 42, 0.6);
+            --error: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        #root {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        .main-container {
+            flex: 1;
+            padding: 50px 60px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 6px;
+        }
+
+        .header-title p {
+            color: var(--text-dim);
+            font-size: 0.95rem;
+        }
+
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 40px;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 15px var(--primary-glow);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: scale(1.02);
+            box-shadow: 0 6px 20px var(--primary-glow);
+            background: var(--primary);
+        }
+
+        .table-area {
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            overflow: hidden;
+            flex-grow: 1;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        th {
+            text-align: left;
+            padding: 16px 24px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dim);
+        }
+
+        td {
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            vertical-align: middle;
+            font-size: 0.9rem;
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-draft {
+            background: rgba(148, 163, 184, 0.12);
+            color: var(--text-dim);
+        }
+
+        .badge-sending {
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--warning);
+        }
+
+        .badge-completed {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--accent);
+        }
+
+        .badge-failed {
+            background: rgba(239, 68, 68, 0.12);
+            color: var(--error);
+        }
+
+        /* Modal Overlay Styling */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(5, 8, 16, 0.8);
+            backdrop-filter: blur(12px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.25s ease-out;
+        }
+
+        .modal-content {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--glass-border);
+            border-radius: 28px;
+            width: 100%;
+            max-width: 580px;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 32px;
+            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.6);
+            animation: scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .modal-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .modal-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .modal-header h2 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .modal-header p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .modal-input {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 10px 14px;
+            color: white;
+            outline: none;
+            transition: 0.3s;
+            font-size: 0.9rem;
+        }
+
+        .modal-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 4px var(--primary-glow);
+        }
+
+        .drop-zone {
+            border: 2px dashed var(--glass-border);
+            border-radius: 16px;
+            padding: 24px;
+            text-align: center;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: 0.3s;
+            font-size: 0.85rem;
+        }
+
+        .drop-zone:hover {
+            border-color: var(--primary);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        /* Sidebar Log panel */
+        .logs-sidebar {
+            position: fixed;
+            right: 0;
+            top: 0;
+            height: 100vh;
+            width: 460px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--glass-border);
+            z-index: 999;
+            padding: 40px 30px;
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            animation: slideLeft 0.3s ease-out;
+        }
+
+        .logs-container {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding-right: 6px;
+        }
+
+        .log-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 12px;
+            font-size: 0.82rem;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .log-item-top {
+            display: flex;
+            justify-content: space-between;
+            font-weight: 600;
+        }
+
+        .log-error {
+            color: #ef4444;
+            font-size: 0.78rem;
+            background: rgba(239, 68, 68, 0.05);
+            padding: 6px;
+            border-radius: 6px;
+            word-break: break-all;
+        }
+
+        @keyframes scaleUp {
+            from {
+                transform: scale(0.95);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideLeft {
+            from {
+                transform: translateX(100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        @media (max-width: 900px) {
+            body {
+                flex-direction: column;
+            }
+
+            .main-container {
+                padding: 28px 20px;
+            }
+
+            .stats-row {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .logs-sidebar {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .stats-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const InfoIcon = ({ title }) => (
+            <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ marginLeft: "6px", cursor: "pointer", color: "var(--text-dim)", verticalAlign: "middle", opacity: 0.7 }}
+                title={title}
+            >
+                <title>{title}</title>
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+        );
+
+        const { useState, useEffect } = React;
+
+        function BroadcastDashboard() {
+            const [botId, setBotId] = useState(null);
+            const [campaigns, setCampaigns] = useState([]);
+            const [loading, setLoading] = useState(true);
+            const [showCreateModal, setShowCreateModal] = useState(false);
+            const [showLogsSidebar, setShowLogsSidebar] = useState(false);
+            const [selectedCampaign, setSelectedCampaign] = useState(null);
+            const [campaignLogs, setCampaignLogs] = useState([]);
+            const [logsLoading, setLogsLoading] = useState(false);
+            const [allCRMContacts, setAllCRMContacts] = useState([]);
+            const [crmRecencyFilter, setCrmRecencyFilter] = useState("all");
+
+            // Form Wizard States
+            const [campName, setCampName] = useState("");
+            const [channelType, setChannelType] = useState("whatsapp");
+            const [templateText, setTemplateText] = useState("__use_bot_welcome_flow__");
+            const [metaTemplateName, setMetaTemplateName] = useState("");
+            const [metaLanguageCode, setMetaLanguageCode] = useState("en_US");
+            const [mediaAttachments, setMediaAttachments] = useState([]);
+            const [selectedMediaId, setSelectedMediaId] = useState("");
+            const [recipientSource, setRecipientSource] = useState("csv"); // "csv" or "crm"
+            const [parsedRecipients, setParsedRecipients] = useState([]); // [{"phone": "...", "name": "..."}]
+            const [isSavingCampaign, setIsSavingCampaign] = useState(false);
+            const [errorMsg, setErrorMsg] = useState("");
+            const [manualPhone, setManualPhone] = useState("");
+            const [manualName, setManualName] = useState("");
+            const [manualError, setManualError] = useState("");
+
+            useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const id = urlParams.get("bot_id");
+                setBotId(id);
+                if (id) {
+                    sessionStorage.setItem("selectedBotId", id);
+                    fetchCampaigns(id);
+                    fetchMediaAttachments(id);
+                }
+            }, []);
+
+            const fetchMediaAttachments = async (id) => {
+                try {
+                    const response = await authenticatedFetch(`/api/media-attachments?chatbot_id=${id}`);
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setMediaAttachments(result.data || []);
+                    }
+                } catch (e) {
+                    console.error("Failed to load media attachments", e);
+                }
+            };
+
+            const fetchCampaigns = async (id) => {
+                setLoading(true);
+                try {
+                    const response = await authenticatedFetch(`/api/broadcast/campaigns?chatbot_id=${id}`);
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setCampaigns(result.campaigns || []);
+                    }
+                } catch (e) {
+                    console.error("Failed to load campaigns", e);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleViewLogs = async (campaign) => {
+                setSelectedCampaign(campaign);
+                setShowLogsSidebar(true);
+                setLogsLoading(true);
+                setCampaignLogs([]);
+                try {
+                    const response = await authenticatedFetch(`/api/broadcast/campaign/${campaign.id}/logs?chatbot_id=${botId}`);
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setCampaignLogs(result.logs || []);
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch logs", e);
+                } finally {
+                    setLogsLoading(false);
+                }
+            };
+
+            const handleStartBroadcast = async (campaignId) => {
+                if (!window.confirm("Are you sure you want to start dispatching this campaign now?")) {
+                    return;
+                }
+                try {
+                    const response = await authenticatedFetch(`/api/broadcast/campaign/${campaignId}/start?chatbot_id=${botId}`, {
+                        method: "POST"
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        alert(result.message || "Broadcast dispatch triggered in background!");
+                        fetchCampaigns(botId);
+                    } else {
+                        alert(result.message || "Failed to trigger dispatch.");
+                    }
+                } catch (e) {
+                    alert("Network error starting broadcast.");
+                }
+            };
+
+            const handleCSVUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                setErrorMsg("");
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const text = event.target.result;
+                    const lines = text.split(/\r?\n/);
+                    const list = [];
+                    const skippedRows = [];
+                    const seenPhones = new Set();
+
+                    lines.forEach((line, idx) => {
+                        let cleanedLine = line.trim();
+                        if (!cleanedLine) return;
+
+                        const delimiter = cleanedLine.includes(";") ? ";" : ",";
+                        const parts = cleanedLine.split(delimiter).map(p => p.replace(/["']/g, "").trim());
+
+                        let phone = parts[0];
+                        let name = parts[1] ? parts[1] : "Recipient";
+
+                        const headerRegex = /phone|mobile|number|tel|recipient/i;
+                        if (idx === 0 && headerRegex.test(phone)) {
+                            return;
+                        }
+
+                        const normalizedPhone = phone.replace(/[\s\-\(\)]/g, "");
+                        const phoneRegex = /^\+?[1-9]\d{6,14}$/;
+
+                        if (phoneRegex.test(normalizedPhone)) {
+                            if (!seenPhones.has(normalizedPhone)) {
+                                seenPhones.add(normalizedPhone);
+                                list.push({ phone: normalizedPhone, name: name || "Recipient" });
+                            }
+                        } else {
+                            if (phone && !headerRegex.test(phone)) {
+                                skippedRows.push(`Row ${idx + 1} ("${phone}")`);
+                            }
+                        }
+                    });
+
+                    setParsedRecipients(list);
+                    if (skippedRows.length > 0) {
+                        setErrorMsg(`Loaded ${list.length} recipients. Skipped ${skippedRows.length} rows due to invalid formatting: ${skippedRows.slice(0, 3).join(", ")}${skippedRows.length > 3 ? "..." : ""}`);
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            const handleLoadFromCRM = async () => {
+                setErrorMsg("");
+                try {
+                    const response = await authenticatedFetch(`/api/conversations?chatbot_id=${botId}`);
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        const rawList = result.data || [];
+                        setAllCRMContacts(rawList);
+                        applyRecencyFilter(rawList, crmRecencyFilter);
+                    } else {
+                        setErrorMsg(result.message || "Failed to pull CRM leads.");
+                    }
+                } catch (e) {
+                    setErrorMsg("Failed to fetch CRM contacts due to network error.");
+                }
+            };
+
+            const applyRecencyFilter = (list, filterType) => {
+                setErrorMsg("");
+                let filtered = [...list];
+                const now = new Date();
+
+                if (filterType === "week") {
+                    const cutOff = new Date();
+                    cutOff.setDate(now.getDate() - 7);
+                    filtered = list.filter(c => new Date(c.updated_at) >= cutOff);
+                } else if (filterType === "month") {
+                    const cutOff = new Date();
+                    cutOff.setDate(now.getDate() - 30);
+                    filtered = list.filter(c => new Date(c.updated_at) >= cutOff);
+                }
+
+                const mapped = filtered.map(c => ({
+                    phone: c.customer_phone,
+                    name: c.customer_name || "CRM Lead",
+                    updated_at: c.updated_at
+                })).filter(l => l.phone);
+
+                const seen = new Set();
+                const dedup = mapped.filter(el => {
+                    const duplicate = seen.has(el.phone);
+                    seen.add(el.phone);
+                    return !duplicate;
+                });
+
+                setParsedRecipients(dedup);
+                if (dedup.length === 0) {
+                    setErrorMsg("No active contacts matched the selected recency filter.");
+                }
+            };
+
+            const handleFilterChange = (filterType) => {
+                setCrmRecencyFilter(filterType);
+                applyRecencyFilter(allCRMContacts, filterType);
+            };
+
+            const handleAddManualRecipient = () => {
+                setManualError("");
+                const phone = manualPhone.trim();
+                const name = manualName.trim() || "Manual Recipient";
+
+                if (!phone) {
+                    setManualError("Phone number is required.");
+                    return;
+                }
+
+                const normalizedPhone = phone.replace(/[\s\-\(\)]/g, "");
+                const phoneRegex = /^\+?[1-9]\d{6,14}$/;
+                if (!phoneRegex.test(normalizedPhone)) {
+                    setManualError("Invalid format. Please use international format (e.g. +60123456789).");
+                    return;
+                }
+
+                if (parsedRecipients.some(r => r.phone === normalizedPhone)) {
+                    setManualError("This phone number is already added.");
+                    return;
+                }
+
+                setParsedRecipients([...parsedRecipients, { phone: normalizedPhone, name }]);
+                setManualPhone("");
+                setManualName("");
+                setManualError("");
+            };
+
+            const handleRemoveRecipient = (index) => {
+                const updated = [...parsedRecipients];
+                updated.splice(index, 1);
+                setParsedRecipients(updated);
+            };
+
+            const handleCreateCampaign = async (e) => {
+                e.preventDefault();
+                setErrorMsg("");
+                if (parsedRecipients.length === 0) {
+                    setErrorMsg("Please load or upload at least one recipient phone number.");
+                    return;
+                }
+
+                setIsSavingCampaign(true);
+                try {
+                    const response = await authenticatedFetch(`/api/broadcast/campaign?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            name: campName,
+                            channel_type: channelType,
+                            message_template: templateText,
+                            meta_template_name: metaTemplateName,
+                            meta_language_code: metaLanguageCode,
+                            media_attachment_id: selectedMediaId || null,
+                            recipients: parsedRecipients
+                        })
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        // Reset wizard
+                        setCampName("");
+                        setTemplateText("__use_bot_welcome_flow__");
+                        setMetaTemplateName("");
+                        setMetaLanguageCode("en_US");
+                        setSelectedMediaId("");
+                        setParsedRecipients([]);
+                        setShowCreateModal(false);
+                        fetchCampaigns(botId);
+                    } else {
+                        setErrorMsg(result.message || "Failed to save campaign draft.");
+                    }
+                } catch (e) {
+                    setErrorMsg("Failed to create campaign due to network error.");
+                } finally {
+                    setIsSavingCampaign(false);
+                }
+            };
+
+            // Calculated Stats Metrics
+            const totalCampaigns = campaigns.length;
+            const completedCampaigns = campaigns.filter(c => c.status === "completed").length;
+            const sendingCampaigns = campaigns.filter(c => c.status === "sending").length;
+
+            return (
+                <div style={{ display: "flex", width: "100%" }}>
+                    <chatbot-sidebar></chatbot-sidebar>
+
+                    <div className="main-container">
+                        {/* Header Section */}
+                        <div className="header">
+                            <div className="header-title">
+                                <h1>Broadcast Campaigns</h1>
+                                <p>Manage and dispatch bulk outbound message broadcasts to lists.</p>
+                            </div>
+                            <button className="btn btn-primary" onClick={() => { setErrorMsg(""); setShowCreateModal(true); }}>
+                                <span>➕</span> New Campaign
+                            </button>
+                        </div>
+
+                        {/* Stats Row */}
+                        <div className="stats-row">
+                            <div className="stat-card">
+                                <div className="stat-label">Total Campaigns</div>
+                                <div className="stat-value">{totalCampaigns}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-label">Completed</div>
+                                <div className="stat-value" style={{ color: "var(--accent)" }}>{completedCampaigns}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-label">Active Sending</div>
+                                <div className="stat-value" style={{ color: "var(--warning)" }}>{sendingCampaigns}</div>
+                            </div>
+                            <div className="stat-card">
+                                <div className="stat-label">Pacing Rate Limit</div>
+                                <div className="stat-value" style={{ fontSize: "1.1rem", fontWeight: "600", marginTop: "8px" }}>
+                                    3s / message
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Campaigns Grid Area */}
+                        <div className="table-area">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Campaign Name</th>
+                                        <th>Channel</th>
+                                        <th>Date Created</th>
+                                        <th>Status</th>
+                                        <th style={{ textAlign: "right" }}>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {loading ? (
+                                        <tr>
+                                            <td colSpan="5" style={{ textAlign: "center", color: "var(--text-dim)" }}>
+                                                Loading campaigns...
+                                            </td>
+                                        </tr>
+                                    ) : campaigns.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="5" style={{ textAlign: "center", color: "var(--text-dim)" }}>
+                                                No campaigns created yet. Click "New Campaign" to get started.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        campaigns.map(c => (
+                                            <tr key={c.id}>
+                                                <td style={{ fontWeight: "600" }}>{c.name}</td>
+                                                <td>
+                                                    <span style={{ textTransform: "capitalize" }}>
+                                                        {c.channel_type === "wasender" ? "📱 WasenderAPI" : "💬 Meta WhatsApp"}
+                                                    </span>
+                                                </td>
+                                                <td>{new Date(c.created_at).toLocaleString()}</td>
+                                                <td>
+                                                    <span className={`badge badge-${c.status}`}>
+                                                        {c.status}
+                                                    </span>
+                                                </td>
+                                                <td style={{ textAlign: "right" }}>
+                                                    <div style={{ display: "inline-flex", gap: "8px", justifyContent: "flex-end" }}>
+                                                        {c.status === "draft" && (
+                                                            <button className="btn" onClick={() => handleStartBroadcast(c.id)} style={{ padding: "6px 14px", fontSize: "0.8rem", background: "rgba(16, 185, 129, 0.15)", borderColor: "rgba(16, 185, 129, 0.3)", color: "var(--accent)" }}>
+                                                                🚀 Dispatch
+                                                            </button>
+                                                        )}
+                                                        <button className="btn" onClick={() => handleViewLogs(c)} style={{ padding: "6px 14px", fontSize: "0.8rem" }}>
+                                                            📋 Logs
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Create Campaign Modal */}
+                    {showCreateModal && (
+                        <div className="modal-backdrop">
+                            <form className="modal-content" onSubmit={handleCreateCampaign}>
+                                <div className="modal-header">
+                                    <h2>Create Broadcast Campaign</h2>
+                                    <p>Configure details and load your contact recipient phone list.</p>
+                                </div>
+
+                                {errorMsg && (
+                                    <div style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid rgba(239, 68, 68, 0.3)", padding: "12px", borderRadius: "10px", fontSize: "0.8rem", color: "var(--error)" }}>
+                                        ⚠️ {errorMsg}
+                                    </div>
+                                )}
+
+                                <div className="input-group">
+                                    <label>
+                                        Campaign Name
+                                        <InfoIcon title="Enter a descriptive name to easily identify this campaign in your analytics reports." />
+                                    </label>
+                                    <input type="text" className="modal-input" placeholder="e.g. July Promo Blast" value={campName} onChange={(e) => setCampName(e.target.value)} required />
+                                </div>
+
+                                <div className="input-group">
+                                    <label>
+                                        Sending Channel
+                                        <InfoIcon title="Select which integration channel to route outbound messages. Meta WhatsApp uses official API templates; Wasender uses web WhatsApp sessions." />
+                                    </label>
+                                    <select className="modal-input" value={channelType} onChange={(e) => setChannelType(e.target.value)}>
+                                        <option value="whatsapp" style={{ background: "#0f172a" }}>Meta WhatsApp Cloud API</option>
+                                        <option value="wasender" style={{ background: "#0f172a" }}>WasenderAPI Connection</option>
+                                    </select>
+                                </div>
+
+                                <div className="input-group">
+                                    <label>
+                                        Attach Media (Optional)
+                                        <InfoIcon title="Select a pre-configured Media Attachment to send with this broadcast. For Meta, it will use the attached template." />
+                                    </label>
+                                    <select className="modal-input" value={selectedMediaId} onChange={(e) => {
+                                        const selectedId = e.target.value;
+                                        setSelectedMediaId(selectedId);
+                                        const attachment = mediaAttachments.find(m => m.id == selectedId);
+                                        if (attachment && attachment.meta_template_name) {
+                                            setMetaTemplateName(attachment.meta_template_name);
+                                            setMetaLanguageCode(attachment.meta_language_code || "en_US");
+                                        }
+                                    }}>
+                                        <option value="" style={{ background: "#0f172a" }}>-- No Media --</option>
+                                        {mediaAttachments.map(m => (
+                                            <option key={m.id} value={m.id} style={{ background: "#0f172a" }}>
+                                                {m.label} ({m.media_type})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {channelType === "whatsapp" && (
+                                    <div style={{ display: "flex", gap: "10px", marginTop: "4px", background: "rgba(16, 185, 129, 0.05)", border: "1px solid rgba(16, 185, 129, 0.2)", padding: "14px", borderRadius: "12px", flexDirection: "row" }}>
+                                        <div className="input-group" style={{ flex: 2 }}>
+                                            <label>
+                                                Meta Template Name (Optional)
+                                                <InfoIcon title="Enter the name of a pre-approved Meta template if sending to users outside the 24-hour window." />
+                                            </label>
+                                            <input type="text" className="modal-input" placeholder="e.g. promo_campaign_v1" value={metaTemplateName} onChange={(e) => setMetaTemplateName(e.target.value)} />
+                                        </div>
+                                        <div className="input-group" style={{ flex: 1 }}>
+                                            <label>Language Code</label>
+                                            <input type="text" className="modal-input" placeholder="e.g. en_US" value={metaLanguageCode} onChange={(e) => setMetaLanguageCode(e.target.value)} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="input-group">
+                                    <label>
+                                        Recipient Source
+                                        <InfoIcon title="Select how you want to import recipients. CSV supports file sheets, CRM uses active system contacts, and Manual adds one-by-one." />
+                                    </label>
+                                    <div style={{ display: "flex", gap: "10px", marginTop: "4px" }}>
+                                        <button type="button" className="btn" style={{ flex: 1, border: recipientSource === "csv" ? "1px solid var(--primary)" : "1px solid var(--glass-border)", background: recipientSource === "csv" ? "rgba(59, 130, 246, 0.1)" : "transparent", padding: "8px 16px", borderRadius: "12px" }} onClick={() => { setRecipientSource("csv"); setParsedRecipients([]); }}>
+                                            📄 Upload CSV
+                                        </button>
+                                        <button type="button" className="btn" style={{ flex: 1, border: recipientSource === "crm" ? "1px solid var(--primary)" : "1px solid var(--glass-border)", background: recipientSource === "crm" ? "rgba(59, 130, 246, 0.1)" : "transparent", padding: "8px 16px", borderRadius: "12px" }} onClick={() => { setRecipientSource("crm"); setParsedRecipients([]); handleLoadFromCRM(); }}>
+                                            👥 CRM Lead List
+                                        </button>
+                                        <button type="button" className="btn" style={{ flex: 1, border: recipientSource === "manual" ? "1px solid var(--primary)" : "1px solid var(--glass-border)", background: recipientSource === "manual" ? "rgba(59, 130, 246, 0.1)" : "transparent", padding: "8px 16px", borderRadius: "12px" }} onClick={() => { setRecipientSource("manual"); setParsedRecipients([]); }}>
+                                            ✍️ Add Manually
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {recipientSource === "csv" ? (
+                                    <div className="input-group">
+                                        <label>
+                                            Upload CSV List
+                                            <InfoIcon title="Drop a CSV sheet containing phone numbers as the first column. Semicolons and commas are supported delimiters." />
+                                        </label>
+                                        <div className="drop-zone" onClick={() => document.getElementById("csv-file-input").click()}>
+                                            📁 Drag or click to upload CSV phone list
+                                            <p style={{ fontSize: "0.75rem", color: "var(--text-dim)", marginTop: "4px" }}>Format: One number per line (e.g. +60123456789)</p>
+                                        </div>
+                                        <input type="file" id="csv-file-input" style={{ display: "none" }} accept=".csv" onChange={handleCSVUpload} />
+                                    </div>
+                                ) : recipientSource === "crm" ? (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                        <div style={{ fontSize: "0.85rem", color: "var(--accent)", padding: "10px 14px", background: "rgba(16, 185, 129, 0.06)", borderRadius: "10px" }}>
+                                            🔄 CRM Lead list fetched. Active conversation phone numbers auto-populated.
+                                        </div>
+                                        <div className="input-group">
+                                            <label>
+                                                Contact Recency
+                                                <InfoIcon title="Filters your CRM contact pool based on when their chat was last active. Helps you target hot/active leads." />
+                                            </label>
+                                            <select className="modal-input" value={crmRecencyFilter} onChange={(e) => handleFilterChange(e.target.value)}>
+                                                <option value="all" style={{ background: "#0f172a" }}>All Contacts (All Time)</option>
+                                                <option value="week" style={{ background: "#0f172a" }}>Active in Last 7 Days (Previous Week)</option>
+                                                <option value="month" style={{ background: "#0f172a" }}>Active in Last 30 Days (Previous Month)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                                        <div style={{ display: "flex", gap: "10px" }}>
+                                            <div className="input-group" style={{ flex: 1 }}>
+                                                <label>
+                                                    Phone Number
+                                                    <InfoIcon title="Enter target phone number in E.164 international format, starting with country code (e.g. +60123456789)." />
+                                                </label>
+                                                <input type="text" className="modal-input" placeholder="e.g. +60123456789" value={manualPhone} onChange={(e) => { setManualPhone(e.target.value); setManualError(""); }} />
+                                            </div>
+                                            <div className="input-group" style={{ flex: 1 }}>
+                                                <label>
+                                                    Recipient Name (Optional)
+                                                    <InfoIcon title="Optional name helper to identify this contact inside logs and details records." />
+                                                </label>
+                                                <input type="text" className="modal-input" placeholder="e.g. John" value={manualName} onChange={(e) => setManualName(e.target.value)} />
+                                            </div>
+                                        </div>
+                                        {manualError && (
+                                            <div style={{ color: "var(--error)", fontSize: "0.75rem", marginTop: "-4px" }}>
+                                                ⚠️ {manualError}
+                                            </div>
+                                        )}
+                                        <button type="button" className="btn btn-primary" style={{ alignSelf: "flex-end", padding: "8px 16px", borderRadius: "10px", fontSize: "0.85rem" }} onClick={handleAddManualRecipient}>
+                                            ➕ Add Recipient
+                                        </button>
+                                    </div>
+                                )}
+
+                                {parsedRecipients.length > 0 && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                                        <div style={{ fontSize: "0.85rem", color: "var(--text-dim)", background: "rgba(255,255,255,0.03)", padding: "10px 14px", borderRadius: "10px" }}>
+                                            📋 Loaded <strong>{parsedRecipients.length}</strong> unique recipient(s) for the blast.
+                                        </div>
+
+                                        <div style={{ maxHeight: "140px", overflowY: "auto", border: "1px solid var(--glass-border)", borderRadius: "12px", background: "rgba(0,0,0,0.25)", padding: "8px" }}>
+                                            {parsedRecipients.map((rec, idx) => (
+                                                <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 12px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)", borderRadius: "8px", marginBottom: "6px", fontSize: "0.8rem" }}>
+                                                    <div style={{ display: "flex", gap: "10px" }}>
+                                                        <span style={{ color: "var(--text-main)", fontWeight: "600" }}>📞 {rec.phone}</span>
+                                                        <span style={{ color: "var(--text-dim)" }}>({rec.name})</span>
+                                                    </div>
+                                                    <button type="button" style={{ background: "none", border: "none", color: "var(--error)", cursor: "pointer", fontSize: "0.85rem", padding: "2px 6px" }} onClick={() => handleRemoveRecipient(idx)}>
+                                                        ✕
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+
+
+                                    </div>
+                                )}
+
+                                <div style={{ display: "flex", gap: "12px", marginTop: "10px" }}>
+                                    <button type="button" className="btn" style={{ flex: 1 }} onClick={() => setShowCreateModal(false)}>
+                                        Cancel
+                                    </button>
+                                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={isSavingCampaign}>
+                                        {isSavingCampaign ? "Creating..." : "Save Campaign Draft"}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Logs Details Sidebar */}
+                    {showLogsSidebar && selectedCampaign && (
+                        <div className="logs-sidebar">
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid rgba(255, 255, 255, 0.08)", paddingBottom: "14px" }}>
+                                <div>
+                                    <h3 style={{ fontSize: "1.1rem", fontWeight: "700" }}>{selectedCampaign.name} Logs</h3>
+                                    <span className={`badge badge-${selectedCampaign.status}`} style={{ marginTop: "4px", fontSize: "0.68rem" }}>
+                                        {selectedCampaign.status}
+                                    </span>
+                                </div>
+                                <button className="btn" style={{ padding: "6px 12px" }} onClick={() => setShowLogsSidebar(false)}>
+                                    ✕ Close
+                                </button>
+                            </div>
+
+                            <div className="logs-container">
+                                {logsLoading ? (
+                                    <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "20px" }}>
+                                        Loading log details...
+                                    </div>
+                                ) : campaignLogs.length === 0 ? (
+                                    <div style={{ textAlign: "center", color: "var(--text-dim)", padding: "20px" }}>
+                                        No logs recorded for this campaign.
+                                    </div>
+                                ) : (
+                                    campaignLogs.map(log => (
+                                        <div className="log-item" key={log.id}>
+                                            <div className="log-item-top">
+                                                <span>📞 {log.recipient_phone}</span>
+                                                <span className={`badge badge-${log.status}`} style={{ fontSize: "0.65rem", padding: "2px 8px" }}>
+                                                    {log.status}
+                                                </span>
+                                            </div>
+                                            {log.sent_at && (
+                                                <div style={{ fontSize: "0.75rem", color: "var(--text-dim)" }}>
+                                                    Sent at: {new Date(log.sent_at).toLocaleString()}
+                                                </div>
+                                            )}
+                                            {log.error_message && (
+                                                <div className="log-error">
+                                                    Error: {log.error_message}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<BroadcastDashboard />);
+    </script>
+</body>
+
+</html>

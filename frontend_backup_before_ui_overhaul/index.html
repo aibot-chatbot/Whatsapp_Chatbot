@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard | AI Chatbot </title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.8);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --input-bg: rgba(15, 23, 42, 0.6);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        /* Main Content Layout */
+        .main-container {
+            flex-grow: 1;
+            padding: 50px 60px;
+            max-width: 100%;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        .header {
+            margin-bottom: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 14px;
+            max-width: min(760px, calc(100vw - 132px));
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        .dashboard-date-pill {
+            padding: 10px 20px;
+            color: var(--accent);
+            font-weight: 600;
+            width: fit-content;
+            min-width: 190px;
+            max-width: 100%;
+            overflow-wrap: anywhere;
+            text-align: center;
+        }
+
+        /* ===== Glass Cards (from shared-glass.css) ===== */
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .stat-val {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 12px 0 4px 0;
+            word-break: break-all;
+            overflow-wrap: anywhere;
+        }
+
+        .stat-label {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .content-sections {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+        }
+
+        .activity-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .activity-table th {
+            text-align: left;
+            padding: 12px;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .activity-table td {
+            padding: 16px 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.2);
+            color: #10b981;
+        }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        .bot-health {
+            margin-bottom: 24px;
+        }
+
+        .bot-health-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .bot-health-title {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .bot-health-title h3 {
+            margin: 0;
+            font-size: 1.15rem;
+        }
+
+        .bot-health-title p {
+            margin: 0;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .health-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 14px;
+        }
+
+        .health-card {
+            background: rgba(15, 23, 42, 0.42);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 16px;
+            min-height: 112px;
+        }
+
+        .health-card-label {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
+        }
+
+        .health-card-value {
+            font-size: 1rem;
+            font-weight: 700;
+            overflow-wrap: anywhere;
+        }
+
+        .health-card-meta {
+            color: var(--text-dim);
+            font-size: 0.82rem;
+            margin-top: 8px;
+            overflow-wrap: anywhere;
+        }
+
+        .health-warnings {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .health-warning {
+            color: #fbbf24;
+            background: rgba(251, 191, 36, 0.12);
+            border: 1px solid rgba(251, 191, 36, 0.25);
+            border-radius: 999px;
+            padding: 6px 12px;
+            font-size: 0.8rem;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translateY(0px);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+
+            100% {
+                transform: translateY(0px);
+            }
+        }
+
+        .floating {
+            animation: float 6s ease-in-out infinite;
+        }
+
+        /* Workflow Nodes Professional Design */
+        .workflow-node {
+            transition: all 0.3s ease;
+        }
+        .node-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: var(--input-bg);
+            border: 2px solid var(--glass-border);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.3s ease;
+            color: var(--text-dim);
+            position: relative;
+            z-index: 2;
+        }
+        .node-icon svg {
+            width: 20px;
+            height: 20px;
+            stroke-width: 2;
+        }
+        .node-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 500;
+            text-align: center;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+        }
+        
+        .workflow-node.active .node-icon {
+            background: var(--primary);
+            border-color: var(--primary);
+            color: #ffffff;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+            transform: translateY(-2px);
+        }
+        .workflow-node.active .node-label {
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .workflow-node.completed .node-icon {
+            background: var(--card-bg);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        .workflow-node.completed .node-label {
+            color: var(--text-main);
+        }
+
+        /* Responsive Media Queries */
+        @media (max-width: 1200px) {
+            .content-sections {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .main-container {
+                padding: 30px 20px;
+            }
+
+            .header {
+                gap: 16px;
+                align-items: stretch;
+                max-width: 100%;
+            }
+
+            .dashboard-date-pill {
+                align-self: flex-start;
+                min-width: min(190px, 100%);
+                max-width: min(260px, 100%);
+                padding: 8px 12px;
+                font-size: 0.82rem;
+                line-height: 1.25;
+                white-space: nowrap;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .bot-health-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .activity-table th:nth-child(2),
+            .activity-table td:nth-child(2) {
+                display: none;
+            }
+        }
+
+        @media (max-width: 360px) {
+            .dashboard-date-pill {
+                font-size: 0.72rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <script src="sidebar-component.js"></script>
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container">
+        <div class="header">
+            <div>
+                <h1 id="dashboard-title">Dashboard</h1>
+                <p id="dashboard-subtitle">Welcome back! Here's the live overview of your Chatbot's configuration and
+                    usage.</p>
+            </div>
+            <div class="glass-card dashboard-date-pill" id="dashboard-date-pill">
+                <span id="date-display">--</span>
+            </div>
+        </div>
+
+        <div class="glass-card bot-health">
+            <div class="bot-health-header">
+                <div class="bot-health-title">
+                    <h3>Bot Health</h3>
+                    <p id="bot-health-summary">Checking bot health...</p>
+                </div>
+                <span id="bot-health-status" class="badge"
+                    style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Checking</span>
+            </div>
+
+            <div class="health-grid">
+                <div class="health-card">
+                    <div class="health-card-label">AI Profile</div>
+                    <div class="health-card-value" id="health-profile-name">Checking...</div>
+                    <div class="health-card-meta" id="health-profile-meta">-</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-label">Primary Knowledge</div>
+                    <div class="health-card-value" id="health-knowledge-name">Checking...</div>
+                    <div class="health-card-meta" id="health-knowledge-meta">-</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-label">Channels</div>
+                    <div class="health-card-value" id="health-channels-count">Checking...</div>
+                    <div class="health-card-meta" id="health-channels-meta">-</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-label">Delivery</div>
+                    <div class="health-card-value" id="health-delivery-status">Checking...</div>
+                    <div class="health-card-meta" id="health-delivery-meta">-</div>
+                </div>
+                <div class="health-card">
+                    <div class="health-card-label">Last Activity</div>
+                    <div class="health-card-value" id="health-last-activity">Checking...</div>
+                    <div class="health-card-meta" id="health-last-success">-</div>
+                </div>
+            </div>
+
+            <div class="health-warnings" id="bot-health-warnings"></div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="glass-card">
+                <div class="stat-label">Total Users</div>
+                <div class="stat-val" id="stat-total-users">...</div>
+                <div style="color: var(--text-dim); font-size: 0.8rem;">Unique phone numbers</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Total Messages</div>
+                <div class="stat-val" id="stat-total-msgs">...</div>
+                <div style="color: var(--text-dim); font-size: 0.8rem;">Overall interaction volume</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Active Profile</div>
+                <div class="stat-val" id="stat-active-profile" style="font-size: 1.3rem; margin-top: 18px;">...</div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-label">Active Primary Knowledge</div>
+                <div class="stat-val" id="stat-active-pdf" style="font-size: 1.3rem; margin-top: 18px;">...</div>
+            </div>
+        </div>
+
+        <!-- Live AI Workflow Section -->
+        <div class="glass-card" style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 class="section-title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 1.4rem;">⚡</span> Live AI Workflow
+                </h3>
+                <div id="workflow-status-badge" class="badge"
+                    style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Idle</div>
+            </div>
+
+            <!-- Live message info -->
+            <div id="workflow-message-display"
+                style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--glass-border); border-radius: 12px; padding: 16px; margin-bottom: 20px; color: var(--text-dim); font-size: 0.95rem;">
+                <div style="display: flex; gap: 10px; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: #60a5fa; min-width: 100px;">User Message:</span>
+                    <span id="workflow-user-text" style="color: var(--text-main); font-style: italic;"></span>
+                </div>
+                <div id="workflow-ai-response-container"
+                    style="display: none; gap: 10px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                    <span style="font-weight: 600; color: var(--accent); min-width: 100px;">AI Response:</span>
+                    <span id="workflow-ai-text" style="color: var(--text-main);"></span>
+                </div>
+            </div>
+
+            <!-- Flowchart Nodes -->
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; padding: 20px 10px; margin-top: 10px;">
+                <!-- connecting line background -->
+                <div style="position: absolute; top: 44px; left: 60px; right: 60px; height: 2px; background: var(--glass-border); z-index: 1;"></div>
+                <!-- connecting line progress -->
+                <div id="workflow-progress-bar" style="position: absolute; top: 44px; left: 60px; width: 0%; height: 2px; background: var(--primary); z-index: 1; transition: width 0.5s ease; box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);"></div>
+
+                <!-- Node 1: Received -->
+                <div id="node-RECEIVING" class="workflow-node" style="width: 80px; display: flex; flex-direction: column; align-items: center;">
+                    <div class="node-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+                    </div>
+                    <div class="node-label">Receiving<br>Message</div>
+                </div>
+
+                <!-- Node 2: RAG Search -->
+                <div id="node-RAG_SEARCH" class="workflow-node" style="width: 80px; display: flex; flex-direction: column; align-items: center;">
+                    <div class="node-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                    </div>
+                    <div class="node-label">Knowledge<br>Search</div>
+                </div>
+
+                <!-- Node 3: AI Generating -->
+                <div id="node-AI_GENERATING" class="workflow-node" style="width: 80px; display: flex; flex-direction: column; align-items: center;">
+                    <div class="node-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/><rect width="10" height="10" x="7" y="7" rx="2"/></svg>
+                    </div>
+                    <div class="node-label">AI<br>Generating</div>
+                </div>
+
+                <!-- Node 4: Sending -->
+                <div id="node-SENDING" class="workflow-node" style="width: 80px; display: flex; flex-direction: column; align-items: center;">
+                    <div class="node-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                    </div>
+                    <div class="node-label">Sending<br>Response</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-sections">
+            <div class="glass-card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 class="section-title" style="margin: 0;">📉 Usage Analytics (Last 7 Days)</h3>
+                </div>
+                <div id="chart-container"
+                    style="height: 200px; display: flex; align-items: flex-end; gap: 10px; padding-top: 20px;">
+                    <div
+                        style="width: 100%; text-align: center; color: var(--text-dim); margin-bottom: auto; margin-top:auto;">
+                        Loading chart data...</div>
+                </div>
+                <div id="chart-labels"
+                    style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.8rem; color: var(--text-dim);">
+                </div>
+            </div>
+            <div class="glass-card">
+                <h3 class="section-title">📜 Recent History</h3>
+                <table class="activity-table">
+                    <thead>
+                        <tr>
+                            <th>User (Last 4)</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recent-history-body">
+                        <tr>
+                            <td colspan="2" style="text-align: center; color: var(--text-dim);">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="assets/js/auth.js"></script>
+    <script>
+        requireLogin();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlBotId = urlParams.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `index.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            selectedBotId = storedBotId;
+        }
+
+        if (!selectedBotId) {
+            window.location.href = "bots.html";
+        }
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!selectedBotId) {
+                return;
+            }
+
+            updateDate();
+            window.addEventListener('resize', () => {
+                updateDate();
+                updateAccountMenuHeaderOffset();
+            });
+            window.addEventListener('tenant-account-menu-toggle', updateAccountMenuHeaderOffset);
+            fetchSelectedBot();
+            fetchBotHealth();
+            fetchDashboardData();
+
+            // Start polling for live workflow updates
+            setInterval(fetchLiveWorkflow, 1500);
+        });
+
+        function updateDate() {
+            const dateEl = document.getElementById('date-display');
+            if (dateEl) {
+                const now = new Date();
+                const isNarrow = window.matchMedia('(max-width: 420px)').matches;
+                const options = isNarrow
+                    ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+                    : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+                const formatted = now.toLocaleDateString(undefined, options);
+                dateEl.textContent = formatted;
+            }
+        }
+
+        function updateAccountMenuHeaderOffset(event) {
+            const header = document.querySelector('.header');
+            if (!header) return;
+            const isNarrow = window.matchMedia('(max-width: 768px)').matches;
+            const isOpen = event?.detail?.open ?? document.documentElement.dataset.tenantAccountMenuOpen === 'true';
+            if (!isNarrow || !isOpen) {
+                header.style.removeProperty('margin-top');
+                return;
+            }
+            const menuBottom = Number(event?.detail?.menuBottom || getComputedStyle(document.documentElement)
+                .getPropertyValue('--tenant-account-menu-bottom').replace('px', ''));
+            if (!Number.isFinite(menuBottom) || menuBottom <= 0) {
+                header.style.removeProperty('margin-top');
+                return;
+            }
+            const headerTop = header.getBoundingClientRect().top;
+            const offset = Math.max(0, Math.ceil(menuBottom - headerTop + 16));
+            header.style.marginTop = `${offset}px`;
+        }
+
+        async function fetchSelectedBot() {
+            try {
+                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    alert("You do not have access to this bot.");
+                    window.location.href = "bots.html";
+                    return;
+                }
+
+                document.getElementById("dashboard-title").innerText =
+                    `${result.data.bot_name} Dashboard`;
+
+            } catch (err) {
+                console.error("Failed to fetch selected bot", err);
+                alert("Failed to load bot. Please select a bot again.");
+                window.location.href = "bots.html";
+            }
+        }
+
+        async function fetchDashboardData() {
+            try {
+                // 1. Fetch Analytics
+                const analyticsRes = await authenticatedFetch(`/api/analytics?chatbot_id=${selectedBotId}`);
+                const analytics = await analyticsRes.json();
+
+                if (!analyticsRes.ok || analytics.status !== "success") {
+                    showDashboardError("Unable to load dashboard data.");
+                    return;
+                }
+
+                document.getElementById('stat-total-users').innerText = analytics.data.total_users;
+                document.getElementById('stat-total-msgs').innerText = analytics.data.total_messages;
+
+                // Render Chart
+                renderChart(analytics.data.chart.labels, analytics.data.chart.data);
+
+                // Render Recent History
+                renderHistory(analytics.data.recent_history);
+
+                // 2. Fetch Settings
+                const settingsRes = await authenticatedFetch(`/api/settings?chatbot_id=${selectedBotId}`);
+                const settings = await settingsRes.json();
+                if (settings.status === "success") {
+                    document.getElementById('stat-active-profile').innerText = settings.data.active_profile || "None";
+                    const profileEl = document.getElementById('stat-active-profile');
+                    const profileName = settings.data.active_profile || "None";
+                    profileEl.innerText = profileName;
+                    profileEl.style.fontSize = profileName.length > 20 ? "1.1rem" : "1.3rem";
+                } else {
+                    document.getElementById('stat-active-profile').innerText = "Unavailable";
+                }
+
+                // 3. Fetch active primary knowledge
+                const knowledgeRes = await authenticatedFetch(`/api/knowledge/active?chatbot_id=${selectedBotId}`);
+                if (knowledgeRes.ok) {
+                    const knowledge = await knowledgeRes.json();
+                    document.getElementById('stat-active-pdf').innerText = knowledge.data?.file_name || "None";
+                    const pdfEl = document.getElementById('stat-active-pdf');
+                    const pdfName = knowledge.data?.file_name || "None";
+                    pdfEl.innerText = pdfName;
+                    pdfEl.style.fontSize = pdfName.length > 20 ? "1.1rem" : "1.3rem";
+                } else {
+                    document.getElementById('stat-active-pdf').innerText = "Unavailable";
+                }
+
+            } catch (err) {
+                console.error("Dashboard failed to fetch data", err);
+                showDashboardError("Unable to load dashboard data.");
+            }
+        }
+
+        async function fetchBotHealth() {
+            showBotHealthLoading();
+
+            try {
+                const response = await authenticatedFetch(`/api/dashboard/health?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    showBotHealthError();
+                    return;
+                }
+
+                renderBotHealth(result.data);
+            } catch (err) {
+                console.error("Bot health failed to fetch", err);
+                showBotHealthError();
+            }
+        }
+
+        function setHealthText(id, value) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.textContent = value || "-";
+            }
+        }
+
+        function setHealthBadge(ready, label) {
+            const badge = document.getElementById("bot-health-status");
+            badge.textContent = label || (ready ? "Ready" : "Needs Setup");
+            badge.className = ready ? "badge badge-success" : "badge";
+            badge.style.background = ready ? "" : "rgba(251, 191, 36, 0.16)";
+            badge.style.color = ready ? "" : "#fbbf24";
+        }
+
+        function formatHealthDate(value) {
+            if (!value) {
+                return "No activity yet";
+            }
+
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return "Unknown";
+            }
+
+            return date.toLocaleString();
+        }
+
+        function formatKnowledgeProcessingStatus(value) {
+            const status = String(value || "").toLowerCase();
+
+            if (status === "completed") return "Processed";
+            if (status === "processing") return "Processing";
+            if (status === "failed") return "Processing failed";
+            if (status === "pending") return "Processing pending";
+
+            return value || "";
+        }
+
+        function formatKnowledgeValidationStatus(value, matchStatus) {
+            const status = String(value || matchStatus || "").toLowerCase();
+
+            if (status === "profile validated" || status === "matched" || status === "match") {
+                return "Profile validated";
+            }
+            if (status === "profile mismatch" || status === "mismatch") {
+                return "Profile mismatch";
+            }
+            if (status === "validation unavailable" || status === "unavailable") {
+                return "Validation unavailable";
+            }
+            if (status === "unchecked" || status === "not_checked") {
+                return "Validation not checked";
+            }
+
+            return value || "Validation not checked";
+        }
+
+        function showBotHealthLoading() {
+            setHealthBadge(false, "Checking");
+            setHealthText("bot-health-summary", "Checking bot health...");
+            setHealthText("health-profile-name", "Checking...");
+            setHealthText("health-profile-meta", "-");
+            setHealthText("health-knowledge-name", "Checking...");
+            setHealthText("health-knowledge-meta", "-");
+            setHealthText("health-channels-count", "Checking...");
+            setHealthText("health-channels-meta", "-");
+            setHealthText("health-delivery-status", "Checking...");
+            setHealthText("health-delivery-meta", "-");
+            setHealthText("health-last-activity", "Checking...");
+            setHealthText("health-last-success", "-");
+            document.getElementById("bot-health-warnings").replaceChildren();
+        }
+
+        function showBotHealthError() {
+            setHealthBadge(false, "Unavailable");
+            setHealthText("bot-health-summary", "Unable to load bot health.");
+            setHealthText("health-profile-name", "Unavailable");
+            setHealthText("health-profile-meta", "-");
+            setHealthText("health-knowledge-name", "Unavailable");
+            setHealthText("health-knowledge-meta", "-");
+            setHealthText("health-channels-count", "Unavailable");
+            setHealthText("health-channels-meta", "-");
+            setHealthText("health-delivery-status", "Unavailable");
+            setHealthText("health-delivery-meta", "-");
+            setHealthText("health-last-activity", "Unavailable");
+            setHealthText("health-last-success", "-");
+
+            const warningsEl = document.getElementById("bot-health-warnings");
+            warningsEl.replaceChildren();
+            const warning = document.createElement("span");
+            warning.className = "health-warning";
+            warning.textContent = "Unable to load bot health.";
+            warningsEl.appendChild(warning);
+        }
+
+        function renderBotHealth(data) {
+            const profile = data.profile || {};
+            const knowledge = data.knowledge || {};
+            const channels = data.channels || {};
+            const delivery = data.delivery || {};
+            const activity = data.activity || {};
+            const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+
+            setHealthBadge(Boolean(data.ready), data.ready ? "Ready" : "Needs Setup");
+            setHealthText(
+                "bot-health-summary",
+                data.ready ? "This bot is ready to serve customers." : "This bot needs setup before serving customers."
+            );
+
+            setHealthText("health-profile-name", profile.active ? (profile.name || "Active") : "Not active");
+            setHealthText(
+                "health-profile-meta",
+                [profile.ai_provider, profile.model_name].filter(Boolean).join(" / ") || "No model selected"
+            );
+
+            setHealthText("health-knowledge-name", knowledge.active ? (knowledge.file_name || "Active primary") : "No active primary PDF");
+            setHealthText(
+                "health-knowledge-meta",
+                [
+                    knowledge.processing_label || formatKnowledgeProcessingStatus(knowledge.processing_status),
+                    formatKnowledgeValidationStatus(knowledge.validation_status, knowledge.match_status),
+                ].filter(Boolean).join(" · ") || "Optional"
+            );
+
+            const channelItems = Array.isArray(channels.items) ? channels.items : [];
+            const connectedLabels = channelItems
+                .filter(item => item.connected)
+                .map(item => item.label || item.type)
+                .filter(Boolean);
+            setHealthText("health-channels-count", `${channels.connected_count || 0} connected`);
+            setHealthText("health-channels-meta", connectedLabels.length ? connectedLabels.join(", ") : "No connected channels");
+
+            const failed = Number(delivery.failed || 0);
+            const retrying = Number(delivery.retrying || 0);
+            const permanentFailed = Number(delivery.permanent_failed || 0);
+            setHealthText("health-delivery-status", permanentFailed > 0 ? "Needs attention" : "OK");
+            setHealthText(
+                "health-delivery-meta",
+                `Failed ${failed} / Retrying ${retrying} / Permanent ${permanentFailed}`
+            );
+
+            setHealthText("health-last-activity", formatHealthDate(activity.last_message_at));
+            setHealthText(
+                "health-last-success",
+                delivery.last_success_at ? `Last sent: ${formatHealthDate(delivery.last_success_at)}` : "No sent bot messages yet"
+            );
+
+            const warningsEl = document.getElementById("bot-health-warnings");
+            warningsEl.replaceChildren();
+            warnings.forEach(message => {
+                const warning = document.createElement("span");
+                warning.className = "health-warning";
+                warning.textContent = message;
+                warningsEl.appendChild(warning);
+            });
+        }
+
+        function showDashboardError(message) {
+            document.getElementById('stat-total-users').innerText = "-";
+            document.getElementById('stat-total-msgs').innerText = "-";
+            document.getElementById('stat-active-profile').innerText = "Unavailable";
+            document.getElementById('stat-active-pdf').innerText = "Unavailable";
+            document.getElementById('chart-container').innerHTML =
+                `<div style="width: 100%; text-align: center; color: var(--text-dim); margin: auto;">${message}</div>`;
+            document.getElementById('chart-labels').innerHTML = "";
+            document.getElementById('recent-history-body').innerHTML =
+                `<tr><td colspan="2" style="text-align: center; color: var(--text-dim);">${message}</td></tr>`;
+        }
+
+        async function fetchLiveWorkflow() {
+            if (!selectedBotId) return;
+            try {
+                const response = await authenticatedFetch(`/api/dashboard/live-workflow?chatbot_id=${selectedBotId}`);
+                if (!response.ok) return;
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    updateWorkflowUI(result.data);
+                }
+            } catch (err) {
+                // Silently handle polling errors
+            }
+        }
+
+        function updateWorkflowUI(workflowData) {
+            const badge = document.getElementById('workflow-status-badge');
+            const msgDisplay = document.getElementById('workflow-message-display');
+            const userText = document.getElementById('workflow-user-text');
+            const aiContainer = document.getElementById('workflow-ai-response-container');
+            const aiText = document.getElementById('workflow-ai-text');
+
+            const progressBar = document.getElementById('workflow-progress-bar');
+
+            const nodes = ['RECEIVING', 'RAG_SEARCH', 'AI_GENERATING', 'SENDING'];
+
+            if (!workflowData || !workflowData.state) {
+                // Idle state
+                badge.innerText = "Idle";
+                badge.className = "badge";
+                badge.style.background = "rgba(148, 163, 184, 0.2)";
+                badge.style.color = "var(--text-dim)";
+                msgDisplay.style.display = "none";
+                if (progressBar) progressBar.style.width = '0%';
+
+                nodes.forEach(n => {
+                    document.getElementById(`node-${n}`).classList.remove('active', 'completed');
+                });
+                return;
+            }
+
+            // Active or completed state
+            msgDisplay.style.display = "block";
+
+            if (workflowData.message) {
+                if (workflowData.state === "SENDING" || workflowData.state === "COMPLETED") {
+                    aiContainer.style.display = "flex";
+                    aiText.innerText = workflowData.message;
+                } else {
+                    userText.innerText = `"${workflowData.message}"`;
+                    aiContainer.style.display = "none";
+                }
+            }
+
+            if (workflowData.state === "COMPLETED") {
+                badge.innerText = "Completed";
+                badge.className = "badge badge-success";
+                badge.style.background = "";
+                badge.style.color = "";
+                if (progressBar) progressBar.style.width = '100%';
+
+                nodes.forEach(n => {
+                    document.getElementById(`node-${n}`).classList.remove('active');
+                    document.getElementById(`node-${n}`).classList.add('completed');
+                });
+
+                // Keep completed state visible for 5 seconds, then the backend auto-clears (or we just let it clear eventually)
+            } else {
+                badge.innerText = "Processing...";
+                badge.className = "badge badge-info";
+                badge.style.background = "";
+                badge.style.color = "";
+
+                // Update nodes
+                const currentIndex = nodes.indexOf(workflowData.state);
+                if (progressBar) {
+                    const percent = Math.max(0, (currentIndex / (nodes.length - 1)) * 100);
+                    progressBar.style.width = `${percent}%`;
+                }
+                
+                nodes.forEach((n, idx) => {
+                    const nodeEl = document.getElementById(`node-${n}`);
+                    nodeEl.classList.remove('active', 'completed');
+
+                    if (idx < currentIndex) {
+                        nodeEl.classList.add('completed');
+                    } else if (idx === currentIndex) {
+                        nodeEl.classList.add('active');
+                    }
+                });
+            }
+        }
+
+        function renderChart(labels, data) {
+            const container = document.getElementById('chart-container');
+            const labelsContainer = document.getElementById('chart-labels');
+
+            container.innerHTML = "";
+            labelsContainer.innerHTML = "";
+
+            const maxVal = Math.max(...data, 10); // Minimum scale 10
+
+            data.forEach((val, i) => {
+                const percentage = (val / maxVal) * 100;
+                const bar = document.createElement('div');
+                bar.style.flex = "1";
+                bar.style.backgroundColor = i === data.length - 1 ? "var(--accent)" : "var(--primary)";
+                bar.style.height = `${Math.max(percentage, 5)}%`; // minimum 5% height to show it exists
+                bar.style.borderRadius = "4px";
+                bar.style.transition = "height 1s ease";
+                bar.title = `${val} messages`;
+                container.appendChild(bar);
+
+                const label = document.createElement('div');
+                label.style.flex = "1";
+                label.style.textAlign = "center";
+                label.innerText = labels[i];
+                labelsContainer.appendChild(label);
+            });
+        }
+
+        function renderHistory(historyItems) {
+            const tbody = document.getElementById('recent-history-body');
+            tbody.innerHTML = "";
+
+            if (!historyItems || historyItems.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color: var(--text-dim);">No chats yet</td></tr>';
+                return;
+            }
+
+            historyItems.forEach(item => {
+                const tr = document.createElement('tr');
+                const isRecent = new Date() - new Date(item.timestamp) < 86400000;
+
+                const userCell = document.createElement('td');
+                userCell.textContent = `***${item.user || ""}`;
+                userCell.setAttribute("title", item.last_content || "");
+
+                const statusCell = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = `badge ${isRecent ? 'badge-info' : 'badge-success'}`;
+                badge.textContent = isRecent ? 'Recent' : 'Offline';
+
+                statusCell.appendChild(badge);
+                tr.appendChild(userCell);
+                tr.appendChild(statusCell);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function toggleDropdown(id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.classList.toggle('open');
+            }
+        }
+
+    </script>
+</body>
+
+</html>

@@ -32,8 +32,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            overflow-y: auto;
+            overflow-x: hidden;
             position: relative;
+            padding: 40px 20px;
         }
 
         .blob {
@@ -57,6 +59,7 @@
         .register-container {
             width: 100%;
             max-width: 480px;
+            margin: auto;
             padding: 40px;
             background: var(--card-bg);
             backdrop-filter: blur(30px);

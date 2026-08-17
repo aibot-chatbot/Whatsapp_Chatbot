@@ -548,9 +548,17 @@ class ChatbotSidebar extends HTMLElement {
             <div id="guide-bot-window" class="guide-bot-window" style="display: none;" aria-hidden="true">
                 <div class="bot-header">
                     <h3>System Guide</h3>
-                    <button id="close-bot" style="background:none; border:none; color:white; cursor:pointer;">✕</button>
+                    <div class="bot-header-actions">
+                        <button id="clear-bot-history" title="Clear Chat History">🗑️</button>
+                        <button id="close-bot" style="background:none; border:none; color:white; cursor:pointer;" title="Close Guide">✕</button>
+                    </div>
                 </div>
                 <div id="bot-messages" class="bot-messages"></div>
+                <div class="bot-quick-replies">
+                    <button class="quick-reply-btn">Where do I add training PDFs?</button>
+                    <button class="quick-reply-btn">How do I connect WhatsApp?</button>
+                    <button class="quick-reply-btn">How do I test my bot?</button>
+                </div>
                 <div class="bot-input-area">
                     <input type="text" id="bot-input" placeholder="Ask for help...">
                     <button id="send-bot-msg">➔</button>

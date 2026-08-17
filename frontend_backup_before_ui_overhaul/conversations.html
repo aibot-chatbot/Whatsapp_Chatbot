@@ -1,0 +1,2275 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversations | AI Chatbot</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script src="assets/js/shared-ui.js"></script>
+
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
+    <script src="sidebar-component.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #050b18;
+            --sidebar-bg: rgba(15, 23, 42, 0.82);
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #10b981;
+            --input-bg: rgba(15, 23, 42, 0.6);
+
+            /* Chat specific colors */
+            --bubble-user: var(--primary);
+            --bubble-bot: rgba(30, 41, 59, 0.9);
+            --bubble-user-text: #ffffff;
+            --bubble-bot-text: var(--text-main);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+            /* Prevent body scrolling, handle inside panes */
+        }
+
+        .main-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            padding: 30px;
+            gap: 20px;
+        }
+
+        .header {
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-dim);
+        }
+
+        .split-view {
+            display: flex;
+            flex-grow: 1;
+            gap: 20px;
+            min-height: 0;
+            /* Important for flex child scrolling */
+        }
+
+        /* Left Pane: Inbox List */
+        .inbox-pane {
+            width: 350px;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .inbox-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .search-box {
+            position: relative;
+            width: 100%;
+        }
+
+        .search-box i,
+        .search-box svg {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-dim);
+            width: 18px;
+            height: 18px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px 16px 12px 40px;
+            color: white;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .conversation-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        /* Custom Scrollbar */
+        .conversation-list::-webkit-scrollbar,
+        .chat-transcript::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .conversation-list::-webkit-scrollbar-track,
+        .chat-transcript::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .conversation-list::-webkit-scrollbar-thumb,
+        .chat-transcript::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
+
+        .conversation-list::-webkit-scrollbar-thumb:hover,
+        .chat-transcript::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .conversation-item {
+            padding: 16px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border: 1px solid transparent;
+        }
+
+        .conversation-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .conversation-item.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .convo-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .convo-phone {
+            font-weight: 600;
+            color: var(--text-main);
+            font-size: 1.05rem;
+        }
+
+        .convo-time {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .convo-preview {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Right Pane: Chat Transcript */
+        .chat-pane {
+            flex-grow: 1;
+            background: var(--card-bg);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--glass-border);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-header-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #10b981, #059669);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: white;
+            font-weight: bold;
+        }
+
+        .chat-header-info h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .chat-header-info p {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .chat-header {
+            justify-content: space-between;
+        }
+
+        .chat-header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            min-width: 0;
+        }
+
+        .chat-header-info {
+            min-width: 0;
+        }
+
+        .chat-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .transcript-btn {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .transcript-btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+        }
+
+        .transcript-feedback {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            min-width: 72px;
+        }
+
+        .transcript-feedback.success {
+            color: var(--accent);
+        }
+
+        .transcript-feedback.error {
+            color: #f87171;
+        }
+
+        .message-search-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding-left: 4px;
+        }
+
+        .message-search-input {
+            width: 180px;
+            background: var(--input-bg);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            padding: 8px 10px;
+            font-size: 0.82rem;
+            outline: none;
+        }
+
+        .message-search-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
+        }
+
+        .message-search-count {
+            color: var(--text-dim);
+            font-size: 0.78rem;
+            min-width: 58px;
+        }
+
+        .message-search-btn {
+            min-width: 42px;
+            padding: 8px 10px;
+        }
+
+        .message-search-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        .crm-conversation-modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.74);
+            backdrop-filter: blur(8px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 1100;
+        }
+
+        .crm-conversation-modal-backdrop.open {
+            display: flex;
+        }
+
+        .crm-conversation-modal {
+            width: min(760px, 100%);
+            max-height: 88vh;
+            overflow-y: auto;
+            background: rgba(15, 23, 42, 0.96);
+            border: 1px solid var(--glass-border);
+            border-radius: 22px;
+            padding: 24px;
+            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.35);
+        }
+
+        .crm-modal-header {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .crm-modal-header h2 {
+            font-size: 1.25rem;
+            margin-bottom: 4px;
+        }
+
+        .crm-modal-header p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .crm-modal-close {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 10px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .crm-modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .crm-modal-field {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .crm-modal-field.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .crm-modal-label {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .crm-modal-value,
+        .crm-modal-input,
+        .crm-modal-select,
+        .crm-modal-notes {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.72);
+            color: var(--text-main);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            padding: 10px 12px;
+            font: inherit;
+            outline: none;
+        }
+
+        .crm-modal-value {
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+        }
+
+        .crm-modal-notes {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .crm-modal-input:focus,
+        .crm-modal-select:focus,
+        .crm-modal-notes:focus {
+            border-color: rgba(59, 130, 246, 0.65);
+        }
+
+        .crm-modal-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            margin-top: 12px;
+        }
+
+        .crm-modal-save {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            padding: 10px 16px;
+            font-weight: 700;
+            cursor: pointer;
+            min-width: 120px;
+        }
+
+        .crm-modal-save:disabled {
+            cursor: not-allowed;
+            opacity: 0.68;
+        }
+
+        .crm-modal-feedback {
+            color: var(--text-dim);
+            font-size: 0.84rem;
+            min-height: 20px;
+        }
+
+        .crm-modal-feedback.success {
+            color: var(--accent);
+        }
+
+        .crm-modal-feedback.error {
+            color: #f87171;
+        }
+
+        .message-search-highlight {
+            background: rgba(245, 158, 11, 0.34);
+            color: #fff7ed;
+            border-radius: 4px;
+            padding: 0 2px;
+        }
+
+        .message-row.search-active .message-bubble {
+            outline: 2px solid rgba(245, 158, 11, 0.7);
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
+        }
+
+        @media (max-width: 768px) {
+            .chat-header {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .chat-header-actions {
+                justify-content: flex-start;
+            }
+
+            .message-search-controls {
+                width: 100%;
+            }
+
+            .message-search-input {
+                width: 100%;
+                flex: 1 1 100%;
+            }
+
+            .crm-modal-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .chat-transcript {
+            flex-grow: 1;
+            padding: 24px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .empty-state {
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-dim);
+            text-align: center;
+            padding: 40px;
+        }
+
+        .empty-state i {
+            width: 48px;
+            height: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .message-row {
+            display: flex;
+            width: 100%;
+        }
+
+        .message-row.user {
+            justify-content: flex-end;
+        }
+
+        .message-row.bot {
+            justify-content: flex-start;
+        }
+
+        .message-bubble {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            position: relative;
+            word-wrap: break-word;
+        }
+
+        .message-row.user .message-bubble {
+            background: var(--bubble-user);
+            color: var(--bubble-user-text);
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
+        }
+
+        .message-row.bot .message-bubble {
+            background: var(--bubble-bot);
+            color: var(--bubble-bot-text);
+            border: 1px solid var(--glass-border);
+            border-bottom-left-radius: 4px;
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            margin-top: 6px;
+            opacity: 0.7;
+            text-align: right;
+        }
+
+        .message-delivery-status {
+            margin-top: 8px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .message-delivery-status.failed {
+            color: #f87171;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.28);
+            padding: 6px 10px;
+            border-radius: 999px;
+        }
+
+        .message-delivery-status.retried {
+            color: #34d399;
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.28);
+            padding: 6px 10px;
+            border-radius: 999px;
+        }
+
+        .message-delivery-status.retrying {
+            color: #fbbf24;
+            background: rgba(245, 158, 11, 0.12);
+            border: 1px solid rgba(245, 158, 11, 0.28);
+            padding: 6px 10px;
+            border-radius: 999px;
+        }
+
+        /* Responsive Layout */
+        @media (max-width: 1024px) {
+            .inbox-pane {
+                width: 280px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                overflow: auto;
+                /* allow page scroll */
+            }
+
+            .main-container {
+                height: auto;
+                min-height: 100vh;
+            }
+
+            .split-view {
+                flex-direction: column;
+                height: 1000px;
+                /* fixed height for mobile stacking */
+            }
+
+            .inbox-pane {
+                width: 100%;
+                height: 400px;
+                flex-shrink: 0;
+            }
+
+            .chat-pane {
+                height: 600px;
+                flex-shrink: 0;
+            }
+        }
+
+        /* Platform filter pills bar */
+        .platform-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .filter-pill {
+            flex: 1 1 calc(50% - 8px);
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--glass-border);
+            color: var(--text-dim);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            text-align: center;
+        }
+
+        .filter-pill:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+        }
+
+        /* Active states for each platform badge */
+        .filter-pill.active[data-platform="all"] {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--primary);
+            color: var(--text-main);
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+        }
+
+        .filter-pill.active[data-platform="whatsapp"] {
+            background: rgba(37, 211, 102, 0.15);
+            border-color: #25D366;
+            color: #25D366;
+            box-shadow: 0 0 10px rgba(37, 211, 102, 0.2);
+        }
+
+        .filter-pill.active[data-platform="telegram"] {
+            background: rgba(0, 136, 204, 0.15);
+            border-color: #0088cc;
+            color: #0088cc;
+            box-shadow: 0 0 10px rgba(0, 136, 204, 0.2);
+        }
+
+        .filter-pill.active[data-platform="wasender"] {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: #10b981;
+            color: #10b981;
+            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
+        }
+
+        /* Convo list item badge */
+        .convo-phone-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .platform-badge {
+            font-size: 0.65rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .platform-badge.whatsapp {
+            background: rgba(37, 211, 102, 0.15);
+            color: #25D366;
+            border: 1px solid rgba(37, 211, 102, 0.3);
+        }
+
+        .platform-badge.telegram {
+            background: rgba(0, 136, 204, 0.15);
+            color: #0088cc;
+            border: 1px solid rgba(0, 136, 204, 0.3);
+        }
+
+        .platform-badge.wasender {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10b981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        /* Status Tabs */
+        .status-tabs {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            margin-bottom: 4px;
+        }
+        .status-tab {
+            flex: 1;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .status-tab:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-main);
+        }
+        .status-tab.active {
+            background: rgba(59, 130, 246, 0.15);
+            border-color: var(--primary);
+            color: var(--text-main);
+        }
+        .escalation-badge {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            margin-left: 6px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container">
+        <div class="header">
+            <h1 id="page-title">Conversations History</h1>
+            <p>Review full chat histories between your users and the AI bot.</p>
+        </div>
+
+        <div class="split-view">
+            <!-- Left Pane: Inbox -->
+            <div class="inbox-pane">
+                <div class="inbox-header">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" class="search-input" id="search-input" placeholder="Search customer, phone, or ID..."
+                            onkeyup="filterConversations()">
+                    </div>
+                    <!-- Platform filter pills -->
+                    <div class="platform-filters">
+                        <button class="filter-pill active" data-platform="all" onclick="setPlatformFilter('all')">All</button>
+                        <button class="filter-pill" data-platform="whatsapp" onclick="setPlatformFilter('whatsapp')">WhatsApp</button>
+                        <button class="filter-pill" data-platform="wasender" onclick="setPlatformFilter('wasender')">Wasender</button>
+                        <button class="filter-pill" data-platform="telegram" onclick="setPlatformFilter('telegram')">Telegram</button>
+                    </div>
+                    <div class="status-tabs">
+                        <button class="status-tab active" data-status="all" onclick="setStatusFilter('all')">All Chats</button>
+                        <button class="status-tab" data-status="escalated" onclick="setStatusFilter('escalated')">Needs Attention</button>
+                    </div>
+                </div>
+                <div class="conversation-list" id="conversation-list">
+                    <!-- Conversations injected here -->
+                    <div class="empty-state" style="padding: 20px;">
+                        Loading conversations...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Pane: Chat Transcript -->
+            <div class="chat-pane" id="chat-pane">
+                <div class="empty-state">
+                    <i data-lucide="message-circle"></i>
+                    <h2>No conversation selected</h2>
+                    <p>Select a user from the list on the left to view their chat history.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="crm-conversation-modal-backdrop" id="crm-conversation-modal" aria-hidden="true">
+        <div class="crm-conversation-modal" role="dialog" aria-modal="true" aria-labelledby="crm-conversation-modal-title">
+            <div class="crm-modal-header">
+                <div>
+                    <h2 id="crm-conversation-modal-title">Add to CRM</h2>
+                    <p>Create or update a CRM lead for the selected conversation.</p>
+                </div>
+                <button type="button" class="crm-modal-close" id="crm-conversation-modal-close">Close</button>
+            </div>
+            <div class="crm-modal-grid">
+                <div class="crm-modal-field">
+                    <div class="crm-modal-label">Customer</div>
+                    <div class="crm-modal-value" id="crm-conversation-customer">-</div>
+                </div>
+                <div class="crm-modal-field">
+                    <div class="crm-modal-label">Source</div>
+                    <div class="crm-modal-value" id="crm-conversation-source">-</div>
+                </div>
+                <div class="crm-modal-field">
+                    <label class="crm-modal-label" for="crm-conversation-status">Lead Status</label>
+                    <select class="crm-modal-select" id="crm-conversation-status">
+                        <option value="new">New</option>
+                        <option value="in_progress">In Progress</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                </div>
+                <div class="crm-modal-field">
+                    <label class="crm-modal-label" for="crm-conversation-priority">Priority</label>
+                    <select class="crm-modal-select" id="crm-conversation-priority">
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="crm-modal-field">
+                    <label class="crm-modal-label" for="crm-conversation-assigned-to">Assigned Staff</label>
+                    <input class="crm-modal-input" id="crm-conversation-assigned-to" type="text" maxlength="100" placeholder="Staff name">
+                </div>
+                <div class="crm-modal-field">
+                    <label class="crm-modal-label" for="crm-conversation-follow-up-date">Follow-up Date</label>
+                    <input class="crm-modal-input" id="crm-conversation-follow-up-date" type="date">
+                </div>
+                <div class="crm-modal-field full-width">
+                    <label class="crm-modal-label" for="crm-conversation-notes">Notes</label>
+                    <textarea class="crm-modal-notes" id="crm-conversation-notes" placeholder="Add context for staff follow-up."></textarea>
+                </div>
+            </div>
+            <div class="crm-modal-actions">
+                <button type="button" class="crm-modal-save" id="crm-conversation-save">Save CRM Lead</button>
+                <div class="crm-modal-feedback" id="crm-conversation-feedback"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlBotId = urlParams.get("bot_id");
+        const urlConversationId = urlParams.get("conversation_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        let selectedBotId = urlBotId;
+
+        if (!urlBotId && storedBotId) {
+            const conversationQuery = urlConversationId ? `&conversation_id=${encodeURIComponent(urlConversationId)}` : "";
+            window.location.href = `conversations.html?bot_id=${encodeURIComponent(storedBotId)}${conversationQuery}`;
+            selectedBotId = storedBotId;
+        }
+
+        if (!selectedBotId) {
+            window.location.href = "bots.html";
+        }
+
+        if (selectedBotId) {
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+        }
+
+        let allConversations = [];
+        let activeConversationId = null;
+        let currentPlatform = 'all';
+
+        let currentConversationId = null;
+        let currentConversationPhone = "";
+        let currentConversationName = "";
+        let currentConversationMessages = [];
+        let currentConversationData = null;
+        let currentConversationCrmLead = null;
+        let transcriptFeedbackTimer = null;
+        let currentMessageSearchQuery = "";
+        let currentMessageSearchMatches = [];
+        let currentMessageSearchIndex = -1;
+        
+        let allEscalations = [];
+        let currentStatusFilter = 'all';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!selectedBotId) {
+                return;
+            }
+
+            lucide.createIcons();
+            setupConversationCrmModal();
+            fetchSelectedBot();
+            await fetchEscalations();
+            await fetchConversations();
+
+            // Auto-polling for new messages and conversations
+            setInterval(async () => {
+                if (!selectedBotId) return;
+                try {
+                    const escRes = await authenticatedFetch(`/api/agent/escalations?chatbot_id=${selectedBotId}`);
+                    const escJson = await escRes.json();
+                    if (escJson.status === 'success') {
+                        allEscalations = escJson.data || [];
+                    }
+
+                    const convRes = await authenticatedFetch(`/api/conversations?chatbot_id=${selectedBotId}`);
+                    const convJson = await convRes.json();
+                    if (convJson.status === "success") {
+                        allConversations = convJson.data;
+                        filterConversations(); // Updates list, keeps search/filters active
+                    }
+                } catch(err) {
+                    // Fail silently during polling
+                }
+
+                if (currentConversationId) {
+                    await loadMessages(currentConversationId, currentConversationPhone, currentConversationName, true);
+                }
+            }, 3000);
+        });
+
+        async function fetchEscalations() {
+            try {
+                const res = await authenticatedFetch(`/api/agent/escalations?chatbot_id=${selectedBotId}`);
+                const json = await res.json();
+                if (json.status === 'success') {
+                    allEscalations = json.data || [];
+                }
+            } catch (err) {
+                console.error("Failed to fetch escalations", err);
+            }
+        }
+
+        async function fetchSelectedBot() {
+            try {
+                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success" || !result.data) {
+                    alert("You do not have access to this bot.");
+                    window.location.href = "bots.html";
+                    return;
+                }
+
+                document.getElementById("page-title").textContent =
+                    `${result.data.bot_name} Conversations`;
+
+            } catch (err) {
+                console.error("Failed to fetch selected bot", err);
+            }
+        }
+
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            if (Number.isNaN(date.getTime())) {
+                return "";
+            }
+            const today = new Date();
+
+            // If today, show time. Else show date.
+            if (date.toDateString() === today.toDateString()) {
+                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } else {
+                return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+            }
+        }
+
+        async function fetchConversations() {
+            try {
+                const response = await authenticatedFetch(`/api/conversations?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    allConversations = result.data;
+                    renderConversationList(allConversations);
+                    openLinkedConversationIfPresent();
+                } else {
+                    console.error("Failed to fetch conversations:", result.message);
+                    renderConversationListMessage("Failed to load conversations.", true);
+                }
+            } catch (err) {
+                console.error("Error fetching conversations:", err);
+                renderConversationListMessage(
+                    "Network error. Did you restart the Python backend server? Restart it and try again.",
+                    true
+                );
+            }
+        }
+
+        function normalizeText(value, fallback = "") {
+            if (value === null || value === undefined) {
+                return fallback;
+            }
+
+            const text = String(value).trim();
+            return text || fallback;
+        }
+
+        function normalizePlatform(value) {
+            return normalizeText(value, "whatsapp").toLowerCase();
+        }
+
+        function getPlatformClass(platform) {
+            return ["whatsapp", "telegram", "wasender"].includes(platform) ? platform : "whatsapp";
+        }
+
+        function getAvatarInitial(name) {
+            return normalizeText(name, "User").charAt(0).toUpperCase() || "U";
+        }
+
+        function getConversationUsername(conversation) {
+            return normalizeText(conversation && conversation.username);
+        }
+
+        function getConversationPlatformUserId(conversation) {
+            return normalizeText(conversation && conversation.platform_user_id);
+        }
+
+        function getConversationRealPhone(conversation) {
+            return normalizeText(conversation && conversation.customer_phone);
+        }
+
+        function getConversationDisplayIdentity(conversation) {
+            return (
+                getConversationRealPhone(conversation)
+                || normalizeText(conversation && conversation.customer_name)
+                || getConversationUsername(conversation)
+                || getConversationPlatformUserId(conversation)
+                || "Unknown customer"
+            );
+        }
+
+        function getConversationDisplaySubtitle(conversation) {
+            return (
+                normalizeText(conversation && conversation.customer_name)
+                || getConversationUsername(conversation)
+                || (getConversationPlatformUserId(conversation) ? "Telegram user" : "No name provided")
+            );
+        }
+
+        function renderConversationListMessage(message, isError = false) {
+            const listEl = document.getElementById('conversation-list');
+            listEl.replaceChildren();
+
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+            emptyState.style.padding = '20px';
+            if (isError) {
+                emptyState.style.color = 'var(--error)';
+            }
+            emptyState.textContent = message;
+
+            listEl.appendChild(emptyState);
+        }
+
+        function renderConversationList(conversations) {
+            const listEl = document.getElementById('conversation-list');
+            const savedScrollTop = listEl.scrollTop;
+            
+            listEl.replaceChildren();
+
+            if (!conversations || conversations.length === 0) {
+                renderConversationListMessage("No conversations found for this bot.");
+                return;
+            }
+
+            conversations.forEach(conv => {
+                const displayIdentity = getConversationDisplayIdentity(conv);
+                const realPhone = getConversationRealPhone(conv);
+                const name = normalizeText(conv.customer_name, "User");
+                const platform = normalizePlatform(conv.source_channel);
+
+                const item = document.createElement('div');
+                item.className = 'conversation-item';
+                if (conv.id === activeConversationId) {
+                    item.classList.add('active');
+                }
+                item.addEventListener('click', () => loadMessages(conv.id, displayIdentity, name));
+
+                const top = document.createElement('div');
+                top.className = 'convo-top';
+
+                const phoneContainer = document.createElement('div');
+                phoneContainer.className = 'convo-phone-container';
+
+                const phoneEl = document.createElement('span');
+                phoneEl.className = 'convo-phone';
+                phoneEl.textContent = displayIdentity;
+
+                const badge = document.createElement('span');
+                badge.className = `platform-badge ${getPlatformClass(platform)}`;
+                badge.textContent = platform;
+
+                phoneContainer.appendChild(phoneEl);
+                phoneContainer.appendChild(badge);
+
+                const time = document.createElement('span');
+                time.className = 'convo-time';
+                time.textContent = formatTime(conv.updated_at);
+                
+                const isEscalated = allEscalations.some(e => e.conversation_id === conv.id);
+                if (isEscalated) {
+                    const badge = document.createElement('span');
+                    badge.className = 'escalation-badge';
+                    badge.title = "Needs Attention";
+                    time.appendChild(badge);
+                }
+
+                top.appendChild(phoneContainer);
+                top.appendChild(time);
+
+                const preview = document.createElement('div');
+                preview.className = 'convo-preview';
+                preview.textContent = realPhone
+                    ? `Phone: ${realPhone}`
+                    : getConversationDisplaySubtitle(conv);
+
+                item.appendChild(top);
+                item.appendChild(preview);
+                listEl.appendChild(item);
+            });
+            
+            listEl.scrollTop = savedScrollTop;
+        }
+
+        function openLinkedConversationIfPresent() {
+            if (!urlConversationId) {
+                return;
+            }
+
+            const linkedConversationId = Number(urlConversationId);
+            if (!Number.isFinite(linkedConversationId)) {
+                showConversationNotice("Related conversation was not found.");
+                return;
+            }
+
+            const conversation = allConversations.find(conv => Number(conv.id) === linkedConversationId);
+
+            if (!conversation) {
+                showConversationNotice("Related conversation was not found.");
+                return;
+            }
+
+            loadMessages(
+                conversation.id,
+                getConversationDisplayIdentity(conversation),
+                conversation.customer_name || "User"
+            );
+        }
+
+        function showConversationNotice(message) {
+            const chatPane = document.getElementById('chat-pane');
+            chatPane.replaceChildren();
+
+            const emptyState = document.createElement('div');
+            emptyState.className = 'empty-state';
+
+            const icon = document.createElement('i');
+            icon.setAttribute('data-lucide', 'message-circle');
+
+            const heading = document.createElement('h2');
+            heading.textContent = message;
+
+            const body = document.createElement('p');
+            body.textContent = 'Select a conversation from the list to view its chat history.';
+
+            emptyState.appendChild(icon);
+            emptyState.appendChild(heading);
+            emptyState.appendChild(body);
+            chatPane.appendChild(emptyState);
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+        }
+
+        function scrollActiveConversationIntoView() {
+            const activeItem = document.querySelector('.conversation-item.active');
+            if (activeItem && typeof activeItem.scrollIntoView === 'function') {
+                activeItem.scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function filterConversations() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const filtered = allConversations.filter(c => {
+                const searchText = [
+                    getConversationRealPhone(c),
+                    normalizeText(c.customer_name),
+                    getConversationUsername(c),
+                    getConversationPlatformUserId(c),
+                ].join(" ").toLowerCase();
+                const matchesQuery = searchText.includes(query);
+                const platform = normalizePlatform(c.source_channel);
+                const matchesPlatform = currentPlatform === 'all' || platform === currentPlatform;
+                
+                let matchesStatus = true;
+                if (currentStatusFilter === 'escalated') {
+                    matchesStatus = allEscalations.some(e => e.conversation_id === c.id);
+                }
+
+                return matchesQuery && matchesPlatform && matchesStatus;
+            });
+            renderConversationList(filtered);
+        }
+
+        function setStatusFilter(status) {
+            currentStatusFilter = status;
+            document.querySelectorAll('.status-tab').forEach(btn => {
+                if (btn.getAttribute('data-status') === status) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            filterConversations();
+        }
+
+        function setPlatformFilter(platform) {
+            currentPlatform = platform;
+            document.querySelectorAll('.filter-pill').forEach(btn => {
+                if (btn.getAttribute('data-platform') === platform) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            filterConversations();
+        }
+
+        function updateConversationUrl(conversationId) {
+            if (!conversationId || !selectedBotId) {
+                return;
+            }
+
+            const params = new URLSearchParams(window.location.search);
+            params.set("bot_id", selectedBotId);
+            params.set("conversation_id", conversationId);
+
+            const newUrl = `${window.location.pathname}?${params.toString()}`;
+            window.history.replaceState({}, "", newUrl);
+        }
+
+        async function loadMessages(conversationId, phone, name, isPolling = false) {
+            if (!isPolling) {
+                activeConversationId = conversationId;
+                currentConversationId = conversationId;
+                currentConversationPhone = phone || "";
+                currentConversationName = name || "User";
+                currentConversationMessages = [];
+                currentConversationData = allConversations.find(conv => Number(conv.id) === Number(conversationId)) || null;
+                currentConversationCrmLead = null;
+                resetMessageSearchState();
+
+                updateConversationUrl(conversationId);
+
+                filterConversations();
+                scrollActiveConversationIntoView();
+
+                renderChatLoading(phone, name);
+            }
+
+            try {
+                const response = await authenticatedFetch(`/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
+                const result = await response.json();
+
+                if (result.status === "success") {
+                    const newMessages = Array.isArray(result.data) ? result.data : [];
+                    
+                    if (!isPolling || newMessages.length !== currentConversationMessages.length) {
+                        currentConversationMessages = newMessages;
+                        renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
+                    }
+                    
+                    const isEscalated = allEscalations.some(e => e.conversation_id === Number(conversationId));
+                    const replyBox = document.getElementById('reply-box');
+                    const resolveBtn = document.getElementById('resolve-btn');
+                    if (replyBox && resolveBtn) {
+                        if (isEscalated) {
+                            replyBox.style.display = 'flex';
+                            resolveBtn.style.display = 'inline-block';
+                        } else {
+                            replyBox.style.display = 'none';
+                            resolveBtn.style.display = 'none';
+                        }
+                    }
+                } else {
+                    if (!isPolling) console.error("Failed to fetch messages:", result.message);
+                }
+            } catch (err) {
+                if (!isPolling) console.error("Error fetching messages:", err);
+            }
+        }
+
+        async function sendReply() {
+            const currentEscalation = allEscalations.find(e => e.conversation_id === Number(currentConversationId));
+            if (!currentEscalation) return;
+            const input = document.getElementById('reply-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.disabled = true;
+            try {
+                const res = await authenticatedFetch(`/api/conversations/${currentConversationId}/agent-reply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chatbot_id: selectedBotId,
+                        text: text,
+                        action_id: currentEscalation.id
+                    })
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    input.value = '';
+                    loadMessages(currentConversationId, currentConversationPhone, currentConversationName);
+                } else {
+                    alert('Error: ' + json.message);
+                }
+            } catch (err) {
+                alert('Failed to send reply');
+            }
+            input.disabled = false;
+            input.focus();
+        }
+
+        async function resolveEscalation() {
+            const currentEscalation = allEscalations.find(e => e.conversation_id === Number(currentConversationId));
+            if (!currentEscalation) return;
+            try {
+                const res = await authenticatedFetch(`/api/agent/escalations/${currentEscalation.id}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatbot_id: selectedBotId })
+                });
+                const json = await res.json();
+                if (json.status === 'success') {
+                    await fetchEscalations();
+                    filterConversations();
+                    const replyBox = document.getElementById('reply-box');
+                    const resolveBtn = document.getElementById('resolve-btn');
+                    if (replyBox) replyBox.style.display = 'none';
+                    if (resolveBtn) resolveBtn.style.display = 'none';
+                }
+            } catch (err) {}
+        }
+
+        function handleReplyKey(e) {
+            if (e.key === 'Enter') sendReply();
+        }
+
+        function createChatHeader(phone, name, loading = false) {
+            const header = document.createElement('div');
+            header.className = 'chat-header';
+
+            const left = document.createElement('div');
+            left.className = 'chat-header-left';
+
+            const avatar = document.createElement('div');
+            avatar.className = 'chat-header-avatar';
+            avatar.textContent = getAvatarInitial(name);
+
+            const info = document.createElement('div');
+            info.className = 'chat-header-info';
+
+            const title = document.createElement('h3');
+            title.textContent = normalizeText(phone, "Unknown customer");
+
+            const subtitle = document.createElement('p');
+            subtitle.textContent = name !== 'User'
+                ? normalizeText(name, "Customer")
+                : (loading ? 'Loading...' : 'Customer');
+
+            info.appendChild(title);
+            info.appendChild(subtitle);
+            left.appendChild(avatar);
+            left.appendChild(info);
+            header.appendChild(left);
+
+            if (!loading && currentConversationId) {
+                const actions = document.createElement('div');
+                actions.className = 'chat-header-actions';
+
+                const copyLinkButton = document.createElement('button');
+                copyLinkButton.type = 'button';
+                copyLinkButton.className = 'transcript-btn';
+                copyLinkButton.textContent = 'Copy Link';
+                copyLinkButton.addEventListener('click', copyConversationLinkToClipboard);
+
+                const copyButton = document.createElement('button');
+                copyButton.type = 'button';
+                copyButton.className = 'transcript-btn';
+                copyButton.textContent = 'Copy Transcript';
+                copyButton.addEventListener('click', copyTranscriptToClipboard);
+
+                const downloadButton = document.createElement('button');
+                downloadButton.type = 'button';
+                downloadButton.className = 'transcript-btn';
+                downloadButton.textContent = 'Download .txt';
+                downloadButton.addEventListener('click', downloadTranscriptFile);
+
+                const crmButton = document.createElement('button');
+                crmButton.type = 'button';
+                crmButton.className = 'transcript-btn';
+                crmButton.textContent = 'CRM Lead';
+                crmButton.addEventListener('click', openConversationCrmModal);
+
+                const resolveBtn = document.createElement('button');
+                resolveBtn.type = 'button';
+                resolveBtn.className = 'transcript-btn';
+                resolveBtn.id = 'resolve-btn';
+                resolveBtn.style.display = 'none';
+                resolveBtn.style.background = 'var(--accent)';
+                resolveBtn.style.color = 'white';
+                resolveBtn.style.border = 'none';
+                resolveBtn.innerHTML = '<i data-lucide="check-circle" style="width: 14px; height: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Mark as Resolved';
+                resolveBtn.addEventListener('click', resolveEscalation);
+
+                const feedback = document.createElement('span');
+                feedback.className = 'transcript-feedback';
+                feedback.id = 'transcript-feedback';
+
+                actions.appendChild(resolveBtn);
+                actions.appendChild(crmButton);
+                actions.appendChild(copyLinkButton);
+                actions.appendChild(copyButton);
+                actions.appendChild(downloadButton);
+                actions.appendChild(feedback);
+                actions.appendChild(createMessageSearchControls());
+                header.appendChild(actions);
+            }
+
+            return header;
+        }
+
+        function createTranscriptMessage(message) {
+            const container = document.createElement('div');
+            container.style.textAlign = 'center';
+            container.style.color = 'var(--text-dim)';
+            container.style.marginTop = '40px';
+            container.textContent = message;
+            return container;
+        }
+
+        function createMessageSearchControls() {
+            const controls = document.createElement('div');
+            controls.className = 'message-search-controls';
+
+            const input = document.createElement('input');
+            input.type = 'search';
+            input.className = 'message-search-input';
+            input.id = 'message-search-input';
+            input.placeholder = 'Search messages...';
+            input.value = currentMessageSearchQuery;
+            input.addEventListener('input', event => {
+                currentMessageSearchQuery = event.target.value.trim();
+                currentMessageSearchIndex = currentMessageSearchQuery ? 0 : -1;
+                renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
+                focusMessageSearchInput();
+            });
+
+            const count = document.createElement('span');
+            count.className = 'message-search-count';
+            count.id = 'message-search-count';
+            count.textContent = '0 results';
+
+            const prevButton = document.createElement('button');
+            prevButton.type = 'button';
+            prevButton.className = 'transcript-btn message-search-btn';
+            prevButton.id = 'message-search-prev';
+            prevButton.textContent = 'Previous';
+            prevButton.addEventListener('click', () => navigateMessageSearch(-1));
+
+            const nextButton = document.createElement('button');
+            nextButton.type = 'button';
+            nextButton.className = 'transcript-btn message-search-btn';
+            nextButton.id = 'message-search-next';
+            nextButton.textContent = 'Next';
+            nextButton.addEventListener('click', () => navigateMessageSearch(1));
+
+            const clearButton = document.createElement('button');
+            clearButton.type = 'button';
+            clearButton.className = 'transcript-btn message-search-btn';
+            clearButton.id = 'message-search-clear';
+            clearButton.textContent = 'Clear';
+            clearButton.addEventListener('click', clearMessageSearch);
+
+            controls.appendChild(input);
+            controls.appendChild(count);
+            controls.appendChild(prevButton);
+            controls.appendChild(nextButton);
+            controls.appendChild(clearButton);
+
+            return controls;
+        }
+
+        function renderChatLoading(phone, name) {
+            const chatPane = document.getElementById('chat-pane');
+            chatPane.replaceChildren();
+
+            const transcript = document.createElement('div');
+            transcript.className = 'chat-transcript';
+            transcript.id = 'chat-transcript';
+            transcript.appendChild(createTranscriptMessage('Loading messages...'));
+
+            chatPane.appendChild(createChatHeader(phone, name, true));
+            chatPane.appendChild(transcript);
+            
+            const replyBox = document.createElement('div');
+            replyBox.id = 'reply-box';
+            replyBox.className = 'reply-box';
+            replyBox.style.display = 'none';
+            replyBox.style.padding = '20px';
+            replyBox.style.borderTop = '1px solid var(--glass-border)';
+            replyBox.style.background = 'rgba(0,0,0,0.2)';
+            replyBox.style.gap = '12px';
+            replyBox.style.alignItems = 'center';
+            
+            const replyInput = document.createElement('input');
+            replyInput.type = 'text';
+            replyInput.id = 'reply-input';
+            replyInput.placeholder = 'Type your reply to the customer...';
+            replyInput.style.flexGrow = '1';
+            replyInput.style.background = 'var(--input-bg)';
+            replyInput.style.border = '1px solid var(--glass-border)';
+            replyInput.style.borderRadius = '12px';
+            replyInput.style.padding = '12px 16px';
+            replyInput.style.color = 'white';
+            replyInput.style.fontSize = '0.95rem';
+            replyInput.style.outline = 'none';
+            replyInput.onkeypress = handleReplyKey;
+            
+            const sendBtn = document.createElement('button');
+            sendBtn.onclick = sendReply;
+            sendBtn.style.background = 'var(--primary)';
+            sendBtn.style.color = 'white';
+            sendBtn.style.border = 'none';
+            sendBtn.style.padding = '12px 20px';
+            sendBtn.style.borderRadius = '12px';
+            sendBtn.style.fontWeight = '600';
+            sendBtn.style.cursor = 'pointer';
+            sendBtn.style.display = 'flex';
+            sendBtn.style.alignItems = 'center';
+            sendBtn.style.gap = '8px';
+            sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send';
+            
+            replyBox.appendChild(replyInput);
+            replyBox.appendChild(sendBtn);
+            chatPane.appendChild(replyBox);
+        }
+
+        function appendTextWithLineBreaks(parent, text) {
+            const lines = normalizeText(text, "[Empty Message]").split(/\r?\n/);
+            lines.forEach((line, index) => {
+                if (index > 0) {
+                    parent.appendChild(document.createElement('br'));
+                }
+                parent.appendChild(document.createTextNode(line));
+            });
+        }
+
+        function appendHighlightedLine(parent, line, query) {
+            if (!query) {
+                parent.appendChild(document.createTextNode(line));
+                return;
+            }
+
+            const lowerLine = line.toLowerCase();
+            const lowerQuery = query.toLowerCase();
+            let cursor = 0;
+
+            while (cursor < line.length) {
+                const matchIndex = lowerLine.indexOf(lowerQuery, cursor);
+                if (matchIndex === -1) {
+                    parent.appendChild(document.createTextNode(line.slice(cursor)));
+                    break;
+                }
+
+                if (matchIndex > cursor) {
+                    parent.appendChild(document.createTextNode(line.slice(cursor, matchIndex)));
+                }
+
+                const highlight = document.createElement('span');
+                highlight.className = 'message-search-highlight';
+                highlight.textContent = line.slice(matchIndex, matchIndex + query.length);
+                parent.appendChild(highlight);
+
+                cursor = matchIndex + query.length;
+            }
+        }
+
+        function appendSearchableMessageText(parent, text, query) {
+            const messageText = normalizeText(text, "[Empty Message]");
+            const lines = messageText.split(/\r?\n/);
+
+            lines.forEach((line, index) => {
+                if (index > 0) {
+                    parent.appendChild(document.createElement('br'));
+                }
+                appendHighlightedLine(parent, line, query);
+            });
+        }
+
+        function messageMatchesSearch(msg, query) {
+            if (!query) {
+                return false;
+            }
+
+            return normalizeText(msg.message_text).toLowerCase().includes(query.toLowerCase());
+        }
+
+        function resetMessageSearchState() {
+            currentMessageSearchQuery = "";
+            currentMessageSearchMatches = [];
+            currentMessageSearchIndex = -1;
+        }
+
+        function normalizeMessageSearchIndex() {
+            if (!currentMessageSearchQuery || currentMessageSearchMatches.length === 0) {
+                currentMessageSearchIndex = -1;
+                return;
+            }
+
+            if (currentMessageSearchIndex < 0 || currentMessageSearchIndex >= currentMessageSearchMatches.length) {
+                currentMessageSearchIndex = 0;
+            }
+        }
+
+        function updateActiveMessageMatch() {
+            currentMessageSearchMatches.forEach((row, index) => {
+                row.classList.toggle('search-active', index === currentMessageSearchIndex);
+            });
+        }
+
+        function updateMessageSearchControls() {
+            const count = document.getElementById('message-search-count');
+            const prevButton = document.getElementById('message-search-prev');
+            const nextButton = document.getElementById('message-search-next');
+            const clearButton = document.getElementById('message-search-clear');
+            const resultCount = currentMessageSearchMatches.length;
+            const hasSearch = Boolean(currentMessageSearchQuery);
+            const hasResults = resultCount > 0;
+
+            if (count) {
+                count.textContent = `${resultCount} ${resultCount === 1 ? 'result' : 'results'}`;
+            }
+
+            if (prevButton) {
+                prevButton.disabled = !hasResults;
+            }
+            if (nextButton) {
+                nextButton.disabled = !hasResults;
+            }
+            if (clearButton) {
+                clearButton.disabled = !hasSearch;
+            }
+        }
+
+        function scrollToActiveMessageMatch() {
+            const activeRow = currentMessageSearchMatches[currentMessageSearchIndex];
+            if (activeRow && typeof activeRow.scrollIntoView === 'function') {
+                activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+
+        function navigateMessageSearch(direction) {
+            if (!currentMessageSearchMatches.length) {
+                return;
+            }
+
+            currentMessageSearchIndex = (
+                currentMessageSearchIndex + direction + currentMessageSearchMatches.length
+            ) % currentMessageSearchMatches.length;
+
+            updateActiveMessageMatch();
+            updateMessageSearchControls();
+            scrollToActiveMessageMatch();
+        }
+
+        function clearMessageSearch() {
+            resetMessageSearchState();
+            renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
+            focusMessageSearchInput();
+        }
+
+        function focusMessageSearchInput() {
+            const input = document.getElementById('message-search-input');
+            if (!input) {
+                return;
+            }
+
+            input.focus();
+            const valueLength = input.value.length;
+            if (typeof input.setSelectionRange === 'function') {
+                input.setSelectionRange(valueLength, valueLength);
+            }
+        }
+
+        function createDeliveryStatus(msg, isUser) {
+            if (isUser) {
+                return null;
+            }
+
+            const deliveryStatus = normalizeText(msg.delivery_status).toLowerCase();
+            const retryCount = Number(msg.retry_count || 0);
+            const status = document.createElement('div');
+
+            if (deliveryStatus === 'failed') {
+                status.className = 'message-delivery-status failed';
+                status.textContent = 'Failed to send - Auto retrying';
+                return status;
+            }
+
+            if (deliveryStatus === 'retrying') {
+                status.className = 'message-delivery-status retrying';
+                status.textContent = 'Retrying now...';
+                return status;
+            }
+
+            if (deliveryStatus === 'sent' && retryCount > 0) {
+                status.className = 'message-delivery-status retried';
+                status.textContent = 'Sent after retry';
+                return status;
+            }
+
+            if (deliveryStatus === 'permanent_failed') {
+                status.className = 'message-delivery-status failed';
+                status.textContent = 'Failed permanently';
+                return status;
+            }
+
+            return null;
+        }
+
+        function formatTranscriptDateTime(value) {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return "-";
+            }
+            return date.toLocaleString();
+        }
+
+        function getDeliveryStatusText(msg, isUser) {
+            if (isUser) {
+                return "";
+            }
+
+            const deliveryStatus = normalizeText(msg.delivery_status).toLowerCase();
+            const retryCount = Number(msg.retry_count || 0);
+
+            if (deliveryStatus === 'failed') {
+                return 'Failed to send - Auto retrying';
+            }
+
+            if (deliveryStatus === 'retrying') {
+                return 'Retrying now...';
+            }
+
+            if (deliveryStatus === 'sent' && retryCount > 0) {
+                return 'Sent after retry';
+            }
+
+            if (deliveryStatus === 'permanent_failed') {
+                return 'Failed permanently';
+            }
+
+            return "";
+        }
+
+        function buildConversationTranscript() {
+            const lines = [];
+            const exportedAt = new Date().toLocaleString();
+
+            lines.push("Conversation Transcript");
+            lines.push(`Customer: ${normalizeText(currentConversationPhone, "Unknown customer")}`);
+            lines.push(`Name: ${normalizeText(currentConversationName, "Customer")}`);
+            lines.push(`Conversation ID: ${currentConversationId || "-"}`);
+            lines.push(`Exported At: ${exportedAt}`);
+            lines.push("");
+
+            if (!currentConversationMessages.length) {
+                lines.push("No messages recorded.");
+                return lines.join("\n");
+            }
+
+            currentConversationMessages.forEach(msg => {
+                const isUser = msg.sender_type === "customer";
+                const sender = isUser ? "Customer" : "Bot";
+                const messageText = normalizeText(msg.message_text, "[Empty Message]");
+                const statusText = getDeliveryStatusText(msg, isUser);
+
+                lines.push(`[${sender}] ${formatTranscriptDateTime(msg.created_at)}`);
+                lines.push(messageText);
+
+                if (statusText) {
+                    lines.push(`Delivery Status: ${statusText}`);
+                }
+
+                lines.push("");
+            });
+
+            return lines.join("\n");
+        }
+
+        function showTranscriptFeedback(message, type) {
+            const feedback = document.getElementById('transcript-feedback');
+            if (!feedback) {
+                return;
+            }
+
+            feedback.textContent = message;
+            feedback.className = `transcript-feedback ${type || ""}`.trim();
+
+            if (transcriptFeedbackTimer) {
+                window.clearTimeout(transcriptFeedbackTimer);
+            }
+
+            transcriptFeedbackTimer = window.setTimeout(() => {
+                feedback.textContent = "";
+                feedback.className = "transcript-feedback";
+            }, 2200);
+        }
+
+        function fallbackCopyText(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.setAttribute('readonly', '');
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+
+            document.body.appendChild(textarea);
+            textarea.select();
+
+            try {
+                const copied = document.execCommand('copy');
+                document.body.removeChild(textarea);
+                return copied;
+            } catch (err) {
+                document.body.removeChild(textarea);
+                return false;
+            }
+        }
+
+        async function copyTranscriptToClipboard() {
+            const transcript = buildConversationTranscript();
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(transcript);
+                    showTranscriptFeedback("Copied", "success");
+                    return;
+                }
+
+                const copied = fallbackCopyText(transcript);
+                showTranscriptFeedback(copied ? "Copied" : "Copy failed", copied ? "success" : "error");
+            } catch (err) {
+                console.error("Copy transcript failed", err);
+                const copied = fallbackCopyText(transcript);
+                showTranscriptFeedback(copied ? "Copied" : "Copy failed", copied ? "success" : "error");
+            }
+        }
+
+        function buildConversationLink() {
+            if (!currentConversationId || !selectedBotId) {
+                return "";
+            }
+
+            updateConversationUrl(currentConversationId);
+
+            const url = new URL(window.location.href);
+            url.searchParams.set("bot_id", selectedBotId);
+            url.searchParams.set("conversation_id", currentConversationId);
+            return url.toString();
+        }
+
+        function normalizeCrmDateValue(value) {
+            return String(value || "").slice(0, 10);
+        }
+
+        function formatSourceLabel(source) {
+            const platform = normalizePlatform(source);
+            return platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "-";
+        }
+
+        async function fetchConversationCrmLead(conversationId) {
+            const response = await authenticatedFetch(
+                `/api/crm/leads?chatbot_id=${selectedBotId}&conversation_id=${conversationId}&limit=1`
+            );
+            const result = await response.json();
+
+            if (!response.ok || result.status !== "success") {
+                throw new Error(result.message || "Failed to load CRM lead");
+            }
+
+            const leads = result.data && Array.isArray(result.data.leads) ? result.data.leads : [];
+            return leads[0] || null;
+        }
+
+        async function upsertConversationCrmLead(payload) {
+            const response = await authenticatedFetch('/api/crm/leads/upsert', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            });
+            const result = await response.json();
+
+            if (!response.ok || result.status !== 'success') {
+                throw new Error(result.message || 'Failed to save CRM lead');
+            }
+
+            return result.data && result.data.lead;
+        }
+
+        function populateConversationCrmModal(lead) {
+            const conversation = currentConversationData || {};
+            document.getElementById('crm-conversation-customer').textContent = getConversationDisplayIdentity(conversation);
+            document.getElementById('crm-conversation-source').textContent = formatSourceLabel(conversation.source_channel);
+            document.getElementById('crm-conversation-status').value = lead && lead.status ? lead.status : 'new';
+            document.getElementById('crm-conversation-priority').value = lead && lead.priority ? lead.priority : 'medium';
+            document.getElementById('crm-conversation-assigned-to').value = lead && lead.assigned_to ? lead.assigned_to : '';
+            document.getElementById('crm-conversation-follow-up-date').value = normalizeCrmDateValue(lead && lead.follow_up_date);
+            document.getElementById('crm-conversation-notes').value = lead && lead.notes ? lead.notes : '';
+        }
+
+        async function openConversationCrmModal() {
+            if (!currentConversationId || !currentConversationData) {
+                return;
+            }
+
+            const modal = document.getElementById('crm-conversation-modal');
+            const feedback = document.getElementById('crm-conversation-feedback');
+            const saveButton = document.getElementById('crm-conversation-save');
+
+            currentConversationCrmLead = null;
+            populateConversationCrmModal(null);
+            feedback.className = 'crm-modal-feedback';
+            feedback.textContent = 'Loading CRM lead...';
+            saveButton.disabled = true;
+            modal.classList.add('open');
+            modal.setAttribute('aria-hidden', 'false');
+
+            try {
+                currentConversationCrmLead = await fetchConversationCrmLead(currentConversationId);
+                populateConversationCrmModal(currentConversationCrmLead);
+                feedback.textContent = currentConversationCrmLead
+                    ? 'Existing CRM lead loaded.'
+                    : 'Ready to create a CRM lead for this conversation.';
+                saveButton.disabled = false;
+            } catch (err) {
+                console.error('Failed to load CRM lead for conversation', err);
+                feedback.className = 'crm-modal-feedback error';
+                feedback.textContent = 'Unable to load CRM lead.';
+                saveButton.disabled = true;
+            }
+        }
+
+        function closeConversationCrmModal() {
+            const modal = document.getElementById('crm-conversation-modal');
+            modal.classList.remove('open');
+            modal.setAttribute('aria-hidden', 'true');
+        }
+
+        async function saveConversationCrmLead() {
+            if (!currentConversationId || !currentConversationData) {
+                return;
+            }
+
+            const saveButton = document.getElementById('crm-conversation-save');
+            const feedback = document.getElementById('crm-conversation-feedback');
+
+            saveButton.disabled = true;
+            saveButton.textContent = 'Saving...';
+            feedback.className = 'crm-modal-feedback';
+            feedback.textContent = '';
+
+            try {
+                currentConversationCrmLead = await upsertConversationCrmLead({
+                    chatbot_id: Number(selectedBotId),
+                    conversation_id: Number(currentConversationId),
+                    customer_name: currentConversationData.customer_name || '',
+                    customer_phone: currentConversationData.customer_phone || '',
+                    source_channel: currentConversationData.source_channel || '',
+                    status: document.getElementById('crm-conversation-status').value,
+                    priority: document.getElementById('crm-conversation-priority').value,
+                    assigned_to: document.getElementById('crm-conversation-assigned-to').value,
+                    follow_up_date: document.getElementById('crm-conversation-follow-up-date').value || null,
+                    notes: document.getElementById('crm-conversation-notes').value,
+                });
+
+                populateConversationCrmModal(currentConversationCrmLead);
+                feedback.className = 'crm-modal-feedback success';
+                feedback.textContent = 'CRM lead saved.';
+                saveButton.textContent = 'Saved';
+                saveButton.disabled = false;
+
+                window.setTimeout(() => {
+                    saveButton.textContent = 'Save CRM Lead';
+                }, 1600);
+            } catch (err) {
+                console.error('Failed to save CRM lead from conversation', err);
+                feedback.className = 'crm-modal-feedback error';
+                feedback.textContent = 'Failed to save CRM lead.';
+                saveButton.textContent = 'Save CRM Lead';
+                saveButton.disabled = false;
+            }
+        }
+
+        function setupConversationCrmModal() {
+            const modal = document.getElementById('crm-conversation-modal');
+            const closeButton = document.getElementById('crm-conversation-modal-close');
+            const saveButton = document.getElementById('crm-conversation-save');
+
+            if (closeButton) {
+                closeButton.addEventListener('click', closeConversationCrmModal);
+            }
+
+            if (saveButton) {
+                saveButton.addEventListener('click', saveConversationCrmLead);
+            }
+
+            if (modal) {
+                modal.addEventListener('click', event => {
+                    if (event.target === modal) {
+                        closeConversationCrmModal();
+                    }
+                });
+            }
+        }
+
+        async function copyConversationLinkToClipboard() {
+            const conversationLink = buildConversationLink();
+            if (!conversationLink) {
+                showTranscriptFeedback("Copy failed", "error");
+                return;
+            }
+
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(conversationLink);
+                    showTranscriptFeedback("Link copied", "success");
+                    return;
+                }
+
+                const copied = fallbackCopyText(conversationLink);
+                showTranscriptFeedback(copied ? "Link copied" : "Copy failed", copied ? "success" : "error");
+            } catch (err) {
+                console.error("Copy conversation link failed", err);
+                const copied = fallbackCopyText(conversationLink);
+                showTranscriptFeedback(copied ? "Link copied" : "Copy failed", copied ? "success" : "error");
+            }
+        }
+
+        function getDownloadDateString() {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, "0");
+            const day = String(today.getDate()).padStart(2, "0");
+            return `${year}-${month}-${day}`;
+        }
+
+        function downloadTranscriptFile() {
+            const transcript = buildConversationTranscript();
+            const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `conversation_${currentConversationId || "unknown"}_${getDownloadDateString()}.txt`;
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            URL.revokeObjectURL(url);
+            showTranscriptFeedback("Downloaded", "success");
+        }
+
+        function renderMessages(messages, phone, name) {
+            const chatPane = document.getElementById('chat-pane');
+            currentMessageSearchMatches = [];
+            const searchQuery = currentMessageSearchQuery.trim();
+
+            let transcript = document.getElementById('chat-transcript');
+            let replyBox = document.getElementById('reply-box');
+            let chatHeader = chatPane.querySelector('.chat-header');
+
+            if (chatHeader && !chatHeader.querySelector('.chat-header-actions')) {
+                const newHeader = createChatHeader(phone, name);
+                chatPane.replaceChild(newHeader, chatHeader);
+                chatHeader = newHeader;
+            }
+
+            if (!transcript) {
+                chatPane.replaceChildren();
+                chatHeader = createChatHeader(phone, name);
+                chatPane.appendChild(chatHeader);
+
+                transcript = document.createElement('div');
+                transcript.className = 'chat-transcript';
+                transcript.id = 'chat-transcript';
+                chatPane.appendChild(transcript);
+                
+                replyBox = document.createElement('div');
+                replyBox.id = 'reply-box';
+                replyBox.className = 'reply-box';
+                replyBox.style.display = 'none';
+                replyBox.style.padding = '20px';
+                replyBox.style.borderTop = '1px solid var(--glass-border)';
+                replyBox.style.background = 'rgba(0,0,0,0.2)';
+                replyBox.style.gap = '12px';
+                replyBox.style.alignItems = 'center';
+                
+                const replyInput = document.createElement('input');
+                replyInput.type = 'text';
+                replyInput.id = 'reply-input';
+                replyInput.placeholder = 'Type your reply to the customer...';
+                replyInput.style.flexGrow = '1';
+                replyInput.style.background = 'var(--input-bg)';
+                replyInput.style.border = '1px solid var(--glass-border)';
+                replyInput.style.borderRadius = '12px';
+                replyInput.style.padding = '12px 16px';
+                replyInput.style.color = 'white';
+                replyInput.style.fontSize = '0.95rem';
+                replyInput.style.outline = 'none';
+                replyInput.onkeypress = handleReplyKey;
+                
+                const sendBtn = document.createElement('button');
+                sendBtn.onclick = sendReply;
+                sendBtn.style.background = 'var(--primary)';
+                sendBtn.style.color = 'white';
+                sendBtn.style.border = 'none';
+                sendBtn.style.padding = '12px 20px';
+                sendBtn.style.borderRadius = '12px';
+                sendBtn.style.fontWeight = '600';
+                sendBtn.style.cursor = 'pointer';
+                sendBtn.style.display = 'flex';
+                sendBtn.style.alignItems = 'center';
+                sendBtn.style.gap = '8px';
+                sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send';
+                
+                replyBox.appendChild(replyInput);
+                replyBox.appendChild(sendBtn);
+                chatPane.appendChild(replyBox);
+            }
+
+            const shouldScrollToBottom = transcript.scrollHeight - transcript.scrollTop <= transcript.clientHeight + 50;
+
+            transcript.replaceChildren();
+
+            if (!messages || messages.length === 0) {
+                transcript.appendChild(createTranscriptMessage('No messages recorded yet.'));
+            } else {
+                messages.forEach(msg => {
+                    const isUser = msg.sender_type === "customer";
+                    const isMatch = messageMatchesSearch(msg, searchQuery);
+                    const row = document.createElement('div');
+                    row.className = `message-row ${isUser ? "user" : "bot"}`;
+
+                    const bubble = document.createElement('div');
+                    bubble.className = 'message-bubble';
+                    appendSearchableMessageText(bubble, msg.message_text, searchQuery);
+
+                    if (isMatch) {
+                        currentMessageSearchMatches.push(row);
+                    }
+
+                    const deliveryStatus = createDeliveryStatus(msg, isUser);
+                    if (deliveryStatus) {
+                        bubble.appendChild(deliveryStatus);
+                    }
+
+                    const time = document.createElement('div');
+                    time.className = 'message-time';
+                    time.textContent = formatTime(msg.created_at);
+                    bubble.appendChild(time);
+
+                    row.appendChild(bubble);
+                    transcript.appendChild(row);
+                });
+            }
+
+            if (shouldScrollToBottom) {
+                transcript.scrollTop = transcript.scrollHeight;
+            }
+
+            if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                window.lucide.createIcons();
+            }
+
+            normalizeMessageSearchIndex();
+            updateActiveMessageMatch();
+            updateMessageSearchControls();
+
+            const transcriptEl = document.getElementById('chat-transcript');
+            if (currentMessageSearchQuery && currentMessageSearchMatches.length) {
+                scrollToActiveMessageMatch();
+            } else if (transcriptEl) {
+                transcriptEl.scrollTop = transcriptEl.scrollHeight;
+            }
+        }
+
+    </script>
+</body>
+
+</html>
+
