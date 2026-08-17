@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 
 from app.decorators.auth_decorator import token_required
 from app.services.billing_guard import can_connect_channel, BillingLimitError
+from app.services.company_status_service import company_operational_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.database.bot_repository import get_bot_by_id
 from app.database.telegram_channel_repository import (
@@ -109,6 +110,7 @@ def delete_telegram_webhook(bot_token: str):
 @telegram_blueprint.route("/api/telegram/connect", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def connect_telegram():
     """
     Connect a Telegram bot to a chatbot.
@@ -301,6 +303,7 @@ def list_telegram_channels():
 @telegram_blueprint.route("/api/telegram/channels/<int:channel_id>/disconnect", methods=["PUT"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def disconnect_telegram_channel(channel_id):
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -367,6 +370,7 @@ def disconnect_telegram_channel(channel_id):
 @telegram_blueprint.route("/api/telegram/channels/<int:channel_id>/reconnect", methods=["PUT"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def reconnect_telegram_channel(channel_id):
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)

@@ -163,6 +163,23 @@ const tenantSupportRequests = {
   filters: { company_id: null, category: null, status: null }
 };
 
+const companyTenantSupportRequests = {
+  requests: [{
+    request_id: 31,
+    company_id: 42,
+    requester_user_id: 32,
+    category: "billing",
+    status: "converted",
+    priority: "high",
+    source: "tenant_portal",
+    title: "Billing question <img src=x onerror=window.__companySupportRequestXss=true>",
+    created_at: "2026-07-29T00:00:00+00:00",
+    updated_at: "2026-07-30T00:00:00+00:00"
+  }],
+  pagination: { limit: 10, offset: 0, returned: 1, total: 1, has_more: false },
+  filters: { company_id: 42, category: null, status: null }
+};
+
 const subscriptionSummary = {
   company: { id: 42 },
   subscription: {
@@ -1198,6 +1215,34 @@ test.describe("platform-admin support workspace", () => {
     expect(calls.every(call => call.method === "GET")).toBe(true);
   });
 
+  test("company scoped support workspace initializes from URL filter", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-support.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/tenant-support-requests" && url.searchParams.get("company_id") === "42") {
+        return success(companyTenantSupportRequests);
+      }
+      if (url.pathname === "/api/platform-admin/support-cases" && url.searchParams.get("company_id") === "42") {
+        return success({ ...supportCases, filters: { company_id: 42, status: null, priority: null } });
+      }
+      return defaultHandler({ url });
+    });
+
+    await expect(page.getByRole("heading", { name: "Support Workspace" })).toBeVisible();
+    await expect(page.getByText("filtered to company #42")).toBeVisible();
+    await expect(page.getByRole("cell", { name: "31" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "billing" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Review tenant activation <script>window.__caseXss=true</script>" })).toBeVisible();
+    await expect.poll(() => page.evaluate(() => window.__companySupportRequestXss || window.__caseXss)).toBeUndefined();
+
+    const supportCaseUrls = calls
+      .filter(call => call.path === "/api/platform-admin/support-cases")
+      .map(call => new URL("http://test" + call.search));
+    const tenantRequestUrls = calls
+      .filter(call => call.path === "/api/platform-admin/tenant-support-requests")
+      .map(call => new URL("http://test" + call.search));
+    expect(supportCaseUrls.some(url => url.searchParams.get("company_id") === "42")).toBe(true);
+    expect(tenantRequestUrls.some(url => url.searchParams.get("company_id") === "42")).toBe(true);
+  });
+
   test("renders attention companies safely and links to existing investigation page", async ({ page }) => {
     const calls = await openPlatformPage(page, "/platform-admin-support.html", ({ url }) => defaultHandler({ url }));
 
@@ -1472,6 +1517,39 @@ test.describe("platform-admin audit log viewer", () => {
     await expect(page.getByText("provider_payload")).toHaveCount(0);
     expect(await page.evaluate(() => window.__auditActionXss || window.__auditResourceXss || false)).toBe(false);
     expect(calls.filter(call => call.path === "/api/platform-admin/audit-events")).toHaveLength(1);
+  });
+
+  test("audit log viewer initializes approved company resource filters from URL", async ({ page }) => {
+    const calls = await openPlatformPage(
+      page,
+      "/platform-admin-audit-events.html?resource_type=company&resource_id=42&metadata=raw",
+      ({ url }) => defaultHandler({ url })
+    );
+
+    await expect(page.getByRole("heading", { name: "Audit Logs" })).toBeVisible();
+    await expect(page.locator("#platform-audit-resource-type")).toHaveValue("company");
+    await expect(page.locator("#platform-audit-resource-id")).toHaveValue("42");
+    const auditUrl = calls
+      .filter(call => call.path === "/api/platform-admin/audit-events")
+      .map(call => new URL("http://test" + call.search))
+      .at(-1);
+    expect(auditUrl.searchParams.get("resource_type")).toBe("company");
+    expect(auditUrl.searchParams.get("resource_id")).toBe("42");
+    expect(auditUrl.searchParams.has("metadata")).toBe(false);
+
+    const malformedCalls = await openPlatformPage(
+      page,
+      "/platform-admin-audit-events.html?resource_type=companies&resource_id=<script>",
+      ({ url }) => defaultHandler({ url })
+    );
+    await expect(page.locator("#platform-audit-resource-type")).toHaveValue("");
+    await expect(page.locator("#platform-audit-resource-id")).toHaveValue("");
+    const malformedAuditUrl = malformedCalls
+      .filter(call => call.path === "/api/platform-admin/audit-events")
+      .map(call => new URL("http://test" + call.search))
+      .at(-1);
+    expect(malformedAuditUrl.searchParams.has("resource_type")).toBe(false);
+    expect(malformedAuditUrl.searchParams.has("resource_id")).toBe(false);
   });
 
   test("pagination and approved filters produce expected query parameters", async ({ page }) => {
@@ -2237,6 +2315,46 @@ test.describe("platform-admin company detail", () => {
       .map(call => new URL("http://test" + call.search));
     expect(transactionUrls.some(url => !url.searchParams.has("transaction_type"))).toBe(true);
     expect(transactionUrls.some(url => url.searchParams.get("transaction_type") === "usage_debit")).toBe(true);
+  });
+
+  test("company support history is lazy company-scoped and links to support and audit investigation", async ({ page }) => {
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=42", ({ url }) => {
+      if (url.pathname === "/api/platform-admin/tenant-support-requests" && url.searchParams.get("company_id") === "42") {
+        return success(companyTenantSupportRequests);
+      }
+      if (url.pathname === "/api/platform-admin/support-cases" && url.searchParams.get("company_id") === "42") {
+        return success({
+          ...supportCases,
+          filters: { company_id: 42, status: null, priority: null }
+        });
+      }
+      return defaultHandler({ url });
+    });
+    await expect(page.getByRole("heading", { name: "Support history" })).toBeVisible();
+    expect(calls.some(call => call.path === "/api/platform-admin/tenant-support-requests" && call.search.includes("company_id=42"))).toBe(false);
+    expect(calls.some(call => call.path === "/api/platform-admin/support-cases" && call.search.includes("company_id=42"))).toBe(false);
+
+    await page.getByRole("button", { name: "Load support history" }).click();
+    await expect(page.getByRole("cell", { name: "Billing question <img src=x onerror=window.__companySupportRequestXss=true>" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Review tenant activation <script>window.__caseXss=true</script>" })).toBeVisible();
+    await expect(page.getByText("Safe note <img src=x onerror=window.__noteXss=true>")).toHaveCount(0);
+    await expect(page.getByText("Visible update <img src=x onerror=window.__replyXss=true>")).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => window.__companySupportRequestXss)).toBeUndefined();
+    await expect.poll(() => page.evaluate(() => window.__caseXss)).toBeUndefined();
+
+    const supportHref = await page.getByRole("link", { name: "Open Support Workspace" }).getAttribute("href");
+    expect(supportHref).toBe("platform-admin-support.html?company_id=42");
+    const auditHref = await page.getByRole("link", { name: "Open Audit Logs" }).getAttribute("href");
+    expect(auditHref).toBe("platform-admin-audit-events.html?resource_type=company&resource_id=42");
+
+    const scopedRequestUrls = calls
+      .filter(call => call.path === "/api/platform-admin/tenant-support-requests")
+      .map(call => new URL("http://test" + call.search));
+    const scopedCaseUrls = calls
+      .filter(call => call.path === "/api/platform-admin/support-cases")
+      .map(call => new URL("http://test" + call.search));
+    expect(scopedRequestUrls.some(url => url.searchParams.get("company_id") === "42")).toBe(true);
+    expect(scopedCaseUrls.some(url => url.searchParams.get("company_id") === "42")).toBe(true);
   });
 
   test("lazy users and chatbots sections load safe fields with query parameters", async ({ page }) => {

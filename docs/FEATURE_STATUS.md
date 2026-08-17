@@ -467,22 +467,48 @@ verified.
   Phase 4 mutation audit events merely by application, and did not alter
   existing audit rows. Staging verification and production readiness remain
   blocked.
-- Platform-admin Tenant and Company Administration Phase 5 is implemented
-  locally with bounded company suspend/restore controls and centralized
-  company-operational enforcement. Migration 036 is applied and verified only
-  in the approved main shared-testing Supabase with fake/team data. It
-  constrains `companies.status` to non-null `active`/`inactive`, keeps
-  `companies` RLS disabled and not forced, tightens direct companies privileges
-  to no browser-role access and service_role `SELECT`, `INSERT`, and `UPDATE`
-  only, and exposes service-role-only `SECURITY INVOKER` suspend/restore RPCs
-  with `search_path=pg_catalog`. Shared-testing lifecycle verification
-  suspended and restored non-protected company 23, left company 23 active after
-  cleanup, recorded audit events 355 and 356 with safe fixed lifecycle metadata
-  only, and verified protected company 29 cannot be suspended. No live
-  tenant-runtime suspension E2E was performed because company 23 has no users
-  or chatbots and the verification intentionally avoided risking another
-  tenant. Runtime enforcement is covered by automated local tests. Staging
-  verification and production readiness remain blocked.
+- Platform-admin Tenant and Company Administration Phase 5 is implemented and
+  verified for the current milestone in the approved main shared-testing
+  Supabase with fake/team data. It includes the global company directory,
+  Company Detail investigation, company users and chatbot/configuration
+  inspection, current subscription context, subscription history, AI-credit
+  usage and transaction history, billing-order history, controlled
+  suspend/restore, protected internal-company safeguard, centralized inactive-
+  company operational enforcement, Company Detail support-history integration,
+  company-filtered Support Workspace navigation, and company-related Platform
+  Admin audit navigation. Migration 036 is applied and verified only in the
+  approved main shared-testing Supabase with fake/team data. It constrains
+  `companies.status` to non-null `active`/`inactive`, keeps `companies` RLS
+  disabled and not forced, tightens direct companies privileges to no browser-
+  role access and service_role `SELECT`, `INSERT`, and `UPDATE` only, and
+  exposes service-role-only `SECURITY INVOKER` suspend/restore RPCs with
+  `search_path=pg_catalog`.
+  Shared-testing lifecycle evidence includes the earlier company 23
+  suspend/restore cleanup with audit events 355 and 356, plus controlled
+  runtime verification on approved fake/team company 34, `Autobot Company`,
+  chatbot 52. Company 34 was suspended and restored twice and left active:
+  audit events 527/538 covered the representative runtime matrix, and audit
+  events 541/542 covered the final targeted `/api/chat/test` repair check.
+  Representative live checks verified chatbot mutation, knowledge mutation,
+  `POST /upload-pdf`, Telegram config mutation, and `/api/chat/test` reject
+  suspended companies with `403 company_suspended` while preserving intended
+  Platform Admin reads, tenant support/history reads, and safe knowledge
+  graph/README reads. PDF upload rejection occurs before file processing,
+  quota checks, `save_uploaded_pdf`, embeddings, chunks, graph generation,
+  README/history generation, chatbot runtime changes, and persona derivation.
+  The final test-chat check confirmed AI usage rows stayed `0`, AI-credit
+  transaction count stayed `3`, included balance stayed `20000000` micro-MYR,
+  top-up balance stayed `0`, no provider execution occurred, and chatbot
+  runtime/configuration was unchanged. Protected company 29 rejected suspend
+  with `protected_company` and remained active. CRM mutation was not exercised
+  live because company 34 had no suitable CRM lead and no risky data was
+  manufactured; local automated CRM enforcement coverage exists. Phase 5 does
+  not provide tenant impersonation, arbitrary tenant data access, raw tenant
+  messages, AI prompts/responses, provider payloads, API credentials, payment
+  secrets, unrestricted configuration inspection, financial mutations, true
+  tenant application audit history, Phase 4 account-management expansion,
+  duplicate Phase 6 monitoring, or Phase 7 financial mutation controls.
+  Staging verification and production readiness remain blocked.
 - Platform-admin Platform Monitoring Phase 6 is implemented locally as a
   read-only extension of `GET /api/platform-admin/overview`; no new
   platform-admin mutation routes were added.
@@ -667,7 +693,7 @@ migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
 | Migrations 039/040/041 | Unapplied everywhere; two mandatory preflights unrun |
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, operational alerts, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
 | Platform-admin Support Workspace | Implemented as tenant investigation with controlled internal case operations; Support Cases Phase 2/Migration 032 and Tenant Communication Phase 3/Migration 033 are verified only in main shared testing Supabase with fake/team data. No live chat, generic messaging, impersonation, billing actions, exports, charts, SLA automation, staging readiness, or production use |
-| Platform-admin Tenant and Company Administration | Runtime implemented locally with company suspend/restore controls and tenant operational-status enforcement; Migration 036 is applied and verified only in main shared-testing Supabase with fake/team data. Company 23 suspend/restore and company 29 protected-company rejection are verified there; no live tenant-runtime suspension E2E, staging readiness, or production use |
+| Platform-admin Tenant and Company Administration | Implemented and verified for the current milestone in main shared-testing Supabase with fake/team data. Includes company directory/detail investigation, users/chatbots, subscription and AI-credit context/history, billing orders, support-history integration, company-filtered audit navigation, controlled suspend/restore, protected-company safeguard, and centralized inactive-company enforcement. Company 34 (`Autobot Company`, chatbot 52) was suspended/restored and left active; representative chatbot, knowledge, PDF upload, Telegram config, and `/api/chat/test` inactive checks returned `403 company_suspended` without side effects. Company 29 protected suspend returned `protected_company` and remained active. CRM mutation was not live-tested because no suitable CRM lead existed; local coverage exists. No Migration 043, tenant impersonation, true tenant application audit history, financial mutations, staging readiness, or production use |
 | Platform-admin Tenant Communication | Verified only in main shared-testing Supabase with fake/team data; Migration 033 adds tenant-visible replies, `tenant_reply_created` case events, safe reply audit metadata, and a pending in-app support notification outbox. This is not staging verification and does not establish production readiness; email and attachments remain deferred |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |

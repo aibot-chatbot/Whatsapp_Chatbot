@@ -8,6 +8,7 @@ from flask import Blueprint, request, jsonify
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_connect_channel, BillingLimitError
+from app.services.company_status_service import company_operational_required
 from app.database.bot_repository import get_bot_by_id
 from app.database.whatsapp_channel_repository import (
     disconnect_whatsapp_channel as disconnect_whatsapp_channel_record,
@@ -123,6 +124,7 @@ def build_safe_signup_payload(waba_id, phone_number_id, business_id, phone_metad
 @whatsapp_blueprint.route("/api/whatsapp/embedded-signup/complete", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def complete_embedded_signup():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -314,6 +316,7 @@ def list_whatsapp_channels():
 @whatsapp_blueprint.route("/api/whatsapp/channels/<int:channel_id>/disconnect", methods=["PUT"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def disconnect_whatsapp_channel(channel_id):
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)

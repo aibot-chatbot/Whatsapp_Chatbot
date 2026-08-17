@@ -1042,7 +1042,7 @@ def generate_and_save_knowledge_readme(chatbot_id: int, file_id: int = None):
         logging.error(f"Failed to save knowledge README to {readme_path}: {e}")
 
 
-def get_or_generate_readme(chatbot_id: int, file_id: int = None) -> str:
+def get_or_generate_readme(chatbot_id: int, file_id: int = None, company_id: int = None) -> str:
     import os
     from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
     if file_id is None:
@@ -1053,6 +1053,9 @@ def get_or_generate_readme(chatbot_id: int, file_id: int = None) -> str:
 
     readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_readme.md")
     if not os.path.exists(readme_path):
+        if company_id is not None:
+            from app.services.company_status_service import ensure_company_operational
+            ensure_company_operational(company_id)
         generate_and_save_knowledge_readme(chatbot_id, file_id)
 
     if os.path.exists(readme_path):

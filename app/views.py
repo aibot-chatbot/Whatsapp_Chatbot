@@ -15,6 +15,7 @@ from app.services.knowledge_service import save_uploaded_pdf
 from app.services.persona_derivation_service import derive_persona_for_upload
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_upload_knowledge_storage, BillingLimitError
+from app.services.company_status_service import company_operational_required
 
 webhook_blueprint = Blueprint("webhook", __name__)
 FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
@@ -99,6 +100,7 @@ def webhook_post():
 @webhook_blueprint.route("/upload-pdf", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
+@company_operational_required
 def upload_pdf():
     chatbot_id = None
     try:

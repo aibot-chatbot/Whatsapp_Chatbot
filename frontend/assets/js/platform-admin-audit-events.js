@@ -289,6 +289,18 @@
         };
     }
 
+    function applyUrlFilters() {
+        const params = new URLSearchParams(window.location.search);
+        const resourceType = params.get("resource_type");
+        const resourceId = params.get("resource_id");
+        if (resourceType && RESOURCE_TYPES.indexOf(resourceType) !== -1) {
+            state.controls.resourceType.value = resourceType;
+        }
+        if (resourceId && resourceId.length <= 255 && /^[A-Za-z0-9_.:-]+$/.test(resourceId)) {
+            state.controls.resourceId.value = resourceId;
+        }
+    }
+
     async function loadAuditEvents() {
         if (state.error) state.error.textContent = "";
         state.results.replaceChildren(ui.element("div", "platform-loading", "Loading audit events..."));
@@ -410,12 +422,14 @@
         const filterPanel = panel("Filters", "Use exact allowlisted filters. Metadata search, exports, editing, and deletion are not available.");
         state.error = ui.element("p", "platform-inline-error");
         state.error.setAttribute("aria-live", "polite");
-        filterPanel.append(renderFilters(), state.error);
+        const filters = renderFilters();
+        filterPanel.append(filters, state.error);
         const resultsPanel = panel("Audit events", "Newest events are shown first using created_at descending with ID as the tie-breaker.");
         state.results = ui.element("div", "platform-audit-results");
         state.results.setAttribute("aria-live", "polite");
         resultsPanel.append(state.results);
         mount.append(header, filterPanel, resultsPanel);
+        applyUrlFilters();
         collectFilters();
         loadAuditEvents();
     }
