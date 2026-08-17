@@ -2,9 +2,10 @@
 
 ## Status
 
-Platform-admin Billing & Subscription Oversight Phase 7 is implemented as a
-read-only platform-admin surface. Migration 038 is applied and verified only in
-the approved main shared-testing Supabase with fake/team data. This is not
+Platform-admin Billing & Subscription Oversight Phase 7 is implemented for the
+current milestone as a read-only platform-admin surface. Migration 038 is
+applied and verified only in the approved main shared-testing Supabase with
+fake/team data. Migration 043 was not required and was not created. This is not
 staging verification and does not establish production readiness.
 
 Local runtime verification against the approved main shared-testing Supabase
@@ -20,6 +21,35 @@ confirmed:
 - The Platform Billing & Subscriptions frontend rendered the overview sections
   and Tenant Billing Directory.
 - No financial mutation controls are present.
+
+Final local source and browser hardening verified the Platform Billing &
+Subscriptions frontend after responsive and accessibility updates:
+
+- The Tenant Billing Directory filters have explicit labels for Subscription
+  status, Plan code, and Attention with stable `htmlFor`/ID relationships.
+- Desktop Billing tables remain available.
+- Tablet layouts keep the normal panel/table flow.
+- Mobile layouts at 767px and below keep billing information visible through
+  compact mobile-card representations; shared table hiding for unrelated pages
+  was not weakened.
+- Tenant Billing Directory mobile cards use only safe API fields and link to
+  `platform-admin-company.html?company_id=<id>` using the server-provided
+  company ID.
+- Browser coverage verified the loading state, overview rendering, directory,
+  filters, no-subscription state, unavailable/access-denied states, hostile
+  text rendering, mobile cards, actual mobile View Company navigation, and the
+  absence of financial mutation controls.
+- Latest dedicated Billing browser group: 5 passed.
+- Latest full Platform Admin browser suite: 70 passed.
+- Latest frontend source-contract suite: 54 passed, 14 subtests passed.
+- A broader Phase 7 regression scope previously passed with 153 tests and 271
+  subtests covering Migration 038, billing repositories, billing routes,
+  frontend contracts, filters, overview normalization, safe projections,
+  authorization, and audit behavior.
+
+The latest responsive and accessibility hardening was verified locally through
+automated source and Playwright browser tests. It was not separately deployed to
+or verified in staging or production.
 
 A separate transient tenant-side Supabase HTTP/2 `RemoteProtocolError` occurred
 during `/api/billing/usage` and `/api/bots` loading before the platform-admin
@@ -152,6 +182,28 @@ The Platform Billing & Subscriptions page renders:
 The page has loading, empty, unavailable, and authorization-loss handling. It
 contains no financial action buttons.
 
+Responsive behavior is intentionally scoped to the Billing page:
+
+- desktop and tablet keep the original table/panel investigation layout;
+- mobile viewports at 767px and below show overview mobile cards and dedicated
+  Tenant Billing Directory company cards while hidden desktop table wrappers
+  stay hidden;
+- global table behavior for other Platform Admin pages is unchanged.
+
+Mobile tenant billing cards show only safe existing API fields when available:
+company name, company ID, company status, subscription status, current plan,
+period end, pending plan and cancellation indicators, attention count, and
+AI-credit balance. They provide a View Company link into Company Detail.
+
+The directory filters remain the existing `subscription_status`, `plan`, and
+`attention` filters. They now have explicit accessible labels:
+
+- Subscription status;
+- Plan code;
+- Attention.
+
+No filter API semantics changed, and attention remains server-derived.
+
 ## Audit
 
 Phase 7 read actions:
@@ -172,6 +224,17 @@ filters, or raw row payloads are stored in Phase 7 audit metadata.
 Migration 038 extends the Phase 6 monitoring RPC allowlist so these actions and
 resource types appear in Platform-admin Activity aggregates.
 
+Phase 6 and Phase 7 remain separate: Phase 6 provides high-level operational
+awareness that billing issues exist, while Phase 7 identifies which companies,
+subscriptions, orders, credits, and lifecycle states are causing those billing
+issues. Phase 7 does not duplicate the Phase 6 dashboard as another global
+monitoring surface.
+
+Phase 5 Company Detail remains the deeper per-company investigation surface for
+current subscription, subscription history, AI-credit usage, AI-credit
+transactions, and billing orders. Phase 7 provides global billing oversight and
+navigates operators to Company Detail for deeper tenant investigation.
+
 ## Deferred Financial Mutations
 
 The following remain deferred:
@@ -187,6 +250,8 @@ The following remain deferred:
 - billing impersonation or remediation controls.
 
 Phase 7 is read-only.
+
+Direct balance editing is not appropriate for the current milestone.
 
 ## Privacy And Security Exclusions
 
@@ -207,6 +272,18 @@ Phase 7 must not expose:
 
 Approved company name remains allowed in the tenant billing directory because it
 is already part of the platform-admin company directory safe projection.
+
+Server-provided Billing values continue to be rendered through safe text/DOM
+construction. Untrusted `innerHTML` was not introduced by the responsive or
+accessibility hardening.
+
+## Subscription History Limitation
+
+Subscription history is persisted `company_subscriptions` records. It is not a
+true event-sourced plan or status transition history. Platform Admin can inspect
+stored current and previous subscription rows, status, period dates, pending
+plan, and cancellation scheduling/effective state where represented by those
+records.
 
 ## Performance
 

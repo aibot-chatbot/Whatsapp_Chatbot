@@ -537,6 +537,64 @@ a {
     display: none;
 }
 
+.platform-mobile-card-list {
+    display: none;
+}
+
+.platform-mobile-data-card {
+    padding: 1rem;
+    border: 1px solid var(--platform-border);
+    border-radius: 0.8rem;
+    background: rgba(7, 21, 29, 0.75);
+    overflow-wrap: anywhere;
+}
+
+.platform-mobile-data-card h3 {
+    margin: 0 0 0.8rem;
+    color: var(--platform-text);
+    font-size: 1rem;
+}
+
+.platform-mobile-data-card dl {
+    display: grid;
+    gap: 0.55rem;
+    margin: 0;
+}
+
+.platform-mobile-data-row {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.55fr) minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: start;
+}
+
+.platform-mobile-data-row dt {
+    color: var(--platform-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.platform-mobile-data-row dd {
+    margin: 0;
+    color: var(--platform-text);
+}
+
+.platform-mobile-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.8rem;
+}
+
+.platform-mobile-card-header h3 {
+    margin: 0;
+}
+
+.platform-billing-company-card .platform-button {
+    margin-top: 1rem;
+}
+
 .platform-audit-metadata {
     display: grid;
     gap: 0.35rem;
@@ -1081,6 +1139,11 @@ a {
 
     .platform-table-wrap {
         display: none;
+    }
+
+    .platform-billing-mobile-card-list {
+        display: grid;
+        gap: 0.85rem;
     }
 
     .platform-attention-company-cards {

@@ -28,6 +28,7 @@ class PlatformAdminBillingDocsTests(unittest.TestCase):
         for phrase in [
             "read-only platform-admin surface",
             "migration 038 is applied and verified only in the approved main shared-testing supabase",
+            "migration 043 was not required and was not created",
             "fake/team data",
             "not staging verification",
             "does not establish production readiness",
@@ -35,6 +36,27 @@ class PlatformAdminBillingDocsTests(unittest.TestCase):
             "`get /api/platform-admin/billing/companies?limit=25&offset=0` returned 200",
             "platform billing & subscriptions frontend rendered",
             "no financial mutation controls are present",
+            "latest dedicated billing browser group: 5 passed",
+            "latest full platform admin browser suite: 70 passed",
+            "latest frontend source-contract suite: 54 passed, 14 subtests passed",
+            "153 tests and 271 subtests",
+        ]:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, self.contract_flat)
+
+    def test_contract_records_responsive_accessibility_and_navigation_hardening(self):
+        for phrase in [
+            "explicit labels for subscription status, plan code, and attention",
+            "stable `htmlfor`/id relationships",
+            "desktop billing tables remain available",
+            "tablet layouts keep the normal panel/table flow",
+            "mobile layouts at 767px and below keep billing information visible",
+            "compact mobile-card representations",
+            "shared table hiding for unrelated pages was not weakened",
+            "tenant billing directory mobile cards use only safe api fields",
+            "`platform-admin-company.html?company_id=<id>`",
+            "actual mobile view company navigation",
+            "untrusted `innerhtml` was not introduced",
         ]:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.contract_flat)
@@ -83,6 +105,7 @@ class PlatformAdminBillingDocsTests(unittest.TestCase):
             "payment retry mutation",
             "manual credit reversal",
             "billing impersonation or remediation controls",
+            "direct balance editing is not appropriate for the current milestone",
             "payment references",
             "checkout urls",
             "gateway identifiers",
@@ -117,10 +140,12 @@ class PlatformAdminBillingDocsTests(unittest.TestCase):
     def test_roadmap_and_feature_status_record_final_phase_seven_without_overclaiming(self):
         for docs_flat in [self.feature_flat, self.roadmap_flat]:
             for phrase in [
-                "platform-admin billing & subscription oversight phase 7 is implemented locally",
+                "platform-admin billing & subscription oversight phase 7 is implemented for the current read-only milestone",
+                "current read-only milestone",
                 "read-only",
                 "platform billing & subscriptions",
                 "migration 038 is applied and verified only in the approved main shared-testing supabase",
+                "migration 043 was not required and was not created",
                 "`public.get_platform_admin_billing_overview()`",
                 "`public.get_platform_admin_billing_companies(integer, integer, text, text, boolean)`",
                 "`public.get_platform_admin_monitoring_overview()`",
@@ -131,6 +156,9 @@ class PlatformAdminBillingDocsTests(unittest.TestCase):
                 "payment reconciliation mutation",
                 "direct balance editing",
                 "remain deferred",
+                "mobile billing",
+                "subscription status, plan code, and attention",
+                "`platform-admin-company.html?company_id=<id>`",
                 "not staging verification",
                 "does not establish production readiness",
             ]:

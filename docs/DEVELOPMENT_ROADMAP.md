@@ -29,9 +29,11 @@ Current Superadmin roadmap order after this milestone:
 1. Completed current milestone: Phase 1 foundation, Phase 1.5 RLS/security
    foundation, Phase 2 support operations, Phase 3 tenant communication
    baseline, Phase 6 monitoring/visualization dashboard, and Phase 5 Tenant /
-   Company Administration.
-2. Next: Phase 7 Billing / Subscription Oversight completion/hardening and
-   oversight expansion.
+   Company Administration, and the current Phase 7 read-only Billing /
+   Subscription Oversight milestone.
+2. Next: continue with the next agreed Superadmin roadmap item. Financial
+   mutation workflows remain deferred and require a separately approved future
+   scope; they are not part of the completed Phase 7 read-only milestone.
 3. Later: broader Phase 4 Platform Admin User Management expansion. A bounded
    platform-admin mapping-management surface already exists; the broader
    lifecycle expansion remains intentionally deferred.
@@ -175,10 +177,11 @@ cards/panels/tables, clearer filters, mobile card alternatives, responsive
 behavior, and reduced dashboard information density. This is not staging
 verification and does not establish production readiness. Unsupported
 aggregate values fail closed.
-Platform-admin Billing & Subscription Oversight Phase 7 is implemented locally
-as a read-only platform-admin Billing & Subscriptions surface. Migration 038 is
-applied and verified only in the approved main shared-testing Supabase with
-fake/team data. It adds `public.get_platform_admin_billing_overview()`,
+Platform-admin Billing & Subscription Oversight Phase 7 is implemented for the
+current read-only milestone as a platform-admin Billing & Subscriptions surface.
+Migration 038 is applied and verified only in the approved main shared-testing
+Supabase with fake/team data. Migration 043 was not required and was not
+created. It adds `public.get_platform_admin_billing_overview()`,
 `public.get_platform_admin_billing_companies(integer, integer, text, text,
 boolean)`, and updates `public.get_platform_admin_monitoring_overview()` so
 Phase 7 read actions and resource types are counted in Platform-admin Activity.
@@ -196,6 +199,16 @@ Subscription history lists persisted `company_subscriptions` records and is not
 an event-sourced status-transition timeline. Billing-order history lists mutable
 `company_subscription_orders` records for company-scoped investigation, displays
 `amount_sen` as integer sen as stored, and does not return or infer currency.
+The final frontend hardening keeps desktop tables, adds mobile Billing overview
+and Tenant Billing Directory cards below 767px, adds explicit accessible labels
+for Subscription status, Plan code, and Attention filters, preserves safe text
+rendering for hostile Billing values, and verifies mobile View Company
+navigation to `platform-admin-company.html?company_id=<id>`. Latest local
+evidence includes 54 frontend source tests with 14 subtests, a 5-test Billing
+browser group, and a 70-test full Platform Admin browser suite. A broader Phase
+7 regression scope previously passed with 153 tests and 271 subtests. The
+latest responsive/accessibility hardening is local/browser evidence only and is
+not staging or production verification.
 Phase 6 implements only the approved aggregate alerts for support backlog,
 pending and reconciliation-required billing orders, depleted AI-credit
 balances, retry backlog, and integration channel attention. AI low-balance

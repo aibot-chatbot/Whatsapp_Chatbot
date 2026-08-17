@@ -22,6 +22,14 @@
         return value === null || value === undefined || value === "" ? "Not available" : String(value);
     }
 
+    function field(label, control) {
+        const wrapper = ui.element("div", "platform-field");
+        const labelNode = ui.element("label", "", label);
+        labelNode.htmlFor = control.id;
+        wrapper.append(labelNode, control);
+        return wrapper;
+    }
+
     function metric(label, value) {
         const card = ui.element("article", "platform-metric");
         card.append(
@@ -59,7 +67,9 @@
         return grid;
     }
 
-    function table(headers, rows, captionText) {
+    function table(headers, rows, captionText, options) {
+        const config = options || {};
+        const container = ui.element("div", "platform-responsive-table");
         const wrap = ui.element("div", "platform-table-wrap");
         const node = ui.element("table", "platform-table");
         node.append(ui.element("caption", "platform-skip-link", captionText));
@@ -84,7 +94,34 @@
         });
         node.append(head, body);
         wrap.append(node);
-        return wrap;
+        container.append(wrap);
+        if (config.mobileCards !== false) {
+            container.append(mobileTableCards(headers, rows, captionText));
+        }
+        return container;
+    }
+
+    function mobileTableCards(headers, rows, captionText) {
+        const list = ui.element("section", "platform-mobile-card-list platform-billing-mobile-card-list");
+        list.setAttribute("aria-label", captionText + " mobile cards");
+        rows.forEach(function (cells) {
+            const card = ui.element("article", "platform-mobile-data-card");
+            const title = cells[0] && cells[0].nodeType ? cells[0].textContent : safeValue(cells[0]);
+            card.append(ui.element("h3", "", title));
+            const details = ui.element("dl");
+            cells.forEach(function (cell, index) {
+                const row = ui.element("div", "platform-mobile-data-row");
+                row.append(ui.element("dt", "", headers[index] || "Value"));
+                const value = ui.element("dd");
+                if (cell && cell.nodeType) value.append(cell.cloneNode(true));
+                else value.textContent = safeValue(cell);
+                row.append(value);
+                details.append(row);
+            });
+            card.append(details);
+            list.append(card);
+        });
+        return list;
     }
 
     function statusRows(source, order) {
@@ -202,6 +239,24 @@
         return link;
     }
 
+    function subscriptionStatusCell(status) {
+        return status ? ui.statusBadge(status) : ui.element("span", "platform-muted", "No subscription");
+    }
+
+    function attentionTotal(row) {
+        const subscriptionAttention = row.subscription_order_attention || {};
+        const topupAttention = row.topup_order_attention || {};
+        return (
+            (subscriptionAttention.pending_count || 0) +
+            (subscriptionAttention.failed_count || 0) +
+            (subscriptionAttention.reconciliation_required_count || 0) +
+            (subscriptionAttention.activation_failed_count || 0) +
+            (subscriptionAttention.activation_conflict_count || 0) +
+            (topupAttention.pending_count || 0) +
+            (topupAttention.failed_count || 0)
+        );
+    }
+
     function renderDirectoryRows(rows) {
         return (rows || []).map(function (row) {
             const plan = row.current_plan || {};
@@ -210,7 +265,7 @@
             return [
                 companyLink(row),
                 row.company_id,
-                ui.statusBadge(row.subscription_status),
+                subscriptionStatusCell(row.subscription_status),
                 safeValue(plan.code),
                 row.pending_plan_change ? "Yes" : "No",
                 row.cancellation_scheduled ? "Yes" : "No",
@@ -222,10 +277,51 @@
         });
     }
 
+    function labeledValue(label, value) {
+        const row = ui.element("div", "platform-mobile-data-row");
+        row.append(ui.element("dt", "", label));
+        const dd = ui.element("dd");
+        if (value && value.nodeType) dd.append(value);
+        else dd.textContent = safeValue(value);
+        row.append(dd);
+        return row;
+    }
+
+    function renderDirectoryCards(rows) {
+        const list = ui.element("section", "platform-mobile-card-list platform-billing-mobile-card-list platform-billing-directory-cards");
+        list.setAttribute("aria-label", "Tenant billing directory mobile cards");
+        (rows || []).forEach(function (row) {
+            const plan = row.current_plan || {};
+            const card = ui.element("article", "platform-mobile-data-card platform-billing-company-card");
+            const header = ui.element("div", "platform-mobile-card-header");
+            header.append(
+                ui.element("h3", "", safeValue(row.company_name || ("Company " + row.company_id))),
+                ui.statusBadge(row.company_status)
+            );
+            const details = ui.element("dl");
+            details.append(
+                labeledValue("Company ID", row.company_id),
+                labeledValue("Subscription", subscriptionStatusCell(row.subscription_status)),
+                labeledValue("Current plan", plan.code ? safeValue(plan.code) : "No plan"),
+                labeledValue("Current period end", ui.formatDate(row.current_period_end)),
+                labeledValue("Pending plan", row.pending_plan_change ? "Yes" : "No"),
+                labeledValue("Cancellation scheduled", row.cancellation_scheduled ? "Yes" : "No"),
+                labeledValue("Attention items", ui.formatInteger(attentionTotal(row))),
+                labeledValue("AI-credit balance", ui.formatMicroMyr(row.ai_credit_total_balance_micro_myr))
+            );
+            const action = ui.element("a", "platform-button", "View Company");
+            action.href = "platform-admin-company.html?company_id=" + encodeURIComponent(String(row.company_id));
+            card.append(header, details, action);
+            list.append(card);
+        });
+        return list;
+    }
+
     function renderDirectorySection() {
         const section = panel("Tenant Billing Directory", "Server-paginated read-only billing summary. Use company investigation for detailed histories.");
         const controls = ui.element("form", "platform-toolbar");
         const status = ui.element("select");
+        status.id = "platform-billing-subscription-status";
         [["", "All statuses"]].concat(SUBSCRIPTION_STATUSES.map(function (item) { return [item, item]; })).forEach(function (item) {
             const option = ui.element("option", "", item[1]);
             option.value = item[0];
@@ -233,11 +329,13 @@
         });
         status.value = state.subscriptionStatus;
         const plan = ui.element("input");
+        plan.id = "platform-billing-plan-code";
         plan.type = "text";
         plan.placeholder = "Plan code";
         plan.maxLength = 50;
         plan.value = state.plan;
         const attention = ui.element("select");
+        attention.id = "platform-billing-attention";
         [["", "All"], ["true", "Attention only"], ["false", "No attention"]].forEach(function (item) {
             const option = ui.element("option", "", item[1]);
             option.value = item[0];
@@ -246,7 +344,12 @@
         attention.value = state.attention;
         const apply = ui.element("button", "platform-button platform-button-primary", "Apply");
         apply.type = "submit";
-        controls.append(status, plan, attention, apply);
+        controls.append(
+            field("Subscription status", status),
+            field("Plan code", plan),
+            field("Attention", attention),
+            apply
+        );
         controls.addEventListener("submit", function (event) {
             event.preventDefault();
             state.subscriptionStatus = status.value;
@@ -287,8 +390,10 @@
                 body.append(table(
                     ["Company", "ID", "Subscription", "Plan", "Pending plan", "Cancellation", "AI-credit balance", "Sub order attention", "Top-up attention", "Period end"],
                     renderDirectoryRows(rows),
-                    "Tenant billing directory"
+                    "Tenant billing directory",
+                    { mobileCards: false }
                 ));
+                body.append(renderDirectoryCards(rows));
             }
             const pager = ui.element("nav", "platform-pagination");
             pager.setAttribute("aria-label", "Tenant billing directory pagination");
