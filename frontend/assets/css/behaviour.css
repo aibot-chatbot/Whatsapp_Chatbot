@@ -1,0 +1,1058 @@
+/* ══════════════════════════════════════════════════════════════════════
+   BEHAVIOUR STUDIO
+   Components for frontend/behaviour.html. Namespaced `bh-` under
+   `.dashboard-page`, the same containment rule `kw-`, `dash-` and `bc-`
+   use, so nothing here can reach another screen.
+
+   Panels, buttons, pills, inputs, step marks and the empty state come from
+   dashboard-control-room.css. This file adds only the three-tab rail, the
+   answer-style cards, the welcome-menu rows, the channel preview and the
+   active-setup strip.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.dashboard-page .bh-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+.dashboard-page .bh-page :focus-visible {
+    outline: 2px solid var(--control-accent-hover);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.dashboard-page .bh-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+
+/* ── Header ───────────────────────────────────────────────────────── */
+
+.dashboard-page .bh-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .bh-title {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+}
+
+.dashboard-page .bh-subtitle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    color: var(--control-text-secondary);
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.dashboard-page .bh-bot {
+    color: var(--control-accent);
+    font-weight: 500;
+}
+
+.dashboard-page .bh-header-aside {
+    /* shared-ui.js pins the account chip at fixed top:24px/right:32px. */
+    margin-top: 44px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Save state. Text carries it as well as colour. */
+.dashboard-page .bh-savestate {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    white-space: nowrap;
+}
+
+.dashboard-page .bh-savestate.is-dirty {
+    color: var(--control-warning);
+}
+
+.dashboard-page .bh-savestate.is-saved {
+    color: var(--control-accent);
+}
+
+
+/* ── Tab rail ─────────────────────────────────────────────────────────
+   Numbered because the order is real: the model decides what the bot can
+   say, the message experience decides how it is presented, and only then
+   is there something worth testing. */
+
+.dashboard-page .bh-tabs {
+    display: flex;
+    /* .kw-panel is flex-column, so the direction has to be stated or the tabs
+       stack. Same-specificity selectors, and this file loads later. */
+    flex-direction: row;
+    gap: 4px;
+    padding: 6px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.dashboard-page .bh-tabs::-webkit-scrollbar { display: none; }
+
+.dashboard-page .bh-tab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    flex: 1 1 0;
+    min-width: max-content;
+    min-height: 44px;
+    padding: 0 18px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 13.5px;
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-radius: 9px;
+    transition: color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1)),
+                background-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bh-tab:hover {
+    color: var(--control-text);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.dashboard-page .bh-tab[aria-selected="true"] {
+    color: var(--control-text);
+    background: var(--control-raised);
+}
+
+.dashboard-page .bh-tab-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    flex: 0 0 auto;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--control-border);
+    border-radius: 50%;
+}
+
+.dashboard-page .bh-tab[aria-selected="true"] .bh-tab-num {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: var(--control-accent);
+}
+
+
+/* ── Two-column body ──────────────────────────────────────────────── */
+
+.dashboard-page .bh-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+}
+
+.dashboard-page .bh-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+.dashboard-page .bh-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .bh-panel-head h2 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.dashboard-page .bh-panel-head p {
+    width: 100%;
+    margin-top: 4px;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    line-height: 1.5;
+    text-wrap: pretty;
+}
+
+.dashboard-page .bh-panel-body {
+    padding: 20px;
+}
+
+
+/* ── Answer style ─────────────────────────────────────────────────────
+   Three named outcomes replace the raw temperature slider. Radios, so one
+   is always chosen and the keyboard works without any JS. */
+
+.dashboard-page .bh-styles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.dashboard-page .bh-style {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    padding: 18px;
+    cursor: pointer;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+    transition: border-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1)),
+                background-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1)),
+                transform var(--motion-fast, 120ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bh-style:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.dashboard-page .bh-style:active {
+    transform: scale(0.99);
+}
+
+.dashboard-page .bh-style:focus-within {
+    outline: 2px solid var(--control-accent-hover);
+    outline-offset: 2px;
+}
+
+.dashboard-page .bh-style.is-selected {
+    background: var(--control-accent-subtle);
+    border-color: var(--control-accent);
+}
+
+.dashboard-page .bh-style input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.dashboard-page .bh-style-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.dashboard-page .bh-style-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    color: var(--control-text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+}
+
+.dashboard-page .bh-style.is-selected .bh-style-icon {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.4);
+}
+
+.dashboard-page .bh-style-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    flex: 0 0 auto;
+    color: transparent;
+    border: 1px solid var(--control-border);
+    border-radius: 50%;
+}
+
+.dashboard-page .bh-style.is-selected .bh-style-mark {
+    color: #06120f;
+    background: var(--control-accent);
+    border-color: var(--control-accent);
+}
+
+.dashboard-page .bh-style-name {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.dashboard-page .bh-style-copy {
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    line-height: 1.55;
+    text-wrap: pretty;
+}
+
+/* The fourth state, shown only when the stored value is not one of the
+   three. It exists so an existing custom value is never silently moved. */
+.dashboard-page .bh-style-custom {
+    grid-column: 1 / -1;
+}
+
+.dashboard-page .bh-style-custom[hidden] {
+    display: none;
+}
+
+
+/* ── Advanced disclosure ──────────────────────────────────────────── */
+
+.dashboard-page .bh-advanced {
+    margin-top: 20px;
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+    overflow: hidden;
+}
+
+.dashboard-page .bh-advanced > summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 0 16px;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    list-style: none;
+}
+
+.dashboard-page .bh-advanced > summary::-webkit-details-marker { display: none; }
+
+.dashboard-page .bh-advanced > summary:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dashboard-page .bh-advanced-chevron {
+    margin-left: auto;
+    color: var(--control-text-secondary);
+    transition: transform var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bh-advanced[open] .bh-advanced-chevron {
+    transform: rotate(180deg);
+}
+
+.dashboard-page .bh-advanced-body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 4px 16px 18px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .bh-advanced-body > .bh-wide {
+    grid-column: 1 / -1;
+}
+
+.dashboard-page .bh-value-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dashboard-page .bh-value-row input[type="range"] {
+    flex: 1 1 auto;
+    min-width: 0;
+    accent-color: var(--control-accent);
+}
+
+.dashboard-page .bh-value-out {
+    min-width: 46px;
+    padding: 5px 9px;
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 7px;
+}
+
+
+/* ── Welcome menu ─────────────────────────────────────────────────────
+   A real ordered list: position is what the customer sees, so the number
+   carries meaning rather than decorating the row. */
+
+.dashboard-page .bh-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: bh-menu;
+}
+
+.dashboard-page .bh-menu-row {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    counter-increment: bh-menu;
+}
+
+.dashboard-page .bh-menu-row::before {
+    content: counter(bh-menu, decimal-leading-zero);
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.dashboard-page .bh-menu-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.dashboard-page .bh-menu-foot {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .bh-menu-note {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+
+/* ── Toggle rows ──────────────────────────────────────────────────── */
+
+.dashboard-page .bh-toggle {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .bh-toggle:first-of-type {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.dashboard-page .bh-toggle-name {
+    display: block;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.dashboard-page .bh-toggle-copy {
+    display: block;
+    margin-top: 3px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* Switch built from a real checkbox so it is keyboard- and AT-operable. */
+.dashboard-page .bh-switch {
+    position: relative;
+    width: 42px;
+    height: 24px;
+    flex: 0 0 auto;
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--control-border);
+    border-radius: 999px;
+    transition: background-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bh-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    background: var(--control-text);
+    border-radius: 50%;
+    transition: transform var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bh-switch:checked {
+    background: var(--control-accent);
+    border-color: var(--control-accent);
+}
+
+.dashboard-page .bh-switch:checked::after {
+    transform: translateX(18px);
+    background: #06120f;
+}
+
+
+/* ── Channel preview ──────────────────────────────────────────────────
+   The one place the studio spends its boldness: a real conversation, in
+   the customer's frame, updating as the operator edits. */
+
+.dashboard-page .bh-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 260px;
+    padding: 18px;
+    background: var(--control-sunken);
+}
+
+.dashboard-page .bh-bubble {
+    max-width: 82%;
+    padding: 10px 13px;
+    color: var(--control-text);
+    font-size: 13px;
+    line-height: 1.5;
+    border-radius: 12px;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+}
+
+.dashboard-page .bh-bubble-bot {
+    align-self: flex-start;
+    background: var(--control-raised);
+    border-bottom-left-radius: 4px;
+}
+
+.dashboard-page .bh-bubble-user {
+    align-self: flex-end;
+    background: var(--control-accent-subtle);
+    border: 1px solid rgba(62, 156, 137, 0.24);
+    border-bottom-right-radius: 4px;
+}
+
+.dashboard-page .bh-bubble-time {
+    display: block;
+    margin-top: 5px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+}
+
+.dashboard-page .bh-quick {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    align-self: flex-start;
+    width: 82%;
+    margin-top: 2px;
+}
+
+.dashboard-page .bh-quick span {
+    display: block;
+    width: 100%;
+    padding: 9px 12px;
+    color: var(--control-accent);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    text-align: center;
+    background: transparent;
+    border: 1px solid rgba(62, 156, 137, 0.34);
+    border-radius: 9px;
+}
+
+.dashboard-page .bh-preview-empty {
+    margin: auto;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    text-align: center;
+}
+
+/* Live reply buttons in the Test lab. Deliberately the same shape as the
+   .bh-quick chips in the Message experience preview, because they are the same
+   thing at two stages: there they are a mock-up, here they are the real
+   keyboard the channel would send, and tapping one sends that label. */
+.dashboard-page .bh-replies {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    align-self: flex-start;
+    width: 82%;
+    max-width: 320px;
+    margin-top: 2px;
+}
+
+.dashboard-page .bh-reply {
+    display: block;
+    width: 100%;
+    padding: 9px 12px;
+    color: var(--control-accent);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    text-align: center;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid rgba(62, 156, 137, 0.34);
+    border-radius: 9px;
+    transition:
+        background-color var(--motion-fast, 120ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1)),
+        border-color var(--motion-fast, 120ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bh-reply:hover:not(:disabled) {
+    background: rgba(62, 156, 137, 0.1);
+    border-color: rgba(62, 156, 137, 0.6);
+}
+
+.dashboard-page .bh-reply:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+/* Says what the customer does NOT get. Quiet, because it is a footnote to the
+   reply above it, not a warning about it. */
+.dashboard-page .bh-reply-note {
+    align-self: flex-start;
+    max-width: 82%;
+    margin-top: 2px;
+    color: var(--control-text-secondary);
+    font-size: 11.5px;
+    line-height: 1.45;
+    text-wrap: pretty;
+}
+
+
+/* ── Active setup strip ───────────────────────────────────────────────
+   Test Lab only. Answers "what am I actually testing?" before the first
+   message, because an undeployed bot answers from defaults and reads as
+   if it were configured. */
+
+.dashboard-page .bh-setup {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+.dashboard-page .bh-setup-item {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+    padding: 14px 16px;
+    border-left: 1px solid var(--control-border);
+}
+
+.dashboard-page .bh-setup-item:first-child {
+    border-left: 0;
+}
+
+.dashboard-page .bh-setup-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 50%;
+}
+
+.dashboard-page .bh-setup-item.is-ready .bh-setup-icon {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.4);
+}
+
+.dashboard-page .bh-setup-item.is-missing .bh-setup-icon {
+    color: var(--control-warning);
+    background: rgba(196, 121, 90, 0.12);
+    border-color: rgba(196, 121, 90, 0.4);
+}
+
+.dashboard-page .bh-setup-label {
+    display: block;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .bh-setup-value {
+    display: block;
+    margin-top: 3px;
+    color: var(--control-text);
+    font-size: 12.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .bh-setup-item.is-missing .bh-setup-value {
+    color: var(--control-warning);
+}
+
+
+/* ── Test conversation ────────────────────────────────────────────── */
+
+.dashboard-page .bh-chat {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 340px;
+    max-height: 52vh;
+    padding: 18px;
+    overflow-y: auto;
+}
+
+.dashboard-page .bh-composer {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .bh-composer-hint {
+    grid-column: 1 / -1;
+    color: var(--control-text-secondary);
+    font-size: 11.5px;
+}
+
+/* Scenario starters: one tap loads a realistic first message, so the
+   operator tests the cases that actually go wrong. */
+.dashboard-page .bh-scenarios {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dashboard-page .bh-scenario {
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 20px;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--control-border);
+    transition: background-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bh-scenario:last-child {
+    border-bottom: 0;
+}
+
+.dashboard-page .bh-scenario:hover {
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.dashboard-page .bh-scenario-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+}
+
+.dashboard-page .bh-scenario-name {
+    display: block;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.dashboard-page .bh-scenario-goal {
+    display: block;
+    margin-top: 3px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+/* Says which document the questions came out of, or why they are generic.
+   Collapses when there is nothing to say, so the list keeps its own spacing. */
+.dashboard-page .bh-scenarios-note {
+    padding: 12px 20px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+    border-bottom: 1px solid var(--control-border);
+    text-wrap: pretty;
+}
+
+.dashboard-page .bh-scenarios-note:empty {
+    display: none;
+}
+
+
+/* ── Footer bar ───────────────────────────────────────────────────── */
+
+.dashboard-page .bh-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+}
+
+.dashboard-page .bh-footer-note {
+    margin-right: auto;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    text-wrap: pretty;
+}
+
+
+/* ══ Responsive ══════════════════════════════════════════════════════ */
+
+@media (max-width: 1100px) {
+    .dashboard-page .bh-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .bh-setup {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dashboard-page .bh-setup-item:nth-child(odd) {
+        border-left: 0;
+    }
+
+    .dashboard-page .bh-setup-item:nth-child(-n+2) {
+        border-bottom: 1px solid var(--control-border);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-page .main-container {
+        padding: 20px max(16px, env(safe-area-inset-right))
+                 calc(88px + env(safe-area-inset-bottom))
+                 max(16px, env(safe-area-inset-left));
+    }
+
+    .dashboard-page .bh-header-aside {
+        margin-top: 0;
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .dashboard-page .bh-title {
+        font-size: 20px;
+    }
+
+    /* Stacked, because three side-by-side cards at 390px leave no room for
+       the sentence that makes each one choosable. */
+    .dashboard-page .bh-styles {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .bh-advanced-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .bh-setup {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .bh-setup-item,
+    .dashboard-page .bh-setup-item:nth-child(odd) {
+        border-left: 0;
+        border-top: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .bh-setup-item:first-child {
+        border-top: 0;
+    }
+
+    .dashboard-page .bh-setup-item:nth-child(-n+2) {
+        border-bottom: 0;
+    }
+
+    .dashboard-page .bh-tab {
+        flex: 0 0 auto;
+        padding: 0 14px;
+        font-size: 12.5px;
+    }
+
+    .dashboard-page .bh-chat {
+        max-height: none;
+    }
+
+    /* One save, always reachable — the studio's single commit point. */
+    .dashboard-page .bh-footer {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 40;
+        gap: 10px;
+        padding: 12px max(12px, env(safe-area-inset-left))
+                 calc(12px + env(safe-area-inset-bottom))
+                 max(12px, env(safe-area-inset-right));
+        background: var(--control-panel);
+        border-top: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .bh-footer-note {
+        display: none;
+    }
+
+    .dashboard-page .bh-footer .kw-btn {
+        flex: 1 1 0;
+        min-height: 46px;
+    }
+}
+
+
+/* ── Readiness rows ───────────────────────────────────────────────────
+   The Current setup list on the Model tab. Deliberately not borrowed from
+   bot-config.css: that file belongs to another page and is not loaded here,
+   so reusing its class names produced unstyled rows. */
+
+.dashboard-page .bh-readiness {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dashboard-page .bh-ready-row {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .bh-ready-row:last-child {
+    border-bottom: 0;
+}
+
+.dashboard-page .bh-ready-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+}
+
+.dashboard-page .bh-ready-body {
+    min-width: 0;
+}
+
+.dashboard-page .bh-ready-name {
+    display: block;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.dashboard-page .bh-ready-value {
+    display: block;
+    margin-top: 3px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+
+/* ── Banners ──────────────────────────────────────────────────────── */
+
+.dashboard-page .bh-banner {
+    display: block;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    border-radius: 9px;
+    text-wrap: pretty;
+}
+
+.dashboard-page .bh-banner:empty,
+.dashboard-page .bh-banner[hidden] {
+    display: none;
+}
+
+.dashboard-page .bh-banner-error {
+    color: #e39a8d;
+    background: rgba(166, 86, 72, 0.12);
+    border: 1px solid rgba(166, 86, 72, 0.3);
+}
+
+.dashboard-page .bh-banner-success {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border: 1px solid rgba(62, 156, 137, 0.3);
+}

@@ -135,16 +135,18 @@ function expectInsideViewport(rect, viewport) {
   expect(rect.bottom).toBeLessThanOrEqual(viewport.height);
 }
 
-async function datePillReadability(page) {
-  return page.locator("#dashboard-date-pill").evaluate(pill => {
-    const text = pill.querySelector("#date-display");
+// The dashboard header no longer carries a standalone date pill; the
+// timestamp lives inline in the status line under the bot name, alongside the
+// Bot settings trigger. The readability and collision rules are unchanged.
+async function dateReadability(page) {
+  return page.locator(".dash-statusline").evaluate(line => {
+    const text = line.querySelector("#date-display");
     const textRect = text.getBoundingClientRect();
     return {
-      width: pill.getBoundingClientRect().width,
-      clientWidth: pill.clientWidth,
-      scrollWidth: pill.scrollWidth,
+      width: line.getBoundingClientRect().width,
+      clientWidth: line.clientWidth,
+      scrollWidth: line.scrollWidth,
       textWidth: textRect.width,
-      textHeight: textRect.height,
       lineCount: text.getClientRects().length,
       text: text.textContent
     };
@@ -152,8 +154,7 @@ async function datePillReadability(page) {
 }
 
 function expectReadableDate(metrics, width) {
-  expect(metrics.width, `date pill is too narrow to read at ${width}px`).toBeGreaterThanOrEqual(90);
-  expect(metrics.scrollWidth, `date text is clipped at ${width}px`).toBeLessThanOrEqual(metrics.clientWidth + 1);
+  expect(metrics.scrollWidth, `status line is clipped at ${width}px`).toBeLessThanOrEqual(metrics.clientWidth + 1);
   expect(metrics.textWidth, `date text collapsed into one-character lines at ${width}px`).toBeGreaterThanOrEqual(70);
   expect(metrics.lineCount, `date text wraps too aggressively at ${width}px`).toBeLessThanOrEqual(2);
   expect(metrics.text, `date text is empty at ${width}px`).toMatch(/\S/);
@@ -231,49 +232,53 @@ test.describe("tenant account menu shared placement", () => {
     expect(rect.right).toBeLessThanOrEqual(390);
   });
 
-  test("dashboard date pill and account menu do not overlap across responsive widths", async ({ page }) => {
+  test("dashboard header and account menu do not overlap across responsive widths", async ({ page }) => {
     for (const width of [1440, 1280, 1024, 768, 390, 320]) {
       const height = width <= 390 ? 760 : 720;
       await page.setViewportSize({ width, height });
       await openTenantPage(page, "/index.html?bot_id=42");
-      await expect(page.getByRole("heading", { name: /Dashboard/ })).toBeVisible();
-      await expect(page.locator("#dashboard-date-pill")).toBeVisible();
+      await expect(page.locator("#dashboard-title")).toBeVisible();
+      await expect(page.locator(".dash-statusline")).toBeVisible();
 
       const viewport = page.viewportSize();
       const accountButton = await accountButtonRect(page);
-      const datePill = await elementRect(page, "#dashboard-date-pill");
+      const statusline = await elementRect(page, ".dash-statusline");
       const title = await elementRect(page, "#dashboard-title");
-      const subtitle = await elementRect(page, "#dashboard-subtitle");
-      const dateMetrics = await datePillReadability(page);
-      const subtitleToDateGap = datePill.top - subtitle.bottom;
-      const titleToDateOffset = datePill.top - title.top;
+      // The Bot settings trigger sits at the header's right edge, which is
+      // exactly where the fixed account chip lands — the collision this test
+      // exists to catch.
+      const settings = await elementRect(page, "#dash-menu-trigger");
+      const dateMetrics = await dateReadability(page);
+      const titleToStatusGap = statusline.top - title.bottom;
 
       expectInsideViewport(accountButton, viewport);
-      expectInsideViewport(datePill, viewport);
+      expectInsideViewport(statusline, viewport);
       expectInsideViewport(title, viewport);
-      expectInsideViewport(subtitle, viewport);
-      expect(subtitleToDateGap, `date pill has excessive subtitle gap at ${width}px`).toBeGreaterThanOrEqual(0);
-      expect(subtitleToDateGap, `date pill has excessive subtitle gap at ${width}px`).toBeLessThanOrEqual(48);
-      expect(titleToDateOffset, `date pill is displaced too far from dashboard title at ${width}px`).toBeLessThanOrEqual(180);
+      expectInsideViewport(settings, viewport);
+      expect(titleToStatusGap, `status line drifts from the title at ${width}px`).toBeGreaterThanOrEqual(0);
+      expect(titleToStatusGap, `status line drifts from the title at ${width}px`).toBeLessThanOrEqual(48);
       expectReadableDate(dateMetrics, width);
-      expect(intersects(accountButton, datePill), `closed account button overlaps date pill at ${width}px`).toBe(false);
+      expect(intersects(accountButton, statusline), `closed account button overlaps status line at ${width}px`).toBe(false);
+      expect(intersects(accountButton, settings), `closed account button overlaps Bot settings at ${width}px`).toBe(false);
 
       await openAccountMenu(page);
       const accountMenu = await accountMenuRect(page);
-      const openDatePill = await elementRect(page, "#dashboard-date-pill");
+      const openStatusline = await elementRect(page, ".dash-statusline");
       const openTitle = await elementRect(page, "#dashboard-title");
-      const openSubtitle = await elementRect(page, "#dashboard-subtitle");
-      const openDateMetrics = await datePillReadability(page);
+      const openDateMetrics = await dateReadability(page);
       expectInsideViewport(accountMenu, viewport);
-      expectInsideViewport(openDatePill, viewport);
+      expectInsideViewport(openStatusline, viewport);
       expectInsideViewport(openTitle, viewport);
-      expectInsideViewport(openSubtitle, viewport);
       expectReadableDate(openDateMetrics, width);
-      expect(intersects(accountMenu, openDatePill), `open account menu overlaps date pill at ${width}px`).toBe(false);
+      // The open dropdown is allowed to cover the Bot settings trigger beside
+      // it — that is what a dropdown does, and closing it restores access. It
+      // must never cover page content, which is the rule asserted here.
+      expect(intersects(accountMenu, openStatusline), `open account menu overlaps status line at ${width}px`).toBe(false);
+      expect(intersects(accountMenu, openTitle), `open account menu overlaps the bot name at ${width}px`).toBe(false);
       await page.keyboard.press("Escape");
-      const closedAgainDatePill = await elementRect(page, "#dashboard-date-pill");
-      const closedAgainSubtitle = await elementRect(page, "#dashboard-subtitle");
-      const closedAgainGap = closedAgainDatePill.top - closedAgainSubtitle.bottom;
+      const closedAgainStatusline = await elementRect(page, ".dash-statusline");
+      const closedAgainTitle = await elementRect(page, "#dashboard-title");
+      const closedAgainGap = closedAgainStatusline.top - closedAgainTitle.bottom;
       expect(closedAgainGap, `header stays displaced after menu closes at ${width}px`).toBeGreaterThanOrEqual(0);
       expect(closedAgainGap, `header stays displaced after menu closes at ${width}px`).toBeLessThanOrEqual(48);
 

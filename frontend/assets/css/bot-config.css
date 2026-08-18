@@ -1,0 +1,714 @@
+/* ══════════════════════════════════════════════════════════════════════
+   BOT CONFIGURATION
+   Components for frontend/new_prompt.html. Namespaced `bc-` under
+   `.dashboard-page`, matching the containment rule used by `kw-` in
+   dashboard-control-room.css and `dash-` in dashboard-overview.css.
+
+   Panels, buttons, pills, inputs, step marks and the locked/readiness
+   blocks all come from dashboard-control-room.css. This file only adds the
+   wizard rail, the profile library rows and the deploy gate.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.dashboard-page .bc-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+.dashboard-page .bc-page :focus-visible {
+    outline: 2px solid var(--control-accent-hover);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.dashboard-page .bc-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+
+/* ── Header ───────────────────────────────────────────────────────── */
+
+.dashboard-page .bc-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .bc-title {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+}
+
+.dashboard-page .bc-title-sep {
+    color: var(--control-text-secondary);
+    font-weight: 400;
+}
+
+.dashboard-page .bc-title-bot {
+    color: var(--control-accent);
+}
+
+.dashboard-page .bc-subtitle {
+    margin-top: 8px;
+    color: var(--control-text-secondary);
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.dashboard-page .bc-header-aside {
+    /* shared-ui.js pins the account chip at fixed top:24px/right:32px. */
+    margin-top: 44px;
+    flex: 0 0 auto;
+}
+
+
+/* ── Wizard rail ──────────────────────────────────────────────────────
+   Four ordered steps. The mark reuses .kw-step-mark; only the horizontal
+   rule between steps and the locked state are added here. */
+
+.dashboard-page .bc-wizard {
+    padding: 20px 24px;
+}
+
+.dashboard-page .bc-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dashboard-page .bc-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 12px;
+    min-width: 0;
+    padding-right: 20px;
+}
+
+.dashboard-page .bc-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 16px;
+    left: 44px;
+    right: 8px;
+    height: 1px;
+    background: var(--control-border);
+}
+
+/* A dashed rule marks the boundary the user has not crossed yet, so the
+   rail reads as "you are here" rather than a plain divider. */
+.dashboard-page .bc-step.is-current:not(:last-child)::after {
+    background: none;
+    border-top: 1px dashed rgba(62, 156, 137, 0.5);
+}
+
+.dashboard-page .bc-step .kw-step-mark {
+    position: relative;
+    z-index: 1;
+    width: 32px;
+    height: 32px;
+}
+
+.dashboard-page .bc-step.is-locked .kw-step-mark {
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+}
+
+.dashboard-page .bc-step-body {
+    min-width: 0;
+    padding-top: 3px;
+}
+
+.dashboard-page .bc-step-name {
+    display: block;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.dashboard-page .bc-step.is-locked .bc-step-name {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .bc-step-note {
+    display: block;
+    margin-top: 5px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+    text-wrap: pretty;
+}
+
+.dashboard-page .bc-step.is-done .bc-step-note {
+    color: var(--control-accent);
+}
+
+.dashboard-page .bc-wizard-count {
+    margin-top: 16px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+.dashboard-page .bc-wizard-count b {
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+
+/* ── Body grid ────────────────────────────────────────────────────── */
+
+.dashboard-page .bc-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+}
+
+.dashboard-page .bc-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+.dashboard-page .bc-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .bc-panel-head h2 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.dashboard-page .bc-panel-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+
+/* ── Profile library ──────────────────────────────────────────────────
+   A radio group, not a <select>: the mockup compares three profiles at a
+   glance, and choosing one is the page's primary decision. The whole row
+   is the label so there is no dead zone beside the control. */
+
+.dashboard-page .bc-profiles {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.dashboard-page .bc-profiles-head {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .bc-profile-row {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 2fr) minmax(0, 1.4fr) minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    min-height: 54px;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--control-border);
+    transition: background-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bc-profile-row:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dashboard-page .bc-profile-row.is-selected {
+    background: var(--control-raised);
+}
+
+.dashboard-page .bc-profile-row:focus-within {
+    outline: 2px solid var(--control-accent-hover);
+    outline-offset: -2px;
+}
+
+.dashboard-page .bc-profile-row input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--control-accent);
+    cursor: pointer;
+}
+
+.dashboard-page .bc-profile-name {
+    min-width: 0;
+    color: var(--control-text);
+    font-size: 13.5px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .bc-profile-tone,
+.dashboard-page .bc-profile-date {
+    min-width: 0;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .bc-profile-date {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-size: 11.5px;
+}
+
+
+/* ── Preview ──────────────────────────────────────────────────────── */
+
+.dashboard-page .bc-preview {
+    padding: 18px 20px;
+}
+
+.dashboard-page .bc-preview-title {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.dashboard-page .bc-preview-flag {
+    color: var(--control-warning);
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.dashboard-page .bc-preview-flag.is-active {
+    color: var(--control-accent);
+}
+
+.dashboard-page .bc-deflist {
+    display: grid;
+    grid-template-columns: minmax(0, 200px) minmax(0, 1fr);
+    margin: 0;
+}
+
+.dashboard-page .bc-deflist dt {
+    padding: 10px 12px 10px 0;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .bc-deflist dd {
+    margin: 0;
+    padding: 10px 0;
+    color: var(--control-text);
+    font-size: 12.5px;
+    line-height: 1.55;
+    border-top: 1px solid var(--control-border);
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+}
+
+.dashboard-page .bc-deflist dt:first-of-type,
+.dashboard-page .bc-deflist dd:first-of-type {
+    border-top: 0;
+}
+
+
+/* ── Setup readiness ──────────────────────────────────────────────── */
+
+.dashboard-page .bc-readiness {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dashboard-page .bc-ready-row {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .bc-ready-row:last-child {
+    border-bottom: 0;
+}
+
+.dashboard-page .bc-ready-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+}
+
+.dashboard-page .bc-ready-body {
+    min-width: 0;
+}
+
+.dashboard-page .bc-ready-name {
+    display: block;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.dashboard-page .bc-ready-value {
+    display: block;
+    margin-top: 3px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .bc-ready-link {
+    color: var(--control-accent);
+    font-size: 12.5px;
+    text-decoration: none;
+    white-space: nowrap;
+    border-bottom: 1px solid transparent;
+    transition: border-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .bc-ready-link:hover {
+    border-bottom-color: currentColor;
+}
+
+
+/* ── Validation + deploy gates ────────────────────────────────────── */
+
+.dashboard-page .bc-gate {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 20px;
+}
+
+.dashboard-page .bc-gate-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    color: var(--control-warning);
+    background: rgba(196, 121, 90, 0.12);
+    border: 1px solid rgba(196, 121, 90, 0.3);
+    border-radius: 9px;
+}
+
+.dashboard-page .bc-gate.is-passed .bc-gate-icon {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.4);
+}
+
+.dashboard-page .bc-gate.is-locked .bc-gate-icon {
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+    border-color: var(--control-border);
+}
+
+.dashboard-page .bc-gate-body {
+    min-width: 0;
+}
+
+.dashboard-page .bc-gate-body h2 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.dashboard-page .bc-gate-body p {
+    margin-top: 4px;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    line-height: 1.55;
+    text-wrap: pretty;
+}
+
+/* The model's explanation for a failed check. Warning-toned because it is
+   always actionable — it names what the user has to change. */
+.dashboard-page .bc-gate-reason {
+    margin-top: 10px;
+    padding: 10px 12px;
+    color: var(--control-warning);
+    font-size: 12.5px;
+    line-height: 1.5;
+    background: rgba(196, 121, 90, 0.1);
+    border: 1px solid rgba(196, 121, 90, 0.26);
+    border-radius: 8px;
+    text-wrap: pretty;
+}
+
+.dashboard-page .bc-gate-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .bc-gate-status {
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    text-align: right;
+}
+
+.dashboard-page .bc-gate-status.is-error {
+    color: #cf8578;
+}
+
+.dashboard-page .bc-gate-status.is-passed {
+    color: var(--control-accent);
+}
+
+
+/* ── Modal ────────────────────────────────────────────────────────────
+   Reuses .kw-modal from dashboard-control-room.css; only the form grid is
+   added here. */
+
+.dashboard-page .bc-form {
+    display: grid;
+    gap: 16px;
+}
+
+.dashboard-page .bc-form-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.dashboard-page .bc-banner {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    border-radius: 9px;
+}
+
+.dashboard-page .bc-banner-error {
+    color: #e39a8d;
+    background: rgba(166, 86, 72, 0.12);
+    border: 1px solid rgba(166, 86, 72, 0.3);
+}
+
+.dashboard-page .bc-banner-success {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border: 1px solid rgba(62, 156, 137, 0.3);
+}
+
+.dashboard-page .bc-banner:empty {
+    display: none;
+}
+
+
+/* ══ Responsive ═══════════════════════════════════════════════════════
+   The phone layout follows mockup 4: the rail compresses to marks plus a
+   count, profile rows lose their columns, and the two gates move into a
+   sticky action bar so the primary decision is always reachable. */
+
+@media (max-width: 1100px) {
+    .dashboard-page .bc-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-page .main-container {
+        padding: 20px max(16px, env(safe-area-inset-right))
+                 calc(96px + env(safe-area-inset-bottom))
+                 max(16px, env(safe-area-inset-left));
+    }
+
+    .dashboard-page .bc-header-aside {
+        margin-top: 0;
+    }
+
+    .dashboard-page .bc-title {
+        font-size: 20px;
+    }
+
+    .dashboard-page .bc-wizard {
+        padding: 16px;
+    }
+
+    /* Marks stay in a row so progress is still legible; the notes drop,
+       since the count below says the same thing in less space. */
+    .dashboard-page .bc-step {
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: center;
+        gap: 8px;
+        padding-right: 0;
+        text-align: center;
+    }
+
+    .dashboard-page .bc-step:not(:last-child)::after {
+        top: 16px;
+        left: calc(50% + 22px);
+        right: calc(-50% + 22px);
+    }
+
+    .dashboard-page .bc-step-name {
+        font-size: 11.5px;
+    }
+
+    .dashboard-page .bc-step-note {
+        display: none;
+    }
+
+    .dashboard-page .bc-wizard-count {
+        margin-top: 14px;
+        text-align: center;
+    }
+
+    /* Tone and date are desktop affordances; the phone row keeps the name
+       and the active flag, which is what the choice actually turns on. */
+    .dashboard-page .bc-profiles-head {
+        display: none;
+    }
+
+    .dashboard-page .bc-profile-row {
+        grid-template-columns: 20px minmax(0, 1fr) auto;
+        min-height: 60px;
+    }
+
+    .dashboard-page .bc-profile-tone,
+    .dashboard-page .bc-profile-date {
+        display: none;
+    }
+
+    .dashboard-page .bc-deflist {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .bc-deflist dt {
+        padding-bottom: 0;
+        border-top: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .bc-deflist dd {
+        padding-top: 4px;
+        border-top: 0;
+    }
+
+    .dashboard-page .bc-ready-row {
+        grid-template-columns: 26px minmax(0, 1fr) auto;
+        row-gap: 8px;
+        padding: 12px 16px;
+    }
+
+    .dashboard-page .bc-ready-link {
+        grid-column: 2 / -1;
+        text-align: right;
+    }
+
+    .dashboard-page .bc-gate {
+        grid-template-columns: 32px minmax(0, 1fr);
+        row-gap: 12px;
+        padding: 16px;
+    }
+
+    .dashboard-page .bc-gate-actions,
+    .dashboard-page .bc-gate-status {
+        grid-column: 1 / -1;
+        text-align: left;
+    }
+
+    .dashboard-page .bc-form-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Sticky action bar — the phone mockup's bottom pair. */
+    .dashboard-page .bc-actionbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 40;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        padding: 12px max(12px, env(safe-area-inset-left))
+                 calc(12px + env(safe-area-inset-bottom))
+                 max(12px, env(safe-area-inset-right));
+        background: var(--control-panel);
+        border-top: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .bc-actionbar .kw-btn {
+        min-height: 46px;
+    }
+}
+
+/* Desktop keeps the gates inline; the sticky bar is phone-only. */
+@media (min-width: 769px) {
+    .dashboard-page .bc-actionbar {
+        display: none;
+    }
+}

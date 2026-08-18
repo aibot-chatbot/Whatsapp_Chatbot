@@ -1,1518 +1,1100 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="color-scheme: dark">
 
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Bot Configuration | AI CHATBOT</title>
+    <meta name="theme-color" content="#0e0f11">
 
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/bot-config.css">
+
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
-    <script>requireLogin();requireAdminOrOwner();</script>
+    <script>requireLogin(); requireAdminOrOwner();</script>
     <script src="sidebar-component.js"></script>
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-glow: rgba(59, 130, 246, 0.5);
-            --bg: #050b18;
-            --sidebar-bg: rgba(15, 23, 42, 0.82);
-            --card-bg: rgba(30, 41, 59, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --accent: #10b981;
-            --error: #ef4444;
-            --warning: #f59e0b;
-            --input-bg: rgba(15, 23, 42, 0.72);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.10) 0%, transparent 50%);
-            color: var(--text-main);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        #root {
-            display: flex;
-            width: 100%;
-            min-height: 100vh;
-        }
-
-
-        .nav-list {
-            list-style: none;
-            flex-grow: 1;
-        }
-
-        .nav-item {
-            margin-bottom: 8px;
-        }
-
-        .nav-link {
-            text-decoration: none;
-            color: var(--text-dim);
-            padding: 12px 16px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-weight: 500;
-        }
-
-        .nav-link:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
-            transform: translateX(5px);
-        }
-
-        .nav-link.active {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 20px var(--primary-glow);
-        }
-
-        .dropdown-container {
-            margin-bottom: 8px;
-        }
-
-        .dropdown-toggle {
-            width: 100%;
-            justify-content: space-between;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            text-align: left;
-        }
-
-        .dropdown-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: all 0.3s ease-in-out;
-            padding-left: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .dropdown-container.open .dropdown-content {
-            max-height: 500px;
-            margin-top: 8px;
-            padding-bottom: 8px;
-        }
-
-        .chevron {
-            transition: transform 0.3s;
-            opacity: 0.5;
-        }
-
-        .dropdown-container.open .chevron {
-            transform: rotate(180deg);
-            opacity: 1;
-        }
-
-        .sub-link {
-            font-size: 0.9rem;
-            padding: 10px 16px;
-        }
-
-        .logout-btn {
-            margin-top: auto;
-            color: #ef4444;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            text-decoration: none;
-            font-weight: 600;
-            border-radius: 12px;
-            transition: background 0.3s;
-        }
-
-        .logout-btn:hover {
-            background: rgba(239, 68, 68, 0.1);
-        }
-
-        .main-container {
-            flex: 1;
-            padding: 50px 60px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            margin-bottom: 32px;
-        }
-
-        .header h1 {
-            font-size: 2.2rem;
-            font-weight: 700;
-            letter-spacing: -1px;
-        }
-
-        .header p {
-            color: var(--text-dim);
-            margin-top: 8px;
-            font-size: 0.98rem;
-        }
-
-        .section-card {
-            background: var(--card-bg);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 24px;
-            margin-bottom: 20px;
-        }
-
-        .section-title {
-            font-size: 1.08rem;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-
-        .section-subtitle {
-            font-size: 0.9rem;
-            color: var(--text-dim);
-            margin-bottom: 16px;
-            line-height: 1.5;
-        }
-
-        .context-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-            margin-bottom: 16px;
-        }
-
-        .context-item,
-        .preview-card {
-            background: rgba(15, 23, 42, 0.55);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 16px;
-        }
-
-        .context-item {
-            min-height: 88px;
-        }
-
-        .context-label,
-        .preview-label {
-            font-size: 0.78rem;
-            color: var(--text-dim);
-            margin-bottom: 8px;
-        }
-
-        .context-value,
-        .preview-value {
-            font-size: 0.98rem;
-            font-weight: 600;
-            line-height: 1.45;
-            word-break: break-all;
-            overflow-wrap: anywhere;
-        }
-
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            border-radius: 999px;
-            padding: 8px 12px;
-            font-size: 13px;
-            font-weight: 600;
-            border: 1px solid transparent;
-        }
-
-        .status-neutral {
-            background: rgba(148, 163, 184, 0.12);
-            color: #cbd5e1;
-            border-color: rgba(148, 163, 184, 0.2);
-        }
-
-        .status-success {
-            background: rgba(16, 185, 129, 0.12);
-            color: #86efac;
-            border-color: rgba(16, 185, 129, 0.25);
-        }
-
-        .status-error {
-            background: rgba(239, 68, 68, 0.12);
-            color: #fca5a5;
-            border-color: rgba(239, 68, 68, 0.25);
-        }
-
-        .status-warning {
-            background: rgba(245, 158, 11, 0.12);
-            color: #fcd34d;
-            border-color: rgba(245, 158, 11, 0.25);
-        }
-
-        .match-result-box {
-            margin-top: 14px;
-            padding: 14px;
-            border-radius: 14px;
-            text-align: left;
-            font-size: 13px;
-            line-height: 1.55;
-            border: 1px solid transparent;
-        }
-
-        .match-result-box.success {
-            background: rgba(16, 185, 129, 0.08);
-            border-color: rgba(16, 185, 129, 0.35);
-            color: #86efac;
-        }
-
-        .match-result-box.error {
-            background: rgba(239, 68, 68, 0.08);
-            border-color: rgba(239, 68, 68, 0.35);
-            color: #fca5a5;
-        }
-
-        .match-result-box.warning {
-            background: rgba(245, 158, 11, 0.08);
-            border-color: rgba(245, 158, 11, 0.35);
-            color: #fcd34d;
-        }
-
-        .match-result-title {
-            font-size: 13px;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-
-        .field-group {
-            text-align: left;
-        }
-
-        label {
-            display: block;
-            font-size: 0.84rem;
-            color: var(--text-dim);
-            margin-bottom: 8px;
-            font-weight: 600;
-        }
-
-        input,
-        select,
-        textarea {
-            width: 100%;
-            background: var(--input-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 14px;
-            padding: 14px 16px;
-            color: white;
-            font-size: 0.96rem;
-            outline: none;
-            transition: all 0.25s ease;
-        }
-
-        input:focus,
-        select:focus,
-        textarea:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
-            background: rgba(15, 23, 42, 0.82);
-        }
-
-        textarea {
-            resize: vertical;
-            min-height: 110px;
-        }
-
-        .form-grid {
-            display: grid;
-            gap: 16px;
-        }
-
-        .field-row {
-            display: grid;
-            grid-template-columns: 1fr auto auto;
-            gap: 10px;
-            align-items: end;
-        }
-
-        .preview-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-        }
-
-        .preview-full {
-            grid-column: 1 / -1;
-        }
-
-        .btn-primary,
-        .btn-secondary,
-        .btn-danger,
-        .inline-btn {
-            padding: 12px 14px;
-            border-radius: 14px;
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.2s ease, transform 0.1s ease, opacity 0.2s ease;
-            min-height: 50px;
-        }
-
-        .btn-primary {
-            border: none;
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 15px var(--primary-glow);
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            background: #2563eb;
-        }
-
-        .btn-secondary,
-        .inline-btn {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
-            border: 1px solid var(--glass-border);
-        }
-
-        .btn-secondary:hover:not(:disabled),
-        .inline-btn:hover:not(:disabled) {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-danger {
-            background: rgba(239, 68, 68, 0.08);
-            color: #fca5a5;
-            border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-
-        .btn-primary:active:not(:disabled),
-        .btn-secondary:active:not(:disabled),
-        .btn-danger:active:not(:disabled),
-        .inline-btn:active:not(:disabled) {
-            transform: scale(0.98);
-        }
-
-        .btn-primary:disabled,
-        .btn-secondary:disabled,
-        .btn-danger:disabled,
-        .inline-btn:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-        }
-
-        .button-stack {
-            display: flex;
-            gap: 12px;
-            margin-top: 8px;
-            flex-wrap: wrap;
-        }
-
-        .button-stack .btn-primary,
-        .button-stack .btn-secondary,
-        .button-stack .btn-danger {
-            width: auto;
-            min-width: 210px;
-        }
-
-        .status-message {
-            margin-top: 16px;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .status-message.success {
-            color: var(--accent);
-        }
-
-        .status-message.error {
-            color: var(--error);
-        }
-
-        .mode-badge {
-            display: inline-block;
-            padding: 7px 11px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 700;
-            background: rgba(59, 130, 246, 0.12);
-            color: #93c5fd;
-            border: 1px solid rgba(59, 130, 246, 0.25);
-            margin-bottom: 10px;
-        }
-
-        .empty-preview {
-            color: var(--text-dim);
-            font-size: 14px;
-            padding: 6px 0;
-        }
-
-        .row-actions {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            flex-wrap: wrap;
-        }
-
-        @media (max-width: 1100px) {
-            #root {
-                flex-direction: column;
-            }
-
-            .main-container {
-                padding: 28px 20px;
-            }
-        }
-
-        @media (max-width: 700px) {
-
-            .context-grid,
-            .preview-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .field-row {
-                grid-template-columns: 1fr;
-            }
-
-            .button-stack {
-                flex-direction: column;
-            }
-
-            .button-stack .btn-primary,
-            .button-stack .btn-secondary,
-            .button-stack .btn-danger {
-                min-width: 100%;
-            }
-
-            .header h1 {
-                font-size: 1.9rem;
-            }
-        }
-
-        /* Modal Overlay */
-        .modal-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(8px);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-        }
-
-        .modal-overlay.open {
-            display: flex;
-        }
-
-        /* Modal Content Box */
-        .modal-content {
-            background: #0f172a;
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            width: 90%;
-            max-width: 700px;
-            max-height: 90vh;
-            overflow-y: auto;
-            padding: 30px;
-            position: relative;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-        }
-
-        .close-modal {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            background: transparent;
-            border: none;
-            color: var(--text-dim);
-            font-size: 24px;
-            cursor: pointer;
-        }
-    </style>
+    <script src="assets/js/control-room-motion.js" defer></script>
 </head>
 
-<body>
-    <div id="root"></div>
+<body class="dashboard-page">
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container bc-page">
+        <header class="bc-header cr-reveal">
+            <div>
+                <h1 class="bc-title">
+                    Bot configuration
+                    <span class="bc-title-sep" aria-hidden="true">/</span>
+                    <span class="bc-title-bot" id="bc-bot-name">&hellip;</span>
+                </h1>
+                <p class="bc-subtitle">Configure knowledge, behaviour and deployment settings for your bot.</p>
+            </div>
+            <div class="bc-header-aside">
+                <a class="kw-btn cr-press" id="bc-dashboard-link" href="index.html">
+                    View Bot Dashboard
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+                </a>
+            </div>
+        </header>
+
+        <!-- Wizard rail: Profile -> Knowledge -> Validate -> Deploy.
+             Each step maps to one existing endpoint; see the JS below. -->
+        <section class="kw-panel bc-wizard cr-reveal" aria-labelledby="bc-wizard-title">
+            <h2 class="bc-visually-hidden" id="bc-wizard-title">Setup progress</h2>
+            <ol class="bc-steps" id="bc-steps">
+                <li class="bc-step" data-step="profile">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="bc-step-body">
+                        <span class="bc-step-name">1. Profile</span>
+                        <span class="bc-step-note">Checking&hellip;</span>
+                    </span>
+                </li>
+                <li class="bc-step" data-step="knowledge">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="bc-step-body">
+                        <span class="bc-step-name">2. Knowledge</span>
+                        <span class="bc-step-note">Checking&hellip;</span>
+                    </span>
+                </li>
+                <li class="bc-step" data-step="validate">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="bc-step-body">
+                        <span class="bc-step-name">3. Validate</span>
+                        <span class="bc-step-note">Checking&hellip;</span>
+                    </span>
+                </li>
+                <li class="bc-step" data-step="deploy">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="bc-step-body">
+                        <span class="bc-step-name">4. Deploy</span>
+                        <span class="bc-step-note">Checking&hellip;</span>
+                    </span>
+                </li>
+            </ol>
+            <p class="bc-wizard-count" role="status"><b id="bc-ready-count">0</b> of 4 ready</p>
+        </section>
+
+        <p class="bc-banner" id="bc-page-banner" role="status" aria-live="polite"></p>
+
+        <div class="bc-grid">
+            <div class="bc-col">
+                <section class="kw-panel cr-reveal" aria-labelledby="bc-library-title">
+                    <div class="bc-panel-head">
+                        <h2 id="bc-library-title">Profile library</h2>
+                        <div class="bc-panel-actions">
+                            <button type="button" class="kw-btn cr-press" id="bc-create">
+                                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                                Create profile
+                            </button>
+                            <button type="button" class="kw-btn cr-press" id="bc-edit" disabled>
+                                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                Edit profile
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bc-profiles-head" aria-hidden="true">
+                        <span></span>
+                        <span>Profile name</span>
+                        <span>Tone</span>
+                        <span>Last updated</span>
+                        <span></span>
+                    </div>
+
+                    <fieldset class="bc-profiles" id="bc-profiles">
+                        <legend class="bc-visually-hidden">Choose the profile this bot answers with</legend>
+                    </fieldset>
+
+                    <div class="bc-preview" id="bc-preview"></div>
+                </section>
+            </div>
+
+            <div class="bc-col">
+                <section class="kw-panel cr-reveal" aria-labelledby="bc-readiness-title">
+                    <div class="bc-panel-head">
+                        <h2 id="bc-readiness-title">Setup readiness</h2>
+                    </div>
+                    <ul class="bc-readiness" id="bc-readiness"></ul>
+                </section>
+            </div>
+        </div>
+
+        <!-- Step 3. POST /api/match/check compares the active profile against
+             the active primary knowledge. -->
+        <section class="kw-panel bc-gate cr-reveal" id="bc-validate-gate" aria-labelledby="bc-validate-title">
+            <span class="bc-gate-icon" aria-hidden="true">
+                <svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6Z"/></svg>
+            </span>
+            <div class="bc-gate-body">
+                <h2 id="bc-validate-title">Validation checkpoint</h2>
+                <p>Validation checks your active profile against the active primary knowledge to help ensure accurate and reliable responses. It runs on its own when either one changes.</p>
+                <p class="bc-gate-reason" id="bc-validate-reason" hidden></p>
+            </div>
+            <div class="bc-gate-actions">
+                <button type="button" class="kw-btn cr-press" id="bc-validate">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6Z"/></svg>
+                    <span id="bc-validate-label">Validate setup</span>
+                </button>
+                <span class="bc-gate-status" id="bc-validate-status">Not validated yet.</span>
+            </div>
+        </section>
+
+        <!-- Step 4. PUT /api/settings/apply-profile. The button stays disabled
+             until validation passes, so the rule the backend enforces is
+             visible before the click rather than only after it. -->
+        <section class="kw-panel bc-gate is-locked cr-reveal" id="bc-deploy-gate" aria-labelledby="bc-deploy-title">
+            <span class="bc-gate-icon" aria-hidden="true">
+                <svg class="dashboard-icon" viewBox="0 0 24 24" id="bc-deploy-icon">
+                    <rect x="4" y="11" width="16" height="10" rx="2"/>
+                    <path id="bc-deploy-shackle" d="M8 11V7a4 4 0 0 1 8 0v4"/>
+                </svg>
+            </span>
+            <div class="bc-gate-body">
+                <h2 id="bc-deploy-title">Deploy to live bot</h2>
+                <p id="bc-deploy-copy">Validate setup before deploying.</p>
+            </div>
+            <div class="bc-gate-actions">
+                <button type="button" class="kw-btn kw-btn-primary cr-press" id="bc-deploy" disabled>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                    Deploy to live bot
+                </button>
+                <a class="kw-btn cr-press" id="bc-testbot" href="testbot.html">
+                    Open Test Bot
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
+                </a>
+            </div>
+        </section>
+
+        <!-- Phone-only mirror of the two gates above. -->
+        <div class="bc-actionbar">
+            <button type="button" class="kw-btn cr-press" id="bc-validate-mobile">Validate setup</button>
+            <button type="button" class="kw-btn kw-btn-primary cr-press" id="bc-deploy-mobile" disabled>Deploy</button>
+        </div>
+    </main>
+
+    <!-- Profile editor -->
+    <div class="kw-backdrop" id="bc-modal" role="dialog" aria-modal="true" aria-labelledby="bc-modal-title">
+        <div class="kw-modal kw-modal-wide">
+            <div class="kw-modal-head">
+                <h2 class="kw-panel-title" id="bc-modal-title">Create profile</h2>
+                <button type="button" class="kw-btn kw-btn-icon cr-press" id="bc-modal-close" aria-label="Close">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="kw-modal-body">
+                <form class="bc-form" id="bc-form">
+                    <p class="bc-banner" id="bc-form-banner" role="status" aria-live="polite"></p>
+
+                    <div class="bc-form-row">
+                        <div class="kw-field">
+                            <label class="kw-label" for="bc-f-name">Profile name</label>
+                            <input class="kw-input" id="bc-f-name" name="profile_name" required
+                                autocomplete="off" spellcheck="false" placeholder="Support Specialist&hellip;">
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="bc-f-bot">Bot name</label>
+                            <input class="kw-input" id="bc-f-bot" name="bot_name" autocomplete="off"
+                                placeholder="Aveon Assistant&hellip;">
+                        </div>
+                    </div>
+
+                    <div class="bc-form-row">
+                        <div class="kw-field">
+                            <label class="kw-label" for="bc-f-company">Company name</label>
+                            <input class="kw-input" id="bc-f-company" name="company_name" autocomplete="organization"
+                                placeholder="Aveon&hellip;">
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="bc-f-tone">Tone</label>
+                            <!-- Free text with suggestions, not a fixed list. The
+                                 column stores arbitrary phrasing ("Clear,
+                                 professional") and persona derivation writes it
+                                 from documents, so a three-option <select> could
+                                 not hold the stored value and blanked it on save. -->
+                            <input class="kw-input" id="bc-f-tone" name="tone" list="bc-tone-options"
+                                autocomplete="off" placeholder="Clear, professional&hellip;">
+                            <datalist id="bc-tone-options">
+                                <option value="Friendly"></option>
+                                <option value="Professional"></option>
+                                <option value="Formal"></option>
+                                <option value="Clear, professional"></option>
+                                <option value="Helpful, empathetic"></option>
+                            </datalist>
+                        </div>
+                    </div>
+
+                    <div class="kw-field">
+                        <label class="kw-label" for="bc-f-desc">Business description</label>
+                        <textarea class="kw-textarea" id="bc-f-desc" name="business_description" rows="3"
+                            placeholder="What your business does and who it serves&hellip;"></textarea>
+                    </div>
+
+                    <div class="kw-field">
+                        <label class="kw-label" for="bc-f-extra">Additional instructions</label>
+                        <textarea class="kw-textarea" id="bc-f-extra" name="additional_instructions" rows="3"
+                            placeholder="Always be accurate and concise&hellip;"></textarea>
+                    </div>
+
+                    <div class="kw-field">
+                        <label class="kw-label" for="bc-f-prompt">Custom prompt template</label>
+                        <textarea class="kw-textarea" id="bc-f-prompt" name="custom_prompt" rows="4"
+                            placeholder="Optional. Overrides the generated system prompt&hellip;"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn kw-btn-danger cr-press" id="bc-delete" hidden>Delete profile</button>
+                <button type="button" class="kw-btn cr-press" id="bc-cancel">Cancel</button>
+                <button type="submit" form="bc-form" class="kw-btn kw-btn-primary cr-press" id="bc-save">Save profile</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete confirmation. Destructive, so it is confirmed, never immediate. -->
+    <div class="kw-backdrop" id="bc-confirm" role="dialog" aria-modal="true" aria-labelledby="bc-confirm-title">
+        <div class="kw-modal kw-modal-narrow">
+            <div class="kw-modal-head">
+                <h2 class="kw-panel-title" id="bc-confirm-title">Delete profile?</h2>
+            </div>
+            <div class="kw-modal-body">
+                <p class="kw-desc" id="bc-confirm-copy"></p>
+            </div>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="bc-confirm-cancel">Cancel</button>
+                <button type="button" class="kw-btn kw-btn-danger cr-press" id="bc-confirm-delete">Delete</button>
+            </div>
+        </div>
+    </div>
 
     <script>
-const {
-  useState,
-  useEffect,
-  useRef
-} = React;
-function App() {
-  const emptyForm = {
-    profileName: "",
-    botName: "",
-    companyName: "",
-    businessDescription: "",
-    tone: "",
-    additionalInstructions: "",
-    customPrompt: ""
-  };
-  const urlParams = new URLSearchParams(window.location.search);
-  const urlBotId = urlParams.get("bot_id");
-  const storedBotId = sessionStorage.getItem("selectedBotId");
-  if (!urlBotId && storedBotId) {
-    window.location.href = `new_prompt.html?bot_id=${encodeURIComponent(storedBotId)}`;
-    return null;
-  }
-  if (!urlBotId) {
-    window.location.href = "bots.html";
-    return null;
-  }
-  const selectedBotId = urlBotId;
-  sessionStorage.setItem("selectedBotId", selectedBotId);
-  const botQuery = `?chatbot_id=${selectedBotId}`;
-  const pageQuery = `?bot_id=${selectedBotId}`;
-  const [isSavingProfile, setIsSavingProfile] = useState(false);
-  const [isCheckingMatch, setIsCheckingMatch] = useState(false);
-  const configFormRef = useRef(null);
-  const [botName, setBotName] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [businessDescription, setBusinessDescription] = useState("");
-  const [tone, setTone] = useState("");
-  const [extractionMode, setExtractionMode] = useState("manual");
-  const [extractionPrompt, setExtractionPrompt] = useState("");
-  const [extractedButtons, setExtractedButtons] = useState([]);
-  const [isExtracting, setIsExtracting] = useState(false);
-  const [extractionMessage, setExtractionMessage] = useState("");
+        "use strict";
 
-  const handleExtractDocument = async () => {
-    setIsExtracting(true);
-    setExtractionMessage("Extracting data from document...");
-    try {
-        const response = await fetch(`/api/settings/extract-document-data?chatbot_id=${selectedBotId}`, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + localStorage.getItem("access_token")
-            },
-            body: JSON.stringify({ prompt: extractionPrompt })
-        });
-        const data = await response.json();
-        if (data.status === "success") {
-            setExtractedButtons(data.data);
-            setExtractionMessage("Extracted successfully.");
-        } else {
-            setExtractionMessage("Extraction failed: " + data.message);
+        /* ── Bot scope ───────────────────────────────────────────────── */
+
+        const params = new URLSearchParams(window.location.search);
+        const urlBotId = params.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `new_prompt.html?bot_id=${encodeURIComponent(storedBotId)}`;
+        } else if (!urlBotId) {
+            window.location.href = "bots.html";
         }
-    } catch (error) {
-        setExtractionMessage("Error: " + error.message);
-    } finally {
-        setIsExtracting(false);
-    }
-  };
-  const [additionalInstructions, setAdditionalInstructions] = useState("");
-  const [customPrompt, setCustomPrompt] = useState("");
-  const [activePdf, setActivePdf] = useState("");
-  const [supportingWebsites, setSupportingWebsites] = useState([]);
-  const [profiles, setProfiles] = useState([]);
-  const [profileName, setProfileName] = useState("");
-  const [selectedProfile, setSelectedProfile] = useState("");
-  const [activeProfile, setActiveProfile] = useState("");
-  const [previewProfile, setPreviewProfile] = useState(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formMode, setFormMode] = useState("create");
-  const [sessionStatus, setSessionStatus] = useState({
-    type: "",
-    text: ""
-  });
-  const [formStatus, setFormStatus] = useState({
-    type: "",
-    text: ""
-  });
-  const [matchResult, setMatchResult] = useState(null);
-  const [profileToDelete, setProfileToDelete] = useState(null);
-  const [currentBotName, setCurrentBotName] = useState("");
-  const getDeployButtonHint = () => {
-    if (!activePdf) return "Please select active primary knowledge first.";
-    if (!activeProfile) return "Please set an active profile first.";
-    if (!matchResult) return "Please check match first before deploying.";
-    if (matchResult.validation_status === "unavailable" || matchResult.match === null) return "Validation is temporarily unavailable. Please try again before deploying.";
-    if (!matchResult.match) return "Current profile and primary knowledge do not match. Please fix them before deploying.";
-    return "Deploy the current matched profile and primary knowledge to all connected channels.";
-  };
-  const fetchBotInfo = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setCurrentBotName(data.data.bot_name || "Bot");
-      }
-    } catch (error) {
-      setCurrentBotName("Bot");
-    }
-  };
-  const fetchActivePdf = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setActivePdf(data.data?.file_name || "");
-      } else {
-        setActivePdf("");
-      }
-    } catch (error) {
-      setActivePdf("");
-    }
-  };
-  const getKnowledgeType = item => {
-    const explicitType = (item?.file_type || "").toLowerCase();
-    if (explicitType) return explicitType;
-    const name = item?.file_name || item?.name || "";
-    return name.startsWith("http://") || name.startsWith("https://") ? "url" : "pdf";
-  };
-  const fetchSupportingWebsites = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
-      const data = await response.json();
-      if (data.status === "success") {
-        const websites = (data.data || []).filter(item => getKnowledgeType(item) === "url");
-        setSupportingWebsites(websites);
-      } else {
-        setSupportingWebsites([]);
-      }
-    } catch (error) {
-      setSupportingWebsites([]);
-    }
-  };
-  const fetchProfiles = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/profiles${botQuery}`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setProfiles(data.data || []);
-      } else {
-        setFormStatus({
-          type: "error",
-          text: "Failed to load profiles."
-        });
-      }
-    } catch (error) {
-      setFormStatus({
-        type: "error",
-        text: "Failed to connect to backend."
-      });
-    }
-  };
-  const fetchActiveProfile = async () => {
-    try {
-      const response = await authenticatedFetch(`/api/settings?chatbot_id=${selectedBotId}`);
-      const data = await response.json();
-      if (data.status === "success") {
-        setActiveProfile(data.data?.active_profile || "");
-      } else {
-        setActiveProfile("");
-      }
-    } catch (error) {
-      setActiveProfile("");
-    }
-  };
-  const getSelectedProfileObject = () => {
-    return profiles.find(p => p.name === selectedProfile) || null;
-  };
-  const fillFormFromProfile = profile => {
-    if (!profile) return;
-    setProfileName(profile.name || "");
-    setBotName(profile.bot_name || "");
-    setCompanyName(profile.company_name || "");
-    setBusinessDescription(profile.business_description || "");
-    setTone(profile.tone || "");
-    setAdditionalInstructions(profile.additional_instructions || "");
-    setCustomPrompt(profile.custom_prompt || "");
-  };
-  const clearForm = () => {
-    setProfileName(emptyForm.profileName);
-    setBotName(emptyForm.botName);
-    setCompanyName(emptyForm.companyName);
-    setBusinessDescription(emptyForm.businessDescription);
-    setTone(emptyForm.tone);
-    setAdditionalInstructions(emptyForm.additionalInstructions);
-    setCustomPrompt(emptyForm.customPrompt);
-    setFormMode("create");
-    setFormStatus({
-      type: "success",
-      text: "Form cleared. You can create a new profile now."
-    });
-  };
-  const handleDeleteProfile = async () => {
-    const nameToDelete = previewProfile && previewProfile.name || selectedProfile || profileName.trim();
-    if (!nameToDelete) {
-      setFormStatus({
-        type: "error",
-        text: "No profile selected for deletion."
-      });
-      return;
-    }
-    setProfileToDelete(nameToDelete);
-  };
-  const confirmDeleteProfile = async () => {
-    if (!profileToDelete) return;
-    const nameToDelete = profileToDelete;
-    setProfileToDelete(null);
-    try {
-      const response = await authenticatedFetch(`/api/profiles/${encodeURIComponent(nameToDelete)}${botQuery}`, {
-        method: "DELETE"
-      });
-      const data = await response.json();
-      if (data.status === "success") {
-        if (activeProfile === nameToDelete) {
-          setActiveProfile("");
-        }
-        setPreviewProfile(null);
-        setSelectedProfile("");
-        setProfileName("");
-        setBotName("");
-        setCompanyName("");
-        setBusinessDescription("");
-        setTone("");
-        setAdditionalInstructions("");
-        setCustomPrompt("");
-        setFormMode("create");
-        await fetchProfiles();
-        setFormStatus({
-          type: "success",
-          text: `Profile "${nameToDelete}" deleted.`
-        });
-      } else {
-        setFormStatus({
-          type: "error",
-          text: data.message || "Failed to delete profile."
-        });
-      }
-    } catch (error) {
-      setFormStatus({
-        type: "error",
-        text: "Failed to connect to backend."
-      });
-    }
-  };
-  const handlePreviewProfile = () => {
-    if (!selectedProfile) {
-      setFormStatus({
-        type: "error",
-        text: "Please select a profile first."
-      });
-      return;
-    }
-    const profile = getSelectedProfileObject();
-    if (!profile) {
-      setFormStatus({
-        type: "error",
-        text: "Selected profile not found."
-      });
-      return;
-    }
-    setPreviewProfile(profile);
-    setFormStatus({
-      type: "success",
-      text: `Previewing profile "${profile.name}".`
-    });
-  };
-  const handleSetActiveProfile = async (targetProfileName = null) => {
-    const nameToActivate = targetProfileName || selectedProfile;
-    if (!nameToActivate) {
-      setFormStatus({
-        type: "error",
-        text: "Please select a profile first."
-      });
-      return;
-    }
-    const profile = profiles.find(p => p.name === nameToActivate);
-    if (!profile) {
-      setFormStatus({
-        type: "error",
-        text: "Selected profile not found."
-      });
-      return;
-    }
-    try {
-      setPreviewProfile(profile);
-      setActiveProfile(profile.name || "");
-      await authenticatedFetch(`/api/settings/active-profile?chatbot_id=${selectedBotId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          active_profile: profile.name || ""
-        })
-      });
-      setMatchResult(null);
-      setSessionStatus({
-        type: "",
-        text: ""
-      });
-      setFormStatus({
-        type: "success",
-        text: `Profile "${profile.name}" set as active.`
-      });
-    } catch (error) {
-      setFormStatus({
-        type: "error",
-        text: "Failed to connect to backend."
-      });
-    }
-  };
-  const handleEditProfileToForm = () => {
-    if (!selectedProfile) {
-      setFormStatus({
-        type: "error",
-        text: "Please select a profile first."
-      });
-      return;
-    }
-    const profile = getSelectedProfileObject();
-    if (!profile) {
-      setFormStatus({
-        type: "error",
-        text: "Selected profile not found."
-      });
-      return;
-    }
-    setPreviewProfile(profile);
-    fillFormFromProfile(profile);
-    setFormMode("edit");
-    setIsModalOpen(true); // Open the popup
-    setFormStatus({
-      type: "success",
-      text: `Profile "${profile.name}" loaded into form for editing.`
-    });
-  };
 
-  //     setTimeout(() => {
-  //         if (configFormRef.current) {
-  //             configFormRef.current.scrollIntoView({
-  //                 behavior: "smooth",
-  //                 block: "start"
-  //             });
-  //         }
-  //     }, 100);
-  // };
+        const botId = urlBotId;
+        if (botId) sessionStorage.setItem("selectedBotId", botId);
 
-  const handleSaveProfile = async () => {
-    if (!profileName.trim()) {
-      setFormStatus({
-        type: "error",
-        text: "Please enter a profile name."
-      });
-      return;
-    }
-    setIsSavingProfile(true);
-    setFormStatus({
-      type: "",
-      text: ""
-    });
-    try {
-      const response = await authenticatedFetch(`/api/profiles${botQuery}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          name: profileName,
-          bot_name: botName,
-          company_name: companyName,
-          business_description: businessDescription,
-          tone: tone,
-          additional_instructions: additionalInstructions,
-          custom_prompt: customPrompt
-        })
-      });
-      const data = await response.json();
-      if (data.status === "success") {
-        const savedProfile = {
-          name: profileName.trim(),
-          bot_name: botName,
-          company_name: companyName,
-          business_description: businessDescription,
-          tone: tone,
-          additional_instructions: additionalInstructions,
-          custom_prompt: customPrompt
+        const botQuery = `?chatbot_id=${encodeURIComponent(botId)}`;
+        const pageQuery = `?bot_id=${encodeURIComponent(botId)}`;
+
+        /* ── State ───────────────────────────────────────────────────── */
+
+        const state = {
+            profiles: [],
+            selected: "",       // row highlighted in the library
+            active: "",         // profile the bot actually answers with
+            activeKnowledge: "",
+            websites: [],
+            channels: 0,
+            validation: null,   // null = never checked, or invalidated server-side
+            checking: false,
+            checkingAutomatic: false,
+            deploying: false,
+            mode: "create"
         };
-        setPreviewProfile(savedProfile);
-        setSelectedProfile(profileName.trim());
-        setFormStatus({
-          type: "success",
-          text: `Profile "${profileName}" saved successfully and is now active.`
+
+        const $ = (id) => document.getElementById(id);
+
+        /* ── Boot ────────────────────────────────────────────────────── */
+
+        document.addEventListener("DOMContentLoaded", () => {
+            if (!botId) return;
+
+            $("bc-dashboard-link").href = `index.html${pageQuery}`;
+            $("bc-testbot").href = `testbot.html${pageQuery}`;
+
+            wireEvents();
+            loadAll();
         });
-        await fetchProfiles();
-        await fetchActiveProfile();
-        setFormMode("edit");
-      } else {
-        setFormStatus({
-          type: "error",
-          text: data.message || "Failed to save profile."
-        });
-      }
-    } catch (error) {
-      setFormStatus({
-        type: "error",
-        text: "Failed to connect to backend."
-      });
-    } finally {
-      setIsSavingProfile(false);
-    }
-  };
-  const handleCheckMatch = async () => {
-    if (!activePdf) {
-      setSessionStatus({
-        type: "error",
-        text: "No active primary knowledge selected."
-      });
-      return;
-    }
-    if (!activeProfile) {
-      setSessionStatus({
-        type: "error",
-        text: "Please set an active profile first."
-      });
-      return;
-    }
-    setIsCheckingMatch(true);
-    setMatchResult(null);
-    setSessionStatus({
-      type: "",
-      text: ""
-    });
-    try {
-      const response = await authenticatedFetch(`/api/match/check?chatbot_id=${selectedBotId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          profile_name: activeProfile
-        })
-      });
-      const data = await response.json();
-      if (data.status === "success") {
-        setMatchResult(data.data);
-      } else {
-        setSessionStatus({
-          type: "error",
-          text: data.message || "Failed to check match."
-        });
-      }
-    } catch (error) {
-      setSessionStatus({
-        type: "error",
-        text: "Failed to connect to backend."
-      });
-    } finally {
-      setIsCheckingMatch(false);
-    }
-  };
-  const getMatchStatusMeta = () => {
-    if (isCheckingMatch) {
-      return {
-        className: "status-warning",
-        text: "Checking match..."
-      };
-    }
-    if (!matchResult) {
-      return {
-        className: "status-neutral",
-        text: "Not checked yet"
-      };
-    }
-    if (matchResult.match) {
-      return {
-        className: "status-success",
-        text: "Ready to Deploy"
-      };
-    }
-    if (matchResult.validation_status === "unavailable" || matchResult.match === null) {
-      return {
-        className: "status-warning",
-        text: "Validation unavailable"
-      };
-    }
-    return {
-      className: "status-error",
-      text: "Mismatch detected"
-    };
-  };
-  const handleDeployToLiveBot = async () => {
-    if (!activePdf) {
-      setSessionStatus({
-        type: "error",
-        text: "Please select active primary knowledge first."
-      });
-      return;
-    }
-    if (!activeProfile) {
-      setSessionStatus({
-        type: "error",
-        text: "Please set an active profile first."
-      });
-      return;
-    }
-    if (!matchResult) {
-      setSessionStatus({
-        type: "error",
-        text: "Please check match first before deploying to live bot."
-      });
-      return;
-    }
-    if (matchResult.validation_status === "unavailable" || matchResult.match === null) {
-      setSessionStatus({
-        type: "error",
-        text: "Validation is temporarily unavailable. Please try again before deploying."
-      });
-      return;
-    }
-    if (!matchResult.match) {
-      setSessionStatus({
-        type: "error",
-        text: "Current profile and primary knowledge do not match. Please fix them before deploying."
-      });
-      return;
-    }
-    try {
-      const response = await authenticatedFetch(`/api/settings/apply-profile?chatbot_id=${selectedBotId}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          profile_name: activeProfile
-        })
-      });
-      const data = await response.json();
-      if (data.status === "success") {
-        setSessionStatus({
-          type: "success",
-          text: data.message || "Bot deployed successfully. Connected channels will now use this profile and primary knowledge."
-        });
-        setTimeout(() => {
-          window.location.href = `testbot.html${pageQuery}`;
-        }, 1200);
-      } else {
-        setSessionStatus({
-          type: "error",
-          text: data.message || "Failed to deploy bot settings."
-        });
-      }
-    } catch (error) {
-      setSessionStatus({
-        type: "error",
-        text: "Failed to connect to backend."
-      });
-    }
-  };
-  useEffect(() => {
-    fetchBotInfo();
-    fetchProfiles();
-    fetchActivePdf();
-    fetchSupportingWebsites();
-    fetchActiveProfile();
-  }, []);
-  const matchStatus = getMatchStatusMeta();
-  const enabledSupportingWebsites = supportingWebsites.filter(item => item.is_enabled !== false);
-  const disabledSupportingWebsites = supportingWebsites.filter(item => item.is_enabled === false);
-  return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("chatbot-sidebar", null), /*#__PURE__*/React.createElement("main", {
-    className: "main-container"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "header",
-    style: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "flex-start",
-      flexWrap: "wrap",
-      gap: "16px"
-    }
-  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h1", null, "Bot Configuration (", currentBotName || "Bot", ")"), /*#__PURE__*/React.createElement("p", null, "Manage your primary knowledge, supporting websites, saved profiles, and live bot setup in one place.")), /*#__PURE__*/React.createElement("button", {
-    className: "btn-primary",
-    type: "button",
-    onClick: () => {
-      clearForm();
-      setIsModalOpen(true);
-    }
-  }, "➕ Add Profile")), /*#__PURE__*/React.createElement("div", {
-    className: "section-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "section-title"
-  }, "Profile Library"), /*#__PURE__*/React.createElement("div", {
-    className: "section-subtitle"
-  }, "Browse saved profiles, preview their details, then choose one to activate or edit."), /*#__PURE__*/React.createElement("div", {
-    className: "field-group"
-  }, /*#__PURE__*/React.createElement("label", null, "Choose Profile"), /*#__PURE__*/React.createElement("div", {
-    className: "field-row"
-  }, /*#__PURE__*/React.createElement("select", {
-    value: selectedProfile,
-    onChange: e => {
-      const val = e.target.value;
-      setSelectedProfile(val);
-      setPreviewProfile(null); // Hide preview when selection changes
-      if (val) {
-        handleSetActiveProfile(val);
-      }
-    }
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Select a saved profile"), profiles.map((profile, index) => /*#__PURE__*/React.createElement("option", {
-    key: index,
-    value: profile.name
-  }, profile.name))), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: () => {
-      if (previewProfile && selectedProfile && previewProfile.name === selectedProfile) {
-        setPreviewProfile(null);
-      } else {
-        handlePreviewProfile();
-      }
-    },
-    className: "inline-btn"
-  }, previewProfile && selectedProfile && previewProfile.name === selectedProfile ? "Close Preview" : "Preview")), formStatus.text && !isModalOpen && /*#__PURE__*/React.createElement("div", {
-    className: `status-message ${formStatus.type}`,
-    style: {
-      justifyContent: "flex-start",
-      marginTop: "12px"
-    }
-  }, formStatus.type === "success" ? "✨" : "⚠️", " ", formStatus.text)), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: "16px"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "section-title",
-    style: {
-      fontSize: "14px",
-      marginBottom: "12px"
-    }
-  }, "Profile Details"), !previewProfile ? /*#__PURE__*/React.createElement("div", {
-    className: "empty-preview"
-  }, "No profile selected for preview.") : /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
-    className: "preview-grid"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "preview-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "preview-label"
-  }, "Profile Name"), /*#__PURE__*/React.createElement("div", {
-    className: "preview-value"
-  }, previewProfile.name || "-")), /*#__PURE__*/React.createElement("div", {
-    className: "preview-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "preview-label"
-  }, "Tone"), /*#__PURE__*/React.createElement("div", {
-    className: "preview-value"
-  }, previewProfile.tone || "-")), /*#__PURE__*/React.createElement("div", {
-    className: "preview-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "preview-label"
-  }, "Bot Name"), /*#__PURE__*/React.createElement("div", {
-    className: "preview-value"
-  }, previewProfile.bot_name || "-")), /*#__PURE__*/React.createElement("div", {
-    className: "preview-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "preview-label"
-  }, "Company Name"), /*#__PURE__*/React.createElement("div", {
-    className: "preview-value"
-  }, previewProfile.company_name || "-")), /*#__PURE__*/React.createElement("div", {
-    className: "preview-card preview-full"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "preview-label"
-  }, "Business Description"), /*#__PURE__*/React.createElement("div", {
-    className: "preview-value"
-  }, previewProfile.business_description || "-")), /*#__PURE__*/React.createElement("div", {
-    className: "preview-card preview-full"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "preview-label"
-  }, "Additional Instructions"), /*#__PURE__*/React.createElement("div", {
-    className: "preview-value"
-  }, previewProfile.additional_instructions || "-")), /*#__PURE__*/React.createElement("div", {
-    className: "preview-card preview-full"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "preview-label"
-  }, "Custom Prompt Template"), /*#__PURE__*/React.createElement("div", {
-    className: "preview-value",
-    style: {
-      whiteSpace: "pre-wrap"
-    }
-  }, previewProfile.custom_prompt || "-"))), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "flex-end",
-      gap: "12px",
-      marginTop: "16px"
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: handleDeleteProfile,
-    className: "btn-danger",
-    style: {
-      minWidth: "160px"
-    }
-  }, "Delete Profile"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: handleEditProfileToForm,
-    className: "btn-secondary",
-    style: {
-      minWidth: "160px"
-    }
-  }, "Edit in Form"))))), /*#__PURE__*/React.createElement("div", {
-    className: "section-card"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "section-title"
-  }, "Live Bot Setup"), /*#__PURE__*/React.createElement("div", {
-    className: "section-subtitle"
-  }, "Review the active primary knowledge, supporting websites, and profile before validating or deploying them to your connected channels."), /*#__PURE__*/React.createElement("div", {
-    className: "context-grid"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "context-item"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "context-label"
-  }, "Active Primary Knowledge"), /*#__PURE__*/React.createElement("div", {
-    className: "context-value",
-    style: {
-      fontSize: activePdf.length > 25 ? '0.82rem' : '0.98rem'
-    }
-  }, activePdf || "No active primary knowledge selected")), /*#__PURE__*/React.createElement("div", {
-    className: "context-item"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "context-label"
-  }, "Active Profile"), /*#__PURE__*/React.createElement("div", {
-    className: "context-value"
-  }, activeProfile || "No active profile selected")), /*#__PURE__*/React.createElement("div", {
-    className: "context-item",
-    style: {
-      gridColumn: "1 / -1"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "context-label"
-  }, "Supporting Websites"), /*#__PURE__*/React.createElement("div", {
-    className: "context-value"
-  }, enabledSupportingWebsites.length, " enabled", disabledSupportingWebsites.length > 0 ? ` / ${disabledSupportingWebsites.length} disabled` : ""), /*#__PURE__*/React.createElement("div", {
-    style: {
-      marginTop: "10px",
-      color: "var(--text-dim)",
-      fontSize: "0.86rem",
-      lineHeight: "1.5"
-    }
-  }, enabledSupportingWebsites.length === 0 ? /*#__PURE__*/React.createElement("span", null, "No supporting websites enabled") : /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "grid",
-      gap: "6px"
-    }
-  }, enabledSupportingWebsites.slice(0, 5).map((site, index) => /*#__PURE__*/React.createElement("div", {
-    key: index,
-    style: {
-      wordBreak: "break-all",
-      overflowWrap: "anywhere"
-    }
-  }, site.file_name || site.name || "Supporting website")), enabledSupportingWebsites.length > 5 && /*#__PURE__*/React.createElement("div", null, "+", enabledSupportingWebsites.length - 5, " more supporting websites"))))), /*#__PURE__*/React.createElement("div", {
-    className: "row-actions"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: `status-badge ${matchStatus.className}`
-  }, matchStatus.text), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      gap: "12px",
-      flexWrap: "wrap"
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "btn-primary",
-    onClick: handleCheckMatch,
-    disabled: isCheckingMatch,
-    style: {
-      width: "auto",
-      minWidth: "230px"
-    }
-  }, isCheckingMatch ? "Checking Match..." : "Validate Primary Knowledge & Profile"), /*#__PURE__*/React.createElement("button", {
-    className: "btn-secondary",
-    onClick: handleDeployToLiveBot,
-    title: getDeployButtonHint(),
-    style: {
-      width: "auto",
-      minWidth: "200px"
-    }
-  }, "Deploy to Live Bot"))), matchResult && /*#__PURE__*/React.createElement("div", {
-    className: `match-result-box ${matchResult.match ? "success" : matchResult.validation_status === "unavailable" || matchResult.match === null ? "warning" : "error"}`
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "match-result-title"
-  }, matchResult.match ? "✅ Validation Result" : "⚠️ Validation Result"), /*#__PURE__*/React.createElement("div", null, matchResult.reason)), sessionStatus.text && /*#__PURE__*/React.createElement("div", {
-    className: `status-message ${sessionStatus.type}`,
-    style: {
-      justifyContent: "flex-start"
-    }
-  }, sessionStatus.type === "success" ? "✨" : "⚠️", " ", sessionStatus.text))), isModalOpen && /*#__PURE__*/React.createElement("div", {
-    className: "modal-overlay open",
-    onClick: e => {
-      if (e.target === e.currentTarget) setIsModalOpen(false);
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-content"
-  }, /*#__PURE__*/React.createElement("button", {
-    className: "close-modal",
-    onClick: () => setIsModalOpen(false)
-  }, "×"), /*#__PURE__*/React.createElement("div", {
-    className: "section-title",
-    style: {
-      fontSize: "1.4rem"
-    }
-  }, formMode === "edit" ? "Edit Profile Configuration" : "Create Profile Configuration"), /*#__PURE__*/React.createElement("div", {
-    className: "section-subtitle",
-    style: {
-      marginBottom: "20px"
-    }
-  }, formMode === "edit" ? "Make changes to your bot profile below." : "Fill in the details for your new bot profile."), /*#__PURE__*/React.createElement("div", {
-    className: "mode-badge"
-  }, formMode === "edit" ? "Edit Mode" : "Create Mode"), /*#__PURE__*/React.createElement("div", {
-    className: "form-grid"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "field-group"
-  }, /*#__PURE__*/React.createElement("label", null, "Profile Name"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: profileName,
-    onChange: e => setProfileName(e.target.value)
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "field-group"
-  }, /*#__PURE__*/React.createElement("label", null, "Bot Name"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: botName,
-    onChange: e => setBotName(e.target.value)
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "field-group"
-  }, /*#__PURE__*/React.createElement("label", null, "Company Name"), /*#__PURE__*/React.createElement("input", {
-    type: "text",
-    value: companyName,
-    onChange: e => setCompanyName(e.target.value)
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "field-group"
-  }, /*#__PURE__*/React.createElement("label", null, "Business Description"), /*#__PURE__*/React.createElement("textarea", {
-    value: businessDescription,
-    onChange: e => setBusinessDescription(e.target.value),
-    rows: "4"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "field-group"
-  }, /*#__PURE__*/React.createElement("label", null, "Tone"), /*#__PURE__*/React.createElement("select", {
-    value: tone,
-    onChange: e => setTone(e.target.value)
-  }, /*#__PURE__*/React.createElement("option", {
-    value: ""
-  }, "Select tone"), /*#__PURE__*/React.createElement("option", {
-    value: "Friendly"
-  }, "Friendly"), /*#__PURE__*/React.createElement("option", {
-    value: "Professional"
-  }, "Professional"), /*#__PURE__*/React.createElement("option", {
-    value: "Formal"
-  }, "Formal"))), /*#__PURE__*/React.createElement("div", {
-    className: "field-group"
-  }, /*#__PURE__*/React.createElement("label", null, "Additional Instructions"), /*#__PURE__*/React.createElement("textarea", {
-    value: additionalInstructions,
-    onChange: e => setAdditionalInstructions(e.target.value),
-    rows: "6"
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "field-group"
-  }, /*#__PURE__*/React.createElement("label", null, "Custom Prompt Template"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: "12px",
-      color: "var(--text-dim)",
-      marginBottom: "8px"
-    }
-  }, "Optional: Override the default prompt structure. Available variables: ", '{bot_name}', ", ", '{company_name}', ", ", '{business_description}', ", ", '{tone}', ", ", '{context}', ", ", '{conversation}', ", ", '{message}'), /*#__PURE__*/React.createElement("textarea", {
-    value: customPrompt,
-    onChange: e => setCustomPrompt(e.target.value),
-    rows: "8",
-    placeholder: "Leave blank to use the default static prompt structure..."
-  })), /*#__PURE__*/React.createElement("div", {
-    className: "button-stack"
-  }, /*#__PURE__*/React.createElement("button", {
-    onClick: async () => {
-      await handleSaveProfile();
-      setIsModalOpen(false); // Close modal after saving
-    },
-    disabled: isSavingProfile,
-    className: "btn-primary"
-  }, isSavingProfile ? "Saving..." : formMode === "edit" ? "Update Profile" : "Save Profile"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    onClick: () => setIsModalOpen(false),
-    className: "btn-secondary"
-  }, "Cancel")), formStatus.text && /*#__PURE__*/React.createElement("div", {
-    className: `status-message ${formStatus.type}`
-  }, formStatus.text)))), /*#__PURE__*/React.createElement("div", {
-    className: `modal-overlay ${profileToDelete ? "open" : ""}`,
-    onClick: e => {
-      if (e.target === e.currentTarget) setProfileToDelete(null);
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "modal-content",
-    style: {
-      maxWidth: "420px",
-      textAlign: "center",
-      padding: "40px 30px"
-    }
-  }, /*#__PURE__*/React.createElement("div", {
-    style: {
-      fontSize: "48px",
-      marginBottom: "20px"
-    }
-  }, "🗑️"), /*#__PURE__*/React.createElement("div", {
-    className: "section-title",
-    style: {
-      fontSize: "1.6rem",
-      marginBottom: "12px"
-    }
-  }, "Delete Profile?"), /*#__PURE__*/React.createElement("div", {
-    style: {
-      color: "var(--text-dim)",
-      fontSize: "0.95rem",
-      marginBottom: "32px",
-      lineHeight: "1.6"
-    }
-  }, "Are you sure you want to delete ", /*#__PURE__*/React.createElement("strong", null, profileToDelete), "?", /*#__PURE__*/React.createElement("br", null), "This action cannot be undone."), /*#__PURE__*/React.createElement("div", {
-    style: {
-      display: "flex",
-      justifyContent: "center",
-      gap: "16px"
-    }
-  }, /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "btn-secondary",
-    onClick: () => setProfileToDelete(null),
-    style: {
-      minWidth: "120px"
-    }
-  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
-    type: "button",
-    className: "btn-danger",
-    onClick: confirmDeleteProfile,
-    style: {
-      minWidth: "120px"
-    }
-  }, "Delete")))));
-}
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(/*#__PURE__*/React.createElement(App, null));
-</script>
+
+        async function loadAll() {
+            await Promise.all([
+                loadBot(),
+                loadProfiles(),
+                loadActiveProfile(),
+                loadActiveKnowledge(),
+                loadWebsites(),
+                loadHealth()
+            ]);
+            render();
+            maybeAutoValidate();
+        }
+
+        /**
+         * Runs the match check without the user asking, when there is nothing
+         * stored to read. See the dashboard's copy of this for the full
+         * reasoning: every run bills AI credits, so it fires only when both
+         * inputs exist and `state.validation` is null (never checked, or
+         * invalidated by a profile/knowledge change), at most once per load.
+         *
+         * A false or unavailable result is left for the user to act on and is
+         * never retried automatically.
+         */
+        let autoValidateAttempted = false;
+
+        function maybeAutoValidate() {
+            if (autoValidateAttempted) return;
+            if (state.validation !== null) return;
+            if (!state.active || !state.activeKnowledge) return;
+
+            autoValidateAttempted = true;
+            return validateSetup({ automatic: true });
+        }
+
+        /**
+         * Fetch + parse, never throwing on a non-JSON body.
+         *
+         * Flask returns an HTML page for an unhandled 500, and a bare
+         * `r.json()` throws on it. That rejection used to surface as "Could not
+         * reach the server", which is wrong and sends the user to check their
+         * network instead of the actual server error. A parse failure is
+         * reported as what it is, with the status code.
+         */
+        async function api(path, options) {
+            const response = await authenticatedFetch(path, options);
+            const text = await response.text();
+
+            try {
+                return { ok: response.ok, status: response.status, body: JSON.parse(text) };
+            } catch (_) {
+                return {
+                    ok: false,
+                    status: response.status,
+                    body: {
+                        status: "error",
+                        message: `Server error ${response.status}. The response was not valid JSON.`
+                    }
+                };
+            }
+        }
+
+        async function loadBot() {
+            try {
+                const { ok, body } = await api(`/api/bots/${botId}`);
+                if (!ok || body.status !== "success" || !body.data) {
+                    window.location.href = "bots.html";
+                    return;
+                }
+                const name = body.data.bot_name || "Bot";
+                $("bc-bot-name").textContent = name;
+                document.title = `${name} - Bot Configuration | AI CHATBOT`;
+            } catch (_) {
+                window.location.href = "bots.html";
+            }
+        }
+
+        async function loadProfiles() {
+            try {
+                const { body } = await api(`/api/profiles${botQuery}`);
+                state.profiles = body.status === "success" ? (body.data || []) : [];
+                if (!state.profiles.some(p => p.name === state.selected)) state.selected = "";
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not load profiles. Check your connection and reload.");
+            }
+        }
+
+        async function loadActiveProfile() {
+            try {
+                const { body } = await api(`/api/settings?chatbot_id=${encodeURIComponent(botId)}`);
+                state.active = body.status === "success" ? (body.data?.active_profile || "") : "";
+                if (!state.selected && state.active) state.selected = state.active;
+            } catch (_) {
+                state.active = "";
+            }
+        }
+
+        async function loadActiveKnowledge() {
+            try {
+                const { body } = await api(`/api/knowledge/active${botQuery}`);
+                state.activeKnowledge = body.status === "success" ? (body.data?.file_name || "") : "";
+            } catch (_) {
+                state.activeKnowledge = "";
+            }
+        }
+
+        // A knowledge row is a supporting website when its type is url, or when
+        // no type is stored and the name looks like one.
+        function isWebsite(item) {
+            const explicit = String(item?.file_type || "").toLowerCase();
+            if (explicit) return explicit === "url";
+            const name = item?.file_name || item?.name || "";
+            return name.startsWith("http://") || name.startsWith("https://");
+        }
+
+        async function loadWebsites() {
+            try {
+                const { body } = await api(`/api/knowledge/files${botQuery}`);
+                state.websites = body.status === "success" ? (body.data || []).filter(isWebsite) : [];
+            } catch (_) {
+                state.websites = [];
+            }
+        }
+
+        // Channels *and* the stored validation come from the same health call the
+        // dashboard uses, so the two screens cannot disagree. Seeding validation
+        // here is what stops a reload from claiming "not validated" when the
+        // backend has a result on chatbots.last_match_result.
+        async function loadHealth() {
+            try {
+                const { body } = await api(`/api/dashboard/health${botQuery}`);
+                if (body.status !== "success") {
+                    state.channels = 0;
+                    return;
+                }
+
+                state.channels = Number(body.data?.channels?.connected_count || 0);
+
+                const stored = body.data?.knowledge?.match_result;
+                state.validation = (stored === null || stored === undefined)
+                    ? null
+                    : {
+                        match: stored,
+                        validation_status: "completed",
+                        reason: body.data?.knowledge?.match_reason || ""
+                    };
+            } catch (_) {
+                state.channels = 0;
+            }
+        }
+
+        /* ── Derived state ───────────────────────────────────────────── */
+
+        function steps() {
+            const validated = state.validation ? state.validation.match === true : false;
+            return {
+                profile: Boolean(state.active),
+                knowledge: Boolean(state.activeKnowledge),
+                validate: validated,
+                deploy: false          // completed only by a successful deploy
+            };
+        }
+
+        /** The one thing blocking deploy, in the order the user must fix it. */
+        function deployBlocker() {
+            if (!state.active) return "Set an active profile first.";
+            if (!state.activeKnowledge) return "Select active primary knowledge first.";
+            if (!state.validation) return "Validate setup before deploying.";
+            if (state.validation.validation_status === "unavailable" || state.validation.match === null) {
+                return "Validation is temporarily unavailable. Try again before deploying.";
+            }
+            if (!state.validation.match) return "Profile and primary knowledge do not match. Fix them before deploying.";
+            return "";
+        }
+
+        /* ── Render ──────────────────────────────────────────────────── */
+
+        function render() {
+            renderSteps();
+            renderProfiles();
+            renderPreview();
+            renderReadiness();
+            renderGates();
+        }
+
+        function svgEl(name, attrs) {
+            const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+            Object.keys(attrs || {}).forEach(k => el.setAttribute(k, attrs[k]));
+            return el;
+        }
+
+        function checkIcon() {
+            const svg = svgEl("svg", { viewBox: "0 0 24 24", class: "dashboard-icon", "aria-hidden": "true" });
+            svg.appendChild(svgEl("path", { d: "m5 13 4 4L19 7" }));
+            return svg;
+        }
+
+        function lockIcon() {
+            const svg = svgEl("svg", { viewBox: "0 0 24 24", class: "dashboard-icon", "aria-hidden": "true" });
+            svg.appendChild(svgEl("rect", { x: 5, y: 11, width: 14, height: 9, rx: 2 }));
+            svg.appendChild(svgEl("path", { d: "M8 11V8a4 4 0 0 1 8 0v3" }));
+            return svg;
+        }
+
+        function markText(text) {
+            const span = document.createElement("span");
+            span.className = "kw-mono";
+            span.style.fontSize = "12px";
+            span.textContent = text;
+            return span;
+        }
+
+        function renderSteps() {
+            const done = steps();
+            const order = ["profile", "knowledge", "validate", "deploy"];
+            const notes = {
+                profile: done.profile ? `Active: ${state.active}` : "Choose an active profile.",
+                knowledge: done.knowledge ? state.activeKnowledge : "Add primary knowledge.",
+                validate: done.validate ? "Validation passed." : "Not checked yet.",
+                // Step 3 already says validation is outstanding; repeating it
+                // here would waste the one line this step has to explain the lock.
+                deploy: done.validate ? "Ready to deploy." : "Unlocks once validation passes."
+            };
+
+            // The current step is the first unfinished one; everything after it
+            // is locked, which is what makes the gate legible in advance.
+            const currentIndex = order.findIndex(key => !done[key]);
+
+            order.forEach((key, i) => {
+                const el = document.querySelector(`.bc-step[data-step="${key}"]`);
+                if (!el) return;
+
+                const isDone = done[key];
+                const isCurrent = i === currentIndex;
+                const isLocked = currentIndex !== -1 && i > currentIndex;
+
+                el.classList.toggle("is-done", isDone);
+                el.classList.toggle("is-current", isCurrent);
+                el.classList.toggle("is-locked", isLocked);
+
+                const mark = el.querySelector(".kw-step-mark");
+                if (mark) {
+                    mark.replaceChildren(isDone ? checkIcon() : (isLocked ? lockIcon() : markText(String(i + 1))));
+                }
+
+                const note = el.querySelector(".bc-step-note");
+                if (note) note.textContent = notes[key];
+            });
+
+            $("bc-ready-count").textContent = String(order.filter(k => done[k]).length);
+        }
+
+        function renderProfiles() {
+            const list = $("bc-profiles");
+            const legend = list.querySelector("legend");
+            list.replaceChildren(legend);
+
+            if (!state.profiles.length) {
+                const empty = document.createElement("div");
+                empty.className = "kw-empty";
+                const h = document.createElement("h3");
+                h.textContent = "No profiles yet";
+                const p = document.createElement("p");
+                p.textContent = "Create a profile to describe who your bot is and how it should answer.";
+                empty.append(h, p);
+                list.appendChild(empty);
+                $("bc-edit").disabled = true;
+                return;
+            }
+
+            state.profiles.forEach(profile => {
+                const name = profile.name || "";
+                const row = document.createElement("label");
+                row.className = "bc-profile-row cr-press";
+                row.classList.toggle("is-selected", name === state.selected);
+
+                const radio = document.createElement("input");
+                radio.type = "radio";
+                radio.name = "bc-profile";
+                radio.value = name;
+                radio.checked = name === state.selected;
+                radio.addEventListener("change", () => {
+                    state.selected = name;
+                    render();
+                });
+
+                const nameEl = document.createElement("span");
+                nameEl.className = "bc-profile-name";
+                nameEl.textContent = name;
+
+                const tone = document.createElement("span");
+                tone.className = "bc-profile-tone";
+                tone.textContent = profile.tone || "—";
+
+                const updated = document.createElement("span");
+                updated.className = "bc-profile-date";
+                updated.textContent = formatDate(profile.updated_at || profile.created_at);
+
+                const pill = document.createElement("span");
+                const isActive = name === state.active;
+                pill.className = isActive ? "kw-pill kw-pill-ready" : "kw-pill";
+                pill.textContent = isActive ? "Active" : "Not active";
+
+                row.append(radio, nameEl, tone, updated, pill);
+                list.appendChild(row);
+            });
+
+            $("bc-edit").disabled = !state.selected;
+        }
+
+        function formatDate(value) {
+            if (!value) return "—";
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return "—";
+            return new Intl.DateTimeFormat(undefined,
+                { year: "numeric", month: "short", day: "numeric" }).format(d);
+        }
+
+        function renderPreview() {
+            const host = $("bc-preview");
+            const profile = state.profiles.find(p => p.name === state.selected);
+
+            if (!profile) {
+                host.replaceChildren();
+                return;
+            }
+
+            const isActive = profile.name === state.active;
+
+            const title = document.createElement("p");
+            title.className = "bc-preview-title";
+            title.append(document.createTextNode(`Previewing: ${profile.name}`));
+            const flag = document.createElement("span");
+            flag.className = isActive ? "bc-preview-flag is-active" : "bc-preview-flag";
+            flag.textContent = isActive ? "(active)" : "(not active)";
+            title.appendChild(flag);
+
+            const dl = document.createElement("dl");
+            dl.className = "bc-deflist";
+            [
+                ["Bot name", profile.bot_name],
+                ["Company", profile.company_name],
+                ["Tone", profile.tone],
+                ["Business description", profile.business_description],
+                ["Additional instructions", profile.additional_instructions],
+                ["Custom prompt template", profile.custom_prompt]
+            ].forEach(([label, value]) => {
+                const dt = document.createElement("dt");
+                dt.textContent = label;
+                const dd = document.createElement("dd");
+                dd.textContent = value || "—";
+                dl.append(dt, dd);
+            });
+
+            const actions = document.createElement("div");
+            actions.className = "bc-panel-actions";
+            actions.style.marginTop = "16px";
+
+            if (!isActive) {
+                const use = document.createElement("button");
+                use.type = "button";
+                use.className = "kw-btn kw-btn-primary cr-press";
+                use.textContent = "Use this profile";
+                use.addEventListener("click", () => setActiveProfile(profile.name));
+                actions.appendChild(use);
+            }
+
+            host.replaceChildren(title, dl, actions);
+        }
+
+        function readyRow(icon, name, value, status, linkText, href) {
+            const li = document.createElement("li");
+            li.className = "bc-ready-row";
+
+            const iconWrap = document.createElement("span");
+            iconWrap.className = "bc-ready-icon";
+            iconWrap.setAttribute("aria-hidden", "true");
+            const svg = svgEl("svg", { viewBox: "0 0 24 24", class: "dashboard-icon" });
+            svg.appendChild(svgEl("path", { d: icon }));
+            iconWrap.appendChild(svg);
+
+            const body = document.createElement("span");
+            body.className = "bc-ready-body";
+            const nameEl = document.createElement("span");
+            nameEl.className = "bc-ready-name";
+            nameEl.textContent = name;
+            const valueEl = document.createElement("span");
+            valueEl.className = "bc-ready-value";
+            valueEl.textContent = value;
+            valueEl.title = value;
+            body.append(nameEl, valueEl);
+
+            const pill = document.createElement("span");
+            pill.className = status.tone ? `kw-pill kw-pill-${status.tone}` : "kw-pill";
+            pill.textContent = status.label;
+
+            const link = document.createElement("a");
+            link.className = "bc-ready-link";
+            link.textContent = linkText;
+            link.href = href;
+
+            li.append(iconWrap, body, pill, link);
+            return li;
+        }
+
+        const READY = { tone: "ready", label: "Ready" };
+        const REVIEW = { tone: "review", label: "Needs attention" };
+        // Neutral, not a warning: plenty of clients have no website to point at,
+        // and the bot answers perfectly well from the primary document alone.
+        const OPTIONAL = { tone: "", label: "Optional" };
+
+        function renderReadiness() {
+            const host = $("bc-readiness");
+            const validated = state.validation && state.validation.match === true;
+
+            host.replaceChildren(
+                readyRow("M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z",
+                    "Active profile", state.active || "Not selected",
+                    state.active ? READY : REVIEW, "Change", "#bc-library-title"),
+                readyRow("M6 3h9l5 5v13H6ZM14 3v6h6",
+                    "Active primary knowledge", state.activeKnowledge || "Not selected",
+                    state.activeKnowledge ? READY : REVIEW, "Manage", `new_linkdocs.html${pageQuery}`),
+                readyRow("M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18",
+                    "Supporting websites",
+                    state.websites.length
+                        ? `${state.websites.length} website${state.websites.length > 1 ? "s" : ""}`
+                        : "None added — not required",
+                    state.websites.length ? READY : OPTIONAL, "Manage", `new_linkdocs.html${pageQuery}`),
+                readyRow("M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6Z",
+                    "Validation status",
+                    validated ? "Validated" : (state.validation ? "Mismatch detected" : "Not validated"),
+                    validated ? READY : REVIEW, "Validate", "#bc-validate-title"),
+                readyRow("M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
+                    "Connected channels",
+                    state.channels ? `${state.channels} connected` : "None connected",
+                    state.channels ? READY : REVIEW, "Manage", `integration.html${pageQuery}`)
+            );
+        }
+
+        function renderGates() {
+            const validated = state.validation && state.validation.match === true;
+            const blocker = deployBlocker();
+
+            const vGate = $("bc-validate-gate");
+            vGate.classList.toggle("is-passed", Boolean(validated));
+
+            const vStatus = $("bc-validate-status");
+            vStatus.classList.toggle("is-passed", Boolean(validated));
+            vStatus.classList.toggle("is-error", Boolean(state.validation && !validated));
+
+            if (state.checking) {
+                vStatus.textContent = state.checkingAutomatic ? "Checking automatically…" : "Checking…";
+            } else if (!state.validation) {
+                vStatus.textContent = "Not validated yet.";
+            } else if (validated) {
+                vStatus.textContent = "Validation passed.";
+            } else if (state.validation.validation_status === "unavailable" || state.validation.match === null) {
+                vStatus.textContent = "Couldn't check right now.";
+            } else {
+                vStatus.textContent = "Mismatch detected.";
+            }
+
+            // The stored reason is the whole value of a failed check: without it
+            // "mismatch" gives the user nothing to act on.
+            const reason = (state.validation && !validated && state.validation.reason) || "";
+            $("bc-validate-reason").textContent = reason;
+            $("bc-validate-reason").hidden = !reason;
+
+            // Once a result exists the button is a re-check, not the primary
+            // path — the page validates on its own when the result is stale.
+            const label = state.validation ? "Re-validate" : "Validate setup";
+            $("bc-validate-label").textContent = label;
+            $("bc-validate-mobile").textContent = label;
+
+            $("bc-validate").disabled = state.checking || !state.active || !state.activeKnowledge;
+            $("bc-validate-mobile").disabled = $("bc-validate").disabled;
+
+            const dGate = $("bc-deploy-gate");
+            dGate.classList.toggle("is-locked", Boolean(blocker));
+            dGate.classList.toggle("is-passed", !blocker);
+
+            // Swing the padlock shackle open once the gate clears. A closed
+            // padlock beside an enabled Deploy button contradicts itself.
+            $("bc-deploy-shackle").setAttribute("d", blocker
+                ? "M8 11V7a4 4 0 0 1 8 0v4"
+                : "M8 11V7a4 4 0 0 1 8 0");
+            $("bc-deploy-copy").textContent = blocker
+                || "Your profile and knowledge match. Connected channels will start using them.";
+
+            const deployDisabled = Boolean(blocker) || state.deploying;
+            $("bc-deploy").disabled = deployDisabled;
+            $("bc-deploy-mobile").disabled = deployDisabled;
+        }
+
+        function banner(id, kind, text) {
+            const el = $(id);
+            el.className = `bc-banner${kind ? ` bc-banner-${kind}` : ""}`;
+            el.textContent = text || "";
+        }
+
+        /* ── Actions ─────────────────────────────────────────────────── */
+
+        async function setActiveProfile(name) {
+            const profile = state.profiles.find(p => p.name === name);
+            if (!profile) return;
+
+            try {
+                const { body } = await api(`/api/settings/active-profile?chatbot_id=${encodeURIComponent(botId)}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ active_profile: profile.name || "" })
+                });
+
+                if (body.status && body.status !== "success") {
+                    banner("bc-page-banner", "error", body.message || "Could not set the active profile.");
+                    return;
+                }
+
+                state.active = profile.name || "";
+                state.selected = state.active;
+                // Changing the profile invalidates any earlier match check —
+                // the previous result described a different pairing.
+                state.validation = null;
+                banner("bc-page-banner", "success",
+                    `"${state.active}" is now the active profile. Checking it against your knowledge…`);
+                render();
+                // The server just nulled last_match_result, so re-arm and let the
+                // new pairing check itself rather than asking for another click.
+                autoValidateAttempted = false;
+                maybeAutoValidate();
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not reach the server. Try again.");
+            }
+        }
+
+        async function validateSetup(options) {
+            if (!state.active || !state.activeKnowledge) return;
+
+            const automatic = Boolean(options && options.automatic);
+
+            state.checking = true;
+            state.checkingAutomatic = automatic;
+            state.validation = null;
+            banner("bc-page-banner", "", "");
+            renderGates();
+
+            try {
+                const { body } = await api(`/api/match/check?chatbot_id=${encodeURIComponent(botId)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ profile_name: state.active })
+                });
+
+                if (body.status === "success") {
+                    state.validation = body.data;
+                    // A mismatch is the user's to resolve, so it is surfaced even
+                    // when nobody clicked. Success stays quiet on an automatic
+                    // run — a banner announcing work the user did not ask for is
+                    // noise; the step and the unlocked Deploy already say it.
+                    if (body.data && body.data.match === false) {
+                        banner("bc-page-banner", "error",
+                            body.data.reason
+                                ? `Validation failed: ${body.data.reason}`
+                                : "The profile and the primary knowledge describe different things.");
+                    } else if (!automatic && body.data && body.data.match === true) {
+                        banner("bc-page-banner", "success", "Validation passed. You can deploy this bot.");
+                    }
+                } else {
+                    banner("bc-page-banner", "error", body.message || "Validation failed.");
+                }
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not reach the server. Try again.");
+            } finally {
+                state.checking = false;
+                state.checkingAutomatic = false;
+                render();
+            }
+        }
+
+        async function deploy() {
+            const blocker = deployBlocker();
+            if (blocker) {
+                banner("bc-page-banner", "error", blocker);
+                return;
+            }
+
+            state.deploying = true;
+            renderGates();
+
+            try {
+                const { body } = await api(`/api/settings/apply-profile?chatbot_id=${encodeURIComponent(botId)}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ profile_name: state.active })
+                });
+
+                if (body.status === "success") {
+                    banner("bc-page-banner", "success",
+                        body.message || "Bot deployed. Connected channels will now use this profile and primary knowledge.");
+                    setTimeout(() => { window.location.href = `testbot.html${pageQuery}`; }, 1200);
+                    return;
+                }
+
+                banner("bc-page-banner", "error", body.message || "Could not deploy the bot.");
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not reach the server. Try again.");
+            } finally {
+                state.deploying = false;
+                renderGates();
+            }
+        }
+
+        /* ── Profile editor ──────────────────────────────────────────── */
+
+        let lastFocused = null;
+
+        function openModal(mode) {
+            state.mode = mode;
+            lastFocused = document.activeElement;
+
+            const profile = mode === "edit"
+                ? state.profiles.find(p => p.name === state.selected)
+                : null;
+
+            $("bc-modal-title").textContent = profile ? `Edit ${profile.name}` : "Create profile";
+            $("bc-f-name").value = profile?.name || "";
+            $("bc-f-name").readOnly = Boolean(profile);
+            $("bc-f-bot").value = profile?.bot_name || "";
+            $("bc-f-company").value = profile?.company_name || "";
+            $("bc-f-desc").value = profile?.business_description || "";
+            $("bc-f-extra").value = profile?.additional_instructions || "";
+            $("bc-f-prompt").value = profile?.custom_prompt || "";
+
+            // Assigned verbatim: merge_persona_write treats a present-but-blank
+            // field as a deliberate delete, so narrowing this to a known set
+            // would destroy any tone the backend actually stored.
+            $("bc-f-tone").value = profile?.tone || "";
+
+            $("bc-delete").hidden = !profile;
+            banner("bc-form-banner", "", "");
+
+            $("bc-modal").classList.add("is-open");
+            $("bc-f-name").focus();
+        }
+
+        function closeModal() {
+            $("bc-modal").classList.remove("is-open");
+            if (lastFocused) lastFocused.focus();
+        }
+
+        async function saveProfile(event) {
+            event.preventDefault();
+
+            const name = $("bc-f-name").value.trim();
+            if (!name) {
+                banner("bc-form-banner", "error", "Enter a profile name.");
+                $("bc-f-name").focus();
+                return;
+            }
+
+            const save = $("bc-save");
+            save.disabled = true;
+            save.textContent = "Saving…";
+
+            try {
+                const { body } = await api(`/api/profiles${botQuery}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name,
+                        bot_name: $("bc-f-bot").value,
+                        company_name: $("bc-f-company").value,
+                        business_description: $("bc-f-desc").value,
+                        tone: $("bc-f-tone").value,
+                        additional_instructions: $("bc-f-extra").value,
+                        custom_prompt: $("bc-f-prompt").value
+                    })
+                });
+
+                if (body.status !== "success") {
+                    banner("bc-form-banner", "error", body.message || "Could not save the profile.");
+                    return;
+                }
+
+                state.selected = name;
+                // Saving changes what the bot would answer with, so an earlier
+                // validation no longer describes the current setup.
+                state.validation = null;
+
+                await Promise.all([loadProfiles(), loadActiveProfile()]);
+                render();
+                closeModal();
+                banner("bc-page-banner", "success", `Profile "${name}" saved. Checking it against your knowledge…`);
+                autoValidateAttempted = false;
+                maybeAutoValidate();
+            } catch (_) {
+                banner("bc-form-banner", "error", "Could not reach the server. Try again.");
+            } finally {
+                save.disabled = false;
+                save.textContent = "Save profile";
+            }
+        }
+
+        async function deleteProfile() {
+            const name = state.selected;
+            if (!name) return;
+
+            try {
+                const { body } = await api(`/api/profiles/${encodeURIComponent(name)}${botQuery}`, { method: "DELETE" });
+
+                if (body.status !== "success") {
+                    banner("bc-page-banner", "error", body.message || "Could not delete the profile.");
+                    return;
+                }
+
+                state.selected = "";
+                if (state.active === name) {
+                    state.active = "";
+                    state.validation = null;
+                }
+
+                await Promise.all([loadProfiles(), loadActiveProfile()]);
+                render();
+                banner("bc-page-banner", "success", `Profile "${name}" deleted.`);
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not reach the server. Try again.");
+            } finally {
+                $("bc-confirm").classList.remove("is-open");
+                closeModal();
+            }
+        }
+
+        /* ── Events ──────────────────────────────────────────────────── */
+
+        function wireEvents() {
+            $("bc-create").addEventListener("click", () => openModal("create"));
+            $("bc-edit").addEventListener("click", () => openModal("edit"));
+            $("bc-cancel").addEventListener("click", closeModal);
+            $("bc-modal-close").addEventListener("click", closeModal);
+            $("bc-form").addEventListener("submit", saveProfile);
+
+            // Wrapped so the click Event is never mistaken for an options object.
+            $("bc-validate").addEventListener("click", () => validateSetup());
+            $("bc-validate-mobile").addEventListener("click", () => validateSetup());
+            $("bc-deploy").addEventListener("click", deploy);
+            $("bc-deploy-mobile").addEventListener("click", deploy);
+
+            $("bc-delete").addEventListener("click", () => {
+                $("bc-confirm-copy").textContent =
+                    `"${state.selected}" will be permanently deleted. This cannot be undone.`;
+                $("bc-confirm").classList.add("is-open");
+            });
+            $("bc-confirm-cancel").addEventListener("click", () => $("bc-confirm").classList.remove("is-open"));
+            $("bc-confirm-delete").addEventListener("click", deleteProfile);
+
+            // Escape closes the topmost dialog; clicking the backdrop closes it.
+            document.addEventListener("keydown", (event) => {
+                if (event.key !== "Escape") return;
+                if ($("bc-confirm").classList.contains("is-open")) {
+                    $("bc-confirm").classList.remove("is-open");
+                } else if ($("bc-modal").classList.contains("is-open")) {
+                    closeModal();
+                }
+            });
+
+            [["bc-modal", closeModal], ["bc-confirm", () => $("bc-confirm").classList.remove("is-open")]]
+                .forEach(([id, close]) => {
+                    $(id).addEventListener("click", (event) => {
+                        if (event.target === $(id)) close();
+                    });
+                });
+        }
+    </script>
 </body>
 
 </html>
-

@@ -27,6 +27,9 @@ def _row_to_profile(row):
         "company_name": row.get("company_name") or "",
         "additional_instructions": row.get("additional_instructions") or "",
         "is_active": row.get("is_active", False),
+        # save_profile already stamps this on every write; without forwarding it
+        # the library's "Last updated" column had nothing to show.
+        "updated_at": row.get("updated_at") or "",
         **resolve_persona_fields(row),
         PROVENANCE_COLUMN: {
             field: marker

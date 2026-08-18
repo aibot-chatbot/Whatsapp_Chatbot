@@ -1,5 +1,6 @@
 /**
- * Browser e2e for the derived persona, driven through frontend/testbot.html.
+ * Browser e2e for the derived persona, driven through the Behaviour Studio Test lab tab
+ * (frontend/behaviour.html?tab=test; frontend/testbot.html now redirects there).
  *
  * Unlike the sibling specs, this one does NOT mock /api/**. Mocking the chat
  * endpoint would make every assertion here a tautology: it would prove the page
@@ -124,14 +125,22 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
-/** Load the page for a scenario and wait until it is ready to take a message. */
+/**
+ * Load the page for a scenario and wait until it is ready to take a message.
+ *
+ * Retargeted on 2026-08-18 when testbot.html was merged into the Behaviour
+ * Studio's Test lab tab. The resolved profile is no longer printed as the first
+ * bot bubble; it is named in the Active setup strip, which is what this now
+ * waits on. NOT VERIFIED: this spec's Flask harness does not start in the
+ * current environment, so all three cases fail at activateScenario before ever
+ * reaching a page. Re-run once that harness works.
+ */
 async function openTestbot(page, scenario) {
   await activateScenario(scenario);
-  await page.goto(`/testbot.html?bot_id=${fixtures.chatbotId}`);
+  await page.goto(`/behaviour.html?tab=test&bot_id=${fixtures.chatbotId}`);
 
-  // loadContext() clears the placeholder and renders the Active Profile bubble.
-  await expect(page.locator(".message.bot").first()).toContainText("Active Profile");
-  await expect(page.locator("#message-input")).toBeEnabled();
+  await expect(page.locator(".bh-setup-item").first()).toBeVisible();
+  await expect(page.locator("#bh-input")).toBeEnabled();
 }
 
 /** Send a message the way a user does and return the reply text on screen. */
@@ -142,16 +151,16 @@ async function ask(page, text) {
       response.request().method() === "POST"
   );
 
-  await page.fill("#message-input", text);
-  await page.click("#send-btn");
+  await page.fill("#bh-input", text);
+  await page.click("#bh-send");
   await replied;
 
-  // sendMessage() removes the "Typing..." bubble before appending the reply.
+  // sendTestMessage() removes the pending bubble before appending the reply.
   await expect(
-    page.locator(".message.bot").filter({ hasText: "Typing..." })
+    page.locator(".bh-bubble-bot").filter({ hasText: "Typing" })
   ).toHaveCount(0);
 
-  return (await page.locator(".message.bot").last().innerText()).trim();
+  return (await page.locator(".bh-bubble-bot").last().innerText()).trim();
 }
 
 // ===================================================================
@@ -164,8 +173,9 @@ test("an ingested e-commerce knowledge set makes the bot name what the store sel
   await openTestbot(page, "ecommerce");
 
   // The deployment precondition, visible in the browser: the profile the
-  // derivation wrote is the one the page resolved.
-  await expect(page.locator(".message.bot").first()).toContainText("Default Profile");
+  // derivation wrote is the one the page resolved. Now read from the Active
+  // setup strip rather than an opening chat bubble.
+  await expect(page.locator(".bh-setup-item").first()).toContainText("Default Profile");
 
   const reply = await ask(page, fixtures.productQuestion);
 

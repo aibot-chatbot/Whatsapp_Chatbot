@@ -1,0 +1,149 @@
+/* ══════════════════════════════════════════════════════════════════════
+   CONTROL-ROOM MOTION
+   Shared, dependency-free motion layer for the control-room screens
+   (frontend/index.html, frontend/new_prompt.html).
+
+   Durations follow DESIGN.md: 120 / 180 / 280ms functional transitions.
+   Motion here only ever does one of three jobs — guide attention, report
+   state, or preserve spatial continuity. Nothing animates for decoration.
+
+   Everything animates `transform` and `opacity` only, so the work stays on
+   the compositor and never triggers layout. No `transition: all`.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+    --motion-fast: 120ms;
+    --motion-normal: 180ms;
+    --motion-slow: 280ms;
+    /* Matches the easing already used by the kw-* components. */
+    --motion-ease: cubic-bezier(.2, 0, 0, 1);
+    --motion-ease-out: cubic-bezier(.22, 1, .36, 1);
+    --motion-rise: 10px;
+}
+
+
+/* ── Entrance reveal ───────────────────────────────────────────────────
+   Sections start hidden and are revealed by control-room-motion.js once
+   they intersect the viewport. The JS sets `data-motion-ready` on <html>
+   first; without it every element stays visible, so a JS failure or a
+   crawler degrades to plain static content instead of a blank page. */
+
+html[data-motion-ready] .cr-reveal {
+    opacity: 0;
+    transform: translate3d(0, var(--motion-rise), 0);
+}
+
+html[data-motion-ready] .cr-reveal.is-in {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    transition: opacity var(--motion-slow) var(--motion-ease-out),
+                transform var(--motion-slow) var(--motion-ease-out);
+    /* Stagger is capped by the JS at 6 steps so a long list never turns
+       the reveal into a wait. */
+    transition-delay: calc(var(--motion-index, 0) * 45ms);
+}
+
+
+/* ── Live status dot ───────────────────────────────────────────────────
+   Communicates "this figure is polling and current". Paired everywhere
+   with a text label, never colour or motion alone. */
+
+.cr-live-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--control-accent, #3e9c89);
+}
+
+.cr-live-dot.is-live {
+    animation: cr-pulse 2s var(--motion-ease-out) infinite;
+}
+
+.cr-live-dot.is-idle {
+    background: var(--control-text-secondary, #8a9096);
+}
+
+@keyframes cr-pulse {
+    0%, 100% { opacity: 1;    transform: scale(1); }
+    50%      { opacity: 0.45; transform: scale(0.82); }
+}
+
+
+/* ── Value swap ────────────────────────────────────────────────────────
+   Applied for one frame when a polled number changes, so a figure that
+   moved is distinguishable from one that was already on screen. */
+
+.cr-swap {
+    animation: cr-swap-in var(--motion-slow) var(--motion-ease-out);
+}
+
+@keyframes cr-swap-in {
+    from { opacity: 0; transform: translate3d(0, -4px, 0); }
+    to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+
+/* ── Interactive feedback ──────────────────────────────────────────────
+   Press feedback on rows and cards that act as buttons/links. Properties
+   are listed explicitly; `transition: all` is never used. */
+
+.cr-press {
+    transition: transform var(--motion-fast) var(--motion-ease),
+                background-color var(--motion-normal) var(--motion-ease),
+                border-color var(--motion-normal) var(--motion-ease);
+}
+
+.cr-press:active:not(:disabled) {
+    transform: scale(0.99);
+}
+
+
+/* ── Skeleton ──────────────────────────────────────────────────────────
+   Shown while a region is loading so the layout does not jump when data
+   lands (CLS), and so "empty" is never mistaken for "none". */
+
+.cr-skeleton {
+    color: transparent !important;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.04) 0%,
+        rgba(255, 255, 255, 0.09) 50%,
+        rgba(255, 255, 255, 0.04) 100%
+    );
+    background-size: 200% 100%;
+    border-radius: 6px;
+    animation: cr-shimmer 1.5s ease-in-out infinite;
+    user-select: none;
+}
+
+@keyframes cr-shimmer {
+    from { background-position: 200% 0; }
+    to   { background-position: -200% 0; }
+}
+
+
+/* ── Reduced motion ────────────────────────────────────────────────────
+   Reveals resolve instantly rather than being removed, so content is
+   never left invisible. Looping animation is stopped outright. */
+
+@media (prefers-reduced-motion: reduce) {
+    html[data-motion-ready] .cr-reveal,
+    html[data-motion-ready] .cr-reveal.is-in {
+        opacity: 1;
+        transform: none;
+        transition: none;
+        transition-delay: 0ms;
+    }
+
+    .cr-live-dot.is-live,
+    .cr-swap,
+    .cr-skeleton {
+        animation: none;
+    }
+
+    .cr-press:active:not(:disabled) {
+        transform: none;
+    }
+}
