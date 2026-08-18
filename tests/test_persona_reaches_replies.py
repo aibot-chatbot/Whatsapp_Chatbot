@@ -304,8 +304,20 @@ def _serving_stack(
         ))
 
         # -- greeting branch dependencies ------------------------------------
+        # `get_active_knowledge_file` is the name chat_logic_service binds
+        # (:5, used at :160). The old `get_active_pdf_knowledge_file` survives
+        # as an alias on knowledge_file_repository and rag_service, but never
+        # existed here, so patch.object raised AttributeError before the stack
+        # was even built.
+        #
+        # KNOWN: fixing this uncovers a second, older break in the same stack --
+        # ensure_company_operational rejects the resolved company id
+        # ("Unable to validate company access.", company_context_invalid), so
+        # this module and tests/browser/testbot-persona.spec.js are both still
+        # red. That one is not diagnosed yet; it is unrelated to the patch
+        # target and predates it.
         enter(patch.object(
-            chat_logic_service, "get_active_pdf_knowledge_file", return_value=active_document
+            chat_logic_service, "get_active_knowledge_file", return_value=active_document
         ))
         enter(patch.object(
             chat_logic_service,

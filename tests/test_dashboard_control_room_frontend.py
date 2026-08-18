@@ -27,7 +27,10 @@ def test_dashboard_uses_stitch_control_room_design_contract():
     assert 'class="dashboard-page"' in html
     assert "dashboard-icon" in html
     assert "Material+Symbols" not in html
-    assert "dashboard-guide" in html
+    # Was "dashboard-guide". The guidance card became the dash-setup step rail
+    # when the dashboard was rebuilt to the mockup; the contract it stands for
+    # -- the dashboard tells you what to do next -- is unchanged.
+    assert "dash-setup" in html
     assert "data-dashboard-link" in html
     assert "⚡" not in html
     assert "📉" not in html
@@ -57,9 +60,18 @@ def test_dashboard_guidance_links_keep_selected_bot_context():
 
 
 def test_dashboard_dom_order_matches_visual_reading_order():
+    """DOM order is reading order, so tab order and screen readers agree.
+
+    The order itself changed with the rebuild: setup now leads, ahead of the
+    totals. That is deliberate -- an operator whose bot is half-configured
+    should meet the unfinished step before the message count, and the previous
+    order buried it below the fold. Health folded into the same step rail,
+    since both were answering "is this bot ready?".
+    """
     html = DASHBOARD_HTML.read_text(encoding="utf-8")
 
-    assert html.index('class="stats-grid"') < html.index('class="glass-card dashboard-guide"')
-    assert html.index('class="glass-card dashboard-guide"') < html.index('class="glass-card bot-health"')
-    assert html.index('class="glass-card bot-health"') < html.index('class="glass-card live-workflow"')
+    order = ["dash-setup", "dash-stats", "dash-trend-title", "dash-flow-title", "dash-activity-title"]
+    positions = [html.index(marker) for marker in order]
+
+    assert positions == sorted(positions), dict(zip(order, positions))
 

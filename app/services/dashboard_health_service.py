@@ -158,6 +158,10 @@ def get_dashboard_health(chatbot_id, company_id):
             "match_status": active_knowledge.get("match_status") or "",
             "validation_status": validation_label,
             "match_result": runtime.get("last_match_result"),
+            # The stored explanation behind a False result. Already persisted by
+            # match_routes and already read by get_draft_runtime; forwarding it
+            # lets the UI say why a check failed instead of only that it did.
+            "match_reason": runtime.get("last_match_reason") or "",
         },
         "channels": channels,
         "delivery": {

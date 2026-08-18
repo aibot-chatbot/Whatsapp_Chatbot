@@ -1,0 +1,817 @@
+/* ══════════════════════════════════════════════════════════════════════
+   DASHBOARD OVERVIEW
+   Components for frontend/index.html. Namespaced `dash-` under
+   `.dashboard-page`, the same containment rule dashboard-control-room.css
+   uses for `kw-`, so nothing here can reach another screen.
+
+   Tokens, buttons, pills, panels, stats and the step marks come from
+   dashboard-control-room.css. This file only adds what that file does not
+   already provide; no palette, font or radius is introduced here.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.dashboard-page .main-container :focus-visible {
+    outline: 2px solid var(--control-accent-hover);
+    outline-offset: 2px;
+    border-radius: 4px;
+}
+
+.dashboard-page .dash-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+
+/* ── Header status line ────────────────────────────────────────────────
+   "Live" is carried by a text label as well as the dot, so the state does
+   not depend on colour or motion alone. */
+
+.dashboard-page .dash-statusline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    line-height: 1.4;
+}
+
+.dashboard-page .dash-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--control-accent);
+    font-weight: 500;
+}
+
+.dashboard-page .dash-live.is-idle {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .dash-sep {
+    width: 1px;
+    height: 12px;
+    background: var(--control-border);
+}
+
+
+/* ── Bot settings menu ─────────────────────────────────────────────────
+   A real <button> + [hidden] panel; the trigger owns aria-expanded so the
+   state is announced rather than implied by the chevron. */
+
+.dashboard-page .dash-menu {
+    position: relative;
+    flex: 0 0 auto;
+    /* shared-ui.js pins the account chip at fixed top:24px/right:32px on
+       desktop. Drop below it rather than under it; the button then lines up
+       with the title block instead of colliding with the avatar. */
+    margin-top: 44px;
+}
+
+@media (max-width: 768px) {
+    .dashboard-page .dash-menu {
+        margin-top: 0;
+    }
+}
+
+.dashboard-page .dash-menu-chevron {
+    transition: transform var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .dash-menu-trigger[aria-expanded="true"] .dash-menu-chevron {
+    transform: rotate(180deg);
+}
+
+.dashboard-page .dash-menu-list {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    min-width: 230px;
+    padding: 6px;
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+
+.dashboard-page .dash-menu-list a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    color: var(--control-text);
+    font-size: 13px;
+    text-decoration: none;
+    border-radius: 7px;
+    transition: background-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .dash-menu-list a:hover,
+.dashboard-page .dash-menu-list a:focus-visible {
+    background: var(--control-raised);
+}
+
+.dashboard-page .dash-menu-list a svg {
+    color: var(--control-text-secondary);
+}
+
+
+/* ── Setup progress ───────────────────────────────────────────────────
+   Four ordered steps plus the single next action. Reuses .kw-step-mark
+   and the .is-done / .is-current modifiers from the control-room file. */
+
+.dashboard-page .dash-setup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+    gap: 0;
+}
+
+.dashboard-page .dash-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    gap: 0;
+    margin: 0;
+    padding: 22px 24px;
+    list-style: none;
+}
+
+.dashboard-page .dash-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    min-width: 0;
+    padding-right: 18px;
+}
+
+/* Connector sits behind the marks and stops before the next column so it
+   never runs under the label text. */
+.dashboard-page .dash-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 17px;
+    left: 46px;
+    right: 6px;
+    height: 1px;
+    background: var(--control-border);
+}
+
+.dashboard-page .dash-step .kw-step-mark {
+    width: 34px;
+    height: 34px;
+    position: relative;
+    z-index: 1;
+}
+
+.dashboard-page .dash-step-body {
+    min-width: 0;
+    padding-top: 2px;
+}
+
+/* The three lines are spans (an <li> of spans keeps the list semantics
+   clean), so they need to be told to stack. */
+.dashboard-page .dash-step-name,
+.dashboard-page .dash-step-state,
+.dashboard-page .dash-step-hint {
+    display: block;
+}
+
+.dashboard-page .dash-step-name {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.dashboard-page .dash-step-state {
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .dash-step.is-done .dash-step-state {
+    color: var(--control-accent);
+}
+
+.dashboard-page .dash-step.is-attention .dash-step-state {
+    color: var(--control-warning);
+}
+
+.dashboard-page .dash-step.is-attention .kw-step-mark {
+    color: var(--control-warning);
+    background: rgba(196, 121, 90, 0.12);
+    border-color: rgba(196, 121, 90, 0.4);
+}
+
+.dashboard-page .dash-step-hint {
+    margin-top: 9px;
+    color: var(--control-text-tertiary);
+    font-size: 12px;
+    line-height: 1.5;
+    text-wrap: pretty;
+}
+
+.dashboard-page .dash-nextstep {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 22px 24px;
+    border: 0;
+    border-left: 1px solid var(--control-border);
+    border-radius: 0;
+}
+
+.dashboard-page .dash-nextstep-label {
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .dash-nextstep h2 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+}
+
+.dashboard-page .dash-nextstep p {
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    line-height: 1.55;
+    text-wrap: pretty;
+}
+
+
+/* ── Stat strip ────────────────────────────────────────────────────────
+   .kw-stats is a 5-column grid; the overview shows four. */
+
+.dashboard-page .dash-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-page .dash-stats .kw-stat-value.is-text {
+    font-family: var(--font-body);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+
+/* ── Two-column body ───────────────────────────────────────────────── */
+
+.dashboard-page .dash-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+}
+
+.dashboard-page .dash-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+.dashboard-page .dash-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .dash-panel-head h2 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.dashboard-page .dash-panel-body {
+    padding: 20px;
+}
+
+
+/* ── Message trend chart ───────────────────────────────────────────────
+   Inline SVG so the series scales with the panel and stays crisp. The
+   figure carries one role="img" and one description; per-point values are
+   printed, not hidden in tooltips that touch devices never surface. */
+
+.dashboard-page .dash-chart {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.dashboard-page .dash-chart-grid line {
+    stroke: var(--control-border);
+    stroke-width: 1;
+}
+
+.dashboard-page .dash-chart-axis {
+    fill: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+.dashboard-page .dash-chart-line {
+    fill: none;
+    stroke: var(--control-accent);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.dashboard-page .dash-chart-dot {
+    fill: var(--control-canvas);
+    stroke: var(--control-accent);
+    stroke-width: 2;
+}
+
+.dashboard-page .dash-chart-dot.is-last {
+    fill: var(--control-accent);
+}
+
+.dashboard-page .dash-chart-value {
+    fill: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    text-anchor: middle;
+}
+
+.dashboard-page .dash-chart-value.is-peak {
+    fill: var(--control-accent);
+    font-weight: 600;
+}
+
+.dashboard-page .dash-chart-labels {
+    display: grid;
+    margin-top: 10px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    text-align: center;
+}
+
+.dashboard-page .dash-chart-labels span {
+    display: block;
+    line-height: 1.45;
+}
+
+.dashboard-page .dash-chart-labels b {
+    display: block;
+    color: var(--control-text-tertiary);
+    font-weight: 400;
+}
+
+.dashboard-page .dash-chart-foot {
+    display: flex;
+    gap: 40px;
+    flex-wrap: wrap;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .dash-chart-figure dt {
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .dash-chart-figure dd {
+    margin: 7px 0 0;
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 21px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+}
+
+.dashboard-page .dash-chart-figure small {
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 12px;
+    letter-spacing: 0;
+}
+
+/* Mobile day stepper. Hidden on desktop, where all seven points are read
+   directly off the series. */
+.dashboard-page .dash-daystep {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.dashboard-page .dash-daystep-read {
+    text-align: center;
+    line-height: 1.4;
+}
+
+.dashboard-page .dash-daystep-read strong {
+    display: block;
+    color: var(--control-accent);
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .dash-daystep-read span {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+
+/* ── Live AI workflow ─────────────────────────────────────────────────
+   Four stages with a track behind them. The active stage is marked by
+   ring + label, not hue alone. */
+
+.dashboard-page .dash-flow {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px 0 4px;
+}
+
+.dashboard-page .dash-flow-track {
+    position: absolute;
+    top: 30px;
+    left: 12%;
+    right: 12%;
+    height: 1px;
+    background: var(--control-border);
+}
+
+.dashboard-page .dash-flow-progress {
+    position: absolute;
+    top: 30px;
+    left: 12%;
+    width: 0;
+    height: 1px;
+    background: var(--control-accent);
+    transition: width var(--motion-slow, 280ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .dash-flow-node {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    text-align: center;
+}
+
+.dashboard-page .dash-flow-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    color: var(--control-text-secondary);
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 50%;
+    transition: color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1)),
+                border-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1)),
+                background-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .dash-flow-node.is-done .dash-flow-mark,
+.dashboard-page .dash-flow-node.is-active .dash-flow-mark {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    border-color: var(--control-accent);
+}
+
+.dashboard-page .dash-flow-label {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.35;
+    text-wrap: balance;
+}
+
+.dashboard-page .dash-flow-node.is-active .dash-flow-label {
+    color: var(--control-text);
+    font-weight: 500;
+}
+
+.dashboard-page .dash-flow-legend {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .dash-flow-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.dashboard-page .dash-flow-legend .is-on {
+    color: var(--control-accent);
+}
+
+.dashboard-page .dash-flow-message {
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    font-size: 12.5px;
+    line-height: 1.55;
+}
+
+.dashboard-page .dash-flow-message dt {
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .dash-flow-message dd {
+    margin: 5px 0 0;
+    color: var(--control-text);
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .dash-flow-message dd + dt {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--control-border);
+}
+
+
+/* ── Recent activity ───────────────────────────────────────────────── */
+
+.dashboard-page .dash-activity {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.dashboard-page .dash-activity th {
+    padding: 0 14px 10px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-align: left;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.dashboard-page .dash-activity td {
+    padding: 11px 14px;
+    color: var(--control-text);
+    font-size: 12.5px;
+    border-top: 1px solid var(--control-border);
+    vertical-align: middle;
+}
+
+.dashboard-page .dash-activity tbody tr {
+    transition: background-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .dash-activity tbody tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dashboard-page .dash-activity .dash-cell-time,
+.dashboard-page .dash-activity .dash-cell-user {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--control-text-secondary);
+    white-space: nowrap;
+}
+
+/* Explicit widths: with table-layout:fixed the first row decides the grid, so
+   the fixed-width columns are pinned and the message column takes the rest. */
+.dashboard-page .dash-activity .dash-col-time { width: 15%; }
+.dashboard-page .dash-activity .dash-col-user { width: 19%; }
+.dashboard-page .dash-activity .dash-col-channel { width: 19%; }
+.dashboard-page .dash-activity .dash-col-status { width: 17%; }
+
+/* The message column is the one that must yield. table-layout:fixed plus a
+   width is what actually lets the ellipsis engage inside a table cell. */
+.dashboard-page .dash-activity .dash-cell-msg {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .dash-activity .dash-cell-channel span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--control-text-secondary);
+    white-space: nowrap;
+}
+
+/* Health warnings. The container lived in index.html's inline <style>, which
+   this page no longer carries; .health-warning itself is already styled by
+   dashboard-control-room.css. */
+.dashboard-page .health-warnings {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.dashboard-page .health-warnings:empty {
+    display: none;
+}
+
+.dashboard-page .dash-activity-empty td {
+    padding: 40px 14px;
+    color: var(--control-text-secondary);
+    text-align: center;
+}
+
+
+/* ══ Responsive ═══════════════════════════════════════════════════════
+   Mobile follows the phone mockup: the step strip becomes a list, the
+   trend chart gains a day stepper, and the workflow becomes four tiles.
+   Full-bleed edges honour the notch via env(safe-area-inset-*). */
+
+@media (max-width: 1180px) {
+    .dashboard-page .dash-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .dash-setup {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .dash-nextstep {
+        border-left: 0;
+        border-top: 1px solid var(--control-border);
+    }
+}
+
+@media (max-width: 900px) {
+    .dashboard-page .dash-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* Two-up leaves no room for a single line, and "Total messag…" tells the
+       reader nothing. Wrap instead of clipping. */
+    .dashboard-page .dash-stats .kw-stat-label {
+        overflow: visible;
+        text-overflow: clip;
+        white-space: normal;
+    }
+
+    .dashboard-page .dash-stats .kw-stat:nth-child(-n+2) {
+        border-bottom: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .dash-stats .kw-stat:nth-child(odd) {
+        border-left: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-page .main-container {
+        padding: 20px max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    }
+
+    /* Steps become rows: name left, state right — the phone mockup's
+       checklist. The connector is dropped; vertical order carries it. */
+    .dashboard-page .dash-steps {
+        grid-template-columns: minmax(0, 1fr);
+        padding: 8px 16px 16px;
+    }
+
+    .dashboard-page .dash-step {
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 12px;
+        min-height: 52px;
+        padding: 0;
+        border-top: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .dash-step:first-child {
+        border-top: 0;
+    }
+
+    .dashboard-page .dash-step:not(:last-child)::after {
+        display: none;
+    }
+
+    .dashboard-page .dash-step .kw-step-mark {
+        width: 24px;
+        height: 24px;
+    }
+
+    .dashboard-page .dash-step-body {
+        padding-top: 0;
+    }
+
+    .dashboard-page .dash-step-state {
+        margin-top: 0;
+        text-align: right;
+    }
+
+    /* Detail copy is desktop-only; on the phone the single next action
+       below carries the instruction instead. */
+    .dashboard-page .dash-step-hint {
+        display: none;
+    }
+
+    .dashboard-page .dash-nextstep {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 14px 16px;
+    }
+
+    .dashboard-page .dash-nextstep h2 {
+        font-size: 15px;
+    }
+
+    .dashboard-page .dash-nextstep p {
+        display: none;
+    }
+
+    .dashboard-page .dash-daystep {
+        display: flex;
+    }
+
+    .dashboard-page .dash-chart-foot {
+        gap: 24px;
+    }
+
+    /* Four tiles, matching the phone mockup. */
+    .dashboard-page .dash-flow-track,
+    .dashboard-page .dash-flow-progress {
+        display: none;
+    }
+
+    .dashboard-page .dash-flow {
+        gap: 10px;
+    }
+
+    .dashboard-page .dash-flow-mark {
+        width: 100%;
+        height: 44px;
+        border-radius: 10px;
+    }
+
+    .dashboard-page .dash-flow-label {
+        font-size: 11px;
+    }
+
+    /* The message column is dropped on the narrowest layout; who, where and
+       what happened survive, which is what the row is scanned for. */
+    .dashboard-page .dash-activity .dash-cell-msg,
+    .dashboard-page .dash-activity .dash-col-msg {
+        display: none;
+    }
+}
+
+@media (max-width: 560px) {
+    .dashboard-page .dash-activity .dash-cell-time,
+    .dashboard-page .dash-activity .dash-col-time {
+        display: none;
+    }
+
+    .dashboard-page .dash-statusline {
+        gap: 8px;
+        font-size: 12px;
+    }
+}

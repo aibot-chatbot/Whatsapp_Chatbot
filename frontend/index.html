@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="color-scheme: dark">
 
 <head>
     <meta charset="UTF-8">
@@ -10,354 +10,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/shared-glass.css">
     <script src="assets/js/shared-ui.js"></script>
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-glow: rgba(59, 130, 246, 0.5);
-            --bg: #050b18;
-            --sidebar-bg: rgba(15, 23, 42, 0.8);
-            --card-bg: rgba(30, 41, 59, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --accent: #10b981;
-            --input-bg: rgba(15, 23, 42, 0.6);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            overflow-x: hidden;
-        }
-
-        /* Main Content Layout */
-        .main-container {
-            flex-grow: 1;
-            padding: 50px 60px;
-            max-width: 100%;
-            display: flex;
-            flex-direction: column;
-            overflow-x: hidden;
-        }
-
-        .header {
-            margin-bottom: 40px;
-            display: flex;
-            flex-direction: column;
-            justify-content: flex-start;
-            align-items: flex-start;
-            gap: 14px;
-            max-width: min(760px, calc(100vw - 132px));
-        }
-
-        .header h1 {
-            font-size: 2.2rem;
-            font-weight: 700;
-            letter-spacing: -1px;
-        }
-
-        .header p {
-            color: var(--text-dim);
-            margin-top: 8px;
-        }
-
-        .dashboard-date-pill {
-            padding: 10px 20px;
-            color: var(--accent);
-            font-weight: 600;
-            width: fit-content;
-            min-width: 190px;
-            max-width: 100%;
-            overflow-wrap: anywhere;
-            text-align: center;
-        }
-
-        /* ===== Glass Cards (from shared-glass.css) ===== */
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 24px;
-            margin-bottom: 40px;
-        }
-
-        .stat-val {
-            font-size: 1.8rem;
-            font-weight: 700;
-            margin: 12px 0 4px 0;
-            word-break: break-all;
-            overflow-wrap: anywhere;
-        }
-
-        .stat-label {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .content-sections {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 24px;
-        }
-
-        .activity-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .activity-table th {
-            text-align: left;
-            padding: 12px;
-            color: var(--text-dim);
-            font-size: 0.85rem;
-            border-bottom: 1px solid var(--glass-border);
-        }
-
-        .activity-table td {
-            padding: 16px 12px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-        }
-
-        .badge {
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .badge-success {
-            background: rgba(16, 185, 129, 0.2);
-            color: #10b981;
-        }
-
-        .badge-info {
-            background: rgba(59, 130, 246, 0.2);
-            color: #3b82f6;
-        }
-
-        .bot-health {
-            margin-bottom: 24px;
-        }
-
-        .bot-health-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 18px;
-        }
-
-        .bot-health-title {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .bot-health-title h3 {
-            margin: 0;
-            font-size: 1.15rem;
-        }
-
-        .bot-health-title p {
-            margin: 0;
-            color: var(--text-dim);
-            font-size: 0.9rem;
-        }
-
-        .health-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 14px;
-        }
-
-        .health-card {
-            background: rgba(15, 23, 42, 0.42);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 16px;
-            padding: 16px;
-            min-height: 112px;
-        }
-
-        .health-card-label {
-            color: var(--text-dim);
-            font-size: 0.78rem;
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 10px;
-        }
-
-        .health-card-value {
-            font-size: 1rem;
-            font-weight: 700;
-            overflow-wrap: anywhere;
-        }
-
-        .health-card-meta {
-            color: var(--text-dim);
-            font-size: 0.82rem;
-            margin-top: 8px;
-            overflow-wrap: anywhere;
-        }
-
-        .health-warnings {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 16px;
-        }
-
-        .health-warning {
-            color: #fbbf24;
-            background: rgba(251, 191, 36, 0.12);
-            border: 1px solid rgba(251, 191, 36, 0.25);
-            border-radius: 999px;
-            padding: 6px 12px;
-            font-size: 0.8rem;
-        }
-
-        @keyframes float {
-            0% {
-                transform: translateY(0px);
-            }
-
-            50% {
-                transform: translateY(-10px);
-            }
-
-            100% {
-                transform: translateY(0px);
-            }
-        }
-
-        .floating {
-            animation: float 6s ease-in-out infinite;
-        }
-
-        /* Workflow Nodes Professional Design */
-        .workflow-node {
-            transition: all 0.3s ease;
-        }
-        .node-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: var(--input-bg);
-            border: 2px solid var(--glass-border);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: all 0.3s ease;
-            color: var(--text-dim);
-            position: relative;
-            z-index: 2;
-        }
-        .node-icon svg {
-            width: 20px;
-            height: 20px;
-            stroke-width: 2;
-        }
-        .node-label {
-            font-size: 0.85rem;
-            color: var(--text-dim);
-            font-weight: 500;
-            text-align: center;
-            transition: all 0.3s ease;
-            margin-top: 10px;
-        }
-        
-        .workflow-node.active .node-icon {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: #ffffff;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-            transform: translateY(-2px);
-        }
-        .workflow-node.active .node-label {
-            color: #ffffff;
-            font-weight: 600;
-        }
-
-        .workflow-node.completed .node-icon {
-            background: var(--card-bg);
-            border-color: var(--primary);
-            color: var(--primary);
-        }
-        .workflow-node.completed .node-label {
-            color: var(--text-main);
-        }
-
-        /* Responsive Media Queries */
-        @media (max-width: 1200px) {
-            .content-sections {
-                grid-template-columns: 1fr;
-            }
-
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-
-            .main-container {
-                padding: 30px 20px;
-            }
-
-            .header {
-                gap: 16px;
-                align-items: stretch;
-                max-width: 100%;
-            }
-
-            .dashboard-date-pill {
-                align-self: flex-start;
-                min-width: min(190px, 100%);
-                max-width: min(260px, 100%);
-                padding: 8px 12px;
-                font-size: 0.82rem;
-                line-height: 1.25;
-                white-space: nowrap;
-            }
-
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .bot-health-header {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-
-            .activity-table th:nth-child(2),
-            .activity-table td:nth-child(2) {
-                display: none;
-            }
-        }
-
-        @media (max-width: 360px) {
-            .dashboard-date-pill {
-                font-size: 0.72rem;
-            }
-        }
-    </style>
+    <!-- Page styling comes from dashboard-control-room.css (tokens + kw-* components),
+         dashboard-overview.css (dash-* components) and control-room-motion.css. The old
+         inline glass/Outfit block was fully superseded by those and has been removed. -->
     <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/dashboard-overview.css">
+    <meta name="theme-color" content="#0e0f11">
 </head>
 
 <body class="dashboard-page">
@@ -366,218 +25,255 @@
     <chatbot-sidebar></chatbot-sidebar>
 
     <main class="main-container">
-        <div class="header">
+        <header class="header cr-reveal">
             <div class="dashboard-heading">
                 <a class="dashboard-back-link" href="bots.html">
                     <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M5 12h14"/></svg>
                     My bots
                 </a>
                 <h1 id="dashboard-title">Overview</h1>
-                <p id="dashboard-subtitle">Loading the selected bot's setup and usage overview...</p>
+                <p class="dash-statusline" role="status">
+                    <span class="dash-live is-idle" id="dash-live">
+                        <span class="cr-live-dot is-idle" id="dash-live-dot" aria-hidden="true"></span>
+                        <span id="dash-live-label">Checking…</span>
+                    </span>
+                    <span class="dash-sep" aria-hidden="true"></span>
+                    <span id="dash-systems">Loading the selected bot's setup and usage overview…</span>
+                    <span class="dash-sep" aria-hidden="true"></span>
+                    <span>Last updated: <time class="kw-mono" id="date-display">--</time></span>
+                </p>
             </div>
-            <div class="glass-card dashboard-date-pill" id="dashboard-date-pill" role="status" aria-label="Current dashboard date and time">
-                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-                <span id="date-display">--</span>
-            </div>
-        </div>
-
-        <div class="stats-grid">
-            <div class="glass-card">
-                <div class="stat-label">Total Users</div>
-                <div class="stat-val" id="stat-total-users">...</div>
-                <div style="color: var(--text-dim); font-size: 0.8rem;">Unique phone numbers</div>
-            </div>
-            <div class="glass-card">
-                <div class="stat-label">Total Messages</div>
-                <div class="stat-val" id="stat-total-msgs">...</div>
-                <div style="color: var(--text-dim); font-size: 0.8rem;">Overall interaction volume</div>
-            </div>
-            <div class="glass-card">
-                <div class="stat-label">Active Profile</div>
-                <div class="stat-val" id="stat-active-profile" style="font-size: 1.3rem; margin-top: 18px;">...</div>
-            </div>
-            <div class="glass-card">
-                <div class="stat-label">Active Primary Knowledge</div>
-                <div class="stat-val" id="stat-active-pdf" style="font-size: 1.3rem; margin-top: 18px;">...</div>
-            </div>
-        </div>
-
-        <section class="glass-card dashboard-guide" aria-labelledby="dashboard-guide-title">
-            <div class="section-heading-row">
-                <div>
-                    <h2 class="section-heading" id="dashboard-guide-title">
-                        <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M6 16V9a3 3 0 0 1 3-3h7"/></svg>
-                        What would you like to do?
-                    </h2>
-                    <p class="section-description">Use these shortcuts in order when setting up a new bot, or jump directly to daily operations.</p>
+            <div class="dash-menu" id="dash-menu">
+                <button type="button" class="kw-btn dash-menu-trigger" id="dash-menu-trigger"
+                    aria-expanded="false" aria-haspopup="true" aria-controls="dash-menu-list">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></svg>
+                    Bot settings
+                    <svg class="dashboard-icon dash-menu-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+                <div class="dash-menu-list" id="dash-menu-list" hidden>
+                    <a href="new_prompt.html" data-dashboard-link data-manage-only="true">
+                        <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg>
+                        Bot configuration
+                    </a>
+                    <a href="new_linkdocs.html" data-dashboard-link data-manage-only="true">
+                        <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h13a3 3 0 0 1 3 3v11H7a3 3 0 0 0-3 3V5Z"/><path d="M7 19h13M8 9h8M8 13h6"/></svg>
+                        Training data
+                    </a>
+                    <a href="model_settings.html" data-dashboard-link data-manage-only="true">
+                        <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+                        Behaviour &amp; model
+                    </a>
+                    <a href="integration.html" data-dashboard-link>
+                        <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                        Channels &amp; integration
+                    </a>
+                    <a href="testbot.html" data-dashboard-link data-manage-only="true">
+                        <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 8a3 3 0 0 0 2.6 4.5h8.8A3 3 0 0 0 19 17l-5-8V3M8 15h8"/></svg>
+                        Test a reply
+                    </a>
                 </div>
             </div>
-            <div class="guide-grid">
-                <a class="guide-link" href="new_prompt.html" data-dashboard-link data-manage-only="true">
-                    <span class="guide-icon"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg></span>
-                    <span class="guide-copy"><strong>Configure AI</strong><span>Choose the bot's profile and reply behavior.</span></span>
-                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-                </a>
-                <a class="guide-link" href="new_linkdocs.html" data-dashboard-link data-manage-only="true">
-                    <span class="guide-icon"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h13a3 3 0 0 1 3 3v11H7a3 3 0 0 0-3 3V5Z"/><path d="M7 19h13M8 9h8M8 13h6"/></svg></span>
-                    <span class="guide-copy"><strong>Add knowledge</strong><span>Upload the sources the bot should use.</span></span>
-                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-                </a>
-                <a class="guide-link" href="testbot.html" data-dashboard-link data-manage-only="true">
-                    <span class="guide-icon"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 8a3 3 0 0 0 2.6 4.5h8.8A3 3 0 0 0 19 17l-5-8V3M8 15h8"/></svg></span>
-                    <span class="guide-copy"><strong>Test a reply</strong><span>Check an answer before connecting customers.</span></span>
-                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
-                </a>
-                <a class="guide-link" href="conversations.html" data-dashboard-link>
-                    <span class="guide-icon"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></svg></span>
-                    <span class="guide-copy"><strong>Open inbox</strong><span>Review conversations and follow-up work.</span></span>
+        </header>
+
+        <section class="kw-panel dash-setup cr-reveal" aria-labelledby="dash-setup-title">
+            <h2 class="dash-visually-hidden" id="dash-setup-title">Bot setup progress</h2>
+            <ol class="dash-steps" id="dash-steps">
+                <li class="dash-step" data-step="profile">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="dash-step-body">
+                        <span class="dash-step-name">Profile</span>
+                        <span class="dash-step-state">Checking…</span>
+                        <span class="dash-step-hint">Bot profile is complete</span>
+                    </span>
+                </li>
+                <li class="dash-step" data-step="knowledge">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="dash-step-body">
+                        <span class="dash-step-name">Knowledge</span>
+                        <span class="dash-step-state">Checking…</span>
+                        <span class="dash-step-hint">Add primary knowledge to get accurate answers</span>
+                    </span>
+                </li>
+                <li class="dash-step" data-step="validate">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="dash-step-body">
+                        <span class="dash-step-name">Validate</span>
+                        <span class="dash-step-state">Checking…</span>
+                        <span class="dash-step-hint">Test your bot's answers and review</span>
+                    </span>
+                </li>
+                <li class="dash-step" data-step="channel">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="dash-step-body">
+                        <span class="dash-step-name">Channel</span>
+                        <span class="dash-step-state">Checking…</span>
+                        <span class="dash-step-hint">Connect a channel to reach customers</span>
+                    </span>
+                </li>
+            </ol>
+            <div class="dash-nextstep">
+                <span class="dash-nextstep-label">Next step</span>
+                <h2 id="dash-next-title">Checking setup…</h2>
+                <p id="dash-next-copy">Reading this bot's profile, knowledge, validation and channels.</p>
+                <a class="kw-btn kw-btn-primary cr-press" id="dash-next-cta" href="new_linkdocs.html" data-dashboard-link hidden>
+                    <span id="dash-next-cta-label">Open knowledge</span>
                     <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
                 </a>
             </div>
         </section>
 
-        <div class="glass-card bot-health">
-            <div class="bot-health-header">
-                <div class="bot-health-title">
-                    <h3>Bot Health</h3>
-                    <p id="bot-health-summary">Checking bot health...</p>
+        <section class="kw-stats dash-stats cr-reveal" aria-label="Bot totals">
+            <div class="kw-stat">
+                <div class="kw-stat-head">
+                    <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></span>
+                    <span class="kw-stat-label">Total users</span>
                 </div>
-                <span id="bot-health-status" class="badge"
-                    style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Checking</span>
+                <div class="kw-stat-value" id="stat-total-users">—</div>
+                <div class="kw-stat-unit">Unique contacts</div>
             </div>
-
-            <div class="health-grid">
-                <div class="health-card">
-                    <div class="health-card-label">AI Profile</div>
-                    <div class="health-card-value" id="health-profile-name">Checking...</div>
-                    <div class="health-card-meta" id="health-profile-meta">-</div>
+            <div class="kw-stat">
+                <div class="kw-stat-head">
+                    <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></svg></span>
+                    <span class="kw-stat-label">Total messages</span>
                 </div>
-                <div class="health-card">
-                    <div class="health-card-label">Primary Knowledge</div>
-                    <div class="health-card-value" id="health-knowledge-name">Checking...</div>
-                    <div class="health-card-meta" id="health-knowledge-meta">-</div>
-                </div>
-                <div class="health-card">
-                    <div class="health-card-label">Channels</div>
-                    <div class="health-card-value" id="health-channels-count">Checking...</div>
-                    <div class="health-card-meta" id="health-channels-meta">-</div>
-                </div>
-                <div class="health-card">
-                    <div class="health-card-label">Delivery</div>
-                    <div class="health-card-value" id="health-delivery-status">Checking...</div>
-                    <div class="health-card-meta" id="health-delivery-meta">-</div>
-                </div>
-                <div class="health-card">
-                    <div class="health-card-label">Last Activity</div>
-                    <div class="health-card-value" id="health-last-activity">Checking...</div>
-                    <div class="health-card-meta" id="health-last-success">-</div>
-                </div>
+                <div class="kw-stat-value" id="stat-total-msgs">—</div>
+                <div class="kw-stat-unit">Overall interactions</div>
             </div>
+            <div class="kw-stat">
+                <div class="kw-stat-head">
+                    <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+                    <span class="kw-stat-label">Active profile</span>
+                </div>
+                <div class="kw-stat-value is-text" id="stat-active-profile">—</div>
+            </div>
+            <div class="kw-stat">
+                <div class="kw-stat-head">
+                    <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M4 5h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H4Z"/><path d="M20 5h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7Z"/></svg></span>
+                    <span class="kw-stat-label">Active knowledge</span>
+                </div>
+                <div class="kw-stat-value is-text" id="stat-active-pdf">—</div>
+            </div>
+        </section>
 
-            <div class="health-warnings" id="bot-health-warnings"></div>
+        <div class="dash-grid">
+            <section class="kw-panel cr-reveal" aria-labelledby="dash-trend-title">
+                <div class="dash-panel-head">
+                    <h2 id="dash-trend-title">Message trend</h2>
+                    <label class="dash-visually-hidden" for="dash-range">Trend range</label>
+                    <select class="kw-select" id="dash-range">
+                        <option value="7" selected>Last 7 days</option>
+                    </select>
+                </div>
+                <div class="dash-panel-body">
+                    <div id="chart-container"></div>
+                    <div class="dash-chart-labels" id="chart-labels"></div>
+
+                    <div class="dash-daystep">
+                        <button type="button" class="kw-btn kw-btn-icon cr-press" id="dash-day-prev" aria-label="Previous day">
+                            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                        </button>
+                        <p class="dash-daystep-read" role="status">
+                            <span id="dash-day-label">--</span>
+                            <strong id="dash-day-value">--</strong>
+                            <span>messages</span>
+                        </p>
+                        <button type="button" class="kw-btn kw-btn-icon cr-press" id="dash-day-next" aria-label="Next day">
+                            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg>
+                        </button>
+                    </div>
+
+                    <dl class="dash-chart-foot">
+                        <div class="dash-chart-figure">
+                            <dt>Total (last 7 days)</dt>
+                            <dd id="dash-trend-total">--</dd>
+                        </div>
+                        <div class="dash-chart-figure">
+                            <dt>Peak day</dt>
+                            <dd id="dash-trend-peak">--</dd>
+                        </div>
+                    </dl>
+                </div>
+            </section>
+
+            <div class="dash-col">
+                <section class="kw-panel cr-reveal" aria-labelledby="dash-flow-title">
+                    <div class="dash-panel-head">
+                        <h2 id="dash-flow-title">Live AI workflow</h2>
+                        <p class="dash-flow-legend" id="workflow-status-badge" role="status">
+                            <span class="is-on"><span class="cr-live-dot is-idle" id="dash-flow-dot" aria-hidden="true"></span><span id="dash-flow-state">Idle</span></span>
+                        </p>
+                    </div>
+                    <div class="dash-panel-body">
+                        <div class="dash-flow" id="dash-flow">
+                            <div class="dash-flow-track" aria-hidden="true"></div>
+                            <div class="dash-flow-progress" id="workflow-progress-bar" aria-hidden="true"></div>
+
+                            <div class="dash-flow-node" id="node-RECEIVING">
+                                <span class="dash-flow-mark" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M12 3v12m0 0-4-4m4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span>
+                                <span class="dash-flow-label">Receiving</span>
+                            </div>
+                            <div class="dash-flow-node" id="node-RAG_SEARCH">
+                                <span class="dash-flow-mark" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4.3-4.3"/></svg></span>
+                                <span class="dash-flow-label">Knowledge search</span>
+                            </div>
+                            <div class="dash-flow-node" id="node-AI_GENERATING">
+                                <span class="dash-flow-mark" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="m12 3 1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9Z"/><path d="M18 15.5 18.8 17.4 20.7 18.2 18.8 19 18 21 17.2 19 15.3 18.2 17.2 17.4Z"/></svg></span>
+                                <span class="dash-flow-label">AI generating</span>
+                            </div>
+                            <div class="dash-flow-node" id="node-SENDING">
+                                <span class="dash-flow-mark" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></span>
+                                <span class="dash-flow-label">Sending</span>
+                            </div>
+                        </div>
+
+                        <dl class="dash-flow-message" id="workflow-message-display" hidden>
+                            <dt>User message</dt>
+                            <dd id="workflow-user-text"></dd>
+                            <div id="workflow-ai-response-container" hidden>
+                                <dt>AI response</dt>
+                                <dd id="workflow-ai-text"></dd>
+                            </div>
+                        </dl>
+                    </div>
+                </section>
+
+                <section class="kw-panel cr-reveal" aria-labelledby="dash-activity-title">
+                    <div class="dash-panel-head">
+                        <h2 id="dash-activity-title">Recent activity</h2>
+                        <a class="kw-btn cr-press" href="conversations.html" data-dashboard-link>
+                            View all
+                            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
+                        </a>
+                    </div>
+                    <div class="dash-panel-body">
+                        <table class="dash-activity">
+                            <caption class="dash-visually-hidden">Most recent conversations, newest first</caption>
+                            <thead>
+                                <tr>
+                                    <th class="dash-col-time" scope="col">Time</th>
+                                    <th class="dash-col-user" scope="col">User</th>
+                                    <th class="dash-col-channel" scope="col">Channel</th>
+                                    <th class="dash-col-msg" scope="col">Message</th>
+                                    <th class="dash-col-status" scope="col">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recent-history-body">
+                                <tr class="dash-activity-empty">
+                                    <td colspan="5">Loading&#8230;</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
         </div>
 
-        <!-- Live AI Workflow Section -->
-        <div class="glass-card live-workflow" style="margin-bottom: 24px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 class="section-title" style="margin: 0; display: flex; align-items: center; gap: 10px;">
-                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m13 2-9 12h7l-1 8 10-12h-7V2Z"/></svg> Live AI Workflow
-                </h3>
-                <div id="workflow-status-badge" class="badge"
-                    style="background: rgba(148, 163, 184, 0.2); color: var(--text-dim);">Idle</div>
-            </div>
-
-            <!-- Live message info -->
-            <div id="workflow-message-display"
-                style="display: none; background: rgba(15, 23, 42, 0.4); border: 1px dashed var(--glass-border); border-radius: 12px; padding: 16px; margin-bottom: 20px; color: var(--text-dim); font-size: 0.95rem;">
-                <div style="display: flex; gap: 10px; margin-bottom: 8px;">
-                    <span style="font-weight: 600; color: #60a5fa; min-width: 100px;">User Message:</span>
-                    <span id="workflow-user-text" style="color: var(--text-main); font-style: italic;"></span>
-                </div>
-                <div id="workflow-ai-response-container"
-                    style="display: none; gap: 10px; margin-top: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
-                    <span style="font-weight: 600; color: var(--accent); min-width: 100px;">AI Response:</span>
-                    <span id="workflow-ai-text" style="color: var(--text-main);"></span>
-                </div>
-            </div>
-
-            <!-- Flowchart Nodes -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; position: relative; padding: 20px 10px; margin-top: 10px;">
-                <!-- connecting line background -->
-                <div style="position: absolute; top: 44px; left: 60px; right: 60px; height: 2px; background: var(--glass-border); z-index: 1;"></div>
-                <!-- connecting line progress -->
-                <div id="workflow-progress-bar" style="position: absolute; top: 44px; left: 60px; width: 0%; height: 2px; background: var(--primary); z-index: 1; transition: width 0.5s ease; box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);"></div>
-
-                <!-- Node 1: Received -->
-                <div id="node-RECEIVING" class="workflow-node" style="width: 80px; display: flex; flex-direction: column; align-items: center;">
-                    <div class="node-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
-                    </div>
-                    <div class="node-label">Receiving<br>Message</div>
-                </div>
-
-                <!-- Node 2: RAG Search -->
-                <div id="node-RAG_SEARCH" class="workflow-node" style="width: 80px; display: flex; flex-direction: column; align-items: center;">
-                    <div class="node-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-                    </div>
-                    <div class="node-label">Knowledge<br>Search</div>
-                </div>
-
-                <!-- Node 3: AI Generating -->
-                <div id="node-AI_GENERATING" class="workflow-node" style="width: 80px; display: flex; flex-direction: column; align-items: center;">
-                    <div class="node-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/><rect width="10" height="10" x="7" y="7" rx="2"/></svg>
-                    </div>
-                    <div class="node-label">AI<br>Generating</div>
-                </div>
-
-                <!-- Node 4: Sending -->
-                <div id="node-SENDING" class="workflow-node" style="width: 80px; display: flex; flex-direction: column; align-items: center;">
-                    <div class="node-icon">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-                    </div>
-                    <div class="node-label">Sending<br>Response</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="content-sections">
-            <div class="glass-card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h3 class="section-title" style="margin: 0;"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg> Usage analytics (last 7 days)</h3>
-                </div>
-                <div id="chart-container"
-                    style="height: 200px; display: flex; align-items: flex-end; gap: 10px; padding-top: 20px;">
-                    <div
-                        style="width: 100%; text-align: center; color: var(--text-dim); margin-bottom: auto; margin-top:auto;">
-                        Loading chart data...</div>
-                </div>
-                <div id="chart-labels"
-                    style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.8rem; color: var(--text-dim);">
-                </div>
-            </div>
-            <div class="glass-card">
-                <h3 class="section-title"><svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg> Recent history</h3>
-                <table class="activity-table">
-                    <thead>
-                        <tr>
-                            <th>User (Last 4)</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="recent-history-body">
-                        <tr>
-                            <td colspan="2" style="text-align: center; color: var(--text-dim);">Loading...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <div class="health-warnings" id="bot-health-warnings" role="status"></div>
 
     </main>
 
     <script src="assets/js/auth.js"></script>
+    <script src="assets/js/control-room-motion.js" defer></script>
     <script>
         requireLogin();
 
@@ -600,6 +296,11 @@
             sessionStorage.setItem("selectedBotId", selectedBotId);
         }
 
+        // Latest chart series, kept so the mobile day stepper can read a day
+        // without refetching.
+        let trendSeries = { labels: [], data: [] };
+        let trendIndex = 0;
+
         document.addEventListener('DOMContentLoaded', () => {
             if (!selectedBotId) {
                 return;
@@ -607,31 +308,51 @@
 
             updateDate();
             updateDashboardLinks();
+            initSettingsMenu();
+            initDayStepper();
+
             window.addEventListener('resize', () => {
                 updateDate();
                 updateAccountMenuHeaderOffset();
             });
             window.addEventListener('tenant-account-menu-toggle', updateAccountMenuHeaderOffset);
+
             fetchSelectedBot();
             fetchBotHealth();
             fetchDashboardData();
 
-            // Start polling for live workflow updates
             setInterval(fetchLiveWorkflow, 1500);
         });
 
-        function updateDate() {
-            const dateEl = document.getElementById('date-display');
-            if (dateEl) {
-                const now = new Date();
-                const isNarrow = window.matchMedia('(max-width: 420px)').matches;
-                const options = isNarrow
-                    ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-                    : { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
-                const formatted = now.toLocaleDateString(undefined, options);
-                dateEl.textContent = formatted;
-            }
+        function $(id) {
+            return document.getElementById(id);
         }
+
+        function setText(id, value) {
+            const el = $(id);
+            if (el) el.textContent = value;
+        }
+
+        /* -- Header ------------------------------------------------- */
+
+        function updateDate() {
+            const dateEl = $('date-display');
+            if (!dateEl) return;
+
+            const now = new Date();
+            const isNarrow = window.matchMedia('(max-width: 420px)').matches;
+            // Intl rather than a hardcoded format, so the reading matches the
+            // viewer's locale and timezone.
+            const options = isNarrow
+                ? { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+                : { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+            dateEl.textContent = new Intl.DateTimeFormat(undefined, options).format(now);
+            dateEl.setAttribute('datetime', now.toISOString());
+        }
+
+        // POST /api/match/check is @role_required("admin", "owner"), so the
+        // auto-check must know the role before firing — a member would get 403.
+        let canManage = false;
 
         function updateDashboardLinks() {
             let role = "";
@@ -642,7 +363,7 @@
                 role = "";
             }
 
-            const canManage = role === "owner" || role === "admin";
+            canManage = role === "owner" || role === "admin";
             document.querySelectorAll('[data-dashboard-link]').forEach(link => {
                 const url = new URL(link.getAttribute('href'), window.location.href);
                 url.searchParams.set('bot_id', selectedBotId);
@@ -657,9 +378,11 @@
         function updateAccountMenuHeaderOffset(event) {
             const header = document.querySelector('.header');
             if (!header) return;
-            const isNarrow = window.matchMedia('(max-width: 768px)').matches;
+            // Applied at every width, not just mobile. The redesigned header
+            // spans the full row, so the open account menu can cover the bot
+            // name and status line on mid-size screens too.
             const isOpen = event?.detail?.open ?? document.documentElement.dataset.tenantAccountMenuOpen === 'true';
-            if (!isNarrow || !isOpen) {
+            if (!isOpen) {
                 header.style.removeProperty('margin-top');
                 return;
             }
@@ -674,32 +397,59 @@
             header.style.marginTop = `${offset}px`;
         }
 
+        // Disclosure, not a link list masquerading as a button: the trigger
+        // owns aria-expanded, Escape closes, and focus returns to the trigger.
+        function initSettingsMenu() {
+            const trigger = $('dash-menu-trigger');
+            const list = $('dash-menu-list');
+            const wrap = $('dash-menu');
+            if (!trigger || !list || !wrap) return;
+
+            const close = (refocus) => {
+                list.hidden = true;
+                trigger.setAttribute('aria-expanded', 'false');
+                if (refocus) trigger.focus();
+            };
+
+            trigger.addEventListener('click', () => {
+                const open = trigger.getAttribute('aria-expanded') === 'true';
+                list.hidden = open;
+                trigger.setAttribute('aria-expanded', String(!open));
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape' && !list.hidden) close(true);
+            });
+
+            document.addEventListener('click', (event) => {
+                if (list.hidden) return;
+                if (!wrap.contains(event.target)) close(false);
+            });
+        }
+
+        /* -- Data --------------------------------------------------- */
+
         async function fetchSelectedBot() {
             try {
                 const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== "success" || !result.data) {
-                    alert("You do not have access to this bot.");
                     window.location.href = "bots.html";
                     return;
                 }
 
                 const botName = result.data.bot_name || "Selected bot";
-                document.getElementById("dashboard-title").innerText = "Overview";
-                document.getElementById("dashboard-subtitle").innerText =
-                    `${botName} · Live setup, health, and usage in one place.`;
-
+                setText('dashboard-title', botName);
+                document.title = `${botName} - Dashboard | AI Chatbot`;
             } catch (err) {
                 console.error("Failed to fetch selected bot", err);
-                alert("Failed to load bot. Please select a bot again.");
                 window.location.href = "bots.html";
             }
         }
 
         async function fetchDashboardData() {
             try {
-                // 1. Fetch Analytics
                 const analyticsRes = await authenticatedFetch(`/api/analytics?chatbot_id=${selectedBotId}`);
                 const analytics = await analyticsRes.json();
 
@@ -708,235 +458,578 @@
                     return;
                 }
 
-                document.getElementById('stat-total-users').innerText = analytics.data.total_users;
-                document.getElementById('stat-total-msgs').innerText = analytics.data.total_messages;
+                setText('stat-total-users', formatCount(analytics.data.total_users));
+                setText('stat-total-msgs', formatCount(analytics.data.total_messages));
 
-                // Render Chart
                 renderChart(analytics.data.chart.labels, analytics.data.chart.data);
-
-                // Render Recent History
                 renderHistory(analytics.data.recent_history);
 
-                // 2. Fetch Settings
                 const settingsRes = await authenticatedFetch(`/api/settings?chatbot_id=${selectedBotId}`);
                 const settings = await settingsRes.json();
-                if (settings.status === "success") {
-                    document.getElementById('stat-active-profile').innerText = settings.data.active_profile || "None";
-                    const profileEl = document.getElementById('stat-active-profile');
-                    const profileName = settings.data.active_profile || "None";
-                    profileEl.innerText = profileName;
-                    profileEl.style.fontSize = profileName.length > 20 ? "1.1rem" : "1.3rem";
-                } else {
-                    document.getElementById('stat-active-profile').innerText = "Unavailable";
-                }
+                setText('stat-active-profile', settings.status === "success"
+                    ? (settings.data.active_profile || "Not selected")
+                    : "Unavailable");
 
-                // 3. Fetch active primary knowledge
                 const knowledgeRes = await authenticatedFetch(`/api/knowledge/active?chatbot_id=${selectedBotId}`);
                 if (knowledgeRes.ok) {
                     const knowledge = await knowledgeRes.json();
-                    document.getElementById('stat-active-pdf').innerText = knowledge.data?.file_name || "None";
-                    const pdfEl = document.getElementById('stat-active-pdf');
-                    const pdfName = knowledge.data?.file_name || "None";
-                    pdfEl.innerText = pdfName;
-                    pdfEl.style.fontSize = pdfName.length > 20 ? "1.1rem" : "1.3rem";
+                    setText('stat-active-pdf', knowledge.data?.file_name || "Not selected");
                 } else {
-                    document.getElementById('stat-active-pdf').innerText = "Unavailable";
+                    setText('stat-active-pdf', "Unavailable");
                 }
-
             } catch (err) {
                 console.error("Dashboard failed to fetch data", err);
                 showDashboardError("Unable to load dashboard data.");
             }
         }
 
-        async function fetchBotHealth() {
-            showBotHealthLoading();
+        function formatCount(value) {
+            const n = Number(value);
+            return Number.isFinite(n) ? new Intl.NumberFormat().format(n) : "\u2014";
+        }
 
+        function showDashboardError(message) {
+            setText('stat-total-users', "\u2014");
+            setText('stat-total-msgs', "\u2014");
+            setText('stat-active-profile', "Unavailable");
+            setText('stat-active-pdf', "Unavailable");
+            setText('dash-trend-total', "\u2014");
+            setText('dash-trend-peak', "\u2014");
+
+            const chart = $('chart-container');
+            if (chart) chart.replaceChildren(emptyNote(message));
+            const labels = $('chart-labels');
+            if (labels) labels.replaceChildren();
+
+            renderActivityMessage(message);
+        }
+
+        function emptyNote(message) {
+            const p = document.createElement('p');
+            p.className = 'kw-muted';
+            p.style.textAlign = 'center';
+            p.textContent = message;
+            return p;
+        }
+
+        /* -- Setup progress ----------------------------------------- */
+
+        async function fetchBotHealth() {
             try {
                 const response = await authenticatedFetch(`/api/dashboard/health?chatbot_id=${selectedBotId}`);
                 const result = await response.json();
 
                 if (!response.ok || result.status !== "success" || !result.data) {
-                    showBotHealthError();
+                    setText('dash-systems', "Bot health is unavailable.");
                     return;
                 }
 
-                renderBotHealth(result.data);
+                renderSetup(result.data);
+                maybeAutoValidate(result.data);
             } catch (err) {
                 console.error("Bot health failed to fetch", err);
-                showBotHealthError();
+                setText('dash-systems', "Bot health is unavailable.");
             }
         }
 
-        function setHealthText(id, value) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.textContent = value || "-";
+        // True only while an automatic check is in flight, so step 3 can show
+        // "Checking…" instead of briefly claiming the setup is unvalidated.
+        let autoValidating = false;
+        let autoValidateAttempted = false;
+
+        /**
+         * Runs the profile/knowledge match check without the user asking.
+         *
+         * Every run bills AI credits through ai_router, so this fires only when
+         * there is genuinely nothing stored to read: both inputs present and
+         * `match_result === null`, which the backend sets on upload, on active
+         * knowledge change and on set_active_profile. At most once per load, and
+         * never for members, who cannot call the endpoint.
+         *
+         * A false or unavailable result is left for the user to act on — it is
+         * never retried automatically, or a failing provider would bill on loop.
+         */
+        async function maybeAutoValidate(health) {
+            if (autoValidateAttempted || !canManage) return;
+
+            const knowledge = health.knowledge || {};
+            const profile = health.profile || {};
+            if (!profile.active || !knowledge.active) return;
+            if (knowledge.match_result !== null && knowledge.match_result !== undefined) return;
+
+            autoValidateAttempted = true;
+            autoValidating = true;
+            renderSetup(health);
+
+            try {
+                const response = await authenticatedFetch(
+                    `/api/match/check?chatbot_id=${encodeURIComponent(selectedBotId)}`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ profile_name: profile.name || "" })
+                    }
+                );
+                const result = await response.json();
+                // Cleared before rendering, not in a finally, or the success
+                // render would still read "Checking…".
+                autoValidating = false;
+
+                if (result.status === "success" && result.data) {
+                    // Re-render from the check's own result rather than refetching
+                    // health, which would cost a second round trip for the same facts.
+                    renderSetup({
+                        ...health,
+                        knowledge: {
+                            ...knowledge,
+                            match_result: result.data.validation_status === "completed"
+                                ? Boolean(result.data.match)
+                                : null,
+                            match_reason: result.data.reason || ""
+                        }
+                    });
+                    return;
+                }
+
+                renderSetup(health);
+            } catch (err) {
+                console.error("Automatic validation failed", err);
+                autoValidating = false;
+                renderSetup(health);
             }
         }
 
-        function setHealthBadge(ready, label) {
-            const badge = document.getElementById("bot-health-status");
-            badge.textContent = label || (ready ? "Ready" : "Needs Setup");
-            badge.className = ready ? "badge badge-success" : "badge";
-            badge.style.background = ready ? "" : "rgba(251, 191, 36, 0.16)";
-            badge.style.color = ready ? "" : "#fbbf24";
-        }
-
-        function formatHealthDate(value) {
-            if (!value) {
-                return "No activity yet";
-            }
-
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) {
-                return "Unknown";
-            }
-
-            return date.toLocaleString();
-        }
-
-        function formatKnowledgeProcessingStatus(value) {
-            const status = String(value || "").toLowerCase();
-
-            if (status === "completed") return "Processed";
-            if (status === "processing") return "Processing";
-            if (status === "failed") return "Processing failed";
-            if (status === "pending") return "Processing pending";
-
-            return value || "";
-        }
-
-        function formatKnowledgeValidationStatus(value, matchStatus) {
-            const status = String(value || matchStatus || "").toLowerCase();
-
-            if (status === "profile validated" || status === "matched" || status === "match") {
-                return "Profile validated";
-            }
-            if (status === "profile mismatch" || status === "mismatch") {
-                return "Profile mismatch";
-            }
-            if (status === "validation unavailable" || status === "unavailable") {
-                return "Validation unavailable";
-            }
-            if (status === "unchecked" || status === "not_checked") {
-                return "Validation not checked";
-            }
-
-            return value || "Validation not checked";
-        }
-
-        function showBotHealthLoading() {
-            setHealthBadge(false, "Checking");
-            setHealthText("bot-health-summary", "Checking bot health...");
-            setHealthText("health-profile-name", "Checking...");
-            setHealthText("health-profile-meta", "-");
-            setHealthText("health-knowledge-name", "Checking...");
-            setHealthText("health-knowledge-meta", "-");
-            setHealthText("health-channels-count", "Checking...");
-            setHealthText("health-channels-meta", "-");
-            setHealthText("health-delivery-status", "Checking...");
-            setHealthText("health-delivery-meta", "-");
-            setHealthText("health-last-activity", "Checking...");
-            setHealthText("health-last-success", "-");
-            document.getElementById("bot-health-warnings").replaceChildren();
-        }
-
-        function showBotHealthError() {
-            setHealthBadge(false, "Unavailable");
-            setHealthText("bot-health-summary", "Unable to load bot health.");
-            setHealthText("health-profile-name", "Unavailable");
-            setHealthText("health-profile-meta", "-");
-            setHealthText("health-knowledge-name", "Unavailable");
-            setHealthText("health-knowledge-meta", "-");
-            setHealthText("health-channels-count", "Unavailable");
-            setHealthText("health-channels-meta", "-");
-            setHealthText("health-delivery-status", "Unavailable");
-            setHealthText("health-delivery-meta", "-");
-            setHealthText("health-last-activity", "Unavailable");
-            setHealthText("health-last-success", "-");
-
-            const warningsEl = document.getElementById("bot-health-warnings");
-            warningsEl.replaceChildren();
-            const warning = document.createElement("span");
-            warning.className = "health-warning";
-            warning.textContent = "Unable to load bot health.";
-            warningsEl.appendChild(warning);
-        }
-
-        function renderBotHealth(data) {
+        /**
+         * Turns /api/dashboard/health into the four setup steps and the single
+         * next action. Nothing is invented: every state below is read straight
+         * off a field the endpoint already returns.
+         */
+        function renderSetup(data) {
             const profile = data.profile || {};
             const knowledge = data.knowledge || {};
             const channels = data.channels || {};
-            const delivery = data.delivery || {};
-            const activity = data.activity || {};
             const warnings = Array.isArray(data.warnings) ? data.warnings : [];
 
-            setHealthBadge(Boolean(data.ready), data.ready ? "Ready" : "Needs Setup");
-            setHealthText(
-                "bot-health-summary",
-                data.ready ? "This bot is ready to serve customers." : "This bot needs setup before serving customers."
-            );
+            // `match_result` is the real tri-state (true / false / null) read
+            // straight off chatbots.last_match_result. `validation_status` is a
+            // display label ("Profile validated", "Validation not checked"), so
+            // comparing it to machine values pinned this step to "needs
+            // attention" forever. null means never run, or invalidated by a
+            // profile/knowledge change — which is what arms the auto-check.
+            const matchResult = knowledge.match_result;
+            const validated = matchResult === true;
+            const channelCount = Number(channels.connected_count || 0);
 
-            setHealthText("health-profile-name", profile.active ? (profile.name || "Active") : "Not active");
-            setHealthText(
-                "health-profile-meta",
-                [profile.ai_provider, profile.model_name].filter(Boolean).join(" / ") || "No model selected"
-            );
+            const steps = [
+                {
+                    key: "profile",
+                    done: Boolean(profile.active),
+                    state: profile.active ? "Ready" : "Needs attention",
+                    hint: profile.active
+                        ? `Active profile: ${profile.name || "unnamed"}`
+                        : "Choose the profile your bot answers with.",
+                    href: "new_prompt.html",
+                    cta: "Open bot configuration",
+                    title: "Choose an active profile",
+                    copy: "Pick the saved profile your bot should answer with, then activate it."
+                },
+                {
+                    key: "knowledge",
+                    done: Boolean(knowledge.active),
+                    state: knowledge.active ? "Ready" : "Needs attention",
+                    hint: knowledge.active
+                        ? `Primary knowledge: ${knowledge.file_name || "active"}`
+                        : "Add primary knowledge to get accurate answers.",
+                    href: "new_linkdocs.html",
+                    cta: "Open knowledge",
+                    title: "Add primary knowledge",
+                    copy: "Upload your key documents or add FAQs so your bot can provide accurate answers."
+                },
+                {
+                    key: "validate",
+                    done: validated,
+                    state: autoValidating ? "Checking…"
+                        : matchResult === true ? "Passed"
+                        : matchResult === false ? "Needs attention"
+                        : "Not checked",
+                    hint: autoValidating
+                        ? "Checking the profile against the primary knowledge…"
+                        : matchResult === false
+                            ? (knowledge.match_reason || "The profile and the primary knowledge describe different things.")
+                            : "Checks the profile matches the primary knowledge.",
+                    href: "new_prompt.html",
+                    cta: matchResult === false ? "Review in bot configuration" : "Validate setup",
+                    title: matchResult === false ? "Profile and knowledge do not match" : "Validate your setup",
+                    // The dashboard has no profile or knowledge controls, so a
+                    // failure routes to bot configuration rather than trying to
+                    // offer the fix here.
+                    copy: matchResult === false
+                        ? (knowledge.match_reason || "Open bot configuration to change the profile or the primary knowledge.")
+                        : "Check the active profile against the active primary knowledge before going live."
+                },
+                {
+                    key: "channel",
+                    done: channelCount > 0,
+                    state: channelCount > 0 ? "Connected" : "Not connected",
+                    hint: channelCount > 0
+                        ? channelSummary(channels)
+                        : "Connect a channel to reach customers.",
+                    href: "integration.html",
+                    cta: "Open channels",
+                    title: "Connect a channel",
+                    copy: "Link WhatsApp, Telegram or the web widget so customers can reach this bot."
+                }
+            ];
 
-            setHealthText("health-knowledge-name", knowledge.active ? (knowledge.file_name || "Active primary") : "No active primary PDF");
-            setHealthText(
-                "health-knowledge-meta",
-                [
-                    knowledge.processing_label || formatKnowledgeProcessingStatus(knowledge.processing_status),
-                    formatKnowledgeValidationStatus(knowledge.validation_status, knowledge.match_status),
-                ].filter(Boolean).join(" · ") || "Optional"
-            );
+            steps.forEach((step, index) => {
+                const el = document.querySelector(`.dash-step[data-step="${step.key}"]`);
+                if (!el) return;
 
-            const channelItems = Array.isArray(channels.items) ? channels.items : [];
-            const connectedLabels = channelItems
-                .filter(item => item.connected)
-                .map(item => item.label || item.type)
-                .filter(Boolean);
-            setHealthText("health-channels-count", `${channels.connected_count || 0} connected`);
-            setHealthText("health-channels-meta", connectedLabels.length ? connectedLabels.join(", ") : "No connected channels");
+                el.classList.toggle('is-done', step.done);
+                el.classList.toggle('is-attention', !step.done);
 
-            const failed = Number(delivery.failed || 0);
-            const retrying = Number(delivery.retrying || 0);
-            const permanentFailed = Number(delivery.permanent_failed || 0);
-            setHealthText("health-delivery-status", permanentFailed > 0 ? "Needs attention" : "OK");
-            setHealthText(
-                "health-delivery-meta",
-                `Failed ${failed} / Retrying ${retrying} / Permanent ${permanentFailed}`
-            );
+                const mark = el.querySelector('.kw-step-mark');
+                if (mark) mark.replaceChildren(step.done ? checkIcon() : stepNumber(index + 1));
 
-            setHealthText("health-last-activity", formatHealthDate(activity.last_message_at));
-            setHealthText(
-                "health-last-success",
-                delivery.last_success_at ? `Last sent: ${formatHealthDate(delivery.last_success_at)}` : "No sent bot messages yet"
-            );
+                const state = el.querySelector('.dash-step-state');
+                if (state) state.textContent = step.state;
 
-            const warningsEl = document.getElementById("bot-health-warnings");
-            warningsEl.replaceChildren();
-            warnings.forEach(message => {
-                const warning = document.createElement("span");
-                warning.className = "health-warning";
-                warning.textContent = message;
-                warningsEl.appendChild(warning);
+                const hint = el.querySelector('.dash-step-hint');
+                if (hint) hint.textContent = step.hint;
+            });
+
+            renderNextStep(steps.find(step => !step.done));
+
+            const ready = Boolean(data.ready);
+            const live = $('dash-live');
+            const dot = $('dash-live-dot');
+            if (live) live.classList.toggle('is-idle', !ready);
+            if (dot) {
+                dot.classList.toggle('is-live', ready);
+                dot.classList.toggle('is-idle', !ready);
+            }
+            setText('dash-live-label', ready ? "Live" : "Setup incomplete");
+            setText('dash-systems', ready
+                ? (warnings.length
+                    ? `${warnings.length} warning${warnings.length > 1 ? "s" : ""} to review`
+                    : "All systems operational")
+                : "Finish setup before customers arrive");
+
+            const warningsEl = $('bot-health-warnings');
+            if (warningsEl) {
+                warningsEl.replaceChildren();
+                warnings.forEach(message => {
+                    const chip = document.createElement('span');
+                    chip.className = 'health-warning';
+                    chip.textContent = message;
+                    warningsEl.appendChild(chip);
+                });
+            }
+        }
+
+        function channelSummary(channels) {
+            const items = Array.isArray(channels.items) ? channels.items : [];
+            const labels = items.filter(i => i.connected).map(i => i.label || i.type).filter(Boolean);
+            return labels.length ? labels.join(", ") : `${channels.connected_count} connected`;
+        }
+
+        function renderNextStep(step) {
+            const cta = $('dash-next-cta');
+
+            if (!step) {
+                setText('dash-next-title', "Setup complete");
+                setText('dash-next-copy', "This bot is ready to serve customers. Review conversations in the inbox.");
+                if (cta) {
+                    cta.hidden = false;
+                    setText('dash-next-cta-label', "Open inbox");
+                    setLinkHref(cta, "conversations.html");
+                }
+                return;
+            }
+
+            setText('dash-next-title', step.title);
+            setText('dash-next-copy', step.copy);
+            if (cta) {
+                cta.hidden = false;
+                setText('dash-next-cta-label', step.cta);
+                setLinkHref(cta, step.href);
+            }
+        }
+
+        function setLinkHref(link, page) {
+            link.href = `${page}?bot_id=${encodeURIComponent(selectedBotId)}`;
+        }
+
+        function svgEl(name, attrs) {
+            const el = document.createElementNS('http://www.w3.org/2000/svg', name);
+            Object.keys(attrs || {}).forEach(key => el.setAttribute(key, attrs[key]));
+            return el;
+        }
+
+        function checkIcon() {
+            const svg = svgEl('svg', { viewBox: '0 0 24 24', class: 'dashboard-icon', 'aria-hidden': 'true' });
+            svg.appendChild(svgEl('path', { d: 'm5 13 4 4L19 7' }));
+            return svg;
+        }
+
+        function stepNumber(n) {
+            const span = document.createElement('span');
+            span.className = 'kw-mono';
+            span.style.fontSize = '12px';
+            span.textContent = String(n);
+            return span;
+        }
+
+        /* -- Message trend ------------------------------------------ */
+
+        const CHART_W = 560;
+        const CHART_H = 210;
+        const PAD_L = 34;
+        const PAD_R = 12;
+        const PAD_T = 22;
+        const PAD_B = 10;
+
+        /**
+         * Gridline spacing: the nearest 1/2/2.5/5 x 10^n at or above max/4.
+         * The axis is NOT rounded up to a multiple of this — doing that pushes
+         * a 1010 peak onto a 2000 axis and wastes half the plot. Instead the
+         * line scales to the real max and gridlines are drawn beneath it, so
+         * the labels stay readable (0, 250, 500, 750, 1000) and the shape of
+         * the series is preserved.
+         */
+        function niceStep(value) {
+            const rough = Math.max(value, 1) / 4;
+            const magnitude = Math.pow(10, Math.floor(Math.log10(rough)));
+            const n = rough / magnitude;
+
+            // Nearest nice multiple, not the next one up: rounding 2.53 up to 5
+            // halves the number of gridlines and leaves the axis unreadable.
+            // 2.5 is only offered once it cannot produce a fractional label.
+            const m = magnitude >= 10
+                ? (n < 1.5 ? 1 : n < 2.25 ? 2 : n < 3.5 ? 2.5 : n < 7.5 ? 5 : 10)
+                : (n < 1.5 ? 1 : n < 3.5 ? 2 : n < 7.5 ? 5 : 10);
+
+            return Math.max(m * magnitude, 1);
+        }
+
+        /**
+         * Inline-SVG line chart. A line is the right mark here because the
+         * x-axis is time and the reader's question is "which way is it going",
+         * which bars answer worse than a slope does.
+         */
+        function renderChart(labels, data) {
+            const container = $('chart-container');
+            const labelsEl = $('chart-labels');
+            if (!container || !labelsEl) return;
+
+            const series = Array.isArray(data) ? data.map(Number) : [];
+            const names = Array.isArray(labels) ? labels : [];
+            trendSeries = { labels: names, data: series };
+            trendIndex = Math.max(0, series.length - 1);
+
+            container.replaceChildren();
+            labelsEl.replaceChildren();
+
+            if (!series.length) {
+                container.appendChild(emptyNote("No messages in this range yet."));
+                setText('dash-trend-total', "0");
+                setText('dash-trend-peak', "\u2014");
+                return;
+            }
+
+            // 8% headroom so the printed value above the tallest point has
+            // somewhere to sit instead of clipping at the panel edge.
+            const max = Math.max(...series, 10) * 1.08;
+            const peak = Math.max(...series);
+            const peakIndex = peak > 0 ? series.indexOf(peak) : -1;
+            const total = series.reduce((sum, n) => sum + n, 0);
+
+            const stepX = (CHART_W - PAD_L - PAD_R) / Math.max(series.length - 1, 1);
+            const scaleY = (v) => PAD_T + (1 - v / max) * (CHART_H - PAD_T - PAD_B);
+            const pointX = (i) => PAD_L + i * stepX;
+
+            const svg = svgEl('svg', {
+                class: 'dash-chart',
+                viewBox: `0 0 ${CHART_W} ${CHART_H}`,
+                role: 'img'
+            });
+            svg.setAttribute('aria-label',
+                `Messages per day. ${total} in total` +
+                (peakIndex >= 0 ? `, busiest on ${names[peakIndex]} with ${peak}` : '') + '.');
+
+            const grid = svgEl('g', { class: 'dash-chart-grid' });
+            // Derived from the same floor the scale uses, so a flat/empty
+            // series draws a handful of gridlines rather than eleven.
+            const step = niceStep(Math.max(peak, 10));
+            for (let value = 0; value <= max; value += step) {
+                const y = scaleY(value);
+                grid.appendChild(svgEl('line', { x1: PAD_L, x2: CHART_W - PAD_R, y1: y, y2: y }));
+                const text = svgEl('text', { class: 'dash-chart-axis', x: 0, y: y + 3 });
+                text.textContent = new Intl.NumberFormat().format(value);
+                grid.appendChild(text);
+            }
+            svg.appendChild(grid);
+
+            const line = series.map((v, i) => `${pointX(i)},${scaleY(v)}`).join(' ');
+            svg.appendChild(svgEl('polyline', { class: 'dash-chart-line', points: line }));
+
+            series.forEach((v, i) => {
+                const isPeak = i === peakIndex && peak > 0;
+                svg.appendChild(svgEl('circle', {
+                    class: i === series.length - 1 ? 'dash-chart-dot is-last' : 'dash-chart-dot',
+                    cx: pointX(i), cy: scaleY(v), r: 4
+                }));
+                const value = svgEl('text', {
+                    class: isPeak ? 'dash-chart-value is-peak' : 'dash-chart-value',
+                    x: pointX(i), y: scaleY(v) - 11
+                });
+                value.textContent = String(v);
+                svg.appendChild(value);
+            });
+
+            container.appendChild(svg);
+
+            labelsEl.style.gridTemplateColumns = `repeat(${series.length}, minmax(0, 1fr))`;
+            names.forEach(name => {
+                const cell = document.createElement('span');
+                const parts = String(name).split(' ');
+                cell.textContent = parts.slice(0, 2).join(' ');
+                if (parts.length > 2) {
+                    const sub = document.createElement('b');
+                    sub.textContent = parts.slice(2).join(' ');
+                    cell.appendChild(sub);
+                }
+                labelsEl.appendChild(cell);
+            });
+
+            setText('dash-trend-total', new Intl.NumberFormat().format(total));
+            setText('dash-trend-peak', peakIndex >= 0
+                ? new Intl.NumberFormat().format(peak)
+                : "\u2014");
+            const peakEl = $('dash-trend-peak');
+            if (peakEl && peakIndex >= 0) {
+                const small = document.createElement('small');
+                small.textContent = ` (${names[peakIndex]})`;
+                peakEl.appendChild(small);
+            }
+
+            renderDay();
+        }
+
+        // On the phone the seven printed values would be unreadable, so the
+        // series is stepped through one day at a time instead of shrunk.
+        function initDayStepper() {
+            const prev = $('dash-day-prev');
+            const next = $('dash-day-next');
+            if (prev) prev.addEventListener('click', () => {
+                trendIndex = Math.max(0, trendIndex - 1);
+                renderDay();
+            });
+            if (next) next.addEventListener('click', () => {
+                trendIndex = Math.min(trendSeries.data.length - 1, trendIndex + 1);
+                renderDay();
             });
         }
 
-        function showDashboardError(message) {
-            document.getElementById('stat-total-users').innerText = "-";
-            document.getElementById('stat-total-msgs').innerText = "-";
-            document.getElementById('stat-active-profile').innerText = "Unavailable";
-            document.getElementById('stat-active-pdf').innerText = "Unavailable";
-            document.getElementById('chart-container').innerHTML =
-                `<div style="width: 100%; text-align: center; color: var(--text-dim); margin: auto;">${message}</div>`;
-            document.getElementById('chart-labels').innerHTML = "";
-            document.getElementById('recent-history-body').innerHTML =
-                `<tr><td colspan="2" style="text-align: center; color: var(--text-dim);">${message}</td></tr>`;
+        function renderDay() {
+            const labels = trendSeries.labels;
+            const data = trendSeries.data;
+            if (!data.length) return;
+
+            setText('dash-day-label', labels[trendIndex] || "\u2014");
+            setText('dash-day-value', new Intl.NumberFormat().format(data[trendIndex] || 0));
+
+            const prev = $('dash-day-prev');
+            const next = $('dash-day-next');
+            if (prev) prev.disabled = trendIndex <= 0;
+            if (next) next.disabled = trendIndex >= data.length - 1;
         }
+
+        /* -- Recent activity ---------------------------------------- */
+
+        const CHANNEL_LABELS = {
+            whatsapp: "WhatsApp",
+            telegram: "Telegram",
+            webchat: "Web chat",
+            web: "Web chat",
+            messenger: "Messenger"
+        };
+
+        function renderActivityMessage(message) {
+            const tbody = $('recent-history-body');
+            if (!tbody) return;
+
+            const tr = document.createElement('tr');
+            tr.className = 'dash-activity-empty';
+            const td = document.createElement('td');
+            td.colSpan = 5;
+            td.textContent = message;
+            tr.appendChild(td);
+            tbody.replaceChildren(tr);
+        }
+
+        function renderHistory(historyItems) {
+            const tbody = $('recent-history-body');
+            if (!tbody) return;
+
+            if (!historyItems || !historyItems.length) {
+                renderActivityMessage("No conversations yet.");
+                return;
+            }
+
+            const rows = historyItems.map(item => {
+                const stamp = new Date(item.timestamp);
+                const valid = !Number.isNaN(stamp.getTime());
+                const isRecent = valid && (Date.now() - stamp.getTime() < 86400000);
+
+                const tr = document.createElement('tr');
+
+                const time = document.createElement('td');
+                time.className = 'dash-cell-time';
+                if (valid) {
+                    const t = document.createElement('time');
+                    t.dateTime = stamp.toISOString();
+                    t.textContent = new Intl.DateTimeFormat(undefined,
+                        { hour: '2-digit', minute: '2-digit' }).format(stamp);
+                    time.appendChild(t);
+                } else {
+                    time.textContent = "\u2014";
+                }
+
+                const user = document.createElement('td');
+                user.className = 'dash-cell-user';
+                user.textContent = item.user ? `user_${item.user}` : "unknown";
+
+                const channelKey = String(item.channel || "").toLowerCase();
+                const channel = document.createElement('td');
+                channel.className = 'dash-cell-channel';
+                const channelInner = document.createElement('span');
+                channelInner.textContent = CHANNEL_LABELS[channelKey] || (item.channel || "\u2014");
+                channel.appendChild(channelInner);
+
+                const msg = document.createElement('td');
+                msg.className = 'dash-cell-msg';
+                msg.textContent = item.last_content || "\u2014";
+                // The full text does not fit at this width; expose it to
+                // pointer users without hiding anything the row needs.
+                if (item.last_content) msg.title = item.last_content;
+
+                const status = document.createElement('td');
+                const badge = document.createElement('span');
+                badge.className = isRecent ? 'kw-pill kw-pill-ready' : 'kw-pill';
+                badge.textContent = isRecent ? "Active" : "Completed";
+                status.appendChild(badge);
+
+                tr.append(time, user, channel, msg, status);
+                return tr;
+            });
+
+            tbody.replaceChildren(...rows);
+        }
+
+        /* -- Live AI workflow --------------------------------------- */
+
+        const FLOW_NODES = ['RECEIVING', 'RAG_SEARCH', 'AI_GENERATING', 'SENDING'];
 
         async function fetchLiveWorkflow() {
             if (!selectedBotId) return;
@@ -944,182 +1037,60 @@
                 const response = await authenticatedFetch(`/api/dashboard/live-workflow?chatbot_id=${selectedBotId}`);
                 if (!response.ok) return;
                 const result = await response.json();
-
-                if (result.status === "success") {
-                    updateWorkflowUI(result.data);
-                }
+                if (result.status === "success") updateWorkflowUI(result.data);
             } catch (err) {
-                // Silently handle polling errors
+                // Polling errors are transient; the last good state stays on screen.
             }
         }
 
         function updateWorkflowUI(workflowData) {
-            const badge = document.getElementById('workflow-status-badge');
-            const msgDisplay = document.getElementById('workflow-message-display');
-            const userText = document.getElementById('workflow-user-text');
-            const aiContainer = document.getElementById('workflow-ai-response-container');
-            const aiText = document.getElementById('workflow-ai-text');
+            const message = $('workflow-message-display');
+            const aiBlock = $('workflow-ai-response-container');
+            const progress = $('workflow-progress-bar');
+            const dot = $('dash-flow-dot');
 
-            const progressBar = document.getElementById('workflow-progress-bar');
+            const state = workflowData && workflowData.state;
+            const index = FLOW_NODES.indexOf(state);
+            const completed = state === "COMPLETED";
 
-            const nodes = ['RECEIVING', 'RAG_SEARCH', 'AI_GENERATING', 'SENDING'];
+            if (dot) {
+                dot.classList.toggle('is-live', Boolean(state));
+                dot.classList.toggle('is-idle', !state);
+            }
+            setText('dash-flow-state', state ? (completed ? "Completed" : "Live") : "Idle");
 
-            if (!workflowData || !workflowData.state) {
-                // Idle state
-                badge.innerText = "Idle";
-                badge.className = "badge";
-                badge.style.background = "rgba(148, 163, 184, 0.2)";
-                badge.style.color = "var(--text-dim)";
-                msgDisplay.style.display = "none";
-                if (progressBar) progressBar.style.width = '0%';
-
-                nodes.forEach(n => {
-                    document.getElementById(`node-${n}`).classList.remove('active', 'completed');
+            if (!state) {
+                if (message) message.hidden = true;
+                if (progress) progress.style.width = '0%';
+                FLOW_NODES.forEach(name => {
+                    const node = $(`node-${name}`);
+                    if (node) node.classList.remove('is-active', 'is-done');
                 });
                 return;
             }
 
-            // Active or completed state
-            msgDisplay.style.display = "block";
+            if (message) message.hidden = false;
+
+            const reached = completed ? FLOW_NODES.length - 1 : Math.max(index, 0);
+            FLOW_NODES.forEach((name, i) => {
+                const node = $(`node-${name}`);
+                if (!node) return;
+                node.classList.toggle('is-done', i < reached || completed);
+                node.classList.toggle('is-active', i === reached && !completed);
+            });
+
+            if (progress) {
+                const ratio = reached / (FLOW_NODES.length - 1);
+                progress.style.width = `${Math.max(0, Math.min(1, ratio)) * 76}%`;
+            }
 
             if (workflowData.message) {
-                if (workflowData.state === "SENDING" || workflowData.state === "COMPLETED") {
-                    aiContainer.style.display = "flex";
-                    aiText.innerText = workflowData.message;
-                } else {
-                    userText.innerText = `"${workflowData.message}"`;
-                    aiContainer.style.display = "none";
-                }
-            }
-
-            if (workflowData.state === "COMPLETED") {
-                badge.innerText = "Completed";
-                badge.className = "badge badge-success";
-                badge.style.background = "";
-                badge.style.color = "";
-                if (progressBar) progressBar.style.width = '100%';
-
-                nodes.forEach(n => {
-                    document.getElementById(`node-${n}`).classList.remove('active');
-                    document.getElementById(`node-${n}`).classList.add('completed');
-                });
-
-                // Keep completed state visible for 5 seconds, then the backend auto-clears (or we just let it clear eventually)
-            } else {
-                badge.innerText = "Processing...";
-                badge.className = "badge badge-info";
-                badge.style.background = "";
-                badge.style.color = "";
-
-                // Update nodes
-                const currentIndex = nodes.indexOf(workflowData.state);
-                if (progressBar) {
-                    const percent = Math.max(0, (currentIndex / (nodes.length - 1)) * 100);
-                    progressBar.style.width = `${percent}%`;
-                }
-                
-                nodes.forEach((n, idx) => {
-                    const nodeEl = document.getElementById(`node-${n}`);
-                    nodeEl.classList.remove('active', 'completed');
-
-                    if (idx < currentIndex) {
-                        nodeEl.classList.add('completed');
-                    } else if (idx === currentIndex) {
-                        nodeEl.classList.add('active');
-                    }
-                });
+                setText('workflow-user-text', workflowData.message.user_text || workflowData.message.text || "");
+                const reply = workflowData.message.ai_text || workflowData.message.response || "";
+                if (aiBlock) aiBlock.hidden = !reply;
+                if (reply) setText('workflow-ai-text', reply);
             }
         }
-
-        function renderChart(labels, data) {
-            const container = document.getElementById('chart-container');
-            const labelsContainer = document.getElementById('chart-labels');
-
-            container.innerHTML = "";
-            labelsContainer.innerHTML = "";
-
-            const maxVal = Math.max(...data, 10); // Minimum scale 10
-            const peakVal = Math.max(...data);
-            const peakIndex = peakVal > 0 ? data.indexOf(peakVal) : -1;
-            const total = data.reduce((sum, n) => sum + n, 0);
-
-            // One figure, described once. Previously every bar carried
-            // role="img", so a screen reader met seven images, not a chart.
-            container.setAttribute('role', 'img');
-            container.setAttribute('aria-label',
-                `Messages per day. ${total} in total${peakIndex >= 0
-                    ? `, busiest on ${labels[peakIndex]} with ${peakVal}`
-                    : ''}.`);
-
-            data.forEach((val, i) => {
-                const percentage = (val / maxVal) * 100;
-                const isPeak = i === peakIndex && peakVal > 0;
-
-                const col = document.createElement('div');
-                col.className = isPeak ? 'chart-col is-peak' : 'chart-col';
-                col.tabIndex = 0;
-
-                // The number is printed, not hidden in a title tooltip. A
-                // tooltip does not exist on touch, and the number is the whole
-                // point of the chart.
-                const value = document.createElement('div');
-                value.className = 'chart-value';
-                value.textContent = val;
-
-                const bar = document.createElement('div');
-                bar.className = isPeak ? 'chart-bar is-peak' : 'chart-bar';
-                // Height sets the layout once; the reveal animates transform,
-                // so it stays on the compositor instead of triggering layout.
-                bar.style.height = `${Math.max(percentage, 5)}%`;
-                bar.style.animationDelay = `${i * 45}ms`;
-
-                col.append(value, bar);
-                container.appendChild(col);
-
-                const label = document.createElement('div');
-                label.style.flex = "1";
-                label.style.textAlign = "center";
-                label.innerText = labels[i];
-                labelsContainer.appendChild(label);
-            });
-        }
-
-        function renderHistory(historyItems) {
-            const tbody = document.getElementById('recent-history-body');
-            tbody.innerHTML = "";
-
-            if (!historyItems || historyItems.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color: var(--text-dim);">No chats yet</td></tr>';
-                return;
-            }
-
-            historyItems.forEach(item => {
-                const tr = document.createElement('tr');
-                const isRecent = new Date() - new Date(item.timestamp) < 86400000;
-
-                const userCell = document.createElement('td');
-                userCell.textContent = `***${item.user || ""}`;
-                userCell.setAttribute("title", item.last_content || "");
-
-                const statusCell = document.createElement('td');
-                const badge = document.createElement('span');
-                badge.className = `badge ${isRecent ? 'badge-info' : 'badge-success'}`;
-                badge.textContent = isRecent ? 'Recent' : 'Offline';
-
-                statusCell.appendChild(badge);
-                tr.appendChild(userCell);
-                tr.appendChild(statusCell);
-                tbody.appendChild(tr);
-            });
-        }
-
-        function toggleDropdown(id) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.classList.toggle('open');
-            }
-        }
-
     </script>
 </body>
 

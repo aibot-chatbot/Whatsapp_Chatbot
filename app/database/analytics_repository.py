@@ -38,7 +38,7 @@ def get_recent_history(chatbot_id, limit=4):
     convo_res = (
         supabase
         .table("conversations")
-        .select("id,customer_phone,updated_at")
+        .select("id,customer_phone,updated_at,source_channel")
         .eq("chatbot_id", chatbot_id)
         .order("updated_at", desc=True)
         .limit(limit)
@@ -69,7 +69,10 @@ def get_recent_history(chatbot_id, limit=4):
             "user": masked,
             "status": "Active",
             "timestamp": last_msg.get("created_at") or convo.get("updated_at") or "2020-01-01T00:00:00",
-            "last_content": last_msg.get("message_text", "")
+            "last_content": last_msg.get("message_text", ""),
+            # Written by conversation_repository (defaults to "whatsapp"); the
+            # dashboard shows which surface a conversation arrived on.
+            "channel": convo.get("source_channel") or "whatsapp"
         })
 
     return results

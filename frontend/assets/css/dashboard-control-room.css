@@ -18,6 +18,37 @@
     --font-mono: 'JetBrains Mono', monospace;
 }
 
+/* Reset. This used to arrive from each host page's own inline <style>, which
+   made the file silently unusable on its own — deleting a page's legacy block
+   collapsed the shell layout and let the sidebar overflow the viewport. It is
+   owned here now, scoped to .dashboard-page so it cannot reach the sidebar
+   component or any screen that does not opt in. */
+body.dashboard-page {
+    display: flex;
+    min-height: 100vh;
+    margin: 0;
+    overflow-x: hidden;
+}
+
+.dashboard-page *,
+.dashboard-page *::before,
+.dashboard-page *::after {
+    box-sizing: border-box;
+}
+
+.dashboard-page h1,
+.dashboard-page h2,
+.dashboard-page h3,
+.dashboard-page p,
+.dashboard-page dl,
+.dashboard-page dd,
+.dashboard-page ol,
+.dashboard-page ul,
+.dashboard-page figure {
+    margin: 0;
+    padding: 0;
+}
+
 body.dashboard-page,
 .dashboard-page * {
     font-family: var(--font-body);

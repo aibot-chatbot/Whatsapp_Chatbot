@@ -55,6 +55,11 @@ class ChatbotSidebar extends HTMLElement {
             }
             .sidebar, .sidebar * {
                 font-family: 'Outfit', sans-serif;
+                /* Owned here rather than inherited from each host page's
+                   global reset: at <=768px the sidebar is width:100% with
+                   horizontal padding, so content-box sizing pushes it wider
+                   than the viewport and the whole page scrolls sideways. */
+                box-sizing: border-box;
             }
             .sidebar-top {
                 display: flex;
@@ -125,7 +130,9 @@ class ChatbotSidebar extends HTMLElement {
                 display: flex;
                 align-items: center;
                 gap: 10px;
-                transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                transition: color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                            background-color 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                            border-color 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 font-weight: 500;
                 font-size: 0.92rem;
                 cursor: pointer;
@@ -442,15 +449,15 @@ class ChatbotSidebar extends HTMLElement {
                             </button>
                             <div class="dropdown-content">
 
-                                <a href="model_settings.html${botQuery}" class="nav-link sub-link" title="Tune AI">
+                                <a href="behaviour.html?tab=model${botQuery ? "&" + botQuery.slice(1) : ""}" class="nav-link sub-link" title="Tune AI">
                                     <i data-lucide="sliders-horizontal"></i>
                                     <span>Tune AI</span>
                                 </a>
-                                <a href="message_style.html${botQuery}" class="nav-link sub-link" title="Message Style">
+                                <a href="behaviour.html?tab=message${botQuery ? "&" + botQuery.slice(1) : ""}" class="nav-link sub-link" title="Message Style">
                                     <i data-lucide="message-circle"></i>
                                     <span>Message Style</span>
                                 </a>
-                                <a href="testbot.html${botQuery}" class="nav-link sub-link" title="Test Bot">
+                                <a href="behaviour.html?tab=test${botQuery ? "&" + botQuery.slice(1) : ""}" class="nav-link sub-link" title="Test Bot">
                                     <i data-lucide="flask-conical"></i>
                                     <span>Test Bot</span>
                                 </a>
@@ -628,7 +635,10 @@ class ChatbotSidebar extends HTMLElement {
             const href = link.getAttribute("href");
             if (href) {
                 const linkPath = href.split("?")[0];
-                if (linkPath === currentPath && !link.classList.contains("dropdown-toggle")) {
+                var linkTab = new URLSearchParams((link.getAttribute("href") || "").split("?")[1] || "").get("tab");
+                var pageTab = new URLSearchParams(window.location.search).get("tab") || "model";
+                var tabMatches = !linkTab || linkTab === pageTab;
+                if (linkPath === currentPath && tabMatches && !link.classList.contains("dropdown-toggle")) {
                     link.classList.add("active");
                 }
             }
@@ -641,7 +651,9 @@ class ChatbotSidebar extends HTMLElement {
                 drop.classList.add('open');
             }
         }
-        if (['model_settings.html', 'testbot.html'].includes(currentPath)) {
+        // message_style.html was missing here before the merge, so the group
+        // stayed collapsed on that page. behaviour.html now covers all three.
+        if (['behaviour.html', 'model_settings.html', 'message_style.html', 'testbot.html'].includes(currentPath)) {
             const drop = this.querySelector('#behaviour-dropdown');
             if (drop) {
                 drop.classList.add('open');

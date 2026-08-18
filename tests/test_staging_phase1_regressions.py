@@ -12,6 +12,7 @@ AI_ROUTER = ROOT / "app" / "services" / "ai_router.py"
 BILLING_NOTIFICATIONS = ROOT / "app" / "services" / "billing_notification_service.py"
 PROFILE_HTML = ROOT / "frontend" / "profile.html"
 MODEL_SETTINGS_HTML = ROOT / "frontend" / "model_settings.html"
+BEHAVIOUR_JS = ROOT / "frontend" / "assets" / "js" / "behaviour.js"
 BUNDLED_NODE = (
     Path.home()
     / ".cache"
@@ -103,32 +104,49 @@ class TestBillingNotificationTimestamp(unittest.TestCase):
 
 
 class TestModelSettingsAccessDeniedState(unittest.TestCase):
+    """The Phase 1 access-denied fix, retargeted at the Behaviour Studio.
+
+    model_settings.html is now a redirect stub: the model controls moved into
+    behaviour.html's first tab when the three behaviour pages were merged. The
+    defect this class guards is unchanged -- a bot the session cannot read must
+    explain itself in place rather than bounce to the bot list, and no write
+    may follow a failed load. Only the file and the identifiers moved.
+
+    Exercised end to end in tests/browser/behaviour.spec.js; the assertions
+    here are the cheap guard that the branch is not quietly deleted again.
+    """
+
     def setUp(self):
-        self.html = _read(MODEL_SETTINGS_HTML)
+        self.stub = _read(MODEL_SETTINGS_HTML)
+        self.js = _read(BEHAVIOUR_JS)
+
+    def test_old_url_still_reaches_the_model_controls(self):
+        self.assertIn("behaviour.html", self.stub)
+        self.assertIn("bot_id", self.stub)
 
     def test_access_denied_message_for_403_or_404(self):
-        self.assertIn("function showBotAccessDeniedState()", self.html)
-        self.assertIn("Chatbot not found or you do not have access.", self.html)
-        self.assertIn("response.status === 403 || response.status === 404", self.html)
+        self.assertIn("function showBotAccessDeniedState()", self.js)
+        self.assertIn("Chatbot not found or you do not have access.", self.js)
+        self.assertIn("response.status === 403 || response.status === 404", self.js)
 
     def test_controls_hidden_or_disabled_after_bot_load_failure(self):
-        self.assertIn('id="configuration-card"', self.html)
-        self.assertIn('card.style.display = "none"', self.html)
-        self.assertIn("setConfigurationControlsDisabled(true)", self.html)
-        for control_id in ("ai-provider", "model-select", "custom-model-name", "temperature", "save-btn"):
-            self.assertIn(f'getElementById("{control_id}")', self.html)
+        # Hidden rather than disabled: there is nothing behind the tabs to
+        # read, and an empty form invites an edit that could never be saved.
+        self.assertIn('$("bh-tabs").hidden = true', self.js)
+        self.assertIn('$("bh-footer").hidden = true', self.js)
+        self.assertIn('$("bh-panel-" + name).hidden = true', self.js)
 
     def test_save_request_is_guarded_after_bot_load_failure(self):
-        guard_index = self.html.index("if (botLoadFailed)")
-        put_index = self.html.index("method: \"PUT\"")
+        guard_index = self.js.index("if (botLoadFailed ")
+        put_index = self.js.index('method: "PUT"')
         self.assertLess(guard_index, put_index)
-        self.assertIn("return;", self.html[guard_index:put_index])
+        self.assertIn("return;", self.js[guard_index:put_index])
 
     def test_authorized_model_settings_flow_still_present(self):
-        self.assertIn('if (result.status === "success")', self.html)
-        self.assertIn("const bot = result.data;", self.html)
-        self.assertIn("onProviderChange(); // Populate model list", self.html)
-        self.assertIn("window.dispatchEvent(new CustomEvent(\"recheckBotStatus\"));", self.html)
+        self.assertIn('body.status !== "success"', self.js)
+        self.assertIn("var bot = body.data;", self.js)
+        self.assertIn("renderProviders()", self.js)
+        self.assertIn('window.dispatchEvent(new CustomEvent("recheckBotStatus"))', self.js)
 
 
 if __name__ == "__main__":

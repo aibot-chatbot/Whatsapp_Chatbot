@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: dark">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Behaviour Studio | AI CHATBOT</title>
+    <meta name="theme-color" content="#0e0f11">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/behaviour.css">
+
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin(); requireAdminOrOwner();</script>
+    <script src="assets/js/model-catalog.js"></script>
+    <script src="sidebar-component.js"></script>
+    <script src="assets/js/control-room-motion.js" defer></script>
+</head>
+
+<body class="dashboard-page">
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container bh-page">
+        <header class="bh-header cr-reveal">
+            <div>
+                <h1 class="bh-title">Behaviour Studio</h1>
+                <p class="bh-subtitle">
+                    Decide how <span class="bh-bot" id="bh-bot-name">your bot</span> thinks, speaks, and replies.
+                </p>
+            </div>
+            <div class="bh-header-aside">
+                <p class="bh-savestate" id="bh-savestate" role="status" aria-live="polite">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24" id="bh-savestate-icon"><path id="bh-savestate-glyph" d="m5 13 4 4L19 7"/></svg>
+                    <span id="bh-savestate-text">All changes saved</span>
+                </p>
+            </div>
+        </header>
+
+        <!-- Numbered because the order is real: configure the model, then how it
+             speaks, and only then is there something worth testing. Anchors, so
+             a tab is a linkable URL and the back button works. -->
+        <nav class="kw-panel bh-tabs cr-reveal" id="bh-tabs" role="tablist" aria-label="Behaviour sections">
+            <a class="bh-tab" id="bh-tab-model" href="?tab=model" role="tab" aria-selected="false" aria-controls="bh-panel-model">
+                <span class="bh-tab-num" aria-hidden="true">1</span> Model
+            </a>
+            <a class="bh-tab" id="bh-tab-message" href="?tab=message" role="tab" aria-selected="false" aria-controls="bh-panel-message">
+                <span class="bh-tab-num" aria-hidden="true">2</span> Message experience
+            </a>
+            <a class="bh-tab" id="bh-tab-test" href="?tab=test" role="tab" aria-selected="false" aria-controls="bh-panel-test">
+                <span class="bh-tab-num" aria-hidden="true">3</span> Test lab
+            </a>
+        </nav>
+
+        <p class="bh-banner" id="bh-banner" role="status" aria-live="polite"></p>
+
+        <!-- ══ 1. Model ══════════════════════════════════════════════ -->
+        <section id="bh-panel-model" role="tabpanel" aria-labelledby="bh-tab-model" hidden>
+            <div class="bh-grid">
+                <div class="bh-col">
+                    <section class="kw-panel cr-reveal" aria-labelledby="bh-style-title">
+                        <div class="bh-panel-head">
+                            <h2 id="bh-style-title">Answer style</h2>
+                            <p>How closely your bot sticks to your documents when it writes a reply.</p>
+                        </div>
+                        <div class="bh-panel-body">
+                            <fieldset class="bh-styles" id="bh-styles">
+                                <legend class="bh-visually-hidden">Choose an answer style</legend>
+
+                                <label class="bh-style" data-style="precise">
+                                    <input type="radio" name="bh-style" value="0.2">
+                                    <span class="bh-style-top">
+                                        <span class="bh-style-icon" aria-hidden="true">
+                                            <svg class="dashboard-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+                                        </span>
+                                        <span class="bh-style-mark" aria-hidden="true">
+                                            <svg class="dashboard-icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="m5 13 4 4L19 7"/></svg>
+                                        </span>
+                                    </span>
+                                    <span class="bh-style-name">Precise</span>
+                                    <span class="bh-style-copy">Sticks closely to your documents. Best for prices, policies, and opening hours.</span>
+                                </label>
+
+                                <label class="bh-style" data-style="balanced">
+                                    <input type="radio" name="bh-style" value="0.7">
+                                    <span class="bh-style-top">
+                                        <span class="bh-style-icon" aria-hidden="true">
+                                            <svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M12 4v16M5 8h14M7 8l-3 6h6ZM17 8l-3 6h6Z"/></svg>
+                                        </span>
+                                        <span class="bh-style-mark" aria-hidden="true">
+                                            <svg class="dashboard-icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="m5 13 4 4L19 7"/></svg>
+                                        </span>
+                                    </span>
+                                    <span class="bh-style-name">Balanced</span>
+                                    <span class="bh-style-copy">Clear, helpful answers in a natural voice. Right for most businesses.</span>
+                                </label>
+
+                                <label class="bh-style" data-style="creative">
+                                    <input type="radio" name="bh-style" value="0.9">
+                                    <span class="bh-style-top">
+                                        <span class="bh-style-icon" aria-hidden="true">
+                                            <svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.5.4.8 1 .9 1.6h5.4c.1-.6.4-1.2.9-1.6A6 6 0 0 0 12 3Z"/></svg>
+                                        </span>
+                                        <span class="bh-style-mark" aria-hidden="true">
+                                            <svg class="dashboard-icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="m5 13 4 4L19 7"/></svg>
+                                        </span>
+                                    </span>
+                                    <span class="bh-style-name">Creative</span>
+                                    <span class="bh-style-copy">More variety in wording. Best for marketing and social replies.</span>
+                                </label>
+
+                                <!-- Shown only when the stored value is not one of the three
+                                     above, so an existing custom setting is never silently
+                                     replaced the first time this page loads. -->
+                                <label class="bh-style bh-style-custom" id="bh-style-custom" data-style="custom" hidden>
+                                    <input type="radio" name="bh-style" value="custom">
+                                    <span class="bh-style-top">
+                                        <span class="bh-style-icon" aria-hidden="true">
+                                            <svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></svg>
+                                        </span>
+                                        <span class="bh-style-mark" aria-hidden="true">
+                                            <svg class="dashboard-icon" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="m5 13 4 4L19 7"/></svg>
+                                        </span>
+                                    </span>
+                                    <span class="bh-style-name">Custom (<span id="bh-custom-value">0.5</span>)</span>
+                                    <span class="bh-style-copy">A value set by hand under Advanced. Pick one of the three above to replace it.</span>
+                                </label>
+                            </fieldset>
+
+                            <details class="bh-advanced" id="bh-advanced">
+                                <summary>
+                                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+                                    Advanced
+                                    <svg class="dashboard-icon bh-advanced-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                                </summary>
+                                <div class="bh-advanced-body">
+                                    <p class="bh-wide kw-desc" id="bh-plan-note">Your plan decides which models you can choose.</p>
+
+                                    <div class="kw-field">
+                                        <label class="kw-label" for="bh-provider">AI provider</label>
+                                        <select class="kw-select" id="bh-provider"></select>
+                                    </div>
+
+                                    <div class="kw-field">
+                                        <label class="kw-label" for="bh-model">Model</label>
+                                        <select class="kw-select" id="bh-model"></select>
+                                    </div>
+
+                                    <div class="kw-field bh-wide">
+                                        <label class="kw-label" for="bh-temp">Answer style value</label>
+                                        <div class="bh-value-row">
+                                            <input type="range" id="bh-temp" min="0" max="1" step="0.05" value="0.7"
+                                                aria-describedby="bh-temp-help">
+                                            <output class="bh-value-out" id="bh-temp-out" for="bh-temp">0.7</output>
+                                        </div>
+                                        <p class="kw-help" id="bh-temp-help">
+                                            The number behind the three styles. Moving it selects Custom.
+                                        </p>
+                                    </div>
+                                </div>
+                            </details>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="bh-col">
+                    <section class="kw-panel cr-reveal" aria-labelledby="bh-current-title">
+                        <div class="bh-panel-head">
+                            <h2 id="bh-current-title">Current setup</h2>
+                        </div>
+                        <ul class="bh-readiness" id="bh-current"></ul>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══ 2. Message experience ═════════════════════════════════ -->
+        <section id="bh-panel-message" role="tabpanel" aria-labelledby="bh-tab-message" hidden>
+            <div class="bh-grid">
+                <div class="bh-col">
+                    <section class="kw-panel cr-reveal" aria-labelledby="bh-menu-title">
+                        <div class="bh-panel-head">
+                            <h2 id="bh-menu-title">Welcome menu</h2>
+                            <p>The choices every new customer sees first. They stay available for the whole conversation.</p>
+                        </div>
+                        <div class="bh-panel-body">
+                            <ol class="bh-menu" id="bh-menu"></ol>
+                            <p class="bh-menu-note" id="bh-menu-empty" hidden>
+                                No menu buttons yet. Add up to three, or generate them from your knowledge.
+                            </p>
+
+                            <div class="bh-menu-foot">
+                                <button type="button" class="kw-btn cr-press" id="bh-menu-add">
+                                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                                    Add button
+                                </button>
+                                <button type="button" class="kw-btn cr-press" id="bh-menu-generate">
+                                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 3 1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9Z"/></svg>
+                                    Suggest from knowledge
+                                </button>
+                                <span class="bh-menu-note" id="bh-menu-note">Up to 3 buttons.</span>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="kw-panel cr-reveal" aria-labelledby="bh-format-title">
+                        <div class="bh-panel-head">
+                            <h2 id="bh-format-title">Reply formatting</h2>
+                        </div>
+                        <div class="bh-panel-body">
+                            <div class="bh-toggle">
+                                <label for="bh-quick-replies">
+                                    <span class="bh-toggle-name">Quick reply buttons</span>
+                                    <span class="bh-toggle-copy">Turn the choices your bot offers into tappable buttons.</span>
+                                </label>
+                                <input type="checkbox" class="bh-switch" id="bh-quick-replies">
+                            </div>
+                            <div class="bh-toggle">
+                                <label for="bh-markdown">
+                                    <span class="bh-toggle-name">Formatted text</span>
+                                    <span class="bh-toggle-copy">Allow bold, italic, and lists in replies.</span>
+                                </label>
+                                <input type="checkbox" class="bh-switch" id="bh-markdown">
+                            </div>
+                            <p class="bh-menu-note" style="margin-top:14px">
+                                These apply to every connected channel. The welcome menu stays available either way.
+                            </p>
+                        </div>
+                    </section>
+                </div>
+
+                <div class="bh-col">
+                    <section class="kw-panel cr-reveal" aria-labelledby="bh-preview-title">
+                        <div class="bh-panel-head">
+                            <h2 id="bh-preview-title">Customer preview</h2>
+                            <p>What someone sees when they first message you.</p>
+                        </div>
+                        <div class="bh-preview" id="bh-preview"></div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══ 3. Test lab ═══════════════════════════════════════════ -->
+        <section id="bh-panel-test" role="tabpanel" aria-labelledby="bh-tab-test" hidden>
+            <!-- Answers "what am I actually testing?" before the first message.
+                 An undeployed bot replies from defaults and reads as if it were
+                 configured, which is the trap this strip exists to close. -->
+            <ul class="bh-setup cr-reveal" id="bh-setup" aria-label="What this test uses"></ul>
+
+            <p class="bh-banner bh-banner-error" id="bh-test-warning" hidden></p>
+
+            <div class="bh-grid" style="margin-top:20px">
+                <div class="bh-col">
+                    <section class="kw-panel cr-reveal" aria-labelledby="bh-chat-title">
+                        <div class="bh-panel-head">
+                            <h2 id="bh-chat-title">Test conversation</h2>
+                            <button type="button" class="kw-btn cr-press" id="bh-chat-clear">
+                                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+                                Clear
+                            </button>
+                        </div>
+                        <div class="bh-chat" id="bh-chat" role="log" aria-live="polite"></div>
+                        <form class="bh-composer" id="bh-composer">
+                            <div class="kw-field">
+                                <label class="bh-visually-hidden" for="bh-input">Your message</label>
+                                <input class="kw-input" id="bh-input" autocomplete="off"
+                                    placeholder="Ask what a customer would ask&hellip;">
+                            </div>
+                            <button type="submit" class="kw-btn kw-btn-primary cr-press" id="bh-send">
+                                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                                Send
+                            </button>
+                            <p class="bh-composer-hint">Replies use your saved settings, not unsaved edits.</p>
+                        </form>
+                    </section>
+                </div>
+
+                <div class="bh-col">
+                    <section class="kw-panel cr-reveal" aria-labelledby="bh-scenarios-title">
+                        <div class="bh-panel-head">
+                            <h2 id="bh-scenarios-title">Try a scenario</h2>
+                            <!-- Before the description, so it sits on the title
+                                 row: .bh-panel-head gives any <p> full width,
+                                 which would otherwise push the button down. -->
+                            <button type="button" class="kw-btn cr-press" id="bh-scenarios-refresh" disabled>
+                                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6"/></svg>
+                                Refresh
+                            </button>
+                            <p>Written from your own documents: what you are
+                                asked most, a fact the bot must get right,
+                                something you do not offer, and a message too
+                                vague to answer.</p>
+                        </div>
+                        <!-- Names the document these came from, or says why
+                             they are generic. Either way the operator knows
+                             what the questions are worth. -->
+                        <p class="bh-scenarios-note" id="bh-scenarios-note" aria-live="polite"></p>
+                        <ul class="bh-scenarios" id="bh-scenarios"></ul>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <div class="bh-footer" id="bh-footer">
+            <p class="bh-footer-note" id="bh-footer-note"></p>
+            <button type="button" class="kw-btn cr-press" id="bh-reset" disabled>Reset changes</button>
+            <button type="button" class="kw-btn kw-btn-primary cr-press" id="bh-save" disabled>
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                <span id="bh-save-label">Save changes</span>
+            </button>
+        </div>
+    </main>
+
+    <script src="assets/js/behaviour.js"></script>
+</body>
+
+</html>
