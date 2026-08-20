@@ -60,6 +60,30 @@ def get_bot_by_id(bot_id, company_id=None, include_archived=False):
     return rows[0] if rows else None
 
 
+def list_bots_by_ids(company_id, bot_ids, include_archived=True):
+    """Return minimal chatbot records for a company-scoped set of IDs."""
+    if not company_id or not bot_ids:
+        return []
+
+    unique_ids = sorted({int(bot_id) for bot_id in bot_ids if bot_id is not None})
+    if not unique_ids:
+        return []
+
+    query = (
+        supabase
+        .table(TABLE_NAME)
+        .select("id,bot_name,status,deleted_at")
+        .eq("company_id", company_id)
+        .in_("id", unique_ids)
+    )
+
+    if not include_archived:
+        query = query.is_("deleted_at", "null").neq("status", ARCHIVED_STATUS)
+
+    response = query.execute()
+    return response.data or []
+
+
 def create_bot(data, company_id):
     payload = {
         "company_id": company_id,

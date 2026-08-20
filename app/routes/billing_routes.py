@@ -371,7 +371,24 @@ def fetch_ai_credit_analytics():
                 "message": "days must be one of: 7, 30, 90."
             }), 400
 
-        analytics = get_company_ai_usage_analytics(company_id, days=days)
+        raw_chatbot_id = request.args.get("chatbot_id")
+        chatbot_id = None
+        if raw_chatbot_id is not None and str(raw_chatbot_id).strip():
+            if not str(raw_chatbot_id).isdigit():
+                return jsonify({
+                    "status": "error",
+                    "message": "chatbot_id must be a positive integer."
+                }), 400
+            chatbot_id = int(raw_chatbot_id)
+
+        analytics = get_company_ai_usage_analytics(
+            company_id,
+            days=days,
+            chatbot_id=chatbot_id,
+            provider=request.args.get("provider"),
+            model=request.args.get("model"),
+            operation_type=request.args.get("operation_type"),
+        )
         return jsonify({
             "status": "success",
             "data": analytics,
