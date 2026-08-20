@@ -222,6 +222,13 @@ class TestAiCreditCsvExport(BasePhase4HTest):
             "topup_balance_after_micro_myr": 2000000,
             "description": "Included credit granted",
             "payment_reference": "txn-1",
+            "ai_usage_type": "knowledge_extraction",
+            "model": "openai/gpt-4.1",
+            "provider": "openrouter",
+            "prompt_tokens": 120,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+            "customer_charge_micro_myr": 25000,
         },
     ]
 
@@ -261,6 +268,25 @@ class TestAiCreditCsvExport(BasePhase4HTest):
                 self.assertIn("total_delta_myr", body)
                 self.assertIn("60.00", body)
                 self.assertIn("2.00", body)
+
+    def test_credit_csv_includes_usage_metadata_when_available(self):
+        """CSV includes persisted model/provider/token metadata."""
+        with self._patch_jwt(company_id=42), self._patch_user_repo():
+            with patch(
+                "app.routes.billing_routes.list_credit_transactions",
+                return_value=self.MOCK_TXNS,
+            ):
+                resp = self.client.get(
+                    "/api/billing/ai-credit/transactions/export.csv",
+                    headers={"Authorization": "Bearer test-token"},
+                )
+                body = resp.get_data(as_text=True)
+                self.assertIn("model", body)
+                self.assertIn("provider", body)
+                self.assertIn("input_tokens", body)
+                self.assertIn("openai/gpt-4.1", body)
+                self.assertIn("openrouter", body)
+                self.assertIn("120", body)
 
     def test_credit_csv_no_idempotency_keys(self):
         """Customer CSV does not expose idempotency keys."""
@@ -339,6 +365,26 @@ class TestAiCreditUsageSummary(BasePhase4HTest):
                 self.assertEqual(data["activity"]["topup_added_myr"], "2.00")
                 self.assertEqual(data["activity"]["usage_spent_myr"], "0.05")
                 self.assertEqual(data["activity"]["included_expired_myr"], "0.45")
+
+    def test_summary_counts_usage_debit_transactions(self):
+        """Usage summary counts the transaction type written by the charge RPC."""
+        txns = [
+            {"transaction_type": "usage_debit", "included_delta_micro_myr": -25000, "topup_delta_micro_myr": -5000},
+        ]
+        with self._patch_jwt(company_id=42), self._patch_user_repo():
+            with patch(
+                "app.database.ai_credit_repository.get_company_credit_balance",
+                return_value=self.MOCK_BALANCE,
+            ), patch(
+                "app.routes.billing_routes.list_credit_transactions",
+                return_value=txns,
+            ):
+                resp = self.client.get(
+                    "/api/billing/ai-credit/usage-summary",
+                    headers={"Authorization": "Bearer test-token"},
+                )
+                data = resp.get_json()["data"]
+                self.assertEqual(data["activity"]["usage_spent_myr"], "0.03")
 
     def test_summary_empty_balance(self):
         """Empty balance returns zero summary."""

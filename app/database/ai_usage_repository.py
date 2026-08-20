@@ -156,3 +156,33 @@ def get_usage_log_by_provider_generation_id(provider: str, generation_id: str) -
 
     rows = response.data or []
     return rows[0] if rows else None
+
+
+def list_company_completed_usage_by_range(
+    company_id: int,
+    date_from: str,
+    date_to: str,
+) -> list[dict]:
+    """Return completed usage logs for one company in a bounded date range."""
+    if not company_id:
+        raise ValueError("company_id is required")
+    if not date_from or not date_to:
+        raise ValueError("date_from and date_to are required")
+
+    response = (
+        supabase
+        .table(TABLE_NAME)
+        .select(
+            "id,company_id,chatbot_id,provider,model,operation_type,"
+            "request_status,prompt_tokens,completion_tokens,total_tokens,"
+            "provider_cost_micro_usd,created_at"
+        )
+        .eq("company_id", company_id)
+        .eq("request_status", "completed")
+        .gte("created_at", date_from)
+        .lt("created_at", date_to)
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    return response.data or []
