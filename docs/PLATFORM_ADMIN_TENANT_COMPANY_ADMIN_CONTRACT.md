@@ -12,6 +12,11 @@ applied and verified only to the extent described in this contract; runtime
 tenant suspension enforcement is covered by automated local tests plus bounded
 representative main shared-testing verification.
 
+The current Supabase project used for this evidence is the prototype/shared-testing
+environment. Supabase labels its main branch as `PRODUCTION`, but this
+project is not the future real production environment. Future staging and
+future real production have not been verified for Phase 5.
+
 This contract records the permanent Phase 5 runtime, database, audit, and
 verification boundary. It supersedes the temporary Phase 5 working notes.
 
@@ -336,6 +341,20 @@ The final targeted test-chat re-verification again used company 34 and chatbot
 - top-up balance remained `0`;
 - no provider execution was observed;
 - chatbot runtime/configuration remained unchanged.
+
+Final prototype runtime verification reconfirmed the same approved fake/team
+target, company 34 `Autobot Company`, chatbot 52 `Auto Bot`, and tenant user
+36. The company baseline was active with AI usage 0, AI-credit transaction
+count 3, included balance 20000000 micro-MYR, and top-up balance 0.
+`POST /api/platform-admin/companies/34/suspend` returned 200 and made the
+authoritative company status inactive. While inactive, `PUT /api/bots/52`,
+`POST /api/knowledge/set-active?chatbot_id=52`, and
+`POST /api/chat/test?chatbot_id=52` each returned HTTP 403 /
+`company_suspended`. Provider execution was not reached, AI usage remained
+0 -> 0, AI-credit transaction count remained 3 -> 3, included and top-up
+balances were unchanged, and chatbot runtime/configuration was unchanged.
+`POST /api/platform-admin/companies/34/restore` returned 200 and the final
+authoritative company status was active.
 
 CRM mutation was not exercised live because selected fake/team company 34 had
 no suitable CRM lead. No risky conversation or customer data was manufactured

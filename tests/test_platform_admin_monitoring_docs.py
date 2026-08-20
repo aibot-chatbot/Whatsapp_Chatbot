@@ -33,6 +33,8 @@ class PlatformAdminMonitoringDocsTests(unittest.TestCase):
             "migration 037 is applied and verified only in that main shared-testing environment",
             "not staging verification",
             "does not establish production readiness",
+            "prototype/shared-testing environment",
+            "not the future real production environment",
         ]:
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, self.contract_flat)
@@ -138,8 +140,9 @@ class PlatformAdminMonitoringDocsTests(unittest.TestCase):
                 "no dynamic sql",
                 "filtered to current approved audit actions and resource types",
                 "returned 200 for `/api/platform-admin/me`",
-                "platform operations dashboard rendered",
-                "approved main shared-testing supabase with fake/team data",
+            "platform operations dashboard rendered",
+            "final superadmin prototype runtime verification",
+            "approved main shared-testing supabase with fake/team data",
                 "not staging verification",
                 "does not establish production readiness",
                 "full platform admin browser suite",

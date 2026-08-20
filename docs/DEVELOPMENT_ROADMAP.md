@@ -24,23 +24,41 @@ The bot management workspace now follows the Aveon Control Room v2 Stitch design
 
 ### Phase 4L update - Platform-admin controls
 
-Current Superadmin roadmap order after this milestone:
+Current Superadmin prototype roadmap status after this milestone:
 
 1. Completed current milestone: Phase 1 foundation, Phase 1.5 RLS/security
    foundation, Phase 2 support operations, Phase 3 tenant communication
-   baseline, Phase 6 monitoring/visualization dashboard, and Phase 5 Tenant /
-   Company Administration, and the current Phase 7 read-only Billing /
-   Subscription Oversight milestone.
-2. Next: continue with the next agreed Superadmin roadmap item. Financial
-   mutation workflows remain deferred and require a separately approved future
-   scope; they are not part of the completed Phase 7 read-only milestone.
+   baseline, Phase 6 monitoring/visualization dashboard, Phase 5 Tenant /
+   Company Administration, bounded Platform Admin Management, and the current
+   Phase 7 read-only Billing / Subscription Oversight milestone.
+2. Next: move back to broader product or deployment priorities rather than
+   starting another Superadmin feature phase. Future proper environment
+   deployment is separate work. Financial mutation workflows remain deferred
+   and require a separately approved future scope; they are not part of the
+   completed Phase 7 read-only milestone.
 3. Later: broader Phase 4 Platform Admin User Management expansion. A bounded
    platform-admin mapping-management surface already exists; the broader
    lifecycle expansion remains intentionally deferred.
 
-This roadmap status reflects repository/local and recorded main shared-testing
-evidence only where stated. It does not claim staging or production readiness
-for the current Superadmin milestone.
+This roadmap status reflects repository/local and recorded prototype/shared-testing
+evidence only where stated. The current Supabase project is
+intentionally used as the prototype/shared-testing environment; Supabase labels
+its main branch as `PRODUCTION`, but this project is not the future real
+production environment. Future staging and future real production are not
+verified or deployed for the current Superadmin milestone.
+
+The current Superadmin prototype milestone is runtime-verified complete. Final
+Superadmin prototype runtime verification passed with non-blocking notes:
+`GET /api/platform-admin/me`, `GET /api/platform-admin/overview`,
+company investigation, support reads, Platform Admin Management,
+company 34 suspend/restore with representative inactive-company enforcement,
+Platform Billing overview/directory, Audit Logs, and the Platform Admin browser
+suite all passed in the prototype/shared-testing boundary. Superadmin-focused
+pytest recorded 374 passed and 1113 subtests; the Platform Admin browser suite
+recorded 70 passed. A broader run recorded 503 passed, 820 subtests, and one
+unrelated AI-access failure in
+`tests/test_ai_access_enforcement.py::TestModelSettingsEnforcement::test_trial_deepseek_flash_save_succeeds`;
+the full repository should not be described as green from that run.
 
 The initial read-only backend is implemented with a separate database-backed
 platform-admin allowlist, per-request fail-closed authorization, dedicated

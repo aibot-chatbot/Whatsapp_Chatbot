@@ -18,6 +18,12 @@ The platform-admin service is fail closed: a successful or not-found platform
 response must not be returned unless its audit event is inserted successfully.
 Audit failure returns a sanitized 503 and withholds fetched tenant data.
 
+Current Superadmin runtime evidence in this policy refers to the current
+prototype/shared-testing Supabase project. Supabase labels its main branch as
+`PRODUCTION`, but this project is not the future real production environment.
+Future staging and future real production are not verified or deployed for the
+current Superadmin milestone.
+
 ## Scope and principles
 
 - The audit stream covers the separate platform-admin console only. Tenant

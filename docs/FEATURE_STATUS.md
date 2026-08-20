@@ -9,6 +9,35 @@
 - **Obsolete**: no longer part of the active system
 - **Needs investigation**: evidence is conflicting or insufficient
 
+## Superadmin Environment Boundary
+
+The current Supabase project is intentionally used as the prototype/shared-testing
+environment for Superadmin development and team verification. Supabase
+labels its main branch as `PRODUCTION`, but this project is not the future real
+production environment. Future staging and future real production have not been
+verified or deployed for the current Superadmin milestone.
+
+The current Superadmin prototype milestone is runtime-verified complete in that
+prototype/shared-testing environment. Completed current Superadmin scope
+includes the foundation/security work, Support Case Operations, Tenant
+Communication, bounded Platform Admin Management, Tenant / Company
+Administration, Platform Monitoring, and read-only Billing & Subscription
+Oversight. Broader Phase 4 Platform Admin account-management expansion remains
+deferred and is not required for the current prototype milestone.
+
+Repository/database reconciliation confirmed that Superadmin migrations 029
+through 038 are already represented in the current prototype/shared-testing
+database. Do not reapply migrations 029-038. No new migration is required for
+the current Superadmin milestone; Migration 043 was not created and is not
+required.
+
+Final Superadmin prototype runtime verification passed with non-blocking notes:
+`GET /api/platform-admin/me`, `GET /api/platform-admin/overview`, company
+investigation, support reads, Platform Admin Management, company 34
+suspend/restore with representative inactive-company enforcement, Platform
+Billing overview/directory, Audit Logs, and the Platform Admin browser suite
+all passed inside the prototype/shared-testing boundary.
+
 ## Authentication and Account Management
 
 | Feature | Status | Notes |
@@ -393,11 +422,15 @@ verified.
   actions, exports, charts, SLA timers, escalation automation, and production
   use remain blocked. The workflow contract is documented in
   `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
-  SQL execution requires project/ref/environment preflight evidence; the
-  Migration 029 production-application and successful rollback are recorded in
-  the access lifecycle. Future SQL/testing is limited to confirmed local/dev,
-  the approved main shared-testing environment with fake/team data, or approved
-  staging targets. Production remains blocked.
+  SQL execution requires project/ref/environment preflight evidence. Migration
+  029 controlled application/rollback evidence is recorded in the access
+  lifecycle for the Supabase project that was labeled main/PRODUCTION; under
+  the current environment interpretation, that evidence belongs to the
+  prototype/shared-testing boundary and does not establish deployment to the
+  future real production environment. Future SQL/testing is limited to
+  confirmed local/dev, the approved prototype/shared-testing environment with
+  fake/team data, or approved staging targets. Future real production remains
+  blocked.
   Tenant support submission is governed by
   `docs/TENANT_SUPPORT_SUBMISSION_CONTRACT.md`; its backend endpoint and
   bounded frontend form are implemented locally. Migration 030 is applied and
