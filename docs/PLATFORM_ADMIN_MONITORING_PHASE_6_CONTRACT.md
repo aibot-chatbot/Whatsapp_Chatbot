@@ -11,6 +11,11 @@ localhost frontend/API. Migration 037 is applied and verified only in that
 main shared-testing environment. This is not staging verification and does not
 establish production readiness.
 
+The current Supabase project used for this evidence is the prototype/shared-testing
+environment. Supabase labels its main branch as `PRODUCTION`, but this
+project is not the future real production environment. Future staging and
+future real production have not been verified for Phase 6.
+
 ## Authorization Boundary
 
 Platform authority continues to come only from active `platform_admin_users`
@@ -213,6 +218,12 @@ fake/team data plus localhost frontend/API confirmed:
 - `GET /api/platform-admin/overview` returned 200.
 - The Platform Operations dashboard rendered successfully.
 - The Temporarily Unavailable state no longer appears.
+
+Final Superadmin prototype runtime verification reconfirmed
+`GET /api/platform-admin/overview` returned 200, the current monitoring RPC was
+represented in the prototype database, bounded monitoring sections including
+operational alerts were returned, and the Platform Operations frontend rendered
+successfully. This remains prototype/shared-testing evidence only.
 
 A historical obsolete audit action, `platform_admin.support_case.update`,
 initially caused strict Python monitoring validation to reject the RPC output

@@ -8,6 +8,11 @@ applied and verified only in the approved main shared-testing Supabase with
 fake/team data. Migration 043 was not required and was not created. This is not
 staging verification and does not establish production readiness.
 
+The current Supabase project used for this evidence is the prototype/shared-testing
+environment. Supabase labels its main branch as `PRODUCTION`, but this
+project is not the future real production environment. Future staging and
+future real production have not been verified for Phase 7.
+
 Local runtime verification against the approved main shared-testing Supabase
 confirmed:
 
@@ -21,6 +26,15 @@ confirmed:
 - The Platform Billing & Subscriptions frontend rendered the overview sections
   and Tenant Billing Directory.
 - No financial mutation controls are present.
+
+Final Superadmin prototype runtime verification reconfirmed
+`GET /api/platform-admin/billing/overview` returned 200 and
+`GET /api/platform-admin/billing/companies?limit=25&offset=0` returned 200.
+That runtime sample returned 25 companies out of 27 total, and
+`subscription_status=active`, `plan=pro`, and `attention=true` filters each
+returned 200. Companies without subscriptions remained represented through the
+null-subscription contract. These counts are sample verification evidence only,
+not permanent product assumptions.
 
 Final local source and browser hardening verified the Platform Billing &
 Subscriptions frontend after responsive and accessibility updates:
