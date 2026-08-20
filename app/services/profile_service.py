@@ -113,10 +113,23 @@ def save_profile(profile_data, chatbot_id):
         source=PROVENANCE_CLIENT,
     )
 
+    final_bot_name = profile_data.get("bot_name", "").strip()
+    if not final_bot_name:
+        raise ValueError("Bot name is required")
+
+    if not persona.values.get("company_name", "").strip():
+        raise ValueError("Company name is required")
+
+    if not persona.values.get("business_description", "").strip():
+        raise ValueError("Business description is required")
+
+    if not persona.values.get("tone", "").strip():
+        raise ValueError("Tone is required")
+
     row_data = {
         "chatbot_id": chatbot_id,
         "profile_name": profile_name,
-        "bot_name": profile_data.get("bot_name", ""),
+        "bot_name": final_bot_name,
         "company_name": persona.values["company_name"],
         "additional_instructions": profile_data.get("additional_instructions", ""),
         "out_of_scope_reply": profile_data.get("out_of_scope_reply", ""),
