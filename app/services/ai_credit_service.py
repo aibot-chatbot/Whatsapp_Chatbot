@@ -23,6 +23,10 @@ from app.database.ai_credit_repository import (
 from app.database.ai_usage_repository import (
     list_company_completed_usage_by_range as _list_usage_by_range,
 )
+from app.database.bot_repository import (
+    get_bot_by_id as _get_bot_by_id,
+    list_bots_by_ids as _list_bots_by_ids,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -255,7 +259,14 @@ def list_credit_transactions(
     return _list_transactions(company_id, limit=limit, offset=offset)
 
 
-def get_company_ai_usage_analytics(company_id: int, days: int = 30) -> dict:
+def get_company_ai_usage_analytics(
+    company_id: int,
+    days: int = 30,
+    chatbot_id: int | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    operation_type: str | None = None,
+) -> dict:
     """Return tenant-facing AI usage analytics for a bounded recent period."""
     if not company_id or not isinstance(company_id, int) or company_id < 1:
         raise ValueError("company_id must be a positive integer")
@@ -264,12 +275,36 @@ def get_company_ai_usage_analytics(company_id: int, days: int = 30) -> dict:
     if safe_days not in (7, 30, 90):
         raise ValueError("days must be one of: 7, 30, 90")
 
+    filters = _normalise_analytics_filters(
+        company_id,
+        chatbot_id=chatbot_id,
+        provider=provider,
+        model=model,
+        operation_type=operation_type,
+    )
+    has_dimensional_filter = any(value is not None for value in filters.values())
+
     date_to = _next_utc_midnight()
     date_from = date_to - timedelta(days=safe_days)
     date_from_iso = date_from.isoformat()
     date_to_iso = date_to.isoformat()
 
-    usage_rows = _list_usage_by_range(company_id, date_from_iso, date_to_iso)
+    option_usage_rows = _list_usage_by_range(company_id, date_from_iso, date_to_iso)
+    available_filters = _build_available_filters(company_id, option_usage_rows)
+    option_usage_by_id = {
+        row.get("id"): row
+        for row in option_usage_rows
+        if row.get("id") is not None
+    }
+    usage_rows = _list_usage_by_range(
+        company_id,
+        date_from_iso,
+        date_to_iso,
+        chatbot_id=filters["chatbot_id"],
+        provider=filters["provider"],
+        model=filters["model"],
+        operation_type=filters["operation_type"],
+    )
     credit_rows = _list_transactions_by_range_strict(company_id, date_from_iso, date_to_iso)
     balance = _get_balance(company_id)
 
@@ -286,24 +321,29 @@ def get_company_ai_usage_analytics(company_id: int, days: int = 30) -> dict:
     total_spend = 0
     legacy_spend = 0
     linked_spend = 0
+    excluded_by_filter_spend = 0
 
     for txn in credit_rows:
         if (txn.get("transaction_type") or "").lower() != "usage_debit":
             continue
         charged = _usage_charge_micro_myr(txn)
-        total_spend += charged
-        day_key = _day_key(txn.get("created_at"))
-        if day_key in spend_days:
-            spend_days[day_key]["spent_micro_myr"] += charged
         usage_id = txn.get("ai_usage_log_id")
-        if usage_id:
+        if usage_id and usage_id in usage_by_id:
+            total_spend += charged
             charge_by_usage_id[usage_id] = charge_by_usage_id.get(usage_id, 0) + charged
-            if usage_id in usage_by_id:
-                linked_spend += charged
-            else:
-                legacy_spend += charged
+            linked_spend += charged
+            day_key = _day_key(txn.get("created_at"))
+            if day_key in spend_days:
+                spend_days[day_key]["spent_micro_myr"] += charged
+        elif usage_id and has_dimensional_filter and usage_id in option_usage_by_id:
+            excluded_by_filter_spend += charged
         else:
             legacy_spend += charged
+            if not has_dimensional_filter:
+                total_spend += charged
+                day_key = _day_key(txn.get("created_at"))
+                if day_key in spend_days:
+                    spend_days[day_key]["spent_micro_myr"] += charged
 
     total_prompt = 0
     total_completion = 0
@@ -441,6 +481,8 @@ def get_company_ai_usage_analytics(company_id: int, days: int = 30) -> dict:
             "start": date_from_iso,
             "end": date_to_iso,
         },
+        "filters": filters,
+        "available_filters": available_filters,
         "summary": {
             "ai_credit_balance_micro_myr": total_balance,
             "included_balance_micro_myr": included_balance,
@@ -474,14 +516,100 @@ def get_company_ai_usage_analytics(company_id: int, days: int = 30) -> dict:
                 1 for txn in credit_rows
                 if (txn.get("transaction_type") or "").lower() == "usage_debit"
                 and txn.get("ai_usage_log_id")
-                and txn.get("ai_usage_log_id") not in usage_by_id
+                and txn.get("ai_usage_log_id") not in option_usage_by_id
             ),
             "usage_logs_without_model_count": unknown_model_count,
             "legacy_spend_micro_myr": legacy_spend,
             "linked_spend_micro_myr": linked_spend,
+            "legacy_spend_excluded_due_to_filters_micro_myr": (
+                legacy_spend if has_dimensional_filter else 0
+            ),
+            "linked_spend_excluded_due_to_filters_micro_myr": excluded_by_filter_spend,
         },
         "currency": "MYR",
         "unit": "micro_myr",
+    }
+
+
+def _normalise_analytics_filters(
+    company_id: int,
+    chatbot_id: int | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    operation_type: str | None = None,
+) -> dict:
+    normalised = {
+        "chatbot_id": None,
+        "provider": _clean_filter_text(provider, "provider"),
+        "model": _clean_filter_text(model, "model"),
+        "operation_type": _clean_filter_text(operation_type, "operation_type"),
+    }
+
+    if chatbot_id is not None:
+        try:
+            parsed_chatbot_id = int(chatbot_id)
+        except (TypeError, ValueError):
+            raise ValueError("chatbot_id must be a positive integer")
+        if parsed_chatbot_id < 1:
+            raise ValueError("chatbot_id must be a positive integer")
+        chatbot = _get_bot_by_id(parsed_chatbot_id, company_id=company_id, include_archived=True)
+        if not chatbot:
+            raise ValueError("chatbot_id is not available for this company")
+        normalised["chatbot_id"] = parsed_chatbot_id
+
+    return normalised
+
+
+def _clean_filter_text(value, field_name: str) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip()
+    if not cleaned:
+        return None
+    if len(cleaned) > 200:
+        raise ValueError(f"{field_name} is too long")
+    return cleaned
+
+
+def _build_available_filters(company_id: int, usage_rows: list[dict]) -> dict:
+    chatbot_ids = sorted({
+        _safe_int(row.get("chatbot_id"))
+        for row in usage_rows
+        if _safe_int(row.get("chatbot_id")) > 0
+    })
+    bot_rows = _list_bots_by_ids(company_id, chatbot_ids, include_archived=True)
+    bot_by_id = {row.get("id"): row for row in bot_rows}
+
+    chatbots = []
+    for chatbot_id in chatbot_ids:
+        bot = bot_by_id.get(chatbot_id)
+        chatbots.append({
+            "id": chatbot_id,
+            "name": (bot or {}).get("bot_name") or "Deleted / unavailable chatbot",
+            "available": bool(bot),
+        })
+
+    providers = sorted({
+        (row.get("provider") or "").strip()
+        for row in usage_rows
+        if (row.get("provider") or "").strip()
+    }, key=lambda value: value.lower())
+    models = sorted({
+        (row.get("model") or "").strip()
+        for row in usage_rows
+        if (row.get("model") or "").strip()
+    }, key=lambda value: value.lower())
+    operations = sorted({
+        (row.get("operation_type") or "").strip()
+        for row in usage_rows
+        if (row.get("operation_type") or "").strip()
+    }, key=lambda value: value.lower())
+
+    return {
+        "chatbots": chatbots,
+        "providers": [{"value": value} for value in providers],
+        "models": [{"value": value} for value in models],
+        "operations": [{"value": value} for value in operations],
     }
 
 

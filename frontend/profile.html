@@ -1064,6 +1064,21 @@
                             <option value="90">90 days</option>
                         </select>
                     </div>
+                    <div class="ai-analytics-filter-bar" aria-label="AI analytics filters">
+                        <select id="ai-analytics-chatbot-filter" onchange="fetchAiUsageAnalytics()" aria-label="Filter AI analytics by chatbot">
+                            <option value="">All Chatbots</option>
+                        </select>
+                        <select id="ai-analytics-provider-filter" onchange="fetchAiUsageAnalytics()" aria-label="Filter AI analytics by provider">
+                            <option value="">All Providers</option>
+                        </select>
+                        <select id="ai-analytics-model-filter" onchange="fetchAiUsageAnalytics()" aria-label="Filter AI analytics by model">
+                            <option value="">All Models</option>
+                        </select>
+                        <select id="ai-analytics-feature-filter" onchange="fetchAiUsageAnalytics()" aria-label="Filter AI analytics by feature">
+                            <option value="">All Features</option>
+                        </select>
+                        <button type="button" class="btn btn-small ai-filter-reset" onclick="resetAiAnalyticsFilters()">Reset Filters</button>
+                    </div>
 
                     <div id="ai-analytics-loading" class="ai-analytics-state">Loading AI usage analytics...</div>
                     <div id="ai-analytics-error" class="ai-analytics-state" style="display:none;">Unable to load AI usage analytics.</div>
@@ -1377,14 +1392,21 @@
         .ai-analytics-header {
             display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px;
         }
+        .ai-analytics-filter-bar {
+            display:grid;grid-template-columns:repeat(5,minmax(130px,1fr));gap:8px;margin-bottom:16px;
+        }
         .ai-analytics-subtitle,
         .ai-analytics-state,
         .ai-legacy-note {
             color:var(--text-dim);font-size:0.82rem;line-height:1.4;
         }
-        #ai-analytics-period-select {
+        #ai-analytics-period-select,
+        .ai-analytics-filter-bar select {
             min-width:104px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);
             background:rgba(255,255,255,0.05);color:var(--text-main);font-size:0.82rem;outline:none;
+        }
+        .ai-filter-reset {
+            min-height:36px;white-space:nowrap;
         }
         .ai-summary-grid {
             display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;margin-bottom:18px;
@@ -1578,6 +1600,7 @@
             .ai-summary-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
             .ai-dashboard-grid,
             .ai-dashboard-grid-secondary { grid-template-columns:1fr; }
+            .ai-analytics-filter-bar { grid-template-columns:repeat(2,minmax(0,1fr)); }
         }
         @media (max-width: 600px) {
             .ai-credit-management-summary,
@@ -1586,6 +1609,7 @@
             .ai-analytics-header,
             .ai-chart-heading { align-items:flex-start;flex-direction:column; }
             #ai-analytics-period-select { width:100%; }
+            .ai-analytics-filter-bar { grid-template-columns:1fr; }
             .ai-chart-tabs { width:100%; }
             .ai-chart-tabs button { flex:1; }
             .ai-main-chart,
@@ -2841,7 +2865,8 @@ async function loadBillingInfo() {
             if (dashboard) dashboard.style.display = "none";
 
             try {
-                var res = await authenticatedFetch("/api/billing/ai-credit/analytics?days=" + encodeURIComponent(days));
+                var params = buildAiAnalyticsQueryParams(days);
+                var res = await authenticatedFetch("/api/billing/ai-credit/analytics?" + params.toString());
                 var body = await res.json();
                 if (!res.ok || body.status !== "success" || !body.data) {
                     if (loading) loading.style.display = "none";
@@ -2854,12 +2879,106 @@ async function loadBillingInfo() {
                 if (creditLoading) creditLoading.style.display = "none";
                 if (creditContent) creditContent.style.display = "block";
                 if (creditError) creditError.style.display = "none";
+                var filtersChanged = renderAiAnalyticsFilterOptions(body.data.available_filters || {});
+                if (filtersChanged) {
+                    fetchAiUsageAnalytics();
+                    return;
+                }
                 renderAiUsageAnalytics(body.data);
                 if (loading) loading.style.display = "none";
             } catch (e) {
                 if (loading) loading.style.display = "none";
                 if (errorDiv) errorDiv.style.display = "block";
             }
+        }
+
+        function buildAiAnalyticsQueryParams(days) {
+            var params = new URLSearchParams();
+            params.set("days", days || "30");
+            var filterMap = [
+                ["chatbot_id", "ai-analytics-chatbot-filter"],
+                ["provider", "ai-analytics-provider-filter"],
+                ["model", "ai-analytics-model-filter"],
+                ["operation_type", "ai-analytics-feature-filter"]
+            ];
+            filterMap.forEach(function(item) {
+                var el = document.getElementById(item[1]);
+                if (el && el.value) params.set(item[0], el.value);
+            });
+            return params;
+        }
+
+        function renderAiAnalyticsFilterOptions(filters) {
+            var changed = false;
+            changed = populateAiFilterSelect(
+                "ai-analytics-chatbot-filter",
+                "All Chatbots",
+                (filters.chatbots || []).map(function(bot) {
+                    return {
+                        value: String(bot.id),
+                        label: bot.name || "Deleted / unavailable chatbot",
+                        disabled: bot.available === false
+                    };
+                })
+            ) || changed;
+            changed = populateAiFilterSelect(
+                "ai-analytics-provider-filter",
+                "All Providers",
+                (filters.providers || []).map(function(provider) {
+                    return {
+                        value: provider.value || "",
+                        label: formatProviderDisplayName(provider.value)
+                    };
+                })
+            ) || changed;
+            changed = populateAiFilterSelect(
+                "ai-analytics-model-filter",
+                "All Models",
+                (filters.models || []).map(function(model) {
+                    return {
+                        value: model.value || "",
+                        label: formatModelDisplayName(model.value) || model.value || "Unknown"
+                    };
+                })
+            ) || changed;
+            changed = populateAiFilterSelect(
+                "ai-analytics-feature-filter",
+                "All Features",
+                (filters.operations || []).map(function(operation) {
+                    return {
+                        value: operation.value || "",
+                        label: getAiUsageDebitLabel(operation.value)
+                    };
+                })
+            ) || changed;
+            return changed;
+        }
+
+        function populateAiFilterSelect(id, allLabel, options) {
+            var select = document.getElementById(id);
+            if (!select) return false;
+            var previous = select.value || "";
+            var html = '<option value="">' + escapeHtml(allLabel) + '</option>';
+            (options || []).forEach(function(option) {
+                if (!option.value) return;
+                html += '<option value="' + escapeHtml(option.value) + '"' + (option.disabled ? ' disabled' : '') + '>' + escapeHtml(option.label || option.value) + '</option>';
+            });
+            select.innerHTML = html;
+            var values = (options || []).filter(function(option) { return !option.disabled; }).map(function(option) { return option.value; });
+            if (previous && values.indexOf(previous) === -1) {
+                select.value = "";
+                return true;
+            }
+            select.value = previous;
+            return false;
+        }
+
+        function resetAiAnalyticsFilters() {
+            ["ai-analytics-chatbot-filter", "ai-analytics-provider-filter", "ai-analytics-model-filter", "ai-analytics-feature-filter"].forEach(function(id) {
+                var el = document.getElementById(id);
+                if (el) el.value = "";
+            });
+            fetchAiUsageAnalytics();
         }
 
         function renderAiUsageAnalytics(data) {
@@ -2884,7 +3003,12 @@ async function loadBillingInfo() {
             var emptyDiv = document.getElementById("ai-analytics-empty");
             var dashboard = document.getElementById("ai-analytics-dashboard");
             if (!hasUsage) {
-                if (emptyDiv) emptyDiv.style.display = "block";
+                if (emptyDiv) {
+                    emptyDiv.textContent = hasActiveAiAnalyticsFilters()
+                        ? "No AI usage matches these filters for the selected period."
+                        : "No AI usage recorded for this period.";
+                    emptyDiv.style.display = "block";
+                }
                 if (dashboard) dashboard.style.display = "none";
                 return;
             }
@@ -2904,11 +3028,21 @@ async function loadBillingInfo() {
             var legacyNote = document.getElementById("ai-legacy-note");
             if (legacyNote) {
                 var hasLegacy = (legacy.legacy_spend_micro_myr || 0) > 0 || (legacy.usage_logs_without_model_count || 0) > 0;
-                legacyNote.style.display = hasLegacy ? "block" : "none";
-                if (hasLegacy) {
+                var excludedLegacy = Number(legacy.legacy_spend_excluded_due_to_filters_micro_myr || 0);
+                legacyNote.style.display = (hasLegacy || excludedLegacy > 0) ? "block" : "none";
+                if (excludedLegacy > 0) {
+                    legacyNote.textContent = "Unattributed legacy charges are excluded from filtered results.";
+                } else if (hasLegacy) {
                     legacyNote.textContent = "Model information unavailable for some legacy usage.";
                 }
             }
+        }
+
+        function hasActiveAiAnalyticsFilters() {
+            return ["ai-analytics-chatbot-filter", "ai-analytics-provider-filter", "ai-analytics-model-filter", "ai-analytics-feature-filter"].some(function(id) {
+                var el = document.getElementById(id);
+                return !!(el && el.value);
+            });
         }
 
         function setAiMainMetric(metric) {
@@ -3923,7 +4057,7 @@ async function loadBillingInfo() {
                 "test_bot": "Test Bot",
                 "test_chat": "Test Bot"
             };
-            return usageLabelMap[usageType] || "AI Usage";
+            return usageLabelMap[usageType] || formatOperationDisplayName(usageType) || "AI Usage";
         }
 
         function renderTransactions(txns, append) {
@@ -4438,6 +4572,16 @@ async function loadBillingInfo() {
             if (!model || model === "Unknown / Legacy") return model || "";
             var clean = String(model).split("/").pop().replace(/[-_]+/g, " ").trim();
             return clean.replace(/\b([a-z])/g, function(match) { return match.toUpperCase(); });
+        }
+
+        function formatProviderDisplayName(provider) {
+            if (!provider) return "";
+            return String(provider).replace(/[-_]+/g, " ").replace(/\b([a-z])/g, function(match) { return match.toUpperCase(); });
+        }
+
+        function formatOperationDisplayName(operationType) {
+            if (!operationType) return "";
+            return String(operationType).replace(/[-_]+/g, " ").replace(/\b([a-z])/g, function(match) { return match.toUpperCase(); });
         }
 
         async function exportBillingReportCsv() {

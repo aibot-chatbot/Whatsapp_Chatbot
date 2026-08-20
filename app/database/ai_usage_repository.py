@@ -162,6 +162,10 @@ def list_company_completed_usage_by_range(
     company_id: int,
     date_from: str,
     date_to: str,
+    chatbot_id: int | None = None,
+    provider: str | None = None,
+    model: str | None = None,
+    operation_type: str | None = None,
 ) -> list[dict]:
     """Return completed usage logs for one company in a bounded date range."""
     if not company_id:
@@ -169,7 +173,7 @@ def list_company_completed_usage_by_range(
     if not date_from or not date_to:
         raise ValueError("date_from and date_to are required")
 
-    response = (
+    query = (
         supabase
         .table(TABLE_NAME)
         .select(
@@ -181,8 +185,17 @@ def list_company_completed_usage_by_range(
         .eq("request_status", "completed")
         .gte("created_at", date_from)
         .lt("created_at", date_to)
-        .order("created_at", desc=False)
-        .execute()
     )
+
+    if chatbot_id is not None:
+        query = query.eq("chatbot_id", chatbot_id)
+    if provider:
+        query = query.eq("provider", provider)
+    if model:
+        query = query.eq("model", model)
+    if operation_type:
+        query = query.eq("operation_type", operation_type)
+
+    response = query.order("created_at", desc=False).execute()
 
     return response.data or []

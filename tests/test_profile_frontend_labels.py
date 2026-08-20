@@ -326,7 +326,7 @@ class TestTransactionTypeLabels(unittest.TestCase):
         self.assertIn('"customer_reply": "Chat Reply"', self.html)
         self.assertIn('"test_bot": "Test Bot"', self.html)
         self.assertIn('"test_chat": "Test Bot"', self.html)
-        self.assertIn('return usageLabelMap[usageType] || "AI Usage";', self.html)
+        self.assertIn('return usageLabelMap[usageType] || formatOperationDisplayName(usageType) || "AI Usage";', self.html)
 
     def test_usage_debit_uses_ai_usage_type_for_label(self):
         self.assertIn('if ((txn.transaction_type || "") === "usage_debit")', self.html)
