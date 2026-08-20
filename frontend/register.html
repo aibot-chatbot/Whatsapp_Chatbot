@@ -352,7 +352,8 @@
 
             <div class="input-group">
                 <label>Email Address</label>
-                <input type="email" id="email" placeholder="name@company.com" required>
+                <input type="email" id="email" placeholder="name@company.com" required oninput="document.getElementById('email-error').style.display='none'">
+                <p id="email-error" style="color: #ef4444; font-size: 0.85rem; margin-top: 8px; display: none; background: rgba(239, 68, 68, 0.1); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600;"></p>
             </div>
 
             <div class="input-group">
@@ -372,14 +373,17 @@
             <div class="input-group">
                 <label>Confirm Password</label>
                 <div class="password-field">
-                    <input type="password" id="confirm_password" placeholder="••••••••" required>
+                    <input type="password" id="confirm_password" placeholder="••••••••" required oninput="document.getElementById('password-match-error').style.display='none'">
                     <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('confirm_password', this)">Show</button>
                 </div>
+                <p id="password-match-error" style="color: #ef4444; font-size: 0.85rem; margin-top: 6px; display: none;">Passwords do not match.</p>
             </div>
 
             <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 24px; padding: 0 4px; line-height: 1.4;">
                 By signing up, you agree to our <a href="#" style="color: var(--primary); text-decoration: none;">Terms of Service</a> and <a href="#" style="color: var(--primary); text-decoration: none;">Privacy Policy</a>.
             </div>
+
+            <div id="general-error" style="color: #ef4444; font-size: 0.9rem; margin-bottom: 16px; display: none; background: rgba(239, 68, 68, 0.1); padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.3); font-weight: 600; text-align: center;"></div>
 
             <button type="submit" class="btn-register" id="submit-btn">
                 <span class="btn-text">Create Account</span>
@@ -481,6 +485,7 @@
         regForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             submitBtn.classList.add('loading');
+            document.getElementById('general-error').style.display = 'none';
 
             const firstName = document.getElementById("first_name").value.trim();
             const lastName = document.getElementById("last_name").value.trim();
@@ -489,10 +494,13 @@
             const password = document.getElementById("password").value;
             const confirmPassword = document.getElementById("confirm_password").value;
 
+            const matchError = document.getElementById('password-match-error');
             if (password !== confirmPassword) {
-                alert("Passwords do not match.");
+                matchError.style.display = 'block';
                 submitBtn.classList.remove('loading');
                 return;
+            } else {
+                matchError.style.display = 'none';
             }
 
             try {
@@ -514,7 +522,16 @@
                 const result = await response.json();
 
                 if (!response.ok) {
-                    alert(result.message || result.error || "Registration failed.");
+                    const errorMsg = result.message || result.error || "Registration failed.";
+                    if (errorMsg.toLowerCase().includes("email") || errorMsg.toLowerCase().includes("user already exists") || errorMsg.toLowerCase().includes("registered")) {
+                        const emailError = document.getElementById('email-error');
+                        emailError.innerHTML = '⚠️ ' + errorMsg;
+                        emailError.style.display = 'block';
+                    } else {
+                        const generalError = document.getElementById('general-error');
+                        generalError.innerHTML = '⚠️ ' + errorMsg;
+                        generalError.style.display = 'block';
+                    }
                     submitBtn.classList.remove('loading');
                     return;
                 }
@@ -522,8 +539,19 @@
                 // Store email in sessionStorage for the verification page
                 sessionStorage.setItem("pending_verification_email", email);
                 
-                alert(result.message);
-                window.location.href = "verify-email.html";
+                const generalMsg = document.getElementById('general-error');
+                generalMsg.innerHTML = '✅ ' + result.message;
+                generalMsg.style.color = '#10b981';
+                generalMsg.style.background = 'rgba(16, 185, 129, 0.1)';
+                generalMsg.style.borderColor = 'rgba(16, 185, 129, 0.3)';
+                generalMsg.style.display = 'block';
+                
+                submitBtn.classList.remove('loading');
+                submitBtn.innerHTML = 'Redirecting...';
+                
+                setTimeout(() => {
+                    window.location.href = "verify-email.html";
+                }, 1500);
 
             } catch (error) {
                 console.error("Register error:", error);

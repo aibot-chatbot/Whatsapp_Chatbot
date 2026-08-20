@@ -45,7 +45,7 @@ def _parse_date(date_str: str) -> datetime | None:
 
 
 # ---------------------------------------------------------------------------
-# Billing summary — subscription orders
+# Billing summary  subscription orders
 # ---------------------------------------------------------------------------
 
 def _summarize_subscription_orders(company_id: int, date_from: str, date_to: str) -> dict:

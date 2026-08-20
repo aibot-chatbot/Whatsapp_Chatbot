@@ -396,6 +396,26 @@
                 const botName = result.data.bot_name || "Selected Bot";
                 document.getElementById("page-title").textContent = `${botName} Reports`;
                 document.getElementById("bot-name").textContent = botName;
+
+                try {
+                    const subResponse = await authenticatedFetch("/api/billing/subscription");
+                    if (subResponse.ok) {
+                        const subResult = await subResponse.json();
+                        if (subResult.status === "success" && subResult.data && subResult.data.plan && subResult.data.plan.feature_flags) {
+                            if (!subResult.data.plan.feature_flags.ai_generated_reports) {
+                                const btnGen = document.getElementById("btn-generate-report");
+                                if (btnGen) {
+                                    btnGen.disabled = true;
+                                    btnGen.title = "Upgrade to use";
+                                    btnGen.style.opacity = "0.5";
+                                    btnGen.style.cursor = "not-allowed";
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error("Failed to check subscription", e);
+                }
             } catch (err) {
                 console.error("Failed to fetch selected bot", err);
                 alert("Failed to load bot. Please select a bot again.");
