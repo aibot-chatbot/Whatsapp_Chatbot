@@ -915,14 +915,14 @@
                         </div>
                     </div>
 
-                    <!-- AI Usage & Credit -->
-                    <div class="profile-section glass-card" id="ai-credit-section" style="height: 530px; display: flex; flex-direction: column; overflow: hidden; margin: 0;">
+                    <!-- AI Credit Management -->
+                    <div class="profile-section glass-card" id="ai-credit-section" style="display: flex; flex-direction: column; overflow: hidden; margin: 0;">
                         <div class="profile-section-header" style="flex-shrink: 0; margin-bottom: 12px;">
-                            <i data-lucide="sparkles" style="width:17px;height:17px;"></i>
-                            AI Usage &amp; Credit
+                            <i data-lucide="wallet-cards" style="width:17px;height:17px;"></i>
+                            AI Credit Management
                         </div>
 
-                        <div style="flex: 1; overflow-y: scroll; padding-right: 6px; display: flex; flex-direction: column; gap: 16px; min-height: 0;">
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
                             <!-- Loading state -->
                             <div id="ai-credit-loading">
                                 <div style="display:flex;align-items:center;gap:10px;padding:8px 0;">
@@ -933,25 +933,24 @@
 
                             <!-- Content (hidden until loaded) -->
                             <div id="ai-credit-content" style="display:none;">
-                                <div style="display:grid;grid-template-columns:1fr;gap:12px;">
-                                    <div class="form-row" style="margin-bottom:0;">
-                                        <label>Included AI Credit</label>
-                                        <span id="ai-credit-included" style="font-size:1.1rem;font-weight:600;color:var(--accent);">&mdash;</span>
+                                <div class="ai-credit-management-summary">
+                                    <div>
+                                        <span>Total AI Credit</span>
+                                        <strong id="ai-credit-total">&mdash;</strong>
                                     </div>
-                                    <div class="form-row" style="margin-bottom:0;">
-                                        <label>Top-Up AI Credit</label>
-                                        <span id="ai-credit-topup" style="font-size:1.1rem;font-weight:600;color:var(--accent);">&mdash;</span>
+                                    <div>
+                                        <span>Included</span>
+                                        <strong id="ai-credit-included">&mdash;</strong>
                                     </div>
-                                    <div class="form-row" style="margin-bottom:0;">
-                                        <label>Total AI Credit</label>
-                                        <span id="ai-credit-total" style="font-size:1.1rem;font-weight:600;color:var(--text-main);">&mdash;</span>
-                                        <div class="shared-credit-note" style="margin-top:6px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.04);font-size:0.78rem;color:var(--text-dim);line-height:1.4;">This AI credit balance, payment history, and subscription plan apply to all chatbots in this company. They are not per-bot resources.</div>
-                                    </div>
-                                    <div class="form-row" style="margin-bottom:0;">
-                                        <label>Period</label>
-                                        <span id="ai-credit-period" style="color:var(--text-dim);font-size:0.85rem;">&mdash;</span>
+                                    <div>
+                                        <span>Top-up</span>
+                                        <strong id="ai-credit-topup">&mdash;</strong>
                                     </div>
                                 </div>
+                                <div class="ai-credit-breakdown">
+                                    <span>Billing period <strong id="ai-credit-period">&mdash;</strong></span>
+                                </div>
+                                <div class="shared-credit-note">This AI credit balance, payment history, and subscription plan apply to all chatbots in this company. They are not per-bot resources.</div>
                             </div>
 
                             <!-- Error state -->
@@ -1044,6 +1043,138 @@
                             <div id="billing-notifications-list" style="flex: 1; overflow-y:scroll; padding-right: 6px; min-height: 0;"></div>
                             <div id="billing-notifications-unread-bar" style="display:none;margin-top:8px;text-align:right;flex-shrink: 0;">
                                 <button id="btn-mark-all-read" class="btn btn-small" onclick="markAllNotificationsRead()">Mark all as read</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Usage Analytics (Full Width) -->
+                <div class="profile-section glass-card full-width ai-analytics-section" id="ai-usage-analytics-section">
+                    <div class="ai-analytics-header">
+                        <div>
+                            <div class="profile-section-header" style="margin-bottom:4px;">
+                                <i data-lucide="sparkles" style="width:17px;height:17px;"></i>
+                                AI Usage Analytics
+                            </div>
+                            <div id="ai-analytics-period-label" class="ai-analytics-subtitle">Last 30 days</div>
+                        </div>
+                        <select id="ai-analytics-period-select" onchange="fetchAiUsageAnalytics()" aria-label="AI analytics period">
+                            <option value="7">7 days</option>
+                            <option value="30" selected>30 days</option>
+                            <option value="90">90 days</option>
+                        </select>
+                    </div>
+
+                    <div id="ai-analytics-loading" class="ai-analytics-state">Loading AI usage analytics...</div>
+                    <div id="ai-analytics-error" class="ai-analytics-state" style="display:none;">Unable to load AI usage analytics.</div>
+                    <div id="ai-analytics-empty" class="ai-analytics-state" style="display:none;">No AI usage recorded for this period.</div>
+
+                    <div id="ai-analytics-dashboard" style="display:none;">
+                        <div class="ai-summary-grid">
+                            <div class="ai-summary-card">
+                                <span>AI Credit Balance</span>
+                                <strong id="ai-analytics-balance">&mdash;</strong>
+                            </div>
+                            <div class="ai-summary-card">
+                                <span>AI Spend</span>
+                                <strong id="ai-analytics-spend">&mdash;</strong>
+                            </div>
+                            <div class="ai-summary-card">
+                                <span>Requests</span>
+                                <strong id="ai-analytics-requests">&mdash;</strong>
+                            </div>
+                            <div class="ai-summary-card">
+                                <span>Token Volume</span>
+                                <strong id="ai-analytics-tokens">&mdash;</strong>
+                            </div>
+                            <div class="ai-summary-card">
+                                <span>Top Model by Tokens</span>
+                                <strong id="ai-analytics-model">&mdash;</strong>
+                            </div>
+                            <div class="ai-summary-card">
+                                <span>Avg / 1M Tokens</span>
+                                <strong id="ai-analytics-avg-cost">&mdash;</strong>
+                            </div>
+                        </div>
+
+                        <div class="ai-chart-panel ai-main-chart-panel">
+                            <div class="ai-chart-heading">
+                                <div>
+                                    <span>Usage Over Time</span>
+                                    <small>Tenant charges and usage from persisted records</small>
+                                </div>
+                                <div class="ai-chart-tabs" role="group" aria-label="Usage over time metric">
+                                    <button type="button" class="active" data-ai-main-metric="spend" onclick="setAiMainMetric('spend')">Spend</button>
+                                    <button type="button" data-ai-main-metric="tokens" onclick="setAiMainMetric('tokens')">Tokens</button>
+                                    <button type="button" data-ai-main-metric="requests" onclick="setAiMainMetric('requests')">Requests</button>
+                                </div>
+                            </div>
+                            <div id="ai-main-chart" class="ai-main-chart"></div>
+                        </div>
+
+                        <div class="ai-dashboard-grid">
+                            <div class="ai-chart-panel">
+                                <div class="ai-chart-heading">
+                                    <div>
+                                        <span>Usage by Model</span>
+                                        <small>Model token volume over time</small>
+                                    </div>
+                                </div>
+                                <div id="ai-model-time-chart" class="ai-series-chart"></div>
+                                <div id="ai-legacy-note" class="ai-legacy-note" style="display:none;">Model information unavailable for legacy usage.</div>
+                            </div>
+                            <div class="ai-chart-panel">
+                                <div class="ai-chart-heading">
+                                    <div>
+                                        <span>Usage by Feature</span>
+                                        <small>Operation type from usage records</small>
+                                    </div>
+                                </div>
+                                <div id="ai-feature-chart" class="ai-feature-chart"></div>
+                            </div>
+                        </div>
+
+                        <div class="ai-dashboard-grid ai-dashboard-grid-secondary">
+                            <div class="ai-chart-panel">
+                                <div class="ai-chart-heading">
+                                    <div>
+                                        <span>Model Breakdown</span>
+                                        <small>Sorted by token usage</small>
+                                    </div>
+                                </div>
+                                <div class="ai-model-table-wrap">
+                                    <table class="ai-model-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Model</th>
+                                                <th>Provider</th>
+                                                <th>Requests</th>
+                                                <th>Tokens</th>
+                                                <th>AI Spend</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="ai-model-table-body"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="ai-chart-panel">
+                                <div class="ai-chart-heading">
+                                    <div>
+                                        <span>Provider / Token Breakdown</span>
+                                        <small id="ai-provider-summary">Provider data from usage records</small>
+                                    </div>
+                                </div>
+                                <div class="ai-token-breakdown">
+                                    <div class="ai-token-total-bar" title="Input + Output tokens">
+                                        <span id="ai-input-token-segment" class="ai-token-input"></span>
+                                        <span id="ai-output-token-segment" class="ai-token-output"></span>
+                                    </div>
+                                    <div class="ai-chart-legend">
+                                        <span><i style="background:rgba(59,130,246,0.9);"></i>Input Tokens <strong id="ai-input-token-total">&mdash;</strong></span>
+                                        <span><i style="background:rgba(16,185,129,0.9);"></i>Output Tokens <strong id="ai-output-token-total">&mdash;</strong></span>
+                                    </div>
+                                </div>
+                                <div id="ai-provider-chart" class="ai-provider-chart"></div>
                             </div>
                         </div>
                     </div>
@@ -1228,6 +1359,176 @@
         }
         .btn-topup:hover { opacity:0.9; }
         .btn-topup:disabled { opacity:0.5; cursor:not-allowed; }
+        .ai-credit-management-summary {
+            display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:12px;
+        }
+        .ai-credit-management-summary div {
+            padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.035);
+        }
+        .ai-credit-management-summary span {
+            display:block;color:var(--text-dim);font-size:0.72rem;margin-bottom:4px;
+        }
+        .ai-credit-management-summary strong {
+            display:block;color:var(--text-main);font-size:1rem;overflow-wrap:anywhere;
+        }
+        .ai-analytics-section {
+            grid-column:1 / -1;margin-top:22px;padding:22px;overflow:visible;
+        }
+        .ai-analytics-header {
+            display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:18px;
+        }
+        .ai-analytics-subtitle,
+        .ai-analytics-state,
+        .ai-legacy-note {
+            color:var(--text-dim);font-size:0.82rem;line-height:1.4;
+        }
+        #ai-analytics-period-select {
+            min-width:104px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.1);
+            background:rgba(255,255,255,0.05);color:var(--text-main);font-size:0.82rem;outline:none;
+        }
+        .ai-summary-grid {
+            display:grid;grid-template-columns:repeat(6,minmax(120px,1fr));gap:10px;margin-bottom:18px;
+        }
+        .ai-summary-card,
+        .ai-chart-panel {
+            border:1px solid rgba(255,255,255,0.07);background:rgba(255,255,255,0.035);border-radius:8px;
+        }
+        .ai-summary-card {
+            padding:14px;min-width:0;
+        }
+        .ai-summary-card span {
+            display:block;color:var(--text-dim);font-size:0.72rem;margin-bottom:6px;
+        }
+        .ai-summary-card strong {
+            display:block;font-size:1.15rem;line-height:1.25;overflow-wrap:anywhere;color:var(--text-main);
+        }
+        .ai-credit-breakdown {
+            display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 8px;color:var(--text-dim);font-size:0.76rem;
+        }
+        .ai-credit-breakdown strong {
+            color:var(--text-main);font-weight:600;
+        }
+        .shared-credit-note {
+            margin-bottom:10px;padding:8px 10px;border-radius:8px;background:rgba(255,255,255,0.04);
+            font-size:0.78rem;color:var(--text-dim);line-height:1.4;
+        }
+        .ai-dashboard-grid {
+            display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,0.75fr);gap:14px;margin-top:14px;
+        }
+        .ai-dashboard-grid-secondary {
+            grid-template-columns:minmax(0,1.35fr) minmax(320px,0.65fr);
+        }
+        .ai-chart-panel {
+            padding:16px;min-width:0;
+        }
+        .ai-main-chart-panel {
+            padding:18px;
+        }
+        .ai-chart-heading {
+            display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:12px;
+        }
+        .ai-chart-heading span {
+            display:block;font-size:0.95rem;font-weight:700;color:var(--text-main);
+        }
+        .ai-chart-heading small {
+            display:block;font-size:0.72rem;color:var(--text-dim);margin-top:3px;
+        }
+        .ai-chart-tabs {
+            display:inline-flex;gap:4px;padding:4px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.07);
+        }
+        .ai-chart-tabs button {
+            border:0;background:transparent;color:var(--text-dim);border-radius:6px;padding:7px 10px;font-size:0.78rem;font-weight:600;cursor:pointer;
+        }
+        .ai-chart-tabs button.active {
+            background:rgba(59,130,246,0.18);color:var(--text-main);
+        }
+        .ai-main-chart,
+        .ai-series-chart {
+            min-height:320px;
+        }
+        .ai-chart-svg {
+            display:block;width:100%;height:100%;min-height:inherit;overflow:visible;
+        }
+        .ai-axis-label {
+            fill:var(--text-dim);font-size:11px;
+        }
+        .ai-grid-line {
+            stroke:rgba(255,255,255,0.07);stroke-width:1;
+        }
+        .ai-chart-tooltip {
+            position:absolute;z-index:20;display:none;pointer-events:none;
+            padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.12);
+            background:rgba(15,23,42,0.96);box-shadow:0 10px 24px rgba(0,0,0,0.22);
+            color:var(--text-main);font-size:0.78rem;line-height:1.45;max-width:260px;
+        }
+        .ai-chart-wrap {
+            position:relative;
+        }
+        .ai-chart-legend {
+            display:flex;flex-wrap:wrap;gap:10px 14px;margin-top:10px;color:var(--text-dim);font-size:0.76rem;
+        }
+        .ai-chart-legend span {
+            display:inline-flex;align-items:center;gap:6px;
+        }
+        .ai-chart-legend i {
+            width:9px;height:9px;border-radius:2px;display:inline-block;
+        }
+        .ai-chart-legend strong {
+            color:var(--text-main);font-weight:600;margin-left:2px;
+        }
+        .ai-feature-chart,
+        .ai-provider-chart {
+            display:flex;flex-direction:column;gap:10px;
+        }
+        .ai-breakdown-row {
+            display:grid;grid-template-columns:minmax(120px,1fr) minmax(120px,1.6fr) auto;gap:10px;align-items:center;font-size:0.8rem;
+        }
+        .ai-breakdown-name {
+            color:var(--text-main);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+        }
+        .ai-breakdown-sub {
+            display:block;color:var(--text-dim);font-weight:400;font-size:0.72rem;margin-top:2px;
+        }
+        .ai-breakdown-track {
+            height:10px;border-radius:999px;background:rgba(255,255,255,0.07);overflow:hidden;
+        }
+        .ai-breakdown-fill {
+            display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),#22c55e);
+        }
+        .ai-breakdown-metric {
+            color:var(--text-dim);font-size:0.74rem;text-align:right;white-space:nowrap;
+        }
+        .ai-model-table-wrap {
+            width:100%;overflow-x:auto;
+        }
+        .ai-model-table {
+            width:100%;border-collapse:collapse;font-size:0.82rem;min-width:650px;
+        }
+        .ai-model-table th,
+        .ai-model-table td {
+            padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.05);text-align:left;
+        }
+        .ai-model-table th {
+            color:var(--text-dim);font-size:0.72rem;font-weight:700;text-transform:uppercase;
+        }
+        .ai-model-table td {
+            color:var(--text-main);
+        }
+        .ai-model-table td:nth-child(n+3),
+        .ai-model-table th:nth-child(n+3) {
+            text-align:right;
+        }
+        .ai-token-breakdown {
+            margin-bottom:14px;
+        }
+        .ai-token-total-bar {
+            height:14px;border-radius:999px;background:rgba(255,255,255,0.07);display:flex;overflow:hidden;
+        }
+        .ai-token-input { background:rgba(59,130,246,0.9); }
+        .ai-token-output { background:rgba(16,185,129,0.9); }
+        .ai-token-total-bar span {
+            min-width:0;
+        }
         .payment-return-status {
             display:none;margin-top:16px;padding:14px 16px;border-radius:12px;
             border:1px solid rgba(255,255,255,0.08);
@@ -1263,10 +1564,37 @@
         .txn-main { display:flex;flex-direction:column;gap:2px; }
         .txn-type { font-weight:600;font-size:0.88rem; }
         .txn-desc { font-size:0.78rem;color:var(--text-dim); }
+        .txn-usage-meta {
+            display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;
+        }
+        .txn-usage-meta span {
+            font-size:0.72rem;color:var(--text-dim);padding:2px 6px;border-radius:999px;background:rgba(255,255,255,0.04);
+        }
         .txn-details { display:flex;flex-direction:column;align-items:flex-end;gap:2px; }
         .txn-amount { font-weight:600;font-size:0.9rem; }
         .txn-date { font-size:0.75rem;color:var(--text-dim); }
         .txn-balance { font-size:0.75rem;color:var(--text-dim); }
+        @media (max-width: 900px) {
+            .ai-summary-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+            .ai-dashboard-grid,
+            .ai-dashboard-grid-secondary { grid-template-columns:1fr; }
+        }
+        @media (max-width: 600px) {
+            .ai-credit-management-summary,
+            .ai-summary-grid { grid-template-columns:1fr; }
+            .ai-analytics-section { padding:16px; }
+            .ai-analytics-header,
+            .ai-chart-heading { align-items:flex-start;flex-direction:column; }
+            #ai-analytics-period-select { width:100%; }
+            .ai-chart-tabs { width:100%; }
+            .ai-chart-tabs button { flex:1; }
+            .ai-main-chart,
+            .ai-series-chart { min-height:270px; }
+            .ai-breakdown-row { grid-template-columns:1fr;gap:6px; }
+            .ai-breakdown-metric { text-align:left; }
+            .txn-row { align-items:flex-start;flex-direction:column;gap:6px; }
+            .txn-details { align-items:flex-start; }
+        }
     </style>
     <script>
         /* ===== Init ===== */
@@ -2446,7 +2774,8 @@ async function loadBillingInfo() {
                     loadSubscriptionPaymentHistory();
                     loadBillingInfo();
                     fetchAiCredit();
-        fetchAiCreditUsageSummary();
+                    fetchAiUsageAnalytics();
+                    fetchAiCreditUsageSummary();
                 } else {
                     if (btn) { btn.disabled = false; btn.textContent = "Retry Activation"; }
                     alert(body2.message || "Retry had an issue.");
@@ -2469,7 +2798,7 @@ async function loadBillingInfo() {
                 if (!res.ok) {
                     if (loading) loading.style.display = "none";
                     if (errorDiv) errorDiv.style.display = "block";
-                    return;
+                    return false;
                 }
                 var body = await res.json();
                 if (body.status === "success" && body.data && body.data.initialised) {
@@ -2482,17 +2811,350 @@ async function loadBillingInfo() {
                     }
                     if (loading) loading.style.display = "none";
                     if (content) content.style.display = "block";
+                    return true;
                 } else {
                     if (loading) loading.style.display = "none";
                     if (errorDiv) {
                         errorDiv.style.display = "block";
                         errorDiv.textContent = "AI credit has not been initialized yet.";
                     }
+                    return false;
                 }
             } catch (e) {
                 if (loading) loading.style.display = "none";
                 if (errorDiv) errorDiv.style.display = "block";
+                return false;
             }
+        }
+
+        async function fetchAiUsageAnalytics() {
+            var loading = document.getElementById("ai-analytics-loading");
+            var errorDiv = document.getElementById("ai-analytics-error");
+            var emptyDiv = document.getElementById("ai-analytics-empty");
+            var dashboard = document.getElementById("ai-analytics-dashboard");
+            var select = document.getElementById("ai-analytics-period-select");
+            var days = select ? select.value : "30";
+
+            if (loading) loading.style.display = "block";
+            if (errorDiv) errorDiv.style.display = "none";
+            if (emptyDiv) emptyDiv.style.display = "none";
+            if (dashboard) dashboard.style.display = "none";
+
+            try {
+                var res = await authenticatedFetch("/api/billing/ai-credit/analytics?days=" + encodeURIComponent(days));
+                var body = await res.json();
+                if (!res.ok || body.status !== "success" || !body.data) {
+                    if (loading) loading.style.display = "none";
+                    if (errorDiv) errorDiv.style.display = "block";
+                    return;
+                }
+                var creditLoading = document.getElementById("ai-credit-loading");
+                var creditContent = document.getElementById("ai-credit-content");
+                var creditError = document.getElementById("ai-credit-error");
+                if (creditLoading) creditLoading.style.display = "none";
+                if (creditContent) creditContent.style.display = "block";
+                if (creditError) creditError.style.display = "none";
+                renderAiUsageAnalytics(body.data);
+                if (loading) loading.style.display = "none";
+            } catch (e) {
+                if (loading) loading.style.display = "none";
+                if (errorDiv) errorDiv.style.display = "block";
+            }
+        }
+
+        function renderAiUsageAnalytics(data) {
+            var summary = data.summary || {};
+            var period = data.period || {};
+            var legacy = data.legacy || {};
+            var hasUsage = (summary.usage_count || 0) > 0 || (summary.ai_spend_micro_myr || 0) > 0;
+
+            setText("ai-analytics-period-label", period.label || "Last 30 days");
+            setText("ai-analytics-balance", formatMicroMyr(summary.ai_credit_balance_micro_myr));
+            setText("ai-credit-total", formatMicroMyr(summary.ai_credit_balance_micro_myr));
+            setText("ai-credit-included", formatMicroMyr(summary.included_balance_micro_myr));
+            setText("ai-credit-topup", formatMicroMyr(summary.topup_balance_micro_myr));
+            setText("ai-analytics-spend", formatMicroMyr(summary.ai_spend_micro_myr || 0));
+            setText("ai-analytics-requests", formatCompactNumber(summary.request_count || summary.usage_count || 0));
+            setText("ai-analytics-tokens", formatCompactNumber(summary.total_tokens || 0));
+            setText("ai-analytics-model", formatModelDisplayName(summary.most_used_model) || "Unknown");
+            setText("ai-analytics-avg-cost", summary.average_cost_per_million_tokens_micro_myr === null || summary.average_cost_per_million_tokens_micro_myr === undefined ? "\u2014" : formatMicroMyr(summary.average_cost_per_million_tokens_micro_myr));
+            setText("ai-input-token-total", formatCompactNumber(summary.input_tokens || 0));
+            setText("ai-output-token-total", formatCompactNumber(summary.output_tokens || 0));
+
+            var emptyDiv = document.getElementById("ai-analytics-empty");
+            var dashboard = document.getElementById("ai-analytics-dashboard");
+            if (!hasUsage) {
+                if (emptyDiv) emptyDiv.style.display = "block";
+                if (dashboard) dashboard.style.display = "none";
+                return;
+            }
+
+            if (dashboard) dashboard.style.display = "block";
+            if (emptyDiv) emptyDiv.style.display = "none";
+            window._aiAnalyticsData = data;
+            window._aiMainMetric = window._aiMainMetric || "spend";
+            renderAiMainChart(window._aiMainMetric);
+            renderModelTimeChart(data.model_daily_usage || []);
+            renderFeatureChart(data.operations || []);
+            renderModelTable(data.models || []);
+            renderTokenBreakdown(summary);
+            renderProviderChart(data.providers || []);
+            renderProviderSummary(data.providers || []);
+
+            var legacyNote = document.getElementById("ai-legacy-note");
+            if (legacyNote) {
+                var hasLegacy = (legacy.legacy_spend_micro_myr || 0) > 0 || (legacy.usage_logs_without_model_count || 0) > 0;
+                legacyNote.style.display = hasLegacy ? "block" : "none";
+                if (hasLegacy) {
+                    legacyNote.textContent = "Model information unavailable for some legacy usage.";
+                }
+            }
+        }
+
+        function setAiMainMetric(metric) {
+            window._aiMainMetric = metric;
+            document.querySelectorAll("[data-ai-main-metric]").forEach(function(btn) {
+                btn.classList.toggle("active", btn.getAttribute("data-ai-main-metric") === metric);
+            });
+            renderAiMainChart(metric);
+        }
+
+        function renderAiMainChart(metric) {
+            var data = window._aiAnalyticsData || {};
+            var el = document.getElementById("ai-main-chart");
+            if (!el) return;
+            var days = metric === "tokens" ? (data.token_trend || []) : metric === "requests" ? (data.request_trend || []) : (data.spend_trend || []);
+            if (!days.length) {
+                el.innerHTML = '<div class="ai-analytics-state">No AI usage recorded for this period.</div>';
+                return;
+            }
+            if (metric === "tokens") {
+                renderStackedDailyChart(el, days, {
+                    inputKey: "input_tokens",
+                    outputKey: "output_tokens",
+                    totalKey: "total_tokens",
+                    yLabel: "Tokens",
+                    formatter: formatCompactNumber,
+                    tooltip: function(day) {
+                        return day.date + " - Input " + formatNumber(day.input_tokens || 0) + " + Output " + formatNumber(day.output_tokens || 0) + " = " + formatNumber(day.total_tokens || 0);
+                    },
+                    legend: [
+                        { label: "Input Tokens", color: "rgba(59,130,246,0.9)" },
+                        { label: "Output Tokens", color: "rgba(16,185,129,0.9)" }
+                    ]
+                });
+                return;
+            }
+            renderDailyBarChart(el, days, {
+                valueKey: metric === "requests" ? "request_count" : "spent_micro_myr",
+                yLabel: metric === "requests" ? "Requests" : "RM",
+                color: "rgba(59,130,246,0.9)",
+                formatter: metric === "requests" ? formatCompactNumber : function(v) { return formatMicroMyr(v).replace("RM ", ""); },
+                tooltip: function(day) {
+                    if (metric === "requests") return day.date + " - " + formatNumber(day.request_count || 0) + " requests";
+                    return day.date + " - " + formatMicroMyr(day.spent_micro_myr || 0);
+                }
+            });
+        }
+
+        function renderModelTimeChart(series) {
+            var el = document.getElementById("ai-model-time-chart");
+            if (!el) return;
+            if (!series || series.length === 0) {
+                el.innerHTML = '<div class="ai-analytics-state">No model-level historical information for this period.</div>';
+                return;
+            }
+            var topSeries = series.slice(0, 5);
+            renderStackedSeriesChart(el, topSeries, {
+                valueKey: "total_tokens",
+                yLabel: "Tokens",
+                formatter: formatCompactNumber
+            });
+        }
+
+        function renderFeatureChart(operations) {
+            renderBreakdownRows("ai-feature-chart", operations || [], {
+                name: function(row) { return getAiUsageDebitLabel(row.operation_type); },
+                sub: function(row) { return row.operation_type || "Unknown"; },
+                metric: function(row) { return formatCompactNumber(row.total_tokens || 0) + " tok · " + formatCompactNumber(row.request_count || 0) + " req · " + formatMicroMyr(row.customer_charge_micro_myr || 0); },
+                empty: "No feature usage recorded for this period."
+            });
+        }
+
+        function renderProviderChart(providers) {
+            renderBreakdownRows("ai-provider-chart", providers || [], {
+                name: function(row) { return row.provider || "Unknown"; },
+                sub: function(row) { return formatCompactNumber(row.input_tokens || 0) + " input · " + formatCompactNumber(row.output_tokens || 0) + " output"; },
+                metric: function(row) { return formatCompactNumber(row.total_tokens || 0) + " tok · " + formatMicroMyr(row.customer_charge_micro_myr || 0); },
+                empty: "Provider information unavailable for legacy usage."
+            });
+        }
+
+        function renderModelTable(models) {
+            var tbody = document.getElementById("ai-model-table-body");
+            if (!tbody) return;
+            if (!models || models.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:left;color:var(--text-dim);">No model-level historical information for this period.</td></tr>';
+                return;
+            }
+            tbody.innerHTML = models.slice(0, 12).map(function(model) {
+                return "<tr>" +
+                    '<td title="' + escapeHtml(model.model || "") + '"><strong>' + escapeHtml(formatModelDisplayName(model.model) || "Unknown") + "</strong></td>" +
+                    "<td>" + escapeHtml(model.provider || "Unknown") + "</td>" +
+                    "<td>" + formatNumber(model.request_count || 0) + "</td>" +
+                    "<td>" + formatCompactNumber(model.total_tokens || 0) + "</td>" +
+                    "<td>" + formatMicroMyr(model.customer_charge_micro_myr || 0) + "</td>" +
+                    "</tr>";
+            }).join("");
+        }
+
+        function renderTokenBreakdown(summary) {
+            var input = Number(summary.input_tokens || 0);
+            var output = Number(summary.output_tokens || 0);
+            var total = input + output;
+            var inputEl = document.getElementById("ai-input-token-segment");
+            var outputEl = document.getElementById("ai-output-token-segment");
+            if (!inputEl || !outputEl) return;
+            inputEl.style.width = total > 0 ? Math.round((input / total) * 100) + "%" : "0%";
+            outputEl.style.width = total > 0 ? Math.max(0, 100 - Math.round((input / total) * 100)) + "%" : "0%";
+        }
+
+        function renderBreakdownRows(id, rows, options) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            if (!rows || rows.length === 0) {
+                el.innerHTML = '<div class="ai-analytics-state">' + escapeHtml(options.empty) + '</div>';
+                return;
+            }
+            var maxTokens = Math.max.apply(null, rows.map(function(row) { return Number(row.total_tokens || 0); })) || 0;
+            el.innerHTML = rows.slice(0, 8).map(function(row) {
+                var total = Number(row.total_tokens || 0);
+                var width = maxTokens > 0 ? Math.max(3, Math.round((total / maxTokens) * 100)) : 3;
+                return '<div class="ai-breakdown-row">' +
+                    '<div class="ai-breakdown-name" title="' + escapeHtml(options.sub(row) || "") + '">' +
+                        escapeHtml(options.name(row) || "Unknown") +
+                        '<span class="ai-breakdown-sub">' + escapeHtml(options.sub(row) || "") + '</span>' +
+                    '</div>' +
+                    '<div class="ai-breakdown-track"><span class="ai-breakdown-fill" style="width:' + width + '%;"></span></div>' +
+                    '<div class="ai-breakdown-metric">' + escapeHtml(options.metric(row)) + '</div>' +
+                '</div>';
+            }).join("");
+        }
+
+        function renderDailyBarChart(el, days, options) {
+            var values = days.map(function(day) { return Number(day[options.valueKey] || 0); });
+            var maxValue = Math.max.apply(null, values) || 1;
+            var chart = createChartShell(days.length);
+            var bars = "";
+            days.forEach(function(day, idx) {
+                var x = chart.left + idx * chart.step + chart.gap / 2;
+                var value = Number(day[options.valueKey] || 0);
+                var h = Math.max(value > 0 ? 2 : 0, (value / maxValue) * chart.innerHeight);
+                var y = chart.top + chart.innerHeight - h;
+                bars += '<rect x="' + x.toFixed(2) + '" y="' + y.toFixed(2) + '" width="' + chart.barWidth.toFixed(2) + '" height="' + h.toFixed(2) + '" rx="5" fill="' + options.color + '"><title>' + escapeHtml(options.tooltip(day)) + '</title></rect>';
+            });
+            el.innerHTML = wrapChartSvg(chart, options.yLabel, maxValue, options.formatter, days, bars, "");
+        }
+
+        function renderStackedDailyChart(el, days, options) {
+            var maxValue = Math.max.apply(null, days.map(function(day) { return Number(day[options.totalKey] || 0); })) || 1;
+            var chart = createChartShell(days.length);
+            var bars = "";
+            days.forEach(function(day, idx) {
+                var x = chart.left + idx * chart.step + chart.gap / 2;
+                var input = Number(day[options.inputKey] || 0);
+                var output = Number(day[options.outputKey] || 0);
+                var total = Number(day[options.totalKey] || 0) || input + output;
+                var inputH = total > 0 ? (input / maxValue) * chart.innerHeight : 0;
+                var outputH = total > 0 ? (output / maxValue) * chart.innerHeight : 0;
+                var inputY = chart.top + chart.innerHeight - inputH;
+                var outputY = inputY - outputH;
+                var title = escapeHtml(options.tooltip(day));
+                bars += '<rect x="' + x.toFixed(2) + '" y="' + inputY.toFixed(2) + '" width="' + chart.barWidth.toFixed(2) + '" height="' + Math.max(inputH, input > 0 ? 2 : 0).toFixed(2) + '" rx="4" fill="rgba(59,130,246,0.9)"><title>' + title + '</title></rect>';
+                bars += '<rect x="' + x.toFixed(2) + '" y="' + outputY.toFixed(2) + '" width="' + chart.barWidth.toFixed(2) + '" height="' + Math.max(outputH, output > 0 ? 2 : 0).toFixed(2) + '" rx="4" fill="rgba(16,185,129,0.9)"><title>' + title + '</title></rect>';
+            });
+            el.innerHTML = wrapChartSvg(chart, options.yLabel, maxValue, options.formatter, days, bars, renderLegend(options.legend));
+        }
+
+        function renderStackedSeriesChart(el, series, options) {
+            var dates = ((series[0] || {}).days || []).map(function(day) { return day.date; });
+            if (!dates.length) {
+                el.innerHTML = '<div class="ai-analytics-state">No model-level historical information for this period.</div>';
+                return;
+            }
+            var palette = ["#3b82f6", "#22c55e", "#f59e0b", "#a855f7", "#06b6d4"];
+            var totalsByDate = dates.map(function(date, idx) {
+                return series.reduce(function(total, row) {
+                    return total + Number(((row.days || [])[idx] || {})[options.valueKey] || 0);
+                }, 0);
+            });
+            var maxValue = Math.max.apply(null, totalsByDate) || 1;
+            var chart = createChartShell(dates.length);
+            var bars = "";
+            dates.forEach(function(date, idx) {
+                var x = chart.left + idx * chart.step + chart.gap / 2;
+                var yCursor = chart.top + chart.innerHeight;
+                series.forEach(function(row, seriesIdx) {
+                    var day = (row.days || [])[idx] || {};
+                    var value = Number(day[options.valueKey] || 0);
+                    if (value <= 0) return;
+                    var h = Math.max(2, (value / maxValue) * chart.innerHeight);
+                    yCursor -= h;
+                    bars += '<rect x="' + x.toFixed(2) + '" y="' + yCursor.toFixed(2) + '" width="' + chart.barWidth.toFixed(2) + '" height="' + h.toFixed(2) + '" rx="4" fill="' + palette[seriesIdx % palette.length] + '"><title>' + escapeHtml(date + " - " + (row.model || "Unknown") + ": " + formatNumber(value) + " tokens") + '</title></rect>';
+                });
+            });
+            var legend = renderLegend(series.map(function(row, idx) {
+                return { label: formatModelDisplayName(row.model) || "Unknown", color: palette[idx % palette.length] };
+            }));
+            el.innerHTML = wrapChartSvg(chart, options.yLabel, maxValue, options.formatter, dates.map(function(date) { return { date: date }; }), bars, legend);
+        }
+
+        function createChartShell(count) {
+            var left = 58, right = 18, top = 20, bottom = 42, width = 900, height = 300;
+            var innerWidth = width - left - right;
+            var innerHeight = height - top - bottom;
+            var step = innerWidth / Math.max(count, 1);
+            var gap = Math.min(10, Math.max(3, step * 0.18));
+            return { left:left, right:right, top:top, bottom:bottom, width:width, height:height, innerWidth:innerWidth, innerHeight:innerHeight, step:step, gap:gap, barWidth:Math.max(4, step - gap) };
+        }
+
+        function wrapChartSvg(chart, yLabel, maxValue, formatter, days, bars, legendHtml) {
+            var grid = "";
+            for (var i = 0; i <= 4; i++) {
+                var y = chart.top + (chart.innerHeight / 4) * i;
+                var val = maxValue - (maxValue / 4) * i;
+                grid += '<line class="ai-grid-line" x1="' + chart.left + '" y1="' + y.toFixed(2) + '" x2="' + (chart.width - chart.right) + '" y2="' + y.toFixed(2) + '"></line>';
+                grid += '<text class="ai-axis-label" x="' + (chart.left - 8) + '" y="' + (y + 4).toFixed(2) + '" text-anchor="end">' + escapeHtml(formatter(val)) + '</text>';
+            }
+            var labelEvery = Math.max(1, Math.ceil(days.length / 6));
+            var xLabels = days.map(function(day, idx) {
+                if (idx % labelEvery !== 0 && idx !== days.length - 1) return "";
+                var x = chart.left + idx * chart.step + chart.step / 2;
+                return '<text class="ai-axis-label" x="' + x.toFixed(2) + '" y="' + (chart.height - 12) + '" text-anchor="middle">' + escapeHtml(formatShortDate(day.date)) + '</text>';
+            }).join("");
+            return '<div class="ai-chart-wrap"><svg class="ai-chart-svg" viewBox="0 0 ' + chart.width + ' ' + chart.height + '" role="img" aria-label="' + escapeHtml(yLabel) + ' chart">' +
+                '<text class="ai-axis-label" x="10" y="14">' + escapeHtml(yLabel) + '</text>' +
+                grid + bars + xLabels +
+                '</svg></div>' + (legendHtml || "");
+        }
+
+        function renderLegend(items) {
+            if (!items || !items.length) return "";
+            return '<div class="ai-chart-legend">' + items.map(function(item) {
+                return '<span><i style="background:' + escapeHtml(item.color) + ';"></i>' + escapeHtml(item.label) + '</span>';
+            }).join("") + '</div>';
+        }
+
+        function renderProviderSummary(providers) {
+            var el = document.getElementById("ai-provider-summary");
+            if (!el) return;
+            if (!providers || providers.length === 0) {
+                el.textContent = "Provider information unavailable for legacy usage";
+                return;
+            }
+            el.textContent = providers.slice(0, 3).map(function(p) {
+                return p.provider;
+            }).join(", ");
         }
         /* ===== AI Credit Top-Up ===== */
 
@@ -2753,7 +3415,7 @@ async function loadBillingInfo() {
                     hideRetryButton();
                     sessionStorage.removeItem("pending_subscription_order_reference");
                     _paymentResolvedRef = null;
-                    (async function() { loadBillingInfo(); fetchAiCredit(); })();
+                    (async function() { loadBillingInfo(); fetchAiCredit(); fetchAiUsageAnalytics(); })();
                 } else {
                     showPaymentStatus("error", "Retry had an issue.", body.message || "Please try again or contact support.");
                 }
@@ -2820,6 +3482,7 @@ async function loadBillingInfo() {
                 _paymentResolvedRef = null;
                 (async function() {
                     var ok = await fetchAiCredit();
+                    fetchAiUsageAnalytics();
                     fetchAiCreditTransactions();
                     if (!ok) {
                         showPaymentStatus("success", "Payment completed.", "Payment completed, but the latest balance could not be loaded. Refresh the page to view it.");
@@ -2962,7 +3625,8 @@ async function loadBillingInfo() {
                 (async function() {
                     loadBillingInfo();
                     fetchAiCredit();
-        fetchAiCreditUsageSummary();
+                    fetchAiUsageAnalytics();
+                    fetchAiCreditUsageSummary();
                 })();
                 return { terminal: true, showRetry: false };
             }
@@ -3327,6 +3991,29 @@ async function loadBillingInfo() {
                         dSpan.className = "txn-desc";
                         dSpan.textContent = desc;
                         mDiv.appendChild(dSpan);
+                    }
+                    var usageMeta = [];
+                    if (txn.model) usageMeta.push("Model: " + txn.model);
+                    if (txn.provider) usageMeta.push("Provider: " + txn.provider);
+                    var promptTokens = Number(txn.prompt_tokens || 0);
+                    var completionTokens = Number(txn.completion_tokens || 0);
+                    var totalTokens = Number(txn.total_tokens || 0) || (promptTokens + completionTokens);
+                    if (totalTokens > 0) {
+                        usageMeta.push("Input " + formatNumber(promptTokens));
+                        usageMeta.push("Output " + formatNumber(completionTokens));
+                        usageMeta.push("Total " + formatNumber(totalTokens));
+                    } else if ((txn.transaction_type || "") === "usage_debit" && txn.ai_usage_log_id && !txn.model && !txn.provider) {
+                        usageMeta.push("Legacy usage metadata unavailable");
+                    }
+                    if (usageMeta.length) {
+                        var metaDiv = document.createElement("div");
+                        metaDiv.className = "txn-usage-meta";
+                        usageMeta.slice(0, 5).forEach(function(metaText) {
+                            var metaSpan = document.createElement("span");
+                            metaSpan.textContent = metaText;
+                            metaDiv.appendChild(metaSpan);
+                        });
+                        mDiv.appendChild(metaDiv);
                     }
                     row.appendChild(mDiv);
                     var dd = document.createElement("div");
@@ -3730,6 +4417,29 @@ async function loadBillingInfo() {
             return n.toLocaleString();
         }
 
+        function formatCompactNumber(value) {
+            var n = Number(value || 0);
+            if (!Number.isFinite(n)) return "0";
+            var abs = Math.abs(n);
+            if (abs >= 1000000000) return (n / 1000000000).toFixed(abs >= 10000000000 ? 0 : 2).replace(/\.?0+$/, "") + "B";
+            if (abs >= 1000000) return (n / 1000000).toFixed(abs >= 10000000 ? 0 : 2).replace(/\.?0+$/, "") + "M";
+            if (abs >= 1000) return (n / 1000).toFixed(abs >= 10000 ? 0 : 1).replace(/\.?0+$/, "") + "K";
+            return formatNumber(Math.round(n));
+        }
+
+        function formatShortDate(value) {
+            if (!value) return "";
+            var d = new Date(value + "T00:00:00Z");
+            if (isNaN(d.getTime())) return value;
+            return d.toLocaleDateString([], { day: "numeric", month: "short" });
+        }
+
+        function formatModelDisplayName(model) {
+            if (!model || model === "Unknown / Legacy") return model || "";
+            var clean = String(model).split("/").pop().replace(/[-_]+/g, " ").trim();
+            return clean.replace(/\b([a-z])/g, function(match) { return match.toUpperCase(); });
+        }
+
         async function exportBillingReportCsv() {
             var select = document.getElementById("report-period-select");
             var months = 6;
@@ -3844,6 +4554,7 @@ async function loadBillingInfo() {
             loadTeamInfo();
             loadBillingInfo();
             fetchAiCredit();
+            fetchAiUsageAnalytics();
             fetchAiCreditUsageSummary();
             loadSubscriptionPaymentHistory();
             fetchAiCreditTransactions();

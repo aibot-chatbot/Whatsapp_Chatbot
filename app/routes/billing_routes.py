@@ -17,6 +17,7 @@ from app.services.billing_service import (
 from app.services.ai_credit_service import (
     get_company_ai_credit_summary,
     list_credit_transactions,
+    get_company_ai_usage_analytics,
 )
 import uuid
 from app.services.ai_credit_topup_checkout_service import (
@@ -306,6 +307,12 @@ def fetch_ai_credit_transactions():
                 "customer_charge_micro_myr": txn.get("customer_charge_micro_myr"),
                 "uncovered_charge_micro_myr": txn.get("uncovered_charge_micro_myr"),
                 "ai_usage_log_id": txn.get("ai_usage_log_id"),
+                "operation_type": txn.get("operation_type"),
+                "provider": txn.get("provider"),
+                "model": txn.get("model"),
+                "prompt_tokens": txn.get("prompt_tokens"),
+                "completion_tokens": txn.get("completion_tokens"),
+                "total_tokens": txn.get("total_tokens"),
                 "order_reference": txn.get("order_reference"),
                 "description": txn.get("description"),
                 "created_at": txn.get("created_at"),
@@ -335,6 +342,51 @@ def fetch_ai_credit_transactions():
         return jsonify({
             "status": "error",
             "message": "Unable to retrieve billing information."
+        }), 500
+
+
+@billing_bp.route("/ai-credit/analytics", methods=["GET"])
+@limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_EXPORT", "20/minute"))
+@token_required
+def fetch_ai_credit_analytics():
+    """Return company-scoped AI usage and credit analytics for charts."""
+    try:
+        company_id = g.company_id
+        if not company_id:
+            return jsonify({
+                "status": "error",
+                "message": "Company not found in authentication token."
+            }), 401
+
+        raw_days = request.args.get("days", "30")
+        if not str(raw_days).isdigit():
+            return jsonify({
+                "status": "error",
+                "message": "days must be one of: 7, 30, 90."
+            }), 400
+        days = int(raw_days)
+        if days not in (7, 30, 90):
+            return jsonify({
+                "status": "error",
+                "message": "days must be one of: 7, 30, 90."
+            }), 400
+
+        analytics = get_company_ai_usage_analytics(company_id, days=days)
+        return jsonify({
+            "status": "success",
+            "data": analytics,
+        }), 200
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e),
+        }), 400
+    except Exception:
+        logging.exception("Failed to fetch AI-credit analytics")
+        return jsonify({
+            "status": "error",
+            "message": "Unable to retrieve AI usage analytics."
         }), 500
 
 
@@ -1469,13 +1521,16 @@ def export_ai_credit_transactions_csv():
         writer.writerow([
             "date", "transaction_type", "included_delta_myr", "topup_delta_myr",
             "total_delta_myr", "included_balance_after_myr", "topup_balance_after_myr",
-            "total_balance_after_myr", "description", "payment_reference",
+            "total_balance_after_myr", "activity", "model", "provider",
+            "input_tokens", "output_tokens", "total_tokens", "ai_credit_charged_myr",
+            "description", "payment_reference",
         ])
         for t in txns:
             inc_delta = t.get("included_delta_micro_myr") or 0
             top_delta = t.get("topup_delta_micro_myr") or 0
             inc_after = t.get("included_balance_after_micro_myr") or 0
             top_after = t.get("topup_balance_after_micro_myr") or 0
+            charged = t.get("customer_charge_micro_myr")
             writer.writerow([
                 _neutralize_csv(t.get("created_at")),
                 _neutralize_csv(t.get("transaction_type")),
@@ -1485,6 +1540,13 @@ def export_ai_credit_transactions_csv():
                 _micro_myr_to_myr(inc_after),
                 _micro_myr_to_myr(top_after),
                 _micro_myr_to_myr(inc_after + top_after),
+                _neutralize_csv(t.get("ai_usage_type") or t.get("operation_type")),
+                _neutralize_csv(t.get("model")),
+                _neutralize_csv(t.get("provider")),
+                t.get("prompt_tokens") if t.get("prompt_tokens") is not None else "",
+                t.get("completion_tokens") if t.get("completion_tokens") is not None else "",
+                t.get("total_tokens") if t.get("total_tokens") is not None else "",
+                _micro_myr_to_myr(charged) if charged is not None else "",
                 _neutralize_csv(t.get("description")),
                 _neutralize_csv(t.get("payment_reference")),
             ])
@@ -1552,7 +1614,7 @@ def get_ai_credit_usage_summary():
                 included_granted += inc_delta
             elif ttype == "topup":
                 topup_added += top_delta
-            elif ttype == "usage":
+            elif ttype in ("usage", "usage_debit"):
                 usage_spent += abs(inc_delta) + abs(top_delta)
             elif ttype == "expiry":
                 included_expired += abs(inc_delta)

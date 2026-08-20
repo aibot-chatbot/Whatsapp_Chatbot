@@ -86,14 +86,14 @@ def list_company_credit_transactions(
     )
 
     transactions = response.data or []
-    return _attach_ai_usage_types(transactions)
+    return _attach_ai_usage_metadata(transactions)
 
 
-def _attach_ai_usage_types(transactions: list[dict]) -> list[dict]:
-    """Attach linked ai_usage_logs.operation_type to credit transactions.
+def _attach_ai_usage_metadata(transactions: list[dict]) -> list[dict]:
+    """Attach linked AI usage metadata to credit transactions.
 
     The credit ledger stores only ai_usage_log_id. The UI needs the linked
-    operation type to distinguish chat replies from knowledge training.
+    operation type, model, provider and tokens when those values exist.
     This lookup is read-only and best-effort: missing usage rows or lookup
     failures should not prevent the ledger from rendering.
     """
@@ -110,7 +110,7 @@ def _attach_ai_usage_types(transactions: list[dict]) -> list[dict]:
         response = (
             supabase
             .table("ai_usage_logs")
-            .select("id,operation_type")
+            .select("id,operation_type,provider,model,prompt_tokens,completion_tokens,total_tokens,created_at")
             .in_("id", usage_ids)
             .execute()
         )
@@ -118,18 +118,30 @@ def _attach_ai_usage_types(transactions: list[dict]) -> list[dict]:
         logger.warning("Unable to enrich AI-credit transactions with usage types: %s", exc)
         return transactions
 
-    usage_type_by_id = {
-        row.get("id"): row.get("operation_type")
+    usage_by_id = {
+        row.get("id"): row
         for row in (response.data or [])
         if row.get("id")
     }
 
     for txn in transactions:
         usage_id = txn.get("ai_usage_log_id")
-        if usage_id in usage_type_by_id:
-            txn["ai_usage_type"] = usage_type_by_id[usage_id]
+        usage = usage_by_id.get(usage_id)
+        if usage:
+            txn["ai_usage_type"] = usage.get("operation_type")
+            txn["operation_type"] = usage.get("operation_type")
+            txn["provider"] = usage.get("provider")
+            txn["model"] = usage.get("model")
+            txn["prompt_tokens"] = usage.get("prompt_tokens")
+            txn["completion_tokens"] = usage.get("completion_tokens")
+            txn["total_tokens"] = usage.get("total_tokens")
+            txn["usage_created_at"] = usage.get("created_at")
 
     return transactions
+
+
+# Backward-compatible private alias for older focused tests/imports.
+_attach_ai_usage_types = _attach_ai_usage_metadata
 
 
 def get_credit_transaction_by_usage(ai_usage_log_id: int) -> dict | None:
@@ -523,17 +535,38 @@ def list_company_credit_transactions_by_range(
         response = (
             supabase
             .table(_TRANSACTION_TABLE)
-            .select("id,transaction_type,included_delta_micro_myr,topup_delta_micro_myr,included_balance_after_micro_myr,topup_balance_after_micro_myr,customer_charge_micro_myr,provider_cost_micro_usd,ai_usage_log_id,description,created_at")
+            .select("id,transaction_type,included_delta_micro_myr,topup_delta_micro_myr,included_balance_after_micro_myr,topup_balance_after_micro_myr,customer_charge_micro_myr,uncovered_charge_micro_myr,provider_cost_micro_usd,ai_usage_log_id,description,created_at")
             .eq("company_id", company_id)
             .gte("created_at", date_from)
             .lt("created_at", date_to)
             .order("created_at", desc=False)
             .execute()
         )
-        return response.data or []
+        return _attach_ai_usage_metadata(response.data or [])
     except Exception as exc:
         logger.error(
             "Error listing credit transactions by range for company %d: %s",
             company_id, exc,
         )
         return []
+
+
+def list_company_credit_transactions_by_range_strict(
+    company_id: int,
+    date_from: str,
+    date_to: str,
+) -> list[dict]:
+    """Return credit transactions for analytics, propagating query failures."""
+    _validate_company_id(company_id)
+
+    response = (
+        supabase
+        .table(_TRANSACTION_TABLE)
+        .select("id,transaction_type,included_delta_micro_myr,topup_delta_micro_myr,included_balance_after_micro_myr,topup_balance_after_micro_myr,customer_charge_micro_myr,uncovered_charge_micro_myr,provider_cost_micro_usd,ai_usage_log_id,description,created_at")
+        .eq("company_id", company_id)
+        .gte("created_at", date_from)
+        .lt("created_at", date_to)
+        .order("created_at", desc=False)
+        .execute()
+    )
+    return _attach_ai_usage_metadata(response.data or [])

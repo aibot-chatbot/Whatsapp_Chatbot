@@ -107,6 +107,7 @@ node_modules/
 npm-debug.log
 test-results/
 playwright-report/
+.pytest_cache/
 data/bot_*_*.pdf
 
 # Local credential notes - never commit
