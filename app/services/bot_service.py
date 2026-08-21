@@ -1,4 +1,6 @@
-﻿from app.database.bot_repository import (
+﻿import logging
+
+from app.database.bot_repository import (
     get_all_bots,
     get_archived_bots,
     get_bot_by_id,
@@ -25,6 +27,12 @@ from app.services.ai_access_policy import (
     TRIAL_PROVIDER,
     TRIAL_MODEL,
 )
+from app.services.profile_service import get_tones_for_chatbots
+
+#: Key the API exposes for the tone that actually reaches the model. Kept
+#: distinct from the legacy ``tone`` column on ``chatbots``, which nothing in
+#: the reply pipeline reads and which no code writes any more.
+CONFIG_TONE_FIELD = "config_tone"
 
 
 class PermanentBotDeleteError(ValueError):
@@ -33,12 +41,47 @@ class PermanentBotDeleteError(ValueError):
         self.code = code
 
 
+def _with_config_tone(bots: list) -> list:
+    """Attach the authoritative ``bot_configs`` tone to each bot row.
+
+    One batched query for the whole page, not one per bot: the bot list is
+    unbounded per company, so a per-row lookup would be an N+1 on the most
+    frequently loaded screen.
+
+    A tone lookup failure degrades to a blank tone rather than failing the
+    list; the bots themselves are still worth showing.
+    """
+    if not bots:
+        return bots
+
+    deployed_profile_names = {
+        bot.get("id"): bot.get("deployed_profile_name") or ""
+        for bot in bots
+    }
+
+    try:
+        tones = get_tones_for_chatbots(
+            [bot.get("id") for bot in bots],
+            deployed_profile_names,
+        )
+    except Exception as e:
+        logging.error("Failed to resolve bot_configs tones for the bot list: %s", e)
+        tones = {}
+
+    return [
+        {**bot, CONFIG_TONE_FIELD: tones.get(bot.get("id"), "")}
+        for bot in bots
+    ]
+
+
 def list_bots(company_id):
-    return get_all_bots(company_id)
+    return _with_config_tone(get_all_bots(company_id))
 
 
 def list_archived_bots(company_id):
-    return get_archived_bots(company_id)
+    # Same card renderer as the active list, so it needs the same tone field.
+    # Without this every archived bot would claim "Tone not set".
+    return _with_config_tone(get_archived_bots(company_id))
 
 
 def get_bot(bot_id, company_id):
@@ -47,7 +90,7 @@ def get_bot(bot_id, company_id):
     if not bot:
         raise ValueError("Bot not found")
 
-    return bot
+    return _with_config_tone([bot])[0]
 
 
 def add_bot(data, company_id):

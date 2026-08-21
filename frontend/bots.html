@@ -368,12 +368,10 @@
                 <label for="bot-language">Language</label>
                 <input id="bot-language" type="text" value="English">
 
-                <label for="bot-tone">Tone</label>
-                <select id="bot-tone">
-                    <option value="Friendly">Friendly</option>
-                    <option value="Professional">Professional</option>
-                    <option value="Formal">Formal</option>
-                </select>
+                <!-- Tone is not edited here. It lives in the bot profile
+                     (bot_configs), which is the value the reply pipeline reads.
+                     A second tone control on this page wrote a column nothing
+                     at runtime consulted. -->
 
                 <div class="modal-actions">
                     <button class="cancel-btn" onclick="closeCreateModal()">Cancel</button>
@@ -779,7 +777,7 @@
             const query = (document.getElementById("bot-search")?.value || "").trim().toLowerCase();
             const status = document.getElementById("bot-status-filter")?.value || "all";
             const bots = loadedBots.filter((bot) => {
-                const searchable = `${bot.bot_name || ""} ${bot.bot_description || ""} ${bot.language || ""} ${bot.tone || ""}`.toLowerCase();
+                const searchable = `${bot.bot_name || ""} ${bot.bot_description || ""} ${bot.language || ""} ${bot.config_tone || ""}`.toLowerCase();
                 const matchesSearch = !query || searchable.includes(query);
                 const matchesStatus = currentBotView === "archived" || status === "all"
                     || (status === "active" ? Boolean(bot.is_active) : !bot.is_active);
@@ -831,7 +829,7 @@
                 </div>
                 <div class="bot-meta-container">
                     <div class="bot-meta">${escapeHtml(bot.language || "Language not set")}</div>
-                    <div class="bot-meta">${escapeHtml(bot.tone || "Tone not set")}</div>
+                    <div class="bot-meta">${escapeHtml(bot.config_tone || "Tone not set")}</div>
                 </div>
                 <span class="badge ${statusClass}">${statusLabel}</span>
                 <div class="bot-actions">${actions}</div>
@@ -870,7 +868,6 @@
             document.getElementById("bot-name").value = "";
             document.getElementById("bot-description").value = "";
             document.getElementById("bot-language").value = "English";
-            document.getElementById("bot-tone").value = "Friendly";
 
             document.querySelector("#create-modal h2").innerText = "Create New Bot";
 
@@ -895,7 +892,6 @@
             const botName = document.getElementById("bot-name").value.trim();
             const botDescription = document.getElementById("bot-description").value.trim();
             const botLanguage = document.getElementById("bot-language").value.trim();
-            const botTone = document.getElementById("bot-tone").value;
 
             if (!botName) {
                 showToast("Bot name is required");
@@ -915,8 +911,7 @@
                     body: JSON.stringify({
                         bot_name: botName,
                         bot_description: botDescription,
-                        language: botLanguage,
-                        tone: botTone
+                        language: botLanguage
                     })
                 });
 
@@ -926,7 +921,6 @@
                     document.getElementById("bot-name").value = "";
                     document.getElementById("bot-description").value = "";
                     document.getElementById("bot-language").value = "English";
-                    document.getElementById("bot-tone").value = "Friendly";
 
                     closeCreateModal();
                     window.location.href = `index.html?bot_id=${result.data.id}`;
@@ -1112,7 +1106,6 @@
             document.getElementById("bot-name").value = bot.bot_name || "";
             document.getElementById("bot-description").value = bot.bot_description || "";
             document.getElementById("bot-language").value = bot.language || "English";
-            document.getElementById("bot-tone").value = bot.tone || "Friendly";
 
             document.querySelector("#create-modal h2").innerText = "Edit Bot";
 
@@ -1128,7 +1121,6 @@
             const botName = document.getElementById("bot-name").value.trim();
             const botDescription = document.getElementById("bot-description").value.trim();
             const botLanguage = document.getElementById("bot-language").value.trim();
-            const botTone = document.getElementById("bot-tone").value;
 
             const response = await authenticatedFetch(`/api/bots/${botId}`, {
                 method: "PUT",
@@ -1136,8 +1128,7 @@
                 body: JSON.stringify({
                     bot_name: botName,
                     bot_description: botDescription,
-                    language: botLanguage,
-                    tone: botTone
+                    language: botLanguage
                 })
             });
 
