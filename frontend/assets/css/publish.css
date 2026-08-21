@@ -1,0 +1,462 @@
+/* publish.css - the "Publish your bot" screen.
+ *
+ * Layers on dashboard-control-room.css exactly the way dashboard-overview.css
+ * (dash-), bot-config.css (bc-) and behaviour.css (bh-) do: no tokens of its
+ * own, no fonts of its own, every rule namespaced under .dashboard-page.
+ *
+ * Deliberately the smallest of the four page stylesheets. Almost everything
+ * here is kw-*; these are the few shapes the shared vocabulary has no answer
+ * for. If a rule below could be replaced by a kw-* class, replace it.
+ */
+
+/* ── The share card. The one bold thing on the page. ───────────────── */
+
+/* Accent border borrowed from kw-nextstep, so the recommended thing here
+   rhymes with the recommended thing on the dashboard. */
+.dashboard-page .pub-share {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 24px;
+    padding: 20px;
+    border: 1px solid rgba(62, 156, 137, 0.26);
+    border-radius: 12px;
+    background: rgba(62, 156, 137, 0.04);
+}
+
+.dashboard-page .pub-share.is-off {
+    border-color: var(--control-border);
+    background: none;
+}
+
+.dashboard-page .pub-qr-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+/* White because a QR is content, not chrome. Light modules on a dark ground
+   is an inverted code: iOS copes, many Android and handheld scanners do not,
+   and it cannot be printed without flooding the page with ink. The modules
+   are --control-sunken, so even the ink is a token. */
+.dashboard-page .pub-qr {
+    width: 100%;
+    aspect-ratio: 1;
+    padding: 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+    background: #ffffff;
+}
+
+.dashboard-page .pub-qr svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.dashboard-page .pub-qr.is-sm {
+    width: 96px;
+    padding: 8px;
+    border-radius: 9px;
+}
+
+.dashboard-page .pub-qr.is-off {
+    opacity: 0.35;
+    filter: grayscale(1);
+}
+
+/* The accent focus ring is low contrast on white, so this one surface gets
+   the ink colour instead. */
+.dashboard-page .pub-qr:focus-visible {
+    outline: 2px solid var(--control-sunken);
+    outline-offset: 2px;
+}
+
+.dashboard-page .pub-qr-caption {
+    max-width: 24ch;
+    color: var(--control-text-tertiary);
+    font-size: 11px;
+    line-height: 1.5;
+    text-align: center;
+}
+
+.dashboard-page .pub-share-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+}
+
+.dashboard-page .pub-share-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .pub-share-title {
+    margin: 0;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+}
+
+/* kw-actions is gap:4 nowrap for tight table rows and jams at 390. */
+.dashboard-page .pub-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* ── The ranked ladder ─────────────────────────────────────────────── */
+
+.dashboard-page .pub-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.dashboard-page .pub-option {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+    transition: border-color var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1)),
+                background var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .pub-option:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* The lead option gets more room and the accent edge. Rank is carried by
+   order, height and one border, never by a per-vendor brand colour. */
+.dashboard-page .pub-option.is-lead {
+    padding: 18px 20px;
+    border-color: rgba(62, 156, 137, 0.26);
+}
+
+/* Recessed, for something the owner cannot act on yet. */
+.dashboard-page .pub-option.is-quiet {
+    background: var(--control-sunken);
+}
+
+.dashboard-page .pub-option.is-quiet .kw-tab-title {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .pub-option.is-open {
+    border-color: rgba(62, 156, 137, 0.26);
+}
+
+.dashboard-page .pub-option-main {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 12px;
+    min-width: 0;
+}
+
+/* Explicit tracks, not auto-placement. When the icon was hidden by the
+   shared stylesheet the copy auto-placed into the empty 34px column and
+   every description rendered one word per line. */
+.dashboard-page .pub-option-main > .kw-tab-icon {
+    grid-column: 1;
+}
+
+.dashboard-page .pub-option-copy {
+    grid-column: 2;
+}
+
+.dashboard-page .pub-option-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.dashboard-page .pub-option-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.dashboard-page .pub-identity-line {
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+/* ── The inline setup flow ─────────────────────────────────────────── */
+
+/* Inside its own pub-option, so opening a flow never moves the row that
+   opened it. */
+.dashboard-page .pub-flow {
+    grid-column: 1 / -1;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .pub-flow[hidden] {
+    display: none;
+}
+
+.dashboard-page .pub-flow-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+
+.dashboard-page .pub-flow-head h3 {
+    margin: 0;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.dashboard-page .pub-flow-intro {
+    margin: 0 0 16px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.dashboard-page .pub-guide {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin: 0 0 18px;
+    padding: 0;
+    list-style: none;
+}
+
+.dashboard-page .pub-guide-step {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.dashboard-page .pub-guide-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.dashboard-page .pub-guide-body p {
+    margin: 0;
+    color: var(--control-text);
+    font-size: 13px;
+    line-height: 1.55;
+}
+
+.dashboard-page .pub-guide-body p.kw-help {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+/* Hand-drawn diagrams rather than screenshots: Telegram's UI is copyrighted,
+   locale-dependent, and stale on every release. An SVG built from our own
+   borders and one accent ring survives all three and inherits the theme. */
+.dashboard-page .pub-shot {
+    max-width: 340px;
+    padding: 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    background: var(--control-sunken);
+}
+
+.dashboard-page .pub-shot svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* Input and its button on one line, so the button never drifts down beside
+   the help text. */
+.dashboard-page .pub-submit {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .pub-submit .kw-input {
+    flex: 1 1 260px;
+    min-width: 0;
+}
+
+/* ── The connected-identity block ──────────────────────────────────── */
+
+.dashboard-page .pub-identity {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 14px;
+    margin-top: 14px;
+    padding: 14px;
+    border-radius: 10px;
+    background: var(--control-sunken);
+}
+
+.dashboard-page .pub-identity-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.dashboard-page .pub-identity-name {
+    margin: 0;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* ── Settings disclosures ──────────────────────────────────────────── */
+
+.dashboard-page .pub-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* kw-advanced carries its own top margin for the Behaviour Studio, where it
+   trails a form. Here they are stacked, so the gap owns the spacing. */
+.dashboard-page .pub-settings .kw-advanced {
+    margin-top: 0;
+}
+
+.dashboard-page .pub-save {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    grid-column: 1 / -1;
+    margin-top: 4px;
+}
+
+.dashboard-page .pub-dependent[hidden] {
+    display: none;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .dashboard-page .pub-share {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .pub-qr-wrap {
+        align-items: flex-start;
+    }
+
+    .dashboard-page .pub-qr {
+        width: min(240px, 100%);
+    }
+
+    .dashboard-page .pub-qr-caption {
+        text-align: left;
+    }
+}
+
+@media (max-width: 768px) {
+    /* The pill and button cluster drops to its own full-width row rather than
+       squeezing the title. Icon and copy stay together on row one. */
+    .dashboard-page .pub-option {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* The shared sheet hides kw-tab-icon below 768 because the tab strip it
+       was built for has no room for it. This page does, and the icon is how
+       Telegram and WhatsApp are told apart at a glance. */
+    .dashboard-page .pub-option-main > .kw-tab-icon {
+        display: inline-flex;
+    }
+
+    .dashboard-page .pub-option-meta {
+        justify-content: flex-start;
+    }
+
+    .dashboard-page .pub-identity {
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: start;
+    }
+}
+
+@media (max-width: 560px) {
+    .dashboard-page .pub-qr-wrap {
+        align-items: center;
+    }
+
+    .dashboard-page .pub-qr {
+        width: min(240px, 100% - 32px);
+    }
+
+    .dashboard-page .pub-qr-caption {
+        text-align: center;
+    }
+
+    /* Full-width targets, stacked, within thumb reach. */
+    .dashboard-page .pub-actions .kw-btn,
+    .dashboard-page .pub-submit .kw-btn {
+        flex: 1 1 100%;
+        justify-content: center;
+    }
+
+    .dashboard-page .pub-shot {
+        max-width: 100%;
+    }
+}
+
+/* kw-btn is 40px, four short of the 44px touch minimum. Scoped to this page
+   so it cannot regress the sibling screens; the 40px default is a system-wide
+   gap worth closing separately. */
+@media (pointer: coarse) {
+    .dashboard-page .pub-page .kw-btn {
+        min-height: 44px;
+    }
+
+    .dashboard-page .pub-page .kw-iconbtn {
+        width: 44px;
+        height: 44px;
+    }
+
+    .dashboard-page .pub-page .kw-advanced > summary {
+        min-height: 52px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-page .pub-option {
+        transition: none;
+    }
+}
+
+/* ── Small utilities ───────────────────────────────────────────────── */
+
+.dashboard-page .pub-gap {
+    margin-top: 16px;
+}
+
+/* Reserving the real height stops "loading" from reading as "nothing here". */
+.dashboard-page .pub-skeleton-lg {
+    height: 180px;
+}
+
+.dashboard-page .pub-skeleton-xl {
+    height: 220px;
+}

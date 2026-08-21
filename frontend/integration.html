@@ -1,940 +1,263 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="color-scheme: dark">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Integration | AI CHATBOT</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Publish your bot | AI CHATBOT</title>
+    <meta name="theme-color" content="#0e0f11">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/publish.css">
+
     <script src="assets/js/shared-ui.js"></script>
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-glow: rgba(59, 130, 246, 0.5);
-            --bg: #050b18;
-            --sidebar-bg: rgba(15, 23, 42, 0.8);
-            --card-bg: rgba(30, 41, 59, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --accent: #10b981;
-            --input-bg: rgba(15, 23, 42, 0.6);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            overflow-x: hidden;
-        }
-
-
-        .nav-list {
-            list-style: none;
-            flex-grow: 1;
-        }
-
-        .nav-item {
-            margin-bottom: 8px;
-        }
-
-        .nav-link {
-            text-decoration: none;
-            color: var(--text-dim);
-            padding: 12px 16px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-weight: 500;
-        }
-
-        .nav-link:hover {
-            background: rgba(255, 255, 255, 0.05);
-            color: var(--text-main);
-            transform: translateX(5px);
-        }
-
-        .nav-link.active {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 4px 20px var(--primary-glow);
-        }
-
-        /* Dropdown Styles */
-        .dropdown-container {
-            margin-bottom: 8px;
-        }
-
-        .dropdown-toggle {
-            width: 100%;
-            justify-content: space-between;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            text-align: left;
-        }
-
-        .dropdown-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: all 0.3s ease-in-out;
-            padding-left: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .dropdown-container.open .dropdown-content {
-            max-height: 500px;
-            margin-top: 8px;
-            padding-bottom: 8px;
-        }
-
-        .chevron {
-            transition: transform 0.3s;
-            opacity: 0.5;
-        }
-
-        .dropdown-container.open .chevron {
-            transform: rotate(180deg);
-            opacity: 1;
-        }
-
-        .sub-link {
-            font-size: 0.9rem;
-            padding: 10px 16px;
-        }
-
-        .logout-btn {
-            margin-top: auto;
-            color: #ef4444;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            text-decoration: none;
-            font-weight: 600;
-            border-radius: 12px;
-            transition: background 0.3s;
-        }
-
-        .main-container {
-            flex-grow: 1;
-            padding: 50px 60px;
-            max-width: 1400px;
-        }
-
-        .header {
-            margin-bottom: 40px;
-        }
-
-        .header h1 {
-            font-size: 2.2rem;
-            font-weight: 700;
-            letter-spacing: -1px;
-        }
-
-        .header p {
-            color: var(--text-dim);
-            margin-top: 8px;
-        }
-
-        /* ===== Glass Cards (from shared-glass.css) ===== */
-        .platforms-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 30px;
-        }
-
-        .platforms-grid .glass-card {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            gap: 16px;
-            height: 100%;
-            cursor: pointer;
-        }
-
-        .platform-icon-container {
-            width: 80px;
-            height: 80px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 20px;
-            font-size: 2.5rem;
-            margin-bottom: 10px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            flex-shrink: 0;
-        }
-
-        .btn {
-            padding: 14px 28px;
-            border-radius: 40px;
-            font-weight: 700;
-            cursor: pointer;
-            border: none;
-            width: 100%;
-            transition: 0.3s;
-            margin-top: auto;
-        }
-
-        .btn:hover {
-            transform: scale(1.03);
-            filter: brightness(1.1);
-        }
-
-        /* Modal Styles */
-        .modal-backdrop {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(15px);
-
-            z-index: 1000;
-            display: none;
-            align-items: flex-start;
-            justify-content: center;
-
-            padding: 40px 20px;
-            overflow-y: auto;
-
-            animation: fadeIn 0.3s ease-out;
-        }
-
-        .modal-content {
-            background: var(--card-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 32px;
-
-            width: 100%;
-            max-width: 760px;
-            max-height: calc(100vh - 80px);
-            overflow-y: auto;
-
-            padding: 32px;
-            box-shadow: 0 40px 80px rgba(0, 0, 0, 0.5);
-            animation: slideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-        }
-
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-            }
-
-            to {
-                opacity: 1;
-            }
-        }
-
-        @keyframes slideUp {
-            from {
-                transform: translateY(30px);
-                opacity: 0;
-            }
-
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .step-item {
-            display: flex;
-            gap: 14px;
-            margin-bottom: 12px;
-            background: rgba(255, 255, 255, 0.03);
-            padding: 12px 14px;
-            border-radius: 16px;
-        }
-
-        .step-number {
-            min-width: 32px;
-            height: 32px;
-            background: var(--primary);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.8rem;
-        }
-
-        #setup-steps {
-            margin-bottom: 18px;
-        }
-
-        #wasender-connect-area label,
-        #telegram-token-area label {
-            margin-top: 10px;
-        }
-
-        #wasender-connect-area input,
-        #telegram-token-area input {
-            margin-bottom: 10px !important;
-        }
-
-        .modal-content::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .modal-content::-webkit-scrollbar-thumb {
-            background: rgba(148, 163, 184, 0.35);
-            border-radius: 999px;
-        }
-
-        .status-panel {
-            background: var(--card-bg);
-            backdrop-filter: blur(15px);
-            border: 1px solid var(--glass-border);
-            border-radius: 28px;
-            padding: 26px;
-            margin-bottom: 34px;
-        }
-
-        .status-panel-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-
-        .status-panel-header h2 {
-            font-size: 1.35rem;
-            margin-bottom: 6px;
-        }
-
-        .status-panel-header p {
-            color: var(--text-dim);
-            font-size: 0.95rem;
-        }
-
-        .refresh-btn {
-            padding: 10px 18px;
-            border-radius: 999px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text-main);
-            cursor: pointer;
-            font-weight: 700;
-        }
-
-        .refresh-btn:hover {
-            background: rgba(255, 255, 255, 0.12);
-        }
-
-        .status-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-        }
-
-        .channel-status-card {
-            background: rgba(15, 23, 42, 0.65);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 18px;
-        }
-
-        .channel-status-title {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            font-weight: 700;
-            margin-bottom: 12px;
-        }
-
-        .status-pill {
-            padding: 5px 10px;
-            border-radius: 999px;
-            font-size: 0.75rem;
-            font-weight: 700;
-        }
-
-        .status-connected {
-            background: rgba(16, 185, 129, 0.15);
-            color: #34d399;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-
-        .status-pending {
-            background: rgba(245, 158, 11, 0.15);
-            color: #fbbf24;
-            border: 1px solid rgba(245, 158, 11, 0.3);
-        }
-
-        .status-disconnected {
-            background: rgba(148, 163, 184, 0.12);
-            color: #cbd5e1;
-            border: 1px solid rgba(148, 163, 184, 0.25);
-        }
-
-        .channel-status-detail {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            line-height: 1.5;
-            word-break: break-word;
-        }
-
-        @media (max-width: 1200px) {
-            .status-grid {
-                grid-template-columns: repeat(2, 1fr) !important;
-            }
-
-            .platforms-grid {
-                grid-template-columns: repeat(2, 1fr) !important;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .status-panel-header {
-                flex-direction: column !important;
-                align-items: stretch !important;
-                gap: 12px !important;
-            }
-
-            .refresh-btn {
-                width: 100% !important;
-                text-align: center !important;
-            }
-
-            .status-grid {
-                grid-template-columns: 1fr !important;
-            }
-
-            .platforms-grid {
-                grid-template-columns: 1fr !important;
-            }
-        }
-
-        /* ── Web widget modal ──────────────────────────────────── */
-        .ww-code {
-            background: rgba(0, 0, 0, 0.35);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
-            padding: 12px 14px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-            font-size: 0.8rem;
-            color: #a5b4fc;
-            white-space: pre-wrap;
-            word-break: break-all;
-            margin: 0 0 10px;
-        }
-
-        .ww-copy {
-            background: rgba(99, 102, 241, 0.15);
-            color: #a5b4fc;
-            border: 1px solid rgba(99, 102, 241, 0.3);
-            padding: 7px 14px;
-            font-size: 0.85rem;
-        }
-
-        .ww-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-        }
-
-        .ww-field {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .ww-field>span {
-            font-size: 0.82rem;
-            color: var(--text-dim);
-        }
-
-        .ww-field input[type="text"],
-        .ww-field input[type="url"],
-        .ww-field input[type="number"],
-        .ww-field select,
-        .ww-field textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(255, 255, 255, 0.05);
-            color: #fff;
-            font-family: inherit;
-            font-size: 0.9rem;
-            resize: vertical;
-        }
-
-        .ww-field input:focus,
-        .ww-field select:focus,
-        .ww-field textarea:focus {
-            outline: none;
-            border-color: #6366f1;
-        }
-
-        .ww-field select option {
-            background: #1e293b;
-            color: #fff;
-        }
-
-        .ww-span2 {
-            grid-column: 1 / -1;
-        }
-
-        .ww-check {
-            flex-direction: row;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-        }
-
-        .ww-check input {
-            width: 17px;
-            height: 17px;
-            cursor: pointer;
-        }
-
-        .ww-check span {
-            font-size: 0.88rem;
-            color: var(--text-dim);
-        }
-
-        @media (max-width: 640px) {
-            .ww-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin(); requireAdminOrOwner();</script>
+    <script src="sidebar-component.js"></script>
+    <script src="assets/js/qrcode-gen.js" defer></script>
+    <script src="assets/js/control-room-motion.js" defer></script>
 </head>
 
-<body>
-    <script src="sidebar-component.js"></script>
+<body class="dashboard-page">
     <chatbot-sidebar></chatbot-sidebar>
 
-    <main class="main-container">
-        <div class="header">
-            <h1>Select Platform</h1>
-            <p>Connect your chatbot to messaging platforms.</p>
-        </div>
-        <div class="status-panel">
-            <div class="status-panel-header">
-                <div>
-                    <h2>Channel Status</h2>
-                    <p>Check which platforms are connected to this chatbot.</p>
-                </div>
-                <button class="refresh-btn" onclick="loadChannelStatus()">Refresh</button>
-            </div>
-
-            <div class="status-grid">
-                <div class="channel-status-card">
-                    <div class="channel-status-title">
-                        <span>💬 WhatsApp</span>
-                        <span id="whatsapp-status-pill" class="status-pill status-disconnected">Checking</span>
-                    </div>
-                    <div id="whatsapp-status-detail" class="channel-status-detail">
-                        Checking WhatsApp connection...
-                    </div>
-                </div>
-
-                <div class="channel-status-card">
-                    <div class="channel-status-title">
-                        <span>📱 WasenderAPI</span>
-                        <span id="wasender-status-pill" class="status-pill status-disconnected">Checking</span>
-                    </div>
-                    <div id="wasender-status-detail" class="channel-status-detail">
-                        Checking WasenderAPI connection...
-                    </div>
-                </div>
-
-                <div class="channel-status-card">
-                    <div class="channel-status-title">
-                        <span>✈️ Telegram</span>
-                        <span id="telegram-status-pill" class="status-pill status-disconnected">Checking</span>
-                    </div>
-                    <div id="telegram-status-detail" class="channel-status-detail">
-                        Checking Telegram connection...
-                    </div>
-                </div>
-
-                <div class="channel-status-card">
-                    <div class="channel-status-title">
-                        <span>🌐 Web Widget</span>
-                        <span class="status-pill status-pending">Coming Soon</span>
-                    </div>
-                    <div class="channel-status-detail">
-                        Website chat widget is planned for future integration.
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="platforms-grid">
-            <div class="glass-card" onclick="openSetup('whatsapp')">
-                <div class="platform-icon-container"
-                    style="background: rgba(37, 211, 102, 0.1); color: #25D366; border: 1px solid rgba(37, 211, 102, 0.2);">
-                    💬</div>
-                <h3 style="font-size: 1.5rem; color: #25D366;">WhatsApp</h3>
-                <p style="color: var(--text-dim); text-align: center;">Sync your AI bot with WhatsApp Business API to
-                    reach billions of users instantly.</p>
-                <div style="flex-grow: 1;"></div>
-                <button id="whatsapp-card-button" class="btn"
-                    style="background:#25D366; color:white; box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);">
-                    Connect WhatsApp
-                </button>
-            </div>
-
-            <div class="glass-card" onclick="openSetup('wasender')">
-                <div class="platform-icon-container"
-                    style="background: rgba(16, 185, 129, 0.1); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.2);">
-                    📱</div>
-                <h3 style="font-size: 1.5rem; color: #10b981;">WasenderAPI</h3>
-                <p style="color: var(--text-dim); text-align: center;">
-                    Connect a real WhatsApp Business number using WasenderAPI session and webhook.
+    <main class="main-container kw-page pub-page">
+        <header class="kw-header cr-reveal">
+            <div>
+                <h1>Publish your bot</h1>
+                <p class="kw-header-sub">
+                    Give people a way to talk to your bot. Start with the link. It works today.
                 </p>
-                <div style="flex-grow: 1;"></div>
-                <button id="wasender-card-button" class="btn"
-                    style="background:#10b981; color:white; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
-                    Connect WasenderAPI
+                <p class="kw-help" role="status" aria-live="polite" id="pub-status">
+                    <span class="cr-live-dot is-idle" id="pub-live-dot" aria-hidden="true"></span>
+                    <span id="pub-status-text">Checking where your bot is live...</span>
+                </p>
+            </div>
+            <div class="kw-header-aside">
+                <div class="kw-readiness">
+                    <p class="kw-readiness-title">Ways to reach you</p>
+                    <div class="kw-readiness-figures">
+                        <div class="kw-figure">
+                            <strong class="kw-mono cr-swap" id="pub-live-count">-</strong>
+                            <span>Live</span>
+                        </div>
+                        <div class="kw-figure">
+                            <strong class="kw-mono" id="pub-slots">-</strong>
+                            <span>Paid slots</span>
+                        </div>
+                    </div>
+                    <p class="kw-readiness-foot">The share link is free. It does not use a slot.</p>
+                </div>
+                <button type="button" class="kw-btn cr-press" id="pub-recheck">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
+                    Check again
                 </button>
             </div>
+        </header>
 
-            <div class="glass-card" onclick="openSetup('telegram')">
-                <div class="platform-icon-container"
-                    style="background: rgba(38, 165, 228, 0.1); color: #26A5E4; border: 1px solid rgba(38, 165, 228, 0.2);">
-                    ✈️</div>
-                <h3 style="font-size: 1.5rem; color: #26A5E4;">Telegram</h3>
-                <p style="color: var(--text-dim); text-align: center;">Deploy your bot on Telegram for a lightweight,
-                    secure, and fast messaging experience.</p>
-                <div style="flex-grow: 1;"></div>
-                <button id="telegram-card-button" class="btn"
-                    style="background:#26A5E4; color:white; box-shadow: 0 4px 15px rgba(38, 165, 228, 0.3);">
-                    Connect Telegram
-                </button>
+        <!-- Section 1 leads because it answers the question the owner arrived
+             with. It is never empty: ensure_widget() creates the share link
+             record the first time this page is opened. -->
+        <section class="kw-panel cr-reveal" id="pub-live" aria-labelledby="pub-live-title">
+            <div class="kw-panel-head">
+                <h2 class="kw-panel-title" id="pub-live-title">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+                    Your bot is live here
+                </h2>
             </div>
+            <div class="kw-panel-body" id="pub-live-body">
+                <div class="cr-skeleton pub-skeleton-lg"></div>
+            </div>
+        </section>
 
-            <div class="glass-card" onclick="openWebWidget()">
-                <div class="platform-icon-container"
-                    style="background: rgba(99, 102, 241, 0.1); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.2);">
-                    🌐</div>
-                <h3 style="font-size: 1.5rem; color: #818cf8;">Web Widget</h3>
-                <p style="color: var(--text-dim); text-align: center;">Embed a floating chat bubble on your website with
-                    one line of code, or share a direct chat link.</p>
-                <div style="flex-grow: 1;"></div>
-                <button id="webwidget-card-button" class="btn"
-                    style="background:#6366f1; color:white; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);">
-                    Set Up Web Widget
-                </button>
+        <section class="kw-panel cr-reveal" id="pub-add" aria-labelledby="pub-add-title">
+            <div class="kw-panel-head">
+                <h2 class="kw-panel-title" id="pub-add-title">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                    Add another way to reach you
+                </h2>
+                <span class="kw-help" id="pub-slot-note"></span>
             </div>
+            <div class="kw-panel-body">
+                <div class="pub-list" id="pub-options">
+                    <div class="cr-skeleton pub-skeleton-xl"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Nothing below is needed to publish, so all of it starts closed. -->
+        <div class="pub-settings cr-reveal" id="pub-settings">
+            <details class="kw-advanced" id="pub-look">
+                <summary>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 0-5H13a2 2 0 0 1 0-4h4a4 4 0 0 0 4-4 5 5 0 0 0-5-5Z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/></svg>
+                    Change how the chat looks
+                    <svg class="dashboard-icon kw-advanced-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                </summary>
+                <div class="kw-advanced-body">
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-display_name">Chat title</label>
+                        <input class="kw-input" id="ww-display_name" type="text" maxlength="80">
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-subtitle">Line under the title</label>
+                        <input class="kw-input" id="ww-subtitle" type="text" maxlength="120">
+                    </div>
+                    <div class="kw-field kw-wide">
+                        <label class="kw-label" for="ww-welcome_message">First message</label>
+                        <textarea class="kw-textarea" id="ww-welcome_message" rows="2" maxlength="1000"></textarea>
+                        <p class="kw-help">What your bot says before anyone types.</p>
+                    </div>
+                    <div class="kw-field kw-wide">
+                        <label class="kw-label" for="ww-suggested_questions">Suggested questions</label>
+                        <textarea class="kw-textarea" id="ww-suggested_questions" rows="3"></textarea>
+                        <p class="kw-help">One per line, up to 4. People tap these instead of typing.</p>
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-primary_color">Main colour</label>
+                        <input class="kw-input" id="ww-primary_color" type="color">
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-text_color">Colour of the writing on it</label>
+                        <input class="kw-input" id="ww-text_color" type="color">
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-avatar_url">Picture</label>
+                        <input class="kw-input" id="ww-avatar_url" type="url" maxlength="500" placeholder="https://">
+                        <p class="kw-help">A web address for a small round picture. Leave empty for none.</p>
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-input_placeholder">What the box says before they type</label>
+                        <input class="kw-input" id="ww-input_placeholder" type="text" maxlength="120">
+                    </div>
+                    <div class="pub-save">
+                        <button type="button" class="kw-btn kw-btn-primary cr-press" data-save="look">Save changes</button>
+                        <span class="kw-help" role="status" aria-live="polite" data-savestate="look"></span>
+                    </div>
+                </div>
+            </details>
+
+            <details class="kw-advanced" id="pub-lead">
+                <summary>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg>
+                    Ask for contact details first
+                    <svg class="dashboard-icon kw-advanced-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                </summary>
+                <div class="kw-advanced-body">
+                    <div class="kw-field kw-wide">
+                        <label class="kw-check" for="ww-collect_lead">
+                            <input type="checkbox" id="ww-collect_lead">
+                            Ask for details before the chat starts
+                        </label>
+                        <p class="kw-help">Off by default. Asking first turns some people away.</p>
+                    </div>
+                    <div class="kw-field kw-wide pub-dependent" data-depends="ww-collect_lead" hidden>
+                        <label class="kw-label" for="ww-lead_prompt">What to say when you ask</label>
+                        <textarea class="kw-textarea" id="ww-lead_prompt" rows="2" maxlength="300"></textarea>
+                    </div>
+                    <div class="kw-field pub-dependent" data-depends="ww-collect_lead" hidden>
+                        <label class="kw-check" for="ww-lead_require_name">
+                            <input type="checkbox" id="ww-lead_require_name"> Ask for their name
+                        </label>
+                    </div>
+                    <div class="kw-field pub-dependent" data-depends="ww-collect_lead" hidden>
+                        <label class="kw-check" for="ww-lead_require_email">
+                            <input type="checkbox" id="ww-lead_require_email"> Ask for their email
+                        </label>
+                    </div>
+                    <div class="kw-field pub-dependent" data-depends="ww-collect_lead" hidden>
+                        <label class="kw-check" for="ww-lead_require_phone">
+                            <input type="checkbox" id="ww-lead_require_phone"> Ask for their phone number
+                        </label>
+                    </div>
+                    <div class="pub-save">
+                        <button type="button" class="kw-btn kw-btn-primary cr-press" data-save="lead">Save changes</button>
+                        <span class="kw-help" role="status" aria-live="polite" data-savestate="lead"></span>
+                    </div>
+                </div>
+            </details>
+
+            <details class="kw-advanced" id="pub-adv">
+                <summary>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
+                    Advanced
+                    <svg class="dashboard-icon kw-advanced-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                </summary>
+                <div class="kw-advanced-body">
+                    <div class="kw-field kw-wide">
+                        <label class="kw-label" for="ww-allowed_domains">Websites allowed to show this chat</label>
+                        <textarea class="kw-textarea" id="ww-allowed_domains" rows="3"></textarea>
+                        <p class="kw-help">One per line. Leave empty to allow any website.</p>
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-max_messages_per_session">Most messages one visitor can send</label>
+                        <input class="kw-input" id="ww-max_messages_per_session" type="number" min="1" max="500">
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-launcher_position">Which corner the bubble sits in</label>
+                        <select class="kw-select" id="ww-launcher_position">
+                            <option value="right">Right</option>
+                            <option value="left">Left</option>
+                        </select>
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-launcher_label">Words on the bubble</label>
+                        <input class="kw-input" id="ww-launcher_label" type="text" maxlength="40">
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-check" for="ww-show_branding">
+                            <input type="checkbox" id="ww-show_branding"> Show our name at the bottom
+                        </label>
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="ww-branding_text">What that line says</label>
+                        <input class="kw-input" id="ww-branding_text" type="text" maxlength="60">
+                    </div>
+                    <div class="pub-save">
+                        <button type="button" class="kw-btn kw-btn-primary cr-press" data-save="adv">Save changes</button>
+                        <span class="kw-help" role="status" aria-live="polite" data-savestate="adv"></span>
+                    </div>
+                    <div class="kw-locked kw-wide">
+                        <span class="kw-locked-icon" aria-hidden="true">
+                            <svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                        </span>
+                        <div>
+                            <h4>Make a new link</h4>
+                            <p>This makes a brand new link straight away and stops the old one working. Anything you already printed, posted or sent stops working.</p>
+                        </div>
+                        <div class="kw-locked-actions">
+                            <button type="button" class="kw-btn kw-btn-danger cr-press" id="pub-regenerate">Make a new link</button>
+                        </div>
+                    </div>
+                </div>
+            </details>
         </div>
     </main>
 
-    <!-- ── Web Widget configuration modal ─────────────────────────── -->
-    <div class="modal-backdrop" id="webwidget-modal"
-        onclick="if(event.target === this) closeWebWidget()">
-        <div class="modal-content" style="max-width: 720px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
-                <h2>🌐 Web Widget</h2>
-                <button onclick="closeWebWidget()"
-                    style="background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:1.5rem;">&times;</button>
+    <!-- Modals survive only for things that cannot be undone. Setup is inline. -->
+    <div class="kw-backdrop" id="pub-confirm">
+        <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="pub-confirm-title">
+            <div class="kw-modal-head">
+                <h3 id="pub-confirm-title">Are you sure?</h3>
             </div>
-
-            <div id="webwidget-loading" style="color:var(--text-dim); padding:24px 0;">Loading widget settings…</div>
-
-            <div id="webwidget-body" style="display:none;">
-
-                <!-- Enable toggle -->
-                <div
-                    style="display:flex; align-items:center; justify-content:space-between; gap:16px; padding:14px 16px; border:1px solid rgba(255,255,255,0.08); border-radius:12px; margin-bottom:20px;">
-                    <div>
-                        <div style="font-weight:600;">Widget status</div>
-                        <div id="webwidget-status-text" style="font-size:0.85rem; color:var(--text-dim);">Disabled</div>
-                    </div>
-                    <label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
-                        <input type="checkbox" id="ww-is_enabled" style="width:18px; height:18px; cursor:pointer;">
-                        <span style="font-size:0.9rem;">Enabled</span>
-                    </label>
-                </div>
-
-                <!-- Embed snippets -->
-                <h3 style="font-size:1rem; margin:0 0 10px;">1. Install on your website</h3>
-                <p style="font-size:0.85rem; color:var(--text-dim); margin:0 0 8px;">
-                    Paste this before <code>&lt;/body&gt;</code> on any page.
-                </p>
-                <pre id="ww-script-snippet" class="ww-code"></pre>
-                <button type="button" class="btn ww-copy" onclick="copyWidgetValue('ww-script-snippet', this)">Copy
-                    script</button>
-
-                <p style="font-size:0.85rem; color:var(--text-dim); margin:18px 0 8px;">Or embed it inline as an iframe:
-                </p>
-                <pre id="ww-iframe-snippet" class="ww-code"></pre>
-                <button type="button" class="btn ww-copy" onclick="copyWidgetValue('ww-iframe-snippet', this)">Copy
-                    iframe</button>
-
-                <p style="font-size:0.85rem; color:var(--text-dim); margin:18px 0 8px;">Or just share the direct link:
-                </p>
-                <pre id="ww-share-url" class="ww-code"></pre>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                    <button type="button" class="btn ww-copy"
-                        onclick="copyWidgetValue('ww-share-url', this)">Copy link</button>
-                    <button type="button" class="btn ww-copy" onclick="openWidgetPreview()">Open preview</button>
-                </div>
-
-                <!-- Appearance -->
-                <h3 style="font-size:1rem; margin:26px 0 10px;">2. Appearance</h3>
-                <div class="ww-grid">
-                    <label class="ww-field">
-                        <span>Header title</span>
-                        <input type="text" id="ww-display_name" maxlength="80">
-                    </label>
-                    <label class="ww-field">
-                        <span>Subtitle</span>
-                        <input type="text" id="ww-subtitle" maxlength="120">
-                    </label>
-                    <label class="ww-field">
-                        <span>Accent colour</span>
-                        <input type="color" id="ww-primary_color" style="height:42px; padding:4px;">
-                    </label>
-                    <label class="ww-field">
-                        <span>Text on accent</span>
-                        <input type="color" id="ww-text_color" style="height:42px; padding:4px;">
-                    </label>
-                    <label class="ww-field">
-                        <span>Bubble position</span>
-                        <select id="ww-launcher_position">
-                            <option value="right">Bottom right</option>
-                            <option value="left">Bottom left</option>
-                        </select>
-                    </label>
-                    <label class="ww-field">
-                        <span>Bubble label (optional)</span>
-                        <input type="text" id="ww-launcher_label" maxlength="40" placeholder="Chat with us">
-                    </label>
-                    <label class="ww-field ww-span2">
-                        <span>Avatar image URL (optional)</span>
-                        <input type="url" id="ww-avatar_url" placeholder="https://example.com/logo.png">
-                    </label>
-                    <label class="ww-field ww-span2">
-                        <span>Welcome message</span>
-                        <textarea id="ww-welcome_message" rows="2" maxlength="1000"></textarea>
-                    </label>
-                    <label class="ww-field ww-span2">
-                        <span>Suggested questions (one per line, max 4)</span>
-                        <textarea id="ww-suggested_questions" rows="3"
-                            placeholder="What are your opening hours?&#10;How much does it cost?"></textarea>
-                    </label>
-                    <label class="ww-field">
-                        <span>Input placeholder</span>
-                        <input type="text" id="ww-input_placeholder" maxlength="80">
-                    </label>
-                    <label class="ww-field">
-                        <span>Branding text</span>
-                        <input type="text" id="ww-branding_text" maxlength="60">
-                    </label>
-                    <label class="ww-field ww-check">
-                        <input type="checkbox" id="ww-show_branding">
-                        <span>Show branding line</span>
-                    </label>
-                </div>
-
-                <!-- Lead capture -->
-                <h3 style="font-size:1rem; margin:26px 0 10px;">3. Lead capture</h3>
-                <div class="ww-grid">
-                    <label class="ww-field ww-check ww-span2">
-                        <input type="checkbox" id="ww-collect_lead">
-                        <span>Ask visitors for their details before chatting</span>
-                    </label>
-                    <label class="ww-field ww-span2">
-                        <span>Lead form prompt</span>
-                        <input type="text" id="ww-lead_prompt" maxlength="300">
-                    </label>
-                    <label class="ww-field ww-check"><input type="checkbox" id="ww-lead_require_name"><span>Require
-                            name</span></label>
-                    <label class="ww-field ww-check"><input type="checkbox" id="ww-lead_require_email"><span>Require
-                            email</span></label>
-                    <label class="ww-field ww-check"><input type="checkbox" id="ww-lead_require_phone"><span>Require
-                            phone</span></label>
-                </div>
-
-                <!-- Security -->
-                <h3 style="font-size:1rem; margin:26px 0 10px;">4. Security</h3>
-                <div class="ww-grid">
-                    <label class="ww-field ww-span2">
-                        <span>Allowed domains (one per line — leave empty to allow any site)</span>
-                        <textarea id="ww-allowed_domains" rows="2"
-                            placeholder="example.com&#10;shop.example.com"></textarea>
-                    </label>
-                    <label class="ww-field">
-                        <span>Max messages per visitor session</span>
-                        <input type="number" id="ww-max_messages_per_session" min="1" max="500">
-                    </label>
-                    <div class="ww-field">
-                        <span>Public key</span>
-                        <button type="button" class="btn"
-                            style="background:rgba(239,68,68,0.15); color:#f87171; border:1px solid rgba(239,68,68,0.3);"
-                            onclick="regenerateWidgetKey()">Regenerate key</button>
-                    </div>
-                </div>
-
-                <div id="webwidget-message"
-                    style="margin-top:18px; font-size:0.9rem; min-height:20px; color:var(--text-dim);"></div>
-
-                <div style="display:flex; gap:10px; margin-top:12px;">
-                    <button type="button" id="webwidget-save" class="btn"
-                        style="background:#6366f1; color:white;" onclick="saveWidgetSettings()">Save changes</button>
-                    <button type="button" class="btn"
-                        style="background:rgba(255,255,255,0.08); color:var(--text-dim);"
-                        onclick="closeWebWidget()">Close</button>
-                </div>
+            <div class="kw-modal-body">
+                <p id="pub-confirm-body"></p>
+            </div>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="pub-confirm-cancel">Keep it</button>
+                <button type="button" class="kw-btn kw-btn-danger cr-press" id="pub-confirm-ok">Confirm</button>
             </div>
         </div>
     </div>
 
-    <div class="modal-backdrop" id="setup-modal" onclick="if(event.target === this) closeSetup()">
-        <div class="modal-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h2 id="modal-title">Setup Connection</h2>
-                <button onclick="closeSetup()"
-                    style="background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 1.5rem;">&times;</button>
-            </div>
+    <p class="kw-visually-hidden" role="status" aria-live="polite" id="pub-announce"></p>
 
-            <div id="setup-steps">
-                <!-- Steps injected by JS -->
-            </div>
-
-            <div id="telegram-token-area" style="display:none; margin-top: 24px;">
-                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
-                    Telegram Bot Token
-                </label>
-
-                <input type="password" id="telegram-bot-token" placeholder="Paste BotFather HTTP API token here" style="
-                        width:100%;
-                        padding:14px 16px;
-                        border-radius:14px;
-                        border:1px solid var(--glass-border);
-                        background:var(--input-bg);
-                        color:var(--text-main);
-                        outline:none;
-                        margin-bottom:12px;
-                    ">
-
-                <div id="telegram-connect-message" style="font-size:0.9rem; color:var(--text-dim); margin-bottom:12px;">
-                </div>
-
-                <button class="btn" onclick="connectTelegram()" style="background:#26A5E4; color:white;">
-                    Connect Telegram Bot
-                </button>
-            </div>
-
-            <div id="wasender-connect-area" style="display:none; margin-top: 24px;">
-                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
-                    WasenderAPI Key
-                </label>
-
-                <input type="password" id="wasender-api-key" placeholder="Paste WasenderAPI key here" style="
-                        width:100%;
-                        padding:14px 16px;
-                        border-radius:14px;
-                        border:1px solid var(--glass-border);
-                        background:var(--input-bg);
-                        color:var(--text-main);
-                        outline:none;
-                        margin-bottom:12px;
-                    ">
-
-                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
-                    WhatsApp Phone Number
-                </label>
-
-                <input type="text" id="wasender-phone-number" placeholder="+60123456789" style="
-                        width:100%;
-                        padding:14px 16px;
-                        border-radius:14px;
-                        border:1px solid var(--glass-border);
-                        background:var(--input-bg);
-                        color:var(--text-main);
-                        outline:none;
-                        margin-bottom:12px;
-                    ">
-
-                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
-                    Session Name Optional
-                </label>
-
-                <input type="text" id="wasender-session-name" placeholder="Example: Olympic Edu WhatsApp Bot" style="
-                        width:100%;
-                        padding:14px 16px;
-                        border-radius:14px;
-                        border:1px solid var(--glass-border);
-                        background:var(--input-bg);
-                        color:var(--text-main);
-                        outline:none;
-                        margin-bottom:12px;
-                    ">
-
-                <label style="display:block; margin-bottom:8px; color: var(--text-main); font-weight:600;">
-                    Session ID Optional
-                </label>
-
-                <input type="text" id="wasender-session-id" placeholder="Paste session ID if available" style="
-                        width:100%;
-                        padding:14px 16px;
-                        border-radius:14px;
-                        border:1px solid var(--glass-border);
-                        background:var(--input-bg);
-                        color:var(--text-main);
-                        outline:none;
-                        margin-bottom:12px;
-                    ">
-
-                <div id="wasender-connect-message" style="font-size:0.9rem; color:var(--text-dim); margin-bottom:12px;">
-                </div>
-
-                <button class="btn" onclick="connectWasender()" style="background:#10b981; color:white;">
-                    Save WasenderAPI Connection
-                </button>
-            </div>
-
-            <div id="whatsapp-cloud-area" style="display:none; margin-top: 24px;">
-                <div id="whatsapp-cloud-message" style="font-size:0.9rem; color:var(--text-dim); margin-bottom:12px;">
-                    Checking WhatsApp Embedded Signup configuration...
-                </div>
-
-                <button id="whatsapp-cloud-connect-button" class="btn" onclick="connectWhatsAppCloud()"
-                    style="background:#25D366; color:white;">
-                    Connect with Meta
-                </button>
-            </div>
-
-            <div id="default-setup-button" style="margin-top: 30px;">
-                <button class="btn btn-primary" onclick="closeSetup()">I've Completed Setup</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="assets/js/auth.js"></script>
     <script>
-        requireLogin();
-        requireAdminOrOwner();
-
+        /* Same bot-scoping contract the dashboard and bot config use. */
         function resolveSelectedChatbotId() {
             const urlParams = new URLSearchParams(window.location.search);
             const urlBotId = urlParams.get('bot_id');
@@ -944,1514 +267,1144 @@
                 window.location.href = `integration.html?bot_id=${encodeURIComponent(storedBotId)}`;
                 return null;
             }
-
             if (!urlBotId) {
                 window.location.href = 'bots.html';
                 return null;
             }
-
             sessionStorage.setItem('selectedBotId', urlBotId);
             return urlBotId;
         }
 
-        const selectedBotId = resolveSelectedChatbotId();
+        const BOT_ID = resolveSelectedChatbotId();
 
-        document.addEventListener('DOMContentLoaded', () => {
-            if (!selectedBotId) {
-                return;
-            }
-
-            initSidebar();
-            loadChannelStatus();
-        });
-
-        function toggleDropdown(id) {
-            const el = document.getElementById(id);
-            if (el) {
-                el.classList.toggle('open');
-            }
-        }
-
-        function initSidebar() {
-            const currentPath = window.location.pathname.split('/').pop() || 'index.html';
-            const navLinks = document.querySelectorAll('.nav-link');
-
-            navLinks.forEach(link => {
-                if (link.getAttribute('href') === currentPath) {
-                    link.classList.add('active');
-                }
-            });
-
-            // Auto-expand dropdowns if child is active
-            if (['linksdocs.html', 'prompt.html', 'training.html'].includes(currentPath)) {
-                const drop = document.getElementById('training-dropdown');
-                if (drop) drop.classList.add('open');
-            }
-            if (['behaviour.html', 'testbot.html'].includes(currentPath)) {
-                const drop = document.getElementById('behaviour-dropdown');
-                if (drop) drop.classList.add('open');
-            }
-        }
-
-        let latestChannels = {
-            telegram: null,
-            whatsapp: null,
-            wasender: null
-        };
-        let channelEntitlement = {
-            loaded: false,
-            used: 0,
-            limit: null
-        };
-        let whatsAppEmbeddedSignupConfig = null;
-        let whatsAppSignupEventData = null;
-        let metaSdkLoadingPromise = null;
-
-        const platformData = {
-            whatsapp: {
-                title: "WhatsApp Cloud API Setup",
-                steps: [
-                    "Click Connect with Meta.",
-                    "Log in to your Meta Business account.",
-                    "Select or create your WhatsApp Business Account.",
-                    "Select or register a business phone number.",
-                    "Complete Meta verification and return to this system.",
-                    "The chatbot will connect automatically after successful signup."
-                ]
-            },
-            telegram: {
-                title: "Telegram Bot Setup",
-                steps: [
-                    "Open Telegram and search for @BotFather.",
-                    "Use /newbot to create your agent.",
-                    "Copy the HTTP API Token provided.",
-                    "Paste the token in your AI CHATBOT integration settings."
-                ]
-            },
-            wasender: {
-                title: "WasenderAPI Setup",
-                steps: [
-                    "Create or login to your WasenderAPI account.",
-                    "Start a trial or subscribe to a plan.",
-                    "Register your phone number in WhatsApp Business App.",
-                    "Create a WhatsApp session in WasenderAPI and scan the QR code.",
-                    "Paste your WasenderAPI key and phone number here.",
-                    "Copy the generated webhook URL into your WasenderAPI session settings."
-                ]
-            }
+        const state = {
+            widget: null,
+            embed: null,
+            channels: { telegram: null, whatsapp: null, wasender: null },
+            entitlement: { loaded: false, used: 0, limit: null },
+            metaSignup: { available: false, appId: null, configId: null, version: null },
+            openFlow: null,
+            busy: false
         };
 
-        function isChannelConnected(channel) {
-            if (!channel) return false;
+        const ICON = {
+            link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+            globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z"/>',
+            send: '<path d="m21 3-9 18-2-7-7-2Z"/>',
+            chat: '<path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/>',
+            copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>',
+            check: '<path d="m5 13 4 4L19 7"/>',
+            alert: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+            lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+            clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+            chevron: '<path d="m6 9 6 6 6-6"/>',
+            external: '<path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+            download: '<path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 20h16"/>'
+        };
 
-            const status = channel.connection_status || (channel.is_active ? 'connected' : 'pending');
-
-            return status === 'connected' && channel.is_active;
-        }
-
-        function getChannelLimitMessage() {
-            if (!isChannelLimitReached()) return "";
-            return `Channel limit reached (${channelEntitlement.used}/${channelEntitlement.limit}). Disconnect an existing channel or upgrade your plan.`;
-        }
-
-        function isChannelLimitReached() {
-            if (!channelEntitlement.loaded) return false;
-            if (channelEntitlement.limit === null || channelEntitlement.limit === undefined) return false;
-            return Number(channelEntitlement.used || 0) >= Number(channelEntitlement.limit);
-        }
-
-        function shouldBlockNewChannel(platform) {
-            return isChannelLimitReached() && !isChannelConnected(latestChannels[platform]);
-        }
-
-        async function loadChannelEntitlement() {
-            try {
-                const response = await authenticatedFetch('/api/billing/usage');
-                const result = await response.json();
-                const channels = result && result.data && result.data.usage
-                    ? result.data.usage.channels
-                    : null;
-
-                if (!response.ok || result.status !== 'success' || !channels) {
-                    channelEntitlement = { loaded: false, used: 0, limit: null };
-                    return;
-                }
-
-                channelEntitlement = {
-                    loaded: true,
-                    used: Number(channels.used || 0),
-                    limit: channels.limit === null || channels.limit === undefined
-                        ? null
-                        : Number(channels.limit)
-                };
-            } catch (error) {
-                console.error('Channel entitlement load error:', error);
-                channelEntitlement = { loaded: false, used: 0, limit: null };
-            }
-        }
-
-        function showChannelLimitNotice(platform) {
-            const message = getChannelLimitMessage();
-            const data = platformData[platform] || { title: 'Channel Setup' };
-            const container = document.getElementById('setup-steps');
-            const telegramTokenArea = document.getElementById('telegram-token-area');
-            const wasenderConnectArea = document.getElementById('wasender-connect-area');
-            const whatsappCloudArea = document.getElementById('whatsapp-cloud-area');
-            const defaultSetupButton = document.getElementById('default-setup-button');
-
-            document.getElementById('modal-title').innerText = data.title;
-            if (telegramTokenArea) telegramTokenArea.style.display = 'none';
-            if (wasenderConnectArea) wasenderConnectArea.style.display = 'none';
-            if (whatsappCloudArea) whatsappCloudArea.style.display = 'none';
-            if (container) {
-                container.innerHTML = `
-                    <div class="step-item">
-                        <div class="step-number">!</div>
-                        <div class="step-text" style="font-size:0.95rem;color:#ef4444;">${escapeHtml(message)}</div>
-                    </div>
-                `;
-            }
-            if (defaultSetupButton) {
-                defaultSetupButton.style.display = 'block';
-                defaultSetupButton.innerHTML = `
-                    <button class="btn btn-primary" onclick="closeSetup()">Close</button>
-                `;
-            }
-            document.getElementById('setup-modal').style.display = 'flex';
+        function icon(name, extraClass) {
+            return `<svg class="dashboard-icon${extraClass ? ' ' + extraClass : ''}" aria-hidden="true" `
+                + `viewBox="0 0 24 24">${ICON[name]}</svg>`;
         }
 
         function escapeHtml(value) {
-            if (value === null || value === undefined || value === "") return "-";
-
+            if (value === null || value === undefined) return '';
             return String(value)
-                .replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll('"', "&quot;")
-                .replaceAll("'", "&#039;");
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
         }
 
-        function buildManageRow(label, value) {
-            return `
-                <div class="step-item">
-                    <div class="step-number">✓</div>
-                    <div>
-                        <div style="font-weight:700; color:var(--text-main); margin-bottom:4px;">
-                            ${escapeHtml(label)}
-                        </div>
-                        <div style="font-size:0.9rem; color:var(--text-dim); word-break:break-word;">
-                            ${escapeHtml(value)}
-                        </div>
+        function announce(message) {
+            document.getElementById('pub-announce').textContent = message;
+        }
+
+        /* Six states, two shapes. A round pill is a live channel state; a
+           square badge is a fact about the plan or about our configuration.
+           Every state carries a word, so colour is never the only signal. */
+        const STATES = {
+            connected: { pill: 'kw-pill-ready', dot: 'kw-dot-ready', label: 'Working' },
+            attention: { pill: 'kw-pill-review', dot: 'kw-dot-review', label: 'Needs a fix' },
+            off:       { pill: 'kw-pill-off', dot: 'kw-dot-off', label: 'Turned off' },
+            none:      { pill: '', dot: '', label: 'Not set up' },
+            planfull:  { badge: true, glyph: 'lock', label: 'Plan full' },
+            blocked:   { badge: true, glyph: 'clock', label: 'Not available yet' }
+        };
+
+        function stateChip(key) {
+            const s = STATES[key];
+            if (!s) return '';
+            if (s.badge) {
+                return `<span class="kw-badge kw-badge-support">${icon(s.glyph)}${s.label}</span>`;
+            }
+            return `<span class="kw-pill ${s.pill}"><span class="kw-dot ${s.dot}"></span>${s.label}</span>`;
+        }
+
+        function planFull() {
+            const e = state.entitlement;
+            if (!e.loaded || e.limit === null || e.limit === undefined) return false;
+            return Number(e.used || 0) >= Number(e.limit);
+        }
+
+        function channelState(kind) {
+            if (kind === 'widget') {
+                if (!state.widget) return 'none';
+                return state.widget.is_enabled ? 'connected' : 'off';
+            }
+            const record = state.channels[kind];
+            if (!record) {
+                if (kind === 'whatsapp' && !state.metaSignup.available) return 'blocked';
+                return planFull() ? 'planfull' : 'none';
+            }
+            const status = String(record.connection_status || '').toLowerCase();
+            if (record.is_active && status === 'connected') return 'connected';
+            if (record.is_active && status === 'failed') return 'attention';
+            return 'off';
+        }
+
+        /* ---- Loading ---------------------------------------------------- */
+
+        async function getJson(url, options) {
+            const response = await authenticatedFetch(url, options);
+            let body = {};
+            try { body = await response.json(); } catch (e) { body = {}; }
+            return { ok: response.ok && body.status === 'success', status: response.status, body };
+        }
+
+        async function loadWidget() {
+            const result = await getJson(`/api/bots/${BOT_ID}/widget`);
+            if (!result.ok) {
+                state.widget = null;
+                state.embed = null;
+                return false;
+            }
+            state.widget = result.body.data.widget;
+            state.embed = result.body.data.embed;
+            return true;
+        }
+
+        async function loadChannel(kind) {
+            const result = await getJson(`/api/${kind}/channels?chatbot_id=${BOT_ID}`);
+            const rows = result.ok ? (result.body.data || []) : [];
+            /* Prefer a live row; the repositories return disconnected rows too. */
+            state.channels[kind] = rows.find(r => r.is_active
+                && String(r.connection_status || '').toLowerCase() === 'connected')
+                || rows[0] || null;
+        }
+
+        async function loadEntitlement() {
+            const result = await getJson('/api/billing/usage');
+            const channels = result.ok && result.body.data && result.body.data.usage
+                ? result.body.data.usage.channels : null;
+            state.entitlement = channels
+                ? {
+                    loaded: true,
+                    used: Number(channels.used || 0),
+                    limit: channels.limit === null || channels.limit === undefined
+                        ? null : Number(channels.limit)
+                }
+                : { loaded: false, used: 0, limit: null };
+        }
+
+        /* This endpoint answers 500 when the operator has not configured Meta,
+           which is indistinguishable from a real fault. Either way the honest
+           thing to show the owner is "not available yet", never a live-looking
+           button that cannot work. */
+        async function loadMetaSignup() {
+            const result = await getJson('/api/whatsapp/embedded-signup/config');
+            const data = result.ok ? result.body.data : null;
+            state.metaSignup = data && data.app_id && data.config_id
+                ? { available: true, appId: data.app_id, configId: data.config_id,
+                    version: data.graph_api_version }
+                : { available: false, appId: null, configId: null, version: null };
+        }
+
+        async function loadEverything() {
+            await Promise.all([
+                loadWidget(),
+                loadChannel('telegram'),
+                loadChannel('whatsapp'),
+                loadChannel('wasender'),
+                loadEntitlement(),
+                loadMetaSignup()
+            ]);
+        }
+
+        /* ---- Shared pieces ---------------------------------------------- */
+
+        function qrSvg(text, label) {
+            if (typeof QRCodeGen === 'undefined') return '';
+            try {
+                return QRCodeGen.toSvg(text, { label: label, dark: '#0a0b0d', light: '#ffffff' });
+            } catch (error) {
+                console.error('QR render failed:', error);
+                return '';
+            }
+        }
+
+        function copyRow(value, label) {
+            return `<div class="kw-idrow">
+                <code>${escapeHtml(value)}</code>
+                <button type="button" class="kw-iconbtn cr-press" data-copy="${escapeHtml(value)}"
+                    aria-label="${escapeHtml(label)}">${icon('copy')}</button>
+            </div>`;
+        }
+
+        async function copyText(value, button) {
+            let copied = false;
+            try {
+                await navigator.clipboard.writeText(value);
+                copied = true;
+            } catch (error) {
+                /* navigator.clipboard is undefined over plain http, which is
+                   how this gets tested on a LAN address. */
+                const scratch = document.createElement('textarea');
+                scratch.value = value;
+                scratch.setAttribute('readonly', '');
+                scratch.style.position = 'fixed';
+                scratch.style.opacity = '0';
+                document.body.appendChild(scratch);
+                scratch.select();
+                try { copied = document.execCommand('copy'); } catch (e) { copied = false; }
+                document.body.removeChild(scratch);
+            }
+
+            announce(copied ? 'Copied.' : 'Could not copy. Select the text and copy it yourself.');
+            if (copied && button && button.dataset.label !== undefined) {
+                const original = button.textContent;
+                button.textContent = 'Copied';
+                setTimeout(() => { button.textContent = original; }, 1600);
+            }
+        }
+
+        /* ---- Section 1: where the bot is already live ------------------- */
+
+        function shareCard() {
+            const live = state.widget && state.widget.is_enabled;
+            const url = state.embed ? state.embed.share_url : '';
+            const svg = live ? qrSvg(url, 'QR code for your chat link') : '';
+
+            const body = live
+                ? `<p class="kw-help">Anyone who opens it can chat with your bot. They do not
+                     need an account or an app.</p>
+                   ${copyRow(url, 'Copy the link')}
+                   <div class="pub-actions">
+                     <button type="button" class="kw-btn kw-btn-primary cr-press"
+                       data-copy="${escapeHtml(url)}" data-label="1">Copy link</button>
+                     <a class="kw-btn cr-press" href="${escapeHtml(url)}" target="_blank"
+                       rel="noopener">${icon('external')}Open it</a>
+                     <button type="button" class="kw-btn cr-press" id="pub-save-qr">
+                       ${icon('download')}Save the QR code</button>
+                     <button type="button" class="kw-btn cr-press" data-widget-toggle="off">
+                       Turn the link off</button>
+                   </div>`
+                : `<p class="kw-help">The link is turned off. Anyone who opens it sees a message
+                     saying the chat is closed.</p>
+                   <div class="pub-actions">
+                     <button type="button" class="kw-btn kw-btn-primary cr-press"
+                       data-widget-toggle="on">Turn the link on</button>
+                   </div>`;
+
+            return `<div class="pub-share${live ? '' : ' is-off'}">
+                <div class="pub-qr-wrap">
+                    <div class="pub-qr${live ? '' : ' is-off'}" id="pub-qr">${svg}</div>
+                    <p class="pub-qr-caption">Print this and put it on your counter. People scan
+                        it with a phone camera.</p>
+                </div>
+                <div class="pub-share-body">
+                    <div class="pub-share-head">
+                        <h3 class="pub-share-title">Share this link</h3>
+                        ${stateChip(channelState('widget'))}
+                    </div>
+                    ${body}
+                </div>
+            </div>`;
+        }
+
+        const CHANNEL_LABEL = { telegram: 'Telegram', whatsapp: 'WhatsApp', wasender: 'WhatsApp' };
+        const CHANNEL_ICON = { telegram: 'send', whatsapp: 'chat', wasender: 'chat' };
+
+        function liveChannelRow(kind) {
+            const record = state.channels[kind];
+            const status = channelState(kind);
+            const name = kind === 'telegram'
+                ? (record.bot_username ? '@' + record.bot_username : 'Your Telegram bot')
+                : (record.verified_name || record.display_phone_number
+                    || record.phone_number || record.session_name || '');
+
+            const deepLink = kind === 'telegram' && record.bot_username
+                ? `https://t.me/${record.bot_username}` : '';
+
+            const trouble = status === 'attention'
+                ? `<p class="kw-help">${escapeHtml(CHANNEL_LABEL[kind])} stopped accepting messages
+                     from your bot. Set it up again to fix it.</p>` : '';
+
+            return `<div class="pub-option is-live" data-live="${kind}">
+                <div class="pub-option-main">
+                    <span class="kw-tab-icon" aria-hidden="true">${icon(CHANNEL_ICON[kind])}</span>
+                    <div class="pub-option-copy">
+                        <span class="kw-tab-title">${escapeHtml(CHANNEL_LABEL[kind])}</span>
+                        <span class="pub-identity-line">${escapeHtml(name)}</span>
+                        ${trouble}
                     </div>
                 </div>
-            `;
+                <div class="pub-option-meta">
+                    ${stateChip(status)}
+                    ${deepLink ? `<a class="kw-btn cr-press" href="${escapeHtml(deepLink)}"
+                        target="_blank" rel="noopener">${icon('external')}Open in Telegram</a>` : ''}
+                    ${status === 'attention' ? `<button type="button" class="kw-btn cr-press"
+                        data-reconnect="${kind}">Set it up again</button>` : ''}
+                    <button type="button" class="kw-btn kw-btn-danger cr-press"
+                        data-disconnect="${kind}">Disconnect</button>
+                </div>
+            </div>`;
         }
 
-        function openManageView(platform, channel) {
-            const container = document.getElementById('setup-steps');
-            const telegramTokenArea = document.getElementById('telegram-token-area');
-            const wasenderConnectArea = document.getElementById('wasender-connect-area');
-            const whatsappCloudArea = document.getElementById('whatsapp-cloud-area');
-            const defaultSetupButton = document.getElementById('default-setup-button');
+        function renderLive() {
+            const host = document.getElementById('pub-live-body');
 
-            telegramTokenArea.style.display = 'none';
-            wasenderConnectArea.style.display = 'none';
-            whatsappCloudArea.style.display = 'none';
-            defaultSetupButton.style.display = 'block';
-            const channelStatus = channel.connection_status || (channel.is_active ? 'connected' : 'disconnected');
-            const connected = channelStatus === 'connected' && channel.is_active;
-
-            if (connected) {
-                defaultSetupButton.innerHTML = `
-                    <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                        <button class="btn" onclick="openSetup('${platform}', true)" style="background:var(--primary); color:white; flex:1;">
-                            View Setup Guide
-                        </button>
-
-                        <button class="btn" onclick="disconnectChannel('${platform}', ${channel.id})" style="background:#ef4444; color:white; flex:1;">
-                            Disconnect
-                        </button>
-
-                        <button class="btn" onclick="closeSetup()" style="background:rgba(255,255,255,0.1); color:white; flex:1;">
-                            Close
-                        </button>
-                    </div>
-
-                    <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
-                `;
-            } else {
-                if (platform === 'whatsapp') {
-                    defaultSetupButton.innerHTML = `
-                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                            <button class="btn" onclick="openSetup('whatsapp', true)" style="background:#25D366; color:white; flex:1;">
-                                Complete Meta Signup
-                            </button>
-
-                            <button class="btn" onclick="closeSetup()" style="background:rgba(255,255,255,0.1); color:white; flex:1;">
-                                Close
-                            </button>
-                        </div>
-
-                        <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
-                    `;
-                } else {
-                    defaultSetupButton.innerHTML = `
-                        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-                            <button class="btn" onclick="reconnectChannel('${platform}', ${channel.id})" style="background:#10b981; color:white; flex:1;">
-                                Reconnect
-                            </button>
-
-                            <button class="btn" onclick="openSetup('${platform}', true)" style="background:var(--primary); color:white; flex:1;">
-                                Replace Token
-                            </button>
-
-                            <button class="btn" onclick="closeSetup()" style="background:rgba(255,255,255,0.1); color:white; flex:1;">
-                                Close
-                            </button>
-                        </div>
-
-                        <div id="disconnect-message" style="margin-top:12px; font-size:0.9rem; color:var(--text-dim);"></div>
-                    `;
-                }
-            }
-
-            if (platform === 'telegram') {
-                document.getElementById('modal-title').innerText = 'Manage Telegram';
-
-                container.innerHTML = `
-                    ${buildManageRow('Bot Username', channel.bot_username ? '@' + channel.bot_username : '-')}
-                    ${buildManageRow('Telegram Bot ID', channel.telegram_bot_id)}
-                    ${buildManageRow('Connection Status', channel.connection_status || '-')}
-                    ${buildManageRow('Webhook URL', channel.webhook_url)}
-                    ${channel.last_error ? buildManageRow('Last Error', channel.last_error) : ''}
-                `;
-            }
-
-            if (platform === 'whatsapp') {
-                document.getElementById('modal-title').innerText = 'Manage WhatsApp';
-
-                container.innerHTML = `
-                    ${buildManageRow('Display Phone Number', channel.display_phone_number || channel.phone_number_id)}
-                    ${buildManageRow('Phone Number ID', channel.phone_number_id)}
-                    ${buildManageRow('WhatsApp Business Account ID', channel.whatsapp_business_account_id)}
-                    ${buildManageRow('Connection Status', channel.connection_status || (channel.is_active ? 'connected' : 'pending'))}
-                    ${channel.last_error ? buildManageRow('Last Error', channel.last_error) : ''}
-                `;
-            }
-
-            if (platform === 'wasender') {
-                document.getElementById('modal-title').innerText = 'Manage WasenderAPI';
-
-                container.innerHTML = `
-                    ${buildManageRow('Phone Number', channel.phone_number)}
-                    ${buildManageRow('Session Name', channel.session_name)}
-                    ${buildManageRow('Session ID', channel.session_id)}
-                    ${buildManageRow('Connection Status', channel.connection_status || (channel.is_active ? 'connected' : 'pending'))}
-                    ${buildManageRow('Webhook URL', channel.webhook_url)}
-                    ${channel.last_error ? buildManageRow('Last Error', channel.last_error) : ''}
-                `;
-            }
-
-            document.getElementById('setup-modal').style.display = 'flex';
-        }
-
-        function openSetup(platform, forceSetup = false) {
-            const existingChannel = latestChannels[platform];
-
-            if (shouldBlockNewChannel(platform)) {
-                showChannelLimitNotice(platform);
+            if (!state.widget) {
+                host.innerHTML = `<div class="kw-empty">
+                    <span class="kw-empty-icon" aria-hidden="true">${icon('alert')}</span>
+                    <h3>We could not load your link</h3>
+                    <p>Something went wrong on our side. Try again in a minute.</p>
+                </div>`;
                 return;
             }
 
-            if (!forceSetup && existingChannel) {
-                openManageView(platform, existingChannel);
-                return;
-            }
+            const liveChannels = ['telegram', 'whatsapp', 'wasender']
+                .filter(kind => state.channels[kind]
+                    && ['connected', 'attention'].includes(channelState(kind)))
+                .map(liveChannelRow)
+                .join('');
 
-            const data = platformData[platform];
-            document.getElementById('modal-title').innerText = data.title;
+            host.innerHTML = shareCard()
+                + (liveChannels ? `<div class="pub-list pub-gap">${liveChannels}</div>` : '');
+        }
 
-            const container = document.getElementById('setup-steps');
-            container.innerHTML = '';
+        /* ---- Section 2: the ranked ladder ------------------------------- */
 
-            data.steps.forEach((step, index) => {
-                container.innerHTML += `
-                    <div class="step-item">
-                        <div class="step-number">${index + 1}</div>
-                        <div class="step-text" style="font-size: 0.95rem; color: var(--text-dim);">${step}</div>
+        /* Diagrams, not screenshots. Telegram's UI is copyrighted, differs by
+           locale, and changes every release. One accent ring marks the thing
+           to tap. */
+        const SHOT_SEARCH = `<svg viewBox="0 0 300 104" role="img"
+            aria-label="Telegram search results showing the BotFather account first">
+            <rect x="1" y="1" width="298" height="26" rx="7" fill="none"
+                stroke="var(--control-border)"/>
+            <text x="14" y="18" fill="var(--control-text-secondary)"
+                font-family="JetBrains Mono, monospace" font-size="11">@BotFather</text>
+            <rect x="1" y="36" width="298" height="30" rx="7" fill="none"
+                stroke="var(--control-accent)" stroke-width="1.5"/>
+            <circle cx="20" cy="51" r="9" fill="var(--control-accent-subtle)"/>
+            <text x="38" y="55" fill="var(--control-text)" font-family="Geist, sans-serif"
+                font-size="12">BotFather</text>
+            <path d="m272 47 4 4 8-8" fill="none" stroke="var(--control-accent)"
+                stroke-width="2" stroke-linecap="round"/>
+            <rect x="1" y="72" width="298" height="30" rx="7" fill="none"
+                stroke="var(--control-border)"/>
+            <circle cx="20" cy="87" r="9" fill="var(--control-border)"/>
+            <text x="38" y="91" fill="var(--control-text-secondary)"
+                font-family="Geist, sans-serif" font-size="12">BotFather_help</text>
+        </svg>`;
+
+        const SHOT_NEWBOT = `<svg viewBox="0 0 300 92" role="img"
+            aria-label="Sending the newbot command and getting a reply">
+            <rect x="150" y="6" width="144" height="26" rx="8"
+                fill="var(--control-accent-subtle)" stroke="var(--control-accent)"/>
+            <text x="164" y="23" fill="var(--control-text)"
+                font-family="JetBrains Mono, monospace" font-size="11">/newbot</text>
+            <rect x="6" y="44" width="220" height="42" rx="8" fill="none"
+                stroke="var(--control-border)"/>
+            <text x="18" y="62" fill="var(--control-text-secondary)"
+                font-family="Geist, sans-serif" font-size="11">Alright, a new bot. How are</text>
+            <text x="18" y="77" fill="var(--control-text-secondary)"
+                font-family="Geist, sans-serif" font-size="11">we going to call it?</text>
+        </svg>`;
+
+        const SHOT_TOKEN = `<svg viewBox="0 0 300 92" role="img"
+            aria-label="The reply containing the long code to copy">
+            <rect x="6" y="6" width="252" height="80" rx="8" fill="none"
+                stroke="var(--control-border)"/>
+            <text x="18" y="26" fill="var(--control-text-secondary)"
+                font-family="Geist, sans-serif" font-size="11">Use this token to access the</text>
+            <text x="18" y="41" fill="var(--control-text-secondary)"
+                font-family="Geist, sans-serif" font-size="11">HTTP API:</text>
+            <rect x="14" y="50" width="232" height="24" rx="6"
+                fill="var(--control-accent-subtle)" stroke="var(--control-accent)"
+                stroke-width="1.5"/>
+            <text x="24" y="66" fill="var(--control-text)"
+                font-family="JetBrains Mono, monospace" font-size="10">8123456789:AAH3k...ZqR</text>
+        </svg>`;
+
+        function telegramFlow() {
+            return `<div class="pub-flow" id="pub-flow-telegram" hidden>
+                <div class="pub-flow-head">
+                    <h3>Set up Telegram</h3>
+                    <button type="button" class="kw-btn cr-press" data-flow-close="telegram">Cancel</button>
+                </div>
+                <p class="pub-flow-intro">It takes about 2 minutes. You will switch to Telegram
+                    and come back here with one code.</p>
+                <ol class="pub-guide">
+                    <li class="pub-guide-step">
+                        <span class="kw-step-mark" aria-hidden="true">1</span>
+                        <div class="pub-guide-body">
+                            <p>Open Telegram and search for BotFather.</p>
+                            <p class="kw-help">It is the one with a blue tick.</p>
+                            ${copyRow('@BotFather', 'Copy the BotFather name')}
+                            <div class="pub-shot">${SHOT_SEARCH}</div>
+                        </div>
+                    </li>
+                    <li class="pub-guide-step">
+                        <span class="kw-step-mark" aria-hidden="true">2</span>
+                        <div class="pub-guide-body">
+                            <p>Send it this message.</p>
+                            ${copyRow('/newbot', 'Copy the newbot command')}
+                            <p class="kw-help">It asks you for a name, then for a username that
+                                has to end in the word bot.</p>
+                            <div class="pub-shot">${SHOT_NEWBOT}</div>
+                        </div>
+                    </li>
+                    <li class="pub-guide-step">
+                        <span class="kw-step-mark" aria-hidden="true">3</span>
+                        <div class="pub-guide-body">
+                            <p>It replies with a long code. Copy the whole line.</p>
+                            <div class="pub-shot">${SHOT_TOKEN}</div>
+                        </div>
+                    </li>
+                </ol>
+                <div class="kw-field">
+                    <label class="kw-label" for="pub-telegram-code">Paste the code here</label>
+                    <div class="pub-submit">
+                        <input class="kw-input" id="pub-telegram-code" type="text"
+                            autocomplete="off" spellcheck="false" autocapitalize="none"
+                            placeholder="8123456789:AAH...">
+                        <button type="button" class="kw-btn kw-btn-primary cr-press"
+                            id="pub-telegram-connect">Connect</button>
                     </div>
-                `;
-            });
+                    <p class="kw-help">BotFather calls it a token. It is the long line that
+                        starts with numbers.</p>
+                </div>
+                <div id="pub-telegram-result" role="status" aria-live="polite" tabindex="-1"></div>
+            </div>`;
+        }
 
-            document.getElementById('setup-modal').style.display = 'flex';
+        function websiteFlow() {
+            const embed = state.embed || {};
+            return `<div class="pub-flow" id="pub-flow-website" hidden>
+                <div class="pub-flow-head">
+                    <h3>Put it on your website</h3>
+                    <button type="button" class="kw-btn cr-press" data-flow-close="website">Cancel</button>
+                </div>
+                <p class="pub-flow-intro">Send this to whoever looks after your website. They
+                    paste it once. Nothing else to do.</p>
+                <p class="kw-desc">${escapeHtml(embed.script_snippet || '')}</p>
+                <div class="pub-actions">
+                    <button type="button" class="kw-btn kw-btn-primary cr-press"
+                        data-copy="${escapeHtml(embed.script_snippet || '')}" data-label="1">Copy the code</button>
+                </div>
+                <p class="pub-flow-intro pub-gap">Or put the chat inside a page instead of a
+                    bubble in the corner.</p>
+                <p class="kw-desc">${escapeHtml(embed.iframe_snippet || '')}</p>
+                <div class="pub-actions">
+                    <button type="button" class="kw-btn cr-press"
+                        data-copy="${escapeHtml(embed.iframe_snippet || '')}" data-label="1">Copy the code</button>
+                </div>
+            </div>`;
+        }
 
-            const telegramTokenArea = document.getElementById('telegram-token-area');
-            const wasenderConnectArea = document.getElementById('wasender-connect-area');
-            const whatsappCloudArea = document.getElementById('whatsapp-cloud-area');
-            const defaultSetupButton = document.getElementById('default-setup-button');
+        function optionRow(config) {
+            const status = config.status;
+            const disabled = config.disabled ? ' disabled' : '';
+            const reason = config.reason ? `<p class="kw-help">${config.reason}</p>` : '';
 
-            defaultSetupButton.innerHTML = `
-                <button class="btn btn-primary" onclick="closeSetup()">I've Completed Setup</button>
-            `;
+            return `<div class="pub-option${config.lead ? ' is-lead' : ''}`
+                + `${config.quiet ? ' is-quiet' : ''}" data-option="${config.key}">
+                <div class="pub-option-main">
+                    <span class="kw-tab-icon" aria-hidden="true">${icon(config.icon)}</span>
+                    <div class="pub-option-copy">
+                        <span class="kw-tab-title">${escapeHtml(config.title)}</span>
+                        <p class="kw-help">${config.note}</p>
+                        ${reason}
+                    </div>
+                </div>
+                <div class="pub-option-meta">
+                    ${config.cost || ''}
+                    ${status ? stateChip(status) : ''}
+                    ${config.action
+                        ? `<button type="button" class="kw-btn${config.primary ? ' kw-btn-primary' : ''} cr-press"
+                             data-flow-open="${config.key}" aria-expanded="false"
+                             aria-controls="pub-flow-${config.key}"${disabled}>
+                             ${escapeHtml(config.action)}${icon('chevron')}</button>`
+                        : ''}
+                    ${config.button
+                        ? `<button type="button" class="kw-btn${config.button.primary ? ' kw-btn-primary' : ''} cr-press"
+                             id="${config.button.id}">${escapeHtml(config.button.text)}</button>`
+                        : ''}
+                    ${config.link
+                        ? `<a class="kw-btn cr-press" href="${config.link.href}">${escapeHtml(config.link.text)}</a>`
+                        : ''}
+                </div>
+                ${config.flow || ''}
+            </div>`;
+        }
 
-            if (platform === 'telegram') {
-                telegramTokenArea.style.display = 'block';
-                wasenderConnectArea.style.display = 'none';
-                whatsappCloudArea.style.display = 'none';
-                defaultSetupButton.style.display = 'none';
-            } else if (platform === 'wasender') {
-                telegramTokenArea.style.display = 'none';
-                wasenderConnectArea.style.display = 'block';
-                whatsappCloudArea.style.display = 'none';
-                defaultSetupButton.style.display = 'none';
-            } else if (platform === 'whatsapp') {
-                telegramTokenArea.style.display = 'none';
-                wasenderConnectArea.style.display = 'none';
-                whatsappCloudArea.style.display = 'block';
-                defaultSetupButton.style.display = 'none';
-                prepareWhatsAppEmbeddedSignup();
-            } else {
-                telegramTokenArea.style.display = 'none';
-                wasenderConnectArea.style.display = 'none';
-                whatsappCloudArea.style.display = 'none';
-                defaultSetupButton.style.display = 'block';
+        const FREE_BADGE = '<span class="kw-badge kw-badge-support">Free</span>';
+        const SLOT_BADGE = '<span class="kw-badge kw-badge-support">Uses 1 paid slot</span>';
+
+        function renderOptions() {
+            const rows = [];
+
+            rows.push(optionRow({
+                key: 'website', icon: 'globe', title: 'Put it on your website',
+                note: 'Add a chat bubble to a website you already have. You paste one line, or '
+                    + 'send it to whoever built your site.',
+                cost: FREE_BADGE, action: 'Get the code', lead: true, flow: websiteFlow()
+            }));
+
+            const telegramStatus = channelState('telegram');
+            if (!['connected', 'attention'].includes(telegramStatus)) {
+                const full = telegramStatus === 'planfull';
+                rows.push(optionRow({
+                    key: 'telegram', icon: 'send', title: 'Telegram',
+                    note: 'About 2 minutes. You make the bot inside Telegram, then paste one '
+                        + 'code here. We do the rest.',
+                    reason: full
+                        ? 'Your plan allows ' + state.entitlement.limit + ' paid channel'
+                          + (state.entitlement.limit === 1 ? '' : 's')
+                          + ' and they are already in use. Turn one off, or change your plan.'
+                        : '',
+                    cost: SLOT_BADGE, status: telegramStatus,
+                    action: full ? '' : 'Set up Telegram',
+                    link: full ? { href: 'pricing.html', text: 'See plans' } : null,
+                    flow: telegramFlow()
+                }));
             }
-        }
 
-        function closeSetup() {
-            document.getElementById('setup-modal').style.display = 'none';
-        }
-
-        /* ── Web widget ──────────────────────────────────────────── */
-
-        let webWidgetState = { widget: null, embed: null };
-
-        function wwEl(field) {
-            return document.getElementById(`ww-${field}`);
-        }
-
-        function setWidgetMessage(text, kind) {
-            const box = document.getElementById('webwidget-message');
-            if (!box) return;
-            box.innerText = text || '';
-            box.style.color = kind === 'error' ? '#ef4444'
-                : kind === 'success' ? '#10b981'
-                    : 'var(--text-dim)';
-        }
-
-        function openWebWidget() {
-            document.getElementById('webwidget-modal').style.display = 'flex';
-            document.getElementById('webwidget-loading').style.display = 'block';
-            document.getElementById('webwidget-body').style.display = 'none';
-            setWidgetMessage('');
-            loadWidgetSettings();
-        }
-
-        function closeWebWidget() {
-            document.getElementById('webwidget-modal').style.display = 'none';
-        }
-
-        function renderWidgetForm(widget, embed) {
-            webWidgetState = { widget, embed };
-
-            const textFields = [
-                'display_name', 'subtitle', 'launcher_label', 'welcome_message',
-                'input_placeholder', 'branding_text', 'lead_prompt'
-            ];
-            textFields.forEach(field => {
-                const node = wwEl(field);
-                if (node) node.value = widget[field] || '';
-            });
-
-            wwEl('primary_color').value = widget.primary_color || '#4F46E5';
-            wwEl('text_color').value = widget.text_color || '#FFFFFF';
-            wwEl('avatar_url').value = widget.avatar_url || '';
-            wwEl('launcher_position').value = widget.launcher_position || 'right';
-            wwEl('max_messages_per_session').value = widget.max_messages_per_session || 50;
-
-            [
-                'is_enabled', 'show_branding', 'collect_lead',
-                'lead_require_name', 'lead_require_email', 'lead_require_phone'
-            ].forEach(field => {
-                const node = wwEl(field);
-                if (node) node.checked = Boolean(widget[field]);
-            });
-
-            wwEl('suggested_questions').value = (widget.suggested_questions || []).join('\n');
-            wwEl('allowed_domains').value = (widget.allowed_domains || []).join('\n');
-
-            document.getElementById('webwidget-status-text').innerText =
-                widget.is_enabled
-                    ? 'Live — your widget is answering visitors.'
-                    : 'Disabled — the embed code will not load.';
-
-            document.getElementById('ww-script-snippet').innerText = embed.script_snippet || '';
-            document.getElementById('ww-iframe-snippet').innerText = embed.iframe_snippet || '';
-            document.getElementById('ww-share-url').innerText = embed.share_url || '';
-
-            document.getElementById('webwidget-loading').style.display = 'none';
-            document.getElementById('webwidget-body').style.display = 'block';
-        }
-
-        async function loadWidgetSettings() {
-            const chatbotId = getSelectedChatbotId();
-            if (!chatbotId) return;
-
-            try {
-                const response = await authenticatedFetch(`/api/bots/${chatbotId}/widget`);
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    throw new Error(result.message || 'Could not load widget settings.');
-                }
-
-                renderWidgetForm(result.data.widget, result.data.embed);
-
-            } catch (error) {
-                document.getElementById('webwidget-loading').innerText =
-                    `Failed to load widget settings: ${error.message}`;
+            const whatsappStatus = channelState('whatsapp');
+            if (!['connected', 'attention'].includes(whatsappStatus)) {
+                const blocked = whatsappStatus === 'blocked';
+                const full = whatsappStatus === 'planfull';
+                rows.push(optionRow({
+                    key: 'whatsapp', icon: 'chat', title: 'WhatsApp',
+                    note: 'Use your own WhatsApp Business number. Meta has to approve this one, '
+                        + 'so it takes longer than the others.',
+                    reason: blocked
+                        ? 'We are still finishing our approval with WhatsApp. We will turn this '
+                          + 'on for you when it is ready. Use the link or Telegram for now.'
+                        : (full ? 'Your plan has no free paid channel left. Turn one off, or '
+                            + 'change your plan.' : ''),
+                    cost: blocked ? '' : SLOT_BADGE, status: whatsappStatus, quiet: blocked,
+                    button: (blocked || full) ? null
+                        : { id: 'pub-meta-connect', text: 'Connect with Meta', primary: false },
+                    link: full ? { href: 'pricing.html', text: 'See plans' } : null
+                }));
             }
+
+            document.getElementById('pub-options').innerHTML = rows.join('') + wasenderDisclosure();
         }
 
+        /* Wasender is unsanctioned WhatsApp automation. It stays behind a
+           closed disclosure with the consequence named in plain words, and its
+           button is never primary. */
+        function wasenderDisclosure() {
+            const status = channelState('wasender');
+            const connected = ['connected', 'attention'].includes(status);
+            if (connected) return '';
+
+            return `<details class="kw-advanced" id="pub-wasender">
+                <summary>
+                    ${icon('alert')}
+                    Another WhatsApp option, with a risk
+                    ${icon('chevron', 'kw-advanced-chevron')}
+                </summary>
+                <div class="kw-advanced-body">
+                    <div class="kw-locked kw-wide">
+                        <span class="kw-locked-icon" aria-hidden="true">${icon('alert')}</span>
+                        <div>
+                            <h4>Connect WhatsApp without going through Meta</h4>
+                            <p>This connects your normal WhatsApp through another company. It is
+                                quicker to set up, but WhatsApp does not allow it. Your number can
+                                be blocked, and we cannot get it back for you. Only choose this if
+                                you accept that.</p>
+                        </div>
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="pub-wa-key">Key from the other company</label>
+                        <input class="kw-input" id="pub-wa-key" type="text" autocomplete="off">
+                    </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="pub-wa-phone">Your WhatsApp number</label>
+                        <input class="kw-input" id="pub-wa-phone" type="tel" placeholder="+60...">
+                    </div>
+                    <div class="pub-save">
+                        <button type="button" class="kw-btn cr-press" id="pub-wasender-connect">
+                            I understand the risk, set it up</button>
+                        <span class="kw-help" role="status" aria-live="polite"
+                            id="pub-wasender-result"></span>
+                    </div>
+                </div>
+            </details>`;
+        }
+
+        /* ---- Header summary --------------------------------------------- */
+
+        function renderHeader() {
+            const liveCount = ['widget', 'telegram', 'whatsapp', 'wasender']
+                .filter(kind => channelState(kind) === 'connected').length;
+
+            document.getElementById('pub-live-count').textContent = String(liveCount);
+
+            const e = state.entitlement;
+            document.getElementById('pub-slots').textContent = e.loaded
+                ? (e.limit === null ? String(e.used) : `${e.used} of ${e.limit}`)
+                : '-';
+
+            document.getElementById('pub-status-text').textContent = liveCount === 0
+                ? 'Not live anywhere yet'
+                : (liveCount === 1 ? 'Live in 1 place' : `Live in ${liveCount} places`);
+
+            document.getElementById('pub-live-dot').className =
+                'cr-live-dot' + (liveCount > 0 ? ' is-live' : ' is-idle');
+
+            const note = document.getElementById('pub-slot-note');
+            note.textContent = e.loaded && e.limit !== null
+                ? `${e.used} of ${e.limit} paid slots used`
+                : '';
+        }
+
+        function render() {
+            renderHeader();
+            renderLive();
+            renderOptions();
+            fillWidgetForm();
+            applyUrlFlow();
+        }
+
+        /* ---- The widget form, spread across three disclosures ----------- */
+
+        const WW_TEXT = ['display_name', 'subtitle', 'primary_color', 'text_color', 'avatar_url',
+            'launcher_position', 'launcher_label', 'welcome_message', 'input_placeholder',
+            'branding_text', 'lead_prompt'];
+        const WW_BOOL = ['show_branding', 'collect_lead', 'lead_require_name',
+            'lead_require_email', 'lead_require_phone'];
+        const WW_LIST = ['suggested_questions', 'allowed_domains'];
+
+        function wwEl(name) { return document.getElementById('ww-' + name); }
+
+        function fillWidgetForm() {
+            const w = state.widget;
+            if (!w) return;
+
+            /* render() runs after every refresh, including after connecting a
+               channel. Refilling an open disclosure would discard whatever the
+               owner was in the middle of typing. */
+            if (document.querySelector('#pub-settings details[open]')) return;
+
+            WW_TEXT.forEach(name => {
+                const el = wwEl(name);
+                if (el) el.value = w[name] === null || w[name] === undefined ? '' : w[name];
+            });
+            WW_BOOL.forEach(name => {
+                const el = wwEl(name);
+                if (el) el.checked = Boolean(w[name]);
+            });
+            WW_LIST.forEach(name => {
+                const el = wwEl(name);
+                if (el) el.value = (w[name] || []).join('\n');
+            });
+
+            const cap = wwEl('max_messages_per_session');
+            if (cap) cap.value = w.max_messages_per_session || 50;
+
+            syncDependents();
+        }
+
+        function syncDependents() {
+            document.querySelectorAll('.pub-dependent').forEach(node => {
+                const master = document.getElementById(node.dataset.depends);
+                node.hidden = !(master && master.checked);
+            });
+        }
+
+        /* is_enabled is deliberately absent: the share card owns it, so saving
+           an appearance change can never take a published link offline. */
         function collectWidgetPayload() {
-            const splitLines = value => value
-                .split('\n')
-                .map(line => line.trim())
-                .filter(Boolean);
-
-            return {
-                is_enabled: wwEl('is_enabled').checked,
-                display_name: wwEl('display_name').value,
-                subtitle: wwEl('subtitle').value,
-                primary_color: wwEl('primary_color').value,
-                text_color: wwEl('text_color').value,
-                avatar_url: wwEl('avatar_url').value,
-                launcher_position: wwEl('launcher_position').value,
-                launcher_label: wwEl('launcher_label').value,
-                welcome_message: wwEl('welcome_message').value,
-                input_placeholder: wwEl('input_placeholder').value,
-                suggested_questions: splitLines(wwEl('suggested_questions').value),
-                show_branding: wwEl('show_branding').checked,
-                branding_text: wwEl('branding_text').value,
-                collect_lead: wwEl('collect_lead').checked,
-                lead_prompt: wwEl('lead_prompt').value,
-                lead_require_name: wwEl('lead_require_name').checked,
-                lead_require_email: wwEl('lead_require_email').checked,
-                lead_require_phone: wwEl('lead_require_phone').checked,
-                allowed_domains: splitLines(wwEl('allowed_domains').value),
-                max_messages_per_session: Number(wwEl('max_messages_per_session').value) || 50
-            };
-        }
-
-        async function saveWidgetSettings() {
-            const chatbotId = getSelectedChatbotId();
-            if (!chatbotId) return;
-
-            const button = document.getElementById('webwidget-save');
-            button.disabled = true;
-            button.innerText = 'Saving...';
-            setWidgetMessage('');
-
-            try {
-                const response = await authenticatedFetch(`/api/bots/${chatbotId}/widget`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(collectWidgetPayload())
-                });
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    throw new Error(result.message || 'Could not save widget settings.');
-                }
-
-                renderWidgetForm(result.data.widget, result.data.embed);
-                setWidgetMessage('Saved. Changes are live immediately.', 'success');
-
-            } catch (error) {
-                setWidgetMessage(error.message, 'error');
-            } finally {
-                button.disabled = false;
-                button.innerText = 'Save changes';
-            }
-        }
-
-        async function regenerateWidgetKey() {
-            const confirmed = confirm(
-                'Regenerating the key will immediately break every embed snippet ' +
-                'and share link already published. Continue?'
-            );
-            if (!confirmed) return;
-
-            const chatbotId = getSelectedChatbotId();
-            if (!chatbotId) return;
-
-            setWidgetMessage('Regenerating key...');
-
-            try {
-                const response = await authenticatedFetch(
-                    `/api/bots/${chatbotId}/widget/regenerate-key`,
-                    { method: 'POST' }
-                );
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    throw new Error(result.message || 'Could not regenerate the key.');
-                }
-
-                renderWidgetForm(result.data.widget, result.data.embed);
-                setWidgetMessage('New key issued. Re-copy and reinstall your embed code.', 'success');
-
-            } catch (error) {
-                setWidgetMessage(error.message, 'error');
-            }
-        }
-
-        function copyWidgetValue(elementId, button) {
-            const text = document.getElementById(elementId).innerText;
-            const original = button.innerText;
-
-            const done = () => {
-                button.innerText = 'Copied!';
-                setTimeout(() => { button.innerText = original; }, 1600);
-            };
-
-            if (navigator.clipboard && window.isSecureContext) {
-                navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
-            } else {
-                fallbackCopy(text, done);
-            }
-        }
-
-        function fallbackCopy(text, done) {
-            const area = document.createElement('textarea');
-            area.value = text;
-            area.style.position = 'fixed';
-            area.style.opacity = '0';
-            document.body.appendChild(area);
-            area.select();
-            try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
-            document.body.removeChild(area);
-        }
-
-        function openWidgetPreview() {
-            const url = webWidgetState.embed && webWidgetState.embed.share_url;
-            if (!url) return;
-
-            if (!webWidgetState.widget.is_enabled) {
-                setWidgetMessage('Enable the widget and save before previewing.', 'error');
-                return;
-            }
-            window.open(url, '_blank', 'noopener');
-        }
-
-        function getSafeAuthHeaders() {
-            // Try your existing auth.js function first
-            if (typeof getAuthHeaders === 'function') {
-                return getAuthHeaders();
-            }
-
-            // Fallback: try common localStorage token names
-            const token =
-                localStorage.getItem('token') ||
-                localStorage.getItem('authToken') ||
-                localStorage.getItem('access_token') ||
-                localStorage.getItem('jwt') ||
-                sessionStorage.getItem('token') ||
-                sessionStorage.getItem('authToken') ||
-                sessionStorage.getItem('access_token') ||
-                sessionStorage.getItem('jwt');
-
-            if (!token) {
-                return {};
-            }
-
-            return {
-                'Authorization': `Bearer ${token}`,
-                'x-access-token': token
-            };
-        }
-
-        function getSelectedChatbotId() {
-            return selectedBotId;
-        }
-
-        function setWhatsAppCloudState(state, message) {
-            const messageBox = document.getElementById('whatsapp-cloud-message');
-            const button = document.getElementById('whatsapp-cloud-connect-button');
-
-            if (messageBox) {
-                messageBox.innerText = message || '';
-                messageBox.style.color = state === 'error' || state === 'not-configured'
-                    ? '#ef4444'
-                    : state === 'connected'
-                        ? '#10b981'
-                        : 'var(--text-dim)';
-            }
-
-            if (button) {
-                if (shouldBlockNewChannel('whatsapp')) {
-                    button.disabled = true;
-                    button.innerText = 'Channel Limit Reached';
-                    button.title = getChannelLimitMessage();
-                    button.style.opacity = '0.65';
-                    button.style.cursor = 'not-allowed';
-                    if (messageBox) {
-                        messageBox.innerText = getChannelLimitMessage();
-                        messageBox.style.color = '#ef4444';
-                    }
-                    return;
-                }
-                const isReady = Boolean(whatsAppEmbeddedSignupConfig && window.FB);
-                button.disabled = state === 'connecting' || state === 'not-configured' || (state === 'preparing' && !isReady);
-                button.innerText = state === 'connecting' ? 'Connecting...' : 'Connect with Meta';
-                button.title = '';
-                button.style.opacity = button.disabled ? '0.65' : '1';
-                button.style.cursor = button.disabled ? 'not-allowed' : 'pointer';
-            }
-        }
-
-        async function loadWhatsAppEmbeddedSignupConfig() {
-            setWhatsAppCloudState('preparing', 'Preparing Meta Embedded Signup...');
-
-            try {
-                const response = await authenticatedFetch('/api/whatsapp/embedded-signup/config');
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    whatsAppEmbeddedSignupConfig = null;
-                    setWhatsAppCloudState('not-configured', result.message || 'WhatsApp Embedded Signup is not configured.');
-                    return null;
-                }
-
-                whatsAppEmbeddedSignupConfig = result.data;
-                return result.data;
-
-            } catch (error) {
-                console.error('WhatsApp Embedded Signup config error:', error);
-                whatsAppEmbeddedSignupConfig = null;
-                setWhatsAppCloudState('error', `Failed to load WhatsApp configuration: ${error.message}`);
-                return null;
-            }
-        }
-
-        async function prepareWhatsAppEmbeddedSignup() {
-            setWhatsAppCloudState('preparing', 'Preparing Meta Embedded Signup...');
-
-            const config = await loadWhatsAppEmbeddedSignupConfig();
-
-            if (!config) {
-                return null;
-            }
-
-            try {
-                console.log('Preloading Meta SDK for WhatsApp Embedded Signup...');
-                await initializeMetaSdk(config);
-                console.log('Meta SDK preloaded for WhatsApp Embedded Signup.');
-                setWhatsAppCloudState('ready', 'Ready to connect your WhatsApp Business Account through Meta.');
-                return config;
-            } catch (error) {
-                console.error('Meta SDK preload error:', error);
-                setWhatsAppCloudState('error', `Failed to load Meta SDK: ${error.message}`);
-                return null;
-            }
-        }
-
-        function initializeMetaSdk(config) {
-            if (!config || !config.app_id) {
-                return Promise.reject(new Error('Meta app ID is missing.'));
-            }
-
-            const initSdk = () => {
-                if (!window.FB) {
-                    throw new Error('Meta SDK did not load.');
-                }
-
-                window.FB.init({
-                    appId: config.app_id,
-                    autoLogAppEvents: true,
-                    xfbml: false,
-                    version: config.graph_api_version || 'v22.0'
-                });
-
-                return window.FB;
-            };
-
-            if (window.FB) {
-                return Promise.resolve(initSdk());
-            }
-
-            if (!metaSdkLoadingPromise) {
-                metaSdkLoadingPromise = new Promise((resolve, reject) => {
-                    const existingScript = document.getElementById('facebook-jssdk');
-
-                    if (existingScript) {
-                        existingScript.addEventListener('load', () => {
-                            try {
-                                resolve(initSdk());
-                            } catch (error) {
-                                reject(error);
-                            }
-                        });
-                        existingScript.addEventListener('error', () => reject(new Error('Failed to load Meta SDK.')));
-                        return;
-                    }
-
-                    const script = document.createElement('script');
-                    script.id = 'facebook-jssdk';
-                    script.async = true;
-                    script.defer = true;
-                    script.crossOrigin = 'anonymous';
-                    script.src = 'https://connect.facebook.net/en_US/sdk.js';
-                    script.onload = () => {
-                        try {
-                            resolve(initSdk());
-                        } catch (error) {
-                            reject(error);
-                        }
-                    };
-                    script.onerror = () => reject(new Error('Failed to load Meta SDK.'));
-                    document.body.appendChild(script);
-                });
-            }
-
-            return metaSdkLoadingPromise;
-        }
-
-        function findNestedValue(source, keys) {
-            if (!source || typeof source !== 'object') return null;
-
-            for (const key of keys) {
-                if (source[key]) return source[key];
-            }
-
-            for (const value of Object.values(source)) {
-                const nestedValue = findNestedValue(value, keys);
-                if (nestedValue) return nestedValue;
-            }
-
-            return null;
-        }
-
-        function parseMetaPayloadData(data) {
-            if (typeof data !== 'string') {
-                return data;
-            }
-
-            try {
-                return JSON.parse(data);
-            } catch (error) {
-                const params = new URLSearchParams(data);
-                const parsed = {};
-
-                params.forEach((value, key) => {
-                    try {
-                        parsed[key] = JSON.parse(value);
-                    } catch (parseError) {
-                        parsed[key] = value;
-                    }
-                });
-
-                return Object.keys(parsed).length ? parsed : data;
-            }
-        }
-
-        function parseMetaSignupEvent(event) {
-            const allowedOrigins = [
-                'https://www.facebook.com',
-                'https://web.facebook.com',
-                'https://business.facebook.com'
-            ];
-
-            if (!allowedOrigins.includes(event.origin)) {
-                return;
-            }
-
-            const payload = parseMetaPayloadData(event.data);
-
-            console.log('WhatsApp Embedded Signup event origin:', event.origin);
-            console.log('WhatsApp Embedded Signup raw event data:', event.data);
-            console.log('WhatsApp Embedded Signup parsed payload:', payload);
-
-            const eventType = payload && (payload.type || payload.event);
-
-            if (
-                eventType && String(eventType).includes('WA_EMBEDDED_SIGNUP') ||
-                findNestedValue(payload, ['waba_id', 'whatsapp_business_account_id', 'phone_number_id', 'business_phone_number_id'])
-            ) {
-                whatsAppSignupEventData = payload;
-            }
-        }
-
-        window.addEventListener('message', parseMetaSignupEvent);
-
-        function extractWhatsAppSignupIds(source) {
-            return {
-                waba_id: findNestedValue(source, ['waba_id', 'whatsapp_business_account_id', 'whatsapp_business_id']),
-                phone_number_id: findNestedValue(source, ['phone_number_id', 'phoneNumberId', 'business_phone_number_id']),
-                business_id: findNestedValue(source, ['business_id', 'businessId'])
-            };
-        }
-
-        function waitForWhatsAppSignupEvent(timeoutMs = 2000) {
-            if (whatsAppSignupEventData) {
-                return Promise.resolve(whatsAppSignupEventData);
-            }
-
-            return new Promise((resolve) => {
-                const startedAt = Date.now();
-                const interval = setInterval(() => {
-                    if (whatsAppSignupEventData || Date.now() - startedAt >= timeoutMs) {
-                        clearInterval(interval);
-                        resolve(whatsAppSignupEventData);
-                    }
-                }, 100);
+            const splitLines = value => value.split('\n').map(l => l.trim()).filter(Boolean);
+            const payload = {};
+
+            WW_TEXT.forEach(name => { const el = wwEl(name); if (el) payload[name] = el.value; });
+            WW_BOOL.forEach(name => { const el = wwEl(name); if (el) payload[name] = el.checked; });
+            WW_LIST.forEach(name => {
+                const el = wwEl(name);
+                if (el) payload[name] = splitLines(el.value);
             });
+            payload.max_messages_per_session = Number(wwEl('max_messages_per_session').value) || 50;
+
+            return payload;
         }
 
-        async function handleMetaEmbeddedSignupResponse(response) {
-            console.log('Meta Embedded Signup login response:', response);
+        /* ---- Actions ----------------------------------------------------- */
 
-            const code = response?.authResponse?.code || response?.code;
+        function openFlow(key) {
+            /* An accordion of one: opening a flow closes any other. */
+            document.querySelectorAll('.pub-flow').forEach(flow => {
+                flow.hidden = flow.id !== 'pub-flow-' + key;
+            });
+            document.querySelectorAll('[data-flow-open]').forEach(button => {
+                const mine = button.dataset.flowOpen === key;
+                button.setAttribute('aria-expanded', mine ? 'true' : 'false');
+                button.closest('.pub-option').classList.toggle('is-open', mine);
+            });
 
-            if (!code) {
-                setWhatsAppCloudState('error', 'Meta signup did not return an authorization code.');
-                return;
-            }
+            state.openFlow = key;
+            const url = new URL(window.location.href);
+            url.searchParams.set('connect', key);
+            window.history.replaceState({}, '', url);
 
-            let signupSource = {
-                response,
-                eventData: whatsAppSignupEventData
-            };
-
-            let signupIds = extractWhatsAppSignupIds(signupSource);
-
-            if (!signupIds.waba_id || !signupIds.phone_number_id) {
-                await waitForWhatsAppSignupEvent();
-                signupSource = {
-                    response,
-                    eventData: whatsAppSignupEventData
-                };
-                signupIds = extractWhatsAppSignupIds(signupSource);
-            }
-
-            const payload = { code, ...signupIds };
-
-            if (!payload.waba_id || !payload.phone_number_id) {
-                console.error('Missing WhatsApp signup IDs:', signupSource);
-                setWhatsAppCloudState('error', 'Meta signup completed, but WhatsApp account or phone number ID was missing.');
-                return;
-            }
-
-            await completeWhatsAppEmbeddedSignup(payload);
-        }
-
-        async function connectWhatsAppCloud() {
-            if (shouldBlockNewChannel('whatsapp')) {
-                setWhatsAppCloudState('error', getChannelLimitMessage());
-                return;
-            }
-
-            setWhatsAppCloudState('connecting', 'Opening Meta Embedded Signup...');
-
-            try {
-                const config = whatsAppEmbeddedSignupConfig;
-
-                if (!config || !window.FB) {
-                    console.warn('Meta SDK or Embedded Signup config is not ready yet.');
-                    setWhatsAppCloudState(
-                        'error',
-                        'Meta SDK is still preparing. Please wait a moment and try again.'
-                    );
-                    return;
-                }
-
-                let loginCallbackReceived = false;
-                const loginTimeout = setTimeout(() => {
-                    if (loginCallbackReceived) return;
-
-                    console.error('Meta Embedded Signup login callback timed out after 30 seconds.');
-                    setWhatsAppCloudState(
-                        'error',
-                        'Meta signup did not respond. Please allow popups and check your Meta app domain/configuration.'
-                    );
-                }, 30000);
-
-                console.log('Opening Meta Embedded Signup with FB.login...');
-                window.FB.login((response) => {
-                    loginCallbackReceived = true;
-                    clearTimeout(loginTimeout);
-                    handleMetaEmbeddedSignupResponse(response).catch((error) => {
-                        console.error('Meta Embedded Signup response handling error:', error);
-                        setWhatsAppCloudState('error', `Connection failed: ${error.message}`);
+            const flow = document.getElementById('pub-flow-' + key);
+            if (flow) {
+                flow.querySelectorAll('.pub-guide-step, .pub-submit, .pub-flow-head')
+                    .forEach((node, i) => {
+                        node.classList.add('cr-reveal');
+                        node.style.setProperty('--motion-index', i);
+                        requestAnimationFrame(() => node.classList.add('is-in'));
                     });
-                }, {
-                    config_id: config.config_id,
-                    response_type: 'code',
-                    override_default_response_type: true,
-                    extras: {
-                        feature: 'whatsapp_embedded_signup',
-                        setup: {},
-                        sessionInfoVersion: '3'
-                    }
-                });
-
-            } catch (error) {
-                console.error('WhatsApp Cloud connect error:', error);
-                setWhatsAppCloudState('error', `Connection failed: ${error.message}`);
+                const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                flow.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'nearest' });
             }
         }
 
-        async function completeWhatsAppEmbeddedSignup(payload) {
-            const chatbotId = getSelectedChatbotId();
-            const apiUrl = `/api/whatsapp/embedded-signup/complete?chatbot_id=${chatbotId}`;
-
-            setWhatsAppCloudState('connecting', 'Completing WhatsApp connection...');
-
-            try {
-                const response = await authenticatedFetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(payload)
-                });
-
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    setWhatsAppCloudState('error', result.message || 'Failed to complete WhatsApp connection.');
-                    return;
-                }
-
-                const channel = result.data || {};
-                const number = channel.display_phone_number || channel.phone_number_id || 'WhatsApp number';
-
-                setWhatsAppCloudState('connected', `${number} connected successfully.`);
-                latestChannels.whatsapp = channel;
-                await loadChannelStatus();
-
-            } catch (error) {
-                console.error('Complete WhatsApp Embedded Signup error:', error);
-                setWhatsAppCloudState('error', `Connection failed: ${error.message}`);
-            }
+        function closeFlow() {
+            document.querySelectorAll('.pub-flow').forEach(flow => { flow.hidden = true; });
+            document.querySelectorAll('[data-flow-open]').forEach(button => {
+                button.setAttribute('aria-expanded', 'false');
+                button.closest('.pub-option').classList.remove('is-open');
+            });
+            state.openFlow = null;
+            const url = new URL(window.location.href);
+            url.searchParams.delete('connect');
+            window.history.replaceState({}, '', url);
         }
 
-        function setChannelStatus(platform, status, detail) {
-            const pill = document.getElementById(`${platform}-status-pill`);
-            const detailBox = document.getElementById(`${platform}-status-detail`);
-
-            if (!pill || !detailBox) return;
-
-            pill.classList.remove('status-connected', 'status-pending', 'status-disconnected');
-
-            if (status === 'connected') {
-                pill.classList.add('status-connected');
-                pill.innerText = 'Connected';
-            } else if (status === 'pending') {
-                pill.classList.add('status-pending');
-                pill.innerText = 'Pending';
-            } else {
-                pill.classList.add('status-disconnected');
-                pill.innerText = 'Not Connected';
-            }
-
-            detailBox.innerText = detail;
+        /* The flow is addressable, so a reload after switching to Telegram
+           lands back where the owner left off. */
+        function applyUrlFlow() {
+            const wanted = new URLSearchParams(window.location.search).get('connect');
+            if (wanted && document.getElementById('pub-flow-' + wanted)) openFlow(wanted);
         }
 
-        function getLatestChannel(channels) {
-            if (!Array.isArray(channels) || channels.length === 0) {
-                return null;
-            }
-
-            return channels[0];
+        function showResult(hostId, kind, message) {
+            const host = document.getElementById(hostId);
+            if (!host) return;
+            host.innerHTML = `<div class="kw-banner kw-banner-${kind}">`
+                + `${icon(kind === 'success' ? 'check' : 'alert')}${escapeHtml(message)}</div>`;
+            host.focus({ preventScroll: true });
         }
 
-        function updatePlatformButton(platform, isConnected) {
-            const button = document.getElementById(`${platform}-card-button`);
-
-            if (!button) return;
-
-            if (platform === 'telegram') {
-                button.innerText = isConnected ? 'Manage Telegram' : 'Connect Telegram';
+        /* Backend errors are written for us, not for a shop owner. Map the ones
+           we can recognise onto plain language, and never leak a raw message. */
+        function telegramError(status, message) {
+            const raw = String(message || '').toLowerCase();
+            if (raw.includes('unauthorized') || raw.includes('not found') || status === 400
+                && raw.includes('getme')) {
+                return 'That code did not work. Copy the whole line from BotFather, including '
+                    + 'the numbers at the start.';
             }
-
-            if (platform === 'whatsapp') {
-                button.innerText = isConnected ? 'Manage WhatsApp' : 'Connect WhatsApp';
+            if (raw.includes('channel limit') || raw.includes('channel_limit')) {
+                return 'Your plan has no free paid channel left. Turn one off, or change your plan.';
             }
-
-            if (platform === 'wasender') {
-                button.innerText = isConnected ? 'Manage WasenderAPI' : 'Connect WasenderAPI';
+            if (raw.includes('already')) {
+                return 'This Telegram bot is already connected somewhere else. Disconnect it '
+                    + 'there first, then come back.';
             }
-
-            const blocked = !isConnected && isChannelLimitReached();
-            if (blocked) {
-                button.innerText = 'Channel Limit Reached';
-                button.disabled = true;
-                button.title = getChannelLimitMessage();
-                button.style.opacity = '0.65';
-                button.style.cursor = 'not-allowed';
-            } else {
-                button.disabled = false;
-                button.title = '';
-                button.style.opacity = '1';
-                button.style.cursor = 'pointer';
-            }
-        }
-
-        async function loadTelegramStatus(chatbotId) {
-            try {
-                const response = await authenticatedFetch(`/api/telegram/channels?chatbot_id=${chatbotId}`);
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    latestChannels.telegram = null;
-                    setChannelStatus('telegram', 'disconnected', result.message || 'Unable to load Telegram status.');
-                    updatePlatformButton('telegram', false);
-                    return;
-                }
-
-                const channel = getLatestChannel(result.data);
-                latestChannels.telegram = channel;
-
-                if (!channel) {
-                    setChannelStatus('telegram', 'disconnected', 'No Telegram bot connected yet.');
-                    updatePlatformButton('telegram', false);
-                    latestChannels.telegram = null;
-                    return;
-                }
-
-                const status = channel.connection_status || 'pending';
-                const username = channel.bot_username ? `@${channel.bot_username}` : 'Telegram bot';
-
-                if (status === 'connected' && channel.is_active) {
-                    setChannelStatus('telegram', 'connected', `${username} is connected and active.`);
-                    updatePlatformButton('telegram', true);
-                } else if (status === 'failed' || status === 'disconnected' || !channel.is_active) {
-                    setChannelStatus('telegram', 'disconnected', `${username} is disconnected.`);
-                    updatePlatformButton('telegram', true);
-                } else {
-                    setChannelStatus('telegram', 'pending', `${username} is saved but not fully connected yet.`);
-                    updatePlatformButton('telegram', false);
-                }
-
-            } catch (error) {
-                console.error('Telegram status error:', error);
-                latestChannels.telegram = null;
-                setChannelStatus('telegram', 'disconnected', 'Failed to load Telegram status.');
-                updatePlatformButton('telegram', false);
-            }
-        }
-
-        async function loadWhatsAppStatus(chatbotId) {
-            try {
-                const response = await authenticatedFetch(`/api/whatsapp/channels?chatbot_id=${chatbotId}`);
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    latestChannels.whatsapp = null;
-                    setChannelStatus('whatsapp', 'disconnected', result.message || 'Unable to load WhatsApp status.');
-                    updatePlatformButton('whatsapp', false);
-                    return;
-                }
-
-                const channel = getLatestChannel(result.data);
-                latestChannels.whatsapp = channel;
-
-                if (!channel) {
-                    setChannelStatus('whatsapp', 'disconnected', 'No WhatsApp number connected yet.');
-                    updatePlatformButton('whatsapp', false);
-                    latestChannels.whatsapp = null;
-                    return;
-                }
-
-                const status = channel.connection_status || (channel.is_active ? 'connected' : 'pending');
-                const number = channel.display_phone_number || channel.phone_number_id || 'WhatsApp number';
-
-                if (status === 'connected' && channel.is_active) {
-                    setChannelStatus('whatsapp', 'connected', `${number} is connected and active.`);
-                    updatePlatformButton('whatsapp', true);
-                } else if (status === 'failed' || status === 'disconnected' || !channel.is_active) {
-                    setChannelStatus('whatsapp', 'disconnected', `${number} is disconnected.`);
-                    updatePlatformButton('whatsapp', false);
-                } else {
-                    setChannelStatus('whatsapp', 'pending', `${number} is saved but may still need setup.`);
-                    updatePlatformButton('whatsapp', false);
-                }
-
-            } catch (error) {
-                console.error('WhatsApp status error:', error);
-                latestChannels.whatsapp = null;
-                setChannelStatus('whatsapp', 'disconnected', 'Failed to load WhatsApp status.');
-                updatePlatformButton('whatsapp', false);
-            }
-        }
-
-        async function loadWasenderStatus(chatbotId) {
-            try {
-                const response = await authenticatedFetch(`/api/wasender/channels?chatbot_id=${chatbotId}`);
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    latestChannels.wasender = null;
-                    setChannelStatus('wasender', 'disconnected', result.message || 'Unable to load WasenderAPI status.');
-                    updatePlatformButton('wasender', false);
-                    return;
-                }
-
-                const channel = getLatestChannel(result.data);
-                latestChannels.wasender = channel;
-
-                if (!channel) {
-                    setChannelStatus('wasender', 'disconnected', 'No WasenderAPI channel connected yet.');
-                    updatePlatformButton('wasender', false);
-                    latestChannels.wasender = null;
-                    return;
-                }
-
-                const status = channel.connection_status || (channel.is_active ? 'connected' : 'pending');
-                const number = channel.phone_number || channel.session_name || 'WasenderAPI channel';
-
-                if (status === 'connected' && channel.is_active) {
-                    setChannelStatus('wasender', 'connected', `${number} is connected and active.`);
-                    updatePlatformButton('wasender', true);
-                } else if (status === 'failed' || status === 'disconnected' || !channel.is_active) {
-                    setChannelStatus('wasender', 'disconnected', `${number} is disconnected.`);
-                    updatePlatformButton('wasender', true);
-                } else {
-                    setChannelStatus('wasender', 'pending', `${number} is saved but may still need setup.`);
-                    updatePlatformButton('wasender', false);
-                }
-
-            } catch (error) {
-                console.error('WasenderAPI status error:', error);
-                latestChannels.wasender = null;
-                setChannelStatus('wasender', 'disconnected', 'Failed to load WasenderAPI status.');
-                updatePlatformButton('wasender', false);
-            }
-        }
-
-        async function loadChannelStatus() {
-            const chatbotId = getSelectedChatbotId();
-
-            setChannelStatus('telegram', 'pending', 'Checking Telegram connection...');
-            setChannelStatus('whatsapp', 'pending', 'Checking WhatsApp connection...');
-            setChannelStatus('wasender', 'pending', 'Checking WasenderAPI connection...');
-
-            await loadChannelEntitlement();
-            await loadTelegramStatus(chatbotId);
-            await loadWhatsAppStatus(chatbotId);
-            await loadWasenderStatus(chatbotId);
-        }
-
-        async function disconnectChannel(platform, channelId) {
-            const messageBox = document.getElementById('disconnect-message');
-            const chatbotId = getSelectedChatbotId();
-
-            if (!channelId) {
-                if (messageBox) {
-                    messageBox.style.color = '#ef4444';
-                    messageBox.innerText = 'Channel ID is missing.';
-                }
-                return;
-            }
-
-            const confirmText = platform === 'telegram'
-                ? 'Disconnect this Telegram bot? It will stop receiving new Telegram messages.'
-                : 'Disconnect this WhatsApp channel? It will stop mapping this number to the chatbot.';
-
-            if (!confirm(confirmText)) {
-                return;
-            }
-
-            const apiUrl = `/api/${platform}/channels/${channelId}/disconnect?chatbot_id=${chatbotId}`;
-
-            if (messageBox) {
-                messageBox.style.color = 'var(--text-dim)';
-                messageBox.innerText = `Disconnecting ${platform}...`;
-            }
-
-            try {
-                const response = await authenticatedFetch(apiUrl, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    if (messageBox) {
-                        messageBox.style.color = '#ef4444';
-                        messageBox.innerText = result.message || `Failed to disconnect ${platform}.`;
-                    }
-                    return;
-                }
-
-                if (messageBox) {
-                    messageBox.style.color = '#10b981';
-                    messageBox.innerText = result.message || `${platform} disconnected successfully.`;
-                }
-
-                latestChannels[platform] = null;
-
-                await loadChannelStatus();
-
-                setTimeout(() => {
-                    closeSetup();
-                }, 800);
-
-            } catch (error) {
-                console.error(`${platform} disconnect error:`, error);
-
-                if (messageBox) {
-                    messageBox.style.color = '#ef4444';
-                    messageBox.innerText = `Disconnect failed: ${error.message}`;
-                }
-            }
-        }
-
-        async function reconnectChannel(platform, channelId) {
-            const messageBox = document.getElementById('disconnect-message');
-            const chatbotId = getSelectedChatbotId();
-
-            if (platform !== 'telegram') {
-                if (messageBox) {
-                    messageBox.style.color = '#ef4444';
-                    messageBox.innerText = 'Reconnect is currently available for Telegram only.';
-                }
-                return;
-            }
-
-            if (!channelId) {
-                if (messageBox) {
-                    messageBox.style.color = '#ef4444';
-                    messageBox.innerText = 'Channel ID is missing.';
-                }
-                return;
-            }
-
-            if (!confirm('Reconnect this Telegram bot using the saved token?')) {
-                return;
-            }
-
-            const apiUrl = `/api/telegram/channels/${channelId}/reconnect?chatbot_id=${chatbotId}`;
-
-            if (messageBox) {
-                messageBox.style.color = 'var(--text-dim)';
-                messageBox.innerText = 'Reconnecting Telegram...';
-            }
-
-            try {
-                const response = await authenticatedFetch(apiUrl, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    if (messageBox) {
-                        messageBox.style.color = '#ef4444';
-                        messageBox.innerText = result.message || 'Failed to reconnect Telegram.';
-                    }
-                    return;
-                }
-
-                if (messageBox) {
-                    messageBox.style.color = '#10b981';
-                    messageBox.innerText = result.message || 'Telegram reconnected successfully.';
-                }
-
-                await loadChannelStatus();
-
-                setTimeout(() => {
-                    closeSetup();
-                }, 900);
-
-            } catch (error) {
-                console.error('Telegram reconnect error:', error);
-
-                if (messageBox) {
-                    messageBox.style.color = '#ef4444';
-                    messageBox.innerText = `Reconnect failed: ${error.message}`;
-                }
-            }
+            if (status >= 500) return 'Something went wrong on our side. Try again in a minute.';
+            return 'We could not finish connecting. Check your internet and try again.';
         }
 
         async function connectTelegram() {
-            console.log("connectTelegram clicked");
+            const input = document.getElementById('pub-telegram-code');
+            const button = document.getElementById('pub-telegram-connect');
+            const code = input.value.trim();
 
-            const tokenInput = document.getElementById('telegram-bot-token');
-            const messageBox = document.getElementById('telegram-connect-message');
-
-            if (!tokenInput) {
-                console.error("telegram-bot-token input not found");
-                alert("Telegram token input not found.");
+            if (!code.includes(':') || code.length < 20) {
+                showResult('pub-telegram-result', 'error',
+                    'That does not look like the right code. It looks like 8123456789:AAH and '
+                    + 'then more letters. Copy the whole line.');
+                input.focus();
                 return;
             }
 
-            if (!messageBox) {
-                console.error("telegram-connect-message box not found");
-                alert("Telegram message box not found.");
-                return;
-            }
-
-            const botToken = tokenInput.value.trim();
-
-            if (!botToken) {
-                messageBox.style.color = '#ef4444';
-                messageBox.innerText = 'Please paste your Telegram bot token first.';
-                return;
-            }
-
-            const chatbotId = getSelectedChatbotId();
-            if (!chatbotId) {
-                return;
-            }
-
-            if (shouldBlockNewChannel('telegram')) {
-                messageBox.style.color = '#ef4444';
-                messageBox.innerText = getChannelLimitMessage();
-                return;
-            }
-
-            const apiUrl = `/api/telegram/connect?chatbot_id=${chatbotId}`;
-
-            console.log("Sending Telegram connect request to:", apiUrl);
-
-            messageBox.style.color = 'var(--text-dim)';
-            messageBox.innerText = 'Connecting Telegram bot...';
+            button.disabled = true;
+            button.textContent = 'Checking...';
 
             try {
-                const response = await authenticatedFetch(apiUrl, {
+                const result = await getJson(`/api/telegram/connect?chatbot_id=${BOT_ID}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...getSafeAuthHeaders()
-                    },
-                    body: JSON.stringify({
-                        bot_token: botToken
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ bot_token: code })
                 });
 
-                console.log("Telegram connect response status:", response.status);
-
-                const result = await response.json();
-                console.log("Telegram connect response body:", result);
-
-                if (!response.ok || result.status !== 'success') {
-                    messageBox.style.color = '#ef4444';
-                    messageBox.innerText = result.message || 'Failed to connect Telegram bot.';
+                if (!result.ok) {
+                    showResult('pub-telegram-result', 'error',
+                        telegramError(result.status, result.body.message));
                     return;
                 }
 
-                messageBox.style.color = '#10b981';
-                messageBox.innerText = `Connected successfully: @${result.data.bot_username}`;
+                const name = result.body.data.bot_username
+                    ? '@' + result.body.data.bot_username : 'your bot';
+                showResult('pub-telegram-result', 'success',
+                    `Connected. Your bot is ${name} on Telegram.`);
+                announce(`Telegram connected as ${name}.`);
+                input.value = '';
 
-                tokenInput.value = '';
-                loadChannelStatus();
-
+                await refresh();
+                closeFlow();
             } catch (error) {
-                console.error("Telegram connect error:", error);
-                messageBox.style.color = '#ef4444';
-                messageBox.innerText = `Connection failed: ${error.message}`;
+                showResult('pub-telegram-result', 'error',
+                    'We could not finish connecting. Check your internet and try again.');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Connect';
             }
         }
 
+        /* ---- Confirmation, for the things that cannot be undone ---------- */
+
+        let confirmAction = null;
+
+        function askConfirm(title, body, okLabel, cancelLabel, action) {
+            document.getElementById('pub-confirm-title').textContent = title;
+            document.getElementById('pub-confirm-body').textContent = body;
+            document.getElementById('pub-confirm-ok').textContent = okLabel;
+            document.getElementById('pub-confirm-cancel').textContent = cancelLabel;
+            document.getElementById('pub-confirm').classList.add('is-open');
+            document.getElementById('pub-confirm-ok').focus();
+            confirmAction = action;
+        }
+
+        function closeConfirm() {
+            document.getElementById('pub-confirm').classList.remove('is-open');
+            confirmAction = null;
+        }
+
+        async function setWidgetEnabled(enabled) {
+            const result = await getJson(`/api/bots/${BOT_ID}/widget`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_enabled: enabled })
+            });
+
+            if (!result.ok) {
+                announce('We could not change that. Try again.');
+                return;
+            }
+            state.widget = result.body.data.widget;
+            state.embed = result.body.data.embed;
+            announce(enabled ? 'The link is on.' : 'The link is off.');
+            renderHeader();
+            renderLive();
+        }
+
+        async function disconnectChannel(kind) {
+            const record = state.channels[kind];
+            if (!record) return;
+
+            const result = await getJson(
+                `/api/${kind}/channels/${record.id}/disconnect?chatbot_id=${BOT_ID}`,
+                { method: 'PUT' });
+
+            announce(result.ok
+                ? `${CHANNEL_LABEL[kind]} disconnected.`
+                : 'We could not disconnect that. Try again.');
+            await refresh();
+        }
+
+        async function reconnectChannel(kind) {
+            const record = state.channels[kind];
+            if (!record || kind !== 'telegram') return;
+
+            const result = await getJson(
+                `/api/telegram/channels/${record.id}/reconnect?chatbot_id=${BOT_ID}`,
+                { method: 'PUT' });
+
+            announce(result.ok ? 'Telegram is working again.'
+                : telegramError(result.status, result.body.message));
+            await refresh();
+        }
+
+        async function saveWidget(group) {
+            const button = document.querySelector(`[data-save="${group}"]`);
+            const status = document.querySelector(`[data-savestate="${group}"]`);
+            button.disabled = true;
+            status.textContent = 'Saving...';
+
+            const result = await getJson(`/api/bots/${BOT_ID}/widget`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(collectWidgetPayload())
+            });
+
+            if (result.ok) {
+                state.widget = result.body.data.widget;
+                state.embed = result.body.data.embed;
+                status.textContent = 'Saved. It is live now.';
+                renderLive();
+            } else {
+                status.textContent = 'We could not save that. Try again.';
+            }
+
+            button.disabled = false;
+            setTimeout(() => { status.textContent = ''; }, 4000);
+        }
+
+        async function regenerateKey() {
+            const result = await getJson(`/api/bots/${BOT_ID}/widget/regenerate-key`,
+                { method: 'POST' });
+
+            if (!result.ok) {
+                announce('We could not make a new link. Try again.');
+                return;
+            }
+            state.widget = result.body.data.widget;
+            state.embed = result.body.data.embed;
+            announce('New link made. The old one has stopped working.');
+            renderLive();
+        }
+
+        function saveQrCode() {
+            if (!state.embed) return;
+            const svg = qrSvg(state.embed.share_url, 'QR code for your chat link');
+            if (!svg) return;
+
+            const blob = new Blob([svg], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = 'chat-qr-code.svg';
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            announce('QR code saved.');
+        }
+
         async function connectWasender() {
-            console.log("connectWasender clicked");
+            const key = document.getElementById('pub-wa-key').value.trim();
+            const phone = document.getElementById('pub-wa-phone').value.trim();
+            const status = document.getElementById('pub-wasender-result');
 
-            const apiKeyInput = document.getElementById('wasender-api-key');
-            const phoneInput = document.getElementById('wasender-phone-number');
-            const sessionNameInput = document.getElementById('wasender-session-name');
-            const sessionIdInput = document.getElementById('wasender-session-id');
-            const messageBox = document.getElementById('wasender-connect-message');
-
-            if (!apiKeyInput || !phoneInput || !messageBox) {
-                alert("WasenderAPI form input not found.");
+            if (!key || !phone) {
+                status.textContent = 'Fill in both boxes first.';
                 return;
             }
 
-            const apiKey = apiKeyInput.value.trim();
-            const phoneNumber = phoneInput.value.trim();
-            const sessionName = sessionNameInput ? sessionNameInput.value.trim() : "";
-            const sessionId = sessionIdInput ? sessionIdInput.value.trim() : "";
+            status.textContent = 'Setting it up...';
+            const result = await getJson(`/api/wasender/connect?chatbot_id=${BOT_ID}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ api_key: key, phone_number: phone })
+            });
 
-            if (!apiKey) {
-                messageBox.style.color = '#ef4444';
-                messageBox.innerText = 'Please paste your WasenderAPI key first.';
-                return;
-            }
+            status.textContent = result.ok ? 'Set up.' : 'That did not work. Check both boxes.';
+            if (result.ok) await refresh();
+        }
 
-            if (!phoneNumber) {
-                messageBox.style.color = '#ef4444';
-                messageBox.innerText = 'Please enter the WhatsApp phone number.';
-                return;
-            }
+        /* ---- WhatsApp, through Meta's own popup -------------------------- */
 
-            if (!phoneNumber.startsWith('+')) {
-                messageBox.style.color = '#ef4444';
-                messageBox.innerText = 'Phone number must use international format, example: +60123456789';
-                return;
-            }
+        /* The Facebook SDK is loaded on demand, not on every page view. Most
+           owners never touch this option, and it is a third-party script. */
+        let fbSdkPromise = null;
 
-            const chatbotId = getSelectedChatbotId();
-            if (shouldBlockNewChannel('wasender')) {
-                messageBox.style.color = '#ef4444';
-                messageBox.innerText = getChannelLimitMessage();
-                return;
-            }
+        function loadFacebookSdk(version) {
+            if (fbSdkPromise) return fbSdkPromise;
 
-            const apiUrl = `/api/wasender/connect?chatbot_id=${chatbotId}`;
+            fbSdkPromise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://connect.facebook.net/en_US/sdk.js';
+                script.async = true;
+                script.defer = true;
+                script.crossOrigin = 'anonymous';
+                script.onload = () => {
+                    window.FB.init({
+                        appId: state.metaSignup.appId,
+                        autoLogAppEvents: true,
+                        xfbml: false,
+                        version: version || 'v22.0'
+                    });
+                    resolve(window.FB);
+                };
+                script.onerror = () => reject(new Error('sdk'));
+                document.head.appendChild(script);
+            });
 
-            messageBox.style.color = 'var(--text-dim)';
-            messageBox.innerText = 'Saving WasenderAPI connection...';
+            return fbSdkPromise;
+        }
+
+        /* Meta posts the business and phone ids to the opener; the exchangeable
+           code arrives separately in the FB.login callback and expires in about
+           30 seconds, so both halves are collected before we call our server. */
+        let metaSignupData = null;
+
+        window.addEventListener('message', event => {
+            if (!String(event.origin).endsWith('facebook.com')) return;
+            let payload;
+            try { payload = JSON.parse(event.data); } catch (error) { return; }
+            if (!payload || payload.type !== 'WA_EMBEDDED_SIGNUP') return;
+            if (payload.event === 'FINISH' && payload.data) metaSignupData = payload.data;
+        });
+
+        async function connectMeta() {
+            const button = document.getElementById('pub-meta-connect');
+            if (!button || !state.metaSignup.available) return;
+
+            button.disabled = true;
+            button.textContent = 'Opening...';
+            metaSignupData = null;
 
             try {
-                const response = await authenticatedFetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        ...getSafeAuthHeaders()
-                    },
-                    body: JSON.stringify({
-                        api_key: apiKey,
-                        phone_number: phoneNumber,
-                        session_name: sessionName,
-                        session_id: sessionId
-                    })
+                const FB = await loadFacebookSdk(state.metaSignup.version);
+
+                const response = await new Promise(resolve => {
+                    FB.login(resolve, {
+                        config_id: state.metaSignup.configId,
+                        response_type: 'code',
+                        override_default_response_type: true,
+                        extras: { setup: {}, featureType: '', sessionInfoVersion: '3' }
+                    });
                 });
 
-                const result = await response.json();
-
-                if (!response.ok || result.status !== 'success') {
-                    messageBox.style.color = '#ef4444';
-                    messageBox.innerText = result.message || 'Failed to save WasenderAPI connection.';
+                const code = response && response.authResponse && response.authResponse.code;
+                if (!code || !metaSignupData) {
+                    announce('WhatsApp setup was not finished. You can try again any time.');
                     return;
                 }
 
-                messageBox.style.color = '#10b981';
-                messageBox.innerText = result.message || 'WasenderAPI connection saved successfully.';
+                const result = await getJson(
+                    `/api/whatsapp/embedded-signup/complete?chatbot_id=${BOT_ID}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            code: code,
+                            waba_id: metaSignupData.waba_id,
+                            phone_number_id: metaSignupData.phone_number_id,
+                            business_id: metaSignupData.business_id
+                        })
+                    });
 
-                apiKeyInput.value = '';
-                phoneInput.value = '';
-                if (sessionNameInput) sessionNameInput.value = '';
-                if (sessionIdInput) sessionIdInput.value = '';
-
-                await loadChannelStatus();
-
-                if (result.data && result.data.webhook_url) {
-                    messageBox.innerText = `Saved successfully. Copy this webhook URL into WasenderAPI: ${result.data.webhook_url}`;
+                if (!result.ok) {
+                    announce('We could not finish connecting WhatsApp. Try again in a minute.');
+                    return;
                 }
 
+                announce('WhatsApp connected.');
+                await refresh();
             } catch (error) {
-                console.error("WasenderAPI connect error:", error);
-                messageBox.style.color = '#ef4444';
-                messageBox.innerText = `Connection failed: ${error.message}`;
+                announce('We could not reach WhatsApp. Check your internet and try again.');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Connect with Meta';
             }
+        }
+
+        /* ---- Wiring ------------------------------------------------------ */
+
+        async function refresh() {
+            await loadEverything();
+            render();
+        }
+
+        /* One delegated listener, because every row is re-rendered on refresh
+           and per-node listeners would leak. */
+        document.addEventListener('click', async event => {
+            const copyTarget = event.target.closest('[data-copy]');
+            if (copyTarget) {
+                await copyText(copyTarget.dataset.copy, copyTarget);
+                return;
+            }
+
+            const open = event.target.closest('[data-flow-open]');
+            if (open) {
+                const key = open.dataset.flowOpen;
+                if (state.openFlow === key) closeFlow(); else openFlow(key);
+                return;
+            }
+
+            const close = event.target.closest('[data-flow-close]');
+            if (close) { closeFlow(); return; }
+
+            const toggle = event.target.closest('[data-widget-toggle]');
+            if (toggle) {
+                if (toggle.dataset.widgetToggle === 'on') {
+                    await setWidgetEnabled(true);
+                } else {
+                    askConfirm('Turn the link off?',
+                        'Anyone who already has your link will see a message saying the chat is '
+                        + 'closed. You can turn it back on any time.',
+                        'Turn it off', 'Keep it on', () => setWidgetEnabled(false));
+                }
+                return;
+            }
+
+            const disconnect = event.target.closest('[data-disconnect]');
+            if (disconnect) {
+                const kind = disconnect.dataset.disconnect;
+                askConfirm(`Disconnect ${CHANNEL_LABEL[kind]}?`,
+                    `Your bot will stop replying on ${CHANNEL_LABEL[kind]}. Your account there is `
+                    + 'not deleted, so you can connect it again later.',
+                    'Disconnect', 'Keep it', () => disconnectChannel(kind));
+                return;
+            }
+
+            const reconnect = event.target.closest('[data-reconnect]');
+            if (reconnect) { await reconnectChannel(reconnect.dataset.reconnect); return; }
+
+            const save = event.target.closest('[data-save]');
+            if (save) { await saveWidget(save.dataset.save); return; }
+
+            if (event.target.closest('#pub-meta-connect')) { await connectMeta(); return; }
+            if (event.target.closest('#pub-telegram-connect')) { await connectTelegram(); return; }
+            if (event.target.closest('#pub-wasender-connect')) { await connectWasender(); return; }
+            if (event.target.closest('#pub-save-qr')) { saveQrCode(); return; }
+            if (event.target.closest('#pub-recheck')) { await refresh(); return; }
+
+            if (event.target.closest('#pub-regenerate')) {
+                askConfirm('Make a new link?',
+                    'The old link stops working immediately. Anything you already printed or '
+                    + 'posted will need the new one.',
+                    'Make a new link', 'Keep the old one', regenerateKey);
+                return;
+            }
+
+            if (event.target.closest('#pub-confirm-ok')) {
+                const action = confirmAction;
+                closeConfirm();
+                if (action) await action();
+                return;
+            }
+
+            if (event.target.closest('#pub-confirm-cancel')
+                || event.target.id === 'pub-confirm') {
+                closeConfirm();
+            }
+        });
+
+        document.addEventListener('change', event => {
+            if (event.target.id === 'ww-collect_lead') syncDependents();
+        });
+
+        document.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            if (document.getElementById('pub-confirm').classList.contains('is-open')) {
+                closeConfirm();
+                return;
+            }
+            if (state.openFlow) closeFlow();
+        });
+
+        if (BOT_ID) {
+            document.addEventListener('DOMContentLoaded', () => { refresh(); });
         }
     </script>
 </body>

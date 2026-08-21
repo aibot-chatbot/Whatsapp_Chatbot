@@ -620,6 +620,10 @@ body.dashboard-page {
 }
 
 @media (max-width: 768px) {
+    .dashboard-page .kw-advanced-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     body.dashboard-page {
         display: block;
     }
@@ -784,6 +788,73 @@ body.dashboard-page {
     outline: 2px solid var(--control-accent-hover);
     outline-offset: 2px;
     border-radius: 6px;
+}
+
+/* Promoted from bh-/bc-/dash-visually-hidden, which were three byte-identical
+   copies. Screen-reader-only text is not a page concern. */
+.dashboard-page .kw-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+
+/* ── Advanced disclosure ───────────────────────────────────────────── */
+/* Promoted from bh-advanced. Native <details>/<summary>, so keyboard
+   operation, aria-expanded semantics and find-in-page come for free. */
+
+.dashboard-page .kw-advanced {
+    margin-top: 20px;
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+    overflow: hidden;
+}
+
+.dashboard-page .kw-advanced > summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 48px;
+    padding: 0 16px;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    list-style: none;
+}
+
+.dashboard-page .kw-advanced > summary::-webkit-details-marker { display: none; }
+
+.dashboard-page .kw-advanced > summary:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.dashboard-page .kw-advanced-chevron {
+    margin-left: auto;
+    color: var(--control-text-secondary);
+    transition: transform var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
+}
+
+.dashboard-page .kw-advanced[open] .kw-advanced-chevron {
+    transform: rotate(180deg);
+}
+
+.dashboard-page .kw-advanced-body {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    padding: 4px 16px 18px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .kw-advanced-body > .kw-wide {
+    grid-column: 1 / -1;
 }
 
 /* ── Header ────────────────────────────────────────────────────────── */

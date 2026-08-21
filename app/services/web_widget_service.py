@@ -87,7 +87,14 @@ def generate_session_id():
 # ── Dashboard-side operations ─────────────────────────────────────────
 
 def ensure_widget(chatbot_id, company_id):
-    """Return the chatbot's widget config, creating a disabled one if absent."""
+    """Return the chatbot's widget config, creating a live one if absent.
+
+    New widgets are created enabled. The share link is the one channel we host
+    ourselves, it costs no plan slot, and it is the first thing the publish page
+    offers -- so an owner who has never opened a setting still has a link that
+    works. The column default stays false, which keeps every existing row as it
+    was; only records this function creates start on.
+    """
     existing = get_widget_by_chatbot_id(chatbot_id, company_id)
     if existing:
         return existing
@@ -96,7 +103,7 @@ def ensure_widget(chatbot_id, company_id):
     if not bot:
         raise WidgetError("Chatbot not found.", status=404, code="chatbot_not_found")
 
-    defaults = {}
+    defaults = {"is_enabled": True}
     bot_name = (bot.get("bot_name") or "").strip()
     if bot_name:
         defaults["display_name"] = bot_name[:80]

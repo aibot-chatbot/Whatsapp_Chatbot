@@ -3,6 +3,7 @@ from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.database.message_repository import get_message_health_by_chatbot
 from app.database.telegram_channel_repository import get_telegram_channels_by_chatbot
 from app.database.wasender_channel_repository import get_wasender_channels_by_chatbot
+from app.database.web_widget_repository import get_widget_by_chatbot_id
 from app.database.whatsapp_channel_repository import get_whatsapp_channels_by_chatbot
 from app.services.settings_service import get_deployed_settings_summary, get_draft_runtime
 
@@ -47,8 +48,30 @@ def _channel_item(channel_type, label, channel):
     }
 
 
-def _get_channel_health(chatbot_id):
+def _widget_item(widget):
+    """The share link as a channel.
+
+    The widget has no connection_status column because there is nothing to
+    connect to -- we host it. `is_enabled` is the whole state, so it maps
+    straight onto `connected`. Without this the dashboard tells an owner who
+    published by link that they have not connected a channel.
+    """
+    enabled = bool(widget.get("is_enabled"))
+    return {
+        "type": "widget",
+        "connected": enabled,
+        "label": widget.get("display_name") or "Share link",
+        "status": "connected" if enabled else "disabled",
+        "last_error": None,
+    }
+
+
+def _get_channel_health(chatbot_id, company_id=None):
     items = []
+
+    widget = get_widget_by_chatbot_id(chatbot_id, company_id)
+    if widget:
+        items.append(_widget_item(widget))
 
     for channel in get_telegram_channels_by_chatbot(chatbot_id) or []:
         label = channel.get("bot_username") or channel.get("telegram_bot_id")
@@ -122,7 +145,7 @@ def get_dashboard_health(chatbot_id, company_id):
         runtime.get("last_match_reason"),
     )
 
-    channels = _get_channel_health(chatbot_id)
+    channels = _get_channel_health(chatbot_id, company_id)
     delivery_health = get_message_health_by_chatbot(chatbot_id)
 
     warnings = []
