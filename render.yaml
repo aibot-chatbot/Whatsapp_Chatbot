@@ -1,0 +1,133 @@
+# Render Blueprint for the chatbot SaaS.
+#
+# Docker runtime, not the native Python runtime: the app needs PyMuPDF (a C
+# extension) and optionally PaddleOCR, and the Dockerfile already pins that
+# environment. Same image runs locally, so "works on my machine" and "works on
+# Render" stop being different questions.
+#
+# Deploy: commit this file, push, then open
+#   https://dashboard.render.com/blueprint/new?repo=https://github.com/jackhan623/Whatsapp_Chatbot
+
+services:
+  - type: web
+    name: whatsapp-chatbot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    region: singapore
+    healthCheckPath: /
+
+    # A persistent disk is not optional for this app. Uploaded PDFs and the
+    # generated per-bot READMEs are written to DATA_FOLDER on local disk
+    # (app/services/knowledge_service.py:18 plus 11 other call sites). Without
+    # it every deploy silently deletes every tenant's knowledge documents.
+    #
+    # It is also why numInstances stays at 1: a disk attaches to exactly one
+    # instance, so a second instance could not read the first one's uploads.
+    # Horizontal scaling needs those writes moved to R2 or S3 first.
+    disk:
+      name: knowledge-data
+      mountPath: /app/data
+      sizeGB: 10
+
+    numInstances: 1
+
+    envVars:
+      # Set to the live Render URL after the first deploy, then re-point every
+      # bot with: python scripts/reregister_telegram_webhooks.py --apply
+      # Telegram only delivers to https on ports 443/80/88/8443.
+      - key: PUBLIC_BASE_URL
+        sync: false
+
+      - key: FRONTEND_URL
+        sync: false
+
+      # Exactly one process may run the Wasender retry loop. With more than one,
+      # every process retries the same message and the customer gets duplicates.
+      - key: WASENDER_RETRY_WORKER_ENABLED
+        value: "true"
+
+      - key: FLASK_DEBUG
+        value: "false"
+
+      # ---- Datastore ----
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # ---- Application secrets ----
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_SECRET
+        sync: false
+
+      # ---- AI providers ----
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+
+      # ---- WhatsApp / Meta ----
+      - key: ACCESS_TOKEN
+        sync: false
+      - key: PHONE_NUMBER_ID
+        sync: false
+      - key: VERIFY_TOKEN
+        sync: false
+      - key: VERSION
+        sync: false
+      - key: WHATSAPP_META_APP_ID
+        sync: false
+      - key: WHATSAPP_META_APP_SECRET
+        sync: false
+      - key: WHATSAPP_EMBEDDED_SIGNUP_CONFIG_ID
+        sync: false
+      - key: WHATSAPP_GRAPH_API_VERSION
+        sync: false
+
+      # ---- Google OAuth ----
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # ---- Email ----
+      - key: SMTP_SENDER_EMAIL
+        sync: false
+      - key: SMTP_APP_PASSWORD
+        sync: false
+
+      # ---- Billing (ToyyibPay) ----
+      - key: TOYYIBPAY_USER_SECRET_KEY
+        sync: false
+      - key: TOYYIBPAY_CATEGORY_CODE
+        sync: false
+      - key: TOYYIBPAY_ENV
+        sync: false
+      - key: TOYYIBPAY_CALLBACK_URL
+        sync: false
+      - key: TOYYIBPAY_RETURN_URL
+        sync: false
+
+      # ---- AI credit pricing ----
+      - key: AI_CREDIT_ENFORCEMENT_ENABLED
+        sync: false
+      - key: AI_RETAIL_MARKUP_BPS
+        sync: false
+      - key: AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD
+        sync: false
+      - key: DEEPSEEK_V4_FLASH_CACHE_HIT_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS
+        sync: false
+      - key: DEEPSEEK_V4_FLASH_CACHE_MISS_INPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS
+        sync: false
+      - key: DEEPSEEK_V4_FLASH_OUTPUT_PRICE_MICRO_USD_PER_MILLION_TOKENS
+        sync: false
+
+      # NGROK_* are deliberately absent. Nothing in app/ reads them, and the
+      # tunnel they described is what this deployment replaces.

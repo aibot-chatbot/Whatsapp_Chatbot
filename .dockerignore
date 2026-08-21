@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+node_modules
+tests/
+scratch/
+frontend_backup_before_ui_overhaul/
+data/*.pdf
+data/*.md
+.env
+*.log
