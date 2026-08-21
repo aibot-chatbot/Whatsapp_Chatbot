@@ -118,7 +118,6 @@ ERROR_REPLY_PATTERNS = [
 OPERATION_CHAT_REPLY = "chat_reply"
 OPERATION_TEST_CHAT = "test_chat"
 OPERATION_TEST_BOT = "test_bot"
-OPERATION_GUIDE_ASSISTANT = "guide_assistant"
 OPERATION_AI_REPORT = "ai_report"
 OPERATION_WELCOME_MENU = "welcome_menu_generation"
 

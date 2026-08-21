@@ -175,7 +175,6 @@ def test_account_session_changes_clear_cached_chatbot_state():
     register_source = Path("frontend/register.html").read_text(encoding="utf-8")
 
     assert 'sessionStorage.removeItem("selectedBotId")' in auth_source
-    assert 'localStorage.removeItem("guidance_bot_history")' in auth_source
     assert "clearChatbotContext();" in auth_source
     assert login_source.count("establishAuthenticatedSession(result.user, result.token)") == 2
     assert register_source.count("establishAuthenticatedSession(result.user, result.token)") == 1
@@ -236,6 +235,7 @@ def test_all_bot_id_route_handlers_have_an_ownership_gate():
                     "permanently_delete_archived_bot(",
                 )
             )
+            has_company_scoped_analytics_service = "get_company_ai_usage_analytics(" in function_source
             # Public website-widget endpoints have no logged-in company to
             # scope against. Their tenancy gate is the unguessable public key:
             # _load_widget_or_error() resolves the widget row (which carries
@@ -247,6 +247,7 @@ def test_all_bot_id_route_handlers_have_an_ownership_gate():
             if not (
                 has_direct_gate
                 or has_company_scoped_bot_service
+                or has_company_scoped_analytics_service
                 or has_public_widget_gate
             ):
                 missing_gates.append(f"{path}:{node.lineno}:{node.name}")

@@ -52,10 +52,7 @@ const oldSession = {
     isLoggedIn: "true",
     selectedBotId: "29",
 };
-const oldLocal = {
-    guidance_bot_history: "old company conversation",
-    guidance_bot_open: "true",
-};
+const oldLocal = {};
 
 {
     const context = loadAuth(oldSession, oldLocal);
@@ -71,8 +68,6 @@ const oldLocal = {
         { id: 31, company_id: 28 }
     );
     assert.strictEqual(context.sessionStorage.getItem("selectedBotId"), null);
-    assert.strictEqual(context.localStorage.getItem("guidance_bot_history"), null);
-    assert.strictEqual(context.localStorage.getItem("guidance_bot_open"), null);
 }
 
 for (const invalidToken of [null, undefined, "", "   ", 123]) {
@@ -87,8 +82,6 @@ for (const invalidToken of [null, undefined, "", "   ", 123]) {
     assert.strictEqual(context.sessionStorage.getItem("user"), null);
     assert.strictEqual(context.sessionStorage.getItem("isLoggedIn"), null);
     assert.strictEqual(context.sessionStorage.getItem("selectedBotId"), null);
-    assert.strictEqual(context.localStorage.getItem("guidance_bot_history"), null);
-    assert.strictEqual(context.localStorage.getItem("guidance_bot_open"), null);
 }
 
 (async () => {
@@ -99,7 +92,6 @@ for (const invalidToken of [null, undefined, "", "   ", 123]) {
     assert.strictEqual(authorized, false);
     assert.strictEqual(context.window.location.replacedWith, "bots.html");
     assert.strictEqual(context.sessionStorage.getItem("selectedBotId"), null);
-    assert.strictEqual(context.localStorage.getItem("guidance_bot_history"), null);
     console.log("auth session-switch behavior: passed");
 })().catch((error) => {
     console.error(error);

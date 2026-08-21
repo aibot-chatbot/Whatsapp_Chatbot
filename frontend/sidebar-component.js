@@ -546,35 +546,8 @@ class ChatbotSidebar extends HTMLElement {
         </aside>
 
 
-        <!-- System Guidance Bot UI - ONLY ON INTERNAL PAGES -->
-        ${(!isBotsPage && botId) ? `
-            <div id="guide-bot-trigger" class="guide-bot-trigger">
-                <span>💬</span>
-            </div>
-
-            <div id="guide-bot-window" class="guide-bot-window" style="display: none;" aria-hidden="true">
-                <div class="bot-header">
-                    <h3>System Guide</h3>
-                    <div class="bot-header-actions">
-                        <button id="clear-bot-history" title="Clear Chat History">🗑️</button>
-                        <button id="close-bot" style="background:none; border:none; color:white; cursor:pointer;" title="Close Guide">✕</button>
-                    </div>
-                </div>
-                <div id="bot-messages" class="bot-messages"></div>
-                <div class="bot-quick-replies">
-                    <button class="quick-reply-btn">Where do I add training PDFs?</button>
-                    <button class="quick-reply-btn">How do I connect WhatsApp?</button>
-                    <button class="quick-reply-btn">How do I test my bot?</button>
-                </div>
-                <div class="bot-input-area">
-                    <input type="text" id="bot-input" placeholder="Ask for help...">
-                    <button id="send-bot-msg">➔</button>
-                </div>
-            </div>
-        ` : ""}
         `;
 
-        this.loadAssets();
         this.initSidebar();
         this.initCollapseToggle();
 
@@ -591,30 +564,6 @@ class ChatbotSidebar extends HTMLElement {
             document.head.appendChild(script);
         }
     }
-
-    loadAssets() {
-        // Load AI Bot assets ONLY on internal pages
-        const urlParams = new URLSearchParams(window.location.search);
-        const botId = urlParams.get("bot_id");
-        const currentPath = window.location.pathname.split('/').pop() || 'index.html';
-
-        if (currentPath !== 'bots.html' && botId) {
-            if (!document.getElementById('guide-bot-css')) {
-                const link = document.createElement('link');
-                link.id = 'guide-bot-css';
-                link.rel = 'stylesheet';
-                link.href = '/assets/css/guide-bot.css';
-                document.head.appendChild(link);
-            }
-            if (!document.getElementById('guide-bot-js')) {
-                const script = document.createElement('script');
-                script.id = 'guide-bot-js';
-                script.src = '/assets/js/guide-bot.js';
-                document.head.appendChild(script);
-            }
-        }
-    }
-
 
     initSidebar() {
         const currentPath = window.location.pathname.split("/").pop() || "index.html";
