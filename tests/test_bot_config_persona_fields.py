@@ -25,6 +25,24 @@ CANONICAL_FIELDS = ("business_description", "tone", "custom_prompt")
 LEGACY_FIELDS = ("business_objective", "response_style", "prompt_text")
 
 
+def _required_profile(**overrides):
+    """A save_profile payload carrying every field save_profile now demands.
+
+    bot_name plus the three DERIVED_PERSONA_FIELDS became mandatory in
+    "correct the subscription".  Tests that are about something else say so by
+    starting from this and overriding only the field under test.
+    """
+    payload = {
+        "name": "Support",
+        "bot_name": "Ropey",
+        "company_name": "RopeWorks",
+        "business_description": "We sell rope.",
+        "tone": "Formal",
+    }
+    payload.update(overrides)
+    return payload
+
+
 class _Response:
     def __init__(self, data=None):
         self.data = data or []
@@ -424,6 +442,8 @@ class ProfileServicePersonaTests(unittest.TestCase):
             profile_service.save_profile(
                 {
                     "name": "Support",
+                    "bot_name": "Ropey",
+                    "company_name": "RopeWorks",
                     "business_description": "We sell rope.",
                     "tone": "Formal",
                     "custom_prompt": "Be brief.",
@@ -451,7 +471,7 @@ class ProfileServicePersonaTests(unittest.TestCase):
 
         with patch.object(profile_service, "supabase", fake):
             profile_service.save_profile(
-                {"name": "Support", "out_of_scope_reply": "Sorry."}, chatbot_id=7
+                _required_profile(out_of_scope_reply="Sorry."), chatbot_id=7
             )
 
         self.assertEqual(fake.last_write_payload["out_of_scope_reply"], "Sorry.")

@@ -1,3 +1,4 @@
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 
 from app.database.db import supabase
@@ -51,6 +52,66 @@ def get_profiles(chatbot_id):
 
     rows = response.data or []
     return [_row_to_profile(row) for row in rows]
+
+
+def get_tones_for_chatbots(
+    chatbot_ids: Iterable[int],
+    deployed_profile_names: Mapping[int, str] | None = None,
+) -> dict[int, str]:
+    """Batch-read the tone that actually reaches the model, per chatbot.
+
+    ``bot_configs.tone`` is the single source of truth for tone; ``chatbots.tone``
+    is display-only leftover that no runtime code reads. The bot list needs the
+    real value for every card, so this resolves them in ONE query rather than
+    one per bot.
+
+    Resolution order per chatbot mirrors ``rag_service.get_deployed_settings``:
+    the deployed profile's tone first, because that is the row the reply
+    pipeline reads, then the active profile row for a bot that has not deployed
+    anything yet. A chatbot with neither maps to "" so the caller can render an
+    honest empty state instead of inventing a default.
+
+    Args:
+        chatbot_ids: Chatbot identifiers the caller has already scoped to the
+            requesting company. This function does not widen that scope.
+        deployed_profile_names: Optional ``{chatbot_id: deployed_profile_name}``
+            taken from the chatbots rows the caller already holds.
+    """
+    ids = [chatbot_id for chatbot_id in (chatbot_ids or []) if chatbot_id is not None]
+
+    if not ids:
+        return {}
+
+    response = (
+        supabase
+        .table(TABLE_NAME)
+        .select("chatbot_id, profile_name, is_active, tone, response_style")
+        .in_("chatbot_id", ids)
+        .execute()
+    )
+
+    deployed = deployed_profile_names or {}
+    deployed_tones: dict[int, str] = {}
+    active_tones: dict[int, str] = {}
+
+    for row in response.data or []:
+        chatbot_id = row.get("chatbot_id")
+        tone = resolve_persona_fields(row).get("tone") or ""
+
+        if not tone:
+            continue
+
+        deployed_name = deployed.get(chatbot_id)
+
+        if deployed_name and row.get("profile_name") == deployed_name:
+            deployed_tones[chatbot_id] = tone
+        elif row.get("is_active") and chatbot_id not in active_tones:
+            active_tones[chatbot_id] = tone
+
+    return {
+        chatbot_id: deployed_tones.get(chatbot_id) or active_tones.get(chatbot_id) or ""
+        for chatbot_id in ids
+    }
 
 
 def get_profile_by_name(profile_name, chatbot_id):
@@ -113,18 +174,27 @@ def save_profile(profile_data, chatbot_id):
         source=PROVENANCE_CLIENT,
     )
 
-    final_bot_name = profile_data.get("bot_name", "").strip()
+    # The three persona fields below are validated against the *merged* value,
+    # so a partial save is not rejected for a field the stored row already
+    # holds.  bot_name is not part of the persona merge, so it falls back to
+    # the stored row by hand to keep the same semantics.
+    #
+    # ``or ""`` rather than a .get default: a JSON null arrives as None, and
+    # None.strip() would raise AttributeError, which profile_routes.py would
+    # surface as a 500 instead of the 400 it returns for ValueError.
+    final_bot_name = (
+        profile_data.get("bot_name") or stored.get("bot_name") or ""
+    ).strip()
     if not final_bot_name:
         raise ValueError("Bot name is required")
 
-    if not persona.values.get("company_name", "").strip():
-        raise ValueError("Company name is required")
-
-    if not persona.values.get("business_description", "").strip():
-        raise ValueError("Business description is required")
-
-    if not persona.values.get("tone", "").strip():
-        raise ValueError("Tone is required")
+    for field, label in (
+        ("company_name", "Company name"),
+        ("business_description", "Business description"),
+        ("tone", "Tone"),
+    ):
+        if not (persona.values.get(field) or "").strip():
+            raise ValueError(f"{label} is required")
 
     row_data = {
         "chatbot_id": chatbot_id,

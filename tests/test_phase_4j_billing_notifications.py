@@ -796,8 +796,14 @@ class TestProfileBillingNotificationsFrontend(unittest.TestCase):
     def test_escape_html_function_exists(self):
         self.assertIn("function escapeHtml", self.html)
 
-    def test_safe_rendering_with_escape_html(self):
-        self.assertIn("escapeHtml(n.title", self.html)
+    def test_safe_rendering_of_notification_title(self):
+        # "Harden Profile billing DOM rendering" (12cb8ef) replaced the
+        # innerHTML + escapeHtml(n.title ...) concatenation with a textContent
+        # assignment.  textContent cannot inject markup at all, so it is a
+        # stronger guarantee than escaping -- but the assertion had to move
+        # with the implementation.
+        self.assertIn("titleEl.textContent = n.title", self.html)
+        self.assertNotIn("escapeHtml(n.title", self.html)
 
 
 # ---------------------------------------------------------------------------
