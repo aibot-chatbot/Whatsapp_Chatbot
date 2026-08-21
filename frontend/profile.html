@@ -1672,7 +1672,7 @@
         /* ===== Load Team Info ===== */
         async function loadTeamInfo() {
 
-            // Start with neutral values ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â never show fake placeholder defaults
+            // Start with neutral values - never show fake placeholder defaults
 
             // Use the real role if loadProfile has already fetched it
 
@@ -1685,7 +1685,7 @@
             } catch (err) {
                 document.getElementById("team-role").textContent = "Unable to load";
                 showMessage(err.message || "Unable to load workspace information.", "error");
-                // Silently fall back ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â neutral values already set
+                // Silently fall back - neutral values already set
             }
         }
 
@@ -2584,7 +2584,7 @@ async function loadBillingInfo() {
                     // Plan
                     var planTd = document.createElement("td");
                     planTd.style.padding = "8px 10px";
-                    planTd.textContent = (o.plan && o.plan.name) || "Ã¯Â¿Â½";
+                    planTd.textContent = (o.plan && o.plan.name) || "\u2014";
                     tr.appendChild(planTd);
 
                     // Amount
@@ -2721,7 +2721,7 @@ async function loadBillingInfo() {
             if (reconciliationRequired) {
                 return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:#f59e0b22;color:#f59e0b;">Needs Attention</span>';
             }
-            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">Ã¯Â¿Â½</span>';
+            return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:var(--glass-border);color:var(--text-dim);">Unknown</span>';
         }
 
 
@@ -2751,14 +2751,14 @@ async function loadBillingInfo() {
                 var plan = d.plan || {};
                 var amtMyr = d.amount_myr || ((d.amount_sen || 0) / 100);
                 var html = '';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "Ã¯Â¿Â½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "\u2014") + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Amount</label><span style="color:var(--text-main);">RM ' + Number(amtMyr).toFixed(2) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "Ã¯Â¿Â½") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "Ã¯Â¿Â½") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "Ã¯Â¿Â½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "\u2014") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "\u2014") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "\u2014") + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Status</label><span>' + buildPaymentStatusBadge(d.status) + '</span></div>';
                 html += '<div class="form-row" style="margin-bottom:8px;"><label>Activation Status</label><span>' + buildActivationStatusBadge(d.activation_status, d.reconciliation_required) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "Ã¯Â¿Â½") + '</span></div>';
+                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "\u2014") + '</span></div>';
                 if (d.paid_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Paid At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.paid_at).toLocaleString() + '</span></div>'; }
                 if (d.credited_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Credited At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.credited_at).toLocaleString() + '</span></div>'; }
                 if (d.message) { html += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--text-dim);font-size:0.85rem;">' + d.message + '</div>'; }
@@ -3676,7 +3676,7 @@ async function loadBillingInfo() {
             showPaymentStatus("checking", "Checking your payment status...", "");
             function poll() {
                 if (_paymentPollCount >= _paymentPollMax) {
-                    showPaymentStatus("processing", "Still processing.", "Please wait ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â your balance will update once payment is verified. You can also check again below.");
+                    showPaymentStatus("processing", "Still processing.", "Please wait - your balance will update once payment is verified. You can also check again below.");
                     var btn2 = document.getElementById("btn-check-again");
                     if (btn2) btn2.style.display = "inline-flex";
                     return;
@@ -3851,7 +3851,7 @@ async function loadBillingInfo() {
             showPaymentStatus("checking", "Checking your subscription payment status...", "");
             function poll() {
                 if (_paymentPollCount >= _paymentPollMax) {
-                    showPaymentStatus("processing", "Still processing.", "Please wait ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â your subscription will update once payment is verified. You can also check again below." );
+                    showPaymentStatus("processing", "Still processing.", "Please wait - your subscription will update once payment is verified. You can also check again below." );
                     var btn2 = document.getElementById("btn-check-again");
                     if (btn2) btn2.style.display = "inline-flex";
                     return;
@@ -4189,7 +4189,7 @@ async function loadBillingInfo() {
             if (_aiCreditTransactionsLoading) return;
             fetchAiCreditTransactions(false);
         }
-/* ===== Phase 4H â€” Export Functions ===== */
+/* ===== Phase 4H - Export Functions ===== */
 
         var _exportingCsv = false;
         var _exportingCreditCsv = false;

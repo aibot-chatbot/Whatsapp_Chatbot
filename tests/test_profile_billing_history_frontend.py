@@ -118,6 +118,39 @@ class TestProfileHistoryJavaScriptFunctions(unittest.TestCase):
         for label in labels:
             self.assertIn(label, self.html)
 
+    def test_unknown_activation_status_uses_clean_fallback(self):
+        self.assertIn('">Unknown</span>', self.html)
+        replacement_mojibake = "\u00c3\u00af\u00c2\u00bf\u00c2\u00bd"
+        self.assertNotIn('">' + replacement_mojibake + '</span>', self.html)
+
+    def test_subscription_history_plan_fallback_is_clean(self):
+        self.assertIn('planTd.textContent = (o.plan && o.plan.name) || "\\u2014";', self.html)
+        replacement_mojibake = "\u00c3\u00af\u00c2\u00bf\u00c2\u00bd"
+        self.assertNotIn('(o.plan && o.plan.name) || "' + replacement_mojibake + '"', self.html)
+
+    def test_order_detail_fallbacks_are_clean(self):
+        expected = [
+            '(plan.name || "\\u2014")',
+            '(d.order_reference || "\\u2014")',
+            '(d.payment_reference || "\\u2014")',
+            '(d.gateway_order_id || "\\u2014")',
+            '(d.created_at ? new Date(d.created_at).toLocaleString() : "\\u2014")',
+        ]
+        for snippet in expected:
+            self.assertIn(snippet, self.html)
+        replacement_mojibake = "\u00c3\u00af\u00c2\u00bf\u00c2\u00bd"
+        self.assertNotIn('"' + replacement_mojibake + '"', self.html)
+
+    def test_payment_polling_copy_has_no_mojibake(self):
+        self.assertIn("Please wait - your balance will update once payment is verified.", self.html)
+        self.assertIn("Please wait - your subscription will update once payment is verified.", self.html)
+        self.assertNotIn("Please wait " + "\u00c3\u0192\u00c2\u00a2", self.html)
+
+    def test_profile_html_has_no_known_mojibake_literals(self):
+        markers = ["\u00c3", "\u00c2", "\u00e2\u20ac", "\ufffd", "\u00c3\u00af", "\u00c3\u0192"]
+        for marker in markers:
+            self.assertNotIn(marker, self.html)
+
 
 class TestProfileHistoryErrorHandling(unittest.TestCase):
     """Verify error handling in billing history code."""
