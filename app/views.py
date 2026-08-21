@@ -135,7 +135,17 @@ def upload_pdf():
         # the upload -- the outcome is reported instead of raised.
         derivation = derive_persona_for_upload(chatbot_id)
 
+        # The upload itself succeeded even when extraction produced nothing, so
+        # the row exists and the caller must be able to see that outcome rather
+        # than a blanket "uploaded" claim. The status travels in the body.
         return jsonify({
+            "status": result.get("status", "completed"),
+            "processing_status": result.get("processing_status", "completed"),
+            "chunk_count": result.get("chunk_count", 0),
+            # What was read and how, including whether OCR was involved, so the
+            # page can tell the operator a scan happened rather than presenting
+            # OCR output as if it came from a clean text layer.
+            "extraction": result.get("extraction", {}),
             "message": result["message"],
             "persona_derivation": {
                 "status": derivation.status,

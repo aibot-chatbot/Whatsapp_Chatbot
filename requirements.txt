@@ -32,6 +32,25 @@ python-dateutil>=2.8,<3.0
 # IANA timezone database for zoneinfo on Windows
 tzdata>=2024.1
 
+# ── Scanned-document OCR (optional) ─────────────────────────────────
+# PaddleOCR reads PDFs that have no text layer: a scanned contract, a
+# photographed menu, a price list exported as an image. Without it those
+# uploads are rejected with a clear message rather than silently indexing
+# nothing, so the app runs fine without these two.
+#
+# They are commented out because paddlepaddle is by far the heaviest
+# dependency here (roughly 1 GB installed, plus models downloaded on first
+# use) and most deployments never see a scanned PDF. Uncomment on a host that
+# needs it, or install directly:
+#
+#     pip install paddlepaddle paddleocr
+#
+# Upstream: https://github.com/PaddlePaddle/PaddleOCR (Apache-2.0)
+# Tune with PADDLEOCR_LANG, OCR_PAGE_LIMIT, OCR_DPI, OCR_MIN_CONFIDENCE.
+#
+# paddlepaddle>=3.0,<4.0
+# paddleocr>=3.0,<4.0
+
 # ── Production Note ─────────────────────────────────────────────────
 # For multi-worker production, configure RATELIMIT_STORAGE_URI=redis://...
 # and install: redis>=5.0,<6.0

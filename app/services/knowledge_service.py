@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 
 from app.services.settings_service import update_chatbot_runtime
 from app.database.knowledge_file_repository import save_knowledge_file
+from app.database.knowledge_file_repository import update_knowledge_file_status
 from app.database.knowledge_file_repository import delete_knowledge_file_by_id
 from app.database.knowledge_file_repository import get_knowledge_file_by_name_or_id
 from app.database.knowledge_file_repository import set_active_pdf_knowledge_file
@@ -17,6 +18,9 @@ from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatb
 DATA_FOLDER = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "data")
 )
+
+
+from app.services.document_ocr_service import OCR_PAGE_LIMIT
 
 
 def save_uploaded_pdf(file, chatbot_id):
@@ -47,57 +51,85 @@ def save_uploaded_pdf(file, chatbot_id):
         file_size=file_size,
         file_path=relative_pdf_path,
         upload_status="uploaded",
-        processing_status="completed",
+        # Deliberately not "completed": nothing has been parsed yet. Claiming
+        # completion up front is what let an image-only or corrupt PDF report
+        # "Ready" while holding zero searchable chunks.
+        processing_status="processing",
         match_status="unchecked"
     )
 
     file_id = file_record["id"]
 
-    # --- PROCESS AND CHUNK PDF ---
-    try:
-        import fitz
-        import logging
-        from app.services.rag_service import split_text_into_sections, generate_embedding
-        from app.database.knowledge_chunk_repository import save_knowledge_chunk
+    chunk_count, extraction_error, extraction = _index_pdf_chunks(filepath, chatbot_id, file_id)
 
-        doc = fitz.open(filepath)
-        lines = []
-        for page in doc:
-            blocks = page.get_text("blocks")
-            blocks = sorted(blocks, key=lambda b: (b[1], b[0]))
-            for block in blocks:
-                text = block[4].strip()
-                if text:
-                    for line in text.splitlines():
-                        clean_line = " ".join(line.split())
-                        if clean_line:
-                            lines.append(clean_line)
-        pdf_text = "\n".join(lines)
+    if not chunk_count:
+        # A document with no chunks can answer nothing. Promoting it would
+        # demote a primary source that still works, so the upload is recorded
+        # as failed and the existing primary is left exactly as it was.
+        try:
+            update_knowledge_file_status(file_id, processing_status="failed")
+        except Exception as status_err:
+            logging.error(
+                "Failed to record failed processing status for chatbot_id=%s, file_id=%s: %s",
+                chatbot_id,
+                file_id,
+                status_err,
+            )
 
-        chunks = split_text_into_sections(pdf_text)
-
-        logging.info(f"Processing {len(chunks)} chunks for database insertion...")
-
-        for idx, chunk in enumerate(chunks):
-            embedding = generate_embedding(chunk)
-            if embedding:
-                save_knowledge_chunk(
-                    chatbot_id=chatbot_id,
-                    file_id=file_id,
-                    content=chunk,
-                    embedding=embedding,
-                    metadata={"chunk_index": idx}
-                )
-        logging.info("Successfully saved all chunks to Supabase.")
+        logging.error(
+            "No knowledge chunks were extracted for chatbot_id=%s, file_id=%s: %s",
+            chatbot_id,
+            file_id,
+            extraction_error or "the document produced no readable text",
+        )
 
         try:
-            extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
-        except Exception as graph_err:
-            logging.error(f"Failed to generate and store knowledge graph for PDF: {graph_err}")
-    except Exception as e:
-        import logging
-        logging.error(f"Failed to process PDF chunks: {e}")
-    # -----------------------------
+            log_knowledge_modification(
+                chatbot_id,
+                file_id,
+                "Document uploaded but no readable text was extracted. Primary knowledge unchanged.",
+            )
+        except Exception as log_err:
+            logging.error(f"Failed to log history for failed PDF upload: {log_err}")
+
+        if extraction.ocr_used:
+            reason = (
+                "We scanned this PDF as images and still could not read any text from it, "
+                "so it was not set as primary knowledge. Your current primary source is "
+                "unchanged. Check that the pages are the right way up and in focus."
+            )
+        elif not extraction.ocr_available:
+            reason = (
+                "This PDF has no readable text layer and image scanning is not switched on "
+                "for this server, so it was not set as primary knowledge. Your current "
+                "primary source is unchanged. Upload a text-based PDF instead."
+            )
+        else:
+            reason = (
+                "No readable text could be extracted from this PDF, so it was not set as "
+                "primary knowledge. Your current primary source is unchanged. Upload a "
+                "text-based PDF, or review this source before using it."
+            )
+
+        return {
+            "status": "failed",
+            "processing_status": "failed",
+            "chunk_count": 0,
+            "file_name": safe_name,
+            "file_path": filepath,
+            "extraction": extraction.summary(),
+            "message": reason,
+        }
+
+    try:
+        update_knowledge_file_status(file_id, processing_status="completed")
+    except Exception as status_err:
+        logging.error(
+            "Failed to record completed processing status for chatbot_id=%s, file_id=%s: %s",
+            chatbot_id,
+            file_id,
+            status_err,
+        )
 
     set_active_pdf_knowledge_file(
         chatbot_id=chatbot_id,
@@ -120,11 +152,109 @@ def save_uploaded_pdf(file, chatbot_id):
         "last_match_reason": "",
     }, chatbot_id)
 
+    # "List out content": what we actually read, and how. The operator needs to
+    # know a scan was involved, because OCR text is good but not perfect and it
+    # is worth a glance before the bot starts answering from it.
+    if extraction.ocr_used:
+        message = (
+            f"PDF uploaded and set as primary knowledge. "
+            f"{extraction.ocr_page_count} of {extraction.page_count} page(s) were scanned as "
+            f"images, so please check the wording before relying on it."
+        )
+    else:
+        message = "PDF uploaded and set as primary knowledge."
+
+    if extraction.truncated:
+        message += (
+            f" Only the first {OCR_PAGE_LIMIT} scanned page(s) were read; "
+            f"split the document if the rest matters."
+        )
+
     return {
+        "status": "completed",
+        "processing_status": "completed",
+        "chunk_count": chunk_count,
         "file_name": safe_name,
         "file_path": filepath,
-        "message": "PDF uploaded and set as primary knowledge."
+        "extraction": extraction.summary(),
+        "message": message,
     }
+
+
+def _index_pdf_chunks(filepath: str, chatbot_id: int, file_id: int):
+    """Parse a PDF and store one embedded knowledge chunk per section.
+
+    Returns ``(saved_chunk_count, error_message, extraction)``. The count is of
+    chunks that actually reached the database, because that is what retrieval
+    can search later: a chunk whose embedding call returned nothing is invisible
+    to the bot and must not count towards a successful ingest. An empty error
+    message means parsing ran to the end.
+
+    Reading the document is delegated to ``document_ocr_service``, which takes
+    the text layer when there is one and falls back to PaddleOCR per page when
+    there is not. That is what lets a scanned menu or a photographed price list
+    become knowledge instead of a zero-chunk failure.
+    """
+    from app.services.document_ocr_service import extract_pdf_markdown
+
+    saved_chunks = 0
+    extraction = extract_pdf_markdown(filepath)
+
+    if extraction.error:
+        return saved_chunks, extraction.error, extraction
+
+    try:
+        from app.services.rag_service import split_text_into_sections, generate_embedding
+        from app.database.knowledge_chunk_repository import save_knowledge_chunk
+
+        logging.info(
+            "Read %s characters from %s page(s) for file_id=%s (%s OCR page(s), truncated=%s)",
+            extraction.character_count,
+            extraction.page_count,
+            file_id,
+            extraction.ocr_page_count,
+            extraction.truncated,
+        )
+
+        chunks = split_text_into_sections(extraction.markdown)
+
+        logging.info(f"Processing {len(chunks)} chunks for database insertion...")
+
+        for idx, chunk in enumerate(chunks):
+            embedding = generate_embedding(chunk)
+            if embedding:
+                save_knowledge_chunk(
+                    chatbot_id=chatbot_id,
+                    file_id=file_id,
+                    content=chunk,
+                    embedding=embedding,
+                    metadata={"chunk_index": idx}
+                )
+                saved_chunks += 1
+        logging.info(f"Successfully saved {saved_chunks} chunks to Supabase.")
+
+        try:
+            extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
+        except Exception as graph_err:
+            logging.error(f"Failed to generate and store knowledge graph for PDF: {graph_err}")
+    except Exception as e:
+        logging.error(f"Failed to process PDF chunks: {e}")
+        return saved_chunks, str(e), extraction
+
+    return saved_chunks, "", extraction
+
+
+def resolve_knowledge_role(knowledge_file: dict) -> str:
+    """Name the retrieval role of one ``knowledge_files`` row.
+
+    The frontend used to guess this from ``is_active`` plus ``file_type``,
+    which labelled every non-primary document "Inactive" even when it was
+    enabled. The rule lives here now so the API and retrieval agree.
+    """
+    if knowledge_file.get("is_active"):
+        return "primary"
+
+    return "supporting" if knowledge_file.get("is_enabled", True) is not False else "inactive"
 
 
 def list_uploaded_pdfs(chatbot_id):
@@ -140,6 +270,10 @@ def list_uploaded_pdfs(chatbot_id):
             "is_enabled": file.get("is_enabled", True) is not False,
             "is_active": bool(file.get("is_active")),
             "status": "active" if file.get("is_active") else "available",
+            # Exposed so the UI can tell a genuinely broken ingest apart from a
+            # source the operator simply switched off.
+            "processing_status": file.get("processing_status") or "",
+            "role": resolve_knowledge_role(file),
         }
         for file in files
     ]
@@ -250,9 +384,14 @@ def toggle_supporting_knowledge(file_name, is_enabled, chatbot_id):
     if not knowledge_file:
         raise ValueError("Knowledge source not found")
 
-    file_type = (knowledge_file.get("file_type") or "").lower()
-    if file_type != "url":
-        raise ValueError("Only supporting website sources can be enabled or disabled.")
+    # Documents are supporting sources too, so there is no file_type gate here.
+    # The primary is the one exception: retrieval loads it on its own path and
+    # never consults is_enabled, so accepting the toggle for it would report a
+    # change the bot does not honour.
+    if knowledge_file.get("is_active"):
+        raise ValueError(
+            "The primary source is always in use. Set another source as primary first."
+        )
 
     updated = update_supporting_knowledge_enabled(
         chatbot_id=chatbot_id,
@@ -261,12 +400,13 @@ def toggle_supporting_knowledge(file_name, is_enabled, chatbot_id):
     )
 
     if not updated:
-        raise ValueError("Supporting website source was not updated.")
+        raise ValueError("Supporting knowledge source was not updated.")
 
     return {
         "file_name": updated.get("file_name") or file_name,
         "is_enabled": updated.get("is_enabled", is_enabled) is not False,
-        "message": "Supporting website enabled." if is_enabled else "Supporting website disabled."
+        "role": resolve_knowledge_role(updated),
+        "message": "Supporting source enabled." if is_enabled else "Supporting source disabled."
     }
 
 
