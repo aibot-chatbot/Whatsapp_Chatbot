@@ -339,7 +339,11 @@ def scrape_batch_website():
 
         verify_chatbot_access(chatbot_id)
         # Check subscription feature access for batch scraping
-        can_use_plan_feature(g.company_id, "batch_website_scraping")
+        urls = data["urls"]
+        if len(urls) > 1:
+            can_use_plan_feature(g.company_id, "batch_website_scraping")
+        else:
+            can_use_plan_feature(g.company_id, "single_website_scraping")
         # Check subscription limit before knowledge file creation
         can_upload_knowledge_file(g.company_id)
         result = scrape_website_urls_batch(data["urls"], chatbot_id)
@@ -387,8 +391,12 @@ def scrape_extract_website():
             }), 400
 
         verify_chatbot_access(chatbot_id)
-        # Check subscription feature access for batch website scraping
-        can_use_plan_feature(g.company_id, "batch_website_scraping")
+        # Check subscription feature access: single or batch website scraping depending on URL count
+        urls = data["urls"]
+        if len(urls) > 1:
+            can_use_plan_feature(g.company_id, "batch_website_scraping")
+        else:
+            can_use_plan_feature(g.company_id, "single_website_scraping")
         # Fail before the billed LLM call below. scrape-embed re-checks this at
         # write time, but a client already at their knowledge-file limit would
         # otherwise pay for an extraction that can never be saved.
