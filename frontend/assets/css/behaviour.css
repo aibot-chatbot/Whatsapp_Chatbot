@@ -23,18 +23,6 @@
     border-radius: 4px;
 }
 
-.dashboard-page .bh-visually-hidden {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    margin: -1px;
-    padding: 0;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    clip-path: inset(50%);
-    white-space: nowrap;
-}
-
 
 /* ── Header ───────────────────────────────────────────────────────── */
 
@@ -342,56 +330,6 @@
     display: none;
 }
 
-
-/* ── Advanced disclosure ──────────────────────────────────────────── */
-
-.dashboard-page .bh-advanced {
-    margin-top: 20px;
-    border: 1px solid var(--control-border);
-    border-radius: 11px;
-    overflow: hidden;
-}
-
-.dashboard-page .bh-advanced > summary {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-height: 48px;
-    padding: 0 16px;
-    color: var(--control-text);
-    font-size: 13px;
-    font-weight: 500;
-    cursor: pointer;
-    list-style: none;
-}
-
-.dashboard-page .bh-advanced > summary::-webkit-details-marker { display: none; }
-
-.dashboard-page .bh-advanced > summary:hover {
-    background: rgba(255, 255, 255, 0.02);
-}
-
-.dashboard-page .bh-advanced-chevron {
-    margin-left: auto;
-    color: var(--control-text-secondary);
-    transition: transform var(--motion-normal, 180ms) var(--motion-ease, cubic-bezier(.2, 0, 0, 1));
-}
-
-.dashboard-page .bh-advanced[open] .bh-advanced-chevron {
-    transform: rotate(180deg);
-}
-
-.dashboard-page .bh-advanced-body {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
-    padding: 4px 16px 18px;
-    border-top: 1px solid var(--control-border);
-}
-
-.dashboard-page .bh-advanced-body > .bh-wide {
-    grid-column: 1 / -1;
-}
 
 .dashboard-page .bh-value-row {
     display: flex;
@@ -908,10 +846,6 @@
     /* Stacked, because three side-by-side cards at 390px leave no room for
        the sentence that makes each one choosable. */
     .dashboard-page .bh-styles {
-        grid-template-columns: minmax(0, 1fr);
-    }
-
-    .dashboard-page .bh-advanced-body {
         grid-template-columns: minmax(0, 1fr);
     }
 

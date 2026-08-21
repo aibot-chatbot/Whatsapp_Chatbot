@@ -82,20 +82,60 @@ Used in AI and/or embedding-related flows.
 - Rate limits
 - Failure handling
 
+## Web Widget
+
+The one channel we host ourselves. There is no vendor, no account for the
+tenant to create, and no plan slot consumed.
+
+### Purpose
+
+- A hosted chat page at `/chat/<public_key>` that needs no website and no install
+- An embeddable bubble (`/widget.js`) and an inline iframe (`/widget/<public_key>`)
+
+### Connection flow
+
+1. Opening the publish screen calls `ensure_widget`, which creates the record
+   if it is absent and generates a `public_key`.
+2. New records are created enabled, so the share link works before the tenant
+   has touched a setting. The column default stays `false`, so existing rows
+   are unchanged.
+3. The tenant shares the link, prints its QR code, or hands the snippet to
+   whoever maintains their website.
+
+### Runtime flow
+
+1. Visitor opens the share link or the embed.
+2. `resolve_public_widget` rejects a disabled widget and enforces the domain
+   allowlist.
+3. Per-session message caps apply.
+4. AI response is generated and returned.
+
+### Verification
+
+- Share link with the widget enabled and disabled
+- Domain allowlist
+- Session cap
+- Public config leaks no internal field
+- `dashboard_health_service` reports an enabled widget as a connected channel
+
 ## Telegram
 
 ### Connection flow
 
 1. Authorized user submits bot token and chatbot selection.
-2. Backend validates token.
+2. Backend validates token with `getMe`.
 3. Channel record is stored.
-4. Webhook is configured.
+4. Webhook is configured with `setWebhook`, passing the generated webhook
+   secret as `secret_token`.
 5. Incoming updates are processed and deduplicated.
 
 ### Runtime flow
 
-1. Telegram calls the webhook.
-2. Backend validates the webhook secret.
+1. Telegram calls the webhook, sending the registered secret in the
+   `X-Telegram-Bot-Api-Secret-Token` header.
+2. Backend rejects a mismatched header with 403. A missing header is accepted
+   and logged, because channels connected before `secret_token` was registered
+   do not send one; the 256-bit path secret remains the primary gate.
 3. Duplicate updates are ignored.
 4. Conversation and chatbot context are resolved.
 5. AI response is generated.
@@ -110,6 +150,9 @@ Used in AI and/or embedding-related flows.
 - Duplicate update
 - Delivery failure
 - Secret rotation
+- Webhook posted with a wrong secret token header is rejected
+- Reconnect on a channel that is not currently counted passes the channel limit
+  check, and a live channel is not re-checked
 
 ## WasenderAPI
 
