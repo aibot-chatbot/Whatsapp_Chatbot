@@ -2011,7 +2011,7 @@
         }
 
         function formatBillingStatus(status) {
-            if (!status) return "\u2014";
+            if (!status) return "Unknown";
             var map = {
                 "active": "Active",
                 "trialing": "Trialing",
@@ -2020,7 +2020,7 @@
                 "cancelled": "Cancelled",
                 "expired": "Expired"
             };
-            return map[status] || status;
+            return map[status] || "Unknown";
         }
 
         function buildStatusBadge(status) {
@@ -2305,7 +2305,11 @@
                     actions.push(buildSubActionButton("sub-action-clear-downgrade", '<i data-lucide="x" style="width:15px;height:15px;vertical-align:middle;margin-right:6px;"></i> Cancel Scheduled Downgrade', "ghost", "subConfirmClearDowngrade()"));
                     if (downgradeScheduled) {
                         downgradeScheduled.style.display = "block";
-                        document.getElementById("sub-downgrade-target-text").innerHTML = "Target: <strong>" + pendingPlan.name + "</strong> &mdash; effective " + dateStr;
+                        renderScheduledDowngradeTarget(
+                            document.getElementById("sub-downgrade-target-text"),
+                            pendingPlan.name,
+                            dateStr
+                        );
                     }
                 }
             }
@@ -2703,7 +2707,7 @@ async function loadBillingInfo() {
                 "expired": "Expired"
             };
             var color = colorMap[status] || "var(--text-dim)";
-            var label = labelMap[status] || status;
+            var label = labelMap[status] || "Unknown";
             return '<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:600;background:' + color + '22;color:' + color + ';">' + label + '</span>';
         }
 
@@ -2730,6 +2734,54 @@ async function loadBillingInfo() {
             if (modal) modal.style.display = "none";
         }
 
+        function renderOrderDetailState(body, text, color) {
+            body.innerHTML = "";
+            var state = document.createElement("div");
+            state.style.cssText = "padding:16px;text-align:center;";
+            if (color) state.style.color = color;
+            state.textContent = text;
+            body.appendChild(state);
+        }
+
+        function appendOrderDetailRow(container, labelText, value, options) {
+            options = options || {};
+            var row = document.createElement("div");
+            row.className = "form-row";
+            row.style.marginBottom = options.compact ? "4px" : "8px";
+
+            var label = document.createElement("label");
+            label.textContent = labelText;
+            row.appendChild(label);
+
+            var valueWrap = document.createElement("span");
+            if (options.badgeHtml) {
+                valueWrap.innerHTML = options.badgeHtml;
+            } else {
+                valueWrap.textContent = value || "\u2014";
+                if (options.main) {
+                    valueWrap.style.color = "var(--text-main)";
+                } else {
+                    valueWrap.style.color = "var(--text-dim)";
+                }
+                if (options.bold) valueWrap.style.fontWeight = "600";
+                if (options.monospace) valueWrap.style.fontFamily = "monospace";
+                if (options.small) valueWrap.style.fontSize = options.small;
+            }
+            row.appendChild(valueWrap);
+            container.appendChild(row);
+            return row;
+        }
+
+        function renderScheduledDowngradeTarget(el, planName, dateStr) {
+            if (!el) return;
+            el.innerHTML = "";
+            el.appendChild(document.createTextNode("Target: "));
+            var strong = document.createElement("strong");
+            strong.textContent = planName || "\u2014";
+            el.appendChild(strong);
+            el.appendChild(document.createTextNode(" \u2014 effective " + dateStr));
+        }
+
         async function showOrderDetailModal(orderReference) {
             var modal = document.getElementById("sph-order-detail-modal");
             var body = document.getElementById("sph-modal-body");
@@ -2739,44 +2791,60 @@ async function loadBillingInfo() {
             try {
                 var res = await authenticatedFetch("/api/billing/subscription/orders/" + encodeURIComponent(orderReference));
                 if (!res.ok) {
-                    body.innerHTML = '<div style="color:var(--danger);padding:16px;text-align:center;">Failed to load order details.</div>';
+                    renderOrderDetailState(body, "Failed to load order details.", "var(--danger)");
                     return;
                 }
                 var json = await res.json();
                 if (json.status !== "success" || !json.data) {
-                    body.innerHTML = '<div style="color:var(--text-dim);padding:16px;text-align:center;">Order not found.</div>';
+                    renderOrderDetailState(body, "Order not found.", "var(--text-dim)");
                     return;
                 }
                 var d = json.data;
                 var plan = d.plan || {};
                 var amtMyr = d.amount_myr || ((d.amount_sen || 0) / 100);
-                var html = '';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Plan</label><span style="color:var(--text-main);font-weight:600;">' + (plan.name || "\u2014") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Amount</label><span style="color:var(--text-main);">RM ' + Number(amtMyr).toFixed(2) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Order Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.order_reference || "\u2014") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.payment_reference || "\u2014") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Gateway Ref</label><span style="color:var(--text-dim);font-family:monospace;font-size:0.8rem;">' + (d.gateway_order_id || "\u2014") + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Payment Status</label><span>' + buildPaymentStatusBadge(d.status) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:8px;"><label>Activation Status</label><span>' + buildActivationStatusBadge(d.activation_status, d.reconciliation_required) + '</span></div>';
-                html += '<div class="form-row" style="margin-bottom:4px;"><label>Created</label><span style="color:var(--text-dim);font-size:0.85rem;">' + (d.created_at ? new Date(d.created_at).toLocaleString() : "\u2014") + '</span></div>';
-                if (d.paid_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Paid At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.paid_at).toLocaleString() + '</span></div>'; }
-                if (d.credited_at) { html += '<div class="form-row" style="margin-bottom:4px;"><label>Credited At</label><span style="color:var(--text-dim);font-size:0.85rem;">' + new Date(d.credited_at).toLocaleString() + '</span></div>'; }
-                if (d.message) { html += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--text-dim);font-size:0.85rem;">' + d.message + '</div>'; }
+                body.innerHTML = "";
+                appendOrderDetailRow(body, "Plan", plan.name, { main: true, bold: true });
+                appendOrderDetailRow(body, "Amount", "RM " + Number(amtMyr).toFixed(2), { main: true });
+                appendOrderDetailRow(body, "Order Ref", d.order_reference, { monospace: true, small: "0.8rem" });
+                appendOrderDetailRow(body, "Payment Ref", d.payment_reference, { monospace: true, small: "0.8rem" });
+                appendOrderDetailRow(body, "Gateway Ref", d.gateway_order_id, { monospace: true, small: "0.8rem" });
+                appendOrderDetailRow(body, "Payment Status", "", { badgeHtml: buildPaymentStatusBadge(d.status) });
+                appendOrderDetailRow(body, "Activation Status", "", { badgeHtml: buildActivationStatusBadge(d.activation_status, d.reconciliation_required) });
+                appendOrderDetailRow(body, "Created", d.created_at ? new Date(d.created_at).toLocaleString() : "\u2014", { small: "0.85rem", compact: true });
+                if (d.paid_at) appendOrderDetailRow(body, "Paid At", new Date(d.paid_at).toLocaleString(), { small: "0.85rem", compact: true });
+                if (d.credited_at) appendOrderDetailRow(body, "Credited At", new Date(d.credited_at).toLocaleString(), { small: "0.85rem", compact: true });
+                if (d.message) {
+                    var messageDiv = document.createElement("div");
+                    messageDiv.style.cssText = "margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.05);color:var(--text-dim);font-size:0.85rem;";
+                    messageDiv.textContent = d.message;
+                    body.appendChild(messageDiv);
+                }
                 if (d.retry_allowed) {
-                    html += '<div style="margin-top:12px;text-align:center;"><button onclick="handleRetryFromHistory(\'' + orderReference + '\')" style="padding:10px 24px;border-radius:10px;background:rgba(234,179,8,0.15);color:#fbbf24;border:1px solid rgba(234,179,8,0.3);cursor:pointer;font-size:0.9rem;font-weight:600;">Retry Activation</button></div>';
+                    var retryWrap = document.createElement("div");
+                    retryWrap.style.cssText = "margin-top:12px;text-align:center;";
+                    var retryButton = document.createElement("button");
+                    retryButton.style.cssText = "padding:10px 24px;border-radius:10px;background:rgba(234,179,8,0.15);color:#fbbf24;border:1px solid rgba(234,179,8,0.3);cursor:pointer;font-size:0.9rem;font-weight:600;";
+                    retryButton.textContent = "Retry Activation";
+                    retryButton.addEventListener("click", function(event) {
+                        handleRetryFromHistory(orderReference, event);
+                    });
+                    retryWrap.appendChild(retryButton);
+                    body.appendChild(retryWrap);
                 }
                 if (d.reconciliation_required && !d.retry_allowed) {
-                    html += '<div style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(239,68,68,0.1);color:var(--danger);font-size:0.85rem;">Please contact support with your order reference.</div>';
+                    var supportDiv = document.createElement("div");
+                    supportDiv.style.cssText = "margin-top:12px;padding:10px;border-radius:8px;background:rgba(239,68,68,0.1);color:var(--danger);font-size:0.85rem;";
+                    supportDiv.textContent = "Please contact support with your order reference.";
+                    body.appendChild(supportDiv);
                 }
-                body.innerHTML = html;
             } catch (e) {
-                body.innerHTML = '<div style="color:var(--danger);padding:16px;text-align:center;">Network error loading details.</div>';
+                renderOrderDetailState(body, "Network error loading details.", "var(--danger)");
             }
         }
 
-        async function handleRetryFromHistory(orderReference) {
+        async function handleRetryFromHistory(orderReference, clickEvent) {
             if (!orderReference) return;
-            var btn = event && event.target;
+            var btn = clickEvent && clickEvent.target;
             if (btn) { btn.disabled = true; btn.textContent = "Retrying..."; }
             try {
                 var res = await authenticatedFetch("/api/billing/subscription/orders/" + encodeURIComponent(orderReference) + "/retry", { method: "POST" });
@@ -4366,19 +4434,55 @@ async function loadBillingInfo() {
 
                     var createdDate = formatBillingNotificationTimestamp(n.created_at);
 
-                    item.innerHTML = "" +
-                        '<div class="notify-icon ' + severityClass + '">' +
-                            '<i data-lucide="' + icon + '" style="width:16px;height:16px;"></i>' +
-                        '</div>' +
-                        '<div class="notify-body">' +
-                            '<div class="notify-title">' + escapeHtml(n.title || "") + '</div>' +
-                            '<div class="notify-message">' + escapeHtml(n.message || "") + '</div>' +
-                            '<div class="notify-meta">' +
-                                '<span class="notify-severity ' + severityClass + '">' + escapeHtml(n.severity || "") + '</span>' +
-                                '<span class="notify-date">' + escapeHtml(createdDate) + '</span>' +
-                            '</div>' +
-                        '</div>' +
-                        (isRead ? "" : '<button class="btn btn-small notify-mark-read" onclick="markSingleNotificationRead(' + n.id + ')">Mark read</button>');
+                    var iconWrap = document.createElement("div");
+                    iconWrap.className = "notify-icon " + severityClass;
+                    var iconEl = document.createElement("i");
+                    iconEl.setAttribute("data-lucide", icon);
+                    iconEl.style.width = "16px";
+                    iconEl.style.height = "16px";
+                    iconWrap.appendChild(iconEl);
+                    item.appendChild(iconWrap);
+
+                    var notifyBody = document.createElement("div");
+                    notifyBody.className = "notify-body";
+
+                    var titleEl = document.createElement("div");
+                    titleEl.className = "notify-title";
+                    titleEl.textContent = n.title || "";
+                    notifyBody.appendChild(titleEl);
+
+                    var messageEl = document.createElement("div");
+                    messageEl.className = "notify-message";
+                    messageEl.textContent = n.message || "";
+                    notifyBody.appendChild(messageEl);
+
+                    var metaEl = document.createElement("div");
+                    metaEl.className = "notify-meta";
+                    var severityEl = document.createElement("span");
+                    severityEl.className = "notify-severity " + severityClass;
+                    severityEl.textContent = n.severity || "";
+                    metaEl.appendChild(severityEl);
+                    var dateEl = document.createElement("span");
+                    dateEl.className = "notify-date";
+                    dateEl.textContent = createdDate;
+                    metaEl.appendChild(dateEl);
+                    notifyBody.appendChild(metaEl);
+
+                    item.appendChild(notifyBody);
+
+                    if (!isRead) {
+                        var notificationId = n.id;
+                        var markReadBtn = document.createElement("button");
+                        markReadBtn.type = "button";
+                        markReadBtn.className = "btn btn-small notify-mark-read";
+                        markReadBtn.textContent = "Mark read";
+                        markReadBtn.addEventListener("click", function(id) {
+                            return function() {
+                                markSingleNotificationRead(id);
+                            };
+                        }(notificationId));
+                        item.appendChild(markReadBtn);
+                    }
 
                     listEl.appendChild(item);
                 }
