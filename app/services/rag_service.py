@@ -105,6 +105,13 @@ def is_probable_heading(line):
     if not line or len(line) > 120:
         return False
 
+    # Markdown ATX heading, e.g. "## Payment methods". The document reader
+    # emits these now (see document_ocr_service), so an explicit heading beats
+    # guessing from letter case. Without this, every heading the reader found
+    # would be demoted to body text the moment it gained a "#".
+    if re.match(r"^#{1,6}\s+\S", line):
+        return True
+
     # Numbered uppercase headings, e.g. "3. ACCOMMODATION & BOOKING"
     if re.match(r"^\d+(?:\.\d+)*\.?\s+[A-Z0-9][A-Z0-9 &,/+\-()]{4,}$", line):
         return True
@@ -132,7 +139,10 @@ def get_last_heading(before_text):
 
     for line in reversed(lines):
         if is_probable_heading(line):
-            return re.sub(r"\s+", " ", line).strip()
+            # Strip the Markdown markers: the section title is prepended to a
+            # chunk as prose, and "## Refunds" would read as literal hashes to
+            # the model.
+            return re.sub(r"\s+", " ", line.lstrip("#").strip()).strip()
 
     return ""
 
@@ -478,15 +488,28 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
         source_counts = {
             "pdf": 0,
             "website": 0,
+            # Supporting sources are no longer websites only, and a mix logged
+            # as "website" would misreport where an answer came from.
+            "document": 0,
         }
 
         active_pdf = get_active_pdf_knowledge_file(chatbot_id)
         supporting_files = get_supporting_knowledge_files(chatbot_id)
-        has_supporting_websites = bool(supporting_files)
-        pdf_limit = max(1, top_k - 1) if has_supporting_websites else top_k
+        has_supporting_sources = bool(supporting_files)
+        # Budget rule: when any supporting source exists, exactly one slot of
+        # top_k is reserved for the supporting pool and the primary keeps the
+        # rest, never fewer than one. The tradeoff is deliberate. Every
+        # supporting source competes for that single reserved slot in
+        # newest-first order, so an older supporting source can be starved on a
+        # query that a newer one also matches. Widening the reserve as the pool
+        # grows would starve the primary instead, which is the source the
+        # operator explicitly chose, and would shrink it further with every
+        # document added. The pool is only widened where nothing else claimed
+        # the budget: see the primary-empty branch below.
+        pdf_limit = max(1, top_k - 1) if has_supporting_sources else top_k
 
         logging.info(
-            "[RAG] Enabled supporting websites count for chatbot_id=%s: %s",
+            "[RAG] Enabled supporting sources count for chatbot_id=%s: %s",
             chatbot_id,
             len(supporting_files),
         )
@@ -552,7 +575,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
         else:
             logging.warning(f"No active primary PDF knowledge file found for chatbot {chatbot_id}.")
 
-        if has_supporting_websites:
+        if has_supporting_sources:
             remaining = top_k - len(context_chunks)
             if source_counts["pdf"] == 0:
                 remaining = top_k
@@ -565,33 +588,45 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
                 if not file_id:
                     continue
 
-                url_chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
-                logging.info(
-                    "[RAG] Supporting website file_id=%s chunks loaded=%s",
-                    file_id,
-                    len(url_chunks),
+                is_website = (supporting_file.get("file_type") or "").lower() == "url"
+                source_key = "website" if is_website else "document"
+                source_label = (
+                    "Supporting website knowledge" if is_website
+                    else "Supporting document knowledge"
                 )
-                url_keyword_matches = _keyword_matches_for_file(query, url_chunks, query_words, remaining)
-                url_vector_matches = []
 
-                if len(url_keyword_matches) < remaining:
+                support_chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+                logging.info(
+                    "[RAG] Supporting %s file_id=%s chunks loaded=%s",
+                    source_key,
+                    file_id,
+                    len(support_chunks),
+                )
+                support_keyword_matches = _keyword_matches_for_file(query, support_chunks, query_words, remaining)
+                support_vector_matches = []
+
+                if len(support_keyword_matches) < remaining:
                     query_embedding = query_embedding if query_embedding is not None else generate_embedding(query)
-                    url_vector_matches = _vector_matches_for_file(
+                    support_vector_matches = _vector_matches_for_file(
                         chatbot_id,
                         file_id,
                         query_embedding,
-                        remaining - len(url_keyword_matches),
+                        remaining - len(support_keyword_matches),
                     )
 
-                for item in url_keyword_matches:
-                    add_context("website", "Supporting website knowledge", item.get("content"))
+                for item in support_keyword_matches:
+                    add_context(source_key, source_label, item.get("content"))
 
-                for item in url_vector_matches:
-                    add_context("website", "Supporting website knowledge", item.get("content"))
+                for item in support_vector_matches:
+                    add_context(source_key, source_label, item.get("content"))
 
                 remaining = top_k - len(context_chunks)
 
-            logging.info("[RAG] Website selected count=%s", source_counts["website"])
+            logging.info(
+                "[RAG] Supporting selected counts website=%s document=%s",
+                source_counts["website"],
+                source_counts["document"],
+            )
 
         # --- GRAPH RAG OPTION ---
         graph_facts = []
@@ -690,12 +725,13 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
         graph_facts = memory_facts + graph_facts
 
         if not context_chunks and not graph_facts:
-            logging.info("No relevant PDF, supporting website chunks, or graph connections found.")
+            logging.info("No relevant primary, supporting source chunks, or graph connections found.")
 
         logging.info(
-            "[RAG] Final context source mix: pdf=%s website=%s graph=%s total=%s",
+            "[RAG] Final context source mix: pdf=%s website=%s document=%s graph=%s total=%s",
             source_counts["pdf"],
             source_counts["website"],
+            source_counts["document"],
             len(graph_facts),
             len(context_chunks[:top_k]) + len(graph_facts),
         )

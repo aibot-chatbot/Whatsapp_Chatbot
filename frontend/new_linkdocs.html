@@ -122,6 +122,16 @@ function formatBytes(bytes) {
     return { value: (n / 1024 / 1024).toFixed(1), unit: "MB" };
 }
 
+// /api/knowledge/files reports the retrieval role of every source. These are
+// the display labels for it, and they double as the allowed set: an
+// unrecognised value falls back to the local derivation rather than printing
+// a raw backend token into the table.
+const ROLE_LABELS = {
+    primary: "Primary",
+    supporting: "Supporting",
+    inactive: "Inactive"
+};
+
         const { useState, useEffect } = React;
 
         function GraphVisualizer({ botId, activeFile }) {
@@ -2413,7 +2423,18 @@ function formatBytes(bytes) {
                     });
 
                     if (response.ok) {
-                        setStatus({ type: "success", text: "PDF uploaded and set as primary knowledge.", action: "upload" });
+                        // The upload can be accepted and still extract nothing.
+                        // In that case the backend leaves the primary alone and
+                        // says so, so the banner reports what really happened
+                        // instead of always claiming a new primary.
+                        const uploadResult = await response.json().catch(() => ({}));
+                        const extractionFailed = uploadResult.status === "failed";
+
+                        setStatus({
+                            type: extractionFailed ? "error" : "success",
+                            text: uploadResult.message || "PDF uploaded and set as primary knowledge.",
+                            action: extractionFailed ? "" : "upload"
+                        });
                         setFile(null);
                         setIsModalOpen(false);
                         await fetchFiles();
@@ -2491,12 +2512,12 @@ function formatBytes(bytes) {
                     if (response.ok) {
                         setStatus({
                             type: "success",
-                            text: data.data?.message || (nextEnabled ? "Supporting website enabled." : "Supporting website disabled."),
+                            text: data.data?.message || (nextEnabled ? "Supporting source enabled." : "Supporting source disabled."),
                             action: "toggleSupport"
                         });
                         await fetchFiles();
                     } else {
-                        setStatus({ type: "error", text: data.message || "Failed to update supporting website.", action: "" });
+                        setStatus({ type: "error", text: data.message || "Failed to update supporting source.", action: "" });
                     }
                 } catch (error) {
                     setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
@@ -2690,8 +2711,20 @@ function formatBytes(bytes) {
             const sources = files.map((f, index) => {
                 const isWebsite = isWebsiteKnowledge(f);
                 const enabled = isSourceEnabled(f);
-                const isPrimary = !isWebsite && Boolean(f.is_active);
-                const inUse = isPrimary || (isWebsite && enabled);
+
+                // The backend names the role now, so a document that is enabled
+                // but not primary reads "Supporting" instead of being guessed
+                // into "Inactive". The old client-side derivation is kept only
+                // as a fallback, so an API build without the field cannot blank
+                // the Role column.
+                const role = ROLE_LABELS[String(f.role || "").toLowerCase()]
+                    || ((!isWebsite && Boolean(f.is_active)) ? "Primary" : (enabled ? "Supporting" : "Inactive"));
+                const isPrimary = role === "Primary";
+                const inUse = role !== "Inactive";
+
+                // "Needs review" now means the ingest genuinely failed, not
+                // merely that a document is not the primary one.
+                const failedIngest = String(f.processing_status || "").toLowerCase() === "failed";
 
                 return {
                     raw: f,
@@ -2701,16 +2734,16 @@ function formatBytes(bytes) {
                     enabled: enabled,
                     isPrimary: isPrimary,
                     type: isWebsite ? "Website" : "Document",
-                    role: isPrimary ? "Primary" : isWebsite ? "Supporting" : "Inactive",
-                    statusKey: inUse ? "ready" : (isWebsite ? "off" : "review"),
-                    statusLabel: inUse ? "Ready" : (isWebsite ? "Not connected" : "Needs review"),
+                    role: role,
+                    statusKey: failedIngest ? "review" : (inUse ? "ready" : "off"),
+                    statusLabel: failedIngest ? "Needs review" : (inUse ? "Ready" : "Not connected"),
                     size: formatBytes(f.size)
                 };
             });
 
             const totalItems = sources.length;
             const primaryCount = sources.filter(s => s.isPrimary).length;
-            const supportingCount = sources.filter(s => s.isWebsite && s.enabled).length;
+            const supportingCount = sources.filter(s => s.role === "Supporting").length;
             const reviewCount = sources.filter(s => s.statusKey === "review").length;
             const notConnectedCount = sources.filter(s => s.statusKey === "off").length;
             const readyCount = sources.filter(s => s.statusKey === "ready").length;
@@ -3101,12 +3134,12 @@ function formatBytes(bytes) {
                                                                                     </button>
                                                                                 </>
                                                                             )}
-                                                                            {source.isWebsite && (
+                                                                            {!source.isPrimary && (
                                                                                 <button
                                                                                     type="button"
                                                                                     className="kw-action"
                                                                                     onClick={() => handleToggleSupport(source.name, !source.enabled)}
-                                                                                    title={source.enabled ? "Stop using this website in answers" : "Use this website in answers"}
+                                                                                    title={source.enabled ? "Stop using this source in answers" : "Use this source in answers"}
                                                                                 >
                                                                                     <Icon name={source.enabled ? "toggle-right" : "toggle-left"} size={14} />
                                                                                     {source.enabled ? "Connected" : "Connect"}

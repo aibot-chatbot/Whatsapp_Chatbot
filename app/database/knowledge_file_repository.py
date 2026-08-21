@@ -164,13 +164,22 @@ def get_active_knowledge_file(chatbot_id: int):
     return result.data[0] if result.data else None
 
 
-def get_supporting_knowledge_files(chatbot_id: int):
+def get_supporting_knowledge_files(chatbot_id: int) -> list:
+    """Return every enabled supporting knowledge source for one chatbot.
+
+    Supporting knowledge is no longer websites only: a document that is not
+    the primary one is still worth searching once the operator enables it,
+    and the row already carries the `is_enabled` flag that says so.
+
+    The active primary is excluded here because the retrieval caller loads it
+    separately. Leaving it in would feed its chunks into the context twice and
+    make the per-source budget count it twice.
+    """
     try:
         result = (
             supabase.table("knowledge_files")
             .select("*")
             .eq("chatbot_id", chatbot_id)
-            .eq("file_type", "url")
             .eq("is_enabled", True)
             .order("created_at", desc=True)
             .execute()
@@ -180,27 +189,30 @@ def get_supporting_knowledge_files(chatbot_id: int):
             raise
 
         logging.warning(
-            "knowledge_files.is_enabled is not available yet; using all supporting website sources."
+            "knowledge_files.is_enabled is not available yet; using all non-primary supporting sources."
         )
         result = (
             supabase.table("knowledge_files")
             .select("*")
             .eq("chatbot_id", chatbot_id)
-            .eq("file_type", "url")
             .order("created_at", desc=True)
             .execute()
         )
 
-    return result.data or []
+    # Filtered in Python rather than with .neq("is_active", True): a row whose
+    # is_active is NULL is not primary, but PostgREST's neq drops NULL rows
+    # too, which would hide legitimate supporting sources.
+    return [row for row in (result.data or []) if not row.get("is_active")]
 
 
 def update_supporting_knowledge_enabled(chatbot_id: int, file_id: int, is_enabled: bool):
+    # No file_type filter: documents can be supporting sources as well as
+    # websites, and the tenancy scope is the chatbot_id + id pair.
     result = (
         supabase.table("knowledge_files")
         .update({"is_enabled": is_enabled})
         .eq("chatbot_id", chatbot_id)
         .eq("id", file_id)
-        .eq("file_type", "url")
         .execute()
     )
 

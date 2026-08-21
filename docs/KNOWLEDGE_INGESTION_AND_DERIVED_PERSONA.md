@@ -641,3 +641,53 @@ Move the corresponding rows in `docs/FEATURE_STATUS.md` at the same time.
 
 Do not record branch names, commit hashes, local paths, or working-tree status
 here.
+
+---
+
+## Document reading: text layer, then OCR
+
+`app/services/document_ocr_service.py` owns how a PDF becomes text. It runs
+before chunking, and `knowledge_service._index_pdf_chunks` is its only caller.
+
+| Stage | Where | Notes |
+|---|---|---|
+| Text layer | `_native_page_markdown` | PyMuPDF `get_text("dict")`. Exact, instant, free |
+| OCR fallback | `_ocr_page_markdown` | Only for pages whose text layer is thinner than `OCR_MIN_NATIVE_CHARS` |
+| Markdown | `_as_markdown_line` / `_join_blocks` | Heading level is relative to the document's own body size, not absolute points |
+| Check source | `save_uploaded_pdf` | Zero saved chunks marks the row `failed` and leaves the existing primary alone |
+| List content | `ExtractionResult.summary()` | Returned on `POST /upload-pdf` as `extraction` |
+
+**Order matters.** Most PDFs carry a real text layer, and reading it is exact
+and instant. OCR is the fallback for a scanned contract, a photographed menu, a
+price list exported as an image. Running OCR on a page that already has text is
+slower AND less accurate, so it is never the first move.
+
+### PaddleOCR is optional
+
+[PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) (Apache-2.0) is imported
+lazily and cached per process. It is commented out in `requirements.txt`
+because paddlepaddle is roughly 1 GB installed plus models downloaded on first
+use, and most deployments never see a scanned PDF.
+
+Without it the app still boots, text-layer PDFs still ingest, and a scanned PDF
+is rejected with a message naming the real reason rather than silently indexing
+nothing.
+
+```bash
+pip install paddlepaddle paddleocr
+```
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `PADDLEOCR_LANG` | `en` | `en` is best for Latin script (English and Malay). `ch` also reads Chinese |
+| `OCR_PAGE_LIMIT` | `30` | Upload is a synchronous request; OCR costs 1-3s per page |
+| `OCR_DPI` | `200` | Below this small print loses strokes; 300 doubles the time for little gain |
+| `OCR_MIN_CONFIDENCE` | `0.60` | A wrong line in the knowledge base is worse than a missing one |
+| `OCR_MIN_NATIVE_CHARS` | `80` | Below this a page counts as a scan, because scans often carry a stray header as real text |
+| `OCR_ENABLE_MKLDNN` | off | paddle 3.x raises `ConvertPirAttribute2RuntimeAttribute not support` at inference on some CPUs, and it fails at `predict()` so it cannot be detected while building the engine |
+
+### Known limits
+
+- **PDF only.** `knowledge_service.py` still rejects any extension but `.pdf`. DOCX needs a separate reader.
+- **Synchronous.** A scanned document is OCR'd inside the upload request. `OCR_PAGE_LIMIT` keeps that bounded; past the limit the response sets `truncated`.
+- **The graph is unchanged.** `knowledge_graph_nodes.file_id` is still overwritten by whichever document mentioned an entity last, so the graph cannot answer "which documents mention X".
