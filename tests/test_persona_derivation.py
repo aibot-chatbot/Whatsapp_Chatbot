@@ -605,28 +605,65 @@ class ProfileServiceProvenanceTests(unittest.TestCase):
             payload[PROVENANCE_COLUMN]["company_name"], PROVENANCE_CLIENT
         )
 
-    def test_an_explicit_blank_still_clears_the_field(self):
+    def test_an_explicit_blank_on_a_required_field_is_now_rejected(self):
+        # This asserted the opposite until "correct the subscription": a blank
+        # cleared the field and reset its provenance to UNKNOWN, handing it
+        # back to derivation.  The three DERIVED_PERSONA_FIELDS are mandatory
+        # now, so a blank is a 400 and nothing is written.  Handing a field
+        # back to derivation needs a re-derivation, not an empty string.
         from app.services import profile_service
-        from app.services.bot_config_fields import (
-            PROVENANCE_COLUMN,
-            PROVENANCE_UNKNOWN,
-        )
 
         row = _config_row(profile_name="Support", company_name="RopeWorks")
         fake = _FakeSupabase(select_responses=[[row]])
 
         with patch.object(profile_service, "supabase", fake):
+            with self.assertRaises(ValueError) as caught:
+                profile_service.save_profile(
+                    {"name": "Support", "company_name": ""}, chatbot_id=7
+                )
+
+        self.assertIn("Company name", str(caught.exception))
+        self.assertEqual(fake.inserts, [])
+        self.assertEqual(fake.updates, [])
+
+    def test_a_partial_save_keeps_the_stored_bot_name(self):
+        # bot_name is not part of the persona merge, so without an explicit
+        # fallback a partial save -- one that only changes the tone -- would be
+        # rejected for a bot_name the stored row already holds.
+        from app.services import profile_service
+
+        row = _config_row(
+            profile_name="Support",
+            bot_name="Ropey",
+            company_name="RopeWorks",
+            business_description="We sell rope.",
+            tone="Formal",
+        )
+        fake = _FakeSupabase(select_responses=[[row]])
+
+        with patch.object(profile_service, "supabase", fake):
             profile_service.save_profile(
-                {"name": "Support", "company_name": ""}, chatbot_id=7
+                {"name": "Support", "tone": "Friendly"}, chatbot_id=7
             )
 
         payload = fake.last_write_payload
 
-        self.assertEqual(payload["company_name"], "")
-        self.assertEqual(
-            payload[PROVENANCE_COLUMN].get("company_name", PROVENANCE_UNKNOWN),
-            PROVENANCE_UNKNOWN,
-        )
+        self.assertEqual(payload["bot_name"], "Ropey")
+        self.assertEqual(payload["tone"], "Friendly")
+
+    def test_a_null_required_field_raises_value_error_not_attribute_error(self):
+        # A JSON null reaches save_profile as None, and None.strip() would
+        # raise AttributeError -- which profile_routes.py turns into a 500.
+        # The client needs the 400 that ValueError produces.
+        from app.services import profile_service
+
+        fake = _FakeSupabase(select_responses=[[]])
+
+        with patch.object(profile_service, "supabase", fake):
+            with self.assertRaises(ValueError):
+                profile_service.save_profile(
+                    {"name": "Support", "bot_name": None}, chatbot_id=7
+                )
 
     def test_save_profile_marks_supplied_fields_client_entered(self):
         from app.services import profile_service
@@ -639,7 +676,14 @@ class ProfileServiceProvenanceTests(unittest.TestCase):
 
         with patch.object(profile_service, "supabase", fake):
             profile_service.save_profile(
-                {"name": "Support", "tone": "Formal"}, chatbot_id=7
+                {
+                    "name": "Support",
+                    "bot_name": "Ropey",
+                    "company_name": "RopeWorks",
+                    "business_description": "We sell rope.",
+                    "tone": "Formal",
+                },
+                chatbot_id=7,
             )
 
         self.assertEqual(
