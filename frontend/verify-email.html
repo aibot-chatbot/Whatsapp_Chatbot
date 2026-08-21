@@ -169,6 +169,8 @@
                 <input type="text" maxlength="1" pattern="\d*" inputmode="numeric" required>
             </div>
 
+            <div id="general-message" style="font-size: 0.9rem; margin-bottom: 16px; display: none; padding: 10px 14px; border-radius: 8px; border: 1px solid transparent; font-weight: 600; text-align: center;"></div>
+
             <button type="submit" class="btn-verify" id="verify-btn">Verify Account</button>
         </form>
 
@@ -185,9 +187,19 @@
         }
         document.getElementById("user-email").innerText = email;
 
+        function showMessage(msg, isError = true) {
+            const el = document.getElementById('general-message');
+            el.innerHTML = (isError ? '⚠️ ' : '✅ ') + msg;
+            el.style.color = isError ? '#ef4444' : '#10b981';
+            el.style.background = isError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)';
+            el.style.borderColor = isError ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)';
+            el.style.display = 'block';
+        }
+
         const inputs = document.querySelectorAll('.otp-inputs input');
         inputs.forEach((input, index) => {
             input.addEventListener('input', (e) => {
+                document.getElementById('general-message').style.display = 'none';
                 if (e.target.value && index < inputs.length - 1) {
                     inputs[index + 1].focus();
                 }
@@ -201,6 +213,7 @@
 
         document.getElementById('otp-form').addEventListener('submit', async (e) => {
             e.preventDefault();
+            document.getElementById('general-message').style.display = 'none';
             const otp = Array.from(inputs).map(i => i.value).join('');
             const btn = document.getElementById('verify-btn');
             btn.disabled = true;
@@ -215,15 +228,18 @@
 
                 const result = await response.json();
                 if (response.ok) {
-                    alert("Email verified successfully! You can now login.");
-                    window.location.href = "login.html";
+                    showMessage("Email verified successfully! You can now login.", false);
+                    btn.innerText = "Redirecting...";
+                    setTimeout(() => {
+                        window.location.href = "login.html";
+                    }, 1500);
                 } else {
-                    alert(result.message || "Verification failed");
+                    showMessage(result.message || "Verification failed");
                     btn.disabled = false;
                     btn.innerText = "Verify Account";
                 }
             } catch (err) {
-                alert("Server error");
+                showMessage("Server error");
                 btn.disabled = false;
                 btn.innerText = "Verify Account";
             }
@@ -254,10 +270,10 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email })
                 });
-                alert("New code sent!");
+                showMessage("New code sent!", false);
                 startTimer();
             } catch (err) {
-                alert("Failed to resend");
+                showMessage("Failed to resend code");
             }
         }
     </script>

@@ -199,7 +199,7 @@
                         </div>
                         <div class="kw-field">
                             <label class="kw-label" for="bc-f-bot">Bot name</label>
-                            <input class="kw-input" id="bc-f-bot" name="bot_name" autocomplete="off"
+                            <input class="kw-input" id="bc-f-bot" name="bot_name" required autocomplete="off"
                                 placeholder="Aveon Assistant&hellip;">
                         </div>
                     </div>
@@ -207,7 +207,7 @@
                     <div class="bc-form-row">
                         <div class="kw-field">
                             <label class="kw-label" for="bc-f-company">Company name</label>
-                            <input class="kw-input" id="bc-f-company" name="company_name" autocomplete="organization"
+                            <input class="kw-input" id="bc-f-company" name="company_name" required autocomplete="organization"
                                 placeholder="Aveon&hellip;">
                         </div>
                         <div class="kw-field">
@@ -217,7 +217,7 @@
                                  professional") and persona derivation writes it
                                  from documents, so a three-option <select> could
                                  not hold the stored value and blanked it on save. -->
-                            <input class="kw-input" id="bc-f-tone" name="tone" list="bc-tone-options"
+                            <input class="kw-input" id="bc-f-tone" name="tone" list="bc-tone-options" required
                                 autocomplete="off" placeholder="Clear, professional&hellip;">
                             <datalist id="bc-tone-options">
                                 <option value="Friendly"></option>
@@ -231,7 +231,7 @@
 
                     <div class="kw-field">
                         <label class="kw-label" for="bc-f-desc">Business description</label>
-                        <textarea class="kw-textarea" id="bc-f-desc" name="business_description" rows="3"
+                        <textarea class="kw-textarea" id="bc-f-desc" name="business_description" rows="3" required
                             placeholder="What your business does and who it serves&hellip;"></textarea>
                     </div>
 

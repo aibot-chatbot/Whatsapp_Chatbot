@@ -1052,6 +1052,18 @@
         $("bh-quick-replies").checked = draft.quickReplies;
         $("bh-markdown").checked = draft.markdown;
 
+        if (catalogue && catalogue.access && catalogue.access.plan && catalogue.access.plan.feature_flags) {
+            if (!catalogue.access.plan.feature_flags.ai_assisted_menu_generation) {
+                var menuGenerateBtn = $("bh-menu-generate");
+                if (menuGenerateBtn) {
+                    menuGenerateBtn.disabled = true;
+                    menuGenerateBtn.title = "Upgrade to use";
+                    menuGenerateBtn.style.opacity = "0.5";
+                    menuGenerateBtn.style.cursor = "not-allowed";
+                }
+            }
+        }
+
         renderAll();
         showTab(readTab(), false);
         syncDirty();
