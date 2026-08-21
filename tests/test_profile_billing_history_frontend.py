@@ -130,16 +130,74 @@ class TestProfileHistoryJavaScriptFunctions(unittest.TestCase):
 
     def test_order_detail_fallbacks_are_clean(self):
         expected = [
-            '(plan.name || "\\u2014")',
-            '(d.order_reference || "\\u2014")',
-            '(d.payment_reference || "\\u2014")',
-            '(d.gateway_order_id || "\\u2014")',
-            '(d.created_at ? new Date(d.created_at).toLocaleString() : "\\u2014")',
+            'appendOrderDetailRow(body, "Plan", plan.name',
+            'appendOrderDetailRow(body, "Order Ref", d.order_reference',
+            'appendOrderDetailRow(body, "Payment Ref", d.payment_reference',
+            'appendOrderDetailRow(body, "Gateway Ref", d.gateway_order_id',
+            'appendOrderDetailRow(body, "Created", d.created_at ? new Date(d.created_at).toLocaleString() : "\\u2014"',
         ]
         for snippet in expected:
             self.assertIn(snippet, self.html)
         replacement_mojibake = "\u00c3\u00af\u00c2\u00bf\u00c2\u00bd"
         self.assertNotIn('"' + replacement_mojibake + '"', self.html)
+
+    def test_order_detail_backend_values_use_text_content(self):
+        modal_start = self.html.index("async function showOrderDetailModal")
+        modal_end = self.html.index("async function handleRetryFromHistory", modal_start)
+        modal_source = self.html[modal_start:modal_end]
+
+        self.assertIn("function appendOrderDetailRow", self.html)
+        self.assertIn('valueWrap.textContent = value || "\\u2014";', self.html)
+        self.assertIn("messageDiv.textContent = d.message;", modal_source)
+        self.assertIn("retryButton.addEventListener(\"click\"", modal_source)
+        self.assertNotIn("var html = '';", modal_source)
+        self.assertNotIn("body.innerHTML = html", modal_source)
+        self.assertNotIn("' + (plan.name", modal_source)
+        self.assertNotIn("' + (d.order_reference", modal_source)
+        self.assertNotIn("' + (d.payment_reference", modal_source)
+        self.assertNotIn("' + (d.gateway_order_id", modal_source)
+        self.assertNotIn("' + d.message + '", modal_source)
+
+    def test_order_detail_malicious_examples_are_not_interpolated(self):
+        malicious_examples = [
+            "<img src=x onerror=alert(1)>",
+            "<script>alert(1)</script>",
+            "\"><svg onload=alert(1)>",
+        ]
+        modal_start = self.html.index("async function showOrderDetailModal")
+        modal_end = self.html.index("async function handleRetryFromHistory", modal_start)
+        modal_source = self.html[modal_start:modal_end]
+
+        for example in malicious_examples:
+            self.assertNotIn(example, self.html)
+        self.assertIn("textContent", modal_source)
+        self.assertNotIn("insertAdjacentHTML", modal_source)
+        self.assertNotIn("outerHTML", modal_source)
+
+    def test_unknown_payment_and_billing_statuses_are_neutral(self):
+        self.assertIn('var label = labelMap[status] || "Unknown";', self.html)
+        self.assertIn('return map[status] || "Unknown";', self.html)
+        self.assertNotIn("labelMap[status] || status", self.html)
+        self.assertNotIn("return map[status] || status", self.html)
+
+    def test_pending_plan_name_is_rendered_as_text(self):
+        self.assertIn("function renderScheduledDowngradeTarget", self.html)
+        self.assertIn('strong.textContent = planName || "\\u2014";', self.html)
+        self.assertIn("renderScheduledDowngradeTarget(", self.html)
+        self.assertNotIn('"Target: <strong>" + pendingPlan.name', self.html)
+
+    def test_billing_notifications_mark_read_uses_event_listener(self):
+        start = self.html.index("async function loadBillingNotifications")
+        end = self.html.index("async function markSingleNotificationRead", start)
+        source = self.html[start:end]
+
+        self.assertIn('titleEl.textContent = n.title || "";', source)
+        self.assertIn('messageEl.textContent = n.message || "";', source)
+        self.assertIn('severityEl.textContent = n.severity || "";', source)
+        self.assertIn("markReadBtn.addEventListener(\"click\"", source)
+        self.assertIn("markSingleNotificationRead(id);", source)
+        self.assertNotIn('onclick="markSingleNotificationRead(', source)
+        self.assertNotIn("' + n.id + '", source)
 
     def test_payment_polling_copy_has_no_mojibake(self):
         self.assertIn("Please wait - your balance will update once payment is verified.", self.html)
