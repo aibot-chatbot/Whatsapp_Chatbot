@@ -3,6 +3,7 @@ import requests
 import re
 
 from app.services.ai_router import generate_response
+from app.services.billing_guard import BillingLimitError
 from app.database.bot_repository import get_bot_by_id
 from app.database.conversation_repository import (
     get_or_create_platform_conversation,
@@ -16,6 +17,11 @@ from app.database.processed_telegram_update_repository import (
 )
 from app.services.media_send_service import dispatch_media_after_reply
 from app.utils.message_style_utils import parse_buttons_tag, format_for_telegram_markdown
+
+
+BILLING_LIMIT_CUSTOMER_REPLY = (
+    "This chatbot is temporarily unavailable. Please try again later."
+)
 
 
 def send_telegram_message(
@@ -166,11 +172,22 @@ def process_telegram_update(update: dict, webhook_secret: str):
     telegram_channel_id = channel["id"]
     chatbot_id = channel["chatbot_id"]
     bot_token = channel["bot_token"]
+
+    from app.services.company_status_service import (
+        CompanyOperationalStatusError,
+        ensure_company_operational,
+    )
+
     try:
-        from app.services.company_status_service import ensure_company_operational
         ensure_company_operational(channel.get("company_id"))
-    except Exception:
-        logging.info("Telegram webhook ignored because company is not operational.")
+    except CompanyOperationalStatusError as status_error:
+        # A suspended company and a Supabase outage used to produce the same INFO
+        # line. The code separates them, and anything this function does not
+        # raise now propagates instead of being read as "not operational".
+        logging.warning(
+            "Telegram webhook ignored: company status check failed (code=%s)",
+            status_error.code,
+        )
         return
 
     update_id = update.get("update_id")
@@ -396,12 +413,37 @@ def process_telegram_update(update: dict, webhook_secret: str):
         save_processed_telegram_update(telegram_channel_id, update_id)
         return
 
-    reply = generate_response(
-        message_text,
-        customer_key,
-        chatbot_id,
-        source_channel="telegram",
-    )
+    try:
+        reply = generate_response(
+            message_text,
+            customer_key,
+            chatbot_id,
+            source_channel="telegram",
+        )
+    except BillingLimitError as billing_error:
+        # generate_response re-raises this deliberately. Unguarded it reaches the
+        # webhook's generic handler, so Telegram gets a 500, the update is never
+        # marked processed, and Telegram retries the same message forever while
+        # the customer sees nothing at all.
+        logging.warning(
+            "Telegram reply blocked by billing guard (chatbot_id=%s, code=%s)",
+            chatbot_id,
+            billing_error.code,
+        )
+
+        # Never leak the company's billing state to a Telegram customer.
+        save_message(
+            conversation_id=conversation["id"],
+            sender_type="bot",
+            message_text=BILLING_LIMIT_CUSTOMER_REPLY,
+            message_type="text",
+            delivery_status="sent",
+            ai_generated=False,
+        )
+
+        send_telegram_message(bot_token, customer_key, BILLING_LIMIT_CUSTOMER_REPLY)
+        save_processed_telegram_update(telegram_channel_id, update_id)
+        return
 
     if reply == "<SILENT_BOT_RESPONSE>":
         logging.info("AI is silenced (conversation escalated to human).")
