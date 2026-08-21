@@ -11,8 +11,6 @@ function requireLogin() {
 
 function clearChatbotContext() {
     sessionStorage.removeItem("selectedBotId");
-    localStorage.removeItem("guidance_bot_history");
-    localStorage.removeItem("guidance_bot_open");
 }
 
 function clearAuthenticatedSession() {

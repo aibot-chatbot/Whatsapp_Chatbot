@@ -145,11 +145,19 @@ class TestAiCreditAnalyticsService(unittest.TestCase):
         self.assertEqual(result["summary"]["request_count"], 2)
         self.assertEqual(result["summary"]["average_cost_per_million_tokens_micro_myr"], 222222222)
         self.assertEqual(result["summary"]["ai_credit_balance_micro_myr"], 1250000)
-        self.assertEqual(result["request_trend"][-2]["request_count"], 2)
+        active_request_days = [
+            row for row in result["request_trend"]
+            if row["date"] == "2026-08-19"
+        ]
+        self.assertEqual(active_request_days[0]["request_count"], 2)
         self.assertEqual(result["legacy"]["legacy_spend_micro_myr"], 10000)
         self.assertEqual(result["models"][0]["customer_charge_micro_myr"], 30000)
         self.assertEqual(result["model_daily_usage"][0]["model"], "openai/gpt-4.1")
-        self.assertEqual(result["model_daily_usage"][0]["days"][-2]["total_tokens"], 140)
+        active_model_days = [
+            row for row in result["model_daily_usage"][0]["days"]
+            if row["date"] == "2026-08-19"
+        ]
+        self.assertEqual(active_model_days[0]["total_tokens"], 140)
         self.assertEqual(result["operations"][0]["operation_type"], "chat_reply")
         self.assertEqual(result["providers"][0]["input_tokens"], 100)
         self.assertEqual(result["available_filters"]["chatbots"][0]["name"], "Support Bot")
@@ -308,6 +316,38 @@ class TestAiCreditAnalyticsService(unittest.TestCase):
              patch.object(ai_credit_service, "_get_balance", return_value=None):
             with self.assertRaises(RuntimeError):
                 ai_credit_service.get_company_ai_usage_analytics(42, days=30)
+
+    def test_historical_guide_assistant_usage_remains_reportable(self):
+        from app.services import ai_credit_service
+
+        usage_rows = [{
+            "id": 31,
+            "chatbot_id": 7,
+            "provider": "deepseek",
+            "model": "deepseek-chat",
+            "operation_type": "guide_assistant",
+            "prompt_tokens": 90,
+            "completion_tokens": 30,
+            "total_tokens": 120,
+            "created_at": "2026-08-19T10:00:00+00:00",
+        }]
+        credit_rows = [{
+            "transaction_type": "usage_debit",
+            "customer_charge_micro_myr": 12000,
+            "ai_usage_log_id": 31,
+            "created_at": "2026-08-19T10:00:01+00:00",
+        }]
+
+        with patch.object(ai_credit_service, "_list_usage_by_range", side_effect=[usage_rows, usage_rows]), \
+             patch.object(ai_credit_service, "_list_transactions_by_range_strict", return_value=credit_rows), \
+             patch.object(ai_credit_service, "_list_bots_by_ids", return_value=[{"id": 7, "bot_name": "Legacy Bot"}]), \
+             patch.object(ai_credit_service, "_get_balance", return_value=None):
+            result = ai_credit_service.get_company_ai_usage_analytics(42, days=30)
+
+        self.assertEqual(result["summary"]["request_count"], 1)
+        self.assertEqual(result["summary"]["ai_spend_micro_myr"], 12000)
+        self.assertEqual(result["operations"][0]["operation_type"], "guide_assistant")
+        self.assertEqual(result["operations"][0]["total_tokens"], 120)
 
 
 class TestAiCreditAnalyticsRoute(unittest.TestCase):

@@ -14,7 +14,6 @@ from app.routes.analytics_routes import analytics_blueprint
 from app.routes.auth_routes import auth_bp
 from app.routes.bot_routes import bot_blueprint
 from app.routes.conversation_routes import conversation_blueprint
-from app.routes.guide_router import guide_blueprint
 from app.routes.telegram_routes import telegram_blueprint
 from app.routes.whatsapp_routes import whatsapp_blueprint
 from app.routes.wasender_routes import wasender_blueprint
@@ -88,7 +87,6 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(bot_blueprint)
     app.register_blueprint(conversation_blueprint)
-    app.register_blueprint(guide_blueprint)
     app.register_blueprint(telegram_blueprint)
     app.register_blueprint(whatsapp_blueprint)
     app.register_blueprint(wasender_blueprint)
