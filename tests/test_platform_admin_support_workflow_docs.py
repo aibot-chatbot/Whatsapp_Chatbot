@@ -30,12 +30,41 @@ class PlatformAdminSupportWorkflowContractTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase.lower(), self.normalized)
 
+    def test_current_support_hardening_is_recorded(self):
+        flat = " ".join(self.normalized.split())
+        for phrase in [
+            "Current prototype hardening is complete",
+            "Migration 043",
+            "data/043_atomic_platform_support_case_creation.sql",
+            "runtime verified in prototype/shared-testing only",
+            "create_platform_support_case",
+            "support case",
+            "initial support-case event",
+            "platform-admin audit event atomically",
+            "does not insert a second create audit event",
+            "event_limit",
+            "event_offset",
+            "default limit is 25",
+            "maximum limit is 100",
+            "events_pagination",
+            "reply_id",
+            "returned reply page",
+            "skips notification database access",
+        ]:
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase.lower(), flat)
+
     def test_assignment_notes_and_timeline_boundaries_are_present(self):
         for phrase in [
             "assigned_platform_admin_user_id",
             "`platform_admin_users.id`",
             "not a tenant `users.role`",
             "inactive platform-admin mappings",
+            "user_full_name",
+            "user_email",
+            "display only",
+            "platform admin #<id>",
+            "disabled current option",
             "Internal notes are stored as append-only",
             "`event_type = 'note_added'`",
             "must never be serialized through tenant support",

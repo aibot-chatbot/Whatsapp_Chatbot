@@ -12,6 +12,15 @@ verified only in the main shared-testing Supabase with fake/team data.
 This is not staging verification and does not establish production readiness.
 Production remains blocked.
 
+Current prototype hardening is complete. Migration 043
+(`data/043_atomic_platform_support_case_creation.sql`) is applied and runtime
+verified in prototype/shared-testing only. It creates the support case, initial
+support-case event, and platform-admin audit event atomically through
+`public.create_platform_support_case(...)`. Migration 044 belongs to the
+platform-admin user directory recent-activity batching work, not support-case
+mutation semantics, and is also applied/runtime verified only in
+prototype/shared-testing.
+
 The workspace is internal to authorized platform administrators. It supports
 case listing/detail, redacted case creation, assignment, status transitions,
 priority updates, internal notes, tenant-visible replies for converted tenant
@@ -68,6 +77,15 @@ safe platform-admin audit metadata. No tenant email, name, token, role, or raw
 authorization detail is recorded.
 Inactive platform-admin mappings are not valid assignees.
 
+`GET /api/platform-admin/support-case-assignees` returns only active
+assignable platform-admin mappings with the safe projection `id`, `user_id`,
+`is_active`, `user_full_name`, and `user_email`. The identity fields are for
+display only; assignment payloads continue to use `platform_admin_users.id`
+mapping IDs. If a case is historically assigned to an inactive mapping, the
+frontend keeps that current mapping visible with a safe `Platform Admin #<id>`
+fallback and a disabled current option, but it is not added to the active
+assignee directory and cannot be selected as a new assignment.
+
 ## Internal Notes
 
 Internal notes are stored as append-only `platform_support_case_events` with
@@ -85,7 +103,11 @@ general audit metadata.
 `GET /api/platform-admin/support-cases/<case_id>` returns the authoritative
 case, append-only case events ordered by `created_at ASC, id ASC`, available
 next status transitions, and the original tenant request linkage when the
-existing conversion mapping is present.
+existing conversion mapping is present. Timeline events are paginated with
+`event_limit` and `event_offset`; the default limit is 25 and the maximum
+limit is 100. The response preserves the `events` field and adds
+`events_pagination` with `limit`, `offset`, `returned`, `total`, and
+`has_more`.
 
 The browser renders the timeline from server facts only. Relevant events
 include case creation, conversion-created case events, assignment changes,
@@ -111,6 +133,14 @@ Phase 3 introduces a dedicated tenant-visible reply model:
 - Reply bodies are trimmed, redacted text with a 4000 character maximum.
 - Tenant-facing routes return safe public reply fields only: reply ID, request
   ID, author type, redacted body, and created timestamp.
+
+`GET /api/platform-admin/support-cases/<case_id>/replies` paginates
+tenant-visible replies with `limit` and `offset`; the default limit is 25 and
+the maximum limit is 100. The response preserves `replies` and adds
+`pagination` with `limit`, `offset`, `returned`, `total`, and `has_more`.
+Notification lookup is restricted to notification rows whose `reply_id` is in
+the returned reply page; an empty reply page skips notification database
+access.
 
 Internal notes remain in `platform_support_case_events.redacted_note` and are
 never serialized through tenant support routes or templates.
@@ -193,6 +223,16 @@ policies are approved for these tables.
 Migration 032 must not be applied automatically to any other environment.
 Verification requires actual Supabase execution output from the named
 environment.
+
+Migration 043 adds `public.create_platform_support_case(bigint, bigint, text,
+text, text, text)` for initial support-case creation. The RPC validates the
+active platform-admin actor, inserts the `platform_support_cases` row, appends
+the initial `platform_support_case_events` row with `event_type = created`,
+and inserts the `platform_admin_audit_events` row with action
+`platform_admin.support_case.create` in one transaction. The application
+service calls this RPC and does not insert a second create audit event. The
+function is `SECURITY INVOKER`; execute privilege is revoked from `PUBLIC`,
+`anon`, and `authenticated`, and granted only to `service_role`.
 
 Migration 033 adds Phase 3 support communication objects and one trusted
 mutation RPC:

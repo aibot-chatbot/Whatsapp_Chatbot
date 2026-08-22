@@ -12,7 +12,7 @@
 > | 4I | Renewal, grace period, failed-payment recovery | Complete |
 > | 4J | Billing notifications and alerts | Complete |
 > | 4K | Advanced billing and AI-usage reporting | Complete |
-> | 4L | Platform-admin controls | **Original scope staging verified; current 12-route stack local-only; production blocked** |
+> | 4L | Platform-admin controls | **Original scope staging verified; later extensions have mixed local and prototype/shared-testing evidence; production blocked** |
 > | 4M | Production launch audit and remediation | Complete |
 > | 4N | Knowledge Readme compilation & Pop-out viewer | Complete |
 >
@@ -48,17 +48,15 @@ production environment. Future staging and future real production are not
 verified or deployed for the current Superadmin milestone.
 
 The current Superadmin prototype milestone is runtime-verified complete. Final
-Superadmin prototype runtime verification passed with non-blocking notes:
-`GET /api/platform-admin/me`, `GET /api/platform-admin/overview`,
-company investigation, support reads, Platform Admin Management,
-company 34 suspend/restore with representative inactive-company enforcement,
-Platform Billing overview/directory, Audit Logs, and the Platform Admin browser
-suite all passed in the prototype/shared-testing boundary. Superadmin-focused
-pytest recorded 374 passed and 1113 subtests; the Platform Admin browser suite
-recorded 70 passed. A broader run recorded 503 passed, 820 subtests, and one
-unrelated AI-access failure in
-`tests/test_ai_access_enforcement.py::TestModelSettingsEnforcement::test_trial_deepseek_flash_save_succeeds`;
-the full repository should not be described as green from that run.
+Superadmin prototype runtime verification is now represented by the
+consolidated hardening verification pass in the prototype/shared-testing
+boundary. Focused evidence recorded 310 passed tests and 779 subtests; the
+broader focused platform-admin suite recorded 431 passed tests and 991
+subtests. That verification covered atomic support-case creation, bounded
+support history pagination, pagination regression repairs, platform-admin
+recent-activity batching, human-readable assignee identities, inactive
+historical assignee safety, and the monitoring-depth audit conclusion that
+current Phase 6 is sufficient for prototype/shared-testing.
 
 The initial read-only backend is implemented with a separate database-backed
 platform-admin allowlist, per-request fail-closed authorization, dedicated
@@ -67,7 +65,10 @@ audit-before-response enforcement. Tenant roles and JWT claims do not grant plat
 later users/chatbots company-inspection endpoints and Platform Operations
 overview endpoint, plus the subscription-history and AI-credit transaction-history
 investigation endpoints, Audit Logs viewer, and billing-order history endpoint are
-application-only and locally tested unless separately staged later. The overview
+no longer described with one blanket evidence level: some remain
+local/application-tested only, while specific Phase 5, Phase 6, Phase 7, and
+later hardening paths have prototype/shared-testing runtime verification where
+documented in their respective sections. The overview
 uses latest-subscription rows per company ordered by `created_at DESC, id DESC`;
 Operational Alerts Phase 1 extends the existing dashboard and overview response
 only, deriving typed read-only subscription past-due/expired alerts from the
@@ -85,8 +86,11 @@ and transactions, billing orders, users, chatbots, Support Workspace, Audit Logs
 billing-order audit filters, and local revocation with Access Denied and stale
 platform-data clearing. This is local evidence only. The original five
 platform-admin endpoints remain the only endpoint set recorded as staging
-verified; later extensions remain application-only/local-tested unless separately
-staged. Operational Alerts added no endpoint or page, and the billing-order
+verified; later extensions have mixed evidence, including local-only evidence
+for some paths and prototype/shared-testing runtime verification for the
+specific Phase 5, Phase 6, Phase 7, Migration 043, and Migration 044 paths
+documented below. Unless explicitly stated otherwise, those later extensions
+are not staging verified and are not production deployed. Operational Alerts added no endpoint or page, and the billing-order
 audit-filter fix added no route or backend behavior change.
 The complete platform-admin surface additionally includes separately approved
 bounded support-case, platform-admin user-management, and company lifecycle
@@ -118,6 +122,16 @@ preserved RPC ownership/security/EXECUTE posture, did not create mappings, did
 not create Phase 4 mutation audit events merely by application, and did not
 alter existing audit rows. No staging verification or production readiness is
 claimed.
+Migration 044 (`data/044_platform_admin_user_recent_activity_batch.sql`) is
+applied and runtime verified in prototype/shared-testing only. It eliminates
+the platform-admin directory recent-activity N+1 pattern: before, the
+directory used one mapping query, one users query, and N audit queries; now it
+uses one mapping query, one users identity batch query, and one
+`get_latest_platform_admin_activity` RPC. The
+`recent_platform_admin_activity_at` field means latest
+`platform_admin_audit_events.created_at` for that platform-admin mapping, or
+explicit null when no audit history exists. It is not last login, user
+activity, mapping `updated_at`, or account modification time.
 Platform-admin Tenant and Company Administration Phase 5 is implemented and
 verified for the current milestone in the approved main shared-testing Supabase
 with fake/team data. It includes the global company directory, Company Detail
@@ -153,8 +167,8 @@ tenant data access, raw tenant messages, AI prompts/responses, provider
 payloads, API credentials, payment secrets, unrestricted configuration
 inspection, financial mutations, true tenant application audit history, Phase 4
 account-management expansion, duplicate Phase 6 monitoring, or Phase 7
-financial mutation controls. No Migration 043 was created. No staging
-verification or production readiness is claimed.
+financial mutation controls. No staging verification or production readiness
+is claimed.
 Platform-admin Platform Monitoring Phase 6 is implemented locally as a
 read-only extension of `GET /api/platform-admin/overview`; no new
 platform-admin mutation routes were added.
@@ -195,11 +209,19 @@ cards/panels/tables, clearer filters, mobile card alternatives, responsive
 behavior, and reduced dashboard information density. This is not staging
 verification and does not establish production readiness. Unsupported
 aggregate values fail closed.
+The final monitoring-depth audit concluded that this Phase 6 coverage is
+sufficient for the current prototype/shared-testing milestone. Deeper
+monitoring/observability, durable background job/run monitoring, formal
+SLA/SLO/alert definitions, recent messaging-failure trend depth, provider/model
+AI failure depth, centralized structured logs/metrics, staging verification,
+and production deployment verification remain deferred production or optional
+hardening work, not current prototype defects.
 Platform-admin Billing & Subscription Oversight Phase 7 is implemented for the
 current read-only milestone as a platform-admin Billing & Subscriptions surface.
 Migration 038 is applied and verified only in the approved main shared-testing
-Supabase with fake/team data. Migration 043 was not required and was not
-created. It adds `public.get_platform_admin_billing_overview()`,
+Supabase with fake/team data. No additional Phase 7 billing migration beyond
+Migration 038 was required; Migration 043 belongs to the later atomic
+support-case creation hardening. Migration 038 adds `public.get_platform_admin_billing_overview()`,
 `public.get_platform_admin_billing_companies(integer, integer, text, text,
 boolean)`, and updates `public.get_platform_admin_monitoring_overview()` so
 Phase 7 read actions and resource types are counted in Platform-admin Activity.
@@ -269,6 +291,22 @@ RLS/policies, service-role-only RPC execution, assignment/status/priority/note
 mutations, no-op and invalid-transition rejection without extra event/audit
 rows, and close/reopen `closed_at` behavior. This is not staging or production
 verification.
+Current support hardening is complete for prototype/shared-testing. Migration
+043 (`data/043_atomic_platform_support_case_creation.sql`) transactionally
+creates the `platform_support_cases` row, initial
+`platform_support_case_events` row, and `platform_admin_audit_events` create
+audit through `public.create_platform_support_case(...)`; the application
+service does not insert a duplicate create audit. Support-case detail history
+uses bounded `event_limit`/`event_offset` pagination with default 25 and
+maximum 100. Tenant-visible replies use bounded `limit`/`offset` pagination
+with default 25 and maximum 100. Reply notification lookup is restricted to
+reply IDs on the returned page. Frontend Load More appends events using `id`,
+replies using `reply_id`, and notifications using `notification_id`.
+Support-case and reply-list not-found reads return the intended 404 instead of
+an audit-validation 503. Assignee display now uses safe `user_full_name` and
+`user_email` fields while assignment continues to submit
+`platform_admin_users.id` mapping IDs; inactive historical current assignees
+remain visible with a safe fallback but cannot be selected as new assignments.
 Platform-admin Tenant Communication Phase 3 and Migration 033 are verified only
 in the main shared-testing Supabase with fake/team data. It adds tenant-visible reply creation/listing for converted
 support cases, tenant request history/detail with public replies, safe

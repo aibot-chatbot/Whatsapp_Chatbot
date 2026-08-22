@@ -42,20 +42,36 @@ class PlatformAdminUserRepositoryTests(unittest.TestCase):
             {"id": 7, "email": "operator@example.test", "full_name": "Operator", "status": "active"},
             {"id": 8, "email": "second@example.test", "full_name": "Second", "status": "inactive"},
         ])
-        audit_one = query([{"created_at": "2026-08-05T12:00:00+00:00"}])
-        audit_two = query([])
+        activity_rpc = MagicMock(return_value=MagicMock(execute=MagicMock(
+            return_value=SimpleNamespace(data=[
+                {
+                    "platform_admin_user_id": 3,
+                    "recent_platform_admin_activity_at": "2026-08-05T12:00:00+00:00",
+                },
+                {
+                    "platform_admin_user_id": 4,
+                    "recent_platform_admin_activity_at": None,
+                },
+            ])
+        )))
 
         with patch.object(
             platform_admin_repository.supabase,
             "table",
-            side_effect=[mappings, users, audit_one, audit_two],
-        ) as table:
+            side_effect=[mappings, users],
+        ) as table, patch.object(platform_admin_repository.supabase, "rpc", activity_rpc):
             rows, total = platform_admin_repository.list_platform_admin_users_for_platform_admin(
                 limit=25, offset=0,
             )
 
         self.assertEqual(total, 2)
         self.assertEqual(table.call_args_list[0].args, ("platform_admin_users",))
+        self.assertEqual(table.call_args_list[1].args, ("users",))
+        self.assertEqual(len(table.call_args_list), 2)
+        activity_rpc.assert_called_once_with(
+            "get_latest_platform_admin_activity",
+            {"p_platform_admin_user_ids": [3, 4]},
+        )
         mappings.select.assert_called_once_with(
             platform_admin_repository.PLATFORM_ADMIN_USER_SAFE_FIELDS, count="exact"
         )
@@ -84,16 +100,138 @@ class PlatformAdminUserRepositoryTests(unittest.TestCase):
             "created_by_user_id": None,
         }])
         users = query([{"id": 7, "email": "operator@example.test", "full_name": "Operator", "status": "active"}])
-        audit = query([])
+        activity_rpc = MagicMock(return_value=MagicMock(execute=MagicMock(
+            return_value=SimpleNamespace(data=[{
+                "platform_admin_user_id": 3,
+                "recent_platform_admin_activity_at": None,
+            }])
+        )))
         with patch.object(
             platform_admin_repository.supabase,
             "table",
-            side_effect=[mapping, users, audit],
-        ):
+            side_effect=[mapping, users],
+        ), patch.object(platform_admin_repository.supabase, "rpc", activity_rpc):
             row = platform_admin_repository.get_platform_admin_user_for_platform_admin(3)
         self.assertEqual(row["platform_admin_user_id"], 3)
         self.assertEqual(row["user_status"], "active")
         self.assertNotIn("metadata", row)
+
+    def test_recent_activity_batch_deduplicates_ids_and_preserves_missing_activity(self):
+        activity_rpc = MagicMock(return_value=MagicMock(execute=MagicMock(
+            return_value=SimpleNamespace(data=[
+                {
+                    "platform_admin_user_id": 1,
+                    "recent_platform_admin_activity_at": "2026-08-03T00:00:00+00:00",
+                },
+                {
+                    "platform_admin_user_id": 2,
+                    "recent_platform_admin_activity_at": "2026-08-02T00:00:00+00:00",
+                },
+                {
+                    "platform_admin_user_id": 3,
+                    "recent_platform_admin_activity_at": None,
+                },
+            ])
+        )))
+        with patch.object(platform_admin_repository.supabase, "rpc", activity_rpc):
+            result = platform_admin_repository._latest_activity_by_platform_admin_ids(
+                [3, 1, 2, 1, None, True, -1]
+            )
+        activity_rpc.assert_called_once_with(
+            "get_latest_platform_admin_activity",
+            {"p_platform_admin_user_ids": [1, 2, 3]},
+        )
+        self.assertEqual(result, {
+            1: "2026-08-03T00:00:00+00:00",
+            2: "2026-08-02T00:00:00+00:00",
+            3: None,
+        })
+
+    def test_recent_activity_batch_empty_input_skips_rpc(self):
+        with patch.object(platform_admin_repository.supabase, "rpc") as rpc:
+            result = platform_admin_repository._latest_activity_by_platform_admin_ids([None, True, 0])
+        rpc.assert_not_called()
+        self.assertEqual(result, {})
+
+    def test_recent_activity_batch_rejects_malformed_result(self):
+        malformed_cases = [
+            "not-a-list",
+            [{"platform_admin_user_id": 99, "recent_platform_admin_activity_at": None}],
+            [{"platform_admin_user_id": 1, "recent_platform_admin_activity_at": 123}],
+            [None],
+        ]
+        for data in malformed_cases:
+            with self.subTest(data=data), patch.object(
+                platform_admin_repository.supabase,
+                "rpc",
+                return_value=MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=data))),
+            ):
+                with self.assertRaises(RuntimeError):
+                    platform_admin_repository._latest_activity_by_platform_admin_ids([1])
+
+    def test_recent_activity_batch_rejects_missing_requested_mapping(self):
+        data = [
+            {
+                "platform_admin_user_id": 1,
+                "recent_platform_admin_activity_at": "2026-08-01T00:00:00+00:00",
+            },
+            {
+                "platform_admin_user_id": 3,
+                "recent_platform_admin_activity_at": None,
+            },
+        ]
+        with patch.object(
+            platform_admin_repository.supabase,
+            "rpc",
+            return_value=MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=data))),
+        ):
+            with self.assertRaises(RuntimeError):
+                platform_admin_repository._latest_activity_by_platform_admin_ids([1, 2, 3])
+
+    def test_recent_activity_batch_rejects_duplicate_mapping_rows(self):
+        data = [
+            {
+                "platform_admin_user_id": 1,
+                "recent_platform_admin_activity_at": "2026-08-01T00:00:00+00:00",
+            },
+            {
+                "platform_admin_user_id": 1,
+                "recent_platform_admin_activity_at": "2026-08-02T00:00:00+00:00",
+            },
+        ]
+        with patch.object(
+            platform_admin_repository.supabase,
+            "rpc",
+            return_value=MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=data))),
+        ):
+            with self.assertRaises(RuntimeError):
+                platform_admin_repository._latest_activity_by_platform_admin_ids([1])
+
+    def test_recent_activity_batch_rejects_invalid_timestamp_strings(self):
+        for timestamp in ("", "not-a-date", "2026-08-01T00:00:00"):
+            with self.subTest(timestamp=timestamp), patch.object(
+                platform_admin_repository.supabase,
+                "rpc",
+                return_value=MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=[{
+                    "platform_admin_user_id": 1,
+                    "recent_platform_admin_activity_at": timestamp,
+                }]))),
+            ):
+                with self.assertRaises(RuntimeError):
+                    platform_admin_repository._latest_activity_by_platform_admin_ids([1])
+
+    def test_recent_activity_batch_preserves_valid_timezone_timestamp(self):
+        timestamp = "2026-08-01T00:00:00Z"
+        with patch.object(
+            platform_admin_repository.supabase,
+            "rpc",
+            return_value=MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=[{
+                "platform_admin_user_id": 1,
+                "recent_platform_admin_activity_at": timestamp,
+            }]))),
+        ):
+            result = platform_admin_repository._latest_activity_by_platform_admin_ids([1])
+        self.assertEqual(result, {1: timestamp})
 
     def _create_rpc_result(self):
         return {

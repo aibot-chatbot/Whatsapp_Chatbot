@@ -330,6 +330,74 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(response.json["data"]["id"], 200)
         service.assert_called_once_with(200, 3)
 
+    def test_support_case_detail_forwards_event_pagination(self):
+        with patch.object(
+            platform_admin_service,
+            "get_support_case",
+            return_value={
+                "case": {"id": 9},
+                "events": [],
+                "events_pagination": {
+                    "limit": 10, "offset": 20, "returned": 0, "total": 0, "has_more": False,
+                },
+            },
+        ) as service:
+            response = self.client.get(
+                "/api/platform-admin/support-cases/9?event_limit=10&event_offset=20",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        service.assert_called_once_with(9, 3, event_limit="10", event_offset="20")
+
+    def test_support_case_replies_forwards_pagination(self):
+        with patch.object(
+            platform_admin_service,
+            "list_support_case_replies",
+            return_value={
+                "replies": [],
+                "notifications": [],
+                "pagination": {
+                    "limit": 10, "offset": 20, "returned": 0, "total": 0, "has_more": False,
+                },
+            },
+        ) as service:
+            response = self.client.get(
+                "/api/platform-admin/support-cases/9/replies?limit=10&offset=20",
+                headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 200)
+        service.assert_called_once_with(9, 3, limit="10", offset="20")
+
+    def test_missing_support_case_detail_returns_404_not_503(self):
+        with patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "get_support_case_for_platform_admin",
+            return_value=None,
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ):
+            response = self.client.get("/api/platform-admin/support-cases/999", headers=self.headers)
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json["code"], "support_case_not_found")
+
+    def test_missing_support_case_replies_returns_404_not_503(self):
+        with patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "get_support_case_for_platform_admin",
+            return_value=None,
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ):
+            response = self.client.get(
+                "/api/platform-admin/support-cases/999/replies", headers=self.headers
+            )
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.json["code"], "support_case_not_found")
+
     def test_company_suspend_and_restore_routes_use_path_actor_and_empty_body(self):
         with patch.object(
             platform_admin_service,

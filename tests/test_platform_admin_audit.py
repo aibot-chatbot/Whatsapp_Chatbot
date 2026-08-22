@@ -290,6 +290,62 @@ class PlatformAdminAuditTests(unittest.TestCase):
             },
         ),
         (
+            "support_case_read_success",
+            2,
+            "platform_admin.support_case.read",
+            "platform_support_cases",
+            "9",
+            {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/support-cases/<case_id>",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "returned_count": 1,
+            },
+        ),
+        (
+            "support_case_read_not_found",
+            2,
+            "platform_admin.support_case.read",
+            "platform_support_cases",
+            "9",
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/support-cases/<case_id>",
+                "http_method": "GET",
+            },
+        ),
+        (
+            "support_case_reply_list_success",
+            2,
+            "platform_admin.support_case.reply.list",
+            "platform_support_cases",
+            "9",
+            {
+                "outcome": "success",
+                "endpoint": "/api/platform-admin/support-cases/<case_id>/replies",
+                "http_method": "GET",
+                "limit": 25,
+                "offset": 0,
+                "returned_count": 1,
+                "company_id": 31,
+                "request_id": 12,
+            },
+        ),
+        (
+            "support_case_reply_list_not_found",
+            2,
+            "platform_admin.support_case.reply.list",
+            "platform_support_cases",
+            "9",
+            {
+                "outcome": "not_found",
+                "endpoint": "/api/platform-admin/support-cases/<case_id>/replies",
+                "http_method": "GET",
+            },
+        ),
+        (
             "audit_events_list_success",
             2,
             "platform_admin.audit_events.list",
@@ -972,6 +1028,43 @@ class PlatformAdminAuditTests(unittest.TestCase):
                     "9",
                     metadata,
                 )
+
+    def test_support_case_not_found_events_reject_pagination_metadata(self):
+        cases = [
+            (
+                "platform_admin.support_case.read",
+                "platform_support_cases",
+                "/api/platform-admin/support-cases/<case_id>",
+                {"limit": 25, "offset": 0, "returned_count": 0},
+            ),
+            (
+                "platform_admin.support_case.reply.list",
+                "platform_support_cases",
+                "/api/platform-admin/support-cases/<case_id>/replies",
+                {
+                    "limit": 25,
+                    "offset": 0,
+                    "returned_count": 0,
+                    "company_id": 31,
+                    "request_id": 12,
+                },
+            ),
+        ]
+        for action, resource_type, endpoint, extra in cases:
+            with self.subTest(action=action):
+                metadata = {
+                    "outcome": "not_found",
+                    "endpoint": endpoint,
+                    "http_method": "GET",
+                }
+                platform_admin_repository.validate_audit_event(
+                    2, action, resource_type, "9", metadata,
+                )
+                metadata.update(extra)
+                with self.assertRaises(ValueError):
+                    platform_admin_repository.validate_audit_event(
+                        2, action, resource_type, "9", metadata,
+                    )
 
     def test_successful_child_list_events_require_every_list_field(self):
         cases = (

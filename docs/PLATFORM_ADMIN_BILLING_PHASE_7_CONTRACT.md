@@ -5,8 +5,10 @@
 Platform-admin Billing & Subscription Oversight Phase 7 is implemented for the
 current milestone as a read-only platform-admin surface. Migration 038 is
 applied and verified only in the approved main shared-testing Supabase with
-fake/team data. Migration 043 was not required and was not created. This is not
-staging verification and does not establish production readiness.
+fake/team data. No additional Phase 7 billing migration beyond Migration 038
+was required; Migration 043 belongs to the later atomic support-case creation
+hardening. This is not staging verification and does not establish production
+readiness.
 
 The current Supabase project used for this evidence is the prototype/shared-testing
 environment. Supabase labels its main branch as `PRODUCTION`, but this

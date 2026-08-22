@@ -11,6 +11,9 @@
         caseResults: null,
         caseDetail: null,
         caseError: null,
+        activeCaseData: null,
+        timelineLoading: false,
+        repliesLoading: false,
         caseAssignees: [],
         tenantRequestResults: null,
         tenantRequestDetail: null,
@@ -78,8 +81,13 @@
     function assigneeLabel(assigneeId) {
         if (!Number.isSafeInteger(assigneeId) || assigneeId <= 0) return "Unassigned";
         const match = state.caseAssignees.find(function (item) { return item.id === assigneeId; });
-        if (match) return "Admin mapping #" + String(match.id) + " (user #" + String(match.user_id) + ")";
-        return "Admin mapping #" + String(assigneeId);
+        if (!match) return "Platform Admin #" + String(assigneeId);
+        const fullName = typeof match.user_full_name === "string" ? match.user_full_name.trim() : "";
+        const email = typeof match.user_email === "string" ? match.user_email.trim() : "";
+        if (fullName && email) return fullName + " — " + email;
+        if (fullName) return fullName;
+        if (email) return email;
+        return "Platform Admin #" + String(match.id);
     }
 
     function clearTenantRequestState() {
@@ -337,11 +345,34 @@
         values.forEach(function (value) {
             const option = ui.element("option", "", value.label);
             option.value = value.value;
+            option.disabled = value.disabled === true;
             option.selected = value.value === selected;
             select.append(option);
         });
         field.append(label, select);
         return { field: field, input: select };
+    }
+
+    function paginationInfo(value) {
+        return value && typeof value === "object" ? value : {
+            limit: 25,
+            offset: 0,
+            returned: 0,
+            total: 0,
+            has_more: false
+        };
+    }
+
+    function mergeById(existing, incoming, key) {
+        const seen = new Set();
+        const merged = [];
+        (existing || []).concat(incoming || []).forEach(function (item) {
+            const id = item && item[key];
+            if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id)) return;
+            seen.add(id);
+            merged.push(item);
+        });
+        return merged;
     }
 
     function renderPublicReplySection(current, data) {
@@ -377,6 +408,16 @@
                 }),
                 "Tenant-visible support replies"
             ));
+        }
+        const replyPagination = paginationInfo(data && data.replies_pagination);
+        if (replyPagination.has_more) {
+            const loadMore = ui.element("button", "platform-button", "Load more replies");
+            loadMore.type = "button";
+            loadMore.disabled = state.repliesLoading;
+            loadMore.addEventListener("click", function () {
+                loadMoreSupportCaseReplies(current.id);
+            });
+            section.append(loadMore);
         }
 
         const replyForm = ui.element("form", "platform-support-search");
@@ -476,6 +517,16 @@
             }),
             "Support-case events"
         ));
+        const eventsPagination = paginationInfo(data.events_pagination);
+        if (eventsPagination.has_more) {
+            const loadMoreEvents = ui.element("button", "platform-button", "Load more timeline");
+            loadMoreEvents.type = "button";
+            loadMoreEvents.disabled = state.timelineLoading;
+            loadMoreEvents.addEventListener("click", function () {
+                loadMoreSupportCaseEvents(current.id);
+            });
+            section.append(loadMoreEvents);
+        }
 
         const controls = ui.element("div", "platform-support-actions");
         const transitions = Array.isArray(data.status_transitions) ? data.status_transitions : [];
@@ -494,12 +545,25 @@
             { value: "high", label: "High" },
             { value: "urgent", label: "Urgent" }
         ], current.priority);
-        const currentAssigneeValue = current.assigned_platform_admin_user_id
-            ? String(current.assigned_platform_admin_user_id)
-            : "";
-        const assigneeValues = [{ value: "", label: "Unassigned" }].concat(state.caseAssignees.map(function (item) {
+        const currentAssigneeId = current.assigned_platform_admin_user_id;
+        const hasCurrentAssignee = Number.isSafeInteger(currentAssigneeId) && currentAssigneeId > 0;
+        const currentAssigneeValue = hasCurrentAssignee ? String(currentAssigneeId) : "";
+        const activeAssigneeValues = state.caseAssignees.map(function (item) {
             return { value: String(item.id), label: assigneeLabel(item.id) };
-        }));
+        });
+        const assigneeValues = [];
+        const currentAssigneeIsActive = hasCurrentAssignee && state.caseAssignees.some(function (item) {
+            return item.id === currentAssigneeId;
+        });
+        if (hasCurrentAssignee && !currentAssigneeIsActive) {
+            assigneeValues.push({
+                value: currentAssigneeValue,
+                label: assigneeLabel(currentAssigneeId) + " (inactive/current)",
+                disabled: true
+            });
+        }
+        assigneeValues.push.apply(assigneeValues, activeAssigneeValues);
+        assigneeValues.push({ value: "", label: "Unassigned" });
         const assignee = selectField("Assignee", "platform-support-case-assignee", assigneeValues, currentAssigneeValue);
         const updateStatus = ui.element("button", "platform-button", "Update status");
         updateStatus.type = "button";
@@ -607,28 +671,108 @@
         state.caseDetail.replaceChildren(section, renderPublicReplySection(current, data));
     }
 
+    async function loadMoreSupportCaseEvents(caseId) {
+        if (state.timelineLoading || !state.activeCaseData) return;
+        const pagination = paginationInfo(state.activeCaseData.events_pagination);
+        if (!pagination.has_more) return;
+        state.timelineLoading = true;
+        renderCaseDetail(state.activeCaseData);
+        try {
+            const data = await ui.runRequest("support-case-events-more", function (signal) {
+                return PlatformAdminApi.getSupportCase(caseId, {
+                    eventLimit: pagination.limit,
+                    eventOffset: pagination.offset + pagination.returned,
+                    signal: signal
+                });
+            });
+            state.activeCaseData.events = mergeById(
+                state.activeCaseData.events,
+                Array.isArray(data.events) ? data.events : [],
+                "id"
+            );
+            state.activeCaseData.events_pagination = data.events_pagination || pagination;
+            if (data.case) state.activeCaseData.case = data.case;
+            if (data.source_tenant_request) state.activeCaseData.source_tenant_request = data.source_tenant_request;
+            if (Array.isArray(data.status_transitions)) state.activeCaseData.status_transitions = data.status_transitions;
+        } catch (error) {
+            if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "More timeline events could not be loaded.";
+        } finally {
+            state.timelineLoading = false;
+            renderCaseDetail(state.activeCaseData);
+        }
+    }
+
+    async function loadMoreSupportCaseReplies(caseId) {
+        if (state.repliesLoading || !state.activeCaseData) return;
+        const pagination = paginationInfo(state.activeCaseData.replies_pagination);
+        if (!pagination.has_more) return;
+        state.repliesLoading = true;
+        renderCaseDetail(state.activeCaseData);
+        try {
+            const data = await ui.runRequest("support-case-replies-more", function (signal) {
+                return PlatformAdminApi.listSupportCaseReplies(caseId, {
+                    limit: pagination.limit,
+                    offset: pagination.offset + pagination.returned,
+                    signal: signal
+                });
+            });
+            state.activeCaseData.public_replies = mergeById(
+                state.activeCaseData.public_replies,
+                Array.isArray(data.replies) ? data.replies : [],
+                "reply_id"
+            );
+            state.activeCaseData.reply_notifications = mergeById(
+                state.activeCaseData.reply_notifications,
+                Array.isArray(data.notifications) ? data.notifications : [],
+                "notification_id"
+            );
+            state.activeCaseData.replies_pagination = data.pagination || pagination;
+            if (!state.activeCaseData.source_tenant_request && data.source_tenant_request) {
+                state.activeCaseData.source_tenant_request = data.source_tenant_request;
+            }
+        } catch (error) {
+            if (!ui.handleError(error) && state.caseError) state.caseError.textContent = "More tenant-visible replies could not be loaded.";
+        } finally {
+            state.repliesLoading = false;
+            renderCaseDetail(state.activeCaseData);
+        }
+    }
+
     async function openSupportCase(caseId, options) {
         const config = options || {};
+        state.timelineLoading = false;
+        state.repliesLoading = false;
         try {
             const data = await ui.runRequest("support-case-detail", function (signal) {
-                return PlatformAdminApi.getSupportCase(caseId, { signal: signal });
+                return PlatformAdminApi.getSupportCase(caseId, {
+                    eventLimit: 25,
+                    eventOffset: 0,
+                    signal: signal
+                });
             });
             try {
                 const replyData = await ui.runRequest("support-case-public-replies", function (signal) {
-                    return PlatformAdminApi.listSupportCaseReplies(caseId, { signal: signal });
+                    return PlatformAdminApi.listSupportCaseReplies(caseId, {
+                        limit: 25,
+                        offset: 0,
+                        signal: signal
+                    });
                 });
                 data.public_replies = replyData && Array.isArray(replyData.replies) ? replyData.replies : [];
                 data.reply_notifications = replyData && Array.isArray(replyData.notifications) ? replyData.notifications : [];
+                data.replies_pagination = replyData && replyData.pagination ? replyData.pagination : null;
                 if (!data.source_tenant_request && replyData && replyData.source_tenant_request) {
                     data.source_tenant_request = replyData.source_tenant_request;
                 }
             } catch (error) {
                 data.public_replies = [];
                 data.reply_notifications = [];
+                data.replies_pagination = null;
                 if (!ui.handleError(error) && state.caseError) {
                     state.caseError.textContent = "Tenant-visible replies could not be loaded.";
                 }
             }
+            state.activeCaseData = data;
             renderCaseDetail(data);
         } catch (error) {
             if (config.preserveOnFailure) {

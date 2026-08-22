@@ -28,6 +28,8 @@
         "invalid_company_id",
         "invalid_priority",
         "invalid_case_id",
+        "invalid_event_limit",
+        "invalid_event_offset",
         "invalid_title",
         "invalid_redacted_summary",
         "invalid_redacted_note",
@@ -314,7 +316,11 @@
 
     function getSupportCase(caseId, options) {
         const id = requireCaseId(caseId);
-        return platformFetch("/support-cases/" + id, (options || {}).signal);
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("event_limit", String(config.eventLimit || 25));
+        params.set("event_offset", String(config.eventOffset || 0));
+        return platformFetch("/support-cases/" + id + "?" + params.toString(), config.signal);
     }
 
     function listSupportCaseAssignees(options) {
@@ -370,7 +376,11 @@
 
     function listSupportCaseReplies(caseId, options) {
         const id = requireCaseId(caseId);
-        return platformFetch("/support-cases/" + id + "/replies", (options || {}).signal);
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("limit", String(config.limit || 25));
+        params.set("offset", String(config.offset || 0));
+        return platformFetch("/support-cases/" + id + "/replies?" + params.toString(), config.signal);
     }
 
     function createSupportCaseReply(caseId, payload, options) {

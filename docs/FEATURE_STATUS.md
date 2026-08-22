@@ -27,16 +27,20 @@ deferred and is not required for the current prototype milestone.
 
 Repository/database reconciliation confirmed that Superadmin migrations 029
 through 038 are already represented in the current prototype/shared-testing
-database. Do not reapply migrations 029-038. No new migration is required for
-the current Superadmin milestone; Migration 043 was not created and is not
-required.
+database. Do not reapply migrations 029-038. Migration 043
+(`data/043_atomic_platform_support_case_creation.sql`) and Migration 044
+(`data/044_platform_admin_user_recent_activity_batch.sql`) are applied and
+runtime verified in prototype/shared-testing only. They are not staging
+verified and are not production deployed.
 
-Final Superadmin prototype runtime verification passed with non-blocking notes:
-`GET /api/platform-admin/me`, `GET /api/platform-admin/overview`, company
-investigation, support reads, Platform Admin Management, company 34
-suspend/restore with representative inactive-company enforcement, Platform
-Billing overview/directory, Audit Logs, and the Platform Admin browser suite
-all passed inside the prototype/shared-testing boundary.
+Final Superadmin prototype runtime verification is now represented by the
+consolidated hardening verification pass: focused evidence recorded 310 passed
+tests and 779 subtests, and the broader focused platform-admin suite recorded
+431 passed tests and 991 subtests. The pass covered atomic support-case
+creation, bounded support history pagination, pagination regression repairs,
+platform-admin recent-activity batching, human-readable assignee identities,
+inactive historical assignee safety, and the monitoring-depth audit conclusion
+that current Phase 6 is sufficient for prototype/shared-testing.
 
 ## Authentication and Account Management
 
@@ -348,12 +352,16 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 
 ## Phase 4L - Platform-Admin Read-Only Backend and Frontend
 
-**Status: Original five endpoints verified in staging; current 12-route stack
-verified locally; production blocked**
+**Status: Original scope staging verified; later extensions have mixed local
+and prototype/shared-testing evidence; production blocked**
 
-The original five platform-admin endpoints are staging-verified. The later
-extensions are application-only/local-tested unless separately staged. At the
-current local implementation, localhost manual verification recorded on 2026-08-03 passed for
+The original five platform-admin endpoints retain their historical staging
+verification. Later extensions have mixed evidence: some remain
+local/application-tested only, while Phase 5, Phase 6, Phase 7, and later
+hardening paths have prototype/shared-testing runtime verification where
+explicitly recorded. Unless explicitly stated otherwise, later extensions are
+not staging verified and are not production deployed. At the current local
+implementation, localhost manual verification recorded on 2026-08-03 passed for
 the full current twelve-route read-only investigation stack: dashboard, operational alerts,
 company directory/detail, subscription summary/history, AI-credit usage and
 transactions, billing orders, users, chatbots, Support Workspace, Audit Logs,
@@ -370,10 +378,11 @@ verified.
   subscription summary, current-period AI-credit/usage summary, and lazy
   read-only subscription-history, AI-credit transaction history, billing-order history,
   company users, company chatbots, and audit-log
-  inspection. The original five endpoints were verified in staging; the
-  operations-overview, users/chatbots, subscription-history, AI-credit transaction-history,
-  billing-order history, and audit-log viewer extensions are
-  application-only and locally tested unless separately staged later.
+  inspection. The original five endpoints were verified in staging; later
+  operations-overview, users/chatbots, subscription-history, AI-credit
+  transaction-history, billing-order history, and audit-log viewer extensions
+  have mixed local and prototype/shared-testing evidence where explicitly
+  recorded, and are not automatically staging verified or production deployed.
 - Cross-tenant reads isolated in dedicated platform repositories with explicit
   safe projections and mandatory audit-before-response behavior
 - Automated authorization, repository, route, and audit tests added
@@ -422,6 +431,24 @@ verified.
   actions, exports, charts, SLA timers, escalation automation, and production
   use remain blocked. The workflow contract is documented in
   `docs/PLATFORM_ADMIN_SUPPORT_WORKFLOW_CONTRACT.md`.
+  Current prototype hardening is complete: Migration 043
+  (`data/043_atomic_platform_support_case_creation.sql`) creates
+  `platform_support_cases`, the initial `platform_support_case_events` row,
+  and the `platform_admin_audit_events` create audit atomically through
+  `public.create_platform_support_case(...)`; the application service no
+  longer performs duplicate application-side create/audit inserts. Support-case
+  detail history is bounded with `event_limit`/`event_offset` (default 25,
+  maximum 100), tenant-visible replies use `limit`/`offset` (default 25,
+  maximum 100), and reply-notification reads are restricted to notification
+  rows linked to reply IDs on the returned page. Frontend Load More appends
+  timeline events by `id`, replies by `reply_id`, and notifications by
+  `notification_id`; not-found support-case and reply-list reads return the
+  intended 404 instead of an audit-validation 503. The assignee endpoint now
+  returns only `id`, `user_id`, `is_active`, `user_full_name`, and
+  `user_email`; assignment still submits `platform_admin_users.id` mapping IDs,
+  active mappings are the only selectable assignees, and inactive historical
+  current assignees remain visible with a safe fallback without becoming
+  assignable.
   SQL execution requires project/ref/environment preflight evidence. Migration
   029 controlled application/rollback evidence is recorded in the access
   lifecycle for the Supabase project that was labeled main/PRODUCTION; under
@@ -507,7 +534,17 @@ verified.
   ownership/security/EXECUTE posture, did not create mappings, did not create
   Phase 4 mutation audit events merely by application, and did not alter
   existing audit rows. Staging verification and production readiness remain
-  blocked.
+  blocked. Migration 044
+  (`data/044_platform_admin_user_recent_activity_batch.sql`) is applied and
+  runtime verified in prototype/shared-testing only. It eliminates the
+  platform-admin directory recent-activity N+1 pattern: before, the directory
+  used one mapping query, one users query, and N audit queries; now it uses one
+  mapping query, one users identity batch query, and one
+  `get_latest_platform_admin_activity` RPC. The
+  `recent_platform_admin_activity_at` field means the latest
+  `platform_admin_audit_events.created_at` for that platform-admin mapping, or
+  explicit null when no audit activity exists. It is not last login, user
+  activity, mapping `updated_at`, or account modification time.
 - Platform-admin Tenant and Company Administration Phase 5 is implemented and
   verified for the current milestone in the approved main shared-testing
   Supabase with fake/team data. It includes the global company directory,
@@ -600,7 +637,9 @@ verified.
   `GET /api/platform-admin/billing/overview` and
   `GET /api/platform-admin/billing/companies`. Migration 038 is applied and
   verified only in the approved main shared-testing Supabase with fake/team
-  data. Migration 043 was not required and was not created. It adds
+  data. No additional Phase 7 billing migration beyond Migration 038 was
+  required; Migration 043 belongs to the later atomic support-case creation
+  hardening. Migration 038 adds
   `public.get_platform_admin_billing_overview()`,
   `public.get_platform_admin_billing_companies(integer, integer, text, text,
   boolean)`, and updates `public.get_platform_admin_monitoring_overview()` so
@@ -745,9 +784,9 @@ migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
 | Conversation memory recall quality | Exact match on a single ASCII token; only `name`, `contact`, and `interest` are extracted |
 | Conversation memory PII retention | No expiry; cleanup only by conversation or chatbot cascade |
 | Migrations 039/040/041 | Unapplied everywhere; two mandatory preflights unrun |
-| Platform-admin controls | Original five-endpoint backend/frontend verified in staging; operations-overview, operational alerts, users/chatbots, subscription-history, AI-credit transaction-history, audit-log viewer, and billing-order history extensions locally tested only; Phase 4 package prepared; mapping inactive; production approvals/deployment blocked |
+| Platform-admin controls | Original five-endpoint backend/frontend verified in staging. Later extensions have mixed evidence: some remain local/application-tested only, while Phase 5, Phase 6, Phase 7, and Migration 043/044 hardening paths have prototype/shared-testing runtime verification where explicitly recorded. Later extensions are not automatically staging verified, and real production remains blocked |
 | Platform-admin Support Workspace | Implemented as tenant investigation with controlled internal case operations; Support Cases Phase 2/Migration 032 and Tenant Communication Phase 3/Migration 033 are verified only in main shared testing Supabase with fake/team data. No live chat, generic messaging, impersonation, billing actions, exports, charts, SLA automation, staging readiness, or production use |
-| Platform-admin Tenant and Company Administration | Implemented and verified for the current milestone in main shared-testing Supabase with fake/team data. Includes company directory/detail investigation, users/chatbots, subscription and AI-credit context/history, billing orders, support-history integration, company-filtered audit navigation, controlled suspend/restore, protected-company safeguard, and centralized inactive-company enforcement. Company 34 (`Autobot Company`, chatbot 52) was suspended/restored and left active; representative chatbot, knowledge, PDF upload, Telegram config, and `/api/chat/test` inactive checks returned `403 company_suspended` without side effects. Company 29 protected suspend returned `protected_company` and remained active. CRM mutation was not live-tested because no suitable CRM lead existed; local coverage exists. No Migration 043, tenant impersonation, true tenant application audit history, financial mutations, staging readiness, or production use |
+| Platform-admin Tenant and Company Administration | Implemented and verified for the current milestone in main shared-testing Supabase with fake/team data. Includes company directory/detail investigation, users/chatbots, subscription and AI-credit context/history, billing orders, support-history integration, company-filtered audit navigation, controlled suspend/restore, protected-company safeguard, and centralized inactive-company enforcement. Company 34 (`Autobot Company`, chatbot 52) was suspended/restored and left active; representative chatbot, knowledge, PDF upload, Telegram config, and `/api/chat/test` inactive checks returned `403 company_suspended` without side effects. Company 29 protected suspend returned `protected_company` and remained active. CRM mutation was not live-tested because no suitable CRM lead existed; local coverage exists. It does not provide tenant impersonation, true tenant application audit history, financial mutations, staging readiness, or production use |
 | Platform-admin Tenant Communication | Verified only in main shared-testing Supabase with fake/team data; Migration 033 adds tenant-visible replies, `tenant_reply_created` case events, safe reply audit metadata, and a pending in-app support notification outbox. This is not staging verification and does not establish production readiness; email and attachments remain deferred |
 | Automatic recurring billing | Deferred (ToyyibPay limitation) |
 | Email/SMS delivery | Deferred (no provider) |
