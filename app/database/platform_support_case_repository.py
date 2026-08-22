@@ -22,6 +22,7 @@ REPLY_NOTIFICATION_FIELDS = (
     "id,reply_id,request_id,platform_support_case_id,company_id,channel,status,"
     "attempt_count,last_attempt_at,delivered_at,failure_code,created_at,updated_at"
 )
+ASSIGNEE_USER_IDENTITY_FIELDS = "id,email,full_name"
 ALLOWED_STATUSES = {"open", "in_progress", "waiting_for_tenant", "resolved", "closed"}
 ALLOWED_PRIORITIES = {"low", "normal", "high", "urgent"}
 ALLOWED_LIST_SORT_FIELDS = {"created_at", "updated_at", "priority", "status", "id"}
@@ -31,6 +32,37 @@ ALLOWED_LIST_SORT_ORDERS = {"asc", "desc"}
 def _positive_id(value, field_name):
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ValueError(f"{field_name} must be a positive integer")
+
+
+def _load_assignee_users_by_id(user_ids):
+    ids = sorted({
+        value for value in user_ids
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0
+    })
+    if not ids:
+        return {}
+    response = (
+        supabase.table("users")
+        .select(ASSIGNEE_USER_IDENTITY_FIELDS)
+        .in_("id", ids)
+        .execute()
+    )
+    return {
+        row.get("id"): row
+        for row in (response.data or [])
+        if isinstance(row, dict) and isinstance(row.get("id"), int)
+    }
+
+
+def _project_platform_admin_assignee(row, users_by_id):
+    user = users_by_id.get(row.get("user_id")) or {}
+    return {
+        "id": row.get("id"),
+        "user_id": row.get("user_id"),
+        "is_active": row.get("is_active"),
+        "user_full_name": user.get("full_name"),
+        "user_email": user.get("email"),
+    }
 
 
 def list_support_cases_for_platform_admin(
@@ -75,38 +107,55 @@ def get_support_case_for_platform_admin(case_id):
     return rows[0] if rows else None
 
 
-def list_support_case_events_for_platform_admin(case_id):
+def list_support_case_events_for_platform_admin(case_id, *, limit, offset):
     _positive_id(case_id, "case_id")
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
     response = (
         supabase.table("platform_support_case_events")
-        .select(EVENT_FIELDS)
+        .select(EVENT_FIELDS, count="exact")
         .eq("case_id", case_id)
         .order("created_at", desc=False)
         .order("id", desc=False)
+        .range(offset, offset + limit - 1)
         .execute()
     )
-    return response.data or []
+    return response.data or [], int(response.count or 0)
 
 
-def list_support_case_replies_for_platform_admin(case_id):
+def list_support_case_replies_for_platform_admin(case_id, *, limit, offset):
     _positive_id(case_id, "case_id")
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100:
+        raise ValueError("limit must be between 1 and 100")
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
     response = (
         supabase.table("tenant_support_replies")
-        .select(REPLY_FIELDS)
+        .select(REPLY_FIELDS, count="exact")
         .eq("platform_support_case_id", case_id)
         .order("created_at", desc=False)
         .order("id", desc=False)
+        .range(offset, offset + limit - 1)
         .execute()
     )
-    return response.data or []
+    return response.data or [], int(response.count or 0)
 
 
-def list_support_case_reply_notifications_for_platform_admin(case_id):
+def list_support_case_reply_notifications_for_platform_admin(case_id, reply_ids):
     _positive_id(case_id, "case_id")
+    ids = sorted({
+        value for value in reply_ids
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0
+    })
+    if not ids:
+        return []
     response = (
         supabase.table("tenant_support_reply_notifications")
         .select(REPLY_NOTIFICATION_FIELDS)
         .eq("platform_support_case_id", case_id)
+        .in_("reply_id", ids)
         .order("created_at", desc=False)
         .order("id", desc=False)
         .execute()
@@ -114,12 +163,42 @@ def list_support_case_reply_notifications_for_platform_admin(case_id):
     return response.data or []
 
 
-def create_support_case_for_platform_admin(payload):
-    response = supabase.table("platform_support_cases").insert(payload).execute()
-    rows = response.data or []
-    if not rows:
-        raise RuntimeError("Support-case insert returned no row")
-    return rows[0]
+def create_support_case_for_platform_admin(
+    *, company_id, platform_admin_user_id, title, redacted_summary, status, priority
+):
+    _positive_id(company_id, "company_id")
+    _positive_id(platform_admin_user_id, "platform_admin_user_id")
+    if not isinstance(title, str) or not title.strip():
+        raise ValueError("title must be non-empty text")
+    if not isinstance(redacted_summary, str) or not redacted_summary.strip():
+        raise ValueError("redacted_summary must be non-empty text")
+    if status not in ALLOWED_STATUSES:
+        raise ValueError("Unsupported support-case status")
+    if priority not in ALLOWED_PRIORITIES:
+        raise ValueError("Unsupported support-case priority")
+    return _validate_creation_result(
+        _rpc_object(
+            supabase.rpc(
+                "create_platform_support_case",
+                {
+                    "p_company_id": company_id,
+                    "p_platform_admin_user_id": platform_admin_user_id,
+                    "p_title": title,
+                    "p_redacted_summary": redacted_summary,
+                    "p_status": status,
+                    "p_priority": priority,
+                },
+            ).execute(),
+            "create_platform_support_case",
+        ),
+        company_id,
+        platform_admin_user_id,
+        title,
+        redacted_summary,
+        status,
+        priority,
+        "create_platform_support_case",
+    )
 
 
 def update_support_case_for_platform_admin(case_id, payload):
@@ -136,14 +215,6 @@ def update_support_case_for_platform_admin(case_id, payload):
     return rows[0]
 
 
-def create_support_case_event_for_platform_admin(payload):
-    response = supabase.table("platform_support_case_events").insert(payload).execute()
-    rows = response.data or []
-    if not rows:
-        raise RuntimeError("Support-case event insert returned no row")
-    return rows[0]
-
-
 def list_active_platform_admin_assignees_for_platform_admin():
     response = (
         supabase.table("platform_admin_users")
@@ -152,7 +223,9 @@ def list_active_platform_admin_assignees_for_platform_admin():
         .order("id", desc=False)
         .execute()
     )
-    return response.data or []
+    rows = response.data or []
+    users_by_id = _load_assignee_users_by_id([row.get("user_id") for row in rows])
+    return [_project_platform_admin_assignee(row, users_by_id) for row in rows]
 
 
 def get_active_platform_admin_assignee_for_platform_admin(platform_admin_user_id):
@@ -194,6 +267,55 @@ def _validate_case_result(result, function_name):
         raise RuntimeError(f"{function_name} RPC returned an invalid status")
     if case.get("priority") not in ALLOWED_PRIORITIES:
         raise RuntimeError(f"{function_name} RPC returned an invalid priority")
+    return result
+
+
+def _validate_creation_result(
+    result, requested_company_id, platform_admin_user_id, title, redacted_summary,
+    status, priority, function_name,
+):
+    result = _validate_case_result(result, function_name)
+    case = result["case"]
+    event = result["event"]
+    audit = result.get("audit")
+    if not isinstance(audit, dict):
+        raise RuntimeError(f"{function_name} RPC returned an invalid audit event")
+    case_id = case.get("id")
+    event_id = event.get("id")
+    audit_id = audit.get("id")
+    if (
+        not _positive_rpc_int(event_id)
+        or not _positive_rpc_int(audit_id)
+        or case.get("company_id") != requested_company_id
+        or case.get("created_by_platform_admin_user_id") != platform_admin_user_id
+        or case.get("title") != title
+        or case.get("redacted_summary") != redacted_summary
+        or case.get("status") != status
+        or case.get("priority") != priority
+        or event.get("event_type") != "created"
+        or event.get("actor_platform_admin_user_id") != platform_admin_user_id
+        or event.get("new_status") != status
+        or event.get("new_priority") != priority
+        or audit.get("platform_admin_user_id") != platform_admin_user_id
+        or audit.get("action") != "platform_admin.support_case.create"
+        or audit.get("resource_type") != "platform_support_cases"
+        or audit.get("resource_id") != str(case_id)
+    ):
+        raise RuntimeError(f"{function_name} RPC returned invalid creation linkage")
+    metadata = audit.get("metadata")
+    if not isinstance(metadata, dict):
+        raise RuntimeError(f"{function_name} RPC returned invalid audit metadata")
+    expected_metadata = {
+        "outcome": "success",
+        "endpoint": "/api/platform-admin/support-cases",
+        "http_method": "POST",
+        "company_id": requested_company_id,
+        "status": status,
+        "priority": priority,
+    }
+    for key, value in expected_metadata.items():
+        if metadata.get(key) != value:
+            raise RuntimeError(f"{function_name} RPC returned invalid audit metadata")
     return result
 
 

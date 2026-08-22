@@ -253,12 +253,22 @@ def create_support_case():
 
 @platform_admin_bp.get("/support-cases/<int:case_id>")
 def support_case_detail(case_id):
-    return _execute(lambda: platform_admin_service.get_support_case(case_id, _actor_id()))
+    return _execute(lambda: platform_admin_service.get_support_case(
+        case_id,
+        _actor_id(),
+        event_limit=request.args.get("event_limit"),
+        event_offset=request.args.get("event_offset"),
+    ))
 
 
 @platform_admin_bp.get("/support-cases/<int:case_id>/replies")
 def support_case_replies(case_id):
-    return _execute(lambda: platform_admin_service.list_support_case_replies(case_id, _actor_id()))
+    return _execute(lambda: platform_admin_service.list_support_case_replies(
+        case_id,
+        _actor_id(),
+        limit=request.args.get("limit"),
+        offset=request.args.get("offset"),
+    ))
 
 
 @platform_admin_bp.post("/support-cases/<int:case_id>/replies")

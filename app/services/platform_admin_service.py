@@ -671,6 +671,8 @@ def _safe_platform_admin_assignee(row):
         "id": row.get("id"),
         "user_id": row.get("user_id"),
         "is_active": row.get("is_active"),
+        "user_full_name": row.get("user_full_name"),
+        "user_email": row.get("user_email"),
     }
 
 
@@ -826,15 +828,19 @@ def list_support_case_assignees(actor_id):
     return {"assignees": [_safe_platform_admin_assignee(row) for row in assignees]}
 
 
-def get_support_case(case_id, actor_id):
+def get_support_case(case_id, actor_id, *, event_limit=None, event_offset=None):
     actor_id = _validated_actor_id(actor_id)
+    limit = _integer_parameter(event_limit, name="event_limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(event_offset, name="event_offset", default=0, minimum=0)
     endpoint = SUPPORT_CASE_ENDPOINTS["support_case_read"]
     case = _support_case_or_not_found(
         case_id, actor_id, "platform_admin.support_case.read",
         SUPPORT_CASE_ENDPOINTS["support_case_read"],
     )
     try:
-        events = platform_support_case_repository.list_support_case_events_for_platform_admin(case_id)
+        events, total = platform_support_case_repository.list_support_case_events_for_platform_admin(
+            case_id, limit=limit, offset=offset
+        )
         company = platform_company_repository.get_company_for_platform_admin(case.get("company_id"))
         source_request = (
             tenant_support_repository
@@ -846,6 +852,10 @@ def get_support_case(case_id, actor_id):
     result = {
         "case": _safe_support_case_row(case, company),
         "events": [_safe_support_case_event(event) for event in events],
+        "events_pagination": {
+            "limit": limit, "offset": offset, "returned": len(events),
+            "total": total, "has_more": offset + len(events) < total,
+        },
         "source_tenant_request": (
             _safe_tenant_support_request_row(source_request)
             if source_request else None
@@ -854,12 +864,15 @@ def get_support_case(case_id, actor_id):
     }
     _audit(actor_id, "platform_admin.support_case.read", "platform_support_cases", str(case_id), {
         "outcome": "success", "endpoint": endpoint, "http_method": "GET",
+        "limit": limit, "offset": offset, "returned_count": len(events),
     })
     return result
 
 
-def list_support_case_replies(case_id, actor_id):
+def list_support_case_replies(case_id, actor_id, *, limit=None, offset=None):
     actor_id = _validated_actor_id(actor_id)
+    limit = _integer_parameter(limit, name="limit", default=25, minimum=1, maximum=100)
+    offset = _integer_parameter(offset, name="offset", default=0, minimum=0)
     endpoint = SUPPORT_CASE_ENDPOINTS["support_case_reply_list"]
     case = _support_case_or_not_found(
         case_id, actor_id, "platform_admin.support_case.reply.list", endpoint
@@ -869,10 +882,13 @@ def list_support_case_replies(case_id, actor_id):
             tenant_support_repository
             .get_tenant_support_request_by_converted_case_id_for_platform_admin(case_id)
         )
-        replies = platform_support_case_repository.list_support_case_replies_for_platform_admin(case_id)
+        replies, total = platform_support_case_repository.list_support_case_replies_for_platform_admin(
+            case_id, limit=limit, offset=offset
+        )
+        reply_ids = [reply.get("id") for reply in replies]
         notifications = (
             platform_support_case_repository
-            .list_support_case_reply_notifications_for_platform_admin(case_id)
+            .list_support_case_reply_notifications_for_platform_admin(case_id, reply_ids)
         )
     except Exception:
         logger.error("Platform support-case reply list failed")
@@ -882,6 +898,8 @@ def list_support_case_replies(case_id, actor_id):
         "endpoint": endpoint,
         "http_method": "GET",
         "returned_count": len(replies),
+        "limit": limit,
+        "offset": offset,
         "company_id": case.get("company_id"),
     }
     if source_request:
@@ -900,6 +918,10 @@ def list_support_case_replies(case_id, actor_id):
             if source_request else None
         ),
         "replies": [_safe_support_case_reply(reply) for reply in replies],
+        "pagination": {
+            "limit": limit, "offset": offset, "returned": len(replies),
+            "total": total, "has_more": offset + len(replies) < total,
+        },
         "notifications": [
             _safe_support_reply_notification(notification)
             for notification in notifications
@@ -945,7 +967,6 @@ def create_support_case_reply(case_id, payload, actor_id):
 
 def create_support_case(payload, actor_id):
     actor_id = _validated_actor_id(actor_id)
-    endpoint = SUPPORT_CASE_ENDPOINTS["support_case_create"]
     if not isinstance(payload, dict):
         _validation("invalid_request", "Request body must be an object.")
     company_id = payload.get("company_id")
@@ -964,30 +985,20 @@ def create_support_case(payload, actor_id):
         code="invalid_priority",
     )
     company = _support_case_company(company_id, actor_id)
-    now = _now_utc_iso()
     try:
-        case = platform_support_case_repository.create_support_case_for_platform_admin({
-            "company_id": company_id,
-            "created_by_platform_admin_user_id": actor_id,
-            "status": status,
-            "priority": priority,
-            "title": title,
-            "redacted_summary": summary,
-            "created_at": now,
-            "updated_at": now,
-        })
-        platform_support_case_repository.create_support_case_event_for_platform_admin({
-            "case_id": case["id"], "event_type": "created",
-            "actor_platform_admin_user_id": actor_id, "new_status": status,
-            "new_priority": priority, "created_at": now,
-        })
-    except Exception:
+        result = platform_support_case_repository.create_support_case_for_platform_admin(
+            company_id=company_id,
+            platform_admin_user_id=actor_id,
+            title=title,
+            redacted_summary=summary,
+            status=status,
+            priority=priority,
+        )
+    except Exception as exc:
+        _handle_support_case_rpc_error(exc, operation="create")
         logger.error("Platform support-case creation failed")
         _data_unavailable()
-    _audit(actor_id, "platform_admin.support_case.create", "platform_support_cases", str(case["id"]), {
-        "outcome": "success", "endpoint": endpoint, "http_method": "POST",
-        "company_id": company_id, "status": status, "priority": priority,
-    })
+    case = result["case"]
     return {"case": _safe_support_case_row(case, company)}
 
 

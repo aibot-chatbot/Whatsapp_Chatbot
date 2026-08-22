@@ -306,7 +306,11 @@ AUDIT_EVENT_SCHEMAS = {
         "resource_type": "platform_support_cases",
         "resource_id": _resource_id_positive_integer_string,
         "required_metadata": {"outcome", "endpoint", "http_method"},
-        "optional_metadata": set(),
+        "required_metadata_by_outcome": {
+            "success": {"limit", "offset", "returned_count"},
+            "not_found": set(),
+        },
+        "optional_metadata": {"limit", "offset", "returned_count"},
         "outcomes": AUDIT_OUTCOMES,
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_read"],
     },
@@ -384,8 +388,14 @@ AUDIT_EVENT_SCHEMAS = {
     "platform_admin.support_case.reply.list": {
         "resource_type": "platform_support_cases",
         "resource_id": _resource_id_positive_integer_string,
-        "required_metadata": {"outcome", "endpoint", "http_method", "returned_count"},
-        "optional_metadata": {"request_id", "company_id"},
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "required_metadata_by_outcome": {
+            "success": {"limit", "offset", "returned_count"},
+            "not_found": set(),
+        },
+        "optional_metadata": {
+            "limit", "offset", "returned_count", "request_id", "company_id",
+        },
         "outcomes": AUDIT_OUTCOMES,
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["support_case_reply_list"],
         "http_methods": {"GET"},
@@ -785,6 +795,18 @@ def _validate_metadata_schema(action, schema, metadata):
     if action == "platform_admin.support_case.assignee.list":
         _non_negative_integer(metadata["returned_count"], "returned_count", maximum=1000)
 
+    if action == "platform_admin.support_case.read":
+        if metadata["outcome"] == "not_found":
+            list_keys = {"limit", "offset", "returned_count"}
+            if any(key in metadata for key in list_keys):
+                raise ValueError("List metadata is not allowed for not_found events")
+            return
+        _bounded_integer(metadata["limit"], "limit", 1, 100)
+        _non_negative_integer(metadata["offset"], "offset")
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=100)
+        if metadata["returned_count"] > metadata["limit"]:
+            raise ValueError("returned_count cannot exceed limit")
+
     if action == "platform_admin.support_case.create":
         if "company_id" in metadata:
             _positive_integer(metadata["company_id"], "company_id")
@@ -817,7 +839,16 @@ def _validate_metadata_schema(action, schema, metadata):
             raise ValueError("new_priority must be a valid support-case priority")
 
     if action == "platform_admin.support_case.reply.list":
+        if metadata["outcome"] == "not_found":
+            list_keys = {"limit", "offset", "returned_count", "request_id", "company_id"}
+            if any(key in metadata for key in list_keys):
+                raise ValueError("List metadata is not allowed for not_found events")
+            return
+        _bounded_integer(metadata["limit"], "limit", 1, 100)
+        _non_negative_integer(metadata["offset"], "offset")
         _non_negative_integer(metadata["returned_count"], "returned_count", maximum=1000)
+        if metadata["returned_count"] > metadata["limit"]:
+            raise ValueError("returned_count cannot exceed limit")
         if "company_id" in metadata:
             _positive_integer(metadata["company_id"], "company_id")
         if "request_id" in metadata:
@@ -938,24 +969,60 @@ def _load_users_by_ids(user_ids):
     }
 
 
-def _recent_activity_for_mapping(mapping_id):
-    response = (
-        supabase.table("platform_admin_audit_events")
-        .select("created_at")
-        .eq("platform_admin_user_id", mapping_id)
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    )
+def _latest_activity_by_platform_admin_ids(mapping_ids):
+    ids = sorted({
+        value for value in mapping_ids
+        if isinstance(value, int) and not isinstance(value, bool) and value > 0
+    })
+    if not ids:
+        return {}
+    response = supabase.rpc(
+        "get_latest_platform_admin_activity",
+        {"p_platform_admin_user_ids": ids},
+    ).execute()
     rows = response.data or []
-    return rows[0].get("created_at") if rows else None
+    if not isinstance(rows, list):
+        raise RuntimeError("Malformed platform-admin activity lookup result")
+    requested_ids = set(ids)
+    seen_ids = set()
+    activity = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            raise RuntimeError("Malformed platform-admin activity lookup result")
+        mapping_id = row.get("platform_admin_user_id")
+        if (
+            isinstance(mapping_id, bool)
+            or not isinstance(mapping_id, int)
+            or mapping_id not in requested_ids
+        ):
+            raise RuntimeError("Malformed platform-admin activity lookup result")
+        if mapping_id in seen_ids:
+            raise RuntimeError("Malformed platform-admin activity lookup result")
+        seen_ids.add(mapping_id)
+        latest = row.get("recent_platform_admin_activity_at")
+        if latest is not None and not isinstance(latest, str):
+            raise RuntimeError("Malformed platform-admin activity lookup result")
+        if latest is not None:
+            try:
+                _parse_timezone_aware_iso_datetime(
+                    latest, "recent_platform_admin_activity_at"
+                )
+            except ValueError as exc:
+                raise RuntimeError(
+                    "Malformed platform-admin activity lookup result"
+                ) from exc
+        activity[mapping_id] = latest
+    if seen_ids != requested_ids:
+        raise RuntimeError("Malformed platform-admin activity lookup result")
+    return activity
 
 
-def _project_platform_admin_user(row, users_by_id):
+def _project_platform_admin_user(row, users_by_id, activity_by_id):
     user = users_by_id.get(row.get("user_id")) or {}
     creator = users_by_id.get(row.get("created_by_user_id")) or {}
+    mapping_id = row.get("id")
     return {
-        "platform_admin_user_id": row.get("id"),
+        "platform_admin_user_id": mapping_id,
         "user_id": row.get("user_id"),
         "is_active": row.get("is_active"),
         "created_at": row.get("created_at"),
@@ -967,7 +1034,7 @@ def _project_platform_admin_user(row, users_by_id):
         "creator_user_id": row.get("created_by_user_id"),
         "creator_email": creator.get("email"),
         "creator_full_name": creator.get("full_name"),
-        "recent_platform_admin_activity_at": _recent_activity_for_mapping(row.get("id")),
+        "recent_platform_admin_activity_at": activity_by_id.get(mapping_id),
     }
 
 
@@ -992,7 +1059,11 @@ def list_platform_admin_users_for_platform_admin(*, limit, offset, is_active=Non
     users_by_id = _load_users_by_ids(
         [row.get("user_id") for row in rows] + [row.get("created_by_user_id") for row in rows]
     )
-    return [_project_platform_admin_user(row, users_by_id) for row in rows], int(response.count or 0)
+    activity_by_id = _latest_activity_by_platform_admin_ids([row.get("id") for row in rows])
+    return [
+        _project_platform_admin_user(row, users_by_id, activity_by_id)
+        for row in rows
+    ], int(response.count or 0)
 
 
 def get_platform_admin_user_for_platform_admin(mapping_id):
@@ -1009,7 +1080,8 @@ def get_platform_admin_user_for_platform_admin(mapping_id):
         return None
     row = rows[0]
     users_by_id = _load_users_by_ids([row.get("user_id"), row.get("created_by_user_id")])
-    return _project_platform_admin_user(row, users_by_id)
+    activity_by_id = _latest_activity_by_platform_admin_ids([row.get("id")])
+    return _project_platform_admin_user(row, users_by_id, activity_by_id)
 
 
 def _is_positive_int(value):

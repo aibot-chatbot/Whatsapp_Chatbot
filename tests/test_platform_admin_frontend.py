@@ -539,6 +539,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         cls.companies = read(COMPANIES)
         cls.company = read(COMPANY)
         cls.support = read(SUPPORT)
+        cls.api = read(API)
         cls.audit_events = read(AUDIT_EVENTS)
 
     def test_tenant_support_has_bounded_authenticated_submission_form(self):
@@ -669,6 +670,114 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         ]:
             self.assertNotIn(forbidden_call, self.support)
         self.assertIn("platform-admin-company.html?", self.support)
+
+    def test_support_case_history_requests_are_paginated(self):
+        detail_function = re.search(
+            r"function getSupportCase\(caseId, options\) \{(.*?)\n    \}",
+            self.api,
+            flags=re.S,
+        ).group(1)
+        replies_function = re.search(
+            r"function listSupportCaseReplies\(caseId, options\) \{(.*?)\n    \}",
+            self.api,
+            flags=re.S,
+        ).group(1)
+        self.assertIn('params.set("event_limit"', detail_function)
+        self.assertIn('params.set("event_offset"', detail_function)
+        self.assertIn('"/support-cases/" + id + "?"', detail_function)
+        self.assertIn('params.set("limit"', replies_function)
+        self.assertIn('params.set("offset"', replies_function)
+        self.assertIn('"/support-cases/" + id + "/replies?"', replies_function)
+        for marker in [
+            "events_pagination",
+            "replies_pagination",
+            "Load more timeline",
+            "Load more replies",
+            "loadMoreSupportCaseEvents",
+            "loadMoreSupportCaseReplies",
+            "state.timelineLoading",
+            "state.repliesLoading",
+            "mergeById",
+            'ui.runRequest("support-case-events-more"',
+            'ui.runRequest("support-case-replies-more"',
+            "eventOffset: pagination.offset + pagination.returned",
+            "offset: pagination.offset + pagination.returned",
+        ]:
+            self.assertIn(marker, self.support)
+        timeline_merge = re.search(
+            r"state\.activeCaseData\.events = mergeById\((.*?)\);",
+            self.support,
+            flags=re.S,
+        ).group(1)
+        reply_merge = re.search(
+            r"state\.activeCaseData\.public_replies = mergeById\((.*?)\);",
+            self.support,
+            flags=re.S,
+        ).group(1)
+        notification_merge = re.search(
+            r"state\.activeCaseData\.reply_notifications = mergeById\((.*?)\);",
+            self.support,
+            flags=re.S,
+        ).group(1)
+        self.assertIn('"id"', timeline_merge)
+        self.assertNotIn('"event_id"', timeline_merge)
+        self.assertIn('"reply_id"', reply_merge)
+        self.assertIn('"notification_id"', notification_merge)
+
+    def test_support_case_assignee_labels_use_safe_identity_fields(self):
+        label_function = re.search(
+            r"function assigneeLabel\(assigneeId\) \{(.*?)\n    \}",
+            self.support,
+            flags=re.S,
+        ).group(1)
+        self.assertIn("match.user_full_name", label_function)
+        self.assertIn("match.user_email", label_function)
+        self.assertIn('fullName + " — " + email', label_function)
+        self.assertIn("if (fullName) return fullName;", label_function)
+        self.assertIn("if (email) return email;", label_function)
+        self.assertIn('"Platform Admin #"', label_function)
+        self.assertNotIn('"Admin mapping #"', label_function)
+        self.assertNotIn('"user #"', label_function)
+        self.assertNotIn("innerHTML", label_function)
+        self.assertNotIn("insertAdjacentHTML", label_function)
+        self.assertIn('value: String(item.id)', self.support)
+        self.assertIn('label: assigneeLabel(item.id)', self.support)
+        self.assertIn('assigned_platform_admin_user_id: selected', self.support)
+        self.assertIn('{ value: "", label: "Unassigned" }', self.support)
+        self.assertNotIn("assigned_platform_admin_user_id: selected.user_id", self.support)
+
+    def test_support_case_historical_current_assignee_stays_selected_but_not_assignable(self):
+        select_function = re.search(
+            r"function selectField\(labelText, id, values, selected\) \{(.*?)\n    \}",
+            self.support,
+            flags=re.S,
+        ).group(1)
+        self.assertIn("option.disabled = value.disabled === true;", select_function)
+        self.assertIn("option.selected = value.value === selected;", select_function)
+
+        detail_function = re.search(
+            r"function renderCaseDetail\(data\) \{(.*?)\n    async function loadMoreSupportCaseEvents",
+            self.support,
+            flags=re.S,
+        ).group(1)
+        for marker in [
+            "const currentAssigneeId = current.assigned_platform_admin_user_id;",
+            "const hasCurrentAssignee = Number.isSafeInteger(currentAssigneeId) && currentAssigneeId > 0;",
+            "const currentAssigneeValue = hasCurrentAssignee ? String(currentAssigneeId) : \"\";",
+            "const activeAssigneeValues = state.caseAssignees.map",
+            "const currentAssigneeIsActive = hasCurrentAssignee && state.caseAssignees.some",
+            "return item.id === currentAssigneeId;",
+            "label: assigneeLabel(currentAssigneeId) + \" (inactive/current)\"",
+            "disabled: true",
+            "assigneeValues.push.apply(assigneeValues, activeAssigneeValues);",
+            "assigneeValues.push({ value: \"\", label: \"Unassigned\" });",
+            "updateAssignee.disabled = assignee.input.value === currentAssigneeValue;",
+            "assigned_platform_admin_user_id: selected",
+        ]:
+            self.assertIn(marker, detail_function)
+        self.assertNotIn("state.caseAssignees.push", detail_function)
+        self.assertNotIn("state.caseAssignees.unshift", detail_function)
+        self.assertNotIn("assigned_platform_admin_user_id: currentAssigneeId", detail_function)
 
     def test_support_workspace_has_internal_case_states_and_safe_controls(self):
         for marker in [

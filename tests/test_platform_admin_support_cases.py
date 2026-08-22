@@ -115,28 +115,31 @@ class PlatformAdminSupportCaseRouteTests(unittest.TestCase):
 
 
 class PlatformAdminSupportCaseServiceTests(unittest.TestCase):
-    def test_create_uses_safe_projection_and_audits_after_event(self):
+    def test_create_uses_atomic_rpc_and_safe_projection(self):
         company = {"id": 31, "company_name": "Safe Tenant", "status": "active"}
         case = {
             "id": 9, "company_id": 31, "status": "open", "priority": "normal",
             "title": "Review activation", "redacted_summary": "Safe summary",
         }
-        calls = []
         with patch.object(
             platform_admin_service.platform_company_repository,
             "get_company_for_platform_admin", return_value=company,
         ), patch.object(
             platform_admin_service.platform_support_case_repository,
-            "create_support_case_for_platform_admin", return_value=case,
-        ), patch.object(
-            platform_admin_service.platform_support_case_repository,
-            "create_support_case_event_for_platform_admin",
-            side_effect=lambda payload: calls.append(("event", payload)) or {"id": 1, **payload},
-        ), patch.object(
+            "create_support_case_for_platform_admin",
+            return_value={
+                "case": case,
+                "event": {"id": 1, "case_id": 9, "event_type": "created"},
+                "audit": {
+                    "id": 2,
+                    "resource_id": "9",
+                    "action": "platform_admin.support_case.create",
+                },
+            },
+        ) as rpc, patch.object(
             platform_admin_service.platform_admin_repository,
             "insert_platform_admin_audit_event",
-            side_effect=lambda *args: calls.append(("audit", args)),
-        ):
+        ) as app_audit:
             result = platform_admin_service.create_support_case({
                 "company_id": 31,
                 "title": "Review activation",
@@ -146,8 +149,57 @@ class PlatformAdminSupportCaseServiceTests(unittest.TestCase):
             "id": 31, "company_name": "Safe Tenant", "status": "active",
         })
         self.assertNotIn("email", result["case"])
-        self.assertEqual([item[0] for item in calls], ["event", "audit"])
-        self.assertEqual(calls[1][1][1], "platform_admin.support_case.create")
+        rpc.assert_called_once_with(
+            company_id=31,
+            platform_admin_user_id=3,
+            title="Review activation",
+            redacted_summary="Safe summary",
+            status="open",
+            priority="normal",
+        )
+        app_audit.assert_not_called()
+
+    def test_create_rpc_failure_is_controlled_without_app_side_partial_writes(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 31, "company_name": "Safe Tenant", "status": "active"},
+        ), patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "create_support_case_for_platform_admin",
+            side_effect=RuntimeError("event insert failed after case insert would roll back"),
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+        ) as app_audit:
+            with self.assertRaises(platform_admin_service.PlatformAdminServiceError) as raised:
+                platform_admin_service.create_support_case({
+                    "company_id": 31,
+                    "title": "Review activation",
+                    "redacted_summary": "Safe summary",
+                }, 3)
+        self.assertEqual(raised.exception.status_code, 503)
+        self.assertEqual(raised.exception.code, "platform_admin_data_unavailable")
+        app_audit.assert_not_called()
+
+    def test_create_rejects_inactive_platform_admin_mapping_from_rpc(self):
+        with patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 31, "company_name": "Safe Tenant", "status": "active"},
+        ), patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "create_support_case_for_platform_admin",
+            side_effect=RuntimeError("Active platform-admin mapping is required"),
+        ):
+            with self.assertRaises(platform_admin_service.PlatformAdminServiceError) as raised:
+                platform_admin_service.create_support_case({
+                    "company_id": 31,
+                    "title": "Review activation",
+                    "redacted_summary": "Safe summary",
+                }, 3)
+        self.assertEqual(raised.exception.status_code, 403)
+        self.assertEqual(raised.exception.code, "platform_admin_access_denied")
 
     def test_redaction_boundary_rejects_sensitive_case_text(self):
         with self.assertRaises(platform_admin_service.PlatformAdminServiceError) as raised:
@@ -188,6 +240,43 @@ class PlatformAdminSupportCaseServiceTests(unittest.TestCase):
                 9, {"assigned_platform_admin_user_id": "7"}, 3
             )
         self.assertEqual(raised.exception.code, "invalid_assignee")
+
+    def test_assignee_list_projects_safe_identity_and_audit_metadata(self):
+        with patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "list_active_platform_admin_assignees_for_platform_admin",
+            return_value=[{
+                "id": 4,
+                "user_id": 8,
+                "is_active": True,
+                "user_full_name": "Alice Tan",
+                "user_email": "alice@example.test",
+                "role": "owner",
+                "company_id": 31,
+                "password_hash": "secret",
+                "audit_metadata": {"unsafe": True},
+            }],
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ) as audit:
+            result = platform_admin_service.list_support_case_assignees(3)
+
+        self.assertEqual(result["assignees"], [{
+            "id": 4,
+            "user_id": 8,
+            "is_active": True,
+            "user_full_name": "Alice Tan",
+            "user_email": "alice@example.test",
+        }])
+        for forbidden in ("role", "company_id", "password_hash", "audit_metadata"):
+            self.assertNotIn(forbidden, result["assignees"][0])
+        audit.assert_called_once()
+        metadata = audit.call_args.args[4]
+        self.assertEqual(metadata["returned_count"], 1)
+        self.assertNotIn("user_full_name", metadata)
+        self.assertNotIn("user_email", metadata)
 
     def test_assignment_rejects_inactive_or_unknown_platform_admin_mapping(self):
         with patch.object(
@@ -446,20 +535,20 @@ class PlatformAdminSupportCaseServiceTests(unittest.TestCase):
         ), patch.object(
             platform_admin_service.platform_support_case_repository,
             "list_support_case_replies_for_platform_admin",
-            return_value=[{
+            return_value=([{
                 "id": 44, "request_id": 12, "platform_support_case_id": 9,
                 "company_id": 31, "author_type": "platform_admin",
                 "author_platform_admin_user_id": 3,
                 "redacted_body": "Visible update", "visibility_status": "visible",
-            }],
-        ), patch.object(
+            }], 1),
+        ) as replies, patch.object(
             platform_admin_service.platform_support_case_repository,
             "list_support_case_reply_notifications_for_platform_admin",
             return_value=[{
                 "id": 50, "reply_id": 44, "channel": "in_app",
                 "status": "pending", "failure_code": "raw-provider-error",
             }],
-        ), patch.object(
+        ) as notifications, patch.object(
             platform_admin_service.platform_admin_repository,
             "insert_platform_admin_audit_event",
             return_value={"id": 1},
@@ -468,8 +557,107 @@ class PlatformAdminSupportCaseServiceTests(unittest.TestCase):
         self.assertEqual(result["replies"][0]["redacted_body"], "Visible update")
         self.assertNotIn("author_platform_admin_user_id", result["replies"][0])
         self.assertNotIn("failure_code", result["notifications"][0])
+        self.assertEqual(result["pagination"], {
+            "limit": 25, "offset": 0, "returned": 1, "total": 1, "has_more": False,
+        })
+        replies.assert_called_once_with(9, limit=25, offset=0)
+        notifications.assert_called_once_with(9, [44])
         self.assertEqual(audit.call_args.args[1], "platform_admin.support_case.reply.list")
+        self.assertEqual(audit.call_args.args[4]["limit"], 25)
+        self.assertEqual(audit.call_args.args[4]["offset"], 0)
         self.assertNotIn("redacted_body", audit.call_args.args[4])
+
+    def test_support_case_detail_uses_paginated_events(self):
+        with patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "get_support_case_for_platform_admin",
+            return_value={"id": 9, "company_id": 31, "status": "open", "priority": "normal"},
+        ), patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "list_support_case_events_for_platform_admin",
+            return_value=([{
+                "id": 20, "case_id": 9, "event_type": "created",
+                "actor_platform_admin_user_id": 3,
+                "new_status": "open", "new_priority": "normal",
+            }], 30),
+        ) as events, patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin",
+            return_value={"id": 31, "company_name": "Tenant", "status": "active"},
+        ), patch.object(
+            platform_admin_service.tenant_support_repository,
+            "get_tenant_support_request_by_converted_case_id_for_platform_admin",
+            return_value=None,
+        ), patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ) as audit:
+            result = platform_admin_service.get_support_case(
+                9, 3, event_limit="1", event_offset="2"
+            )
+        events.assert_called_once_with(9, limit=1, offset=2)
+        self.assertEqual(result["events_pagination"], {
+            "limit": 1, "offset": 2, "returned": 1, "total": 30, "has_more": True,
+        })
+        self.assertEqual(audit.call_args.args[4]["limit"], 1)
+        self.assertEqual(audit.call_args.args[4]["offset"], 2)
+
+    def test_support_case_pagination_validation(self):
+        invalid_detail = [
+            {"event_limit": "0"},
+            {"event_limit": "101"},
+            {"event_limit": "abc"},
+            {"event_offset": "-1"},
+            {"event_offset": "abc"},
+        ]
+        for kwargs in invalid_detail:
+            with self.subTest(detail=kwargs):
+                with self.assertRaises(platform_admin_service.PlatformAdminServiceError):
+                    platform_admin_service.get_support_case(9, 3, **kwargs)
+        invalid_replies = [
+            {"limit": "0"},
+            {"limit": "101"},
+            {"limit": "abc"},
+            {"offset": "-1"},
+            {"offset": "abc"},
+        ]
+        for kwargs in invalid_replies:
+            with self.subTest(replies=kwargs):
+                with self.assertRaises(platform_admin_service.PlatformAdminServiceError):
+                    platform_admin_service.list_support_case_replies(9, 3, **kwargs)
+
+    def test_support_case_reply_empty_page_and_max_limit_are_supported(self):
+        with patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "get_support_case_for_platform_admin",
+            return_value={"id": 9, "company_id": 31, "status": "open", "priority": "normal"},
+        ), patch.object(
+            platform_admin_service.tenant_support_repository,
+            "get_tenant_support_request_by_converted_case_id_for_platform_admin",
+            return_value=None,
+        ), patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "list_support_case_replies_for_platform_admin",
+            return_value=([], 100),
+        ) as replies, patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "list_support_case_reply_notifications_for_platform_admin",
+            return_value=[],
+        ) as notifications, patch.object(
+            platform_admin_service.platform_admin_repository,
+            "insert_platform_admin_audit_event",
+            return_value={"id": 1},
+        ):
+            result = platform_admin_service.list_support_case_replies(
+                9, 3, limit="100", offset="100"
+            )
+        replies.assert_called_once_with(9, limit=100, offset=100)
+        notifications.assert_called_once_with(9, [])
+        self.assertEqual(result["replies"], [])
+        self.assertEqual(result["pagination"], {
+            "limit": 100, "offset": 100, "returned": 0, "total": 100, "has_more": False,
+        })
 
 
 class PlatformAdminSupportCaseRepositoryTests(unittest.TestCase):
@@ -532,12 +720,199 @@ class PlatformAdminSupportCaseRepositoryTests(unittest.TestCase):
         self.assertEqual(query.eq.call_args_list[0].args, ("id", 4))
         self.assertEqual(query.eq.call_args_list[1].args, ("is_active", True))
 
+    def test_active_assignee_list_batches_safe_user_identity_lookup(self):
+        mapping_query = MagicMock()
+        for method in ("select", "eq", "order"):
+            getattr(mapping_query, method).return_value = mapping_query
+        mapping_query.execute.return_value = SimpleNamespace(data=[
+            {"id": 4, "user_id": 8, "is_active": True},
+            {"id": 5, "user_id": 9, "is_active": True},
+        ])
+        user_query = MagicMock()
+        for method in ("select", "in_"):
+            getattr(user_query, method).return_value = user_query
+        user_query.execute.return_value = SimpleNamespace(data=[
+            {"id": 9, "email": "bob@example.test", "full_name": "Bob Lee", "role": "admin"},
+            {"id": 8, "email": "alice@example.test", "full_name": "Alice Tan", "company_id": 31},
+        ])
+        with patch.object(
+            platform_support_case_repository.supabase,
+            "table",
+            side_effect=[mapping_query, user_query],
+        ) as table_call, patch.object(
+            platform_support_case_repository.supabase,
+            "rpc",
+        ) as rpc:
+            rows = platform_support_case_repository.list_active_platform_admin_assignees_for_platform_admin()
+
+        self.assertEqual(table_call.call_args_list[0].args, ("platform_admin_users",))
+        self.assertEqual(table_call.call_args_list[1].args, ("users",))
+        self.assertEqual(table_call.call_count, 2)
+        rpc.assert_not_called()
+        mapping_query.select.assert_called_once_with("id,user_id,is_active")
+        mapping_query.eq.assert_called_once_with("is_active", True)
+        user_query.select.assert_called_once_with(
+            platform_support_case_repository.ASSIGNEE_USER_IDENTITY_FIELDS
+        )
+        user_query.in_.assert_called_once_with("id", [8, 9])
+        self.assertEqual(rows, [
+            {
+                "id": 4,
+                "user_id": 8,
+                "is_active": True,
+                "user_full_name": "Alice Tan",
+                "user_email": "alice@example.test",
+            },
+            {
+                "id": 5,
+                "user_id": 9,
+                "is_active": True,
+                "user_full_name": "Bob Lee",
+                "user_email": "bob@example.test",
+            },
+        ])
+        for row in rows:
+            self.assertNotIn("role", row)
+            self.assertNotIn("company_id", row)
+
+    def test_active_assignee_list_handles_missing_identity_with_safe_nulls(self):
+        mapping_query = MagicMock()
+        for method in ("select", "eq", "order"):
+            getattr(mapping_query, method).return_value = mapping_query
+        mapping_query.execute.return_value = SimpleNamespace(data=[
+            {"id": 4, "user_id": 8, "is_active": True},
+        ])
+        user_query = MagicMock()
+        for method in ("select", "in_"):
+            getattr(user_query, method).return_value = user_query
+        user_query.execute.return_value = SimpleNamespace(data=[])
+        with patch.object(
+            platform_support_case_repository.supabase,
+            "table",
+            side_effect=[mapping_query, user_query],
+        ):
+            rows = platform_support_case_repository.list_active_platform_admin_assignees_for_platform_admin()
+
+        self.assertEqual(rows, [{
+            "id": 4,
+            "user_id": 8,
+            "is_active": True,
+            "user_full_name": None,
+            "user_email": None,
+        }])
+
+    def test_event_list_uses_exact_count_range_and_chronological_order(self):
+        query = MagicMock()
+        for method in ("select", "eq", "order", "range"):
+            getattr(query, method).return_value = query
+        query.execute.return_value = SimpleNamespace(data=[{"id": 20}], count=120)
+        with patch.object(platform_support_case_repository.supabase, "table", return_value=query) as table_call:
+            rows, total = platform_support_case_repository.list_support_case_events_for_platform_admin(
+                9, limit=25, offset=50
+            )
+        table_call.assert_called_once_with("platform_support_case_events")
+        query.select.assert_called_once_with(platform_support_case_repository.EVENT_FIELDS, count="exact")
+        query.eq.assert_called_once_with("case_id", 9)
+        self.assertEqual(query.order.call_args_list[0].args, ("created_at",))
+        self.assertEqual(query.order.call_args_list[0].kwargs, {"desc": False})
+        self.assertEqual(query.order.call_args_list[1].args, ("id",))
+        self.assertEqual(query.order.call_args_list[1].kwargs, {"desc": False})
+        query.range.assert_called_once_with(50, 74)
+        self.assertEqual((rows, total), ([{"id": 20}], 120))
+
+    def test_reply_list_uses_exact_count_range_and_chronological_order(self):
+        query = MagicMock()
+        for method in ("select", "eq", "order", "range"):
+            getattr(query, method).return_value = query
+        query.execute.return_value = SimpleNamespace(data=[{"id": 44}], count=101)
+        with patch.object(platform_support_case_repository.supabase, "table", return_value=query) as table_call:
+            rows, total = platform_support_case_repository.list_support_case_replies_for_platform_admin(
+                9, limit=25, offset=25
+            )
+        table_call.assert_called_once_with("tenant_support_replies")
+        query.select.assert_called_once_with(platform_support_case_repository.REPLY_FIELDS, count="exact")
+        query.eq.assert_called_once_with("platform_support_case_id", 9)
+        self.assertEqual(query.order.call_args_list[0].args, ("created_at",))
+        self.assertEqual(query.order.call_args_list[0].kwargs, {"desc": False})
+        self.assertEqual(query.order.call_args_list[1].args, ("id",))
+        self.assertEqual(query.order.call_args_list[1].kwargs, {"desc": False})
+        query.range.assert_called_once_with(25, 49)
+        self.assertEqual((rows, total), ([{"id": 44}], 101))
+
+    def test_notification_lookup_is_restricted_to_returned_reply_ids(self):
+        query = MagicMock()
+        for method in ("select", "eq", "in_", "order"):
+            getattr(query, method).return_value = query
+        query.execute.return_value = SimpleNamespace(data=[{"id": 50, "reply_id": 44}])
+        with patch.object(platform_support_case_repository.supabase, "table", return_value=query):
+            rows = platform_support_case_repository.list_support_case_reply_notifications_for_platform_admin(
+                9, [44, 45, 44, None, True, -1]
+            )
+        query.eq.assert_called_once_with("platform_support_case_id", 9)
+        query.in_.assert_called_once_with("reply_id", [44, 45])
+        self.assertEqual(rows, [{"id": 50, "reply_id": 44}])
+
+    def test_empty_reply_page_skips_notification_lookup(self):
+        with patch.object(platform_support_case_repository.supabase, "table") as table_call:
+            rows = platform_support_case_repository.list_support_case_reply_notifications_for_platform_admin(9, [])
+        table_call.assert_not_called()
+        self.assertEqual(rows, [])
+
+    def test_history_pagination_rejects_invalid_bounds(self):
+        invalids = [
+            (platform_support_case_repository.list_support_case_events_for_platform_admin, {"limit": 0, "offset": 0}),
+            (platform_support_case_repository.list_support_case_events_for_platform_admin, {"limit": 101, "offset": 0}),
+            (platform_support_case_repository.list_support_case_events_for_platform_admin, {"limit": 25, "offset": -1}),
+            (platform_support_case_repository.list_support_case_replies_for_platform_admin, {"limit": 0, "offset": 0}),
+            (platform_support_case_repository.list_support_case_replies_for_platform_admin, {"limit": 101, "offset": 0}),
+            (platform_support_case_repository.list_support_case_replies_for_platform_admin, {"limit": 25, "offset": -1}),
+        ]
+        for func, kwargs in invalids:
+            with self.subTest(func=func.__name__, kwargs=kwargs):
+                with self.assertRaises(ValueError):
+                    func(9, **kwargs)
+
     def test_operation_rpcs_use_expected_names_and_arguments(self):
         case_response = {
             "case": {"id": 9, "case_id": 9, "status": "in_progress", "priority": "normal"},
             "event": {"id": 1, "case_id": 9},
         }
+        creation_response = {
+            "case": {
+                "id": 9,
+                "company_id": 31,
+                "created_by_platform_admin_user_id": 3,
+                "status": "open",
+                "priority": "normal",
+                "title": "Safe",
+                "redacted_summary": "Safe summary",
+            },
+            "event": {
+                "id": 1,
+                "case_id": 9,
+                "event_type": "created",
+                "actor_platform_admin_user_id": 3,
+                "new_status": "open",
+                "new_priority": "normal",
+            },
+            "audit": {
+                "id": 2,
+                "platform_admin_user_id": 3,
+                "action": "platform_admin.support_case.create",
+                "resource_type": "platform_support_cases",
+                "resource_id": "9",
+                "metadata": {
+                    "outcome": "success",
+                    "endpoint": "/api/platform-admin/support-cases",
+                    "http_method": "POST",
+                    "company_id": 31,
+                    "status": "open",
+                    "priority": "normal",
+                },
+            },
+        }
         rpc = MagicMock(side_effect=[
+            MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=creation_response))),
             MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=case_response))),
             MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=case_response))),
             MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=case_response))),
@@ -545,22 +920,89 @@ class PlatformAdminSupportCaseRepositoryTests(unittest.TestCase):
             MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=self._reply_rpc_result()))),
         ])
         with patch.object(platform_support_case_repository.supabase, "rpc", rpc):
+            platform_support_case_repository.create_support_case_for_platform_admin(
+                company_id=31,
+                platform_admin_user_id=3,
+                title="Safe",
+                redacted_summary="Safe summary",
+                status="open",
+                priority="normal",
+            )
             platform_support_case_repository.assign_support_case_for_platform_admin(9, 3, 4)
             platform_support_case_repository.set_support_case_status_for_platform_admin(9, 3, "in_progress")
             platform_support_case_repository.set_support_case_priority_for_platform_admin(9, 3, "high")
             platform_support_case_repository.add_support_case_note_for_platform_admin(9, 3, "Safe note")
             platform_support_case_repository.create_support_case_reply_for_platform_admin(9, 3, "Visible reply")
         self.assertEqual([call.args[0] for call in rpc.call_args_list], [
+            "create_platform_support_case",
             "assign_platform_support_case",
             "set_platform_support_case_status",
             "set_platform_support_case_priority",
             "add_platform_support_case_note",
             "create_platform_support_case_reply",
         ])
+        self.assertEqual(rpc.call_args_list[0].args[1], {
+            "p_company_id": 31,
+            "p_platform_admin_user_id": 3,
+            "p_title": "Safe",
+            "p_redacted_summary": "Safe summary",
+            "p_status": "open",
+            "p_priority": "normal",
+        })
         self.assertEqual(
-            rpc.call_args_list[0].args[1]["p_assignee_platform_admin_user_id"],
+            rpc.call_args_list[1].args[1]["p_assignee_platform_admin_user_id"],
             4,
         )
+
+    def test_create_rpc_result_rejects_missing_event_or_audit(self):
+        result = {
+            "case": {
+                "id": 9,
+                "company_id": 31,
+                "created_by_platform_admin_user_id": 3,
+                "status": "open",
+                "priority": "normal",
+                "title": "Safe",
+                "redacted_summary": "Safe summary",
+            },
+            "event": {
+                "id": 1,
+                "case_id": 9,
+                "event_type": "created",
+                "actor_platform_admin_user_id": 3,
+                "new_status": "open",
+                "new_priority": "normal",
+            },
+            "audit": {
+                "id": 2,
+                "platform_admin_user_id": 3,
+                "action": "platform_admin.support_case.create",
+                "resource_type": "platform_support_cases",
+                "resource_id": "9",
+                "metadata": {
+                    "outcome": "success",
+                    "endpoint": "/api/platform-admin/support-cases",
+                    "http_method": "POST",
+                    "company_id": 31,
+                    "status": "open",
+                    "priority": "normal",
+                },
+            },
+        }
+        for key in ("event", "audit"):
+            malformed = dict(result)
+            malformed.pop(key)
+            rpc = MagicMock(return_value=MagicMock(execute=MagicMock(return_value=SimpleNamespace(data=malformed))))
+            with patch.object(platform_support_case_repository.supabase, "rpc", rpc):
+                with self.assertRaises(RuntimeError):
+                    platform_support_case_repository.create_support_case_for_platform_admin(
+                        company_id=31,
+                        platform_admin_user_id=3,
+                        title="Safe",
+                        redacted_summary="Safe summary",
+                        status="open",
+                        priority="normal",
+                    )
 
     def test_reply_rpc_result_rejects_missing_reply_and_notification(self):
         for key in ("reply", "notification"):
