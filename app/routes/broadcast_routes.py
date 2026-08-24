@@ -14,8 +14,20 @@ from app.database.broadcast_repository import (
     update_campaign_status,
     create_broadcast_log,
     get_broadcast_logs_by_campaign,
-    update_broadcast_log_status
+    update_broadcast_log_status,
+    update_campaign,
+    delete_campaign,
+    count_broadcast_logs_by_status,
+    cancel_pending_broadcast_logs,
+    delete_broadcast_logs_by_campaign
 )
+
+# Recipient statuses that mean "this recipient is finished with".
+TERMINAL_LOG_STATUSES = ("sent", "failed", "cancelled")
+
+# Campaign statuses an operator may still edit or remove.
+EDITABLE_CAMPAIGN_STATUSES = ("draft",)
+DELETABLE_CAMPAIGN_STATUSES = ("draft", "completed", "failed", "cancelled")
 
 broadcast_blueprint = Blueprint("broadcast", __name__)
 
@@ -93,6 +105,35 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
                         error_message="Company is suspended."
                     )
                 update_campaign_status(campaign_id, company_id, "failed")
+                return
+
+            # Stop signal. The operator sets the campaign to 'cancelling' from
+            # the dispatch console; this loop is the only thing that can act on
+            # it, because it owns the pacing sleep between messages.
+            #
+            # ponytail: one extra SELECT per message, at a 3s cadence. A
+            # threading.Event would avoid the read but only works when the
+            # canceller and the worker share a process -- under gunicorn they
+            # usually do not, so the flag has to live in the database.
+            try:
+                current = get_campaign_by_id(campaign_id, company_id)
+            except Exception as read_error:
+                # A transient read failure must not abandon a send that is
+                # already half delivered. The stop button still works on the
+                # next message, and the operator sees no change until it does.
+                logging.warning(
+                    f"Broadcast campaign {campaign_id}: could not read cancel "
+                    f"flag, continuing. {read_error}"
+                )
+                current = None
+
+            if current and current.get("status") == "cancelling":
+                cancel_pending_broadcast_logs(campaign_id)
+                update_campaign_status(campaign_id, company_id, "cancelled")
+                logging.info(
+                    f"Broadcast campaign {campaign_id} cancelled after "
+                    f"{success_count} sent, {fail_count} failed."
+                )
                 return
 
             # Update recipient status to sending
@@ -311,6 +352,12 @@ def start_campaign(campaign_id):
         if campaign["status"] in ("sending", "completed"):
             return jsonify({"status": "error", "message": f"Campaign already in status: {campaign['status']}"}), 400
 
+        if campaign["status"] in ("cancelling", "cancelled"):
+            return jsonify({
+                "status": "error",
+                "message": "This campaign was cancelled. Duplicate it to send to the remaining recipients."
+            }), 400
+
         logs = get_broadcast_logs_by_campaign(campaign_id)
         pending_logs = [l for l in logs if l["status"] == "pending"]
 
@@ -332,4 +379,207 @@ def start_campaign(campaign_id):
         return jsonify({"status": "success", "message": "Campaign broadcast started successfully."})
     except Exception as e:
         logging.error(f"Failed to start campaign: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def _normalize_phone(raw):
+    """E.164-ish normalisation: keep digits and a single leading '+'."""
+    return "".join(ch for ch in (raw or "").strip() if ch.isdigit() or ch == "+")
+
+
+@broadcast_blueprint.route("/api/broadcast/campaign/<int:campaign_id>", methods=["PATCH"])
+@token_required
+@company_operational_required
+@role_required("admin", "owner")
+def edit_campaign(campaign_id):
+    """Corrects a draft in place, so a typo does not cost a rebuild.
+
+    Draft-only on purpose: once a campaign is sending, its recipient rows are
+    the worker's live queue, and rewriting them underneath it would send the
+    wrong message to the wrong people.
+    """
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
+        verify_chatbot_access(chatbot_id)
+
+        campaign = get_campaign_by_id(campaign_id, g.company_id)
+        if not campaign:
+            return jsonify({"status": "error", "message": "Campaign not found"}), 404
+
+        if campaign["status"] not in EDITABLE_CAMPAIGN_STATUSES:
+            return jsonify({
+                "status": "error",
+                "message": "Only a draft can be edited. This campaign has already been dispatched."
+            }), 400
+
+        data = request.get_json() or {}
+        fields = {}
+
+        if "name" in data:
+            name = (data.get("name") or "").strip()
+            if not name:
+                return jsonify({"status": "error", "message": "Campaign name cannot be empty"}), 400
+            fields["name"] = name
+
+        if "message_template" in data:
+            message_template = (data.get("message_template") or "").strip()
+            if not message_template:
+                return jsonify({"status": "error", "message": "Message cannot be empty"}), 400
+            fields["message_template"] = message_template
+
+        if "channel_type" in data:
+            fields["channel_type"] = (data.get("channel_type") or "whatsapp").strip()
+        if "meta_template_name" in data:
+            fields["meta_template_name"] = (data.get("meta_template_name") or "").strip()
+        if "meta_language_code" in data:
+            fields["meta_language_code"] = (data.get("meta_language_code") or "en_US").strip()
+        if "media_attachment_id" in data:
+            try:
+                media_attachment_id = data.get("media_attachment_id")
+                fields["media_attachment_id"] = int(media_attachment_id) if media_attachment_id else None
+            except (ValueError, TypeError):
+                fields["media_attachment_id"] = None
+
+        recipients = data.get("recipients")
+        if recipients is not None:
+            phones = []
+            seen = set()
+            for r in recipients:
+                phone = _normalize_phone(r.get("phone") if isinstance(r, dict) else r)
+                if phone and phone not in seen:
+                    seen.add(phone)
+                    phones.append(phone)
+            if not phones:
+                return jsonify({"status": "error", "message": "At least one valid recipient is required"}), 400
+
+            # Replace wholesale rather than diff: a draft's rows are all
+            # pending, so there is no per-recipient state worth preserving.
+            delete_broadcast_logs_by_campaign(campaign_id)
+            for phone in phones:
+                create_broadcast_log(campaign_id, phone, status="pending")
+
+        updated = update_campaign(campaign_id, g.company_id, fields) if fields else campaign
+        return jsonify({"status": "success", "campaign": updated or campaign})
+    except Exception as e:
+        logging.error(f"Failed to edit campaign: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@broadcast_blueprint.route("/api/broadcast/campaign/<int:campaign_id>", methods=["DELETE"])
+@token_required
+@role_required("admin", "owner")
+def remove_campaign(campaign_id):
+    """Removes a campaign and its recipient rows.
+
+    Blocked while a send is in flight: the worker holds those rows and would
+    keep writing to them after the delete, resurrecting orphans.
+    """
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
+        verify_chatbot_access(chatbot_id)
+
+        campaign = get_campaign_by_id(campaign_id, g.company_id)
+        if not campaign:
+            return jsonify({"status": "error", "message": "Campaign not found"}), 404
+
+        if campaign["status"] not in DELETABLE_CAMPAIGN_STATUSES:
+            return jsonify({
+                "status": "error",
+                "message": "This campaign is still sending. Stop it first, then delete it."
+            }), 400
+
+        delete_campaign(campaign_id, g.company_id)
+        return jsonify({"status": "success", "message": "Campaign deleted."})
+    except Exception as e:
+        logging.error(f"Failed to delete campaign: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@broadcast_blueprint.route("/api/broadcast/campaign/<int:campaign_id>/progress", methods=["GET"])
+@token_required
+@role_required("admin", "owner")
+def campaign_progress(campaign_id):
+    """Recipient tallies for the dispatch console, polled during a send."""
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
+        verify_chatbot_access(chatbot_id)
+
+        campaign = get_campaign_by_id(campaign_id, g.company_id)
+        if not campaign:
+            return jsonify({"status": "error", "message": "Campaign not found"}), 404
+
+        counts = count_broadcast_logs_by_status(campaign_id)
+        total = sum(counts.values())
+        done = sum(counts.get(status, 0) for status in TERMINAL_LOG_STATUSES)
+
+        return jsonify({
+            "status": "success",
+            "campaign_status": campaign["status"],
+            "total": total,
+            "done": done,
+            "sent": counts.get("sent", 0),
+            "failed": counts.get("failed", 0),
+            "pending": counts.get("pending", 0),
+            "sending": counts.get("sending", 0),
+            "cancelled": counts.get("cancelled", 0),
+        })
+    except Exception as e:
+        logging.error(f"Failed to fetch campaign progress: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@broadcast_blueprint.route("/api/broadcast/campaign/<int:campaign_id>/cancel", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+def cancel_campaign(campaign_id):
+    """Asks the dispatch worker to stop after the message it is on.
+
+    This does not unsend anything. Messages already delivered stay delivered;
+    the endpoint only stops the queue, so the response says how many recipients
+    were spared rather than claiming the campaign was undone.
+    """
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
+        verify_chatbot_access(chatbot_id)
+
+        campaign = get_campaign_by_id(campaign_id, g.company_id)
+        if not campaign:
+            return jsonify({"status": "error", "message": "Campaign not found"}), 404
+
+        campaign_status = campaign["status"]
+
+        if campaign_status == "sending":
+            # The worker polls this status between messages and does the
+            # cleanup itself, so it never writes to a row after we clear it.
+            update_campaign_status(campaign_id, g.company_id, "cancelling")
+            remaining = count_broadcast_logs_by_status(campaign_id).get("pending", 0)
+            return jsonify({
+                "status": "success",
+                "message": f"Stopping. {remaining} recipient(s) will not be messaged.",
+                "campaign_status": "cancelling",
+            })
+
+        if campaign_status == "draft":
+            cancelled = cancel_pending_broadcast_logs(campaign_id)
+            update_campaign_status(campaign_id, g.company_id, "cancelled")
+            return jsonify({
+                "status": "success",
+                "message": f"Cancelled. {cancelled} recipient(s) will not be messaged.",
+                "campaign_status": "cancelled",
+            })
+
+        return jsonify({
+            "status": "error",
+            "message": f"Nothing to stop. This campaign is {campaign_status}."
+        }), 400
+    except Exception as e:
+        logging.error(f"Failed to cancel campaign: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
