@@ -731,6 +731,12 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
             "app.utils.whatsapp_utils.send_message",
             return_value=SimpleNamespace(status_code=200, text="ok"),
         ) as send_message, patch(
+            # The worker re-reads the campaign between messages to see
+            # whether the operator pressed stop. These tests are about
+            # suspension, not cancellation, so it always answers "sending".
+            "app.routes.broadcast_routes.get_campaign_by_id",
+            return_value={"id": 12, "company_id": 42, "status": "sending"},
+        ), patch(
             "app.routes.broadcast_routes.update_broadcast_log_status"
         ) as update_log, patch(
             "app.routes.broadcast_routes.update_campaign_status"

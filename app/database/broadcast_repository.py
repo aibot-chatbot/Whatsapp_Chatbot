@@ -91,3 +91,72 @@ def update_broadcast_log_status(log_id, status, error_message=None, sent_at=None
         .execute()
     )
     return response.data[0] if response.data else None
+
+
+def update_campaign(campaign_id, company_id, fields):
+    """Partial update of a campaign. Callers decide which statuses may be edited."""
+    if not fields:
+        return get_campaign_by_id(campaign_id, company_id)
+    payload = dict(fields)
+    payload["updated_at"] = _now_iso()
+    response = (
+        supabase.table("broadcast_campaigns")
+        .update(payload)
+        .eq("id", campaign_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    return response.data[0] if response.data else None
+
+
+def delete_broadcast_logs_by_campaign(campaign_id):
+    supabase.table("broadcast_logs").delete().eq("campaign_id", campaign_id).execute()
+
+
+def delete_campaign(campaign_id, company_id):
+    """Removes the campaign and every recipient row that belongs to it.
+
+    Logs go first: broadcast_logs.campaign_id has no ON DELETE CASCADE, so
+    dropping the campaign first would strand them as unreachable rows.
+    """
+    delete_broadcast_logs_by_campaign(campaign_id)
+    response = (
+        supabase.table("broadcast_campaigns")
+        .delete()
+        .eq("id", campaign_id)
+        .eq("company_id", company_id)
+        .execute()
+    )
+    return bool(response.data)
+
+
+def count_broadcast_logs_by_status(campaign_id):
+    """Recipient tallies for one campaign, keyed by status.
+
+    Selects only `status` rather than reusing get_broadcast_logs_by_campaign:
+    the progress endpoint is polled every two seconds during a send, and the
+    full row carries error_message strings this caller never reads.
+    """
+    response = (
+        supabase.table("broadcast_logs")
+        .select("status")
+        .eq("campaign_id", campaign_id)
+        .execute()
+    )
+    counts = {}
+    for row in response.data or []:
+        status = row.get("status") or "pending"
+        counts[status] = counts.get(status, 0) + 1
+    return counts
+
+
+def cancel_pending_broadcast_logs(campaign_id):
+    """Marks every not-yet-attempted recipient as cancelled in one statement."""
+    response = (
+        supabase.table("broadcast_logs")
+        .update({"status": "cancelled", "error_message": "Cancelled before sending."})
+        .eq("campaign_id", campaign_id)
+        .in_("status", ["pending", "sending"])
+        .execute()
+    )
+    return len(response.data or [])

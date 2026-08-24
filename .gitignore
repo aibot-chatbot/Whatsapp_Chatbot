@@ -130,3 +130,6 @@ graphify-out/
 # Generated knowledge-base artifacts (contain tenant document content)
 data/bot_*_readme.md
 data/bot_*_history.json
+
+# Playwright visual-check artifacts (tests/browser/broadcast.visual.js)
+output/

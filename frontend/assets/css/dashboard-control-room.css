@@ -103,6 +103,11 @@ body.dashboard-page {
     align-items: center;
     gap: 6px;
     margin-bottom: 10px;
+    padding: 0;
+    background: none;
+    border: 0;
+    cursor: pointer;
+    font-family: var(--font-body);
     color: var(--control-text-secondary);
     font-size: 13px;
     font-weight: 500;
@@ -2559,6 +2564,12 @@ body.dashboard-page {
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    /* This component is an <ol>. Without these, the list keeps its browser
+       indent and any child that stays display:list-item renders a number
+       beside the step label. */
+    margin: 0;
+    padding: 0;
+    list-style: none;
 }
 
 .dashboard-page .kw-step {
@@ -2599,6 +2610,8 @@ body.dashboard-page {
 }
 
 .dashboard-page .kw-step-sep {
+    display: block;
+    flex: 0 0 auto;
     width: 16px;
     height: 1px;
     background: var(--control-border);
@@ -2646,6 +2659,44 @@ body.dashboard-page {
 
 .dashboard-page .kw-field + .kw-field {
     margin-top: 18px;
+}
+
+/* A .kw-help that sits BETWEEN two fields (rather than inside one) used to
+   break the adjacency above, leaving the following field with no spacing.
+   A hidden note does it too -- display:none still counts as a sibling. */
+.dashboard-page .kw-help + .kw-field {
+    margin-top: 18px;
+}
+
+/* Two form fields side by side.
+   This is deliberately not .kw-row: that is the clickable table row, whose
+   rules target <td> children and which contributes no layout to a <div>. */
+.dashboard-page .kw-fieldpair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.dashboard-page .kw-fieldpair > .kw-field + .kw-field {
+    margin-top: 0;
+}
+
+.dashboard-page .kw-field + .kw-fieldpair,
+.dashboard-page .kw-fieldpair + .kw-field,
+.dashboard-page .kw-fieldpair + .kw-fieldpair,
+.dashboard-page .kw-help + .kw-fieldpair {
+    margin-top: 18px;
+}
+
+@media (max-width: 720px) {
+    .dashboard-page .kw-fieldpair {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .kw-fieldpair > .kw-field + .kw-field {
+        margin-top: 18px;
+    }
 }
 
 .dashboard-page .kw-field-head {
@@ -2913,9 +2964,11 @@ body.dashboard-page {
                 background 180ms cubic-bezier(.2, 0, 0, 1);
 }
 
-.dashboard-page .kw-segment button[aria-selected="true"] {
+.dashboard-page .kw-segment button[aria-selected="true"],
+.dashboard-page .kw-segment button[aria-checked="true"] {
     color: var(--control-text);
     background: var(--control-raised);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .dashboard-page .kw-drop {

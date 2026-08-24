@@ -1,0 +1,297 @@
+/* broadcast.css - the campaign composer and dispatch console.
+ *
+ * Layers on dashboard-control-room.css the way conversations.css and
+ * publish.css do: no tokens of its own, no fonts of its own, every rule
+ * namespaced under .dashboard-page. The wizard's chrome is all kw-* --
+ * kw-steps, kw-bottombar, kw-drop, kw-panel, kw-table. The bc-* classes
+ * below are only the shapes the shared vocabulary has no answer for:
+ * the WhatsApp message preview, the recipient list, and the dispatch
+ * console. The WhatsApp bubble itself lives in whatsapp-preview.css,
+ * shared with meta-templates.css. Everything else is reached with a
+ * data-attribute or an id, on
+ * purpose, so this file never grows a second twin of a kw-* component.
+ */
+
+/* ── Wizard shell ──────────────────────────────────────────────────── */
+
+.dashboard-page #bc-wizard-steps {
+    padding: 14px 16px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--control-sunken);
+}
+
+/* ── Recipient list ────────────────────────────────────────────────── */
+
+.dashboard-page .bc-recipients {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 6px;
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+    background: var(--control-sunken);
+}
+
+.dashboard-page .bc-recipient {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: 8px;
+}
+
+.dashboard-page .bc-recipient:hover {
+    background: var(--control-raised);
+}
+
+.dashboard-page .bc-recipient-phone {
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+}
+
+.dashboard-page .bc-recipient-name {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .bc-recipient > [data-part="remove"] {
+    margin-left: auto;
+}
+
+/* ── Review summary ────────────────────────────────────────────────── */
+
+.dashboard-page .bc-summary {
+    /* A <dl> is not a .kw-field, so the design system's field
+       adjacency rules do not space it. */
+    margin: 18px 0;
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 10px 16px;
+    align-items: baseline;
+}
+
+.dashboard-page .bc-summary dt {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+.dashboard-page .bc-summary dd {
+    color: var(--control-text);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+    .dashboard-page .bc-summary {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px 0;
+    }
+
+    .dashboard-page .bc-summary dd {
+        margin-bottom: 10px;
+    }
+}
+
+/* The recipient count on the review step is the number a person checks
+   twice before an irreversible action, so it is set at display size. */
+.dashboard-page #bc-review-count {
+    display: block;
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 34px;
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+
+.dashboard-page #bc-arm-field {
+    max-width: 420px;
+}
+
+/* ── Dispatch console ──────────────────────────────────────────────── */
+
+.dashboard-page #bc-console-progress {
+    width: 100%;
+    height: 6px;
+}
+
+.dashboard-page .bc-tallies {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+}
+
+.dashboard-page .bc-tally {
+    padding: 12px 14px;
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+}
+
+.dashboard-page .bc-tally dt {
+    color: var(--control-text-secondary);
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.dashboard-page .bc-tally dd {
+    margin-top: 4px;
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 22px;
+    line-height: 1.1;
+}
+
+.dashboard-page .bc-tally[data-tone="sent"] dd {
+    color: var(--control-accent);
+}
+
+.dashboard-page .bc-tally[data-tone="failed"] dd {
+    color: var(--control-danger);
+}
+
+/* The countdown is the last moment anything can be stopped for free, so
+   it gets the page's only oversized numeral. */
+.dashboard-page .bc-countdown {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 20px;
+    border: 1px solid rgba(196, 121, 90, 0.35);
+    border-radius: 12px;
+    background: rgba(196, 121, 90, 0.06);
+}
+
+.dashboard-page #bc-countdown-value {
+    color: var(--control-warning);
+    font-family: var(--font-mono);
+    font-size: 46px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Log list ──────────────────────────────────────────────────────── */
+
+.dashboard-page .bc-log-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 52vh;
+    overflow-y: auto;
+}
+
+.dashboard-page .bc-log-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.dashboard-page .bc-log-row > [data-part="phone"] {
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+}
+
+.dashboard-page .bc-log-row > [data-part="time"] {
+    margin-left: auto;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+.dashboard-page .bc-log-error {
+    flex-basis: 100%;
+    padding: 7px 9px;
+    color: var(--control-danger);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    line-height: 1.45;
+    background: rgba(166, 86, 72, 0.08);
+    border-radius: 7px;
+    overflow-wrap: anywhere;
+}
+
+/* ── Table cells ───────────────────────────────────────────────────── */
+
+.dashboard-page #bc-table td[data-col="recipients"],
+.dashboard-page #bc-table td[data-col="created"] {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    white-space: nowrap;
+}
+
+.dashboard-page #bc-table td[data-col="actions"] {
+    text-align: right;
+    white-space: nowrap;
+}
+
+.dashboard-page #bc-table td[data-col="name"] {
+    font-weight: 500;
+}
+
+/* ── Loading skeleton ──────────────────────────────────────────────── */
+
+/* cr-skeleton carries the shimmer but no dimensions, because every host
+   sizes it to the row it stands in for. These stand in for table rows. */
+.dashboard-page #bc-list-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.dashboard-page #bc-list-loading [data-part="skeleton"] {
+    height: 54px;
+    border-radius: 10px;
+}
+
+
+/* ── Layout corrections for shared components ──────────────────────── */
+
+/* .kw-stats is hardcoded to repeat(5, 1fr) for conversations.html's five
+   pipeline stages. This page has four, and the empty fifth column has no
+   border-left, so it merges into the fourth card and makes it look twice
+   as wide as the rest. */
+.dashboard-page #bc-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+    .dashboard-page #bc-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* The primary action lives in the toolbar, not .kw-header-aside: shared-ui.js
+   pins .tenant-account-menu-floating at top:24px right:32px with z-index
+   1001 on every page that has a sidebar, and it swallows clicks on anything
+   interactive in the header's right slot. */
+.dashboard-page #bc-new {
+    margin-left: auto;
+}
+
+/* .kw-segment is inline-flex, but .kw-field is a flex column, so the default
+   align-items:stretch pulls it edge to edge and it stops reading as a
+   segmented control. */
+.dashboard-page .kw-field > .kw-segment {
+    align-self: start;
+}
+
+/* A hidden <input> sits between the drop zone and this line, so no sibling
+   selector reaches it and it rendered flush against the dashed border. */
+.dashboard-page #bc-csv-example {
+    margin-top: 10px;
+}

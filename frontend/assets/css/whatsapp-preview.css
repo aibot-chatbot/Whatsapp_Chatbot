@@ -1,0 +1,160 @@
+/* whatsapp-preview.css - the "what the customer actually sees" bubble.
+ *
+ * Shared by broadcast.css and meta-templates.css, because both pages exist
+ * to answer the same question and must answer it identically. Lives on its
+ * own so neither page grows a private copy that drifts from the other.
+ *
+ * Namespaced under .dashboard-page like every other control-room layer, and
+ * deliberately NOT the control-room palette: these colours have to read as
+ * WhatsApp, which is the whole point of the component.
+ */
+
+/* The preview is the one place in this page that is deliberately not the
+   control-room palette: it has to read as WhatsApp, because its whole job
+   is answering "what will the customer actually see". */
+.dashboard-page .wa-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 18px 14px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background:
+        radial-gradient(circle at 20% 10%, rgba(62, 156, 137, 0.06) 0%, transparent 55%),
+        #0b1210;
+}
+
+.dashboard-page .wa-bubble {
+    align-self: flex-start;
+    max-width: 300px;
+    min-width: 150px;
+    overflow: hidden;
+    border-radius: 10px 10px 10px 2px;
+    background: #17251f;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.dashboard-page .wa-media {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 108px;
+    padding: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.dashboard-page .wa-media img {
+    display: block;
+    width: 100%;
+    max-height: 190px;
+    object-fit: cover;
+}
+
+.dashboard-page .wa-head {
+    padding: 10px 12px 0;
+    color: #f2f3f4;
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .wa-body {
+    padding: 8px 12px;
+    color: #e9edeb;
+    font-size: 13.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .wa-body em {
+    color: rgba(233, 237, 235, 0.45);
+    font-style: italic;
+}
+
+.dashboard-page .wa-foot {
+    padding: 0 12px 8px;
+    color: rgba(233, 237, 235, 0.45);
+    font-size: 11.5px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .wa-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 0 12px 8px;
+    color: rgba(233, 237, 235, 0.35);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+}
+
+.dashboard-page .wa-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    align-self: flex-start;
+    width: 100%;
+    max-width: 300px;
+}
+
+.dashboard-page .wa-btn {
+    padding: 9px 12px;
+    color: #52a8ff;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: center;
+    background: #17251f;
+    border-radius: 2px;
+}
+
+.dashboard-page .wa-btns .wa-btn:last-child {
+    border-radius: 2px 2px 10px 10px;
+}
+
+.dashboard-page .wa-note {
+    margin-top: 2px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+/* ── Form-beside-preview layout ────────────────────────────────────── */
+
+/* The pairing both pages use: controls on the left, the live bubble
+   pinned on the right. It travels with the preview because it exists
+   only to keep the preview in view while someone types. */
+/* Two columns once there is room: controls left, preview right. Below
+   1080px the preview drops under the controls rather than shrinking into
+   an unreadable strip. */
+.dashboard-page .wa-split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 20px;
+    align-items: start;
+}
+
+@media (max-width: 1080px) {
+    .dashboard-page .wa-split {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+.dashboard-page .wa-sticky {
+    position: sticky;
+    top: 24px;
+}
+
+@media (max-width: 1080px) {
+    .dashboard-page .wa-sticky {
+        position: static;
+    }
+}

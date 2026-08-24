@@ -1,0 +1,305 @@
+/* meta-templates.css - the template library and the guided builder.
+ *
+ * Layers on dashboard-control-room.css the way conversations.css and
+ * publish.css do: no tokens of its own, no fonts of its own, every rule
+ * namespaced under .dashboard-page. The message bubble is not here -- it
+ * comes from whatsapp-preview.css, shared with broadcast.css, so the two
+ * pages can never disagree about what a message looks like.
+ *
+ * The mt-* classes below are the shapes the shared vocabulary has no
+ * answer for: the library card whose body is a real message rather than a
+ * truncated string, and the builder's repeatable button rows.
+ */
+
+/* ── Library grid ──────────────────────────────────────────────────── */
+
+.dashboard-page .mt-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+/* A template is recognised by reading it, not by parsing its slug, so the
+   card gives the message itself the most room and lets the identifiers sit
+   quietly around it. */
+.dashboard-page .mt-card {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--control-panel);
+    transition: border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .mt-card:hover,
+.dashboard-page .mt-card:focus-within {
+    border-color: rgba(62, 156, 137, 0.4);
+}
+
+.dashboard-page .mt-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 16px 10px;
+}
+
+.dashboard-page .mt-card-name {
+    min-width: 0;
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .mt-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 16px 12px;
+}
+
+.dashboard-page .mt-card-tag {
+    padding: 3px 8px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+}
+
+/* Inside a card the preview is the card's own surface, so it drops the
+   standalone border and corners it carries on the builder screen. */
+.dashboard-page .mt-card .wa-preview {
+    padding: 14px;
+    border: 0;
+    border-top: 1px solid var(--control-border);
+    border-radius: 0;
+}
+
+.dashboard-page .mt-card .wa-bubble,
+.dashboard-page .mt-card .wa-btns {
+    max-width: 100%;
+}
+
+.dashboard-page .mt-card-foot {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: auto;
+    padding: 12px 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .mt-card-reason {
+    margin: 0 16px 12px;
+    padding: 9px 11px;
+    color: var(--control-danger);
+    font-size: 12px;
+    line-height: 1.45;
+    background: rgba(166, 86, 72, 0.08);
+    border-radius: 8px;
+}
+
+/* ── Builder: repeatable button rows ───────────────────────────────── */
+
+.dashboard-page .mt-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dashboard-page .mt-button-row {
+    display: grid;
+    grid-template-columns: 170px minmax(0, 1fr) minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    background: var(--control-sunken);
+}
+
+.dashboard-page .mt-button-row[data-needs-value="false"] {
+    grid-template-columns: 170px minmax(0, 1fr) auto;
+}
+
+@media (max-width: 720px) {
+    .dashboard-page .mt-button-row,
+    .dashboard-page .mt-button-row[data-needs-value="false"] {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+/* ── Builder: quick inserts ────────────────────────────────────────── */
+
+.dashboard-page .mt-inserts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+}
+
+.dashboard-page .mt-insert {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0 8px;
+    color: var(--control-text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+    transition: background 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .mt-insert:hover,
+.dashboard-page .mt-insert:focus-visible {
+    background: var(--control-raised);
+    border-color: rgba(62, 156, 137, 0.5);
+}
+
+.dashboard-page .mt-insert[data-kind="variable"] {
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+
+/* ── Starter examples ──────────────────────────────────────────────── */
+
+.dashboard-page .mt-starter {
+    display: block;
+    width: 100%;
+    padding: 14px;
+    color: inherit;
+    text-align: left;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    transition: background 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .mt-starter + .mt-starter {
+    margin-top: 8px;
+}
+
+.dashboard-page .mt-starter:hover,
+.dashboard-page .mt-starter:focus-visible {
+    background: var(--control-raised);
+    border-color: rgba(62, 156, 137, 0.5);
+}
+
+.dashboard-page .mt-starter strong {
+    display: block;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.dashboard-page .mt-starter span {
+    display: block;
+    margin-top: 3px;
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+/* ── Review summary ────────────────────────────────────────────────── */
+
+.dashboard-page .mt-summary {
+    /* A <dl> is not a .kw-field, so the design system's field
+       adjacency rules do not space it. */
+    margin: 18px 0;
+    display: grid;
+    grid-template-columns: 150px minmax(0, 1fr);
+    gap: 10px 16px;
+    align-items: baseline;
+}
+
+.dashboard-page .mt-summary dt {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
+.dashboard-page .mt-summary dd {
+    color: var(--control-text);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 560px) {
+    .dashboard-page .mt-summary {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px 0;
+    }
+
+    .dashboard-page .mt-summary dd {
+        margin-bottom: 10px;
+    }
+}
+
+/* ── Wizard shell ──────────────────────────────────────────────────── */
+
+.dashboard-page #mt-builder-steps {
+    padding: 14px 16px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--control-sunken);
+}
+
+/* ── Loading skeleton ──────────────────────────────────────────────── */
+
+/* cr-skeleton carries the shimmer but no dimensions, because every host
+   sizes it to the thing it stands in for. These stand in for cards. */
+.dashboard-page #mt-loading {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.dashboard-page #mt-loading [data-part="skeleton"] {
+    height: 240px;
+    border-radius: 12px;
+}
+
+
+/* ── Layout corrections for shared components ──────────────────────── */
+
+/* .kw-stats is hardcoded to repeat(5, 1fr) for conversations.html's five
+   pipeline stages. This page has four, and the empty fifth column has no
+   border-left, so it merges into the fourth card and makes it look twice
+   as wide as the rest. */
+.dashboard-page #mt-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+    .dashboard-page #mt-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* The primary action lives in the toolbar, not .kw-header-aside: shared-ui.js
+   pins .tenant-account-menu-floating at top:24px right:32px with z-index
+   1001 on every page that has a sidebar, and it swallows clicks on anything
+   interactive in the header's right slot. */
+.dashboard-page #mt-new {
+    margin-left: auto;
+}
+
+/* .kw-segment is inline-flex, but .kw-field is a flex column, so the default
+   align-items:stretch pulls it edge to edge and it stops reading as a
+   segmented control. */
+.dashboard-page .kw-field > .kw-segment {
+    align-self: start;
+}
