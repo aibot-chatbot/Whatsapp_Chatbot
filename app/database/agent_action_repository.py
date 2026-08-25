@@ -2,6 +2,10 @@ from app.database.db import supabase
 
 
 ESCALATION_INTENTS = ["handoff_request", "complaint", "knowledge_gap"]
+SAFE_AGENT_ACTION_FIELDS = (
+    "id,company_id,chatbot_id,conversation_id,message_id,intent,"
+    "action_type,confidence,status,reason,created_at"
+)
 
 
 def _is_positive_integer(value):
@@ -76,11 +80,10 @@ def get_agent_insights_by_chatbot(chatbot_id, limit=10):
     }
 
 def get_pending_escalations(chatbot_id, company_id, limit=50):
-    # Fetch escalations
     action_result = (
         supabase
         .table("agent_actions")
-        .select("*")
+        .select(SAFE_AGENT_ACTION_FIELDS)
         .eq("chatbot_id", chatbot_id)
         .eq("company_id", company_id)
         .eq("status", "detected")
@@ -102,7 +105,7 @@ def get_pending_escalations(chatbot_id, company_id, limit=50):
     conv_result = (
         supabase
         .table("conversations")
-        .select("*")
+        .select("id,chatbot_id,customer_name,source_channel")
         .in_("id", conv_ids)
         .eq("chatbot_id", chatbot_id)
         .execute()
@@ -166,6 +169,57 @@ def resolve_escalation(action_id, chatbot_id, company_id):
         return current, False
 
     return None, False
+
+
+def get_agent_actions_by_conversation_and_chatbot(conversation_id, chatbot_id, company_id):
+    """
+    Fetch agent_actions rows for a conversation, tenant-scoped exactly like
+    get_messages_by_conversation_and_chatbot (message_repository.py): the
+    Both the action's chatbot/company keys and the conversation join are
+    checked, and a not-found conversation is distinguished from "no actions
+    yet" by a second scoped lookup.
+
+    The select list deliberately excludes `payload` -- it may carry raw
+    model output that must not reach the dashboard.
+
+    Returns None when the conversation is missing or belongs to a different
+    chatbot, [] when it belongs to this chatbot but has no agent actions.
+    """
+    actions_result = (
+        supabase
+        .table("agent_actions")
+        .select(
+            "message_id,intent,confidence,action_type,reason,status,"
+            "conversations!inner(chatbot_id)"
+        )
+        .eq("conversation_id", conversation_id)
+        .eq("chatbot_id", chatbot_id)
+        .eq("company_id", company_id)
+        .eq("conversations.chatbot_id", chatbot_id)
+        .order("created_at", desc=False)
+        .execute()
+    )
+
+    actions = actions_result.data or []
+    if actions:
+        for action in actions:
+            action.pop("conversations", None)
+        return actions
+
+    conversation_result = (
+        supabase
+        .table("conversations")
+        .select("id")
+        .eq("id", conversation_id)
+        .eq("chatbot_id", chatbot_id)
+        .limit(1)
+        .execute()
+    )
+
+    if not (conversation_result.data or []):
+        return None
+
+    return []
 
 
 def is_conversation_escalated(conversation_id, chatbot_id=None):

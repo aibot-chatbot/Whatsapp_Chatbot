@@ -10,10 +10,35 @@ SAFE_CRM_LEAD_FIELDS = (
     "created_at,updated_at"
 )
 
-OPEN_CRM_LEAD_STATUSES = ["new", "in_progress", "contacted"]
-ALLOWED_CRM_LEAD_STATUSES = ["new", "in_progress", "contacted", "closed"]
+# Keep the retired value while older rows are still being normalised on write.
+OPEN_CRM_LEAD_STATUSES = ["new", "contacted", "qualified", "in_progress"]
+ALLOWED_CRM_LEAD_STATUSES = ["new", "contacted", "qualified", "won", "lost"]
 ALLOWED_CRM_LEAD_PRIORITIES = ["low", "medium", "high"]
 _MISSING = object()
+
+# Retired vocabulary (pre lead-stage-migration), accepted on WRITE for one
+# release so an older client sending the old status names gets normalised
+# instead of a 400/500. Remove this alias table -- and the
+# normalize_crm_lead_status() call sites -- once no writer sends these.
+_RETIRED_CRM_LEAD_STATUS_ALIASES = {
+    "in_progress": "contacted",
+    # "closed" carried no outcome signal in the old vocabulary -- there is no
+    # way to tell a won deal from a lost one from the status string alone.
+    # Conservatively normalised to "lost" rather than assumed "won" without
+    # evidence. A real backfill with access to lead outcome data (see
+    # DESIGN.md "Lead status migration") may want to do better than this
+    # default for any row this still applies to.
+    "closed": "lost",
+}
+
+
+def normalize_crm_lead_status(status):
+    """Map a possibly-retired CRM lead status onto the current vocabulary.
+
+    No-op for values already in ALLOWED_CRM_LEAD_STATUSES.
+    """
+    normalized = str(status or "").strip().lower()
+    return _RETIRED_CRM_LEAD_STATUS_ALIASES.get(normalized, normalized)
 
 
 def _mask_phone(phone):
@@ -82,6 +107,17 @@ def _is_unique_violation(error):
 
 def get_crm_leads_by_chatbot(chatbot_id, status=None, limit=50, conversation_id=None):
     safe_limit = min(max(int(limit or 50), 1), 100)
+    status_values = None
+
+    if status:
+        # Keep legacy readers aligned with the write-time compatibility
+        # window.  Include the retired value as well so rows written before
+        # the migration remain visible until the compatibility window closes.
+        raw_status = str(status).strip().lower()
+        normalized_status = normalize_crm_lead_status(raw_status)
+        status_values = [normalized_status]
+        if normalized_status != raw_status and raw_status in _RETIRED_CRM_LEAD_STATUS_ALIASES:
+            status_values.append(raw_status)
 
     query = (
         supabase.table("crm_leads")
@@ -89,8 +125,12 @@ def get_crm_leads_by_chatbot(chatbot_id, status=None, limit=50, conversation_id=
         .eq("chatbot_id", chatbot_id)
     )
 
-    if status:
-        query = query.eq("status", status)
+    if status_values:
+        query = (
+            query.eq("status", status_values[0])
+            if len(status_values) == 1
+            else query.in_("status", status_values)
+        )
 
     if conversation_id:
         query = query.eq("conversation_id", conversation_id)
@@ -252,7 +292,7 @@ def update_crm_lead_status_notes(
     }
 
     if status is not None:
-        normalized_status = str(status).strip().lower()
+        normalized_status = normalize_crm_lead_status(status)
         if normalized_status not in ALLOWED_CRM_LEAD_STATUSES:
             raise ValueError("Invalid CRM lead status.")
         update_data["status"] = normalized_status
@@ -296,7 +336,7 @@ def upsert_crm_lead_by_conversation(
     if not conversation_id:
         raise ValueError("conversation_id is required")
 
-    normalized_status = str(status or "new").strip().lower()
+    normalized_status = normalize_crm_lead_status(status or "new")
     if normalized_status not in ALLOWED_CRM_LEAD_STATUSES:
         raise ValueError("Invalid CRM lead status.")
 

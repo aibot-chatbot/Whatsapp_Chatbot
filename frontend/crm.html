@@ -531,12 +531,14 @@
         /* Color branding for timeline items */
         .pipeline-stage-new .timeline-value { color: #60a5fa; }
         .pipeline-stage-new.active-filter .timeline-node { border-color: #60a5fa; background: #60a5fa; color: white; }
-        .pipeline-stage-progress .timeline-value { color: #fbbf24; }
-        .pipeline-stage-progress.active-filter .timeline-node { border-color: #fbbf24; background: #fbbf24; color: white; }
         .pipeline-stage-contacted .timeline-value { color: #34d399; }
         .pipeline-stage-contacted.active-filter .timeline-node { border-color: #34d399; background: #34d399; color: white; }
-        .pipeline-stage-closed .timeline-value { color: #94a3b8; }
-        .pipeline-stage-closed.active-filter .timeline-node { border-color: #cbd5e1; background: #cbd5e1; color: var(--bg); }
+        .pipeline-stage-qualified .timeline-value { color: #fbbf24; }
+        .pipeline-stage-qualified.active-filter .timeline-node { border-color: #fbbf24; background: #fbbf24; color: white; }
+        .pipeline-stage-won .timeline-value { color: #22c55e; }
+        .pipeline-stage-won.active-filter .timeline-node { border-color: #22c55e; background: #22c55e; color: white; }
+        .pipeline-stage-lost .timeline-value { color: #94a3b8; }
+        .pipeline-stage-lost.active-filter .timeline-node { border-color: #cbd5e1; background: #cbd5e1; color: var(--bg); }
 
         /* ===== Tabbed Action Board (Right Column) ===== */
         .action-tabs-container {
@@ -1227,7 +1229,7 @@
                     <i data-lucide="activity" class="snapshot-icon"></i>
                 </div>
                 <div class="snapshot-value" id="crm-active-count">...</div>
-                <div class="snapshot-trend">New + In Progress</div>
+                <div class="snapshot-trend">New + Contacted + Qualified</div>
             </div>
             <div class="snapshot-item snapshot-warning">
                 <div class="snapshot-header-row">
@@ -1247,10 +1249,10 @@
             </div>
             <div class="snapshot-item snapshot-neutral">
                 <div class="snapshot-header-row">
-                    <div class="snapshot-label">Closed</div>
+                    <div class="snapshot-label">Won + Lost</div>
                     <i data-lucide="check-circle-2" class="snapshot-icon"></i>
                 </div>
-                <div class="snapshot-value" id="crm-closed-snapshot-count">...</div>
+                <div class="snapshot-value" id="crm-outcomes-snapshot-count">...</div>
                 <div class="snapshot-trend">Resolved</div>
             </div>
         </div>
@@ -1270,27 +1272,35 @@
                         </div>
                     </div>
                     
-                    <div class="timeline-item pipeline-stage-progress" data-status-card="in_progress" role="button" tabindex="0">
-                        <div class="timeline-node">2</div>
-                        <div class="timeline-content">
-                            <div class="timeline-label">In Progress</div>
-                            <div class="timeline-value" id="crm-in-progress-count">...</div>
-                        </div>
-                    </div>
-                    
                     <div class="timeline-item pipeline-stage-contacted" data-status-card="contacted" role="button" tabindex="0">
-                        <div class="timeline-node">3</div>
+                        <div class="timeline-node">2</div>
                         <div class="timeline-content">
                             <div class="timeline-label">Contacted</div>
                             <div class="timeline-value" id="crm-contacted-count">...</div>
                         </div>
                     </div>
                     
-                    <div class="timeline-item pipeline-stage-closed" data-status-card="closed" role="button" tabindex="0">
+                    <div class="timeline-item pipeline-stage-qualified" data-status-card="qualified" role="button" tabindex="0">
+                            <div class="timeline-node">3</div>
+                        <div class="timeline-content">
+                            <div class="timeline-label">Qualified</div>
+                            <div class="timeline-value" id="crm-qualified-count">...</div>
+                        </div>
+                    </div>
+                    
+                    <div class="timeline-item pipeline-stage-won" data-status-card="won" role="button" tabindex="0">
                         <div class="timeline-node">4</div>
                         <div class="timeline-content">
-                            <div class="timeline-label">Closed</div>
-                            <div class="timeline-value" id="crm-closed-count">...</div>
+                            <div class="timeline-label">Won</div>
+                            <div class="timeline-value" id="crm-won-count">...</div>
+                        </div>
+                    </div>
+
+                    <div class="timeline-item pipeline-stage-lost" data-status-card="lost" role="button" tabindex="0">
+                        <div class="timeline-node">5</div>
+                        <div class="timeline-content">
+                            <div class="timeline-label">Lost</div>
+                            <div class="timeline-value" id="crm-lost-count">...</div>
                         </div>
                     </div>
                 </div>
@@ -1345,7 +1355,7 @@
             <div class="crm-section-header"><div><h2>Leads</h2><p>Manage and update customer follow-up records</p></div></div>
             <div class="crm-filters">
                 <div class="crm-filter-row crm-filter-selects">
-                    <select class="crm-select" id="crm-status-filter" aria-label="Filter by status"><option value="">All Statuses</option><option value="new">New</option><option value="in_progress">In Progress</option><option value="contacted">Contacted</option><option value="closed">Closed</option></select>
+                    <select class="crm-select" id="crm-status-filter" aria-label="Filter by status"><option value="">All Statuses</option><option value="new">New</option><option value="contacted">Contacted</option><option value="qualified">Qualified</option><option value="won">Won</option><option value="lost">Lost</option></select>
                     <select class="crm-select" id="crm-priority-filter" aria-label="Filter by priority"><option value="">All Priorities</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
                     <select class="crm-select" id="crm-type-filter" aria-label="Filter by type"><option value="">All Types</option><option value="follow_up">Follow-up</option><option value="staff_attention">Staff Attention</option><option value="negative_feedback">Negative Feedback</option></select>
                     <select class="crm-select" id="crm-follow-up-filter" aria-label="Filter by follow-up date"><option value="">All Follow-ups</option><option value="today">Due Today</option><option value="overdue">Overdue</option><option value="upcoming">Upcoming</option><option value="none">No Follow-up Date</option></select>
@@ -1596,7 +1606,16 @@
         }
 
         function normalizeStatus(status) {
-            return String(status || "").toLowerCase().replace(/\s+/g, "_");
+            const normalized = String(status || "").toLowerCase().replace(/\s+/g, "_");
+            return {
+                in_progress: "contacted",
+                closed: "lost",
+            }[normalized] || normalized;
+        }
+
+        function isTerminalStatus(status) {
+            const normalized = normalizeStatus(status);
+            return normalized === "won" || normalized === "lost";
         }
 
         function formatLabel(value) {
@@ -1627,16 +1646,17 @@
             setText("crm-active-count", "...");
             setText("crm-today-snapshot-count", "...");
             setText("crm-overdue-snapshot-count", "...");
-            setText("crm-closed-snapshot-count", "...");
+            setText("crm-outcomes-snapshot-count", "...");
 
             setText("work-overdue-count", "...");
             setText("work-today-count", "...");
             setText("work-upcoming-count", "...");
 
             setText("crm-new-count", "...");
-            setText("crm-in-progress-count", "...");
             setText("crm-contacted-count", "...");
-            setText("crm-closed-count", "...");
+            setText("crm-qualified-count", "...");
+            setText("crm-won-count", "...");
+            setText("crm-lost-count", "...");
             renderTableMessage("Loading CRM leads...", "Checking customer follow-up records.");
         }
 
@@ -1645,16 +1665,17 @@
             setText("crm-active-count", "-");
             setText("crm-today-snapshot-count", "-");
             setText("crm-overdue-snapshot-count", "-");
-            setText("crm-closed-snapshot-count", "-");
+            setText("crm-outcomes-snapshot-count", "-");
 
             setText("work-overdue-count", "-");
             setText("work-today-count", "-");
             setText("work-upcoming-count", "-");
 
             setText("crm-new-count", "-");
-            setText("crm-in-progress-count", "-");
             setText("crm-contacted-count", "-");
-            setText("crm-closed-count", "-");
+            setText("crm-qualified-count", "-");
+            setText("crm-won-count", "-");
+            setText("crm-lost-count", "-");
             renderTableMessage("Unable to load CRM leads.", "Please try refreshing this page.");
         }
 
@@ -1829,9 +1850,10 @@
             const totalLeads = leads.length;
             const counts = {
                 new: 0,
-                in_progress: 0,
                 contacted: 0,
-                closed: 0,
+                qualified: 0,
+                won: 0,
+                lost: 0,
             };
             const followUpCounts = {
                 overdue: 0,
@@ -1856,19 +1878,20 @@
                 if (followUpState === "upcoming") {
                     followUpCounts.upcoming += 1;
                 }
-                if (status !== "closed" && !String(lead.assigned_to || "").trim()) {
+                if (!isTerminalStatus(status) && !String(lead.assigned_to || "").trim()) {
                     followUpCounts.unassigned += 1;
                 }
             });
 
-            const activeLeads = counts.new + counts.in_progress;
+            const activeLeads = counts.new + counts.contacted + counts.qualified;
+            const outcomes = counts.won + counts.lost;
 
             // Set snapshot card values
             setText("crm-total-count", totalLeads);
             setText("crm-active-count", activeLeads);
             setText("crm-today-snapshot-count", followUpCounts.today);
             setText("crm-overdue-snapshot-count", followUpCounts.overdue);
-            setText("crm-closed-snapshot-count", counts.closed);
+            setText("crm-outcomes-snapshot-count", outcomes);
 
             // Set action board header counts
             setText("work-overdue-count", followUpCounts.overdue);
@@ -1877,9 +1900,10 @@
 
             // Set pipeline stages counts
             setText("crm-new-count", counts.new);
-            setText("crm-in-progress-count", counts.in_progress);
             setText("crm-contacted-count", counts.contacted);
-            setText("crm-closed-count", counts.closed);
+            setText("crm-qualified-count", counts.qualified);
+            setText("crm-won-count", counts.won);
+            setText("crm-lost-count", counts.lost);
 
             // Render AI Insights
             renderAiInsight(leads, counts, followUpCounts);
@@ -1889,7 +1913,7 @@
         function renderActionBoardItems(leads) {
             const states = { overdue: [], today: [], upcoming: [] };
             leads.forEach(lead => {
-                if (normalizeStatus(lead.status) === "closed") return;
+                if (isTerminalStatus(lead.status)) return;
                 const followUpDate = normalizeDateValue(lead.follow_up_date);
                 if (!followUpDate) return;
                 const today = getTodayDateString();
@@ -1943,17 +1967,17 @@
             if (!el) return;
             const total = leads.length;
             if (total === 0) { el.textContent = "No CRM leads yet. Leads will appear here when chatbot conversations generate signals."; return; }
-            const active = counts.new + counts.in_progress;
+            const active = counts.new + counts.contacted + counts.qualified;
             const overdue = followUpCounts.overdue;
             const today = followUpCounts.today;
-            const closed = counts.closed;
+            const outcomes = counts.won + counts.lost;
             let insight = "You have " + total + " total lead" + (total !== 1 ? "s" : "") + ". ";
             if (active > 0) insight += active + " lead" + (active !== 1 ? "s are" : " is") + " active and need" + (active === 1 ? "s" : "") + " attention. ";
             if (overdue > 0) insight += "&#9888;&#65039; " + overdue + " overdue follow-up" + (overdue !== 1 ? "s" : "") + " require immediate action. ";
             if (today > 0) insight += today + " follow-up" + (today !== 1 ? "s are" : " is") + " due today. ";
-            if (closed > 0 && total > 0) {
-                const rate = Math.round((closed / total) * 100);
-                insight += "Closure rate: " + rate + "%.";
+            if (outcomes > 0 && total > 0) {
+                const rate = Math.round((outcomes / total) * 100);
+                insight += "Outcome rate: " + rate + "%.";
             }
             if (overdue === 0 && today === 0) insight += " No pending follow-ups. The pipeline is up to date.";
             el.innerHTML = insight;
@@ -2171,9 +2195,10 @@
 
             [
                 ["new", "New"],
-                ["in_progress", "In Progress"],
                 ["contacted", "Contacted"],
-                ["closed", "Closed"],
+                ["qualified", "Qualified"],
+                ["won", "Won"],
+                ["lost", "Lost"],
             ].forEach(([value, label]) => {
                 const option = document.createElement("option");
                 option.value = value;
@@ -2218,7 +2243,7 @@
         }
 
         function getFollowUpState(lead) {
-            if (normalizeStatus(lead.status) === "closed") {
+            if (isTerminalStatus(lead.status)) {
                 return "closed";
             }
 
@@ -2262,7 +2287,7 @@
                 return true;
             }
 
-            if (normalizeStatus(lead.status) === "closed") {
+            if (isTerminalStatus(lead.status)) {
                 return false;
             }
 
@@ -2301,7 +2326,7 @@
             }
 
             if (filter === "unassigned") {
-                return !hasAssignee && normalizeStatus(lead.status) !== "closed";
+                return !hasAssignee && !isTerminalStatus(lead.status);
             }
 
             return true;
@@ -2578,7 +2603,7 @@
             appendLeadDetail("Source", formatLabel(lead.source_channel));
             appendLeadDetail("Reason", lead.summary || formatLabel(lead.lead_type));
             appendLeadDetail("Lead Type", formatLabel(lead.lead_type));
-            appendLeadDetail("Status", formatLabel(lead.status));
+            appendLeadDetail("Status", formatLabel(normalizeStatus(lead.status)));
             appendLeadDetail("Priority", formatLabel(lead.priority));
             appendLeadDetail("Assigned To", lead.assigned_to || "-");
             appendLeadDetail("Follow-up Date", lead.follow_up_date || "-");
@@ -2644,7 +2669,3 @@
 </body>
 
 </html>
-
-
-
-

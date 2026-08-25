@@ -174,9 +174,14 @@ def test_cross_tenant_assignment_is_rejected_before_update(client):
 
 
 def test_status_notes_and_follow_up_update_behavior_is_preserved(client):
+    # "qualified", not the retired "in_progress": this test is about
+    # status/notes/follow_up_date passing through unchanged, not about the
+    # crm_leads status vocabulary migration's retired-value normalization
+    # (that behavior has its own coverage in
+    # tests/test_conversations_pipeline_api.py::CrmRoutesRetiredStatusAcceptanceTests).
     updated_lead = {
         **MOCK_LEAD,
-        "status": "in_progress",
+        "status": "qualified",
         "notes": "Call after 3pm",
         "follow_up_date": "2026-07-30",
     }
@@ -193,7 +198,7 @@ def test_status_notes_and_follow_up_update_behavior_is_preserved(client):
             "/api/crm/leads/7",
             json={
                 "chatbot_id": 29,
-                "status": "in_progress",
+                "status": "qualified",
                 "notes": "Call after 3pm",
                 "follow_up_date": "2026-07-30",
             },
@@ -205,7 +210,7 @@ def test_status_notes_and_follow_up_update_behavior_is_preserved(client):
     update_lead.assert_called_once_with(
         chatbot_id=29,
         lead_id=7,
-        status="in_progress",
+        status="qualified",
         notes="Call after 3pm",
         assigned_to=None,
         follow_up_date="2026-07-30",

@@ -5,6 +5,7 @@ from app.database.crm_lead_repository import (
     ALLOWED_CRM_LEAD_PRIORITIES,
     ALLOWED_CRM_LEAD_STATUSES,
     get_crm_leads_by_chatbot,
+    normalize_crm_lead_status,
     upsert_crm_lead_by_conversation,
     update_crm_lead_status_notes,
 )
@@ -93,11 +94,15 @@ def update_crm_lead(lead_id):
         notes = data.get("notes")
         assigned_to = data.get("assigned_to")
 
-        if status is not None and str(status).strip().lower() not in ALLOWED_CRM_LEAD_STATUSES:
-            return jsonify({
-                "status": "error",
-                "message": "Invalid CRM lead status."
-            }), 400
+        if status is not None:
+            # normalize_crm_lead_status accepts the retired vocabulary too
+            # (kept for one release), so an older client is not 400'd here.
+            status = normalize_crm_lead_status(status)
+            if status not in ALLOWED_CRM_LEAD_STATUSES:
+                return jsonify({
+                    "status": "error",
+                    "message": "Invalid CRM lead status."
+                }), 400
 
         verify_chatbot_access(chatbot_id)
 
@@ -180,7 +185,9 @@ def upsert_crm_lead():
 
         chatbot_id = int(chatbot_id)
         conversation_id = int(conversation_id)
-        status = str(data.get("status") or "new").strip().lower()
+        # normalize_crm_lead_status accepts the retired vocabulary too (kept
+        # for one release), so an older client is not 400'd here.
+        status = normalize_crm_lead_status(data.get("status") or "new")
         # Check CRM lead assignment feature gate if assigning to a non-null member
         assigned_to = data.get("assigned_to")
         if assigned_to is not None and assigned_to != "":
