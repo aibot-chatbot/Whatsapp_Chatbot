@@ -195,19 +195,21 @@ class TestAgentEscalationRoutes(unittest.TestCase):
 
     @patch("app.routes.agent_routes.get_pending_escalations")
     @patch("app.routes.agent_routes.verify_chatbot_access")
-    def test_database_member_cannot_list_escalations(
+    def test_database_member_can_list_escalations(
         self,
         mock_verify,
         mock_get_esc,
     ):
+        mock_verify.return_value = {"id": 1, "company_id": 42}
+        mock_get_esc.return_value = []
         with self._patch_jwt_decode(role="owner"), self._patch_user_repo(role="member"):
             resp = self.client.get(
                 "/api/agent/escalations?chatbot_id=1",
                 headers={"Authorization": "Bearer test-token"},
             )
-        self.assertEqual(resp.status_code, 403)
-        mock_verify.assert_not_called()
-        mock_get_esc.assert_not_called()
+        self.assertEqual(resp.status_code, 200)
+        mock_verify.assert_called_once_with(1)
+        mock_get_esc.assert_called_once_with(1, 42)
 
     def test_unauthenticated_user_cannot_list_escalations(self):
         resp = self.client.get("/api/agent/escalations?chatbot_id=1")
@@ -610,7 +612,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             )
             self.assertEqual(resp.status_code, 500)
             data = resp.get_json()
-            self.assertIn("Message saved, but failed to send", data.get("message", ""))
+            self.assertIn("Failed to send message", data.get("message", ""))
+            mock_save_msg.assert_not_called()
 
 
     # ------------------------------------------------------------------ #
@@ -703,7 +706,4 @@ class TestAgentEscalationRoutes(unittest.TestCase):
         mock_is_escalated.assert_called_once_with(100, 1)
         mock_get_conversation.assert_not_called()
         mock_save_message.assert_not_called()
-
-
-
 

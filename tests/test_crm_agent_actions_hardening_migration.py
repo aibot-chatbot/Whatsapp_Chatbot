@@ -5,6 +5,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MIGRATION_PATH = PROJECT_ROOT / "data" / "027_harden_crm_agent_actions.sql"
+STATUS_MIGRATION_PATH = (
+    PROJECT_ROOT / "data" / "046_widen_crm_lead_status_check.sql"
+)
 PREFLIGHT_PATH = PROJECT_ROOT / "scripts" / "crm_agent_actions_hardening_preflight.sql"
 ROLLBACK_PATH = PROJECT_ROOT / "scripts" / "crm_agent_actions_hardening_rollback.sql"
 VERIFICATION_PATH = (
@@ -75,7 +78,7 @@ def _direct_table_operations(paths):
 
 # Highest migration number currently in data/. Bump this deliberately when a
 # new migration is added, so numbering conflicts surface as a test failure.
-HIGHEST_MIGRATION_NUMBER = 42
+HIGHEST_MIGRATION_NUMBER = 46
 
 
 def test_027_keeps_its_selected_migration_number():
@@ -192,7 +195,14 @@ def test_nullable_columns_and_company_not_null_gate_match_the_design():
 
 
 def test_proposed_checks_cover_current_application_and_historical_values():
+    # 027 owns the intent, action and priority CHECK constraints.  The status
+    # constraint it created was later replaced by 046 when the lead pipeline
+    # moved to new/contacted/qualified/won/lost, so status values are checked
+    # against 046 and everything else against 027.  Reading both is what keeps
+    # this guard honest: it asserts that some live migration covers every value
+    # the application can produce, not that one particular file does.
     migration = _read(MIGRATION_PATH)
+    status_migration = _read(STATUS_MIGRATION_PATH)
     decision_path = PROJECT_ROOT / "app" / "services" / "agent_decision_service.py"
     crm_repository_path = PROJECT_ROOT / "app" / "database" / "crm_lead_repository.py"
 
@@ -206,7 +216,6 @@ def test_proposed_checks_cover_current_application_and_historical_values():
     for value in (
         *application_intents,
         *application_actions,
-        *crm_statuses,
         *crm_priorities,
         "general_question",
         "escalate",
@@ -215,6 +224,14 @@ def test_proposed_checks_cover_current_application_and_historical_values():
         "negative_feedback",
     ):
         assert f"'{value}'" in migration
+
+    for value in crm_statuses:
+        assert f"'{value}'" in status_migration
+
+    # The retired vocabulary stays in 046's allow-list for one release so an
+    # older client cannot trip a constraint violation mid-deploy.
+    for retired in ("in_progress", "closed"):
+        assert f"'{retired}'" in status_migration
 
     assert "confidence >= 0 AND confidence <= 1" in migration
 
@@ -232,6 +249,8 @@ def test_indexes_match_pending_signal_and_open_lead_behavior():
     ) in sql
     assert "conversation_id is not null" in sql
     assert "status in ('new', 'in_progress', 'contacted')" in sql
+    status_sql = " ".join(_read(STATUS_MIGRATION_PATH).lower().split())
+    assert "status in ('new', 'in_progress', 'contacted', 'qualified')" in status_sql
     assert "unique index" not in sql[sql.index("agent_actions_chatbot_status_created_at_idx") - 20 :
                                      sql.index("agent_actions_chatbot_status_created_at_idx")]
 

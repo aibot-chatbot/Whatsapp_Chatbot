@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from app.database.db import supabase
+from app.database.billing_usage_repository import get_company_chatbot_ids
 
 
 def get_or_create_conversation(
@@ -226,6 +227,72 @@ def get_conversations_by_bot(chatbot_id: int):
         .execute()
     )
     return result.data
+
+
+def _count_messages_by_conversation_ids(conversation_ids):
+    """
+    Batched message count for a set of conversations: one query total, not
+    one per conversation. Returns {conversation_id: count}.
+    """
+    if not conversation_ids:
+        return {}
+
+    result = (
+        supabase.table("messages")
+        .select("conversation_id")
+        .in_("conversation_id", conversation_ids)
+        .execute()
+    )
+
+    counts = {}
+    for row in (result.data or []):
+        conversation_id = row.get("conversation_id")
+        counts[conversation_id] = counts.get(conversation_id, 0) + 1
+    return counts
+
+
+def get_conversations_for_company(company_id: int):
+    """
+    Company-scoped conversation list: every conversation across the caller's
+    non-archived, non-deleted chatbots (reuses get_company_chatbot_ids so the
+    "which bots does this company own" rule stays in one place).
+
+    Each row is annotated with chatbot_id (already present via select("*")),
+    bot_name and message_count. Only three queries total regardless of how
+    many conversations or chatbots are involved -- conversations, chatbots,
+    messages -- so this stays O(1) queries, not O(n).
+    """
+    chatbot_ids = get_company_chatbot_ids(company_id)
+    if not chatbot_ids:
+        return []
+
+    conversations_result = (
+        supabase.table("conversations")
+        .select("*")
+        .in_("chatbot_id", chatbot_ids)
+        .order("updated_at", desc=True)
+        .execute()
+    )
+    conversations = conversations_result.data or []
+    if not conversations:
+        return []
+
+    bots_result = (
+        supabase.table("chatbots")
+        .select("id,bot_name")
+        .in_("id", chatbot_ids)
+        .execute()
+    )
+    bot_names = {row["id"]: row.get("bot_name") for row in (bots_result.data or [])}
+
+    conversation_ids = [c["id"] for c in conversations if c.get("id") is not None]
+    message_counts = _count_messages_by_conversation_ids(conversation_ids)
+
+    for conversation in conversations:
+        conversation["bot_name"] = bot_names.get(conversation.get("chatbot_id"))
+        conversation["message_count"] = message_counts.get(conversation.get("id"), 0)
+
+    return conversations
 
 
 def get_conversation_by_id_and_chatbot(conversation_id: int, chatbot_id: int):

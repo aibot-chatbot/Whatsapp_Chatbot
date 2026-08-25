@@ -1,2272 +1,1492 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="color-scheme: dark">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conversations | AI Chatbot</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Conversations | AI CHATBOT</title>
+    <meta name="theme-color" content="#0e0f11">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <script src="assets/js/shared-ui.js"></script>
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/conversations.css">
 
+    <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
     <script>requireLogin();</script>
     <script src="sidebar-component.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-glow: rgba(59, 130, 246, 0.5);
-            --bg: #050b18;
-            --sidebar-bg: rgba(15, 23, 42, 0.82);
-            --card-bg: rgba(30, 41, 59, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --accent: #10b981;
-            --input-bg: rgba(15, 23, 42, 0.6);
-
-            /* Chat specific colors */
-            --bubble-user: var(--primary);
-            --bubble-bot: rgba(30, 41, 59, 0.9);
-            --bubble-user-text: #ffffff;
-            --bubble-bot-text: var(--text-main);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            overflow: hidden;
-            /* Prevent body scrolling, handle inside panes */
-        }
-
-        .main-container {
-            flex-grow: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            padding: 30px;
-            gap: 20px;
-        }
-
-        .header {
-            flex-shrink: 0;
-        }
-
-        .header h1 {
-            font-size: 2.2rem;
-            font-weight: 700;
-            letter-spacing: -1px;
-            margin-bottom: 8px;
-        }
-
-        .header p {
-            color: var(--text-dim);
-        }
-
-        .split-view {
-            display: flex;
-            flex-grow: 1;
-            gap: 20px;
-            min-height: 0;
-            /* Important for flex child scrolling */
-        }
-
-        /* Left Pane: Inbox List */
-        .inbox-pane {
-            width: 350px;
-            background: var(--card-bg);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .inbox-header {
-            padding: 20px;
-            border-bottom: 1px solid var(--glass-border);
-        }
-
-        .search-box {
-            position: relative;
-            width: 100%;
-        }
-
-        .search-box i,
-        .search-box svg {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-dim);
-            width: 18px;
-            height: 18px;
-        }
-
-        .search-input {
-            width: 100%;
-            background: var(--input-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            padding: 12px 16px 12px 40px;
-            color: white;
-            font-size: 0.95rem;
-            outline: none;
-            transition: all 0.3s;
-        }
-
-        .search-input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
-        }
-
-        .conversation-list {
-            flex-grow: 1;
-            overflow-y: auto;
-            padding: 10px;
-        }
-
-        /* Custom Scrollbar */
-        .conversation-list::-webkit-scrollbar,
-        .chat-transcript::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .conversation-list::-webkit-scrollbar-track,
-        .chat-transcript::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .conversation-list::-webkit-scrollbar-thumb,
-        .chat-transcript::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
-
-        .conversation-list::-webkit-scrollbar-thumb:hover,
-        .chat-transcript::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .conversation-item {
-            padding: 16px;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.2s;
-            margin-bottom: 4px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            border: 1px solid transparent;
-        }
-
-        .conversation-item:hover {
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .conversation-item.active {
-            background: rgba(59, 130, 246, 0.15);
-            border-color: rgba(59, 130, 246, 0.3);
-        }
-
-        .convo-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .convo-phone {
-            font-weight: 600;
-            color: var(--text-main);
-            font-size: 1.05rem;
-        }
-
-        .convo-time {
-            font-size: 0.75rem;
-            color: var(--text-dim);
-        }
-
-        .convo-preview {
-            font-size: 0.85rem;
-            color: var(--text-dim);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        /* Right Pane: Chat Transcript */
-        .chat-pane {
-            flex-grow: 1;
-            background: var(--card-bg);
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .chat-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--glass-border);
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            background: rgba(0, 0, 0, 0.2);
-        }
-
-        .chat-header-avatar {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #10b981, #059669);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.2rem;
-            color: white;
-            font-weight: bold;
-        }
-
-        .chat-header-info h3 {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 2px;
-        }
-
-        .chat-header-info p {
-            font-size: 0.85rem;
-            color: var(--text-dim);
-        }
-
-        .chat-header {
-            justify-content: space-between;
-        }
-
-        .chat-header-left {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            min-width: 0;
-        }
-
-        .chat-header-info {
-            min-width: 0;
-        }
-
-        .chat-header-actions {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: flex-end;
-        }
-
-        .transcript-btn {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-main);
-            border: 1px solid var(--glass-border);
-            border-radius: 10px;
-            padding: 8px 12px;
-            font-size: 0.82rem;
-            font-weight: 700;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-
-        .transcript-btn:hover {
-            background: rgba(255, 255, 255, 0.12);
-        }
-
-        .transcript-feedback {
-            color: var(--text-dim);
-            font-size: 0.78rem;
-            min-width: 72px;
-        }
-
-        .transcript-feedback.success {
-            color: var(--accent);
-        }
-
-        .transcript-feedback.error {
-            color: #f87171;
-        }
-
-        .message-search-controls {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            flex-wrap: wrap;
-            padding-left: 4px;
-        }
-
-        .message-search-input {
-            width: 180px;
-            background: var(--input-bg);
-            color: var(--text-main);
-            border: 1px solid var(--glass-border);
-            border-radius: 10px;
-            padding: 8px 10px;
-            font-size: 0.82rem;
-            outline: none;
-        }
-
-        .message-search-input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.18);
-        }
-
-        .message-search-count {
-            color: var(--text-dim);
-            font-size: 0.78rem;
-            min-width: 58px;
-        }
-
-        .message-search-btn {
-            min-width: 42px;
-            padding: 8px 10px;
-        }
-
-        .message-search-btn:disabled {
-            cursor: not-allowed;
-            opacity: 0.45;
-        }
-
-        .crm-conversation-modal-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(2, 6, 23, 0.74);
-            backdrop-filter: blur(8px);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 24px;
-            z-index: 1100;
-        }
-
-        .crm-conversation-modal-backdrop.open {
-            display: flex;
-        }
-
-        .crm-conversation-modal {
-            width: min(760px, 100%);
-            max-height: 88vh;
-            overflow-y: auto;
-            background: rgba(15, 23, 42, 0.96);
-            border: 1px solid var(--glass-border);
-            border-radius: 22px;
-            padding: 24px;
-            box-shadow: 0 20px 80px rgba(0, 0, 0, 0.35);
-        }
-
-        .crm-modal-header {
-            display: flex;
-            justify-content: space-between;
-            gap: 16px;
-            align-items: flex-start;
-            margin-bottom: 20px;
-        }
-
-        .crm-modal-header h2 {
-            font-size: 1.25rem;
-            margin-bottom: 4px;
-        }
-
-        .crm-modal-header p {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-        }
-
-        .crm-modal-close {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-main);
-            border: 1px solid rgba(255, 255, 255, 0.14);
-            border-radius: 10px;
-            padding: 8px 12px;
-            cursor: pointer;
-            font-weight: 700;
-        }
-
-        .crm-modal-grid {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
-            margin-bottom: 18px;
-        }
-
-        .crm-modal-field {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .crm-modal-field.full-width {
-            grid-column: 1 / -1;
-        }
-
-        .crm-modal-label {
-            color: var(--text-dim);
-            font-size: 0.8rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-        }
-
-        .crm-modal-value,
-        .crm-modal-input,
-        .crm-modal-select,
-        .crm-modal-notes {
-            width: 100%;
-            background: rgba(15, 23, 42, 0.72);
-            color: var(--text-main);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 10px;
-            padding: 10px 12px;
-            font: inherit;
-            outline: none;
-        }
-
-        .crm-modal-value {
-            min-height: 44px;
-            display: flex;
-            align-items: center;
-        }
-
-        .crm-modal-notes {
-            min-height: 100px;
-            resize: vertical;
-        }
-
-        .crm-modal-input:focus,
-        .crm-modal-select:focus,
-        .crm-modal-notes:focus {
-            border-color: rgba(59, 130, 246, 0.65);
-        }
-
-        .crm-modal-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            align-items: center;
-            margin-top: 12px;
-        }
-
-        .crm-modal-save {
-            background: var(--primary);
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            padding: 10px 16px;
-            font-weight: 700;
-            cursor: pointer;
-            min-width: 120px;
-        }
-
-        .crm-modal-save:disabled {
-            cursor: not-allowed;
-            opacity: 0.68;
-        }
-
-        .crm-modal-feedback {
-            color: var(--text-dim);
-            font-size: 0.84rem;
-            min-height: 20px;
-        }
-
-        .crm-modal-feedback.success {
-            color: var(--accent);
-        }
-
-        .crm-modal-feedback.error {
-            color: #f87171;
-        }
-
-        .message-search-highlight {
-            background: rgba(245, 158, 11, 0.34);
-            color: #fff7ed;
-            border-radius: 4px;
-            padding: 0 2px;
-        }
-
-        .message-row.search-active .message-bubble {
-            outline: 2px solid rgba(245, 158, 11, 0.7);
-            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
-        }
-
-        @media (max-width: 768px) {
-            .chat-header {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-
-            .chat-header-actions {
-                justify-content: flex-start;
-            }
-
-            .message-search-controls {
-                width: 100%;
-            }
-
-            .message-search-input {
-                width: 100%;
-                flex: 1 1 100%;
-            }
-
-            .crm-modal-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .chat-transcript {
-            flex-grow: 1;
-            padding: 24px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .empty-state {
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            color: var(--text-dim);
-            text-align: center;
-            padding: 40px;
-        }
-
-        .empty-state i {
-            width: 48px;
-            height: 48px;
-            margin-bottom: 16px;
-            opacity: 0.5;
-        }
-
-        .message-row {
-            display: flex;
-            width: 100%;
-        }
-
-        .message-row.user {
-            justify-content: flex-end;
-        }
-
-        .message-row.bot {
-            justify-content: flex-start;
-        }
-
-        .message-bubble {
-            max-width: 70%;
-            padding: 12px 16px;
-            border-radius: 16px;
-            font-size: 0.95rem;
-            line-height: 1.5;
-            position: relative;
-            word-wrap: break-word;
-        }
-
-        .message-row.user .message-bubble {
-            background: var(--bubble-user);
-            color: var(--bubble-user-text);
-            border-bottom-right-radius: 4px;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.2);
-        }
-
-        .message-row.bot .message-bubble {
-            background: var(--bubble-bot);
-            color: var(--bubble-bot-text);
-            border: 1px solid var(--glass-border);
-            border-bottom-left-radius: 4px;
-        }
-
-        .message-time {
-            font-size: 0.7rem;
-            margin-top: 6px;
-            opacity: 0.7;
-            text-align: right;
-        }
-
-        .message-delivery-status {
-            margin-top: 8px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .message-delivery-status.failed {
-            color: #f87171;
-            background: rgba(239, 68, 68, 0.12);
-            border: 1px solid rgba(239, 68, 68, 0.28);
-            padding: 6px 10px;
-            border-radius: 999px;
-        }
-
-        .message-delivery-status.retried {
-            color: #34d399;
-            background: rgba(16, 185, 129, 0.12);
-            border: 1px solid rgba(16, 185, 129, 0.28);
-            padding: 6px 10px;
-            border-radius: 999px;
-        }
-
-        .message-delivery-status.retrying {
-            color: #fbbf24;
-            background: rgba(245, 158, 11, 0.12);
-            border: 1px solid rgba(245, 158, 11, 0.28);
-            padding: 6px 10px;
-            border-radius: 999px;
-        }
-
-        /* Responsive Layout */
-        @media (max-width: 1024px) {
-            .inbox-pane {
-                width: 280px;
-            }
-        }
-
-        @media (max-width: 768px) {
-            body {
-                overflow: auto;
-                /* allow page scroll */
-            }
-
-            .main-container {
-                height: auto;
-                min-height: 100vh;
-            }
-
-            .split-view {
-                flex-direction: column;
-                height: 1000px;
-                /* fixed height for mobile stacking */
-            }
-
-            .inbox-pane {
-                width: 100%;
-                height: 400px;
-                flex-shrink: 0;
-            }
-
-            .chat-pane {
-                height: 600px;
-                flex-shrink: 0;
-            }
-        }
-
-        /* Platform filter pills bar */
-        .platform-filters {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .filter-pill {
-            flex: 1 1 calc(50% - 8px);
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--glass-border);
-            color: var(--text-dim);
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            text-align: center;
-        }
-
-        .filter-pill:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-main);
-        }
-
-        /* Active states for each platform badge */
-        .filter-pill.active[data-platform="all"] {
-            background: rgba(59, 130, 246, 0.15);
-            border-color: var(--primary);
-            color: var(--text-main);
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
-        }
-
-        .filter-pill.active[data-platform="whatsapp"] {
-            background: rgba(37, 211, 102, 0.15);
-            border-color: #25D366;
-            color: #25D366;
-            box-shadow: 0 0 10px rgba(37, 211, 102, 0.2);
-        }
-
-        .filter-pill.active[data-platform="telegram"] {
-            background: rgba(0, 136, 204, 0.15);
-            border-color: #0088cc;
-            color: #0088cc;
-            box-shadow: 0 0 10px rgba(0, 136, 204, 0.2);
-        }
-
-        .filter-pill.active[data-platform="wasender"] {
-            background: rgba(16, 185, 129, 0.15);
-            border-color: #10b981;
-            color: #10b981;
-            box-shadow: 0 0 10px rgba(16, 185, 129, 0.2);
-        }
-
-        /* Convo list item badge */
-        .convo-phone-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .platform-badge {
-            font-size: 0.65rem;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .platform-badge.whatsapp {
-            background: rgba(37, 211, 102, 0.15);
-            color: #25D366;
-            border: 1px solid rgba(37, 211, 102, 0.3);
-        }
-
-        .platform-badge.telegram {
-            background: rgba(0, 136, 204, 0.15);
-            color: #0088cc;
-            border: 1px solid rgba(0, 136, 204, 0.3);
-        }
-
-        .platform-badge.wasender {
-            background: rgba(16, 185, 129, 0.15);
-            color: #10b981;
-            border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-
-        /* Status Tabs */
-        .status-tabs {
-            display: flex;
-            gap: 8px;
-            margin-top: 16px;
-            margin-bottom: 4px;
-        }
-        .status-tab {
-            flex: 1;
-            padding: 8px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid var(--glass-border);
-            border-radius: 10px;
-            color: var(--text-dim);
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 0.85rem;
-            transition: all 0.2s;
-        }
-        .status-tab:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: var(--text-main);
-        }
-        .status-tab.active {
-            background: rgba(59, 130, 246, 0.15);
-            border-color: var(--primary);
-            color: var(--text-main);
-        }
-        .escalation-badge {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            background: #ef4444;
-            border-radius: 50%;
-            margin-left: 6px;
-        }
-    </style>
 </head>
 
-<body>
-
+<body class="dashboard-page">
     <chatbot-sidebar></chatbot-sidebar>
 
-    <main class="main-container">
-        <div class="header">
-            <h1 id="page-title">Conversations History</h1>
-            <p>Review full chat histories between your users and the AI bot.</p>
-        </div>
+    <main class="main-container kw-page">
+        <header class="kw-header">
+            <div>
+                <h1>Conversations</h1>
+                <p class="kw-header-sub">
+                    Every conversation across every bot, in one pipeline. Work it like a lead list.
+                </p>
+            </div>
+            <span class="kw-badge kw-badge-support" id="conv-stale">
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                Showing the last data we loaded
+            </span>
+        </header>
 
-        <div class="split-view">
-            <!-- Left Pane: Inbox -->
-            <div class="inbox-pane">
-                <div class="inbox-header">
-                    <div class="search-box">
-                        <i data-lucide="search"></i>
-                        <input type="text" class="search-input" id="search-input" placeholder="Search customer, phone, or ID..."
-                            onkeyup="filterConversations()">
-                    </div>
-                    <!-- Platform filter pills -->
-                    <div class="platform-filters">
-                        <button class="filter-pill active" data-platform="all" onclick="setPlatformFilter('all')">All</button>
-                        <button class="filter-pill" data-platform="whatsapp" onclick="setPlatformFilter('whatsapp')">WhatsApp</button>
-                        <button class="filter-pill" data-platform="wasender" onclick="setPlatformFilter('wasender')">Wasender</button>
-                        <button class="filter-pill" data-platform="telegram" onclick="setPlatformFilter('telegram')">Telegram</button>
-                    </div>
+        <!-- ══════════════════════════════ PIPELINE ══════════════════════════════ -->
+        <section id="conv-pipeline">
+            <div class="kw-banner kw-banner-error" id="conv-load-error" hidden>
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                <span id="conv-load-error-text">We could not load your conversations.</span>
+                <button type="button" class="kw-btn cr-press" id="conv-retry" style="margin-left:auto;">Retry</button>
+            </div>
 
+            <div class="kw-stats" id="conv-stats" aria-hidden="false">
+                <div class="kw-stat" data-stage="new">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2"/><path d="M19 8v6M22 11h-6"/></svg></span>
+                        <span class="kw-stat-label">New</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" data-part="value">-</div>
                 </div>
-                <div class="conversation-list" id="conversation-list">
-                    <!-- Conversations injected here -->
-                    <div class="empty-state" style="padding: 20px;">
-                        Loading conversations...
+                <div class="kw-stat" data-stage="contacted">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg></span>
+                        <span class="kw-stat-label">Contacted</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" data-part="value">-</div>
+                </div>
+                <div class="kw-stat" data-stage="qualified">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span>
+                        <span class="kw-stat-label">Qualified</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" data-part="value">-</div>
+                </div>
+                <div class="kw-stat" data-stage="won">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4Z"/><path d="M5 4H3v2a4 4 0 0 0 4 4M19 4h2v2a4 4 0 0 1-4 4"/></svg></span>
+                        <span class="kw-stat-label">Won</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" data-part="value">-</div>
+                </div>
+                <div class="kw-stat" data-stage="lost">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15 9-6 6M9 9l6 6"/></svg></span>
+                        <span class="kw-stat-label">Lost</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" data-part="value">-</div>
+                </div>
+            </div>
+
+            <div class="kw-toolbar" id="conv-toolbar">
+                <div class="kw-search">
+                    <svg class="dashboard-icon kw-search-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    <label class="kw-visually-hidden" for="conv-search">Search conversations by customer name</label>
+                    <input type="search" id="conv-search" placeholder="Search by name...">
+                </div>
+                <label class="kw-visually-hidden" for="conv-filter-bot">Filter by bot</label>
+                <select class="kw-select" id="conv-filter-bot">
+                    <option value="">All bots</option>
+                </select>
+                <label class="kw-visually-hidden" for="conv-filter-channel">Filter by channel</label>
+                <select class="kw-select" id="conv-filter-channel">
+                    <option value="">All channels</option>
+                </select>
+                <button type="button" class="kw-chip" id="conv-chip-awaiting" data-filter="awaiting" aria-pressed="false">
+                    Awaiting human
+                </button>
+                <button type="button" class="kw-chip" id="conv-chip-overdue" data-filter="overdue" aria-pressed="false">
+                    Overdue
+                </button>
+            </div>
+
+            <div id="conv-pipeline-loading">
+                <div class="conv-group">
+                    <div class="conv-group-head cr-skeleton" style="height:20px;width:140px;margin:14px 16px;"></div>
+                    <div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:10px;">
+                        <div class="cr-skeleton" style="height:58px;border-radius:10px;"></div>
+                        <div class="cr-skeleton" style="height:58px;border-radius:10px;"></div>
+                        <div class="cr-skeleton" style="height:58px;border-radius:10px;"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Right Pane: Chat Transcript -->
-            <div class="chat-pane" id="chat-pane">
-                <div class="empty-state">
-                    <i data-lucide="message-circle"></i>
-                    <h2>No conversation selected</h2>
-                    <p>Select a user from the list on the left to view their chat history.</p>
+            <div class="kw-empty" id="conv-pipeline-empty" hidden>
+                <span class="kw-empty-icon" aria-hidden="true">
+                    <svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></svg>
+                </span>
+                <h3 id="conv-pipeline-empty-title">No conversations yet</h3>
+                <p id="conv-pipeline-empty-body">When a customer starts chatting with any of your bots, it will show up here.</p>
+                <button type="button" class="kw-btn cr-press" id="conv-clear-filters" hidden>Clear filters</button>
+            </div>
+
+            <div id="conv-groups" hidden>
+                <details class="conv-group" data-stage="new" open>
+                    <summary class="conv-group-head" data-stage="new">
+                        New <span class="kw-counter" data-part="count">0</span>
+                        <svg class="dashboard-icon" data-part="chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                    </summary>
+                    <div role="listbox" aria-label="New conversations" data-stage="new"></div>
+                </details>
+                <details class="conv-group" data-stage="contacted" open>
+                    <summary class="conv-group-head" data-stage="contacted">
+                        Contacted <span class="kw-counter" data-part="count">0</span>
+                        <svg class="dashboard-icon" data-part="chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                    </summary>
+                    <div role="listbox" aria-label="Contacted conversations" data-stage="contacted"></div>
+                </details>
+                <details class="conv-group" data-stage="qualified" open>
+                    <summary class="conv-group-head" data-stage="qualified">
+                        Qualified <span class="kw-counter" data-part="count">0</span>
+                        <svg class="dashboard-icon" data-part="chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                    </summary>
+                    <div role="listbox" aria-label="Qualified conversations" data-stage="qualified"></div>
+                </details>
+                <details class="conv-group" data-stage="won">
+                    <summary class="conv-group-head" data-stage="won">
+                        Won <span class="kw-counter" data-part="count">0</span>
+                        <svg class="dashboard-icon" data-part="chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                    </summary>
+                    <div role="listbox" aria-label="Won conversations" data-stage="won"></div>
+                </details>
+                <details class="conv-group" data-stage="lost">
+                    <summary class="conv-group-head" data-stage="lost">
+                        Lost <span class="kw-counter" data-part="count">0</span>
+                        <svg class="dashboard-icon" data-part="chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                    </summary>
+                    <div role="listbox" aria-label="Lost conversations" data-stage="lost"></div>
+                </details>
+            </div>
+
+            <p class="kw-visually-hidden" role="status" aria-live="polite" id="conv-announce-pipeline"></p>
+        </section>
+
+        <!-- ══════════════════════════════ WORKSPACE ══════════════════════════════ -->
+        <section class="conv-workspace" id="conv-workspace" data-mobile-tab="lead" hidden>
+            <a href="#" class="dashboard-back-link" id="conv-back-link">
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M5 12h14"/></svg>
+                Back to pipeline
+            </a>
+
+            <div id="conv-mobile-strip">
+                <p class="kw-help" id="conv-mobile-summary"></p>
+                <div class="kw-segment" role="radiogroup" aria-label="Show" id="conv-mobile-segment">
+                    <button type="button" role="radio" data-tab="lead" aria-checked="true">Lead</button>
+                    <button type="button" role="radio" data-tab="transcript" aria-checked="false" tabindex="-1">Transcript</button>
                 </div>
             </div>
-        </div>
+
+            <nav class="kw-panel" id="conv-mini-rail" aria-label="Other conversations">
+                <div class="kw-panel-head">
+                    <h2 class="kw-panel-title">Pipeline <span class="kw-counter" id="conv-mini-count">0</span></h2>
+                </div>
+                <div class="kw-panel-body">
+                    <div class="kw-queue" id="conv-mini-list" role="listbox" aria-label="Other conversations"></div>
+                </div>
+            </nav>
+
+            <section class="kw-panel" id="conv-transcript-pane">
+                <div class="kw-panel-head">
+                    <div>
+                        <h2 class="kw-panel-title" id="conv-transcript-heading" tabindex="-1">Conversation</h2>
+                        <p class="kw-help" id="conv-transcript-sub"></p>
+                    </div>
+                    <span class="kw-pill kw-pill-review" id="conv-escalated-pill" hidden>Awaiting human</span>
+                </div>
+                <div id="conv-transcript-actions">
+                    <button type="button" class="kw-btn cr-press" id="conv-copy-link">Copy link</button>
+                    <button type="button" class="kw-btn cr-press" id="conv-copy-transcript">Copy transcript</button>
+                    <button type="button" class="kw-btn cr-press" id="conv-download-transcript">Download .txt</button>
+                    <label class="kw-visually-hidden" for="conv-message-search">Search transcript</label>
+                    <input class="kw-input" type="search" id="conv-message-search" placeholder="Search transcript...">
+                    <span class="kw-help" id="conv-message-search-count" role="status" aria-live="polite"></span>
+                </div>
+                <div class="kw-panel-body">
+                    <div class="conv-transcript" id="conv-transcript" role="log" aria-live="polite" aria-relevant="additions" aria-labelledby="conv-transcript-heading"></div>
+
+                    <div class="conv-composebar" id="conv-composebar">
+                        <div class="kw-locked" id="conv-web-notice" hidden>
+                            <span class="kw-locked-icon" aria-hidden="true">
+                                <svg class="dashboard-icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                            </span>
+                            <div>
+                                <h4>Replies cannot reach this visitor yet</h4>
+                                <p>This conversation came in through your share link. There is no live channel back to them yet, so only the bot can answer. You can still resolve the handoff request below.</p>
+                            </div>
+                        </div>
+
+                        <div data-part="row" id="conv-reply-row">
+                            <label class="kw-visually-hidden" for="conv-reply-text">Reply to this conversation</label>
+                            <textarea class="kw-textarea" id="conv-reply-text" rows="2" placeholder="Type a reply..." maxlength="2000"></textarea>
+                            <button type="button" class="kw-btn kw-btn-primary cr-press" id="conv-reply-send">Send</button>
+                        </div>
+
+                        <div data-part="actions">
+                            <span class="kw-help" role="status" aria-live="polite" id="conv-compose-status"></span>
+                            <button type="button" class="kw-btn cr-press" id="conv-resolve-btn" hidden>Mark as Resolved</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <form class="kw-rail" id="conv-lead-rail" aria-label="Lead details">
+                <div class="kw-rail-head">
+                    <div class="kw-rail-ident">
+                        <span class="conv-avatar" id="conv-rail-avatar" aria-hidden="true">?</span>
+                        <div>
+                            <p class="kw-rail-title" id="conv-rail-name">-</p>
+                            <div class="kw-rail-badges" id="conv-rail-badges"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="kw-rail-body">
+                    <dl class="kw-deflist">
+                        <dt>Phone</dt><dd class="kw-mono" id="conv-field-phone">-</dd>
+                        <dt>Bot</dt><dd id="conv-field-bot">-</dd>
+                        <dt>Channel</dt><dd id="conv-field-channel">-</dd>
+                        <dt>Type</dt><dd id="conv-field-type">-</dd>
+                    </dl>
+
+                    <div class="kw-field">
+                        <span class="kw-label">Summary</span>
+                        <p class="kw-desc" id="conv-field-summary">No summary yet.</p>
+                    </div>
+
+                    <div class="kw-field">
+                        <fieldset>
+                            <legend>Stage</legend>
+                            <div class="kw-segment" role="radiogroup" aria-label="Stage" id="conv-stage-group">
+                                <button type="button" role="radio" data-stage="new" aria-checked="true">New</button>
+                                <button type="button" role="radio" data-stage="contacted" aria-checked="false" tabindex="-1">Contacted</button>
+                                <button type="button" role="radio" data-stage="qualified" aria-checked="false" tabindex="-1">Qualified</button>
+                                <button type="button" role="radio" data-stage="won" aria-checked="false" tabindex="-1">Won</button>
+                                <button type="button" role="radio" data-stage="lost" aria-checked="false" tabindex="-1">Lost</button>
+                            </div>
+                        </fieldset>
+                        <span class="kw-help" role="status" aria-live="polite" id="conv-stage-status"></span>
+                    </div>
+
+                    <div class="kw-field">
+                        <fieldset>
+                            <legend>Priority</legend>
+                            <div class="kw-segment" role="radiogroup" aria-label="Priority" id="conv-priority-group">
+                                <button type="button" role="radio" data-priority="low" aria-checked="false" tabindex="-1">Low</button>
+                                <button type="button" role="radio" data-priority="medium" aria-checked="true">Medium</button>
+                                <button type="button" role="radio" data-priority="high" aria-checked="false" tabindex="-1">High</button>
+                            </div>
+                        </fieldset>
+                        <span class="kw-help" role="status" aria-live="polite" id="conv-priority-status"></span>
+                    </div>
+
+                    <div class="kw-field">
+                        <label class="kw-label" for="conv-followup">Follow-up date</label>
+                        <input class="kw-input" type="date" id="conv-followup">
+                        <span class="kw-help" role="status" aria-live="polite" id="conv-followup-status"></span>
+                    </div>
+
+                    <div class="kw-field" id="conv-owner-field">
+                        <label class="kw-label" for="conv-owner">Owner</label>
+                        <select class="kw-select" id="conv-owner">
+                            <option value="">Unassigned</option>
+                        </select>
+                        <span class="kw-help" role="status" aria-live="polite" id="conv-owner-status"></span>
+                    </div>
+
+                    <div class="kw-field">
+                        <label class="kw-label" for="conv-notes">Notes</label>
+                        <textarea class="kw-textarea" id="conv-notes" rows="4" maxlength="1000"></textarea>
+                        <div data-part="notes-actions">
+                            <button type="button" class="kw-btn cr-press" id="conv-notes-save">Save notes</button>
+                            <span class="kw-help" role="status" aria-live="polite" id="conv-notes-status"></span>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <p class="kw-visually-hidden" role="status" aria-live="polite" id="conv-announce-workspace"></p>
+        </section>
     </main>
 
-    <div class="crm-conversation-modal-backdrop" id="crm-conversation-modal" aria-hidden="true">
-        <div class="crm-conversation-modal" role="dialog" aria-modal="true" aria-labelledby="crm-conversation-modal-title">
-            <div class="crm-modal-header">
-                <div>
-                    <h2 id="crm-conversation-modal-title">Add to CRM</h2>
-                    <p>Create or update a CRM lead for the selected conversation.</p>
-                </div>
-                <button type="button" class="crm-modal-close" id="crm-conversation-modal-close">Close</button>
-            </div>
-            <div class="crm-modal-grid">
-                <div class="crm-modal-field">
-                    <div class="crm-modal-label">Customer</div>
-                    <div class="crm-modal-value" id="crm-conversation-customer">-</div>
-                </div>
-                <div class="crm-modal-field">
-                    <div class="crm-modal-label">Source</div>
-                    <div class="crm-modal-value" id="crm-conversation-source">-</div>
-                </div>
-                <div class="crm-modal-field">
-                    <label class="crm-modal-label" for="crm-conversation-status">Lead Status</label>
-                    <select class="crm-modal-select" id="crm-conversation-status">
-                        <option value="new">New</option>
-                        <option value="in_progress">In Progress</option>
-                        <option value="contacted">Contacted</option>
-                        <option value="closed">Closed</option>
-                    </select>
-                </div>
-                <div class="crm-modal-field">
-                    <label class="crm-modal-label" for="crm-conversation-priority">Priority</label>
-                    <select class="crm-modal-select" id="crm-conversation-priority">
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
-                    </select>
-                </div>
-                <div class="crm-modal-field">
-                    <label class="crm-modal-label" for="crm-conversation-assigned-to">Assigned Staff</label>
-                    <input class="crm-modal-input" id="crm-conversation-assigned-to" type="text" maxlength="100" placeholder="Staff name">
-                </div>
-                <div class="crm-modal-field">
-                    <label class="crm-modal-label" for="crm-conversation-follow-up-date">Follow-up Date</label>
-                    <input class="crm-modal-input" id="crm-conversation-follow-up-date" type="date">
-                </div>
-                <div class="crm-modal-field full-width">
-                    <label class="crm-modal-label" for="crm-conversation-notes">Notes</label>
-                    <textarea class="crm-modal-notes" id="crm-conversation-notes" placeholder="Add context for staff follow-up."></textarea>
-                </div>
-            </div>
-            <div class="crm-modal-actions">
-                <button type="button" class="crm-modal-save" id="crm-conversation-save">Save CRM Lead</button>
-                <div class="crm-modal-feedback" id="crm-conversation-feedback"></div>
-            </div>
-        </div>
-    </div>
-
     <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlBotId = urlParams.get("bot_id");
-        const urlConversationId = urlParams.get("conversation_id");
-        const storedBotId = sessionStorage.getItem("selectedBotId");
+        /* ── Bot context (company-scoped page: preserved, never gates access) ── */
+        /* Arriving from the bot list or the sidebar carries ?bot_id=. The page
+           is company-wide, so that id never gates access - it only pre-selects
+           the bot filter, so clicking into one bot does not dump you into every
+           bot's pipeline. "Clear filters" restores the company-wide view. */
+        const ARRIVED_BOT_ID = (function preserveBotContext() {
+            const urlBotId = new URLSearchParams(window.location.search).get('bot_id');
+            if (urlBotId) sessionStorage.setItem('selectedBotId', urlBotId);
+            return urlBotId || '';
+        })();
 
-        let selectedBotId = urlBotId;
+        const STAGES = ['new', 'contacted', 'qualified', 'won', 'lost'];
+        const STAGE_LABEL = { new: 'New', contacted: 'Contacted', qualified: 'Qualified', won: 'Won', lost: 'Lost' };
+        const STAGE_ALIASES = { in_progress: 'contacted', closed: 'lost' };
 
-        if (!urlBotId && storedBotId) {
-            const conversationQuery = urlConversationId ? `&conversation_id=${encodeURIComponent(urlConversationId)}` : "";
-            window.location.href = `conversations.html?bot_id=${encodeURIComponent(storedBotId)}${conversationQuery}`;
-            selectedBotId = storedBotId;
+        const CHANNEL_LABEL = { whatsapp: 'WhatsApp', wasender: 'WhatsApp', telegram: 'Telegram', web: 'Share link' };
+        const CHANNEL_ICON = { whatsapp: 'chat', wasender: 'chat', telegram: 'send', web: 'globe' };
+
+        const INTENT_LABEL = {
+            lead_interest: 'Interested in buying',
+            handoff_request: 'Asked for a human',
+            general_question: 'General question'
+        };
+        const ACTION_LABEL = {
+            answer: 'Answered',
+            ask_follow_up: 'Asked a follow-up',
+            request_handoff: 'Escalated',
+            create_lead: 'Logged as a lead',
+            log_knowledge_gap: 'Flagged a knowledge gap'
+        };
+        const LEAD_TYPE_LABEL = {
+            staff_attention: 'Flagged for staff attention',
+            follow_up: 'Flagged for follow-up'
+        };
+
+        const ICON = {
+            search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+            chat: '<path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/>',
+            send: '<path d="m21 3-9 18-2-7-7-2Z"/>',
+            globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z"/>',
+            lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
+            alert: '<path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/>',
+            check: '<path d="m5 13 4 4L19 7"/>',
+            refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/>'
+        };
+
+        function icon(name, extraClass, title) {
+            const t = title ? ` title="${escapeHtml(title)}"` : '';
+            return `<svg class="dashboard-icon${extraClass ? ' ' + extraClass : ''}" aria-hidden="true" `
+                + `viewBox="0 0 24 24"${t}>${ICON[name] || ''}</svg>`;
         }
 
-        if (!selectedBotId) {
-            window.location.href = "bots.html";
+        function channelGlyph(ch) {
+            return icon(CHANNEL_ICON[ch] || 'chat', null, channelLabel(ch))
+                + `<span class="kw-visually-hidden">${escapeHtml(channelLabel(ch))}</span>`;
         }
 
-        if (selectedBotId) {
-            sessionStorage.setItem("selectedBotId", selectedBotId);
+        function channelLabel(ch) {
+            return CHANNEL_LABEL[ch] || (ch ? ch.charAt(0).toUpperCase() + ch.slice(1) : 'Unknown channel');
         }
 
-        let allConversations = [];
-        let activeConversationId = null;
-        let currentPlatform = 'all';
+        function escapeHtml(value) {
+            if (value === null || value === undefined) return '';
+            return String(value)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#039;');
+        }
 
-        let currentConversationId = null;
-        let currentConversationPhone = "";
-        let currentConversationName = "";
-        let currentConversationMessages = [];
-        let currentConversationData = null;
-        let currentConversationCrmLead = null;
-        let transcriptFeedbackTimer = null;
-        let currentMessageSearchQuery = "";
-        let currentMessageSearchMatches = [];
-        let currentMessageSearchIndex = -1;
-        
-        let allEscalations = [];
-        let currentStatusFilter = 'all';
+        function announce(scope, message) {
+            const el = document.getElementById(scope === 'workspace' ? 'conv-announce-workspace' : 'conv-announce-pipeline');
+            if (el) el.textContent = message;
+        }
 
-        document.addEventListener('DOMContentLoaded', async () => {
-            if (!selectedBotId) {
-                return;
-            }
+        async function getJson(url, options) {
+            const response = await authenticatedFetch(url, options);
+            let body = {};
+            try { body = await response.json(); } catch (e) { body = {}; }
+            return { ok: response.ok && body.status === 'success', status: response.status, body };
+        }
 
-            lucide.createIcons();
-            setupConversationCrmModal();
-            fetchSelectedBot();
-            await fetchEscalations();
-            await fetchConversations();
+        /* customer_phone comes back RAW from /api/conversations (select("*")).
+           Every place that renders a phone number, including one already
+           masked by crm_leads, passes through here. Masking an already
+           masked "***1234" is idempotent: 4 digits in, same string out. */
+        function maskPhone(phone) {
+            if (!phone) return '';
+            const digits = String(phone).replace(/\D/g, '');
+            if (digits.length >= 4) return '***' + digits.slice(-4);
+            return '***';
+        }
 
-            // Auto-polling for new messages and conversations
-            setInterval(async () => {
-                if (!selectedBotId) return;
-                try {
-                    const escRes = await authenticatedFetch(`/api/agent/escalations?chatbot_id=${selectedBotId}`);
-                    const escJson = await escRes.json();
-                    if (escJson.status === 'success') {
-                        allEscalations = escJson.data || [];
-                    }
+        function normalizeStage(status) {
+            const s = String(status || '').trim().toLowerCase();
+            const mapped = STAGE_ALIASES[s] || s;
+            return STAGES.includes(mapped) ? mapped : 'new';
+        }
 
-                    const convRes = await authenticatedFetch(`/api/conversations?chatbot_id=${selectedBotId}`);
-                    const convJson = await convRes.json();
-                    if (convJson.status === "success") {
-                        allConversations = convJson.data;
-                        filterConversations(); // Updates list, keeps search/filters active
-                    }
-                } catch(err) {
-                    // Fail silently during polling
-                }
+        function todayIso() {
+            return new Date().toISOString().slice(0, 10);
+        }
 
-                if (currentConversationId) {
-                    await loadMessages(currentConversationId, currentConversationPhone, currentConversationName, true);
-                }
-            }, 3000);
+        function isOverdue(lead) {
+            if (!lead || !lead.follow_up_date) return false;
+            return lead.follow_up_date < todayIso();
+        }
+
+        function formatRelativeTime(iso) {
+            if (!iso) return '';
+            const then = new Date(iso).getTime();
+            if (Number.isNaN(then)) return '';
+            const diffMs = Date.now() - then;
+            const minutes = Math.floor(diffMs / 60000);
+            if (minutes < 1) return 'just now';
+            if (minutes < 60) return `${minutes}m ago`;
+            const hours = Math.floor(minutes / 60);
+            if (hours < 24) return `${hours}h ago`;
+            const days = Math.floor(hours / 24);
+            if (days < 7) return `${days}d ago`;
+            return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        }
+
+        function formatDateShort(dateStr) {
+            if (!dateStr) return '';
+            const parsed = new Date(dateStr + 'T00:00:00');
+            if (Number.isNaN(parsed.getTime())) return dateStr;
+            return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        }
+
+        function formatClockTime(iso) {
+            if (!iso) return '';
+            const parsed = new Date(iso);
+            if (Number.isNaN(parsed.getTime())) return '';
+            return parsed.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+        }
+
+        function initials(text) {
+            const parts = String(text || '').trim().split(/\s+/).filter(Boolean);
+            if (!parts.length) return '?';
+            if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+
+        function confidenceBand(confidence) {
+            if (confidence === null || confidence === undefined) return null;
+            if (confidence >= 0.8) return { text: 'High confidence', level: 'high' };
+            if (confidence >= 0.6) return { text: 'Medium confidence', level: 'medium' };
+            return { text: 'Low confidence', level: 'low' };
+        }
+
+        /* Suppressed entirely for action_type "none" -- the normal quiet case,
+           not an empty state. Intent gets a dedicated label for the three
+           sales-relevant intents; everything else (including "unknown") falls
+           back to what the bot actually did. */
+        function buildSignal(action) {
+            if (!action || !action.action_type || action.action_type === 'none') return null;
+            const label = INTENT_LABEL[action.intent] || ACTION_LABEL[action.action_type];
+            if (!label) return null;
+            const band = confidenceBand(action.confidence);
+            return { text: band ? `${label}, ${band.text}` : label, level: band ? band.level : null };
+        }
+
+        /* ── State ─────────────────────────────────────────────────────── */
+
+        const state = {
+            loaded: false,
+            stale: false,
+            conversations: [],
+            chatbotIds: [],
+            members: [],
+            leadsByConv: new Map(),
+            escalationsByConv: new Map(),
+            intentsCache: new Map(),
+            transcriptMessages: [],
+            transcriptSearch: '',
+            filters: { search: '', bot: ARRIVED_BOT_ID, channel: '', awaitingHuman: false, overdue: false },
+            selectedConversationId: null,
+            ownerLocked: false,
+            pollTimer: null,
+            lastMessageCount: 0
+        };
+
+        const els = {};
+        document.querySelectorAll('#conv-groups .conv-group').forEach(details => {
+            const stage = details.dataset.stage;
+            els['group_' + stage] = {
+                details,
+                count: details.querySelector('[data-part="count"]'),
+                listbox: details.querySelector('[role="listbox"]')
+            };
         });
 
-        async function fetchEscalations() {
-            try {
-                const res = await authenticatedFetch(`/api/agent/escalations?chatbot_id=${selectedBotId}`);
-                const json = await res.json();
-                if (json.status === 'success') {
-                    allEscalations = json.data || [];
+        /* ── Generic DOM-diffing list reconciler ──────────────────────────
+           Patches existing rows in place, moves/creates/removes only what
+           changed, and never touches an element the loop does not need to.
+           This is what keeps a poll tick from resetting scroll position or
+           collapsing an open <details>. */
+        function reconcileChildren(container, items, keyFn, buildFn, patchFn) {
+            const existing = new Map();
+            Array.from(container.children).forEach(el => {
+                if (el.dataset && el.dataset.conversationId) existing.set(el.dataset.conversationId, el);
+            });
+            let prevEl = null;
+            items.forEach(item => {
+                const key = String(keyFn(item));
+                let el = existing.get(key);
+                if (el) {
+                    existing.delete(key);
+                    patchFn(el, item);
+                } else {
+                    el = buildFn(item);
                 }
-            } catch (err) {
-                console.error("Failed to fetch escalations", err);
+                const wantedNext = prevEl ? prevEl.nextElementSibling : container.firstElementChild;
+                if (wantedNext !== el) container.insertBefore(el, wantedNext);
+                prevEl = el;
+            });
+            existing.forEach(el => el.remove());
+        }
+
+        function applyRovingTabindex(container) {
+            const items = Array.from(container.children).filter(el => el.matches('.conv-row, .conv-mini-row'));
+            if (!items.length) return;
+            if (items.some(el => el.tabIndex === 0)) return;
+            items.forEach((el, i) => { el.tabIndex = i === 0 ? 0 : -1; });
+        }
+
+        function findMemberById(id) {
+            if (!id) return null;
+            return state.members.find(m => String(m.id) === String(id)) || null;
+        }
+
+        function computeRowData(conv) {
+            const lead = state.leadsByConv.get(conv.id) || null;
+            const escalation = state.escalationsByConv.has(conv.id);
+            const stage = normalizeStage(lead ? lead.status : 'new');
+            const priority = lead ? String(lead.priority || '').toLowerCase() : '';
+            const cachedSignal = state.intentsCache.get(conv.id) || null;
+            const followUp = lead ? lead.follow_up_date : null;
+            const overdue = isOverdue(lead);
+            const owner = lead ? findMemberById(lead.assigned_to) : null;
+            return { lead, escalation, stage, priority, cachedSignal, followUp, overdue, owner };
+        }
+
+        function buildChipsHtml(d) {
+            const parts = [];
+            if (d.escalation) parts.push('<span class="kw-pill kw-pill-review">Awaiting human</span>');
+            if (d.priority === 'high') parts.push('<span data-part="priority" data-priority="high">High priority</span>');
+            else if (d.priority === 'low') parts.push('<span data-part="priority" data-priority="low">Low priority</span>');
+            if (d.cachedSignal) {
+                parts.push(`<span data-part="signal" data-signal="${escapeHtml(d.cachedSignal.level || '')}">${escapeHtml(d.cachedSignal.text)}</span>`);
+            }
+            if (d.followUp) {
+                if (d.overdue) parts.push('<span class="kw-pill kw-pill-review">Overdue</span>');
+                else parts.push(`<span class="kw-badge">Follow up ${escapeHtml(formatDateShort(d.followUp))}</span>`);
+            }
+            if (d.owner) {
+                const label = d.owner.name || d.owner.email || 'Assigned';
+                parts.push(`<span class="conv-avatar" title="Assigned to ${escapeHtml(label)}">${escapeHtml(initials(label))}</span>`);
+            } else {
+                parts.push('<span class="kw-muted">Unassigned</span>');
+            }
+            return parts.join('');
+        }
+
+        function buildConvRow(conv) {
+            const el = document.createElement('div');
+            el.className = 'conv-row';
+            el.setAttribute('role', 'option');
+            el.tabIndex = -1;
+            el.dataset.conversationId = String(conv.id);
+            patchConvRow(el, conv);
+            return el;
+        }
+
+        function patchConvRow(el, conv) {
+            const d = computeRowData(conv);
+            el.setAttribute('aria-selected', String(state.selectedConversationId === conv.id));
+            const chips = buildChipsHtml(d);
+            el.innerHTML = `
+                <span data-part="name">${escapeHtml(conv.customer_name || 'Anonymous visitor')}</span>
+                <div data-part="meta">
+                    ${channelGlyph(conv.source_channel)}
+                    <span class="kw-badge kw-badge-support">${escapeHtml(conv.bot_name || 'Unknown bot')}</span>
+                    <span>${escapeHtml(formatRelativeTime(conv.updated_at))}</span>
+                    <span data-part="count" class="kw-mono">${Number(conv.message_count || 0)} msg${Number(conv.message_count) === 1 ? '' : 's'}</span>
+                </div>
+                ${chips ? `<div class="conv-row-chips">${chips}</div>` : ''}
+            `;
+        }
+
+        function buildMiniRow(conv) {
+            const el = document.createElement('div');
+            el.className = 'conv-mini-row';
+            el.setAttribute('role', 'option');
+            el.tabIndex = -1;
+            el.dataset.conversationId = String(conv.id);
+            patchMiniRow(el, conv);
+            return el;
+        }
+
+        function patchMiniRow(el, conv) {
+            const d = computeRowData(conv);
+            const subParts = [];
+            if (d.escalation) subParts.push('Awaiting human');
+            subParts.push(STAGE_LABEL[d.stage]);
+            el.innerHTML = `
+                <div data-part="top">
+                    ${channelGlyph(conv.source_channel)}
+                    <span data-part="name">${escapeHtml(conv.customer_name || 'Anonymous visitor')}</span>
+                </div>
+                <span data-part="sub">${escapeHtml(subParts.join(', '))}</span>
+            `;
+        }
+
+        /* ── Filtering ─────────────────────────────────────────────────── */
+
+        function getFilteredConversations() {
+            const f = state.filters;
+            return state.conversations.filter(conv => {
+                if (f.bot && String(conv.chatbot_id) !== f.bot) return false;
+                if (f.channel && conv.source_channel !== f.channel) return false;
+                if (f.awaitingHuman && !state.escalationsByConv.has(conv.id)) return false;
+                if (f.overdue && !isOverdue(state.leadsByConv.get(conv.id))) return false;
+                if (f.search) {
+                    const name = (conv.customer_name || 'Anonymous visitor').toLowerCase();
+                    if (!name.includes(f.search)) return false;
+                }
+                return true;
+            });
+        }
+
+        function hasActiveFilters() {
+            const f = state.filters;
+            return Boolean(f.search || f.bot || f.channel || f.awaitingHuman || f.overdue);
+        }
+
+        /* ── Pipeline rendering ────────────────────────────────────────── */
+
+        function updateStats() {
+            const counts = { new: 0, contacted: 0, qualified: 0, won: 0, lost: 0 };
+            state.conversations.forEach(conv => {
+                const lead = state.leadsByConv.get(conv.id);
+                counts[normalizeStage(lead ? lead.status : 'new')]++;
+            });
+            STAGES.forEach(stage => {
+                const el = document.querySelector(`#conv-stats [data-stage="${stage}"] [data-part="value"]`);
+                if (el) el.textContent = String(counts[stage]);
+            });
+        }
+
+        function reconcileGroup(stage, items) {
+            const group = els['group_' + stage];
+            group.count.textContent = String(items.length);
+            const placeholder = group.listbox.querySelector('[data-part="group-empty"]');
+            if (!items.length) {
+                if (!placeholder) {
+                    const p = document.createElement('p');
+                    p.dataset.part = 'group-empty';
+                    p.textContent = 'No conversations in this stage.';
+                    group.listbox.innerHTML = '';
+                    group.listbox.appendChild(p);
+                }
+                return;
+            }
+            if (placeholder) placeholder.remove();
+            reconcileChildren(group.listbox, items, c => c.id, buildConvRow, patchConvRow);
+            applyRovingTabindex(group.listbox);
+        }
+
+        function renderPipeline() {
+            const total = state.conversations.length;
+            const filtered = getFilteredConversations();
+            const grouped = { new: [], contacted: [], qualified: [], won: [], lost: [] };
+            filtered.forEach(conv => {
+                const lead = state.leadsByConv.get(conv.id);
+                grouped[normalizeStage(lead ? lead.status : 'new')].push(conv);
+            });
+            STAGES.forEach(stage => reconcileGroup(stage, grouped[stage]));
+            updateStats();
+
+            const showEmpty = total === 0 || filtered.length === 0;
+            document.getElementById('conv-groups').hidden = showEmpty;
+            const emptyEl = document.getElementById('conv-pipeline-empty');
+            emptyEl.hidden = !showEmpty;
+
+            if (showEmpty) {
+                const title = document.getElementById('conv-pipeline-empty-title');
+                const body = document.getElementById('conv-pipeline-empty-body');
+                const clearBtn = document.getElementById('conv-clear-filters');
+                if (total === 0) {
+                    title.textContent = 'No conversations yet';
+                    body.textContent = 'When a customer starts chatting with any of your bots, it will show up here.';
+                    clearBtn.hidden = true;
+                } else {
+                    title.textContent = 'No conversations match these filters';
+                    body.textContent = 'Try a different search, or clear the filters to see everything.';
+                    clearBtn.hidden = !hasActiveFilters();
+                }
             }
         }
 
-        async function fetchSelectedBot() {
-            try {
-                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
-                const result = await response.json();
+        function renderMiniRail() {
+            const items = getFilteredConversations().filter(c => c.id !== state.selectedConversationId);
+            const list = document.getElementById('conv-mini-list');
+            reconcileChildren(list, items, c => c.id, buildMiniRow, patchMiniRow);
+            applyRovingTabindex(list);
+            document.getElementById('conv-mini-count').textContent = String(items.length);
+        }
 
-                if (!response.ok || result.status !== "success" || !result.data) {
-                    alert("You do not have access to this bot.");
-                    window.location.href = "bots.html";
+        /* ── Bot/channel filter options ────────────────────────────────── */
+
+        function rebuildFilterOptions() {
+            const botSel = document.getElementById('conv-filter-bot');
+            const chanSel = document.getElementById('conv-filter-channel');
+            const bots = new Map();
+            const channels = new Set();
+            state.conversations.forEach(conv => {
+                if (conv.chatbot_id && !bots.has(conv.chatbot_id)) bots.set(conv.chatbot_id, conv.bot_name || `Bot ${conv.chatbot_id}`);
+                if (conv.source_channel) channels.add(conv.source_channel);
+            });
+            const prevBot = state.filters.bot || botSel.value;
+            const prevChan = state.filters.channel || chanSel.value;
+            botSel.innerHTML = '<option value="">All bots</option>' + Array.from(bots.entries())
+                .map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
+            chanSel.innerHTML = '<option value="">All channels</option>' + Array.from(channels)
+                .map(ch => `<option value="${escapeHtml(ch)}">${escapeHtml(channelLabel(ch))}</option>`).join('');
+            if (bots.has(Number(prevBot))) {
+                botSel.value = prevBot;
+                state.filters.bot = prevBot;
+            } else if (state.filters.bot) {
+                // Arrived with a bot that has no conversations yet. Showing an
+                // empty pipeline with a filter the dropdown cannot display
+                // would look broken, so fall back to the company-wide view.
+                state.filters.bot = '';
+                botSel.value = '';
+            }
+            if (channels.has(prevChan)) chanSel.value = prevChan;
+        }
+
+        /* ── Data loading ──────────────────────────────────────────────── */
+
+        async function loadCompanyData() {
+            const result = await getJson('/api/conversations?company=1');
+            if (!result.ok) throw new Error((result.body && result.body.message) || 'Could not load conversations.');
+            const conversations = result.body.data || [];
+
+            const chatbotIds = Array.from(new Set(conversations.map(c => c.chatbot_id).filter(Boolean)));
+
+            const [membersResult, ...fanout] = await Promise.all([
+                state.members.length ? Promise.resolve(null) : getJson('/api/company/members'),
+                ...chatbotIds.map(id => getJson(`/api/crm/leads?chatbot_id=${id}&limit=100`)),
+                ...chatbotIds.map(id => getJson(`/api/agent/escalations?chatbot_id=${id}`))
+            ]);
+
+            const leadResults = fanout.slice(0, chatbotIds.length);
+            const escalationResults = fanout.slice(chatbotIds.length);
+
+            const leadsByConv = new Map();
+            chatbotIds.forEach((chatbotId, i) => {
+                const r = leadResults[i];
+                if (r && r.ok) {
+                    (r.body.data.leads || []).forEach(lead => {
+                        leadsByConv.set(lead.conversation_id, Object.assign({ chatbot_id: chatbotId }, lead));
+                    });
+                }
+            });
+
+            const escalationsByConv = new Map();
+            chatbotIds.forEach((chatbotId, i) => {
+                const r = escalationResults[i];
+                if (r && r.ok) {
+                    (r.body.data || []).forEach(action => {
+                        if (action.conversation_id) {
+                            escalationsByConv.set(action.conversation_id, Object.assign({ chatbot_id: chatbotId }, action));
+                        }
+                    });
+                }
+            });
+
+            if (membersResult && membersResult.ok) state.members = membersResult.body.data || [];
+
+            state.conversations = conversations;
+            state.chatbotIds = chatbotIds;
+            state.leadsByConv = leadsByConv;
+            state.escalationsByConv = escalationsByConv;
+        }
+
+        async function refresh(isPoll) {
+            try {
+                await loadCompanyData();
+                state.loaded = true;
+                setStale(false);
+                document.getElementById('conv-load-error').hidden = true;
+                document.getElementById('conv-pipeline-loading').hidden = true;
+                rebuildFilterOptions();
+                renderPipeline();
+                if (state.selectedConversationId) {
+                    renderMiniRail();
+                    renderWorkspaceHeader();
+                    syncComposebarVisibility();
+                    /* The lead rail (stage/priority/notes/etc.) and the reply
+                       box are only ever repainted from server data when the
+                       reader opens the conversation, or right after their own
+                       save/send confirms -- never on a background poll tick.
+                       Doing it here would blow away notes they are mid-typing
+                       or a stage pick they have not yet committed. */
+                    if (!isPoll) renderLeadRailFromState();
+                    await refreshOpenTranscript(isPoll);
+                }
+            } catch (error) {
+                if (isPoll && state.loaded) {
+                    setStale(true);
                     return;
                 }
-
-                document.getElementById("page-title").textContent =
-                    `${result.data.bot_name} Conversations`;
-
-            } catch (err) {
-                console.error("Failed to fetch selected bot", err);
+                document.getElementById('conv-pipeline-loading').hidden = true;
+                document.getElementById('conv-groups').hidden = true;
+                document.getElementById('conv-pipeline-empty').hidden = true;
+                const bannerEl = document.getElementById('conv-load-error');
+                bannerEl.hidden = false;
+                document.getElementById('conv-load-error-text').textContent = error.message || 'We could not load your conversations.';
             }
         }
 
-        function formatTime(isoString) {
-            const date = new Date(isoString);
-            if (Number.isNaN(date.getTime())) {
-                return "";
+        function setStale(isStale) {
+            state.stale = isStale;
+            document.getElementById('conv-stale').classList.toggle('is-visible', isStale);
+        }
+
+        function startPolling() {
+            if (state.pollTimer) clearInterval(state.pollTimer);
+            state.pollTimer = setInterval(() => refresh(true), 10000);
+        }
+
+        /* ── Workspace: open / close ───────────────────────────────────── */
+
+        function currentConversation() {
+            return state.conversations.find(c => c.id === state.selectedConversationId) || null;
+        }
+
+        function setUrlConversationId(id) {
+            const url = new URL(window.location.href);
+            if (id) url.searchParams.set('conversation_id', String(id));
+            else url.searchParams.delete('conversation_id');
+            window.history.replaceState({}, '', url);
+        }
+
+        async function openConversation(id) {
+            const conv = state.conversations.find(c => c.id === id);
+            if (!conv) return;
+
+            state.selectedConversationId = id;
+            state.ownerLocked = false;
+            setUrlConversationId(id);
+
+            document.getElementById('conv-pipeline').hidden = true;
+            const workspace = document.getElementById('conv-workspace');
+            workspace.hidden = false;
+
+            renderPipeline();
+            renderMiniRail();
+            renderLeadRailFromState();
+            renderWorkspaceHeader();
+            renderComposebar();
+
+            document.getElementById('conv-transcript').innerHTML = '';
+            const heading = document.getElementById('conv-transcript-heading');
+            heading.focus({ preventScroll: true });
+
+            await Promise.all([
+                loadTranscript(conv),
+                loadIntents(conv)
+            ]);
+
+            announce('workspace', `Opened the conversation with ${conv.customer_name || 'this visitor'}.`);
+        }
+
+        function closeWorkspace() {
+            const lastId = state.selectedConversationId;
+            state.selectedConversationId = null;
+            setUrlConversationId(null);
+            document.getElementById('conv-workspace').hidden = true;
+            document.getElementById('conv-pipeline').hidden = false;
+            renderPipeline();
+            const row = lastId ? document.querySelector(`#conv-groups .conv-row[data-conversation-id="${lastId}"]`) : null;
+            if (row) row.focus({ preventScroll: true });
+        }
+
+        /* ── Workspace header / rail identity ─────────────────────────── */
+
+        function renderWorkspaceHeader() {
+            const conv = currentConversation();
+            if (!conv) return;
+            const name = conv.customer_name || 'Anonymous visitor';
+            document.getElementById('conv-transcript-heading').textContent = name;
+            document.getElementById('conv-transcript-sub').textContent =
+                `${channelLabel(conv.source_channel)} - ${conv.bot_name || 'Unknown bot'}`;
+            document.getElementById('conv-escalated-pill').hidden = !state.escalationsByConv.has(conv.id);
+            document.getElementById('conv-mobile-summary').textContent =
+                `${name}. ${channelLabel(conv.source_channel)}, ${conv.bot_name || 'Unknown bot'}.`;
+        }
+
+        /* ── Lead rail ─────────────────────────────────────────────────── */
+
+        function ownerFieldHtml() {
+            if (state.ownerLocked) {
+                return `<div class="kw-locked">
+                    <span class="kw-locked-icon" aria-hidden="true">${icon('lock')}</span>
+                    <div>
+                        <h4>Assigning an owner needs a plan upgrade</h4>
+                        <p>Your current plan does not include lead assignment. Upgrade to give this conversation an owner.</p>
+                    </div>
+                </div>`;
             }
-            const today = new Date();
-
-            // If today, show time. Else show date.
-            if (date.toDateString() === today.toDateString()) {
-                return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            } else {
-                return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-            }
+            const options = ['<option value="">Unassigned</option>']
+                .concat(state.members.map(m => `<option value="${m.id}">${escapeHtml(m.name || m.email || ('Member ' + m.id))}</option>`));
+            return `<label class="kw-label" for="conv-owner">Owner</label>
+                <select class="kw-select" id="conv-owner">${options.join('')}</select>
+                <span class="kw-help" role="status" aria-live="polite" id="conv-owner-status"></span>`;
         }
 
-        async function fetchConversations() {
-            try {
-                const response = await authenticatedFetch(`/api/conversations?chatbot_id=${selectedBotId}`);
-                const result = await response.json();
+        function renderLeadRailFromState() {
+            const conv = currentConversation();
+            if (!conv) return;
+            const lead = state.leadsByConv.get(conv.id) || null;
+            const name = conv.customer_name || 'Anonymous visitor';
 
-                if (result.status === "success") {
-                    allConversations = result.data;
-                    renderConversationList(allConversations);
-                    openLinkedConversationIfPresent();
-                } else {
-                    console.error("Failed to fetch conversations:", result.message);
-                    renderConversationListMessage("Failed to load conversations.", true);
-                }
-            } catch (err) {
-                console.error("Error fetching conversations:", err);
-                renderConversationListMessage(
-                    "Network error. Did you restart the Python backend server? Restart it and try again.",
-                    true
-                );
-            }
-        }
+            /* A save on one field (say, Stage) re-renders the whole rail, which
+               would otherwise stomp an unsaved draft the reader is mid-typing
+               into Notes. Capture that draft here and restore it below instead
+               of the freshly-fetched server value. */
+            const notesBefore = document.getElementById('conv-notes');
+            const hasPendingNotes = notesBefore && notesBefore.value !== notesBefore.dataset.savedValue;
+            const pendingNotesValue = hasPendingNotes ? notesBefore.value : null;
+            const notesHadFocus = document.activeElement === notesBefore;
 
-        function normalizeText(value, fallback = "") {
-            if (value === null || value === undefined) {
-                return fallback;
-            }
+            document.getElementById('conv-rail-avatar').textContent = initials(name === 'Anonymous visitor' ? '?' : name);
+            document.getElementById('conv-rail-name').textContent = name;
+            document.getElementById('conv-rail-badges').innerHTML =
+                `<span class="kw-badge kw-badge-support">${escapeHtml(conv.bot_name || 'Unknown bot')}</span>
+                 <span class="kw-badge">${escapeHtml(channelLabel(conv.source_channel))}</span>`;
 
-            const text = String(value).trim();
-            return text || fallback;
-        }
+            document.getElementById('conv-field-phone').textContent = maskPhone(lead ? lead.customer_phone : conv.customer_phone) || 'Not provided';
+            document.getElementById('conv-field-bot').textContent = conv.bot_name || 'Unknown bot';
+            document.getElementById('conv-field-channel').textContent = channelLabel(conv.source_channel);
+            const leadType = lead ? lead.lead_type : '';
+            document.getElementById('conv-field-type').textContent = LEAD_TYPE_LABEL[leadType] || 'Not yet flagged';
+            document.getElementById('conv-field-summary').textContent = (lead && lead.summary) ? lead.summary : 'No summary yet.';
 
-        function normalizePlatform(value) {
-            return normalizeText(value, "whatsapp").toLowerCase();
-        }
-
-        function getPlatformClass(platform) {
-            return ["whatsapp", "telegram", "wasender"].includes(platform) ? platform : "whatsapp";
-        }
-
-        function getAvatarInitial(name) {
-            return normalizeText(name, "User").charAt(0).toUpperCase() || "U";
-        }
-
-        function getConversationUsername(conversation) {
-            return normalizeText(conversation && conversation.username);
-        }
-
-        function getConversationPlatformUserId(conversation) {
-            return normalizeText(conversation && conversation.platform_user_id);
-        }
-
-        function getConversationRealPhone(conversation) {
-            return normalizeText(conversation && conversation.customer_phone);
-        }
-
-        function getConversationDisplayIdentity(conversation) {
-            return (
-                getConversationRealPhone(conversation)
-                || normalizeText(conversation && conversation.customer_name)
-                || getConversationUsername(conversation)
-                || getConversationPlatformUserId(conversation)
-                || "Unknown customer"
-            );
-        }
-
-        function getConversationDisplaySubtitle(conversation) {
-            return (
-                normalizeText(conversation && conversation.customer_name)
-                || getConversationUsername(conversation)
-                || (getConversationPlatformUserId(conversation) ? "Telegram user" : "No name provided")
-            );
-        }
-
-        function renderConversationListMessage(message, isError = false) {
-            const listEl = document.getElementById('conversation-list');
-            listEl.replaceChildren();
-
-            const emptyState = document.createElement('div');
-            emptyState.className = 'empty-state';
-            emptyState.style.padding = '20px';
-            if (isError) {
-                emptyState.style.color = 'var(--error)';
-            }
-            emptyState.textContent = message;
-
-            listEl.appendChild(emptyState);
-        }
-
-        function renderConversationList(conversations) {
-            const listEl = document.getElementById('conversation-list');
-            const savedScrollTop = listEl.scrollTop;
-            
-            listEl.replaceChildren();
-
-            if (!conversations || conversations.length === 0) {
-                renderConversationListMessage("No conversations found for this bot.");
-                return;
-            }
-
-            conversations.forEach(conv => {
-                const displayIdentity = getConversationDisplayIdentity(conv);
-                const realPhone = getConversationRealPhone(conv);
-                const name = normalizeText(conv.customer_name, "User");
-                const platform = normalizePlatform(conv.source_channel);
-
-                const item = document.createElement('div');
-                item.className = 'conversation-item';
-                if (conv.id === activeConversationId) {
-                    item.classList.add('active');
-                }
-                item.addEventListener('click', () => loadMessages(conv.id, displayIdentity, name));
-
-                const top = document.createElement('div');
-                top.className = 'convo-top';
-
-                const phoneContainer = document.createElement('div');
-                phoneContainer.className = 'convo-phone-container';
-
-                const phoneEl = document.createElement('span');
-                phoneEl.className = 'convo-phone';
-                phoneEl.textContent = displayIdentity;
-
-                const badge = document.createElement('span');
-                badge.className = `platform-badge ${getPlatformClass(platform)}`;
-                badge.textContent = platform;
-
-                phoneContainer.appendChild(phoneEl);
-                phoneContainer.appendChild(badge);
-
-                const time = document.createElement('span');
-                time.className = 'convo-time';
-                time.textContent = formatTime(conv.updated_at);
-                
-                const isEscalated = allEscalations.some(e => e.conversation_id === conv.id);
-                if (isEscalated) {
-                    const badge = document.createElement('span');
-                    badge.className = 'escalation-badge';
-                    badge.title = "Needs Attention";
-                    time.appendChild(badge);
-                }
-
-                top.appendChild(phoneContainer);
-                top.appendChild(time);
-
-                const preview = document.createElement('div');
-                preview.className = 'convo-preview';
-                preview.textContent = realPhone
-                    ? `Phone: ${realPhone}`
-                    : getConversationDisplaySubtitle(conv);
-
-                item.appendChild(top);
-                item.appendChild(preview);
-                listEl.appendChild(item);
+            const stage = normalizeStage(lead ? lead.status : 'new');
+            document.querySelectorAll('#conv-stage-group [role="radio"]').forEach(btn => {
+                const checked = btn.dataset.stage === stage;
+                btn.setAttribute('aria-checked', String(checked));
+                btn.tabIndex = checked ? 0 : -1;
             });
-            
-            listEl.scrollTop = savedScrollTop;
-        }
 
-        function openLinkedConversationIfPresent() {
-            if (!urlConversationId) {
-                return;
-            }
-
-            const linkedConversationId = Number(urlConversationId);
-            if (!Number.isFinite(linkedConversationId)) {
-                showConversationNotice("Related conversation was not found.");
-                return;
-            }
-
-            const conversation = allConversations.find(conv => Number(conv.id) === linkedConversationId);
-
-            if (!conversation) {
-                showConversationNotice("Related conversation was not found.");
-                return;
-            }
-
-            loadMessages(
-                conversation.id,
-                getConversationDisplayIdentity(conversation),
-                conversation.customer_name || "User"
-            );
-        }
-
-        function showConversationNotice(message) {
-            const chatPane = document.getElementById('chat-pane');
-            chatPane.replaceChildren();
-
-            const emptyState = document.createElement('div');
-            emptyState.className = 'empty-state';
-
-            const icon = document.createElement('i');
-            icon.setAttribute('data-lucide', 'message-circle');
-
-            const heading = document.createElement('h2');
-            heading.textContent = message;
-
-            const body = document.createElement('p');
-            body.textContent = 'Select a conversation from the list to view its chat history.';
-
-            emptyState.appendChild(icon);
-            emptyState.appendChild(heading);
-            emptyState.appendChild(body);
-            chatPane.appendChild(emptyState);
-
-            if (window.lucide && typeof window.lucide.createIcons === 'function') {
-                window.lucide.createIcons();
-            }
-        }
-
-        function scrollActiveConversationIntoView() {
-            const activeItem = document.querySelector('.conversation-item.active');
-            if (activeItem && typeof activeItem.scrollIntoView === 'function') {
-                activeItem.scrollIntoView({ block: 'nearest' });
-            }
-        }
-
-        function filterConversations() {
-            const query = document.getElementById('search-input').value.toLowerCase();
-            const filtered = allConversations.filter(c => {
-                const searchText = [
-                    getConversationRealPhone(c),
-                    normalizeText(c.customer_name),
-                    getConversationUsername(c),
-                    getConversationPlatformUserId(c),
-                ].join(" ").toLowerCase();
-                const matchesQuery = searchText.includes(query);
-                const platform = normalizePlatform(c.source_channel);
-                const matchesPlatform = currentPlatform === 'all' || platform === currentPlatform;
-                
-                let matchesStatus = true;
-                if (currentStatusFilter === 'escalated') {
-                    matchesStatus = allEscalations.some(e => e.conversation_id === c.id);
-                }
-
-                return matchesQuery && matchesPlatform && matchesStatus;
+            const priority = lead ? String(lead.priority || 'medium').toLowerCase() : 'medium';
+            document.querySelectorAll('#conv-priority-group [role="radio"]').forEach(btn => {
+                const checked = btn.dataset.priority === priority;
+                btn.setAttribute('aria-checked', String(checked));
+                btn.tabIndex = checked ? 0 : -1;
             });
-            renderConversationList(filtered);
-        }
 
-        function setStatusFilter(status) {
-            currentStatusFilter = status;
-            document.querySelectorAll('.status-tab').forEach(btn => {
-                if (btn.getAttribute('data-status') === status) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
+            document.getElementById('conv-followup').value = (lead && lead.follow_up_date) ? lead.follow_up_date : '';
+
+            document.getElementById('conv-owner-field').innerHTML = ownerFieldHtml();
+            if (!state.ownerLocked) {
+                const ownerSelect = document.getElementById('conv-owner');
+                const assigned = lead ? String(lead.assigned_to || '') : '';
+                if (assigned && !findMemberById(assigned)) {
+                    const opt = document.createElement('option');
+                    opt.value = assigned;
+                    opt.textContent = `${assigned} (not on this team anymore)`;
+                    ownerSelect.appendChild(opt);
                 }
-            });
-            filterConversations();
+                ownerSelect.value = assigned;
+            }
+
+            const notesEl = document.getElementById('conv-notes');
+            notesEl.value = (lead && lead.notes) ? lead.notes : '';
+            notesEl.dataset.savedValue = notesEl.value;
+            if (pendingNotesValue !== null) {
+                notesEl.value = pendingNotesValue;
+                if (notesHadFocus) notesEl.focus();
+            }
         }
 
-        function setPlatformFilter(platform) {
-            currentPlatform = platform;
-            document.querySelectorAll('.filter-pill').forEach(btn => {
-                if (btn.getAttribute('data-platform') === platform) {
-                    btn.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
+        /* ── Saving lead fields ────────────────────────────────────────── */
+
+        async function ensureLeadOrPatch(conv, lead, fields) {
+            if (lead && lead.id) {
+                const body = Object.assign({ chatbot_id: conv.chatbot_id }, fields);
+                return getJson(`/api/crm/leads/${lead.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+            }
+            const body = Object.assign({ chatbot_id: conv.chatbot_id, conversation_id: conv.id }, fields);
+            return getJson('/api/crm/leads/upsert', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+        }
+
+        function flashStatus(el, message, ms) {
+            el.textContent = message;
+            if (ms) setTimeout(() => { if (el.textContent === message) el.textContent = ''; }, ms);
+        }
+
+        /* Never shows "Saved" until the server actually confirms it, and never
+           changes the visible control ahead of that confirmation either -- so
+           a failed save (the 5-stage vocabulary is not migrated on the server
+           yet for some plans) has nothing to revert. The control is simply
+           still showing the last confirmed value, with the real server
+           message next to it. */
+        async function saveLeadField(fields, statusEl, opts) {
+            const conv = currentConversation();
+            if (!conv) return null;
+            const lead = state.leadsByConv.get(conv.id) || null;
+            flashStatus(statusEl, 'Saving...', 0);
+
+            const result = await ensureLeadOrPatch(conv, lead, fields);
+
+            if (!result.ok) {
+                if (result.status === 403 && 'assigned_to' in fields && result.body && result.body.code) {
+                    state.ownerLocked = true;
+                    renderLeadRailFromState();
+                    return result;
                 }
-            });
-            filterConversations();
+                flashStatus(statusEl, (result.body && result.body.message) || 'Could not save. Try again.', 6000);
+                if (opts && opts.onError) opts.onError();
+                return result;
+            }
+
+            const saved = result.body.data.lead;
+            state.leadsByConv.set(conv.id, Object.assign({ chatbot_id: conv.chatbot_id }, saved));
+            flashStatus(statusEl, 'Saved.', 4000);
+            renderLeadRailFromState();
+            renderPipeline();
+            renderMiniRail();
+            return result;
         }
 
-        function updateConversationUrl(conversationId) {
-            if (!conversationId || !selectedBotId) {
+        /* ── Transcript ────────────────────────────────────────────────── */
+
+        function messageSignalMap(actions) {
+            const map = new Map();
+            (actions || []).forEach(action => {
+                if (action.message_id === null || action.message_id === undefined) return;
+                const signal = buildSignal(action);
+                if (signal) map.set(action.message_id, signal);
+            });
+            return map;
+        }
+
+        function buildBubble(message, signalMap) {
+            const el = document.createElement('div');
+            el.className = 'conv-bubble';
+            el.dataset.sender = message.sender_type === 'customer' ? 'customer' : 'bot';
+            el.dataset.messageId = String(message.id);
+            el.dataset.searchText = String(message.message_text || '').toLowerCase();
+            const signal = signalMap.get(message.id);
+            const delivery = message.sender_type === 'customer' ? '' : deliveryStatusLabel(message);
+            el.innerHTML = `
+                <span data-part="text">${escapeHtml(message.message_text || '')}</span>
+                <time data-part="meta" datetime="${escapeHtml(message.created_at || '')}">${escapeHtml(formatClockTime(message.created_at))}</time>
+                ${delivery ? `<span data-part="delivery">${escapeHtml(delivery)}</span>` : ''}
+                ${signal ? `<p data-part="signal" data-confidence="${escapeHtml(signal.level || '')}">${escapeHtml(signal.text)}</p>` : ''}
+            `;
+            return el;
+        }
+
+        function deliveryStatusLabel(message) {
+            const status = String(message.delivery_status || '').toLowerCase();
+            const retries = Number(message.retry_count || 0);
+            if (status === 'failed') return 'Failed to send - Auto retrying';
+            if (status === 'retrying') return 'Retrying now...';
+            if (status === 'permanent_failed') return 'Failed permanently';
+            if (status === 'sent' && retries > 0) return 'Sent after retry';
+            return '';
+        }
+
+        function renderTranscriptMessages() {
+            const container = document.getElementById('conv-transcript');
+            const query = state.transcriptSearch;
+            const signalMap = state.lastIntentMap || new Map();
+            container.replaceChildren();
+            let matches = 0;
+            state.transcriptMessages.forEach(message => {
+                const bubble = buildBubble(message, signalMap);
+                const matched = !query || bubble.dataset.searchText.includes(query);
+                bubble.hidden = !matched;
+                if (matched) matches += 1;
+                container.appendChild(bubble);
+            });
+            document.getElementById('conv-message-search-count').textContent = query
+                ? `${matches} result${matches === 1 ? '' : 's'}`
+                : '';
+        }
+
+        function isTranscriptNearBottom(container) {
+            return container.scrollHeight - container.scrollTop - container.clientHeight < 80;
+        }
+
+        async function loadTranscript(conv) {
+            const result = await getJson(`/api/conversations/${conv.id}/messages?chatbot_id=${conv.chatbot_id}`);
+            const container = document.getElementById('conv-transcript');
+            if (!result.ok) {
+                container.innerHTML = '<p class="kw-help">We could not load this transcript. Try again in a minute.</p>';
                 return;
             }
-
-            const params = new URLSearchParams(window.location.search);
-            params.set("bot_id", selectedBotId);
-            params.set("conversation_id", conversationId);
-
-            const newUrl = `${window.location.pathname}?${params.toString()}`;
-            window.history.replaceState({}, "", newUrl);
+            const messages = result.body.data || [];
+            state.transcriptMessages = messages;
+            state.lastMessageCount = messages.length;
+            renderTranscriptMessages();
+            container.scrollTop = container.scrollHeight;
         }
 
-        async function loadMessages(conversationId, phone, name, isPolling = false) {
-            if (!isPolling) {
-                activeConversationId = conversationId;
-                currentConversationId = conversationId;
-                currentConversationPhone = phone || "";
-                currentConversationName = name || "User";
-                currentConversationMessages = [];
-                currentConversationData = allConversations.find(conv => Number(conv.id) === Number(conversationId)) || null;
-                currentConversationCrmLead = null;
-                resetMessageSearchState();
+        async function refreshOpenTranscript(isPoll) {
+            const conv = currentConversation();
+            if (!conv) return;
+            const result = await getJson(`/api/conversations/${conv.id}/messages?chatbot_id=${conv.chatbot_id}`);
+            if (!result.ok) return;
+            const messages = result.body.data || [];
+            if (messages.length <= state.lastMessageCount) return;
 
-                updateConversationUrl(conversationId);
+            const container = document.getElementById('conv-transcript');
+            const wasNearBottom = isTranscriptNearBottom(container);
+            state.transcriptMessages = messages;
+            renderTranscriptMessages();
+            state.lastMessageCount = messages.length;
+            if (wasNearBottom) container.scrollTop = container.scrollHeight;
+        }
 
-                filterConversations();
-                scrollActiveConversationIntoView();
+        async function loadIntents(conv) {
+            const result = await getJson(`/api/conversations/${conv.id}/intents?chatbot_id=${conv.chatbot_id}`);
+            if (!result.ok) return;
+            const actions = result.body.data || [];
+            state.lastIntentMap = messageSignalMap(actions);
 
-                renderChatLoading(phone, name);
-            }
-
-            try {
-                const response = await authenticatedFetch(`/api/conversations/${conversationId}/messages?chatbot_id=${selectedBotId}`);
-                const result = await response.json();
-
-                if (result.status === "success") {
-                    const newMessages = Array.isArray(result.data) ? result.data : [];
-                    
-                    if (!isPolling || newMessages.length !== currentConversationMessages.length) {
-                        currentConversationMessages = newMessages;
-                        renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
-                    }
-                    
-                    const isEscalated = allEscalations.some(e => e.conversation_id === Number(conversationId));
-                    const replyBox = document.getElementById('reply-box');
-                    const resolveBtn = document.getElementById('resolve-btn');
-                    if (replyBox && resolveBtn) {
-                        if (isEscalated) {
-                            replyBox.style.display = 'flex';
-                            resolveBtn.style.display = 'inline-block';
-                        } else {
-                            replyBox.style.display = 'none';
-                            resolveBtn.style.display = 'none';
-                        }
-                    }
-                } else {
-                    if (!isPolling) console.error("Failed to fetch messages:", result.message);
+            // Re-annotate already-rendered bubbles now that intents arrived.
+            document.querySelectorAll('#conv-transcript .conv-bubble').forEach(bubbleEl => {
+                const id = Number(bubbleEl.dataset.messageId);
+                const signal = state.lastIntentMap.get(id);
+                const existing = bubbleEl.querySelector('[data-part="signal"]');
+                if (existing) existing.remove();
+                if (signal) {
+                    const p = document.createElement('p');
+                    p.dataset.part = 'signal';
+                    p.dataset.confidence = signal.level || '';
+                    p.textContent = signal.text;
+                    bubbleEl.appendChild(p);
                 }
-            } catch (err) {
-                if (!isPolling) console.error("Error fetching messages:", err);
-            }
+            });
+
+            // Opportunistic cache for the pipeline/mini-row chip: the latest
+            // actionable signal for this conversation, remembered only
+            // because the reader opened it -- never fetched proactively for
+            // rows that were never opened.
+            let latest = null;
+            actions.forEach(action => { const s = buildSignal(action); if (s) latest = s; });
+            if (latest) state.intentsCache.set(conv.id, latest);
+            else state.intentsCache.delete(conv.id);
+            renderPipeline();
+            renderMiniRail();
+        }
+
+        /* ── Compose bar ───────────────────────────────────────────────── */
+
+        /* Safe to call on every poll tick: only toggles which elements are
+           visible, never touches the textarea value a reader may be
+           mid-typing. */
+        function syncComposebarVisibility() {
+            const conv = currentConversation();
+            if (!conv) return;
+            const isWeb = conv.source_channel === 'web';
+            const canReply = !isWeb && ['whatsapp', 'wasender', 'telegram'].includes(conv.source_channel);
+            document.getElementById('conv-web-notice').hidden = canReply;
+            document.getElementById('conv-reply-row').hidden = !canReply;
+            document.getElementById('conv-resolve-btn').hidden = !state.escalationsByConv.has(conv.id);
+        }
+
+        /* Full reset -- only called when a (possibly different) conversation
+           is opened, where clearing the reply box is correct, not data loss. */
+        function renderComposebar() {
+            syncComposebarVisibility();
+            document.getElementById('conv-reply-text').value = '';
+            document.getElementById('conv-compose-status').textContent = '';
         }
 
         async function sendReply() {
-            const currentEscalation = allEscalations.find(e => e.conversation_id === Number(currentConversationId));
-            if (!currentEscalation) return;
-            const input = document.getElementById('reply-input');
-            const text = input.value.trim();
+            const conv = currentConversation();
+            if (!conv) return;
+            const textarea = document.getElementById('conv-reply-text');
+            const text = textarea.value.trim();
             if (!text) return;
+            const sendBtn = document.getElementById('conv-reply-send');
+            const statusEl = document.getElementById('conv-compose-status');
+            sendBtn.disabled = true;
+            flashStatus(statusEl, 'Sending...', 0);
 
-            input.disabled = true;
-            try {
-                const res = await authenticatedFetch(`/api/conversations/${currentConversationId}/agent-reply`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chatbot_id: selectedBotId,
-                        text: text,
-                        action_id: currentEscalation.id
-                    })
-                });
-                const json = await res.json();
-                if (json.status === 'success') {
-                    input.value = '';
-                    loadMessages(currentConversationId, currentConversationPhone, currentConversationName);
-                } else {
-                    alert('Error: ' + json.message);
-                }
-            } catch (err) {
-                alert('Failed to send reply');
+            const result = await getJson(`/api/conversations/${conv.id}/agent-reply`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chatbot_id: conv.chatbot_id, text })
+            });
+
+            sendBtn.disabled = false;
+            if (result.ok) {
+                textarea.value = '';
+                flashStatus(statusEl, 'Sent.', 4000);
+                announce('workspace', 'Reply sent.');
+                await refreshOpenTranscript(false);
+            } else {
+                flashStatus(statusEl, (result.body && result.body.message) || 'Could not send. Try again.', 6000);
             }
-            input.disabled = false;
-            input.focus();
         }
 
         async function resolveEscalation() {
-            const currentEscalation = allEscalations.find(e => e.conversation_id === Number(currentConversationId));
-            if (!currentEscalation) return;
-            try {
-                const res = await authenticatedFetch(`/api/agent/escalations/${currentEscalation.id}/resolve`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ chatbot_id: selectedBotId })
+            const conv = currentConversation();
+            if (!conv) return;
+            const escalation = state.escalationsByConv.get(conv.id);
+            if (!escalation) return;
+            const btn = document.getElementById('conv-resolve-btn');
+            btn.disabled = true;
+
+            const result = await getJson(`/api/agent/escalations/${escalation.id}/resolve`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chatbot_id: conv.chatbot_id })
+            });
+
+            btn.disabled = false;
+            if (result.ok) {
+                state.escalationsByConv.delete(conv.id);
+                announce('workspace', 'Marked resolved. This does not change the CRM stage.');
+                renderWorkspaceHeader();
+                syncComposebarVisibility();
+                renderPipeline();
+                renderMiniRail();
+            } else {
+                announce('workspace', 'Could not resolve. Try again.');
+            }
+        }
+
+        /* ── Roving tabindex + open/close wiring ──────────────────────── */
+
+        function rowsInSameContainer(row) {
+            return Array.from(row.parentElement.children).filter(el => el.matches('.conv-row, .conv-mini-row'));
+        }
+
+        function focusRow(items, idx) {
+            items.forEach((el, i) => { el.tabIndex = i === idx ? 0 : -1; });
+            items[idx].focus();
+        }
+
+        document.addEventListener('keydown', event => {
+            const row = event.target.closest('.conv-row, .conv-mini-row');
+            if (row) {
+                const items = rowsInSameContainer(row);
+                const idx = items.indexOf(row);
+                if (event.key === 'ArrowDown') { event.preventDefault(); focusRow(items, Math.min(idx + 1, items.length - 1)); return; }
+                if (event.key === 'ArrowUp') { event.preventDefault(); focusRow(items, Math.max(idx - 1, 0)); return; }
+                if (event.key === 'Home') { event.preventDefault(); focusRow(items, 0); return; }
+                if (event.key === 'End') { event.preventDefault(); focusRow(items, items.length - 1); return; }
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); row.click(); return; }
+                return;
+            }
+
+            const radio = event.target.closest('[role="radio"]');
+            if (radio) {
+                const group = Array.from(radio.parentElement.children).filter(el => el.getAttribute('role') === 'radio');
+                const idx = group.indexOf(radio);
+                if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    const next = group[Math.min(idx + 1, group.length - 1)];
+                    group.forEach(b => { b.tabIndex = -1; });
+                    next.tabIndex = 0;
+                    next.focus();
+                } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    const prev = group[Math.max(idx - 1, 0)];
+                    group.forEach(b => { b.tabIndex = -1; });
+                    prev.tabIndex = 0;
+                    prev.focus();
+                }
+            }
+        });
+
+        document.addEventListener('click', async event => {
+            const row = event.target.closest('.conv-row, .conv-mini-row');
+            if (row && row.dataset.conversationId) {
+                await openConversation(Number(row.dataset.conversationId));
+                return;
+            }
+
+            if (event.target.closest('#conv-back-link')) {
+                event.preventDefault();
+                closeWorkspace();
+                return;
+            }
+
+            if (event.target.closest('#conv-retry')) { await refresh(false); return; }
+            if (event.target.closest('#conv-clear-filters')) { clearFilters(); return; }
+
+            const filterChip = event.target.closest('[data-filter]');
+            if (filterChip) {
+                const key = filterChip.dataset.filter === 'awaiting' ? 'awaitingHuman' : 'overdue';
+                state.filters[key] = !state.filters[key];
+                filterChip.setAttribute('aria-pressed', String(state.filters[key]));
+                renderPipeline();
+                if (state.selectedConversationId) renderMiniRail();
+                return;
+            }
+
+            const mobileTab = event.target.closest('#conv-mobile-segment [role="radio"]');
+            if (mobileTab) {
+                document.querySelectorAll('#conv-mobile-segment [role="radio"]').forEach(btn => {
+                    const checked = btn === mobileTab;
+                    btn.setAttribute('aria-checked', String(checked));
+                    btn.tabIndex = checked ? 0 : -1;
                 });
-                const json = await res.json();
-                if (json.status === 'success') {
-                    await fetchEscalations();
-                    filterConversations();
-                    const replyBox = document.getElementById('reply-box');
-                    const resolveBtn = document.getElementById('resolve-btn');
-                    if (replyBox) replyBox.style.display = 'none';
-                    if (resolveBtn) resolveBtn.style.display = 'none';
-                }
-            } catch (err) {}
-        }
-
-        function handleReplyKey(e) {
-            if (e.key === 'Enter') sendReply();
-        }
-
-        function createChatHeader(phone, name, loading = false) {
-            const header = document.createElement('div');
-            header.className = 'chat-header';
-
-            const left = document.createElement('div');
-            left.className = 'chat-header-left';
-
-            const avatar = document.createElement('div');
-            avatar.className = 'chat-header-avatar';
-            avatar.textContent = getAvatarInitial(name);
-
-            const info = document.createElement('div');
-            info.className = 'chat-header-info';
-
-            const title = document.createElement('h3');
-            title.textContent = normalizeText(phone, "Unknown customer");
-
-            const subtitle = document.createElement('p');
-            subtitle.textContent = name !== 'User'
-                ? normalizeText(name, "Customer")
-                : (loading ? 'Loading...' : 'Customer');
-
-            info.appendChild(title);
-            info.appendChild(subtitle);
-            left.appendChild(avatar);
-            left.appendChild(info);
-            header.appendChild(left);
-
-            if (!loading && currentConversationId) {
-                const actions = document.createElement('div');
-                actions.className = 'chat-header-actions';
-
-                const copyLinkButton = document.createElement('button');
-                copyLinkButton.type = 'button';
-                copyLinkButton.className = 'transcript-btn';
-                copyLinkButton.textContent = 'Copy Link';
-                copyLinkButton.addEventListener('click', copyConversationLinkToClipboard);
-
-                const copyButton = document.createElement('button');
-                copyButton.type = 'button';
-                copyButton.className = 'transcript-btn';
-                copyButton.textContent = 'Copy Transcript';
-                copyButton.addEventListener('click', copyTranscriptToClipboard);
-
-                const downloadButton = document.createElement('button');
-                downloadButton.type = 'button';
-                downloadButton.className = 'transcript-btn';
-                downloadButton.textContent = 'Download .txt';
-                downloadButton.addEventListener('click', downloadTranscriptFile);
-
-                const crmButton = document.createElement('button');
-                crmButton.type = 'button';
-                crmButton.className = 'transcript-btn';
-                crmButton.textContent = 'CRM Lead';
-                crmButton.addEventListener('click', openConversationCrmModal);
-
-                const resolveBtn = document.createElement('button');
-                resolveBtn.type = 'button';
-                resolveBtn.className = 'transcript-btn';
-                resolveBtn.id = 'resolve-btn';
-                resolveBtn.style.display = 'none';
-                resolveBtn.style.background = 'var(--accent)';
-                resolveBtn.style.color = 'white';
-                resolveBtn.style.border = 'none';
-                resolveBtn.innerHTML = '<i data-lucide="check-circle" style="width: 14px; height: 14px; margin-right: 4px; display: inline-block; vertical-align: middle;"></i> Mark as Resolved';
-                resolveBtn.addEventListener('click', resolveEscalation);
-
-                const feedback = document.createElement('span');
-                feedback.className = 'transcript-feedback';
-                feedback.id = 'transcript-feedback';
-
-                actions.appendChild(resolveBtn);
-                actions.appendChild(crmButton);
-                actions.appendChild(copyLinkButton);
-                actions.appendChild(copyButton);
-                actions.appendChild(downloadButton);
-                actions.appendChild(feedback);
-                actions.appendChild(createMessageSearchControls());
-                header.appendChild(actions);
-            }
-
-            return header;
-        }
-
-        function createTranscriptMessage(message) {
-            const container = document.createElement('div');
-            container.style.textAlign = 'center';
-            container.style.color = 'var(--text-dim)';
-            container.style.marginTop = '40px';
-            container.textContent = message;
-            return container;
-        }
-
-        function createMessageSearchControls() {
-            const controls = document.createElement('div');
-            controls.className = 'message-search-controls';
-
-            const input = document.createElement('input');
-            input.type = 'search';
-            input.className = 'message-search-input';
-            input.id = 'message-search-input';
-            input.placeholder = 'Search messages...';
-            input.value = currentMessageSearchQuery;
-            input.addEventListener('input', event => {
-                currentMessageSearchQuery = event.target.value.trim();
-                currentMessageSearchIndex = currentMessageSearchQuery ? 0 : -1;
-                renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
-                focusMessageSearchInput();
-            });
-
-            const count = document.createElement('span');
-            count.className = 'message-search-count';
-            count.id = 'message-search-count';
-            count.textContent = '0 results';
-
-            const prevButton = document.createElement('button');
-            prevButton.type = 'button';
-            prevButton.className = 'transcript-btn message-search-btn';
-            prevButton.id = 'message-search-prev';
-            prevButton.textContent = 'Previous';
-            prevButton.addEventListener('click', () => navigateMessageSearch(-1));
-
-            const nextButton = document.createElement('button');
-            nextButton.type = 'button';
-            nextButton.className = 'transcript-btn message-search-btn';
-            nextButton.id = 'message-search-next';
-            nextButton.textContent = 'Next';
-            nextButton.addEventListener('click', () => navigateMessageSearch(1));
-
-            const clearButton = document.createElement('button');
-            clearButton.type = 'button';
-            clearButton.className = 'transcript-btn message-search-btn';
-            clearButton.id = 'message-search-clear';
-            clearButton.textContent = 'Clear';
-            clearButton.addEventListener('click', clearMessageSearch);
-
-            controls.appendChild(input);
-            controls.appendChild(count);
-            controls.appendChild(prevButton);
-            controls.appendChild(nextButton);
-            controls.appendChild(clearButton);
-
-            return controls;
-        }
-
-        function renderChatLoading(phone, name) {
-            const chatPane = document.getElementById('chat-pane');
-            chatPane.replaceChildren();
-
-            const transcript = document.createElement('div');
-            transcript.className = 'chat-transcript';
-            transcript.id = 'chat-transcript';
-            transcript.appendChild(createTranscriptMessage('Loading messages...'));
-
-            chatPane.appendChild(createChatHeader(phone, name, true));
-            chatPane.appendChild(transcript);
-            
-            const replyBox = document.createElement('div');
-            replyBox.id = 'reply-box';
-            replyBox.className = 'reply-box';
-            replyBox.style.display = 'none';
-            replyBox.style.padding = '20px';
-            replyBox.style.borderTop = '1px solid var(--glass-border)';
-            replyBox.style.background = 'rgba(0,0,0,0.2)';
-            replyBox.style.gap = '12px';
-            replyBox.style.alignItems = 'center';
-            
-            const replyInput = document.createElement('input');
-            replyInput.type = 'text';
-            replyInput.id = 'reply-input';
-            replyInput.placeholder = 'Type your reply to the customer...';
-            replyInput.style.flexGrow = '1';
-            replyInput.style.background = 'var(--input-bg)';
-            replyInput.style.border = '1px solid var(--glass-border)';
-            replyInput.style.borderRadius = '12px';
-            replyInput.style.padding = '12px 16px';
-            replyInput.style.color = 'white';
-            replyInput.style.fontSize = '0.95rem';
-            replyInput.style.outline = 'none';
-            replyInput.onkeypress = handleReplyKey;
-            
-            const sendBtn = document.createElement('button');
-            sendBtn.onclick = sendReply;
-            sendBtn.style.background = 'var(--primary)';
-            sendBtn.style.color = 'white';
-            sendBtn.style.border = 'none';
-            sendBtn.style.padding = '12px 20px';
-            sendBtn.style.borderRadius = '12px';
-            sendBtn.style.fontWeight = '600';
-            sendBtn.style.cursor = 'pointer';
-            sendBtn.style.display = 'flex';
-            sendBtn.style.alignItems = 'center';
-            sendBtn.style.gap = '8px';
-            sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send';
-            
-            replyBox.appendChild(replyInput);
-            replyBox.appendChild(sendBtn);
-            chatPane.appendChild(replyBox);
-        }
-
-        function appendTextWithLineBreaks(parent, text) {
-            const lines = normalizeText(text, "[Empty Message]").split(/\r?\n/);
-            lines.forEach((line, index) => {
-                if (index > 0) {
-                    parent.appendChild(document.createElement('br'));
-                }
-                parent.appendChild(document.createTextNode(line));
-            });
-        }
-
-        function appendHighlightedLine(parent, line, query) {
-            if (!query) {
-                parent.appendChild(document.createTextNode(line));
+                document.getElementById('conv-workspace').dataset.mobileTab = mobileTab.dataset.tab;
                 return;
             }
 
-            const lowerLine = line.toLowerCase();
-            const lowerQuery = query.toLowerCase();
-            let cursor = 0;
-
-            while (cursor < line.length) {
-                const matchIndex = lowerLine.indexOf(lowerQuery, cursor);
-                if (matchIndex === -1) {
-                    parent.appendChild(document.createTextNode(line.slice(cursor)));
-                    break;
-                }
-
-                if (matchIndex > cursor) {
-                    parent.appendChild(document.createTextNode(line.slice(cursor, matchIndex)));
-                }
-
-                const highlight = document.createElement('span');
-                highlight.className = 'message-search-highlight';
-                highlight.textContent = line.slice(matchIndex, matchIndex + query.length);
-                parent.appendChild(highlight);
-
-                cursor = matchIndex + query.length;
-            }
-        }
-
-        function appendSearchableMessageText(parent, text, query) {
-            const messageText = normalizeText(text, "[Empty Message]");
-            const lines = messageText.split(/\r?\n/);
-
-            lines.forEach((line, index) => {
-                if (index > 0) {
-                    parent.appendChild(document.createElement('br'));
-                }
-                appendHighlightedLine(parent, line, query);
-            });
-        }
-
-        function messageMatchesSearch(msg, query) {
-            if (!query) {
-                return false;
-            }
-
-            return normalizeText(msg.message_text).toLowerCase().includes(query.toLowerCase());
-        }
-
-        function resetMessageSearchState() {
-            currentMessageSearchQuery = "";
-            currentMessageSearchMatches = [];
-            currentMessageSearchIndex = -1;
-        }
-
-        function normalizeMessageSearchIndex() {
-            if (!currentMessageSearchQuery || currentMessageSearchMatches.length === 0) {
-                currentMessageSearchIndex = -1;
+            const stageBtn = event.target.closest('#conv-stage-group [role="radio"]');
+            if (stageBtn) {
+                await saveLeadField({ status: stageBtn.dataset.stage }, document.getElementById('conv-stage-status'));
                 return;
             }
 
-            if (currentMessageSearchIndex < 0 || currentMessageSearchIndex >= currentMessageSearchMatches.length) {
-                currentMessageSearchIndex = 0;
-            }
-        }
-
-        function updateActiveMessageMatch() {
-            currentMessageSearchMatches.forEach((row, index) => {
-                row.classList.toggle('search-active', index === currentMessageSearchIndex);
-            });
-        }
-
-        function updateMessageSearchControls() {
-            const count = document.getElementById('message-search-count');
-            const prevButton = document.getElementById('message-search-prev');
-            const nextButton = document.getElementById('message-search-next');
-            const clearButton = document.getElementById('message-search-clear');
-            const resultCount = currentMessageSearchMatches.length;
-            const hasSearch = Boolean(currentMessageSearchQuery);
-            const hasResults = resultCount > 0;
-
-            if (count) {
-                count.textContent = `${resultCount} ${resultCount === 1 ? 'result' : 'results'}`;
-            }
-
-            if (prevButton) {
-                prevButton.disabled = !hasResults;
-            }
-            if (nextButton) {
-                nextButton.disabled = !hasResults;
-            }
-            if (clearButton) {
-                clearButton.disabled = !hasSearch;
-            }
-        }
-
-        function scrollToActiveMessageMatch() {
-            const activeRow = currentMessageSearchMatches[currentMessageSearchIndex];
-            if (activeRow && typeof activeRow.scrollIntoView === 'function') {
-                activeRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }
-
-        function navigateMessageSearch(direction) {
-            if (!currentMessageSearchMatches.length) {
+            const priorityBtn = event.target.closest('#conv-priority-group [role="radio"]');
+            if (priorityBtn) {
+                await saveLeadField({ priority: priorityBtn.dataset.priority }, document.getElementById('conv-priority-status'));
                 return;
             }
 
-            currentMessageSearchIndex = (
-                currentMessageSearchIndex + direction + currentMessageSearchMatches.length
-            ) % currentMessageSearchMatches.length;
-
-            updateActiveMessageMatch();
-            updateMessageSearchControls();
-            scrollToActiveMessageMatch();
-        }
-
-        function clearMessageSearch() {
-            resetMessageSearchState();
-            renderMessages(currentConversationMessages, currentConversationPhone, currentConversationName);
-            focusMessageSearchInput();
-        }
-
-        function focusMessageSearchInput() {
-            const input = document.getElementById('message-search-input');
-            if (!input) {
+            if (event.target.closest('#conv-notes-save')) {
+                const notesEl = document.getElementById('conv-notes');
+                await saveLeadField({ notes: notesEl.value }, document.getElementById('conv-notes-status'));
                 return;
             }
 
-            input.focus();
-            const valueLength = input.value.length;
-            if (typeof input.setSelectionRange === 'function') {
-                input.setSelectionRange(valueLength, valueLength);
-            }
-        }
+            if (event.target.closest('#conv-reply-send')) { await sendReply(); return; }
+            if (event.target.closest('#conv-resolve-btn')) { await resolveEscalation(); return; }
+        });
 
-        function createDeliveryStatus(msg, isUser) {
-            if (isUser) {
-                return null;
-            }
-
-            const deliveryStatus = normalizeText(msg.delivery_status).toLowerCase();
-            const retryCount = Number(msg.retry_count || 0);
-            const status = document.createElement('div');
-
-            if (deliveryStatus === 'failed') {
-                status.className = 'message-delivery-status failed';
-                status.textContent = 'Failed to send - Auto retrying';
-                return status;
-            }
-
-            if (deliveryStatus === 'retrying') {
-                status.className = 'message-delivery-status retrying';
-                status.textContent = 'Retrying now...';
-                return status;
-            }
-
-            if (deliveryStatus === 'sent' && retryCount > 0) {
-                status.className = 'message-delivery-status retried';
-                status.textContent = 'Sent after retry';
-                return status;
-            }
-
-            if (deliveryStatus === 'permanent_failed') {
-                status.className = 'message-delivery-status failed';
-                status.textContent = 'Failed permanently';
-                return status;
-            }
-
-            return null;
-        }
-
-        function formatTranscriptDateTime(value) {
-            const date = new Date(value);
-            if (Number.isNaN(date.getTime())) {
-                return "-";
-            }
-            return date.toLocaleString();
-        }
-
-        function getDeliveryStatusText(msg, isUser) {
-            if (isUser) {
-                return "";
-            }
-
-            const deliveryStatus = normalizeText(msg.delivery_status).toLowerCase();
-            const retryCount = Number(msg.retry_count || 0);
-
-            if (deliveryStatus === 'failed') {
-                return 'Failed to send - Auto retrying';
-            }
-
-            if (deliveryStatus === 'retrying') {
-                return 'Retrying now...';
-            }
-
-            if (deliveryStatus === 'sent' && retryCount > 0) {
-                return 'Sent after retry';
-            }
-
-            if (deliveryStatus === 'permanent_failed') {
-                return 'Failed permanently';
-            }
-
-            return "";
-        }
-
-        function buildConversationTranscript() {
-            const lines = [];
-            const exportedAt = new Date().toLocaleString();
-
-            lines.push("Conversation Transcript");
-            lines.push(`Customer: ${normalizeText(currentConversationPhone, "Unknown customer")}`);
-            lines.push(`Name: ${normalizeText(currentConversationName, "Customer")}`);
-            lines.push(`Conversation ID: ${currentConversationId || "-"}`);
-            lines.push(`Exported At: ${exportedAt}`);
-            lines.push("");
-
-            if (!currentConversationMessages.length) {
-                lines.push("No messages recorded.");
-                return lines.join("\n");
-            }
-
-            currentConversationMessages.forEach(msg => {
-                const isUser = msg.sender_type === "customer";
-                const sender = isUser ? "Customer" : "Bot";
-                const messageText = normalizeText(msg.message_text, "[Empty Message]");
-                const statusText = getDeliveryStatusText(msg, isUser);
-
-                lines.push(`[${sender}] ${formatTranscriptDateTime(msg.created_at)}`);
-                lines.push(messageText);
-
-                if (statusText) {
-                    lines.push(`Delivery Status: ${statusText}`);
-                }
-
-                lines.push("");
-            });
-
-            return lines.join("\n");
-        }
-
-        function showTranscriptFeedback(message, type) {
-            const feedback = document.getElementById('transcript-feedback');
-            if (!feedback) {
+        document.addEventListener('change', async event => {
+            if (event.target.id === 'conv-followup') {
+                const value = event.target.value || null;
+                await saveLeadField({ follow_up_date: value }, document.getElementById('conv-followup-status'));
                 return;
             }
-
-            feedback.textContent = message;
-            feedback.className = `transcript-feedback ${type || ""}`.trim();
-
-            if (transcriptFeedbackTimer) {
-                window.clearTimeout(transcriptFeedbackTimer);
+            if (event.target.id === 'conv-owner') {
+                await saveLeadField({ assigned_to: event.target.value || null }, document.getElementById('conv-owner-status'), {
+                    onError: () => { event.target.value = event.target.dataset.previousValue || ''; }
+                });
+                return;
             }
+            if (event.target.id === 'conv-filter-bot') { state.filters.bot = event.target.value; renderPipeline(); if (state.selectedConversationId) renderMiniRail(); return; }
+            if (event.target.id === 'conv-filter-channel') { state.filters.channel = event.target.value; renderPipeline(); if (state.selectedConversationId) renderMiniRail(); return; }
+        });
 
-            transcriptFeedbackTimer = window.setTimeout(() => {
-                feedback.textContent = "";
-                feedback.className = "transcript-feedback";
-            }, 2200);
+        document.addEventListener('focusin', event => {
+            if (event.target.id === 'conv-owner') event.target.dataset.previousValue = event.target.value;
+        });
+
+        document.addEventListener('focusout', async event => {
+            if (event.target.id !== 'conv-notes') return;
+            const notesEl = event.target;
+            if (notesEl.value === notesEl.dataset.savedValue) return;
+            await saveLeadField({ notes: notesEl.value }, document.getElementById('conv-notes-status'));
+        });
+
+        let searchDebounce = null;
+        document.getElementById('conv-search').addEventListener('input', event => {
+            clearTimeout(searchDebounce);
+            const value = event.target.value;
+            searchDebounce = setTimeout(() => {
+                state.filters.search = value.trim().toLowerCase();
+                renderPipeline();
+                if (state.selectedConversationId) renderMiniRail();
+            }, 150);
+        });
+
+        function clearFilters() {
+            state.filters = { search: '', bot: '', channel: '', awaitingHuman: false, overdue: false };
+            document.getElementById('conv-search').value = '';
+            document.getElementById('conv-filter-bot').value = '';
+            document.getElementById('conv-filter-channel').value = '';
+            document.querySelectorAll('#conv-toolbar [data-filter]').forEach(chip => chip.setAttribute('aria-pressed', 'false'));
+            renderPipeline();
+            if (state.selectedConversationId) renderMiniRail();
         }
 
-        function fallbackCopyText(text) {
-            const textarea = document.createElement('textarea');
-            textarea.value = text;
-            textarea.setAttribute('readonly', '');
-            textarea.style.position = 'fixed';
-            textarea.style.left = '-9999px';
-
-            document.body.appendChild(textarea);
-            textarea.select();
-
-            try {
-                const copied = document.execCommand('copy');
-                document.body.removeChild(textarea);
-                return copied;
-            } catch (err) {
-                document.body.removeChild(textarea);
-                return false;
+        document.getElementById('conv-reply-text').addEventListener('keydown', event => {
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                sendReply();
             }
+        });
+
+        function transcriptText() {
+            return state.transcriptMessages.map(message => {
+                const sender = message.sender_type === 'customer' ? 'Customer' : 'Bot';
+                return `[${formatClockTime(message.created_at)}] ${sender}: ${message.message_text || ''}`;
+            }).join('\n');
         }
 
-        async function copyTranscriptToClipboard() {
-            const transcript = buildConversationTranscript();
-
+        async function copyText(value, successMessage) {
             try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
-                    await navigator.clipboard.writeText(transcript);
-                    showTranscriptFeedback("Copied", "success");
-                    return;
+                    await navigator.clipboard.writeText(value);
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = value;
+                    textarea.setAttribute('readonly', '');
+                    textarea.style.position = 'fixed';
+                    textarea.style.left = '-9999px';
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    document.execCommand('copy');
+                    textarea.remove();
                 }
-
-                const copied = fallbackCopyText(transcript);
-                showTranscriptFeedback(copied ? "Copied" : "Copy failed", copied ? "success" : "error");
-            } catch (err) {
-                console.error("Copy transcript failed", err);
-                const copied = fallbackCopyText(transcript);
-                showTranscriptFeedback(copied ? "Copied" : "Copy failed", copied ? "success" : "error");
+                flashStatus(document.getElementById('conv-compose-status'), successMessage, 3000);
+            } catch (error) {
+                flashStatus(document.getElementById('conv-compose-status'), 'Copy failed.', 3000);
             }
         }
 
-        function buildConversationLink() {
-            if (!currentConversationId || !selectedBotId) {
-                return "";
-            }
-
-            updateConversationUrl(currentConversationId);
-
+        function conversationLink() {
+            const conv = currentConversation();
+            if (!conv) return window.location.href;
             const url = new URL(window.location.href);
-            url.searchParams.set("bot_id", selectedBotId);
-            url.searchParams.set("conversation_id", currentConversationId);
+            url.searchParams.set('conversation_id', String(conv.id));
+            if (conv.chatbot_id) url.searchParams.set('bot_id', String(conv.chatbot_id));
             return url.toString();
         }
 
-        function normalizeCrmDateValue(value) {
-            return String(value || "").slice(0, 10);
-        }
-
-        function formatSourceLabel(source) {
-            const platform = normalizePlatform(source);
-            return platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "-";
-        }
-
-        async function fetchConversationCrmLead(conversationId) {
-            const response = await authenticatedFetch(
-                `/api/crm/leads?chatbot_id=${selectedBotId}&conversation_id=${conversationId}&limit=1`
-            );
-            const result = await response.json();
-
-            if (!response.ok || result.status !== "success") {
-                throw new Error(result.message || "Failed to load CRM lead");
-            }
-
-            const leads = result.data && Array.isArray(result.data.leads) ? result.data.leads : [];
-            return leads[0] || null;
-        }
-
-        async function upsertConversationCrmLead(payload) {
-            const response = await authenticatedFetch('/api/crm/leads/upsert', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-            });
-            const result = await response.json();
-
-            if (!response.ok || result.status !== 'success') {
-                throw new Error(result.message || 'Failed to save CRM lead');
-            }
-
-            return result.data && result.data.lead;
-        }
-
-        function populateConversationCrmModal(lead) {
-            const conversation = currentConversationData || {};
-            document.getElementById('crm-conversation-customer').textContent = getConversationDisplayIdentity(conversation);
-            document.getElementById('crm-conversation-source').textContent = formatSourceLabel(conversation.source_channel);
-            document.getElementById('crm-conversation-status').value = lead && lead.status ? lead.status : 'new';
-            document.getElementById('crm-conversation-priority').value = lead && lead.priority ? lead.priority : 'medium';
-            document.getElementById('crm-conversation-assigned-to').value = lead && lead.assigned_to ? lead.assigned_to : '';
-            document.getElementById('crm-conversation-follow-up-date').value = normalizeCrmDateValue(lead && lead.follow_up_date);
-            document.getElementById('crm-conversation-notes').value = lead && lead.notes ? lead.notes : '';
-        }
-
-        async function openConversationCrmModal() {
-            if (!currentConversationId || !currentConversationData) {
-                return;
-            }
-
-            const modal = document.getElementById('crm-conversation-modal');
-            const feedback = document.getElementById('crm-conversation-feedback');
-            const saveButton = document.getElementById('crm-conversation-save');
-
-            currentConversationCrmLead = null;
-            populateConversationCrmModal(null);
-            feedback.className = 'crm-modal-feedback';
-            feedback.textContent = 'Loading CRM lead...';
-            saveButton.disabled = true;
-            modal.classList.add('open');
-            modal.setAttribute('aria-hidden', 'false');
-
-            try {
-                currentConversationCrmLead = await fetchConversationCrmLead(currentConversationId);
-                populateConversationCrmModal(currentConversationCrmLead);
-                feedback.textContent = currentConversationCrmLead
-                    ? 'Existing CRM lead loaded.'
-                    : 'Ready to create a CRM lead for this conversation.';
-                saveButton.disabled = false;
-            } catch (err) {
-                console.error('Failed to load CRM lead for conversation', err);
-                feedback.className = 'crm-modal-feedback error';
-                feedback.textContent = 'Unable to load CRM lead.';
-                saveButton.disabled = true;
-            }
-        }
-
-        function closeConversationCrmModal() {
-            const modal = document.getElementById('crm-conversation-modal');
-            modal.classList.remove('open');
-            modal.setAttribute('aria-hidden', 'true');
-        }
-
-        async function saveConversationCrmLead() {
-            if (!currentConversationId || !currentConversationData) {
-                return;
-            }
-
-            const saveButton = document.getElementById('crm-conversation-save');
-            const feedback = document.getElementById('crm-conversation-feedback');
-
-            saveButton.disabled = true;
-            saveButton.textContent = 'Saving...';
-            feedback.className = 'crm-modal-feedback';
-            feedback.textContent = '';
-
-            try {
-                currentConversationCrmLead = await upsertConversationCrmLead({
-                    chatbot_id: Number(selectedBotId),
-                    conversation_id: Number(currentConversationId),
-                    customer_name: currentConversationData.customer_name || '',
-                    customer_phone: currentConversationData.customer_phone || '',
-                    source_channel: currentConversationData.source_channel || '',
-                    status: document.getElementById('crm-conversation-status').value,
-                    priority: document.getElementById('crm-conversation-priority').value,
-                    assigned_to: document.getElementById('crm-conversation-assigned-to').value,
-                    follow_up_date: document.getElementById('crm-conversation-follow-up-date').value || null,
-                    notes: document.getElementById('crm-conversation-notes').value,
-                });
-
-                populateConversationCrmModal(currentConversationCrmLead);
-                feedback.className = 'crm-modal-feedback success';
-                feedback.textContent = 'CRM lead saved.';
-                saveButton.textContent = 'Saved';
-                saveButton.disabled = false;
-
-                window.setTimeout(() => {
-                    saveButton.textContent = 'Save CRM Lead';
-                }, 1600);
-            } catch (err) {
-                console.error('Failed to save CRM lead from conversation', err);
-                feedback.className = 'crm-modal-feedback error';
-                feedback.textContent = 'Failed to save CRM lead.';
-                saveButton.textContent = 'Save CRM Lead';
-                saveButton.disabled = false;
-            }
-        }
-
-        function setupConversationCrmModal() {
-            const modal = document.getElementById('crm-conversation-modal');
-            const closeButton = document.getElementById('crm-conversation-modal-close');
-            const saveButton = document.getElementById('crm-conversation-save');
-
-            if (closeButton) {
-                closeButton.addEventListener('click', closeConversationCrmModal);
-            }
-
-            if (saveButton) {
-                saveButton.addEventListener('click', saveConversationCrmLead);
-            }
-
-            if (modal) {
-                modal.addEventListener('click', event => {
-                    if (event.target === modal) {
-                        closeConversationCrmModal();
-                    }
-                });
-            }
-        }
-
-        async function copyConversationLinkToClipboard() {
-            const conversationLink = buildConversationLink();
-            if (!conversationLink) {
-                showTranscriptFeedback("Copy failed", "error");
-                return;
-            }
-
-            try {
-                if (navigator.clipboard && navigator.clipboard.writeText) {
-                    await navigator.clipboard.writeText(conversationLink);
-                    showTranscriptFeedback("Link copied", "success");
-                    return;
-                }
-
-                const copied = fallbackCopyText(conversationLink);
-                showTranscriptFeedback(copied ? "Link copied" : "Copy failed", copied ? "success" : "error");
-            } catch (err) {
-                console.error("Copy conversation link failed", err);
-                const copied = fallbackCopyText(conversationLink);
-                showTranscriptFeedback(copied ? "Link copied" : "Copy failed", copied ? "success" : "error");
-            }
-        }
-
-        function getDownloadDateString() {
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, "0");
-            const day = String(today.getDate()).padStart(2, "0");
-            return `${year}-${month}-${day}`;
-        }
-
-        function downloadTranscriptFile() {
-            const transcript = buildConversationTranscript();
-            const blob = new Blob([transcript], { type: "text/plain;charset=utf-8" });
-            const url = URL.createObjectURL(blob);
-
+        function downloadTranscript() {
+            const blob = new Blob([transcriptText()], { type: 'text/plain;charset=utf-8' });
+            const href = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            link.href = url;
-            link.download = `conversation_${currentConversationId || "unknown"}_${getDownloadDateString()}.txt`;
-
-            document.body.appendChild(link);
+            link.href = href;
+            link.download = `conversation-${currentConversation()?.id || 'transcript'}.txt`;
             link.click();
-            document.body.removeChild(link);
-
-            URL.revokeObjectURL(url);
-            showTranscriptFeedback("Downloaded", "success");
+            URL.revokeObjectURL(href);
         }
 
-        function renderMessages(messages, phone, name) {
-            const chatPane = document.getElementById('chat-pane');
-            currentMessageSearchMatches = [];
-            const searchQuery = currentMessageSearchQuery.trim();
+        document.getElementById('conv-copy-link').addEventListener('click', () => copyText(conversationLink(), 'Link copied.'));
+        document.getElementById('conv-copy-transcript').addEventListener('click', () => copyText(transcriptText(), 'Transcript copied.'));
+        document.getElementById('conv-download-transcript').addEventListener('click', downloadTranscript);
+        document.getElementById('conv-message-search').addEventListener('input', event => {
+            state.transcriptSearch = event.target.value.trim().toLowerCase();
+            renderTranscriptMessages();
+        });
 
-            let transcript = document.getElementById('chat-transcript');
-            let replyBox = document.getElementById('reply-box');
-            let chatHeader = chatPane.querySelector('.chat-header');
+        /* ── Boot ──────────────────────────────────────────────────────── */
 
-            if (chatHeader && !chatHeader.querySelector('.chat-header-actions')) {
-                const newHeader = createChatHeader(phone, name);
-                chatPane.replaceChild(newHeader, chatHeader);
-                chatHeader = newHeader;
+        (async function boot() {
+            await refresh(false);
+            startPolling();
+
+            const deepLinkId = new URLSearchParams(window.location.search).get('conversation_id');
+            if (deepLinkId && state.conversations.some(c => String(c.id) === String(deepLinkId))) {
+                await openConversation(Number(deepLinkId));
             }
-
-            if (!transcript) {
-                chatPane.replaceChildren();
-                chatHeader = createChatHeader(phone, name);
-                chatPane.appendChild(chatHeader);
-
-                transcript = document.createElement('div');
-                transcript.className = 'chat-transcript';
-                transcript.id = 'chat-transcript';
-                chatPane.appendChild(transcript);
-                
-                replyBox = document.createElement('div');
-                replyBox.id = 'reply-box';
-                replyBox.className = 'reply-box';
-                replyBox.style.display = 'none';
-                replyBox.style.padding = '20px';
-                replyBox.style.borderTop = '1px solid var(--glass-border)';
-                replyBox.style.background = 'rgba(0,0,0,0.2)';
-                replyBox.style.gap = '12px';
-                replyBox.style.alignItems = 'center';
-                
-                const replyInput = document.createElement('input');
-                replyInput.type = 'text';
-                replyInput.id = 'reply-input';
-                replyInput.placeholder = 'Type your reply to the customer...';
-                replyInput.style.flexGrow = '1';
-                replyInput.style.background = 'var(--input-bg)';
-                replyInput.style.border = '1px solid var(--glass-border)';
-                replyInput.style.borderRadius = '12px';
-                replyInput.style.padding = '12px 16px';
-                replyInput.style.color = 'white';
-                replyInput.style.fontSize = '0.95rem';
-                replyInput.style.outline = 'none';
-                replyInput.onkeypress = handleReplyKey;
-                
-                const sendBtn = document.createElement('button');
-                sendBtn.onclick = sendReply;
-                sendBtn.style.background = 'var(--primary)';
-                sendBtn.style.color = 'white';
-                sendBtn.style.border = 'none';
-                sendBtn.style.padding = '12px 20px';
-                sendBtn.style.borderRadius = '12px';
-                sendBtn.style.fontWeight = '600';
-                sendBtn.style.cursor = 'pointer';
-                sendBtn.style.display = 'flex';
-                sendBtn.style.alignItems = 'center';
-                sendBtn.style.gap = '8px';
-                sendBtn.innerHTML = '<i data-lucide="send" style="width:16px;height:16px;"></i> Send';
-                
-                replyBox.appendChild(replyInput);
-                replyBox.appendChild(sendBtn);
-                chatPane.appendChild(replyBox);
-            }
-
-            const shouldScrollToBottom = transcript.scrollHeight - transcript.scrollTop <= transcript.clientHeight + 50;
-
-            transcript.replaceChildren();
-
-            if (!messages || messages.length === 0) {
-                transcript.appendChild(createTranscriptMessage('No messages recorded yet.'));
-            } else {
-                messages.forEach(msg => {
-                    const isUser = msg.sender_type === "customer";
-                    const isMatch = messageMatchesSearch(msg, searchQuery);
-                    const row = document.createElement('div');
-                    row.className = `message-row ${isUser ? "user" : "bot"}`;
-
-                    const bubble = document.createElement('div');
-                    bubble.className = 'message-bubble';
-                    appendSearchableMessageText(bubble, msg.message_text, searchQuery);
-
-                    if (isMatch) {
-                        currentMessageSearchMatches.push(row);
-                    }
-
-                    const deliveryStatus = createDeliveryStatus(msg, isUser);
-                    if (deliveryStatus) {
-                        bubble.appendChild(deliveryStatus);
-                    }
-
-                    const time = document.createElement('div');
-                    time.className = 'message-time';
-                    time.textContent = formatTime(msg.created_at);
-                    bubble.appendChild(time);
-
-                    row.appendChild(bubble);
-                    transcript.appendChild(row);
-                });
-            }
-
-            if (shouldScrollToBottom) {
-                transcript.scrollTop = transcript.scrollHeight;
-            }
-
-            if (window.lucide && typeof window.lucide.createIcons === 'function') {
-                window.lucide.createIcons();
-            }
-
-            normalizeMessageSearchIndex();
-            updateActiveMessageMatch();
-            updateMessageSearchControls();
-
-            const transcriptEl = document.getElementById('chat-transcript');
-            if (currentMessageSearchQuery && currentMessageSearchMatches.length) {
-                scrollToActiveMessageMatch();
-            } else if (transcriptEl) {
-                transcriptEl.scrollTop = transcriptEl.scrollHeight;
-            }
-        }
-
+        })();
     </script>
 </body>
 
 </html>
-

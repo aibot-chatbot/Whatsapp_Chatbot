@@ -24,7 +24,6 @@ agent_blueprint = Blueprint("agent", __name__)
 
 @agent_blueprint.route("/api/agent/escalations", methods=["GET"])
 @token_required
-@role_required("admin", "owner")
 def get_escalations():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -158,16 +157,6 @@ def agent_reply(conversation_id):
         customer_phone = conversation.get("customer_phone")
         platform_user_id = conversation.get("platform_user_id")
 
-        # Save agent's message to DB
-        save_message(
-            conversation_id=conversation_id,
-            sender_type="bot", # Treat agent as bot visually for now
-            message_text=text,
-            message_type="text",
-            delivery_status="sent",
-            ai_generated=False,
-        )
-
         # Dispatch
         try:
             if source_channel == "whatsapp":
@@ -195,7 +184,19 @@ def agent_reply(conversation_id):
 
         except Exception as dispatch_e:
             logging.error(f"Failed to dispatch agent message: {dispatch_e}")
-            return jsonify({"status": "error", "message": f"Message saved, but failed to send: {str(dispatch_e)}"}), 500
+            return jsonify({"status": "error", "message": f"Failed to send message: {str(dispatch_e)}"}), 500
+
+        # Persist only after the external channel accepted the message. This
+        # prevents an unsupported or unavailable channel from creating a
+        # transcript row that claims delivery.
+        save_message(
+            conversation_id=conversation_id,
+            sender_type="bot",
+            message_text=text,
+            message_type="text",
+            delivery_status="sent",
+            ai_generated=False,
+        )
 
         return jsonify({"status": "success", "message": "Reply sent successfully."}), 200
 

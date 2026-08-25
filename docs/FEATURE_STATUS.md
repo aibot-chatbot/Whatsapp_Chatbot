@@ -162,11 +162,11 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 | Copy transcript | Implemented | Previously reviewed |
 | Download transcript | Implemented | Previously reviewed |
 | CRM lead list | Implemented | Company/chatbot scoped |
-| Lead status | Implemented | Status editing exists |
+| Lead status | Implemented | Canonical stages are `new`, `contacted`, `qualified`, `won`, and `lost`; the legacy CRM page and company-wide conversations pipeline use the same vocabulary. API reads and writes accept `in_progress`/`closed` aliases during the compatibility window. Migration 046 widens the database check; live schema application and browser verification remain outstanding. |
 | Lead priority | Implemented | Priority editing exists |
 | Lead assignment | Verified complete | Non-empty assignment uses the authenticated database-backed company context and remains gated by crm_lead_assignment; assignment clearing remains available to all plans; focused route regression tests cover success and rejection paths |
 | Lead follow-up | Implemented | Follow-up fields and UI exist |
-| CRM filters | Implemented | Status, assignment, and related filtering exist |
+| CRM filters | Implemented | Status, assignment, and related filtering exist across the legacy CRM page and the company-wide conversations pipeline |
 | CRM-to-conversation navigation | Implemented | Conversation ID linking was previously reviewed |
 
 ## Analytics and Operations

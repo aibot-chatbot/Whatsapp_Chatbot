@@ -554,7 +554,7 @@ Expand automated coverage beyond billing.
 
 - Escalation listing and exact-ID resolution now require the current database-backed owner/admin role. Resolution changes only the requested detected escalation, is idempotent on retries, and does not resume AI while another pausing escalation remains.
 - Automatic CRM conversion now derives company ownership from the chatbot, verifies the conversation belongs to that chatbot, creates staff-attention leads for handoff requests before returning the handoff response, and keeps CRM failure non-blocking for customer messaging. Handoff email ownership also uses the authoritative chatbot company and never falls back to conversation payload ownership.
-- Automatic and manual CRM flows reuse only open leads. Closed leads remain historical, and structured unique-conflict recovery reloads the concurrently created open lead.
+- Automatic and manual CRM flows reuse only open leads. Terminal leads (`won`/`lost`, with the legacy `closed` alias normalized at the API boundary) remain historical, and structured unique-conflict recovery reloads the concurrently created open lead.
 - Same-action resolution retries cannot resend the AI-resumed notification. Atomic deduplication when two different final actions are resolved concurrently remains deferred to the lifecycle transaction/RPC phase.
 - Expanded AI Signal lifecycle states, reviewer/audit fields, direct signal-to-lead linkage, and frontend actions remain deferred. No production database deployment is recorded by this application-only stabilization phase.
 
