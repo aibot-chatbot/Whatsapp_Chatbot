@@ -84,6 +84,28 @@ reported 223 passed with 7 existing warnings, and `git diff --check` passed.
 This update does not claim multi-page website ingestion quality/provenance
 improvements, staging deployment, or real production readiness.
 
+### AI-credit activity accounting hardening - 2026-08-26
+
+Refine Answers now records explicit billed operation metadata for question
+generation and ambiguity verification, and Recent AI Credit Activity displays
+those debit rows as "Refine Answers" with model, provider, token counts, MYR
+charge, and balance-after details. Several other customer-facing generative
+operations no longer reuse the generic Knowledge Training label: Test Scenario
+Generation, Persona Derivation, Profile / Knowledge Validation, Website
+Knowledge Training, and Knowledge Graph Training now have distinct operation
+types and billing-friendly labels.
+
+Central AI-credit accounting now fails closed when enforcement is enabled and a
+successful customer-billed provider response cannot become a usage-debit
+transaction because usage logging, provider-cost lookup, subscription/balance
+state, or usage lookup is unavailable. The trial DeepSeek routing/pricing model
+mismatch was corrected to the priced/catalogued `deepseek-v4-flash` path.
+Embeddings remain non-customer-billed by current policy and do not appear in
+Recent AI Credit Activity. Manual verification passed for Knowledge Workspace
+Refine Answers; broader operation-label behavior is covered by automated
+accounting/source-contract tests. This note does not claim live verification for
+every operation type, staging deployment, or production deployment.
+
 ### Phase 4L update - Platform-admin controls
 
 Current Superadmin prototype roadmap status after this milestone:

@@ -751,8 +751,8 @@ class PersonaDerivationServiceTests(unittest.TestCase):
         for field in DERIVED_FIELDS:
             self.assertEqual(provenance[field], PROVENANCE_DERIVED, field)
 
-    def test_derivation_routes_through_the_existing_extraction_operation(self):
-        from app.services.ai_router import OPERATION_KNOWLEDGE_EXTRACTION
+    def test_derivation_routes_through_the_persona_operation(self):
+        from app.services.ai_router import OPERATION_PERSONA_DERIVATION
 
         seen = {}
 
@@ -763,7 +763,7 @@ class PersonaDerivationServiceTests(unittest.TestCase):
         self._derive(_llm)
 
         self.assertEqual(seen["chatbot_id"], 7)
-        self.assertEqual(seen["operation_type"], OPERATION_KNOWLEDGE_EXTRACTION)
+        self.assertEqual(seen["operation_type"], OPERATION_PERSONA_DERIVATION)
         self.assertIsNone(seen["provider"])
         self.assertIsNone(seen["model"])
         self.assertTrue(seen["json_response"])

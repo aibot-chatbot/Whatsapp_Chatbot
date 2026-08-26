@@ -23,7 +23,7 @@ that cannot tell those apart writes raw scraped page furniture into
 
 Routing, provider and model selection are untouched: the same
 ``generate_system_response(provider=None, model=None,
-operation_type=OPERATION_KNOWLEDGE_EXTRACTION)`` call the existing extraction
+operation_type=OPERATION_PERSONA_DERIVATION)`` call the existing extraction
 path uses.
 
 **Residual prompt-injection risk -- read before extending this.**  The
@@ -261,7 +261,7 @@ def _clean_value(field: str, value: Any) -> str | None:
 def _request_persona(source_text: str, chatbot_id: int) -> Any:
     """Ask the LLM for the persona.  Imported lazily, as knowledge_service does."""
     from app.services.ai_router import (
-        OPERATION_KNOWLEDGE_EXTRACTION,
+        OPERATION_PERSONA_DERIVATION,
         generate_system_response,
     )
 
@@ -279,7 +279,7 @@ def _request_persona(source_text: str, chatbot_id: int) -> Any:
         model=None,
         temperature=DERIVATION_TEMPERATURE,
         json_response=True,
-        operation_type=OPERATION_KNOWLEDGE_EXTRACTION,
+        operation_type=OPERATION_PERSONA_DERIVATION,
     )
 
 

@@ -6,7 +6,10 @@ import os
 from app.services.settings_service import get_draft_runtime
 from app.services.profile_service import get_profile_by_name
 from app.services.knowledge_service import get_active_pdf
-from app.services.ai_router import generate_system_response
+from app.services.ai_router import (
+    OPERATION_PROFILE_KNOWLEDGE_MATCH,
+    generate_system_response,
+)
 from app.database.bot_repository import get_bot_by_id
 from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.database.knowledge_chunk_repository import get_chunks_by_file
@@ -136,6 +139,7 @@ Rules:
             prompt=prompt,
             chatbot_id=chatbot_id,
             temperature=0.3,
+            operation_type=OPERATION_PROFILE_KNOWLEDGE_MATCH,
         )
 
     except Exception as e:

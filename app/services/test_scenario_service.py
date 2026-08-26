@@ -246,7 +246,7 @@ def build_test_scenarios(chatbot_id: int) -> dict[str, Any]:
     # Imported lazily, as knowledge_service and persona_derivation do, so this
     # module stays importable without the AI stack configured.
     from app.services.ai_router import (
-        OPERATION_KNOWLEDGE_EXTRACTION,
+        OPERATION_TEST_SCENARIO_GENERATION,
         generate_system_response,
     )
 
@@ -261,7 +261,7 @@ def build_test_scenarios(chatbot_id: int) -> dict[str, Any]:
             chatbot_id=chatbot_id,
             temperature=SCENARIO_TEMPERATURE,
             json_response=True,
-            operation_type=OPERATION_KNOWLEDGE_EXTRACTION,
+            operation_type=OPERATION_TEST_SCENARIO_GENERATION,
         )
     except Exception as error:  # noqa: BLE001 - degrade, never block the lab
         # BillingLimitError lands here too.  Losing the matched questions is a
