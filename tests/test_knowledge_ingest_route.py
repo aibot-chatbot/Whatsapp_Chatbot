@@ -31,6 +31,15 @@ CURRENT_USER = {
     "status": "active",
 }
 
+ACTIVE_PRIMARY_PDF = {
+    "id": 41,
+    "chatbot_id": CHATBOT_ID,
+    "file_name": "primary.pdf",
+    "file_type": "pdf",
+    "is_active": True,
+    "is_enabled": True,
+}
+
 # The ingestion service calls the stage functions through the knowledge_service
 # module, so every stage is patched in that one namespace.
 SERVICE = "app.services.knowledge_service"
@@ -57,6 +66,9 @@ def authenticated():
         "app.routes.knowledge_routes.can_use_plan_feature"
     ), patch(
         "app.routes.knowledge_routes.can_upload_knowledge_file"
+    ), patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file",
+        return_value=ACTIVE_PRIMARY_PDF,
     ):
         yield
 
@@ -420,6 +432,31 @@ def test_ingest_requires_chatbot_id(client, authenticated):
     assert response.status_code == 400
 
 
+def test_ingest_requires_active_primary_pdf_before_pipeline_work(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file", return_value=None
+    ), patch(f"{SERVICE}.fetch_and_parse_url") as fetch, patch(
+        f"{SERVICE}.extract_business_knowledge"
+    ) as extract, patch(
+        f"{SERVICE}.save_refined_knowledge_chunks"
+    ) as save:
+        response = client.post(
+            INGEST_URL,
+            json={"sources": ["https://example.test"]},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 409
+    body = response.get_json()
+    assert body["code"] == "primary_pdf_required"
+    assert body["message"] == "Upload a Primary PDF before adding website knowledge."
+    fetch.assert_not_called()
+    extract.assert_not_called()
+    save.assert_not_called()
+
+
 def test_ingest_denies_members(client):
     with patch(
         "app.decorators.auth_decorator.jwt.decode",
@@ -473,6 +510,9 @@ def test_plan_feature_gate_blocks_before_any_scraping(client):
     ), patch(
         "app.routes.knowledge_routes.verify_chatbot_access"
     ), patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file",
+        return_value=ACTIVE_PRIMARY_PDF,
+    ), patch(
         "app.routes.knowledge_routes.can_use_plan_feature",
         side_effect=BillingLimitError(
             "Your plan does not include batch website scraping",
@@ -502,6 +542,9 @@ def test_file_quota_gate_blocks_before_the_billed_llm_extraction(client):
         "app.database.user_repository.get_user_by_id", return_value=CURRENT_USER
     ), patch(
         "app.routes.knowledge_routes.verify_chatbot_access"
+    ), patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file",
+        return_value=ACTIVE_PRIMARY_PDF,
     ), patch(
         "app.routes.knowledge_routes.can_use_plan_feature"
     ), patch(

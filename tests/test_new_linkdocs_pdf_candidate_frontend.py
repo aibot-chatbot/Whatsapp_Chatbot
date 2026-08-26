@@ -75,6 +75,8 @@ class TestNewLinkdocsPdfCandidateFrontend(unittest.TestCase):
         )
 
     def test_special_backend_errors_are_mapped_to_friendly_copy(self):
+        self.assertIn("primary_pdf_required", self.html)
+        self.assertIn("Upload a Primary PDF before adding website knowledge.", self.html)
         self.assertIn("primary_changed_revalidation_required", self.html)
         self.assertIn("Your Primary knowledge source changed after this PDF was checked. Please validate the PDF again.", self.html)
         self.assertIn("candidate_expired", self.html)
@@ -135,9 +137,39 @@ class TestNewLinkdocsPdfCandidateFrontend(unittest.TestCase):
         self.assertIn("activeFileDisplayName={primarySourceDisplayName}", self.html)
 
     def test_supporting_confirmation_loading_copy_uses_confirming_state(self):
-        self.assertIn("{(isUploading || isValidatingPdf || isConfirmingPdf) && (", self.html)
-        self.assertIn('isConfirmingPdf\n                                                        ? "Adding Supporting Knowledge. Knowledge processing is now occurring."', self.html)
-        self.assertIn('isValidatingPdf\n                                                    ? "We are reading this PDF and checking whether it is related to your current Primary knowledge source."', self.html)
+        self.assertIn("const operationTitle = isValidatingPdf", self.html)
+        self.assertIn('? "Checking document relevance"', self.html)
+        self.assertIn('? "Adding Supporting knowledge"', self.html)
+        self.assertIn("We are reading this PDF and checking whether it is related to your current Primary knowledge source.", self.html)
+        self.assertIn("{isKnowledgeOperationInFlight && (", self.html)
+
+    def test_website_requires_active_primary_pdf_in_frontend(self):
+        self.assertIn("const hasActivePrimaryPdf = Boolean(primarySource && !isWebsiteKnowledge(primarySource) && isSourceEnabled(primarySource));", self.html)
+        self.assertIn("const canAddWebsite = canImportWebsite && hasActivePrimaryPdf;", self.html)
+        self.assertIn("Upload a Primary PDF before adding website knowledge.", self.html)
+        self.assertIn("disabled={!canAddWebsite}", self.html)
+        self.assertIn("!hasActivePrimaryPdf || !linkUrl.trim()", self.html)
+
+    def test_pdf_upload_remains_available_without_active_primary_pdf(self):
+        self.assertIn("const pdfPrimaryActionLabel = hasPrimarySource ? \"Check PDF\" : \"Upload Primary PDF\";", self.html)
+        self.assertIn("await uploadPdfAsPrimary(originalFileName);", self._const_function("handleUpload"))
+        self.assertIn("disabled={isUploading || !file}", self.html)
+        self.assertNotIn("disabled={isUploading || !file || !hasActivePrimaryPdf}", self.html)
+
+    def test_processing_panel_has_elapsed_timer_without_fake_eta(self):
+        self.assertIn("const [elapsedSeconds, setElapsedSeconds] = useState(0);", self.html)
+        self.assertIn("window.setInterval(tick, 1000)", self.html)
+        self.assertIn("Elapsed: {formatElapsedTime(elapsedSeconds)}", self.html)
+        self.assertIn("kw-operation-bar", self.html)
+        self.assertIn("Please keep this page open while processing completes.", self.html)
+        self.assertNotIn("Estimated remaining", self.html)
+        self.assertNotIn("ETA", self.html)
+
+    def test_beforeunload_warning_only_exists_while_processing(self):
+        self.assertIn("const isKnowledgeOperationInFlight = isUploading || isAnalyzing || isExtracting || isValidatingPdf || isConfirmingPdf;", self.html)
+        self.assertIn("if (!isKnowledgeOperationInFlight) return;", self.html)
+        self.assertIn('window.addEventListener("beforeunload", warnBeforeUnload);', self.html)
+        self.assertIn('window.removeEventListener("beforeunload", warnBeforeUnload);', self.html)
 
     def test_file_input_has_native_reset_helper(self):
         self.assertIn("const pdfFileInputRef = React.useRef(null);", self.html)

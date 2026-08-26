@@ -60,6 +60,30 @@ candidate embedding requests and has a small provider cost; candidate cleanup is
 opportunistic; and local Playwright coverage is blocked where Chromium is
 missing. This does not claim future staging or real production readiness.
 
+### Knowledge Workspace onboarding hardening - 2026-08-26
+
+Website knowledge now requires an enabled active Primary PDF. The requirement
+is enforced in both the Knowledge Workspace frontend and the backend website
+creation/scraping/ingestion routes. Missing Primary state fails before website
+scraping, AI refinement, quota-consuming storage, or website ingestion work;
+Supporting PDFs, disabled PDFs, inactive PDFs, and non-PDF active sources do
+not satisfy the rule. Existing website sources are not deleted or modified.
+
+The batch website route now propagates authenticated `company_id` into
+`scrape_website_urls_batch`, so storage-quota enforcement is not bypassed.
+Long-running knowledge operations now show an indeterminate processing panel
+with elapsed time, duplicate actions are blocked while processing, and standard
+`beforeunload` protection is active only during in-flight processing. Supporting
+PDF confirmation remains explicit.
+
+Manual happy-path verification covered the no-Primary website lock, Primary PDF
+upload progress, website enablement after Primary creation, website processing,
+and website save as Supporting while the Primary remained active. Automated
+regression evidence for this hardening pass: broader Knowledge Workspace slice
+reported 223 passed with 7 existing warnings, and `git diff --check` passed.
+This update does not claim multi-page website ingestion quality/provenance
+improvements, staging deployment, or real production readiness.
+
 ### Phase 4L update - Platform-admin controls
 
 Current Superadmin prototype roadmap status after this milestone:

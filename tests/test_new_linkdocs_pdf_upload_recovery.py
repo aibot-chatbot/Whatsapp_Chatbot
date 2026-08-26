@@ -75,13 +75,9 @@ class TestNewLinkdocsPdfUploadRecovery(unittest.TestCase):
             "Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh.",
             self.html,
         )
-        self.assertIn("{(isUploading || isValidatingPdf || isConfirmingPdf) && (", self.html)
-        reminder_index = self.html.index(
-            "Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh."
-        )
-        gate_index = self.html.rfind("{(isUploading || isValidatingPdf || isConfirmingPdf) && (", 0, reminder_index)
-        self.assertNotEqual(gate_index, -1)
-        self.assertLess(gate_index, reminder_index)
+        self.assertIn("{isKnowledgeOperationInFlight && (", self.html)
+        self.assertIn("kw-operation-panel", self.html)
+        self.assertIn("Elapsed: {formatElapsedTime(elapsedSeconds)}", self.html)
 
     def test_recovery_poll_uses_existing_endpoints_and_filename_matching(self):
         matcher = self._const_function("matchesUploadedPdfName")
