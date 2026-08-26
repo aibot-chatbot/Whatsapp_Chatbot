@@ -1,5 +1,6 @@
 import os
 import logging
+import uuid
 from werkzeug.utils import secure_filename
 
 from app.services.settings_service import update_chatbot_runtime
@@ -23,7 +24,7 @@ DATA_FOLDER = os.path.abspath(
 from app.services.document_ocr_service import OCR_PAGE_LIMIT
 
 
-def save_uploaded_pdf(file, chatbot_id):
+def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candidate_id=None):
     if not file:
         raise ValueError("No file provided")
 
@@ -33,10 +34,13 @@ def save_uploaded_pdf(file, chatbot_id):
     if not file.filename.lower().endswith(".pdf"):
         raise ValueError("Invalid file type")
 
+    if target_role not in ("primary", "supporting"):
+        raise ValueError("target_role must be 'primary' or 'supporting'")
+
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
-    original_name = secure_filename(file.filename)
-    safe_name = f"bot_{chatbot_id}_{original_name}"
+    original_name = secure_filename(file.filename) or "uploaded.pdf"
+    safe_name = f"bot_{chatbot_id}_{uuid.uuid4().hex}_{original_name}"
 
     filepath = os.path.join(DATA_FOLDER, safe_name)
     file.save(filepath)
@@ -55,7 +59,11 @@ def save_uploaded_pdf(file, chatbot_id):
         # completion up front is what let an image-only or corrupt PDF report
         # "Ready" while holding zero searchable chunks.
         processing_status="processing",
-        match_status="unchecked"
+        match_status="unchecked",
+        is_enabled=True,
+        is_active=False if target_role == "supporting" else None,
+        source_pdf_candidate_id=source_pdf_candidate_id,
+        original_file_name=original_name,
     )
 
     file_id = file_record["id"]
@@ -92,22 +100,23 @@ def save_uploaded_pdf(file, chatbot_id):
         except Exception as log_err:
             logging.error(f"Failed to log history for failed PDF upload: {log_err}")
 
+        role_label = "primary knowledge" if target_role == "primary" else "supporting knowledge"
         if extraction.ocr_used:
             reason = (
                 "We scanned this PDF as images and still could not read any text from it, "
-                "so it was not set as primary knowledge. Your current primary source is "
+                f"so it was not set as {role_label}. Your current primary source is "
                 "unchanged. Check that the pages are the right way up and in focus."
             )
         elif not extraction.ocr_available:
             reason = (
                 "This PDF has no readable text layer and image scanning is not switched on "
-                "for this server, so it was not set as primary knowledge. Your current "
+                f"for this server, so it was not set as {role_label}. Your current "
                 "primary source is unchanged. Upload a text-based PDF instead."
             )
         else:
             reason = (
                 "No readable text could be extracted from this PDF, so it was not set as "
-                "primary knowledge. Your current primary source is unchanged. Upload a "
+                f"{role_label}. Your current primary source is unchanged. Upload a "
                 "text-based PDF, or review this source before using it."
             )
 
@@ -115,7 +124,9 @@ def save_uploaded_pdf(file, chatbot_id):
             "status": "failed",
             "processing_status": "failed",
             "chunk_count": 0,
+            "file_id": file_id,
             "file_name": safe_name,
+            "original_file_name": original_name,
             "file_path": filepath,
             "extraction": extraction.summary(),
             "message": reason,
@@ -131,38 +142,47 @@ def save_uploaded_pdf(file, chatbot_id):
             status_err,
         )
 
-    set_active_pdf_knowledge_file(
-        chatbot_id=chatbot_id,
-        file_id=file_id
-    )
+    if target_role == "primary":
+        set_active_pdf_knowledge_file(
+            chatbot_id=chatbot_id,
+            file_id=file_id
+        )
 
     try:
         generate_and_save_knowledge_readme(chatbot_id, file_id)
     except Exception as readme_err:
         logging.error(f"Failed to generate README for PDF: {readme_err}")
     try:
-        log_knowledge_modification(chatbot_id, file_id, "Document uploaded and chunks indexed.")
+        if target_role == "primary":
+            history_message = "Document uploaded and chunks indexed."
+        else:
+            history_message = "Supporting document uploaded and chunks indexed."
+        log_knowledge_modification(chatbot_id, file_id, history_message)
     except Exception as log_err:
         logging.error(f"Failed to log history for PDF upload: {log_err}")
 
-    update_chatbot_runtime({
-        "draft_pdf_file_name": safe_name,
-        "draft_pdf_path": relative_pdf_path,
-        "last_match_result": None,
-        "last_match_reason": "",
-    }, chatbot_id)
+    if target_role == "primary":
+        update_chatbot_runtime({
+            "draft_pdf_file_name": safe_name,
+            "draft_pdf_path": relative_pdf_path,
+            "last_match_result": None,
+            "last_match_reason": "",
+        }, chatbot_id)
 
     # "List out content": what we actually read, and how. The operator needs to
     # know a scan was involved, because OCR text is good but not perfect and it
     # is worth a glance before the bot starts answering from it.
     if extraction.ocr_used:
         message = (
-            f"PDF uploaded and set as primary knowledge. "
+            f"PDF uploaded and set as {target_role} knowledge. "
             f"{extraction.ocr_page_count} of {extraction.page_count} page(s) were scanned as "
             f"images, so please check the wording before relying on it."
         )
     else:
-        message = "PDF uploaded and set as primary knowledge."
+        if target_role == "primary":
+            message = "PDF uploaded and set as primary knowledge."
+        else:
+            message = "PDF uploaded as supporting knowledge."
 
     if extraction.truncated:
         message += (
@@ -174,7 +194,9 @@ def save_uploaded_pdf(file, chatbot_id):
         "status": "completed",
         "processing_status": "completed",
         "chunk_count": chunk_count,
+        "file_id": file_id,
         "file_name": safe_name,
+        "original_file_name": original_name,
         "file_path": filepath,
         "extraction": extraction.summary(),
         "message": message,
@@ -265,6 +287,8 @@ def list_uploaded_pdfs(chatbot_id):
             "id": file["id"],
             "file_name": file["file_name"],
             "name": file["file_name"],  # keep both for safety
+            "original_file_name": file.get("original_file_name"),
+            "display_name": file.get("original_file_name") or file["file_name"],
             "size": file.get("file_size"),
             "file_type": file.get("file_type") or "pdf",
             "is_enabled": file.get("is_enabled", True) is not False,
@@ -284,13 +308,28 @@ def get_active_pdf(chatbot_id):
 
     if not active:
         return {
+            "id": None,
             "file_name": "",
+            "name": "",
+            "original_file_name": None,
+            "display_name": "",
             "file_path": ""
         }
 
+    file_name = active.get("file_name", "")
+    original_file_name = active.get("original_file_name")
+
     return {
-        "file_name": active.get("file_name", ""),
-        "file_path": active.get("file_path", "")
+        "id": active.get("id"),
+        "file_name": file_name,
+        "name": file_name,
+        "original_file_name": original_file_name,
+        "display_name": original_file_name or file_name,
+        "file_path": active.get("file_path", ""),
+        "file_type": active.get("file_type") or "pdf",
+        "is_enabled": active.get("is_enabled", True) is not False,
+        "is_active": bool(active.get("is_active")),
+        "role": resolve_knowledge_role(active),
     }
 
 
@@ -1045,6 +1084,7 @@ def generate_and_save_knowledge_readme(chatbot_id: int, file_id: int = None):
             return
         file_id = active_file["id"]
         file_name = active_file.get("file_name", "Primary Document")
+        display_file_name = active_file.get("original_file_name") or file_name
     else:
         try:
             res = supabase.table("knowledge_files").select("*").eq("chatbot_id", chatbot_id).eq("id", file_id).limit(1).execute()
@@ -1055,6 +1095,7 @@ def generate_and_save_knowledge_readme(chatbot_id: int, file_id: int = None):
         if not file_record:
             return
         file_name = file_record.get("file_name", "Primary Document")
+        display_file_name = file_record.get("original_file_name") or file_name
 
     # 1. Fetch chunks (original document text chunks)
     chunks_data = get_chunks_by_file_for_chatbot(chatbot_id, file_id) or []
@@ -1106,13 +1147,13 @@ def generate_and_save_knowledge_readme(chatbot_id: int, file_id: int = None):
 
     # Build the README contents
     md = []
-    md.append(f"# Knowledge Base README: {file_name}")
+    md.append(f"# Knowledge Base README: {display_file_name}")
     md.append(f"- **Generated Date**: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
     md.append(f"- **Chatbot ID**: {chatbot_id}")
     md.append("")
 
     md.append("## Document Overview")
-    md.append(f"This document represents the compiled knowledge base for Chatbot #{chatbot_id}, extracted from the primary document `{file_name}`.")
+    md.append(f"This document represents the compiled knowledge source for Chatbot #{chatbot_id}, extracted from the document `{display_file_name}`.")
     md.append(f"- Total Text Chunks: {len(pdf_chunks)}")
     md.append(f"- Total Graph Nodes: {len(nodes)}")
     md.append(f"- Total Graph Connections: {len(edges)}")

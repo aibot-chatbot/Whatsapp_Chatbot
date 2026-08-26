@@ -14,6 +14,9 @@ def save_knowledge_file(
     match_status: str = "unchecked",
     mismatch_reason: str = None,
     is_enabled: bool = True,
+    is_active: bool = None,
+    source_pdf_candidate_id: str = None,
+    original_file_name: str = None,
 ):
     data = {
         "chatbot_id": chatbot_id,
@@ -27,17 +30,29 @@ def save_knowledge_file(
         "mismatch_reason": mismatch_reason,
         "is_enabled": is_enabled,
     }
+    if is_active is not None:
+        data["is_active"] = is_active
+    if source_pdf_candidate_id is not None:
+        data["source_pdf_candidate_id"] = source_pdf_candidate_id
+    if original_file_name is not None:
+        data["original_file_name"] = original_file_name
 
     try:
         result = supabase.table("knowledge_files").insert(data).execute()
     except Exception as e:
-        if "is_enabled" not in str(e):
+        if source_pdf_candidate_id is not None and "source_pdf_candidate_id" in str(e):
+            raise
+
+        optional_columns = ("is_enabled", "is_active", "original_file_name")
+        if not any(column in str(e) for column in optional_columns):
             raise
 
         logging.warning(
-            "knowledge_files.is_enabled is not available yet; saving knowledge file without it."
+            "One or more optional knowledge_files columns are not available yet; saving knowledge file without them."
         )
         data.pop("is_enabled", None)
+        data.pop("is_active", None)
+        data.pop("original_file_name", None)
         result = supabase.table("knowledge_files").insert(data).execute()
 
     return result.data[0]
@@ -217,6 +232,31 @@ def update_supporting_knowledge_enabled(chatbot_id: int, file_id: int, is_enable
     )
 
     return result.data[0] if result.data else None
+
+
+def get_knowledge_file_by_source_candidate(chatbot_id: int, source_pdf_candidate_id: str):
+    if not source_pdf_candidate_id:
+        return None
+
+    try:
+        result = (
+            supabase.table("knowledge_files")
+            .select("*")
+            .eq("chatbot_id", chatbot_id)
+            .eq("source_pdf_candidate_id", source_pdf_candidate_id)
+            .limit(1)
+            .execute()
+        )
+    except Exception as e:
+        if "source_pdf_candidate_id" not in str(e):
+            raise
+        logging.warning(
+            "knowledge_files.source_pdf_candidate_id is not available yet; cannot recover candidate ingestion."
+        )
+        return None
+
+    rows = result.data or []
+    return rows[0] if rows else None
 
 
 def set_active_pdf_knowledge_file(chatbot_id: int, file_id: int):

@@ -15,12 +15,50 @@
 > | 4L | Platform-admin controls | **Original scope staging verified; later extensions have mixed local and prototype/shared-testing evidence; production blocked** |
 > | 4M | Production launch audit and remediation | Complete |
 > | 4N | Knowledge Readme compilation & Pop-out viewer | Complete |
+> | 4O | Supporting PDF Relevance Validation | Complete for shared-testing/prototype |
 >
 > ---
 
 ### Bot management reliability and UI refresh - 2026-08-11
 
 The bot management workspace now follows the Aveon Control Room v2 Stitch design system with a dense responsive operations layout, search and status filtering, accessible loading/empty/error states, and non-blocking chatbot-limit guidance. The previously disconnected archived-bot frontend is reconnected to authenticated, tenant-scoped backend list/restore/permanent-delete routes. Focused route and frontend regression coverage is current; live Supabase schema verification remains environment-specific, and permanent deletion requires Migration 022 in the target environment.
+
+### Phase 4O - Supporting PDF Relevance Validation
+
+**Status:** Complete for shared-testing/prototype
+
+Supporting PDF Relevance Validation is implemented and manually verified in the
+current shared-testing/prototype Supabase environment. When no Primary PDF
+exists, the existing PDF upload path still performs normal Primary ingestion
+and makes the PDF active. When a Primary PDF already exists, an additional PDF
+is first stored as a temporary candidate, extracted locally, semantically
+validated against the current Primary, and returned as PASS/FAIL before normal
+ingestion is allowed. A PASS requires explicit user confirmation; confirmed
+PDFs run through the existing ingestion pipeline as enabled Supporting
+knowledge, skip persona derivation, and do not replace the active Primary. A
+FAIL or unconfirmed candidate creates no normal `knowledge_files`,
+`knowledge_chunks`, GraphRAG, persona, README, or Supporting source.
+
+The relevance engine is `semantic_hybrid_v2` with default
+`PDF_SUPPORTING_RELEVANCE_THRESHOLD=0.65`, configurable by environment. It uses
+`gemini-embedding-2` at 768 dimensions and validates up to 48 candidate chunks
+and 60000 candidate characters. Exact duplicates are blocked separately. The
+0.65 value is an initial calibrated application threshold, not probability or
+scientific certainty.
+
+Migration 045 adds the candidate table, candidate lifecycle/recovery linkage,
+`original_file_name`, indexes, foreign keys, RLS, and access controls.
+Migration 046 hardens Supporting PDF candidate-table `service_role` grants to
+only SELECT, INSERT, UPDATE, and DELETE. Shared-testing/prototype manual
+verification confirmed the Supporting PDF flow, RAG/Test Bot retrieval from
+Supporting knowledge, and human-facing UI display of readable filenames instead
+of internal UUID-backed storage names.
+
+Known limits remain: the calibration sample is small; historical chunks do not
+store per-row embedding-model metadata; validation uses bounded per-chunk
+candidate embedding requests and has a small provider cost; candidate cleanup is
+opportunistic; and local Playwright coverage is blocked where Chromium is
+missing. This does not claim future staging or real production readiness.
 
 ### Phase 4L update - Platform-admin controls
 

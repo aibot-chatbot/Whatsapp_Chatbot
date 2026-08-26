@@ -47,12 +47,14 @@ function makeWorld(overrides = {}) {
     subscription: { status: "active", plan: { code: "pro", model_access_tier: "premium" } },
     readOnly: false,
     context: { bot_name: "Northweave Clinic", active_profile: "Clinic Support", active_pdf: "Services-2026.pdf" },
+    activeKnowledge: { file_name: "Services-2026.pdf", display_name: "Services-2026.pdf" },
+    activeKnowledgeDelayMs: 0,
     suggestions: ["Opening hours", "Book a visit", "Our treatments"],
     // Deliberately a clinic, not a shop: the point of deriving scenarios is
     // that a business which takes no orders never gets asked about one.
     scenarios: {
       matched: true,
-      source_document: "Services-2026.pdf",
+      source_document: "bot_42_a88bed7fee6f4c2f8a1f055318c6a5d0_Services-2026.pdf",
       note: "",
       scenarios: [
         { key: "common", name: "Book a cleaning", goal: "Offer the next free slot",
@@ -104,6 +106,12 @@ async function install(page, world) {
     }
     if (url.includes("/generate-welcome-menu")) {
       return route.fulfill(json({ status: "success", data: world.suggestions }));
+    }
+    if (url.includes("/api/knowledge/active")) {
+      if (world.activeKnowledgeDelayMs) {
+        await new Promise(resolve => setTimeout(resolve, world.activeKnowledgeDelayMs));
+      }
+      return route.fulfill(json({ status: "success", data: world.activeKnowledge }));
     }
     // testbot_routes reads `chatbot_id` and answers 400 for anything else. The
     // mock enforces that too, because a mock that accepts any query string is
@@ -339,7 +347,8 @@ test("suggestions fill the menu but still need a save", async ({ page }) => {
 test("an undeployed bot warns that the test is not the real thing", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1200 });
   const world = makeWorld({
-    context: { bot_name: "Northweave Clinic", active_profile: "No active profile", active_pdf: "No active PDF" }
+    context: { bot_name: "Northweave Clinic", active_profile: "No active profile", active_pdf: "No active PDF" },
+    activeKnowledge: { file_name: "", display_name: "" }
   });
   await open(page, world, "test");
 
@@ -357,9 +366,36 @@ test("a deployed bot names what is being tested and stays quiet", async ({ page 
   await expect(page.locator("#bh-test-warning")).toBeHidden();
   await expect(page.locator(".bh-setup-item").first()).toContainText("Clinic Support");
   await expect(page.locator(".bh-setup-item").nth(1)).toContainText("Services-2026.pdf");
+  await expect(page.locator("#bh-scenarios-note")).toContainText("Matched to Services-2026.pdf");
+  await expect(page.locator("#bh-scenarios-note")).not.toContainText("bot_42_a88bed7fee6f4c2f8a1f055318c6a5d0");
 
   await settle(page);
   await page.screenshot({ path: "test-results/behaviour-test.png", fullPage: true });
+});
+
+test("cached scenario source uses the readable active primary name", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1200 });
+  const world = makeWorld({ activeKnowledgeDelayMs: 200 });
+  await install(page, world);
+  await page.addInitScript(() => {
+    sessionStorage.setItem("bh-scenarios:42", JSON.stringify({
+      loading: false,
+      matched: true,
+      source_document: "bot_42_a88bed7fee6f4c2f8a1f055318c6a5d0_Services-2026.pdf",
+      note: "",
+      items: [
+        { key: "fact", name: "Cleaning price", goal: "Quote RM120", message: "how much is a cleaning?" }
+      ]
+    }));
+  });
+  await page.goto(`/behaviour.html?bot_id=${BOT_ID}&tab=test`);
+  await expect(page.locator("#bh-bot-name")).toHaveText("Northweave Clinic");
+  await page.waitForTimeout(50);
+  await expect(page.locator("#bh-scenarios-note")).not.toContainText("bot_42_a88bed7fee6f4c2f8a1f055318c6a5d0");
+
+  await expect(page.locator("#bh-scenarios-note")).toContainText("Matched to Services-2026.pdf");
+  await expect(page.locator("#bh-scenarios-note")).not.toContainText("bot_42_a88bed7fee6f4c2f8a1f055318c6a5d0");
+  expect(world.scenarioCalls).toBe(0);
 });
 
 test("a scenario loads a real first message and the bot answers", async ({ page }) => {
@@ -456,6 +492,7 @@ test("scenarios come from the business's own documents, not a fixed list", async
   // useful test question, which is the whole reason these are derived.
   const world = makeWorld({
     context: { bot_name: "Kirana Supply", active_profile: "Shop Support", active_pdf: "catalogue.pdf" },
+    activeKnowledge: { file_name: "catalogue.pdf", display_name: "catalogue.pdf" },
     scenarios: {
       matched: true, source_document: "catalogue.pdf", note: "",
       scenarios: [

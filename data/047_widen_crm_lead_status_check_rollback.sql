@@ -1,6 +1,6 @@
--- 046_widen_crm_lead_status_check_rollback.sql
+-- 047_widen_crm_lead_status_check_rollback.sql
 --
--- Reverts 046 to migration 027's original crm_leads_status_check.
+-- Reverts 047 to migration 027's original crm_leads_status_check.
 --
 -- This FAILS if any row already holds 'qualified', 'won' or 'lost'.
 -- Map those back first, then run this:

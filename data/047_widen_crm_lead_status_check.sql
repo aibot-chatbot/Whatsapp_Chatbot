@@ -1,4 +1,4 @@
--- 046_widen_crm_lead_status_check.sql
+-- 047_widen_crm_lead_status_check.sql
 --
 -- Widens crm_leads_status_check for the sales pipeline vocabulary.
 --
@@ -18,8 +18,8 @@
 -- (app/database/crm_lead_repository.py normalize_crm_lead_status). Drop them
 -- in a later migration once no client sends them.
 --
--- Migration 043 is already used by the platform support-case function; this
--- change is numbered 046 after the existing 044 and 045 files.
+-- Supporting PDF grant hardening owns Migration 046; this CRM status widening
+-- is numbered 047.
 -- APPLY THIS BEFORE DEPLOYING THE CODE THAT WRITES THE NEW VOCABULARY.
 -- Safe to run on a live table: NOT VALID makes the ALTER take a brief lock
 -- without scanning, and VALIDATE then scans without blocking writes.

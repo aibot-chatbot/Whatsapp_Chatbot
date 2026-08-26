@@ -64,6 +64,19 @@ def load_configurations(app):
         "RATELIMIT_STORAGE_URI", "memory://"
     )
 
+    threshold_raw = os.getenv("PDF_SUPPORTING_RELEVANCE_THRESHOLD", "0.65").strip()
+    try:
+        supporting_pdf_threshold = float(threshold_raw)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "PDF_SUPPORTING_RELEVANCE_THRESHOLD must be a number between 0 and 1."
+        ) from exc
+    if supporting_pdf_threshold < 0 or supporting_pdf_threshold > 1:
+        raise RuntimeError(
+            "PDF_SUPPORTING_RELEVANCE_THRESHOLD must be between 0 and 1."
+        )
+    app.config["PDF_SUPPORTING_RELEVANCE_THRESHOLD"] = supporting_pdf_threshold
+
     # Rate-limit defaults (can be overridden per endpoint)
     app.config.setdefault("RATELIMIT_LOGIN", os.getenv("RATELIMIT_LOGIN", "10/minute"))
     app.config.setdefault("RATELIMIT_OTP", os.getenv("RATELIMIT_OTP", "5/hour"))

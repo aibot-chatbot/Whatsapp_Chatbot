@@ -36,8 +36,13 @@ class TestNewLinkdocsSourceRoles(unittest.TestCase):
 
     def test_documents_get_the_same_enable_toggle_as_websites(self):
         self.assertIn("{!source.isPrimary && (", self.html)
-        self.assertIn("handleToggleSupport(source.name, !source.enabled)", self.html)
+        self.assertIn("handleToggleSupport(source.actionName, !source.enabled)", self.html)
         self.assertNotIn("{source.isWebsite && (", self.html)
+
+    def test_display_name_is_used_for_human_facing_source_labels(self):
+        self.assertIn("const getSourceDisplayName = (item, fallback = \"Untitled source\") => item?.display_name || item?.original_file_name || item?.file_name", self.html)
+        self.assertIn("name: getSourceDisplayName(f),", self.html)
+        self.assertIn("actionName: getSourceActionName(f),", self.html)
 
     def test_supporting_count_follows_the_role(self):
         self.assertIn(
