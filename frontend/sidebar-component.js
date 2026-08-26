@@ -204,7 +204,7 @@ class ChatbotSidebar extends HTMLElement {
                 height: 16px;
             }
 
-            /* ===== Bottom section: tenant navigation only ===== */
+            /* ===== Bottom section: tenant navigation plus account actions ===== */
             .sidebar-bottom-section {
                 margin-top: auto;
                 display: flex;
@@ -286,6 +286,17 @@ class ChatbotSidebar extends HTMLElement {
 
             .sidebar.collapsed .sidebar-bottom-section {
                 align-items: center;
+            }
+            .sidebar-account {
+                width: 100%;
+                margin-top: 2px;
+            }
+            .sidebar-account tenant-account-menu {
+                display: block;
+                width: 100%;
+            }
+            .sidebar.collapsed .sidebar-account {
+                width: 44px;
             }
             .sidebar.collapsed .profile-link {
                 justify-content: center;
@@ -525,7 +536,7 @@ class ChatbotSidebar extends HTMLElement {
                 ` : ""}
             </nav>
 
-            <!-- Bottom section: tenant navigation only. Account actions live in <tenant-account-menu>. -->
+            <!-- Bottom section: tenant navigation plus account actions. -->
             <div class="sidebar-bottom-section">
                 ${isAdmin ? `
                 <a href="team.html${botQuery}" class="profile-link" title="Team Members">
@@ -541,6 +552,9 @@ class ChatbotSidebar extends HTMLElement {
                         <span>Billing</span>
                     </div>
                 </a>
+                <div class="sidebar-account">
+                    <tenant-account-menu placement="sidebar" preserve-bot-query></tenant-account-menu>
+                </div>
             </div>
 
         </aside>
@@ -551,15 +565,24 @@ class ChatbotSidebar extends HTMLElement {
         this.initSidebar();
         this.initCollapseToggle();
 
+        const refreshAccountMenuIcons = () => {
+            const accountMenu = this.querySelector('tenant-account-menu');
+            if (accountMenu && typeof accountMenu.refreshMenuIcons === 'function') {
+                accountMenu.refreshMenuIcons();
+            }
+        };
+
         // Check if lucide is available globally
         if (window.lucide && typeof window.lucide.createIcons === 'function') {
             window.lucide.createIcons({ root: this });
+            refreshAccountMenuIcons();
         } else {
             // Load it dynamically if missing
             const script = document.createElement('script');
             script.src = 'https://unpkg.com/lucide@latest';
             script.onload = () => {
                 window.lucide.createIcons({ root: this });
+                refreshAccountMenuIcons();
             };
             document.head.appendChild(script);
         }
@@ -634,9 +657,11 @@ class ChatbotSidebar extends HTMLElement {
 
         const syncToggleState = () => {
             const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
+            const accountMenu = this.querySelector('tenant-account-menu');
 
             if (isMobileViewport) {
                 sidebar.classList.remove('collapsed');
+                if (accountMenu) accountMenu.removeAttribute('compact');
                 const isOpen = sidebar.classList.contains('mobile-open');
                 icon.textContent = isOpen ? '✕' : '☰';
                 toggle.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
@@ -645,6 +670,7 @@ class ChatbotSidebar extends HTMLElement {
                 sidebar.classList.remove('mobile-open');
                 const shouldBeCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
                 sidebar.classList.toggle('collapsed', shouldBeCollapsed);
+                if (accountMenu) accountMenu.toggleAttribute('compact', shouldBeCollapsed);
                 icon.textContent = shouldBeCollapsed ? '☰' : '«';
                 toggle.setAttribute('aria-label', shouldBeCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
                 toggle.setAttribute('title', shouldBeCollapsed ? 'Expand sidebar' : 'Collapse sidebar');

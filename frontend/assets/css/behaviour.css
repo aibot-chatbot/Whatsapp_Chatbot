@@ -60,8 +60,6 @@
 }
 
 .dashboard-page .bh-header-aside {
-    /* shared-ui.js pins the account chip at fixed top:24px/right:32px. */
-    margin-top: 44px;
     flex: 0 0 auto;
     display: flex;
     align-items: center;

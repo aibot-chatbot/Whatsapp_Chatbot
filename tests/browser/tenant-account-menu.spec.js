@@ -39,7 +39,19 @@ async function mockTenantPageApis(page, platformHandler, supportHandler) {
   await page.route("https://unpkg.com/**", route => route.fulfill({
     status: 200,
     contentType: "application/javascript",
-    body: "window.lucide={createIcons:function(){}};"
+    body: `
+      window.lucide = {
+        createIcons: function(options) {
+          var root = options && options.root ? options.root : document;
+          root.querySelectorAll("i[data-lucide]").forEach(function(icon) {
+            var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("data-lucide", icon.getAttribute("data-lucide"));
+            svg.setAttribute("aria-hidden", icon.getAttribute("aria-hidden") || "true");
+            icon.replaceWith(svg);
+          });
+        }
+      };
+    `
   }));
   await page.route("**/api/**", async route => {
     const request = route.request();
@@ -80,6 +92,11 @@ async function openAccountMenu(page) {
   await page.getByRole("button", { name: "Open account menu" }).click();
 }
 
+async function openBotsMobileNavigation(page) {
+  await page.getByRole("button", { name: "Open workspace navigation" }).click();
+  await expect(page.locator("#bots-side-rail.mobile-open")).toHaveCount(1);
+}
+
 async function accountMenuRect(page) {
   return page.locator("tenant-account-menu").evaluate(element => {
     const menu = element.shadowRoot.querySelector(".menu");
@@ -106,6 +123,23 @@ async function accountButtonRect(page) {
       bottom: rect.bottom,
       width: rect.width,
       height: rect.height
+    };
+  });
+}
+
+async function accountMenuMetrics(page) {
+  return page.locator("tenant-account-menu").evaluate(element => {
+    const menu = element.shadowRoot.querySelector(".menu");
+    const item = element.shadowRoot.querySelector(".item");
+    const svgs = Array.from(element.shadowRoot.querySelectorAll(".item svg[data-lucide]"))
+      .map(svg => svg.getAttribute("data-lucide"));
+    const menuStyle = getComputedStyle(menu);
+    const itemStyle = getComputedStyle(item);
+    return {
+      menuPosition: menuStyle.position,
+      menuPaddingLeft: menuStyle.paddingLeft,
+      itemPaddingLeft: itemStyle.paddingLeft,
+      icons: svgs
     };
   });
 }
@@ -164,6 +198,9 @@ test.describe("tenant account menu shared placement", () => {
   test("bots page uses the shared account menu with Profile, Support, and Logout", async ({ page }) => {
     const calls = await openTenantPage(page, "/bots.html");
 
+    await expect(page.locator(".header-actions tenant-account-menu")).toHaveCount(0);
+    await expect(page.locator(".side-rail tenant-account-menu")).toHaveCount(1);
+    await expect(page.locator("tenant-account-menu")).toHaveCount(1);
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Support" })).toHaveAttribute("href", /support\.html$/);
@@ -172,10 +209,11 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.getByRole("menuitem", { name: "Platform Administration", includeHidden: true })).toBeHidden();
   });
 
-  test("representative bot dashboard gets account menu outside sidebar and sidebar omits Profile and Logout", async ({ page }) => {
+  test("representative bot dashboard gets account menu in sidebar and sidebar omits local Profile and Logout links", async ({ page }) => {
     await openTenantPage(page, "/index.html?bot_id=42");
 
-    await expect(page.locator("chatbot-sidebar tenant-account-menu")).toHaveCount(0);
+    await expect(page.locator("chatbot-sidebar tenant-account-menu")).toHaveCount(1);
+    await expect(page.locator(".tenant-account-menu-floating")).toHaveCount(0);
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toHaveAttribute("href", /profile\.html\?bot_id=42$/);
     await expect(page.locator("chatbot-sidebar")).not.toContainText("Profile");
@@ -185,13 +223,35 @@ test.describe("tenant account menu shared placement", () => {
   test("representative non-dashboard sidebar page gets the shared account menu", async ({ page }) => {
     await openTenantPage(page, "/profile.html?bot_id=42");
 
-    await expect(page.locator("chatbot-sidebar tenant-account-menu")).toHaveCount(0);
+    await expect(page.locator("chatbot-sidebar tenant-account-menu")).toHaveCount(1);
+    await expect(page.locator(".tenant-account-menu-floating")).toHaveCount(0);
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Logout" })).toBeVisible();
     await expect(page.locator("chatbot-sidebar")).not.toContainText("Profile");
     await expect(page.locator("chatbot-sidebar")).not.toContainText("Logout");
+  });
+
+  test("shared-sidebar account submenu uses sidebar alignment and renders Lucide SVG icons", async ({ page }) => {
+    await openTenantPage(page, "/index.html?bot_id=42");
+
+    await openAccountMenu(page);
+    const metrics = await accountMenuMetrics(page);
+    expect(metrics.menuPosition).toBe("static");
+    expect(metrics.menuPaddingLeft).toBe("8px");
+    expect(metrics.itemPaddingLeft).toBe("10px");
+    expect(metrics.icons).toEqual(expect.arrayContaining(["user-circle", "circle-help", "log-out"]));
+  });
+
+  test("bots account submenu uses the same Lucide SVG icon rendering", async ({ page }) => {
+    await openTenantPage(page, "/bots.html");
+
+    await openAccountMenu(page);
+    const metrics = await accountMenuMetrics(page);
+    expect(metrics.menuPosition).toBe("static");
+    expect(metrics.menuPaddingLeft).toBe("8px");
+    expect(metrics.icons).toEqual(expect.arrayContaining(["user-circle", "circle-help", "log-out"]));
   });
 
   test("opens by keyboard and closes with Escape and outside click at desktop and narrow widths", async ({ page }) => {
@@ -205,16 +265,43 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.getByRole("menu")).toBeHidden();
 
     await page.setViewportSize({ width: 360, height: 720 });
+    await openBotsMobileNavigation(page);
     await openAccountMenu(page);
     await expect(page.getByRole("menu")).toBeVisible();
     await page.mouse.click(5, 5);
     await expect(page.getByRole("menu")).toBeHidden();
   });
 
-  test("mobile sidebar does not block the floating account menu", async ({ page }) => {
+  test("bots mobile navigation exposes the account menu at narrow widths", async ({ page }) => {
+    for (const width of [390, 360]) {
+      await page.setViewportSize({ width, height: 760 });
+      await openTenantPage(page, "/bots.html");
+
+      await expect(page.locator("tenant-account-menu")).toHaveCount(1);
+      await expect(page.locator(".header-actions tenant-account-menu")).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Open workspace navigation" })).toBeVisible();
+      await openBotsMobileNavigation(page);
+      await expect(page.getByRole("link", { name: "Bots" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Team" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Billing" })).toBeVisible();
+
+      await openAccountMenu(page);
+      await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: "Logout" })).toBeVisible();
+      const rect = await accountMenuRect(page);
+      expect(rect.left).toBeGreaterThanOrEqual(0);
+      expect(rect.right).toBeLessThanOrEqual(width);
+      expect(rect.top).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  test("mobile sidebar exposes the sidebar account menu inside the viewport", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 760 });
     await openTenantPage(page, "/index.html?bot_id=42");
 
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
     await openAccountMenu(page);
     await expect(page.getByRole("menu")).toBeVisible();
     let rect = await accountMenuRect(page);
@@ -223,8 +310,6 @@ test.describe("tenant account menu shared placement", () => {
     expect(rect.top).toBeGreaterThanOrEqual(0);
     await page.keyboard.press("Escape");
 
-    await page.getByRole("button", { name: "Open menu" }).click();
-    await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
     await openAccountMenu(page);
     await expect(page.getByRole("menu")).toBeVisible();
     rect = await accountMenuRect(page);
@@ -244,9 +329,9 @@ test.describe("tenant account menu shared placement", () => {
       const accountButton = await accountButtonRect(page);
       const statusline = await elementRect(page, ".dash-statusline");
       const title = await elementRect(page, "#dashboard-title");
-      // The Bot settings trigger sits at the header's right edge, which is
-      // exactly where the fixed account chip lands — the collision this test
-      // exists to catch.
+      // The Bot settings trigger sits at the header's right edge. The account
+      // row now lives in the sidebar, so it should never collide with header
+      // content in either its compact or expanded form.
       const settings = await elementRect(page, "#dash-menu-trigger");
       const dateMetrics = await dateReadability(page);
       const titleToStatusGap = statusline.top - title.bottom;
@@ -261,6 +346,10 @@ test.describe("tenant account menu shared placement", () => {
       expect(intersects(accountButton, statusline), `closed account button overlaps status line at ${width}px`).toBe(false);
       expect(intersects(accountButton, settings), `closed account button overlaps Bot settings at ${width}px`).toBe(false);
 
+      if (width <= 768) {
+        await page.getByRole("button", { name: "Open menu" }).click();
+        await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
+      }
       await openAccountMenu(page);
       const accountMenu = await accountMenuRect(page);
       const openStatusline = await elementRect(page, ".dash-statusline");
@@ -283,7 +372,6 @@ test.describe("tenant account menu shared placement", () => {
       expect(closedAgainGap, `header stays displaced after menu closes at ${width}px`).toBeLessThanOrEqual(48);
 
       if (width <= 768) {
-        await page.getByRole("button", { name: "Open menu" }).click();
         await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
         await expect(page.getByRole("button", { name: "Open account menu" })).toBeVisible();
         const mobileAccountButton = await accountButtonRect(page);
@@ -292,7 +380,7 @@ test.describe("tenant account menu shared placement", () => {
     }
   });
 
-  test("late-rendered sidebar pages receive exactly one floating account menu", async ({ page }) => {
+  test("late-rendered sidebar pages receive exactly one sidebar account menu", async ({ page }) => {
     await installTenantSession(page);
     await mockTenantPageApis(page, () => ({
       status: 403,
@@ -306,6 +394,7 @@ test.describe("tenant account menu shared placement", () => {
       document.body.appendChild(sidebar);
     });
     await expect(page.locator("tenant-account-menu")).toHaveCount(1);
+    await expect(page.locator("chatbot-sidebar tenant-account-menu")).toHaveCount(1);
 
     await page.evaluate(() => {
       const sidebar = document.createElement("chatbot-sidebar");

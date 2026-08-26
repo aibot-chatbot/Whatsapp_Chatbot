@@ -57,10 +57,6 @@
 .dashboard-page .dash-menu {
     position: relative;
     flex: 0 0 auto;
-    /* shared-ui.js pins the account chip at fixed top:24px/right:32px on
-       desktop. Drop below it rather than under it; the button then lines up
-       with the title block instead of colliding with the avatar. */
-    margin-top: 44px;
 }
 
 @media (max-width: 768px) {
