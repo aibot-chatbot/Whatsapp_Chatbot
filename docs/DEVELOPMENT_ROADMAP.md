@@ -415,17 +415,16 @@ investigation surface for safe order status, amount_sen, plan code/name, and
 lifecycle timestamp fields only. It excludes payment/gateway/checkout/reference,
 idempotency, raw-error, reconciliation, retry, activation, manual-credit,
 export/download, chart, and write behavior.
-Authenticated tenant pages now use a shared top-right account menu for Profile,
-Support, and Logout. Support now includes the local backend submission endpoint
-and a bounded frontend request form plus local request history/detail with
-tenant-visible replies. Migration 030 and local browser/API E2E
-verification are recorded only in the main shared testing Supabase with
+Authenticated tenant pages now use a shared sidebar account menu below Billing
+for Profile, Support, and Logout. Support now includes the local backend
+submission endpoint and a bounded frontend request form plus local request
+history/detail with tenant-visible replies. Migration 030 and local browser/API
+E2E verification are recorded only in the main shared testing Supabase with
 fake/team data; Phase 3 and Migration 033 are verified only in the main
 shared-testing Supabase with fake/team data and are not staging verification or
-production readiness. Active
-platform admins can discover a Platform Administration link only after a lazy live
-`/api/platform-admin/me` check. This menu visibility does not replace the
-platform page's fresh authorization gate.
+production readiness. Active platform admins can discover a Platform
+Administration link only after a lazy live `/api/platform-admin/me` check. This
+menu visibility does not replace the platform page's fresh authorization gate.
 
 Migrations 023, 024, and 025 and all five read-only endpoints are verified in
 staging. The five expected audit events and immediate revocation were verified;
@@ -677,6 +676,25 @@ Make major frontend workflows consistent and verifiable.
 - Static authenticated tenant Support page (`support.html`) added as a bounded frontend consistency improvement. It uses the ordinary tenant sidebar and shared account menu, requires login through the existing frontend auth helper, renders account display text safely from session storage, and links to existing local tenant pages.
 - The shared tenant account menu now restores Support as a working destination while keeping Profile, Logout, and lazy live Platform Administration discovery behavior unchanged. Tenant support submission is implemented locally through the bounded endpoint/form contract; migration 030, database/browser E2E verification, messaging, email, and production use remain pending or blocked.
 - Public landing-page pricing was aligned with the authoritative subscription plan catalogue used by authenticated Billing. The landing page now renders published plan values from a tested duplicate frontend catalogue module, removes unsupported support-level claims, and keeps logged-out/register plus logged-in/billing CTA behavior covered by local tests. The duplicate module must be updated whenever plan migrations, runtime plan rows, or commercial values change; a public-safe plan catalogue endpoint remains a possible later cleanup. Free stores the economy tier internally but is presented as DeepSeek Only because active trial provider access is direct DeepSeek only. The Pro public description uses neutral application copy because the current runtime database row still contains legacy example wording; correcting that row remains a separate reviewed data-migration decision.
+
+### Tenant sidebar account-menu integration - 2026-08-26
+
+The top-right authenticated tenant account control moved under Billing in the
+left sidebar. Shared tenant sidebar pages inherit the placement globally through
+the shared sidebar/account component, and `bots.html` keeps its custom rail but
+uses the same account-menu pattern. Expanded sidebars render Profile, Support,
+Platform Administration when live-authorized, and Logout as an in-flow submenu
+aligned with the native sidebar visual hierarchy; collapsed sidebars keep a
+compact flyout, and the Bots mobile drawer preserves account access. Safe text
+rendering, logout behavior, outside-click/Escape close, lazy live
+`/api/platform-admin/me` Platform Administration discovery, and single
+account-menu rendering are preserved. Shadow DOM icon-load ordering was fixed
+so account action Lucide icons render reliably.
+
+Manual desktop verification passed for Bots and shared-sidebar pages, including
+submenu alignment, Profile/Support/Logout icons, no top-right duplicate, and
+account placement below Billing. Automated static/frontend regression passed;
+local Playwright runtime remains pending where Chromium is unavailable.
 
 ### Deferred risks
 

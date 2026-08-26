@@ -190,18 +190,6 @@ function formatTimeSimple(dateStr) {
         return "?" + query.toString();
     }
 
-    function injectAccountMenuHostStyle() {
-        if (document.getElementById("tenant-account-menu-host-style")) return;
-        var style = document.createElement("style");
-        style.id = "tenant-account-menu-host-style";
-        style.textContent = [
-            ".tenant-account-menu-floating{position:fixed;top:24px;right:32px;z-index:1001;width:max-content;max-width:calc(100vw - 20px);}",
-            "@media (max-width:768px){.tenant-account-menu-floating{top:76px;right:14px;}}",
-            "@media (max-width:420px){.tenant-account-menu-floating{right:10px;}}"
-        ].join("");
-        document.head.appendChild(style);
-    }
-
     class TenantAccountMenu extends HTMLElement {
         constructor() {
             super();
@@ -271,6 +259,34 @@ function formatTimeSimple(dateStr) {
                 :host([variant="control-room"]) .item:hover,:host([variant="control-room"]) .item:focus-visible{background:#1e2125;color:#f2f3f4;}
                 :host([variant="control-room"]) .platform-item{color:#4ab09b;}
                 @media (max-width:640px){.label{display:none}.account-button{padding:6px}.menu{right:0;min-width:min(246px,calc(100vw - 24px));}.email,.name{max-width:190px;}}
+                :host([placement="sidebar"]){display:block;width:100%;min-width:0;position:relative;}
+                :host([placement="sidebar"]) .account-button{width:100%;min-height:40px;border-radius:12px;border-color:transparent;background:transparent;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;justify-content:flex-start;padding:8px 12px;color:var(--text-dim,#94a3b8);}
+                :host([placement="sidebar"]) .account-button:hover,:host([placement="sidebar"]) .account-button:focus-visible{border-color:transparent;background:rgba(255,255,255,.04);color:var(--text-main,#f8fafc);box-shadow:none;}
+                :host([placement="sidebar"]) .avatar{width:24px;height:24px;border-radius:8px;background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.2);font-size:.68rem;}
+                :host([placement="sidebar"]) .label{display:flex;flex:1 1 auto;min-width:0;}
+                :host([placement="sidebar"]) .name{max-width:148px;font-size:.84rem;font-weight:600;}
+                :host([placement="sidebar"]) .email{max-width:168px;font-size:.72rem;}
+                :host([placement="sidebar"]) .chevron{margin-left:auto;}
+                :host([placement="sidebar"]) .menu{position:static;top:auto;right:auto;left:auto;bottom:auto;min-width:0;max-width:none;width:100%;margin:3px 0 0;padding:2px 0 4px 8px;background:transparent;border:0;border-radius:0;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;z-index:auto;}
+                :host([placement="sidebar"]) .identity{display:none;}
+                :host([placement="sidebar"]) .item{min-height:34px;border-radius:10px;padding:8px 10px;color:var(--text-dim,#94a3b8);font-size:.86rem;font-weight:500;}
+                :host([placement="sidebar"]) .item:hover,:host([placement="sidebar"]) .item:focus-visible{background:rgba(255,255,255,.04);color:var(--text-main,#f8fafc);}
+                :host([placement="sidebar"]) .item svg{width:16px;height:16px;}
+                :host([placement="sidebar"]) .divider{margin:4px 10px;background:rgba(255,255,255,.06);}
+                :host([placement="sidebar"][compact]){width:44px;}
+                :host([placement="sidebar"][compact]) .account-button{width:44px;justify-content:center;padding:6px;}
+                :host([placement="sidebar"][compact]) .label,:host([placement="sidebar"][compact]) .chevron{display:none;}
+                :host([placement="sidebar"][compact]) .menu{position:absolute;left:calc(100% + 10px);bottom:0;width:210px;padding:6px;background:var(--panel,rgba(15,23,42,.97));border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.28);z-index:1000;}
+                :host([variant="control-room"][placement="sidebar"]) .account-button{min-height:40px;border-color:transparent;background:transparent;padding:8px 12px;}
+                :host([variant="control-room"][placement="sidebar"]) .account-button:hover,:host([variant="control-room"][placement="sidebar"]) .account-button:focus-visible{border-color:transparent;background:#1e2125;box-shadow:none;}
+                :host([variant="control-room"][placement="sidebar"]) .avatar{width:24px;height:24px;border-radius:7px;}
+                :host([variant="control-room"][placement="sidebar"]) .menu{position:static;background:transparent;border:0;border-radius:0;box-shadow:none;padding:2px 0 4px 8px;}
+                :host([variant="control-room"][placement="sidebar"]) .item{border-radius:7px;padding:8px 10px;}
+                :host([variant="control-room"][placement="sidebar"]) .item:hover,:host([variant="control-room"][placement="sidebar"]) .item:focus-visible{background:#1e2125;color:#f2f3f4;}
+                :host([variant="control-room"][placement="sidebar"][compact]) .menu{position:absolute;left:calc(100% + 10px);bottom:0;width:210px;padding:6px;background:#16181b;border:1px solid #2b2f34;border-radius:10px;box-shadow:none;}
+                @media (max-width:900px){:host([placement="sidebar"]) .account-button{width:44px;justify-content:center;padding:6px;}:host([placement="sidebar"]) .label,:host([placement="sidebar"]) .chevron{display:none;}:host([placement="sidebar"]) .menu{position:absolute;left:calc(100% + 10px);bottom:0;width:210px;padding:6px;background:var(--panel,rgba(15,23,42,.97));border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.28);z-index:1000;}}
+                @media (max-width:768px){:host([placement="sidebar"][compact]){width:100%;}:host([placement="sidebar"][compact]) .account-button{width:100%;justify-content:flex-start;padding:8px 12px;}:host([placement="sidebar"][compact]) .label{display:flex;}:host([placement="sidebar"][compact]) .chevron{display:block;}:host([placement="sidebar"][compact]) .menu{position:static;width:100%;padding:2px 0 4px 8px;background:transparent;border:0;border-radius:0;box-shadow:none;}}
+                @media (max-width:768px){:host([placement="sidebar"]) .account-button{width:100%;justify-content:flex-start;padding:8px 12px;}:host([placement="sidebar"]) .label{display:flex;}:host([placement="sidebar"]) .chevron{display:block;}:host([placement="sidebar"]) .menu{position:static;width:100%;padding:2px 0 4px 8px;background:transparent;border:0;border-radius:0;box-shadow:none;}}
             `;
 
             var button = document.createElement("button");
@@ -338,6 +354,10 @@ function formatTimeSimple(dateStr) {
             this.shadowRoot.append(style, button, menu);
             this.button = button;
             this.menu = menu;
+            this.refreshMenuIcons();
+        }
+
+        refreshMenuIcons() {
             refreshIcons(this.shadowRoot);
         }
 
@@ -388,21 +408,8 @@ function formatTimeSimple(dateStr) {
         }
 
         publishOpenState(isOpen) {
-            var root = document.documentElement;
-            var menuBottom = 0;
-            if (isOpen && this.menu) {
-                menuBottom = Math.ceil(this.menu.getBoundingClientRect().bottom);
-                root.dataset.tenantAccountMenuOpen = "true";
-                root.style.setProperty("--tenant-account-menu-bottom", menuBottom + "px");
-            } else {
-                delete root.dataset.tenantAccountMenuOpen;
-                root.style.removeProperty("--tenant-account-menu-bottom");
-            }
             window.dispatchEvent(new CustomEvent("tenant-account-menu-toggle", {
-                detail: {
-                    open: isOpen,
-                    menuBottom: menuBottom
-                }
+                detail: { open: isOpen }
             }));
         }
 
@@ -489,16 +496,22 @@ function formatTimeSimple(dateStr) {
         }
     }
 
+    function sidebarAccountSlot() {
+        var sidebar = document.querySelector("chatbot-sidebar");
+        return sidebar ? sidebar.querySelector(".sidebar-bottom-section") : null;
+    }
+
     function installTenantAccountMenu() {
         if (document.querySelector("tenant-account-menu")) return;
-        if (!document.querySelector("chatbot-sidebar")) return;
-        injectAccountMenuHostStyle();
+        var slot = sidebarAccountSlot();
+        if (!slot) return;
         var host = document.createElement("div");
-        host.className = "tenant-account-menu-floating";
+        host.className = "sidebar-account";
         var menu = document.createElement("tenant-account-menu");
+        menu.setAttribute("placement", "sidebar");
         menu.setAttribute("preserve-bot-query", "");
         host.appendChild(menu);
-        document.body.appendChild(host);
+        slot.appendChild(host);
         stopTenantAccountMenuObserver();
     }
 

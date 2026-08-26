@@ -14,11 +14,10 @@ PLATFORM_SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
 AUTHENTICATED_SIDEBAR_PAGES = [
     "index.html",
     "crm.html",
-    "flows.html",
+    "behaviour.html",
     "media_attachments.html",
     "meta_templates.html",
     "integration.html",
-    "model_settings.html",
     "new_linkdocs.html",
     "broadcast.html",
     "conversations.html",
@@ -27,7 +26,6 @@ AUTHENTICATED_SIDEBAR_PAGES = [
     "reports.html",
     "support.html",
     "team.html",
-    "testbot.html",
     "new_prompt.html",
 ]
 
@@ -41,7 +39,8 @@ def test_shared_account_menu_component_exists_and_is_used_by_bots_page():
     bots = read(BOTS)
 
     assert 'customElements.define("tenant-account-menu"' in shared
-    assert "<tenant-account-menu></tenant-account-menu>" in bots
+    assert '<tenant-account-menu placement="sidebar" variant="control-room"></tenant-account-menu>' in bots
+    assert "<tenant-account-menu></tenant-account-menu>" not in bots
     assert "toggleUserDropdown" not in bots
     assert "userDropdown" not in bots
 
@@ -56,9 +55,15 @@ def test_support_destination_exists_and_is_rendered_in_shared_menu():
     assert "userDropdown" not in bots
 
 
-def test_sidebar_no_longer_renders_profile_logout_or_platform_link():
+def test_shared_sidebar_renders_account_menu_directly_after_billing():
     sidebar = read(SIDEBAR)
 
+    billing = 'href="pricing.html${botQuery}"'
+    account = '<tenant-account-menu placement="sidebar" preserve-bot-query></tenant-account-menu>'
+
+    assert billing in sidebar
+    assert account in sidebar
+    assert sidebar.index(billing) < sidebar.index(account)
     assert 'href="profile.html${botQuery}"' not in sidebar
     assert 'href="login.html?logout=1"' not in sidebar
     assert "Platform Administration" not in sidebar
@@ -66,28 +71,102 @@ def test_sidebar_no_longer_renders_profile_logout_or_platform_link():
     assert "support.html" not in sidebar
     assert "Support" not in sidebar
     assert 'href="team.html${botQuery}"' in sidebar
-    assert 'href="pricing.html${botQuery}"' in sidebar
 
 
-def test_sidebar_pages_auto_mount_account_menu_outside_sidebar():
+def test_sidebar_pages_auto_mount_account_menu_inside_sidebar_footer():
     shared = read(SHARED_UI)
 
     assert 'document.querySelector("chatbot-sidebar")' in shared
     assert 'document.querySelector("tenant-account-menu")' in shared
-    assert "tenant-account-menu-floating" in shared
-    assert 'document.body.appendChild(host)' in shared
+    assert 'sidebar.querySelector(".sidebar-bottom-section")' in shared
+    assert 'host.className = "sidebar-account";' in shared
+    assert 'menu.setAttribute("placement", "sidebar");' in shared
     assert 'menu.setAttribute("preserve-bot-query", "")' in shared
+    assert "tenant-account-menu-floating" not in shared
+    assert 'document.body.appendChild(host)' not in shared
+    assert 'slot.appendChild(host)' in shared
     assert "MutationObserver" in shared
     assert "watchForSidebarAccountMenuMount" in shared
     assert "stopTenantAccountMenuObserver" in shared
 
 
-def test_floating_account_menu_layers_above_mobile_sidebar_toggle():
+def test_sidebar_account_menu_supports_collapsed_and_mobile_access():
+    shared = read(SHARED_UI)
+    sidebar = read(SIDEBAR)
+    bots = read(BOTS)
+
+    assert ':host([placement="sidebar"]) .menu{position:static;' in shared
+    assert ':host([placement="sidebar"]) .identity{display:none;}' in shared
+    assert ':host([placement="sidebar"]) .account-button{width:100%;min-height:40px;border-radius:12px;border-color:transparent;background:transparent;' in shared
+    assert ':host([placement="sidebar"]) .item{min-height:34px;border-radius:10px;padding:8px 10px;' in shared
+    assert "padding:2px 0 4px 8px" in shared
+    assert "padding:2px 0 4px 34px" not in shared
+    assert ':host([placement="sidebar"][compact]) .label' in shared
+    assert ':host([placement="sidebar"][compact]) .menu{position:absolute;left:calc(100% + 10px);bottom:0;width:210px;' in shared
+    assert '@media (max-width:768px){:host([placement="sidebar"]) .account-button{width:100%;justify-content:flex-start;padding:8px 12px;}' in shared
+    assert "if (accountMenu) accountMenu.removeAttribute('compact');" in sidebar
+    assert "accountMenu.toggleAttribute('compact', shouldBeCollapsed)" in sidebar
+    assert ".rail-account { width: 44px; }" in bots
+    assert "z-index: 1000;" in sidebar
+
+
+def test_sidebar_account_menu_shadow_icons_refresh_after_lucide_loads():
     shared = read(SHARED_UI)
     sidebar = read(SIDEBAR)
 
-    assert ".tenant-account-menu-floating{position:fixed;top:24px;right:32px;z-index:1001;width:max-content;" in shared
-    assert "z-index: 1000;" in sidebar
+    assert "refreshMenuIcons()" in shared
+    assert "refreshIcons(this.shadowRoot);" in shared
+    assert "this.refreshMenuIcons();" in shared
+    assert "const refreshAccountMenuIcons = () =>" in sidebar
+    assert "accountMenu.refreshMenuIcons();" in sidebar
+
+    available_lucide_section = sidebar[
+        sidebar.index("if (window.lucide && typeof window.lucide.createIcons === 'function')")
+        :sidebar.index("} else {", sidebar.index("if (window.lucide && typeof window.lucide.createIcons === 'function')"))
+    ]
+    dynamic_lucide_section = sidebar[sidebar.index("script.onload = () =>"):sidebar.index("document.head.appendChild(script);")]
+
+    assert "window.lucide.createIcons({ root: this });" in available_lucide_section
+    assert "refreshAccountMenuIcons();" in available_lucide_section
+    assert "window.lucide.createIcons({ root: this });" in dynamic_lucide_section
+    assert "refreshAccountMenuIcons();" in dynamic_lucide_section
+
+
+def test_bots_mobile_navigation_keeps_single_account_menu_reachable():
+    bots = read(BOTS)
+    mobile_section = bots[bots.index("@media (max-width: 640px)"):bots.index("@media (prefers-reduced-motion")]
+
+    assert 'id="bots-mobile-nav-toggle"' in bots
+    assert 'aria-controls="bots-side-rail"' in bots
+    assert 'id="bots-side-rail" class="side-rail"' in bots
+    assert 'id="bots-mobile-nav-backdrop"' in bots
+    assert 'setupBotsMobileNavigation()' in bots
+    assert '.side-rail { display: none;' not in mobile_section
+    assert ".side-rail.mobile-open { transform: translateX(0); }" in mobile_section
+    assert ".mobile-rail-backdrop.show { display: block; }" in mobile_section
+    assert 'document.body.classList.toggle("bots-nav-open", open);' in bots
+    assert bots.count("<tenant-account-menu") == 1
+
+
+def test_bots_header_keeps_actions_but_not_top_right_account_menu():
+    bots = read(BOTS)
+    header_start = bots.index('<div class="header-actions">')
+    header_end = bots.index('<section class="metric-strip"', header_start)
+    header = bots[header_start:header_end]
+
+    assert 'data-create-bot-trigger="true"' in header
+    assert 'aria-label="Open bot management tour"' in header
+    assert "tenant-account-menu" not in header
+    assert bots.count("<tenant-account-menu") == 1
+
+
+def test_bots_sidebar_account_menu_sits_below_billing_and_uses_shared_support_link():
+    bots = read(BOTS)
+    shared = read(SHARED_UI)
+
+    assert bots.index('href="pricing.html"') < bots.index('<tenant-account-menu placement="sidebar" variant="control-room"')
+    assert '<a class="rail-link" href="support.html"' not in bots
+    assert 'this.linkItem("support.html", "Support", "circle-help")' in shared
 
 
 def test_all_authenticated_sidebar_pages_load_shared_menu_dependencies():

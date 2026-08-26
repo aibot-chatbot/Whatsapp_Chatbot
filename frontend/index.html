@@ -313,9 +313,7 @@
 
             window.addEventListener('resize', () => {
                 updateDate();
-                updateAccountMenuHeaderOffset();
             });
-            window.addEventListener('tenant-account-menu-toggle', updateAccountMenuHeaderOffset);
 
             fetchSelectedBot();
             fetchBotHealth();
@@ -373,28 +371,6 @@
                     link.hidden = true;
                 }
             });
-        }
-
-        function updateAccountMenuHeaderOffset(event) {
-            const header = document.querySelector('.header');
-            if (!header) return;
-            // Applied at every width, not just mobile. The redesigned header
-            // spans the full row, so the open account menu can cover the bot
-            // name and status line on mid-size screens too.
-            const isOpen = event?.detail?.open ?? document.documentElement.dataset.tenantAccountMenuOpen === 'true';
-            if (!isOpen) {
-                header.style.removeProperty('margin-top');
-                return;
-            }
-            const menuBottom = Number(event?.detail?.menuBottom || getComputedStyle(document.documentElement)
-                .getPropertyValue('--tenant-account-menu-bottom').replace('px', ''));
-            if (!Number.isFinite(menuBottom) || menuBottom <= 0) {
-                header.style.removeProperty('margin-top');
-                return;
-            }
-            const headerTop = header.getBoundingClientRect().top;
-            const offset = Math.max(0, Math.ceil(menuBottom - headerTop + 16));
-            header.style.marginTop = `${offset}px`;
         }
 
         // Disclosure, not a link list masquerading as a button: the trigger

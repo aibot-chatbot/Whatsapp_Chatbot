@@ -289,10 +289,7 @@
     }
 }
 
-/* The primary action lives in the toolbar, not .kw-header-aside: shared-ui.js
-   pins .tenant-account-menu-floating at top:24px right:32px with z-index
-   1001 on every page that has a sidebar, and it swallows clicks on anything
-   interactive in the header's right slot. */
+/* The primary action lives in the toolbar, not .kw-header-aside. */
 .dashboard-page #mt-new {
     margin-left: auto;
 }

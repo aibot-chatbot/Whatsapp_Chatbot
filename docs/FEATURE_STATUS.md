@@ -57,8 +57,9 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 | Google authentication | Implemented | Public client configuration loads at runtime; missing `GOOGLE_CLIENT_ID` fails closed, token audience must match exactly, Google email must be verified, and invitation email must match. `RATELIMIT_GOOGLE_AUTH=10/minute` covers Google login, registration, and invitation acceptance; live external Google verification is still required |
 | Auth and public-invitation rate limiting | Verified complete | Flask-Limiter decorators registered before `create_app()` are enforced during normal startup. Existing login, OTP, password-reset, checkout, retry, receipt, and export limits are active when enabled; invitation validation is 30/minute and password invitation acceptance is 5/minute by default |
 | User profile | Implemented | Profile viewing and update flow exists |
-| Authenticated tenant Support page | Implemented | `support.html` is authenticated, reachable from the shared tenant account menu, submits only category, title, and redacted description to `POST /api/support/requests`, and now includes request history/detail with tenant-visible replies from safe tenant endpoints. Migration 030 is verified only in the main shared testing Supabase with fake/team data. Phase 3 tenant communication and Migration 033 are verified only in the main shared-testing Supabase with fake/team data. Email, attachments, billing actions, impersonation, exports, charts, staging readiness, and production use remain excluded |
+| Authenticated tenant Support page | Implemented | `support.html` is authenticated, reachable from the shared tenant sidebar account menu, submits only category, title, and redacted description to `POST /api/support/requests`, and now includes request history/detail with tenant-visible replies from safe tenant endpoints. Migration 030 is verified only in the main shared testing Supabase with fake/team data. Phase 3 tenant communication and Migration 033 are verified only in the main shared-testing Supabase with fake/team data. Email, attachments, billing actions, impersonation, exports, charts, staging readiness, and production use remain excluded |
 | Password change | Implemented | Requires regression coverage |
+| Tenant account menu / navigation | Verified complete | The authenticated tenant account menu moved from the top-right page header into the left sidebar directly below Billing. Shared tenant pages inherit this through the shared sidebar/account component, while `bots.html` keeps its custom rail but follows the same pattern. Expanded sidebars render Profile, Support, Platform Administration when live `/api/platform-admin/me` allows it, and Logout as an in-flow submenu aligned with existing sidebar spacing; collapsed sidebars keep a compact flyout, and Bots mobile uses a drawer so account actions remain reachable. Safe text rendering, logout behavior, outside-click/Escape close, lazy Platform Administration discovery, and single-instance rendering are preserved. Shadow-DOM Lucide refresh was added so account action icons render reliably. Manual desktop verification passed; local Playwright runtime remains pending where Chromium is unavailable |
 
 ## Company and Team
 
@@ -505,12 +506,12 @@ verified.
 - Frontend performs a fresh `/me` authorization check on every page entry,
   clears cross-tenant state on denial or unavailability, and never trusts tenant
   roles, cached users, JWT claims, local flags, or hidden navigation
-- Tenant pages now use a shared top-right account menu for Profile, Support,
-  and Logout. Support points to an authenticated tenant help page with a
-  bounded local support-submission form. The optional Platform
-  Administration menu item is discovered lazily through a live
-  `/api/platform-admin/me` check and is not stored or placed in the tenant
-  sidebar.
+- Tenant pages now use a shared sidebar account menu below Billing for Profile,
+  Support, and Logout. Support points to an authenticated tenant help page with
+  a bounded local support-submission form. The optional Platform Administration
+  menu item is discovered lazily through a live `/api/platform-admin/me` check,
+  is not stored client-side, and remains hidden unless the backend authorizes
+  it.
 - Focused frontend source-contract tests cover endpoint restrictions, request
   cancellation, state clearing, safe rendering, accessibility, and responsive
   behavior
