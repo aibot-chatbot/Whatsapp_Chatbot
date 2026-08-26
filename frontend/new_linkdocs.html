@@ -1348,7 +1348,7 @@ const ROLE_LABELS = {
         // counter beside the field only means something if the field honours it.
         const ANSWER_MAX = 2000;
 
-        function KnowledgeRefinement({ botId, activeFile }) {
+        function KnowledgeRefinement({ botId, activeFile, activeFileDisplayName }) {
             const [questions, setQuestions] = useState([]);
             const [answers, setAnswers] = useState({});
             const [logs, setLogs] = useState([]);
@@ -1518,13 +1518,14 @@ const ROLE_LABELS = {
             const current = questions[currentIdx];
             const currentAnswer = answers[currentIdx] || "";
             const hasScanned = logs.length > 0 || questions.length > 0;
+            const primarySourceLabel = activeFileDisplayName || activeFile;
             const isBillingError = (msg) => {
                 const text = (msg || "").toLowerCase();
                 return text.includes("402") || text.includes("payment required") || text.includes("credit");
             };
 
             const steps = [
-                { key: "source", label: "Source", done: Boolean(activeFile), current: !activeFile },
+                { key: "source", label: "Source", done: Boolean(primarySourceLabel), current: !primarySourceLabel },
                 { key: "graph", label: "Graph", done: hasScanned && !loading, current: loading },
                 { key: "question", label: "Question", done: Boolean(successMsg), current: questions.length > 0 && !successMsg }
             ];
@@ -1624,11 +1625,11 @@ const ROLE_LABELS = {
                                                 <span className="kw-queue-index">{idx + 1} of {questions.length}</span>
                                             </div>
                                             <div className="kw-queue-question">{questions[idx].question}</div>
-                                            {(questions[idx].context || activeFile) && (
+                                            {primarySourceLabel && (
                                                 <div className="kw-queue-source">
                                                     <Icon name="file-text" size={13} />
-                                                    <span title={questions[idx].context || activeFile}>
-                                                        {questions[idx].context || activeFile}
+                                                    <span title={primarySourceLabel}>
+                                                        {primarySourceLabel}
                                                     </span>
                                                 </div>
                                             )}
@@ -1756,12 +1757,12 @@ const ROLE_LABELS = {
                                     <>
                                         <div className="kw-subhead">
                                             <span>Linked source</span>
-                                            <span className="kw-counter">{activeFile ? 1 : 0}</span>
+                                            <span className="kw-counter">{primarySourceLabel ? 1 : 0}</span>
                                         </div>
-                                        {activeFile ? (
+                                        {primarySourceLabel ? (
                                             <div className="kw-evidence-source">
                                                 <Icon name="file-text" size={15} />
-                                                <span>{activeFile}</span>
+                                                <span>{primarySourceLabel}</span>
                                             </div>
                                         ) : (
                                             <p className="kw-help">No primary source is set for this bot.</p>
@@ -1848,6 +1849,9 @@ const ROLE_LABELS = {
             const [file, setFile] = useState(null);
             const [status, setStatus] = useState({ type: "", text: "", action: "" });
             const [isUploading, setIsUploading] = useState(false);
+            const [isValidatingPdf, setIsValidatingPdf] = useState(false);
+            const [isConfirmingPdf, setIsConfirmingPdf] = useState(false);
+            const [pdfCandidateResult, setPdfCandidateResult] = useState(null);
             const [files, setFiles] = useState([]);
             const [activeFile, setActiveFile] = useState("");
             const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1855,6 +1859,7 @@ const ROLE_LABELS = {
             const [activeTab, setActiveTab] = useState("file");
             const [linkUrl, setLinkUrl] = useState("");
             const [activeViewTab, setActiveViewTab] = useState("sources");
+            const pdfFileInputRef = React.useRef(null);
 
             // Interactive Crawler State Variables
             const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -1922,10 +1927,23 @@ const ROLE_LABELS = {
 
             const isWebsiteKnowledge = (item) => getKnowledgeType(item) === "url";
             const isSourceEnabled = (item) => item?.is_enabled !== false;
+            const getSourceDisplayName = (item, fallback = "Untitled source") => item?.display_name || item?.original_file_name || item?.file_name || item?.name || fallback;
+            const getSourceActionName = (item) => item?.file_name || item?.name || getSourceDisplayName(item);
+            const primarySource = files.find(item => ROLE_LABELS[String(item?.role || "").toLowerCase()] === "Primary" || item?.is_active);
+            const hasPrimarySource = Boolean(primarySource);
+            const primarySourceDisplayName = primarySource ? getSourceDisplayName(primarySource, "") : "";
+
+            const clearSelectedPdf = () => {
+                setFile(null);
+                if (pdfFileInputRef.current) {
+                    pdfFileInputRef.current.value = "";
+                }
+            };
 
             const openModal = () => {
                 setStatus({ type: "", text: "", action: "" });
-                setFile(null);
+                clearSelectedPdf();
+                setPdfCandidateResult(null);
                 setLinkUrl("");
                 setActiveTab("file");
                 setIsModalOpen(true);
@@ -1939,10 +1957,28 @@ const ROLE_LABELS = {
                 setExtractedPrimaryUrl("");
             };
 
-            const closeModal = () => {
-                if (isUploading || isAnalyzing || isExtracting) return;
+            const cancelCurrentCandidate = async ({ silent = false } = {}) => {
+                if (!pdfCandidateResult?.candidate_id || isConfirmingPdf) return;
+                const canCancel = pdfCandidateResult.can_confirm === true
+                    && pdfCandidateResult.validation_status === "validated_passed";
+                if (!canCancel) return;
+                try {
+                    await authenticatedFetch(`/api/knowledge/pdf-candidates/${encodeURIComponent(pdfCandidateResult.candidate_id)}/cancel${botQuery}`, {
+                        method: "POST",
+                    });
+                } catch (error) {
+                    if (!silent) {
+                        setStatus({ type: "error", text: "Could not cancel this checked PDF. It will expire automatically if it is not added.", action: "" });
+                    }
+                }
+            };
+
+            const closeModal = async () => {
+                if (isUploading || isAnalyzing || isExtracting || isValidatingPdf || isConfirmingPdf) return;
+                await cancelCurrentCandidate({ silent: true });
                 setIsModalOpen(false);
-                setFile(null);
+                clearSelectedPdf();
+                setPdfCandidateResult(null);
                 setLinkUrl("");
                 setActiveTab("file");
                 // Reset crawler states
@@ -1955,6 +1991,28 @@ const ROLE_LABELS = {
                 setExtractedPrimaryUrl("");
             };
 
+            const formatRelevanceScore = (score) => {
+                const numeric = Number(score);
+                if (!Number.isFinite(numeric)) return "0/100";
+                return `${Math.max(0, Math.min(100, Math.round(numeric * 100)))}/100`;
+            };
+
+            const candidateFriendlyError = (code, message) => {
+                const known = {
+                    primary_changed_revalidation_required: "Your Primary knowledge source changed after this PDF was checked. Please validate the PDF again.",
+                    candidate_expired: "This validation has expired. Please check the PDF again.",
+                    candidate_confirmation_in_progress: "This PDF is already being added as Supporting knowledge.",
+                    candidate_recovery_state_conflict: "We could not safely confirm the final state. Please refresh and try again.",
+                    candidate_not_confirmable: "This PDF is not currently confirmable. Please check it again.",
+                    candidate_file_missing: "This checked PDF is no longer available. Please select it again.",
+                    primary_not_pdf: "PDF-to-PDF Supporting validation requires a Primary PDF.",
+                    primary_embeddings_unavailable: "The current Primary source is missing validation data. Please reprocess the Primary PDF before checking Supporting PDFs.",
+                    validation_embedding_failed: "We couldn't complete document validation. Please try again.",
+                    validation_embedding_cardinality_mismatch: "We couldn't complete document validation. Please try again."
+                };
+                return known[code] || message || "Something went wrong. Please try again.";
+            };
+
             const handleFileSelect = (input) => {
                 const selectedFile = input?.files?.[0];
                 if (!selectedFile) return;
@@ -1965,15 +2023,21 @@ const ROLE_LABELS = {
                         text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`,
                         action: ""
                     });
+                    clearSelectedPdf();
                     return;
                 }
 
                 if (selectedFile.type !== "application/pdf") {
                     setStatus({ type: "error", text: "Please select a valid PDF file.", action: "" });
+                    clearSelectedPdf();
                     return;
                 }
 
+                if (pdfCandidateResult?.candidate_id && pdfCandidateResult?.can_confirm && !isConfirmingPdf) {
+                    cancelCurrentCandidate({ silent: true });
+                }
                 setFile(selectedFile);
+                setPdfCandidateResult(null);
                 setStatus({ type: "", text: "", action: "" });
             };
 
@@ -2237,7 +2301,7 @@ const ROLE_LABELS = {
                         const filesRes = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
                         const filesData = await filesRes.json();
                         const listedFiles = filesData.status === "success" ? (filesData.data || []) : [];
-                        const matchedFile = listedFiles.find(item => matchesUploadedPdfName(item.file_name || item.name || "", originalName));
+                        const matchedFile = listedFiles.find(item => matchesUploadedPdfName(item.display_name || item.original_file_name || item.file_name || item.name || "", originalName));
 
                         const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
                         const activeData = await activeRes.json();
@@ -2403,16 +2467,7 @@ const ROLE_LABELS = {
                 }
             };
 
-            const handleUpload = async () => {
-                if (!file) {
-                    setStatus({ type: "error", text: "Please select a PDF file first.", action: "" });
-                    return;
-                }
-
-                setIsUploading(true);
-                setStatus({ type: "", text: "", action: "" });
-                const originalFileName = file.name;
-
+            const uploadPdfAsPrimary = async (originalFileName) => {
                 const formData = new FormData();
                 formData.append("pdf_file", file);
 
@@ -2435,7 +2490,7 @@ const ROLE_LABELS = {
                             text: uploadResult.message || "PDF uploaded and set as primary knowledge.",
                             action: extractionFailed ? "" : "upload"
                         });
-                        setFile(null);
+                        clearSelectedPdf();
                         setIsModalOpen(false);
                         await fetchFiles();
                     } else {
@@ -2456,7 +2511,7 @@ const ROLE_LABELS = {
                             text: "PDF uploaded successfully. Processing completed or is available now.",
                             action: "upload"
                         });
-                        setFile(null);
+                        clearSelectedPdf();
                         setIsModalOpen(false);
                         await fetchFiles();
                     } else {
@@ -2466,12 +2521,112 @@ const ROLE_LABELS = {
                             action: ""
                         });
                     }
+                }
+            };
+
+            const validatePdfCandidate = async () => {
+                setIsValidatingPdf(true);
+                setStatus({ type: "", text: "", action: "" });
+                setPdfCandidateResult(null);
+
+                const formData = new FormData();
+                formData.append("pdf_file", file);
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/pdf-candidates/validate${botQuery}`, {
+                        method: "POST",
+                        body: formData,
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    const data = result.data || {};
+
+                    if (!response.ok || result.status === "error") {
+                        setStatus({ type: "error", text: candidateFriendlyError(result.code, result.message || "PDF relevance check failed."), action: "" });
+                        return;
+                    }
+
+                    if (data.validation_status === "no_primary_source") {
+                        await uploadPdfAsPrimary(file.name);
+                        return;
+                    }
+
+                    setPdfCandidateResult(data);
+                    if (data.validation_status === "primary_not_pdf") {
+                        setStatus({ type: "error", text: data.reason || "PDF-to-PDF Supporting validation requires a Primary PDF.", action: "" });
+                    } else if (data.duplicate_status === "exact_content_duplicate") {
+                        setStatus({ type: "error", text: "This PDF appears to contain the same content as your current Primary source.", action: "" });
+                    } else if (data.error_code && ["primary_embeddings_unavailable", "validation_embedding_failed", "validation_embedding_cardinality_mismatch"].includes(data.error_code)) {
+                        setStatus({ type: "error", text: candidateFriendlyError(data.error_code, data.reason), action: "" });
+                    } else if (data.validation_status === "validated_failed" || data.passed === false) {
+                        setStatus({ type: "error", text: "This PDF is not closely enough related to the current Primary knowledge source to add as Supporting knowledge.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Could not check this PDF. Please try again.", action: "" });
+                } finally {
+                    setIsValidatingPdf(false);
+                }
+            };
+
+            const handleUpload = async () => {
+                if (!file) {
+                    setStatus({ type: "error", text: "Please select a PDF file first.", action: "" });
+                    return;
+                }
+
+                setIsUploading(true);
+                setStatus({ type: "", text: "", action: "" });
+                const originalFileName = file.name;
+
+                try {
+                    if (hasPrimarySource) {
+                        await validatePdfCandidate();
+                    } else {
+                        await uploadPdfAsPrimary(originalFileName);
+                    }
                 } finally {
                     setIsUploading(false);
                 }
             };
 
-            const handleSetActive = async (fileName) => {
+            const handleConfirmPdfCandidate = async () => {
+                if (!pdfCandidateResult?.candidate_id || isConfirmingPdf || pdfCandidateResult.can_confirm !== true) return;
+                setIsConfirmingPdf(true);
+                setStatus({ type: "", text: "", action: "" });
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/pdf-candidates/${encodeURIComponent(pdfCandidateResult.candidate_id)}/confirm${botQuery}`, {
+                        method: "POST",
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    const data = result.data || {};
+
+                    if (!response.ok || result.status === "error") {
+                        const message = candidateFriendlyError(result.code, result.message || "Could not add this PDF as Supporting knowledge.");
+                        if (["primary_changed_revalidation_required", "candidate_expired", "candidate_not_confirmable"].includes(result.code)) {
+                            setPdfCandidateResult(null);
+                        }
+                        if (result.code === "candidate_file_missing") {
+                            setPdfCandidateResult(null);
+                            clearSelectedPdf();
+                        }
+                        setStatus({ type: "error", text: message, action: "" });
+                        return;
+                    }
+
+                    const displayName = pdfCandidateResult.candidate_filename || file?.name || "PDF";
+                    setStatus({ type: "success", text: `${displayName} was added as Supporting knowledge.`, action: "upload" });
+                    setPdfCandidateResult(null);
+                    clearSelectedPdf();
+                    setIsModalOpen(false);
+                    await fetchFiles();
+                } catch (error) {
+                    setStatus({ type: "error", text: "Could not add this PDF as Supporting knowledge. Please try again.", action: "" });
+                } finally {
+                    setIsConfirmingPdf(false);
+                }
+            };
+
+            const handleSetActive = async (fileName, displayName = fileName) => {
                 try {
                     const response = await authenticatedFetch(`/api/knowledge/set-active${botQuery}`, {
                         method: "POST",
@@ -2484,7 +2639,7 @@ const ROLE_LABELS = {
                     const data = await response.json();
 
                     if (response.ok) {
-                        setStatus({ type: "success", text: data.data?.message || `${fileName} is now the active primary knowledge.`, action: "setActive" });
+                        setStatus({ type: "success", text: `${displayName} is now the active primary knowledge.`, action: "setActive" });
                         await fetchFiles();
                     } else {
                         setStatus({ type: "error", text: data.message || "Failed to set primary knowledge.", action: "" });
@@ -2524,13 +2679,14 @@ const ROLE_LABELS = {
                 }
             };
 
-            const triggerDeleteFile = (fileName) => {
-                setFileToDelete(fileName);
+            const triggerDeleteFile = (fileName, displayName = fileName) => {
+                setFileToDelete({ fileName, displayName });
             };
 
             const confirmDeleteFile = async () => {
                 if (!fileToDelete) return;
-                const fileName = fileToDelete;
+                const fileName = fileToDelete.fileName;
+                const displayName = fileToDelete.displayName || fileName;
                 setFileToDelete(null);
 
                 try {
@@ -2541,7 +2697,7 @@ const ROLE_LABELS = {
                     const data = await response.json();
 
                     if (response.ok) {
-                        setStatus({ type: "deleted", text: data.data?.message || `${fileName} deleted successfully.`, action: "delete" });
+                        setStatus({ type: "deleted", text: `${displayName} deleted successfully.`, action: "delete" });
                         await fetchFiles();
                     } else {
                         setStatus({ type: "error", text: data.message || "Failed to delete knowledge source.", action: "" });
@@ -2729,7 +2885,8 @@ const ROLE_LABELS = {
                 return {
                     raw: f,
                     key: f.id != null ? `id-${f.id}` : `idx-${index}`,
-                    name: f.file_name || f.name || "Untitled source",
+                    name: getSourceDisplayName(f),
+                    actionName: getSourceActionName(f),
                     isWebsite: isWebsite,
                     enabled: enabled,
                     isPrimary: isPrimary,
@@ -2801,6 +2958,32 @@ const ROLE_LABELS = {
             const historyFiltered = activeHistoryFilter === "All"
                 ? historyLogs
                 : historyLogs.filter(log => log.category === activeHistoryFilter);
+
+            const busyAddingSource = isUploading || isAnalyzing || isExtracting || isValidatingPdf || isConfirmingPdf;
+            const pdfPrimaryActionLabel = hasPrimarySource ? "Check PDF" : "Upload Primary PDF";
+            const pdfModalIntro = hasPrimarySource
+                ? "This PDF will be checked against the current Primary source before it can become Supporting knowledge."
+                : "This PDF will become the bot's Primary knowledge source.";
+            const pdfCandidateStatus = pdfCandidateResult?.validation_status || "";
+            const pdfCandidateDuplicate = pdfCandidateResult?.duplicate_status || "none";
+            const pdfCandidatePassed = pdfCandidateStatus === "validated_passed" && pdfCandidateResult?.can_confirm === true;
+            const pdfCandidateExactDuplicate = pdfCandidateDuplicate === "exact_content_duplicate";
+            const pdfCandidateNearDuplicate = pdfCandidateDuplicate === "possible_near_duplicate";
+            const pdfCandidateSystemError = ["primary_embeddings_unavailable", "validation_embedding_failed", "validation_embedding_cardinality_mismatch"].includes(pdfCandidateResult?.error_code);
+
+            const renderTermList = (terms, emptyText) => {
+                const visible = Array.isArray(terms) ? terms.slice(0, 8) : [];
+                if (visible.length === 0) {
+                    return <p className="kw-help">{emptyText}</p>;
+                }
+                return (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+                        {visible.map(term => (
+                            <span key={term} className="kw-pill kw-pill-ready">{term}</span>
+                        ))}
+                    </div>
+                );
+            };
 
             const TABS = [
                 { key: "sources", icon: "library", title: "Manage sources", note: "Add and maintain trusted content" },
@@ -2892,8 +3075,12 @@ const ROLE_LABELS = {
                                             <button type="button" role="menuitem" className="kw-menu-item" onClick={() => startAdd("file")}>
                                                 <span className="kw-menu-icon"><Icon name="file-text" size={15} /></span>
                                                 <span>
-                                                    <span className="kw-menu-title">Upload a document</span>
-                                                    <span className="kw-menu-note">A PDF becomes the bot's primary source.</span>
+                                                    <span className="kw-menu-title">{hasPrimarySource ? "Add Supporting PDF" : "Upload a Primary PDF"}</span>
+                                                    <span className="kw-menu-note">
+                                                        {hasPrimarySource
+                                                            ? "Check a PDF before adding it as supporting knowledge."
+                                                            : "A PDF becomes the bot's primary source."}
+                                                    </span>
                                                 </span>
                                             </button>
                                             <button
@@ -3126,7 +3313,7 @@ const ROLE_LABELS = {
                                                                                     <button
                                                                                         type="button"
                                                                                         className="kw-action"
-                                                                                        onClick={() => handleSetActive(source.name)}
+                                                                                        onClick={() => handleSetActive(source.actionName, source.name)}
                                                                                         disabled={source.isPrimary}
                                                                                         title={source.isPrimary ? "Already the primary source" : "Make this the bot's primary source"}
                                                                                     >
@@ -3138,7 +3325,7 @@ const ROLE_LABELS = {
                                                                                 <button
                                                                                     type="button"
                                                                                     className="kw-action"
-                                                                                    onClick={() => handleToggleSupport(source.name, !source.enabled)}
+                                                                                    onClick={() => handleToggleSupport(source.actionName, !source.enabled)}
                                                                                     title={source.enabled ? "Stop using this source in answers" : "Use this source in answers"}
                                                                                 >
                                                                                     <Icon name={source.enabled ? "toggle-right" : "toggle-left"} size={14} />
@@ -3148,7 +3335,7 @@ const ROLE_LABELS = {
                                                                             <button
                                                                                 type="button"
                                                                                 className="kw-action kw-action-danger"
-                                                                                onClick={() => triggerDeleteFile(source.name)}
+                                                                                onClick={() => triggerDeleteFile(source.actionName, source.name)}
                                                                                 title="Delete this source"
                                                                             >
                                                                                 <Icon name="trash-2" size={14} /> Delete
@@ -3363,7 +3550,7 @@ const ROLE_LABELS = {
                                                 <button
                                                     type="button"
                                                     className="kw-btn kw-btn-icon kw-btn-danger"
-                                                    onClick={() => triggerDeleteFile(selectedSource.name)}
+                                                    onClick={() => triggerDeleteFile(selectedSource.actionName, selectedSource.name)}
                                                     aria-label={`Delete ${selectedSource.name}`}
                                                     title="Delete this source"
                                                 >
@@ -3380,7 +3567,7 @@ const ROLE_LABELS = {
                             <GraphVisualizer botId={selectedBotId} activeFile={activeFile} />
                         )}
                         {activeViewTab === "refinement" && (
-                            <KnowledgeRefinement botId={selectedBotId} activeFile={activeFile} />
+                            <KnowledgeRefinement botId={selectedBotId} activeFile={activeFile} activeFileDisplayName={primarySourceDisplayName} />
                         )}
                     </main>
 
@@ -3390,9 +3577,9 @@ const ROLE_LABELS = {
                             <div className="kw-modal-head">
                                 <div>
                                     <h2>Add a knowledge source</h2>
-                                    <p>A document becomes the primary source. Websites support it.</p>
+                                    <p>{hasPrimarySource ? "PDFs are checked before they become Supporting knowledge. Websites support the Primary source." : "A document becomes the primary source. Websites support it."}</p>
                                 </div>
-                                <button type="button" className="kw-iconbtn" aria-label="Close" onClick={closeModal} disabled={isUploading || isAnalyzing || isExtracting}>
+                                <button type="button" className="kw-iconbtn" aria-label="Close" onClick={closeModal} disabled={busyAddingSource}>
                                     <Icon name="x" size={16} />
                                 </button>
                             </div>
@@ -3404,7 +3591,7 @@ const ROLE_LABELS = {
                                         role="tab"
                                         aria-selected={activeTab === "file"}
                                         onClick={() => setActiveTab("file")}
-                                        disabled={isUploading || isAnalyzing || isExtracting}
+                                        disabled={busyAddingSource}
                                     >
                                         Document
                                     </button>
@@ -3413,7 +3600,7 @@ const ROLE_LABELS = {
                                         role="tab"
                                         aria-selected={activeTab === "link"}
                                         onClick={() => setActiveTab("link")}
-                                        disabled={isUploading || isAnalyzing || isExtracting}
+                                        disabled={busyAddingSource}
                                     >
                                         Website
                                     </button>
@@ -3509,13 +3696,19 @@ const ROLE_LABELS = {
                                     )
                                 ) : (
                                     <div>
-                                        <button type="button" className="kw-drop" onClick={() => document.getElementById("file-input").click()}>
+                                        <div className="kw-field" style={{ marginBottom: "12px" }}>
+                                            <span className="kw-label">{hasPrimarySource ? "Add Supporting PDF" : "Upload a Primary PDF"}</span>
+                                            <p className="kw-help">{pdfModalIntro}</p>
+                                        </div>
+
+                                        <button type="button" className="kw-drop" onClick={() => pdfFileInputRef.current?.click()} disabled={busyAddingSource}>
                                             <Icon name="upload" size={22} />
                                             <span style={{ color: "var(--control-text)", fontWeight: 500 }}>Choose a PDF</span>
                                             <span>Up to 60 characters in the file name</span>
                                             <input
                                                 type="file"
                                                 id="file-input"
+                                                ref={pdfFileInputRef}
                                                 style={{ display: "none" }}
                                                 accept=".pdf"
                                                 onChange={(e) => handleFileSelect(e.target)}
@@ -3528,10 +3721,93 @@ const ROLE_LABELS = {
                                                 <span>{file.name}</span>
                                             </div>
                                         )}
-                                        {isUploading && (
+                                        {(isUploading || isValidatingPdf || isConfirmingPdf) && (
                                             <p className="kw-help" style={{ marginTop: "12px" }}>
-                                                Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh.
+                                                {isValidatingPdf
+                                                    ? "We are reading this PDF and checking whether it is related to your current Primary knowledge source."
+                                                    : isConfirmingPdf
+                                                        ? "Adding Supporting Knowledge. Knowledge processing is now occurring."
+                                                        : "Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh."}
                                             </p>
+                                        )}
+                                        {isValidatingPdf && (
+                                            <div className="kw-evidence-source" style={{ marginTop: "12px", alignItems: "flex-start" }}>
+                                                <span className="kw-spinner" />
+                                                <span>
+                                                    <strong style={{ display: "block", color: "var(--control-text)" }}>Checking document relevance</strong>
+                                                    <span>Uploading PDF · Reading document · Comparing with Primary · Preparing result</span>
+                                                </span>
+                                            </div>
+                                        )}
+                                        {pdfCandidateResult && !isValidatingPdf && (
+                                            <div className="kw-field" style={{ marginTop: "16px", gap: "12px" }}>
+                                                <div className={`kw-banner ${pdfCandidatePassed ? "kw-banner-success" : "kw-banner-error"}`} style={{ margin: 0 }}>
+                                                    <Icon name={pdfCandidatePassed ? "circle-check" : pdfCandidateExactDuplicate ? "copy" : "triangle-alert"} size={16} />
+                                                    <span>
+                                                        {pdfCandidatePassed
+                                                            ? "Suitable supporting document"
+                                                            : pdfCandidateExactDuplicate
+                                                                ? "Same as Primary source"
+                                                                : pdfCandidateSystemError
+                                                                    ? "Validation could not complete"
+                                                                    : "Document needs changes"}
+                                                    </span>
+                                                </div>
+
+                                                <dl className="kw-deflist">
+                                                    <dt>PDF</dt>
+                                                    <dd>{pdfCandidateResult.candidate_filename || file?.name || "Selected PDF"}</dd>
+                                                    <dt>Relevance Score</dt>
+                                                    <dd>{formatRelevanceScore(pdfCandidateResult.relevance_score)}</dd>
+                                                    <dt>Required Score</dt>
+                                                    <dd>{formatRelevanceScore(pdfCandidateResult.threshold)}</dd>
+                                                    <dt>Primary source</dt>
+                                                    <dd>{primarySourceDisplayName || pdfCandidateResult.primary?.display_name || pdfCandidateResult.primary?.original_file_name || pdfCandidateResult.primary?.file_name || "Current Primary"}</dd>
+                                                </dl>
+
+                                                {pdfCandidateNearDuplicate && (
+                                                    <div className="kw-banner kw-banner-error" style={{ margin: 0 }}>
+                                                        <Icon name="copy" size={16} />
+                                                        <span>This document is very similar to your Primary source and may contain repeated information.</span>
+                                                    </div>
+                                                )}
+
+                                                {pdfCandidateResult.truncated && (
+                                                    <p className="kw-help">This check used a capped view of a large document. Review the result before adding it.</p>
+                                                )}
+
+                                                <div>
+                                                    <span className="kw-label">Result</span>
+                                                    <p className="kw-help" style={{ marginTop: "6px" }}>
+                                                        {pdfCandidateExactDuplicate
+                                                            ? "This PDF appears to contain the same content as your current Primary source. Supporting knowledge should normally add new information."
+                                                            : pdfCandidateResult.reason || "The backend completed the relevance check."}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <span className="kw-label">Matched areas</span>
+                                                    {renderTermList(pdfCandidateResult.matched_topics, "No strong matched topics were returned.")}
+                                                </div>
+
+                                                {!pdfCandidatePassed && !pdfCandidateSystemError && (
+                                                    <div>
+                                                        <span className="kw-label">Unrelated areas</span>
+                                                        {renderTermList(pdfCandidateResult.unrelated_topics, "No unrelated topics were returned.")}
+                                                    </div>
+                                                )}
+
+                                                {!pdfCandidatePassed && !pdfCandidateSystemError && Array.isArray(pdfCandidateResult.suggestions) && pdfCandidateResult.suggestions.length > 0 && (
+                                                    <div>
+                                                        <span className="kw-label">Suggestions</span>
+                                                        <ul style={{ marginTop: "8px", paddingLeft: "18px", color: "var(--control-text-secondary)", lineHeight: 1.5 }}>
+                                                            {pdfCandidateResult.suggestions.slice(0, 4).map(suggestion => (
+                                                                <li key={suggestion}>{suggestion}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
                                     </div>
                                 )}
@@ -3548,7 +3824,7 @@ const ROLE_LABELS = {
                                         <Icon name="arrow-left" size={15} /> Back
                                     </button>
                                 )}
-                                <button type="button" className="kw-btn" onClick={closeModal} disabled={isUploading || isAnalyzing || isExtracting}>
+                                <button type="button" className="kw-btn" onClick={closeModal} disabled={busyAddingSource}>
                                     Cancel
                                 </button>
                                 {activeTab === "link" ? (
@@ -3572,9 +3848,31 @@ const ROLE_LABELS = {
                                             </button>
                                         )
                                     )
+                                ) : pdfCandidatePassed ? (
+                                    <button
+                                        type="button"
+                                        className="kw-btn kw-btn-primary"
+                                        onClick={handleConfirmPdfCandidate}
+                                        disabled={isConfirmingPdf || isValidatingPdf}
+                                    >
+                                        {isConfirmingPdf ? "Adding Supporting Knowledge" : "Add as Supporting Knowledge"}
+                                    </button>
+                                ) : pdfCandidateResult ? (
+                                    <button
+                                        type="button"
+                                        className="kw-btn kw-btn-primary"
+                                        onClick={() => {
+                                            clearSelectedPdf();
+                                            setPdfCandidateResult(null);
+                                            setStatus({ type: "", text: "", action: "" });
+                                        }}
+                                        disabled={busyAddingSource}
+                                    >
+                                        Choose another PDF
+                                    </button>
                                 ) : (
                                     <button type="button" className="kw-btn kw-btn-primary" onClick={handleUpload} disabled={isUploading || !file}>
-                                        {isUploading ? "Uploading" : "Upload document"}
+                                        {isValidatingPdf ? "Checking relevance" : isUploading ? "Uploading" : pdfPrimaryActionLabel}
                                     </button>
                                 )}
                             </div>
@@ -3659,7 +3957,7 @@ const ROLE_LABELS = {
                                 <div>
                                     <h2>Delete this source?</h2>
                                     <p>
-                                        {fileToDelete} will be removed from this bot's knowledge and cannot be restored.
+                                        {fileToDelete?.displayName || "This source"} will be removed from this bot's knowledge and cannot be restored.
                                     </p>
                                 </div>
                             </div>

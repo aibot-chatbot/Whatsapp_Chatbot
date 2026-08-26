@@ -6,7 +6,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MIGRATION_PATH = PROJECT_ROOT / "data" / "027_harden_crm_agent_actions.sql"
 STATUS_MIGRATION_PATH = (
-    PROJECT_ROOT / "data" / "046_widen_crm_lead_status_check.sql"
+    PROJECT_ROOT / "data" / "047_widen_crm_lead_status_check.sql"
 )
 PREFLIGHT_PATH = PROJECT_ROOT / "scripts" / "crm_agent_actions_hardening_preflight.sql"
 ROLLBACK_PATH = PROJECT_ROOT / "scripts" / "crm_agent_actions_hardening_rollback.sql"
@@ -78,7 +78,7 @@ def _direct_table_operations(paths):
 
 # Highest migration number currently in data/. Bump this deliberately when a
 # new migration is added, so numbering conflicts surface as a test failure.
-HIGHEST_MIGRATION_NUMBER = 46
+HIGHEST_MIGRATION_NUMBER = 47
 
 
 def test_027_keeps_its_selected_migration_number():
@@ -196,9 +196,9 @@ def test_nullable_columns_and_company_not_null_gate_match_the_design():
 
 def test_proposed_checks_cover_current_application_and_historical_values():
     # 027 owns the intent, action and priority CHECK constraints.  The status
-    # constraint it created was later replaced by 046 when the lead pipeline
+    # constraint it created was later replaced by 047 when the lead pipeline
     # moved to new/contacted/qualified/won/lost, so status values are checked
-    # against 046 and everything else against 027.  Reading both is what keeps
+    # against 047 and everything else against 027.  Reading both is what keeps
     # this guard honest: it asserts that some live migration covers every value
     # the application can produce, not that one particular file does.
     migration = _read(MIGRATION_PATH)
@@ -228,7 +228,7 @@ def test_proposed_checks_cover_current_application_and_historical_values():
     for value in crm_statuses:
         assert f"'{value}'" in status_migration
 
-    # The retired vocabulary stays in 046's allow-list for one release so an
+    # The retired vocabulary stays in 047's allow-list for one release so an
     # older client cannot trip a constraint violation mid-deploy.
     for retired in ("in_progress", "closed"):
         assert f"'{retired}'" in status_migration

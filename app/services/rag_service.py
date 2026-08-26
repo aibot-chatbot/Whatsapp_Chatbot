@@ -16,6 +16,8 @@ from app.database.knowledge_file_repository import get_active_knowledge_file, ge
 load_dotenv()
 
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+EMBEDDING_MODEL = "gemini-embedding-2"
+EMBEDDING_DIMENSION = 768
 
 # Compatibility name used by older RAG tests and PDF-specific callers.
 get_active_pdf_knowledge_file = get_active_knowledge_file
@@ -361,9 +363,9 @@ def generate_embedding(text):
         return []
     try:
         response = client.models.embed_content(
-            model='gemini-embedding-2',
+            model=EMBEDDING_MODEL,
             contents=text,
-            config={"output_dimensionality": 768}
+            config={"output_dimensionality": EMBEDDING_DIMENSION}
         )
         return response.embeddings[0].values
     except Exception as e:

@@ -1,7 +1,12 @@
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, current_app, jsonify, request, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
-from app.services.billing_guard import can_upload_knowledge_file, can_use_plan_feature, BillingLimitError
+from app.services.billing_guard import (
+    can_upload_knowledge_file,
+    can_upload_knowledge_storage,
+    can_use_plan_feature,
+    BillingLimitError,
+)
 from app.services.company_status_service import (
     CompanyOperationalStatusError,
     company_operational_required,
@@ -26,8 +31,22 @@ from app.services.knowledge_ingestion_service import (
     ingest_website_sources,
     summarize_report,
 )
+from app.database.knowledge_file_repository import get_active_knowledge_file
+from app.services.pdf_relevance_validation_service import (
+    CandidateStateError,
+    cancel_pdf_candidate,
+    confirm_supporting_pdf_candidate,
+    validate_supporting_pdf_candidate,
+)
 
 knowledge_blueprint = Blueprint("knowledge", __name__)
+
+
+def _incoming_upload_size(file):
+    file.seek(0, 2)
+    incoming_size = file.tell()
+    file.seek(0)
+    return incoming_size
 
 @knowledge_blueprint.route("/api/knowledge/files", methods=["GET"])
 @token_required
@@ -79,6 +98,191 @@ def get_current_active_pdf():
         return jsonify({
             "status": "error",
             "message": str(e)
+        }), 500
+
+
+@knowledge_blueprint.route("/api/knowledge/pdf-candidates/validate", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+@company_operational_required
+def validate_pdf_candidate():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        primary_file = get_active_knowledge_file(chatbot_id)
+        if not primary_file:
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "validation_status": "no_primary_source",
+                    "passed": False,
+                    "can_confirm": False,
+                    "reason": "No Primary source exists for this chatbot yet.",
+                },
+            }), 200
+
+        if "pdf_file" not in request.files:
+            return jsonify({
+                "status": "error",
+                "message": "No file part"
+            }), 400
+
+        file = request.files["pdf_file"]
+        if not file or not file.filename:
+            return jsonify({
+                "status": "error",
+                "message": "No selected file"
+            }), 400
+        if not file.filename.lower().endswith(".pdf"):
+            return jsonify({
+                "status": "error",
+                "message": "Invalid file type"
+            }), 400
+
+        incoming_size = _incoming_upload_size(file)
+        can_upload_knowledge_file(g.company_id)
+        can_upload_knowledge_storage(g.company_id, incoming_size)
+
+        threshold = float(current_app.config.get("PDF_SUPPORTING_RELEVANCE_THRESHOLD", 0.65))
+        result = validate_supporting_pdf_candidate(
+            file=file,
+            chatbot_id=chatbot_id,
+            company_id=g.company_id,
+            created_by_user_id=getattr(g, "user_id", None),
+            threshold=threshold,
+            primary_file=primary_file,
+        )
+
+        return jsonify({
+            "status": "success",
+            "data": result,
+        }), 200
+
+    except BillingLimitError as e:
+        response = {
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+        }
+        if getattr(e, "details", None):
+            response["details"] = e.details
+        return jsonify(response), 403
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 400
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+    except Exception:
+        logging.exception("Supporting PDF candidate validation failed")
+        return jsonify({
+            "status": "error",
+            "message": "PDF validation failed. Please check the server logs for details."
+        }), 500
+
+
+@knowledge_blueprint.route("/api/knowledge/pdf-candidates/<candidate_id>/confirm", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+@company_operational_required
+def confirm_pdf_candidate(candidate_id):
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        result = confirm_supporting_pdf_candidate(
+            candidate_id=candidate_id,
+            chatbot_id=chatbot_id,
+            company_id=g.company_id,
+        )
+
+        return jsonify({
+            "status": "success",
+            "data": result,
+        }), 200
+
+    except CandidateStateError as e:
+        status_code = 404 if e.code == "candidate_not_found" else 409
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+        }), status_code
+    except BillingLimitError as e:
+        response = {
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+        }
+        if getattr(e, "details", None):
+            response["details"] = e.details
+        return jsonify(response), 403
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+    except Exception:
+        logging.exception("Supporting PDF candidate confirmation failed")
+        return jsonify({
+            "status": "error",
+            "message": "PDF candidate confirmation failed. Please check the server logs for details."
+        }), 500
+
+
+@knowledge_blueprint.route("/api/knowledge/pdf-candidates/<candidate_id>/cancel", methods=["POST", "DELETE"])
+@token_required
+@role_required("admin", "owner")
+@company_operational_required
+def cancel_pdf_candidate_route(candidate_id):
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id is required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        result = cancel_pdf_candidate(candidate_id, chatbot_id, g.company_id)
+
+        return jsonify({
+            "status": "success",
+            "data": result,
+        }), 200
+
+    except CandidateStateError as e:
+        status_code = 404 if e.code == "candidate_not_found" else 409
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+        }), status_code
+    except PermissionError as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 403
+    except Exception:
+        logging.exception("Supporting PDF candidate cancellation failed")
+        return jsonify({
+            "status": "error",
+            "message": "PDF candidate cancellation failed. Please check the server logs for details."
         }), 500
 
 

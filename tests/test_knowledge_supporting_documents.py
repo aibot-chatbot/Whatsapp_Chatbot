@@ -10,6 +10,8 @@ take the primary slot away from a document that still answers questions.
 """
 
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import patch
 
 
@@ -59,6 +61,14 @@ class _Query:
     @property
     def eq_fields(self):
         return [field for field, _ in self.eq_calls]
+
+
+class _SupabaseByTable:
+    def __init__(self, table_data):
+        self.table_data = table_data
+
+    def table(self, table_name):
+        return _Query(_Response(self.table_data.get(table_name, []))).table(table_name)
 
 
 class TestSupportingKnowledgeRepository(unittest.TestCase):
@@ -405,6 +415,47 @@ class TestZeroChunkUploadDoesNotStealPrimary(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["chunk_count"], 4)
         self.assertTrue(mock_runtime.called)
+
+
+class TestKnowledgeReadmeDisplayNames(unittest.TestCase):
+    def test_readme_uses_original_file_name_for_visible_document_title(self):
+        from app.services import knowledge_service
+
+        internal_name = "bot_7_123e4567_policy.pdf"
+        readable_name = "policy.pdf"
+
+        with tempfile.TemporaryDirectory() as tmpdir, \
+            patch.object(knowledge_service, "DATA_FOLDER", tmpdir), \
+            patch(
+                "app.database.db.supabase",
+                _SupabaseByTable({
+                    "knowledge_files": [{
+                        "id": 55,
+                        "chatbot_id": 7,
+                        "file_name": internal_name,
+                        "original_file_name": readable_name,
+                    }],
+                    "knowledge_graph_nodes": [],
+                    "knowledge_graph_edges": [],
+                }),
+            ), \
+            patch(
+                "app.database.knowledge_file_repository.get_active_pdf_knowledge_file",
+                return_value={"id": 55, "file_name": internal_name, "original_file_name": readable_name},
+            ), \
+            patch(
+                "app.database.knowledge_chunk_repository.get_chunks_by_file_for_chatbot",
+                return_value=[{"content": "Refund policy text", "metadata": {"chunk_index": 0}}],
+            ):
+            knowledge_service.generate_and_save_knowledge_readme(7, 55)
+
+            readme = Path(tmpdir, "bot_7_55_readme.md").read_text(encoding="utf-8")
+
+        self.assertIn(f"# Knowledge Base README: {readable_name}", readme)
+        self.assertIn(f"compiled knowledge source for Chatbot #7, extracted from the document `{readable_name}`", readme)
+        self.assertNotIn(f"# Knowledge Base README: {internal_name}", readme)
+        self.assertNotIn(f"document `{internal_name}`", readme)
+        self.assertNotIn("primary document", readme)
 
 
 class _FakeUpload:

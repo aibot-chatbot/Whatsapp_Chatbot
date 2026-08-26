@@ -300,6 +300,7 @@
             selected: "",       // row highlighted in the library
             active: "",         // profile the bot actually answers with
             activeKnowledge: "",
+            activeKnowledgeDisplayName: "",
             websites: [],
             channels: 0,
             validation: null,   // null = never checked, or invalidated server-side
@@ -422,10 +423,21 @@
         async function loadActiveKnowledge() {
             try {
                 const { body } = await api(`/api/knowledge/active${botQuery}`);
-                state.activeKnowledge = body.status === "success" ? (body.data?.file_name || "") : "";
+                const active = body.status === "success" ? (body.data || {}) : {};
+                state.activeKnowledge = active.file_name || "";
+                state.activeKnowledgeDisplayName = sourceDisplayName(active, state.activeKnowledge);
             } catch (_) {
                 state.activeKnowledge = "";
+                state.activeKnowledgeDisplayName = "";
             }
+        }
+
+        function sourceDisplayName(item, fallback = "") {
+            return item?.display_name || item?.original_file_name || item?.file_name || fallback || "";
+        }
+
+        function activeKnowledgeLabel() {
+            return state.activeKnowledgeDisplayName || state.activeKnowledge;
         }
 
         // A knowledge row is a supporting website when its type is url, or when
@@ -539,7 +551,7 @@
             const order = ["profile", "knowledge", "validate", "deploy"];
             const notes = {
                 profile: done.profile ? `Active: ${state.active}` : "Choose an active profile.",
-                knowledge: done.knowledge ? state.activeKnowledge : "Add primary knowledge.",
+                knowledge: done.knowledge ? activeKnowledgeLabel() : "Add primary knowledge.",
                 validate: done.validate ? "Validation passed." : "Not checked yet.",
                 // Step 3 already says validation is outstanding; repeating it
                 // here would waste the one line this step has to explain the lock.
@@ -742,7 +754,7 @@
                     "Active profile", state.active || "Not selected",
                     state.active ? READY : REVIEW, "Change", "#bc-library-title"),
                 readyRow("M6 3h9l5 5v13H6ZM14 3v6h6",
-                    "Active primary knowledge", state.activeKnowledge || "Not selected",
+                    "Active primary knowledge", activeKnowledgeLabel() || "Not selected",
                     state.activeKnowledge ? READY : REVIEW, "Manage", `new_linkdocs.html${pageQuery}`),
                 readyRow("M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18",
                     "Supporting websites",

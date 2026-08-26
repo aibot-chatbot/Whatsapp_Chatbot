@@ -73,6 +73,7 @@
     var catalogue = { options: {}, readOnly: false, accessAllowed: true, denialReason: null, access: null };
     var context = null;
     var scenarios = null;
+    var activeKnowledge = {};
     var activeTab = "model";
     var busy = false;
     /** Set when the bot could not be loaded: nothing may be written after that. */
@@ -172,8 +173,9 @@
 
         if (tab === "test") {
             renderChatEmpty();
-            loadTestContext();
-            loadScenarios(false);
+            loadTestContext().then(function () {
+                return loadScenarios(false);
+            });
         }
     }
 
@@ -472,6 +474,23 @@
         return li;
     }
 
+    function sourceDisplayName(item, fallback) {
+        return (item && (item.display_name || item.original_file_name || item.file_name))
+            || fallback
+            || "";
+    }
+
+    async function loadActiveKnowledge() {
+        try {
+            var response = await authenticatedFetch(
+                "/api/knowledge/active?chatbot_id=" + encodeURIComponent(botId));
+            var body = await response.json();
+            activeKnowledge = body.status === "success" ? Object.assign({ _loaded: true }, body.data || {}) : {};
+        } catch (_) {
+            activeKnowledge = {};
+        }
+    }
+
     async function loadTestContext() {
         var reachable = true;
 
@@ -489,6 +508,11 @@
             context = {};
         }
 
+        await loadActiveKnowledge();
+        if (scenarios && !scenarios.loading) {
+            renderScenarios();
+        }
+
         // A failed lookup is not evidence that nothing is deployed. Claiming it
         // is sends the operator to redeploy a bot that was fine.
         if (!reachable) {
@@ -504,9 +528,14 @@
         }
 
         var profile = context.active_profile || "";
-        var knowledge = context.active_pdf || "";
+        var legacyKnowledge = context.active_pdf || "";
+        var knowledge = activeKnowledge._loaded
+            ? sourceDisplayName(activeKnowledge, "")
+            : sourceDisplayName(activeKnowledge, legacyKnowledge);
         var hasProfile = Boolean(profile) && profile !== "No active profile";
-        var hasKnowledge = Boolean(knowledge) && knowledge !== "No active PDF";
+        var hasKnowledge = activeKnowledge._loaded
+            ? Boolean(activeKnowledge.file_name)
+            : Boolean(knowledge) && knowledge !== "No active PDF";
 
         $("bh-setup").replaceChildren(
             setupItem("Profile", hasProfile ? profile : "Not deployed", hasProfile,
@@ -549,8 +578,9 @@
 
         // Naming the document is what makes "matched" checkable rather than a
         // claim: the operator can see which file these came out of.
+        var scenarioSourceName = sourceDisplayName(activeKnowledge, scenarios.source_document);
         note.textContent = scenarios.matched
-            ? "Matched to " + scenarios.source_document + "."
+            ? "Matched to " + scenarioSourceName + "."
             : (scenarios.note || "");
 
         list.replaceChildren.apply(list, (scenarios.items || []).map(function (scenario) {
