@@ -15,6 +15,7 @@ from unittest.mock import patch
 import pytest
 
 from app import create_app
+from app.routes import knowledge_routes
 from app.services.billing_guard import BillingLimitError
 
 
@@ -28,6 +29,15 @@ CURRENT_USER = {
     "email": "tenant-28@example.test",
     "role": "admin",
     "status": "active",
+}
+
+ACTIVE_PRIMARY_PDF = {
+    "id": 41,
+    "chatbot_id": CHATBOT_ID,
+    "file_name": "primary.pdf",
+    "file_type": "pdf",
+    "is_active": True,
+    "is_enabled": True,
 }
 
 
@@ -52,8 +62,76 @@ def authenticated():
         "app.routes.knowledge_routes.can_use_plan_feature"
     ), patch(
         "app.routes.knowledge_routes.can_upload_knowledge_file"
+    ), patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file",
+        return_value=ACTIVE_PRIMARY_PDF,
     ):
         yield
+
+
+@pytest.mark.parametrize(
+    "knowledge_file",
+    [
+        None,
+        {"file_name": "supporting.pdf", "file_type": "pdf", "is_active": False, "is_enabled": True},
+        {"file_name": "disabled.pdf", "file_type": "pdf", "is_active": True, "is_enabled": False},
+        {"file_name": "https://example.test", "file_type": "url", "is_active": True, "is_enabled": True},
+    ],
+)
+def test_active_primary_pdf_guard_rejects_missing_supporting_disabled_or_url_primary(
+    monkeypatch, knowledge_file
+):
+    monkeypatch.setattr(
+        knowledge_routes,
+        "get_active_knowledge_file",
+        lambda chatbot_id: knowledge_file,
+    )
+
+    assert knowledge_routes._has_active_primary_pdf(CHATBOT_ID) is False
+
+
+def test_active_primary_pdf_guard_accepts_legacy_pdf_evidence(monkeypatch):
+    monkeypatch.setattr(
+        knowledge_routes,
+        "get_active_knowledge_file",
+        lambda chatbot_id: {"file_name": "legacy-primary.pdf", "is_active": True},
+    )
+
+    assert knowledge_routes._has_active_primary_pdf(CHATBOT_ID) is True
+
+
+def test_single_scrape_requires_active_primary_pdf_before_scraping(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file", return_value=None
+    ), patch("app.routes.knowledge_routes.scrape_website_url") as scrape:
+        response = client.post(
+            f"/api/knowledge/scrape?chatbot_id={CHATBOT_ID}",
+            json={"url": "https://example.test"},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "primary_pdf_required"
+    scrape.assert_not_called()
+
+
+def test_single_scrape_allows_active_primary_pdf(client, authenticated):
+    with patch(
+        "app.routes.knowledge_routes.scrape_website_url",
+        return_value={"file_name": "https://example.test", "message": "saved"},
+    ) as scrape:
+        response = client.post(
+            f"/api/knowledge/scrape?chatbot_id={CHATBOT_ID}",
+            json={"url": "https://example.test"},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 200
+    scrape.assert_called_once_with(
+        "https://example.test", CHATBOT_ID, company_id=COMPANY_ID
+    )
 
 
 # ── scrape-analyze ────────────────────────────────────────────────────────
@@ -102,6 +180,25 @@ def test_scrape_analyze_requires_chatbot_id(client, authenticated):
     assert response.status_code == 400
 
 
+def test_scrape_analyze_requires_active_primary_pdf_before_discovery(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file", return_value=None
+    ), patch("app.routes.knowledge_routes.discover_website_links") as discover:
+        response = client.post(
+            f"/api/knowledge/scrape-analyze?chatbot_id={CHATBOT_ID}",
+            json={"url": "https://example.test"},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 409
+    body = response.get_json()
+    assert body["code"] == "primary_pdf_required"
+    assert body["message"] == "Upload a Primary PDF before adding website knowledge."
+    discover.assert_not_called()
+
+
 # ── scrape-batch ──────────────────────────────────────────────────────────
 
 
@@ -120,7 +217,28 @@ def test_scrape_batch_saves_urls_as_supporting_knowledge(client, authenticated):
     body = response.get_json()
     assert body["status"] == "success"
     assert body["data"]["file_name"] == "https://example.test"
-    batch.assert_called_once_with(["https://example.test"], CHATBOT_ID)
+    batch.assert_called_once_with(
+        ["https://example.test"],
+        CHATBOT_ID,
+        company_id=COMPANY_ID,
+    )
+
+
+def test_scrape_batch_passes_company_id_so_storage_quota_is_enforced(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.scrape_website_urls_batch",
+        return_value={"file_name": "https://example.test", "message": "saved"},
+    ) as batch:
+        response = client.post(
+            f"/api/knowledge/scrape-batch?chatbot_id={CHATBOT_ID}",
+            json={"urls": ["https://example.test", "https://example.test/pricing"]},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 200
+    assert batch.call_args.kwargs["company_id"] == COMPANY_ID
 
 
 def test_scrape_batch_rejects_non_list_urls(client, authenticated):
@@ -146,6 +264,29 @@ def test_scrape_batch_surfaces_billing_limit_as_403_with_code(client, authentica
 
     assert response.status_code == 403
     assert response.get_json()["code"] == "feature_not_in_plan"
+
+
+def test_scrape_batch_requires_active_primary_pdf_before_batch_work(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file",
+        return_value={"file_name": "supporting.pdf", "file_type": "pdf", "is_active": False, "is_enabled": True},
+    ), patch(
+        "app.routes.knowledge_routes.scrape_website_urls_batch"
+    ) as batch, patch(
+        "app.routes.knowledge_routes.can_upload_knowledge_file"
+    ) as quota:
+        response = client.post(
+            f"/api/knowledge/scrape-batch?chatbot_id={CHATBOT_ID}",
+            json={"urls": ["https://example.test"]},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "primary_pdf_required"
+    quota.assert_not_called()
+    batch.assert_not_called()
 
 
 # ── scrape-extract ────────────────────────────────────────────────────────
@@ -237,6 +378,29 @@ def test_scrape_extract_checks_file_quota_before_the_billed_llm_call(
     extract.assert_not_called()
 
 
+def test_scrape_extract_requires_active_primary_pdf_before_scraping_or_ai(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file",
+        return_value={"file_name": "primary.pdf", "file_type": "pdf", "is_active": True, "is_enabled": False},
+    ), patch(
+        "app.services.knowledge_service.fetch_and_parse_url"
+    ) as fetch, patch(
+        "app.routes.knowledge_routes.extract_business_knowledge"
+    ) as extract:
+        response = client.post(
+            f"/api/knowledge/scrape-extract?chatbot_id={CHATBOT_ID}",
+            json={"urls": ["https://example.test"]},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "primary_pdf_required"
+    fetch.assert_not_called()
+    extract.assert_not_called()
+
+
 # ── scrape-embed ──────────────────────────────────────────────────────────
 
 
@@ -310,6 +474,29 @@ def test_scrape_embed_honours_custom_file_name(client, authenticated):
         )
 
     assert save.call_args.kwargs["file_name"] == "Custom"
+
+
+def test_scrape_embed_requires_active_primary_pdf_before_storage(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.get_active_knowledge_file",
+        return_value={"file_name": "https://example.test", "file_type": "url", "is_active": True, "is_enabled": True},
+    ), patch(
+        "app.routes.knowledge_routes.save_refined_knowledge_chunks"
+    ) as save:
+        response = client.post(
+            f"/api/knowledge/scrape-embed?chatbot_id={CHATBOT_ID}",
+            json={
+                "text_content": "REFINED",
+                "primary_url": "https://example.test",
+            },
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "primary_pdf_required"
+    save.assert_not_called()
 
 
 # ── shared tenancy / role gates ───────────────────────────────────────────

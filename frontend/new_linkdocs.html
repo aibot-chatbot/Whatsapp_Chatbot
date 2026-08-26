@@ -67,6 +67,60 @@
             width: 100%;
             min-height: 100vh;
         }
+
+        .kw-operation-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 12px;
+            padding: 12px;
+            border: 1px solid var(--control-border);
+            border-radius: 8px;
+            background: var(--control-sunken);
+        }
+
+        .kw-operation-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--control-text);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .kw-operation-bar {
+            position: relative;
+            overflow: hidden;
+            height: 6px;
+            border-radius: 999px;
+            background: var(--control-border);
+        }
+
+        .kw-operation-bar::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: -35%;
+            width: 35%;
+            border-radius: inherit;
+            background: var(--control-accent);
+            animation: kw-operation-slide 1.15s ease-in-out infinite;
+        }
+
+        .kw-operation-meta {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 8px;
+            color: var(--control-text-secondary);
+            font-size: 12px;
+        }
+
+        @keyframes kw-operation-slide {
+            0% { left: -35%; }
+            100% { left: 100%; }
+        }
     </style>
 </head>
 
@@ -1860,6 +1914,9 @@ const ROLE_LABELS = {
             const [linkUrl, setLinkUrl] = useState("");
             const [activeViewTab, setActiveViewTab] = useState("sources");
             const pdfFileInputRef = React.useRef(null);
+            const [operationStage, setOperationStage] = useState("");
+            const [operationStartedAt, setOperationStartedAt] = useState(null);
+            const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
             // Interactive Crawler State Variables
             const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -1869,6 +1926,51 @@ const ROLE_LABELS = {
             const [refinedText, setRefinedText] = useState("");
             const [isExtracting, setIsExtracting] = useState(false);
             const [extractedPrimaryUrl, setExtractedPrimaryUrl] = useState("");
+
+            const isKnowledgeOperationInFlight = isUploading || isAnalyzing || isExtracting || isValidatingPdf || isConfirmingPdf;
+
+            const startKnowledgeOperation = (stage) => {
+                setOperationStage(stage);
+                setOperationStartedAt(Date.now());
+                setElapsedSeconds(0);
+            };
+
+            const updateKnowledgeOperation = (stage) => {
+                setOperationStage(stage);
+            };
+
+            const stopKnowledgeOperation = () => {
+                setOperationStage("");
+                setOperationStartedAt(null);
+                setElapsedSeconds(0);
+            };
+
+            const formatElapsedTime = (seconds) => {
+                const safeSeconds = Math.max(0, Number(seconds) || 0);
+                const minutes = Math.floor(safeSeconds / 60);
+                const remainder = safeSeconds % 60;
+                return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+            };
+
+            useEffect(() => {
+                if (!isKnowledgeOperationInFlight || !operationStartedAt) return;
+                const tick = () => {
+                    setElapsedSeconds(Math.floor((Date.now() - operationStartedAt) / 1000));
+                };
+                tick();
+                const timer = window.setInterval(tick, 1000);
+                return () => window.clearInterval(timer);
+            }, [isKnowledgeOperationInFlight, operationStartedAt]);
+
+            useEffect(() => {
+                if (!isKnowledgeOperationInFlight) return;
+                const warnBeforeUnload = (event) => {
+                    event.preventDefault();
+                    event.returnValue = "";
+                };
+                window.addEventListener("beforeunload", warnBeforeUnload);
+                return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+            }, [isKnowledgeOperationInFlight]);
 
             // README View State Variables
             const [isReadmeOpen, setIsReadmeOpen] = useState(false);
@@ -1930,7 +2032,8 @@ const ROLE_LABELS = {
             const getSourceDisplayName = (item, fallback = "Untitled source") => item?.display_name || item?.original_file_name || item?.file_name || item?.name || fallback;
             const getSourceActionName = (item) => item?.file_name || item?.name || getSourceDisplayName(item);
             const primarySource = files.find(item => ROLE_LABELS[String(item?.role || "").toLowerCase()] === "Primary" || item?.is_active);
-            const hasPrimarySource = Boolean(primarySource);
+            const hasActivePrimaryPdf = Boolean(primarySource && !isWebsiteKnowledge(primarySource) && isSourceEnabled(primarySource));
+            const hasPrimarySource = hasActivePrimaryPdf;
             const primarySourceDisplayName = primarySource ? getSourceDisplayName(primarySource, "") : "";
 
             const clearSelectedPdf = () => {
@@ -1999,6 +2102,7 @@ const ROLE_LABELS = {
 
             const candidateFriendlyError = (code, message) => {
                 const known = {
+                    primary_pdf_required: "Upload a Primary PDF before adding website knowledge.",
                     primary_changed_revalidation_required: "Your Primary knowledge source changed after this PDF was checked. Please validate the PDF again.",
                     candidate_expired: "This validation has expired. Please check the PDF again.",
                     candidate_confirmation_in_progress: "This PDF is already being added as Supporting knowledge.",
@@ -2011,6 +2115,13 @@ const ROLE_LABELS = {
                     validation_embedding_cardinality_mismatch: "We couldn't complete document validation. Please try again."
                 };
                 return known[code] || message || "Something went wrong. Please try again.";
+            };
+
+            const websiteFriendlyError = (code, message) => {
+                if (code === "primary_pdf_required") {
+                    return "Upload a Primary PDF before adding website knowledge.";
+                }
+                return message || "Something went wrong. Please try again.";
             };
 
             const handleFileSelect = (input) => {
@@ -2329,7 +2440,12 @@ const ROLE_LABELS = {
                     setStatus({ type: "error", text: "Please enter a website URL.", action: "" });
                     return;
                 }
+                if (!hasActivePrimaryPdf) {
+                    setStatus({ type: "error", text: "Upload a Primary PDF before adding website knowledge.", action: "" });
+                    return;
+                }
                 setIsAnalyzing(true);
+                startKnowledgeOperation("Reading website...");
                 setStatus({ type: "", text: "", action: "" });
                 setAnalyzedLinks([]);
                 setSelectedLinks({});
@@ -2357,12 +2473,14 @@ const ROLE_LABELS = {
                         setSelectedLinks(initialSelected);
                         setCrawlStep("select");
                     } else {
-                        setStatus({ type: "error", text: `Analysis failed: ${data.message || "Unknown error"}`, action: "" });
+                        const message = websiteFriendlyError(data.code, data.message || "Unknown error");
+                        setStatus({ type: "error", text: data.code === "primary_pdf_required" ? message : `Analysis failed: ${message}`, action: "" });
                     }
                 } catch (error) {
                     setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
                 } finally {
                     setIsAnalyzing(false);
+                    stopKnowledgeOperation();
                 }
             };
 
@@ -2394,6 +2512,10 @@ const ROLE_LABELS = {
             };
 
             const handleExtractContent = async () => {
+                if (!hasActivePrimaryPdf) {
+                    setStatus({ type: "error", text: "Upload a Primary PDF before adding website knowledge.", action: "" });
+                    return;
+                }
                 const selectedUrls = analyzedLinks.filter(l => selectedLinks[l]);
                 if (selectedUrls.length === 0) {
                     setStatus({ type: "error", text: "Please select at least one page to ingest.", action: "" });
@@ -2401,6 +2523,7 @@ const ROLE_LABELS = {
                 }
 
                 setIsExtracting(true);
+                startKnowledgeOperation("Preparing website knowledge...");
                 setStatus({ type: "", text: "", action: "" });
 
                 try {
@@ -2419,22 +2542,29 @@ const ROLE_LABELS = {
                         setExtractedPrimaryUrl(data.data?.primary_url || selectedUrls[0]);
                         setCrawlStep("refine");
                     } else {
-                        setStatus({ type: "error", text: `Extraction failed: ${data.message || "Unknown error"}`, action: "" });
+                        const message = websiteFriendlyError(data.code, data.message || "Unknown error");
+                        setStatus({ type: "error", text: data.code === "primary_pdf_required" ? message : `Extraction failed: ${message}`, action: "" });
                     }
                 } catch (error) {
                     setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
                 } finally {
                     setIsExtracting(false);
+                    stopKnowledgeOperation();
                 }
             };
 
             const handleConfirmIngest = async () => {
+                if (!hasActivePrimaryPdf) {
+                    setStatus({ type: "error", text: "Upload a Primary PDF before adding website knowledge.", action: "" });
+                    return;
+                }
                 if (!refinedText.trim()) {
                     setStatus({ type: "error", text: "Refined text cannot be empty.", action: "" });
                     return;
                 }
 
                 setIsUploading(true);
+                startKnowledgeOperation("Storing website knowledge...");
                 setStatus({ type: "", text: "", action: "" });
 
                 try {
@@ -2458,18 +2588,21 @@ const ROLE_LABELS = {
                         setIsModalOpen(false);
                         await fetchFiles();
                     } else {
-                        setStatus({ type: "error", text: `Ingestion failed: ${data.message || "Unknown error"}`, action: "" });
+                        const message = websiteFriendlyError(data.code, data.message || "Unknown error");
+                        setStatus({ type: "error", text: data.code === "primary_pdf_required" ? message : `Ingestion failed: ${message}`, action: "" });
                     }
                 } catch (error) {
                     setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
                 } finally {
                     setIsUploading(false);
+                    stopKnowledgeOperation();
                 }
             };
 
             const uploadPdfAsPrimary = async (originalFileName) => {
                 const formData = new FormData();
                 formData.append("pdf_file", file);
+                updateKnowledgeOperation("Uploading and processing document...");
 
                 try {
                     const response = await authenticatedFetch(`/upload-pdf${botQuery}`, {
@@ -2526,6 +2659,7 @@ const ROLE_LABELS = {
 
             const validatePdfCandidate = async () => {
                 setIsValidatingPdf(true);
+                updateKnowledgeOperation("Checking document relevance...");
                 setStatus({ type: "", text: "", action: "" });
                 setPdfCandidateResult(null);
 
@@ -2574,6 +2708,7 @@ const ROLE_LABELS = {
                 }
 
                 setIsUploading(true);
+                startKnowledgeOperation(hasPrimarySource ? "Checking document relevance..." : "Uploading document...");
                 setStatus({ type: "", text: "", action: "" });
                 const originalFileName = file.name;
 
@@ -2585,12 +2720,14 @@ const ROLE_LABELS = {
                     }
                 } finally {
                     setIsUploading(false);
+                    stopKnowledgeOperation();
                 }
             };
 
             const handleConfirmPdfCandidate = async () => {
                 if (!pdfCandidateResult?.candidate_id || isConfirmingPdf || pdfCandidateResult.can_confirm !== true) return;
                 setIsConfirmingPdf(true);
+                startKnowledgeOperation("Adding Supporting knowledge...");
                 setStatus({ type: "", text: "", action: "" });
 
                 try {
@@ -2623,6 +2760,7 @@ const ROLE_LABELS = {
                     setStatus({ type: "error", text: "Could not add this PDF as Supporting knowledge. Please try again.", action: "" });
                 } finally {
                     setIsConfirmingPdf(false);
+                    stopKnowledgeOperation();
                 }
             };
 
@@ -2837,6 +2975,7 @@ const ROLE_LABELS = {
             // guarded on batch_website_scraping, so the whole website path is
             // only completable where that flag is on.
             const canImportWebsite = planFlags ? planFlags.single_website_scraping === true : true;
+            const canAddWebsite = canImportWebsite && hasActivePrimaryPdf;
             const WEBSITE_PLAN = "Advanced";
 
             useEffect(() => {
@@ -2959,11 +3098,23 @@ const ROLE_LABELS = {
                 ? historyLogs
                 : historyLogs.filter(log => log.category === activeHistoryFilter);
 
-            const busyAddingSource = isUploading || isAnalyzing || isExtracting || isValidatingPdf || isConfirmingPdf;
+            const busyAddingSource = isKnowledgeOperationInFlight;
             const pdfPrimaryActionLabel = hasPrimarySource ? "Check PDF" : "Upload Primary PDF";
             const pdfModalIntro = hasPrimarySource
                 ? "This PDF will be checked against the current Primary source before it can become Supporting knowledge."
                 : "This PDF will become the bot's Primary knowledge source.";
+            const operationTitle = isValidatingPdf
+                ? "Checking document relevance"
+                : isConfirmingPdf
+                    ? "Adding Supporting knowledge"
+                    : activeTab === "link"
+                        ? "Processing your website knowledge"
+                        : "Processing your document";
+            const operationHelp = isValidatingPdf
+                ? "We are reading this PDF and checking whether it is related to your current Primary knowledge source."
+                : activeTab === "file" && isUploading && !isConfirmingPdf
+                    ? "Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh."
+                : "Please keep this page open while processing completes.";
             const pdfCandidateStatus = pdfCandidateResult?.validation_status || "";
             const pdfCandidateDuplicate = pdfCandidateResult?.duplicate_status || "none";
             const pdfCandidatePassed = pdfCandidateStatus === "validated_passed" && pdfCandidateResult?.can_confirm === true;
@@ -3088,10 +3239,10 @@ const ROLE_LABELS = {
                                                 role="menuitem"
                                                 className="kw-menu-item"
                                                 onClick={() => startAdd("link")}
-                                                disabled={!canImportWebsite}
+                                                disabled={!canAddWebsite}
                                             >
                                                 <span className="kw-menu-icon">
-                                                    <Icon name={canImportWebsite ? "globe" : "lock"} size={15} />
+                                                    <Icon name={canAddWebsite ? "globe" : "lock"} size={15} />
                                                 </span>
                                                 <span>
                                                     <span className="kw-menu-title">
@@ -3099,7 +3250,9 @@ const ROLE_LABELS = {
                                                         {!canImportWebsite && <span className="kw-badge">{WEBSITE_PLAN}</span>}
                                                     </span>
                                                     <span className="kw-menu-note">
-                                                        {canImportWebsite
+                                                        {!hasActivePrimaryPdf
+                                                            ? "Upload a Primary PDF before adding website knowledge."
+                                                            : canImportWebsite
                                                             ? "Pull pages in as supporting knowledge."
                                                             : `Website import is on ${WEBSITE_PLAN}.`}
                                                     </span>
@@ -3623,6 +3776,14 @@ const ROLE_LABELS = {
                                                 </div>
                                             </div>
                                         </div>
+                                    ) : !hasActivePrimaryPdf ? (
+                                        <div className="kw-locked">
+                                            <span className="kw-locked-icon"><Icon name="file-text" size={16} /></span>
+                                            <div>
+                                                <h4>Upload a Primary PDF first</h4>
+                                                <p>Upload a Primary PDF before adding website knowledge.</p>
+                                            </div>
+                                        </div>
                                     ) : crawlStep === "input" ? (
                                         <div className="kw-field">
                                             <label className="kw-label" htmlFor="kw-url">Website address</label>
@@ -3633,7 +3794,7 @@ const ROLE_LABELS = {
                                                 value={linkUrl}
                                                 onChange={(e) => setLinkUrl(e.target.value)}
                                                 placeholder="https://example.com/help"
-                                                disabled={isAnalyzing}
+                                                disabled={isAnalyzing || !hasActivePrimaryPdf}
                                             />
                                             <p className="kw-help">We look for pages under this address and let you choose which ones to keep.</p>
                                             {isAnalyzing && (
@@ -3718,27 +3879,9 @@ const ROLE_LABELS = {
                                         {file && (
                                             <div className="kw-evidence-source" style={{ marginTop: "12px" }}>
                                                 <Icon name="file-text" size={15} />
-                                                <span>{file.name}</span>
-                                            </div>
-                                        )}
-                                        {(isUploading || isValidatingPdf || isConfirmingPdf) && (
-                                            <p className="kw-help" style={{ marginTop: "12px" }}>
-                                                {isValidatingPdf
-                                                    ? "We are reading this PDF and checking whether it is related to your current Primary knowledge source."
-                                                    : isConfirmingPdf
-                                                        ? "Adding Supporting Knowledge. Knowledge processing is now occurring."
-                                                        : "Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh."}
-                                            </p>
-                                        )}
-                                        {isValidatingPdf && (
-                                            <div className="kw-evidence-source" style={{ marginTop: "12px", alignItems: "flex-start" }}>
-                                                <span className="kw-spinner" />
-                                                <span>
-                                                    <strong style={{ display: "block", color: "var(--control-text)" }}>Checking document relevance</strong>
-                                                    <span>Uploading PDF · Reading document · Comparing with Primary · Preparing result</span>
-                                                </span>
-                                            </div>
-                                        )}
+                                            <span>{file.name}</span>
+                                        </div>
+                                    )}
                                         {pdfCandidateResult && !isValidatingPdf && (
                                             <div className="kw-field" style={{ marginTop: "16px", gap: "12px" }}>
                                                 <div className={`kw-banner ${pdfCandidatePassed ? "kw-banner-success" : "kw-banner-error"}`} style={{ margin: 0 }}>
@@ -3813,13 +3956,28 @@ const ROLE_LABELS = {
                                 )}
                             </div>
 
+                            {isKnowledgeOperationInFlight && (
+                                <div className="kw-operation-panel" role="status" aria-live="polite">
+                                    <div className="kw-operation-title">
+                                        <span className="kw-spinner" />
+                                        <span>{operationTitle}</span>
+                                    </div>
+                                    <div className="kw-operation-bar" aria-hidden="true" />
+                                    <div className="kw-operation-meta">
+                                        <span>{operationStage || "Processing knowledge..."}</span>
+                                        <span>Elapsed: {formatElapsedTime(elapsedSeconds)}</span>
+                                    </div>
+                                    <p className="kw-help">{operationHelp}</p>
+                                </div>
+                            )}
+
                             <div className="kw-modal-foot">
-                                {activeTab === "link" && canImportWebsite && crawlStep === "select" && (
+                                {activeTab === "link" && canAddWebsite && crawlStep === "select" && (
                                     <button type="button" className="kw-btn" onClick={() => setCrawlStep("input")} disabled={isExtracting} style={{ marginRight: "auto" }}>
                                         <Icon name="arrow-left" size={15} /> Back
                                     </button>
                                 )}
-                                {activeTab === "link" && canImportWebsite && crawlStep === "refine" && (
+                                {activeTab === "link" && canAddWebsite && crawlStep === "refine" && (
                                     <button type="button" className="kw-btn" onClick={() => setCrawlStep("select")} disabled={isUploading} style={{ marginRight: "auto" }}>
                                         <Icon name="arrow-left" size={15} /> Back
                                     </button>
@@ -3828,9 +3986,9 @@ const ROLE_LABELS = {
                                     Cancel
                                 </button>
                                 {activeTab === "link" ? (
-                                    canImportWebsite && (
+                                    canAddWebsite && (
                                         crawlStep === "input" ? (
-                                            <button type="button" className="kw-btn kw-btn-primary" onClick={handleAnalyze} disabled={isAnalyzing || !linkUrl.trim()}>
+                                            <button type="button" className="kw-btn kw-btn-primary" onClick={handleAnalyze} disabled={isAnalyzing || !hasActivePrimaryPdf || !linkUrl.trim()}>
                                                 {isAnalyzing ? "Finding pages" : "Find pages"}
                                             </button>
                                         ) : crawlStep === "select" ? (
@@ -3838,12 +3996,12 @@ const ROLE_LABELS = {
                                                 type="button"
                                                 className="kw-btn kw-btn-primary"
                                                 onClick={handleExtractContent}
-                                                disabled={isExtracting || Object.values(selectedLinks).filter(Boolean).length === 0}
+                                                disabled={isExtracting || !hasActivePrimaryPdf || Object.values(selectedLinks).filter(Boolean).length === 0}
                                             >
                                                 {isExtracting ? "Reading" : `Read ${Object.values(selectedLinks).filter(Boolean).length} page${Object.values(selectedLinks).filter(Boolean).length === 1 ? "" : "s"}`}
                                             </button>
                                         ) : (
-                                            <button type="button" className="kw-btn kw-btn-primary" onClick={handleConfirmIngest} disabled={isUploading || !refinedText.trim()}>
+                                            <button type="button" className="kw-btn kw-btn-primary" onClick={handleConfirmIngest} disabled={isUploading || !hasActivePrimaryPdf || !refinedText.trim()}>
                                                 {isUploading ? "Saving" : "Save website"}
                                             </button>
                                         )

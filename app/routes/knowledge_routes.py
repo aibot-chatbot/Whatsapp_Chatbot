@@ -48,6 +48,51 @@ def _incoming_upload_size(file):
     file.seek(0)
     return incoming_size
 
+
+PRIMARY_PDF_REQUIRED_CODE = "primary_pdf_required"
+PRIMARY_PDF_REQUIRED_MESSAGE = "Upload a Primary PDF before adding website knowledge."
+
+
+def _is_active_primary_pdf(knowledge_file):
+    if not knowledge_file:
+        return False
+    if not knowledge_file.get("is_active"):
+        return False
+    if knowledge_file.get("is_enabled", True) is False:
+        return False
+
+    file_type = str(knowledge_file.get("file_type") or "").strip().lower()
+    if file_type == "pdf":
+        return True
+    if file_type in {"url", "website"}:
+        return False
+
+    # Legacy rows may not have file_type. Only accept them when the stored or
+    # original name still gives credible PDF evidence.
+    for key in ("original_file_name", "file_name", "file_path", "name"):
+        value = str(knowledge_file.get(key) or "").strip().lower()
+        if value.endswith(".pdf"):
+            return True
+    return False
+
+
+def _has_active_primary_pdf(chatbot_id):
+    return _is_active_primary_pdf(get_active_knowledge_file(chatbot_id))
+
+
+def _primary_pdf_required_response():
+    return jsonify({
+        "status": "error",
+        "code": PRIMARY_PDF_REQUIRED_CODE,
+        "message": PRIMARY_PDF_REQUIRED_MESSAGE,
+    }), 409
+
+
+def _reject_without_active_primary_pdf(chatbot_id):
+    if not _has_active_primary_pdf(chatbot_id):
+        return _primary_pdf_required_response()
+    return None
+
 @knowledge_blueprint.route("/api/knowledge/files", methods=["GET"])
 @token_required
 @role_required("admin", "owner")
@@ -447,6 +492,9 @@ def scrape_website_knowledge():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        primary_guard = _reject_without_active_primary_pdf(chatbot_id)
+        if primary_guard:
+            return primary_guard
         # Plan gate: Free and Essential have single_website_scraping = false
         # (data/004_add_subscription_plan_feature_flags.sql). Without this the
         # flag is defined on every plan but enforced nowhere.
@@ -501,6 +549,9 @@ def scrape_analyze_website():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        primary_guard = _reject_without_active_primary_pdf(chatbot_id)
+        if primary_guard:
+            return primary_guard
         links = discover_website_links(data["url"])
         return jsonify({
             "status": "success",
@@ -542,6 +593,9 @@ def scrape_batch_website():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        primary_guard = _reject_without_active_primary_pdf(chatbot_id)
+        if primary_guard:
+            return primary_guard
         # Check subscription feature access for batch scraping
         urls = data["urls"]
         if len(urls) > 1:
@@ -550,7 +604,11 @@ def scrape_batch_website():
             can_use_plan_feature(g.company_id, "single_website_scraping")
         # Check subscription limit before knowledge file creation
         can_upload_knowledge_file(g.company_id)
-        result = scrape_website_urls_batch(data["urls"], chatbot_id)
+        result = scrape_website_urls_batch(
+            data["urls"],
+            chatbot_id,
+            company_id=g.company_id,
+        )
         return jsonify({
             "status": "success",
             "data": result
@@ -595,6 +653,9 @@ def scrape_extract_website():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        primary_guard = _reject_without_active_primary_pdf(chatbot_id)
+        if primary_guard:
+            return primary_guard
         # Check subscription feature access: single or batch website scraping depending on URL count
         urls = data["urls"]
         if len(urls) > 1:
@@ -671,6 +732,9 @@ def scrape_embed_website():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        primary_guard = _reject_without_active_primary_pdf(chatbot_id)
+        if primary_guard:
+            return primary_guard
 
         # Check subscription limit before knowledge file creation
         can_upload_knowledge_file(g.company_id)
@@ -753,6 +817,9 @@ def ingest_knowledge_sources():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        primary_guard = _reject_without_active_primary_pdf(chatbot_id)
+        if primary_guard:
+            return primary_guard
         # Plan gate for this endpoint's own capability (data/034). Checked
         # first so a plan without single-call ingestion is told exactly that.
         can_use_plan_feature(g.company_id, "unified_knowledge_ingestion")
