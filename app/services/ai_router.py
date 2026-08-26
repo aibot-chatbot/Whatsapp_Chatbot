@@ -120,6 +120,13 @@ OPERATION_TEST_CHAT = "test_chat"
 OPERATION_TEST_BOT = "test_bot"
 OPERATION_AI_REPORT = "ai_report"
 OPERATION_WELCOME_MENU = "welcome_menu_generation"
+OPERATION_TEST_SCENARIO_GENERATION = "test_scenario_generation"
+OPERATION_PERSONA_DERIVATION = "persona_derivation"
+OPERATION_PROFILE_KNOWLEDGE_MATCH = "profile_knowledge_match"
+OPERATION_KNOWLEDGE_REFINEMENT_QUESTIONS = "knowledge_refinement_questions"
+OPERATION_KNOWLEDGE_REFINEMENT_VERIFICATION = "knowledge_refinement_verification"
+OPERATION_WEBSITE_KNOWLEDGE_EXTRACTION = "website_knowledge_extraction"
+OPERATION_KNOWLEDGE_GRAPH_EXTRACTION = "knowledge_graph_extraction"
 
 from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
@@ -367,8 +374,9 @@ def _make_usage_log(result: _ProviderResult, company_id: int, chatbot_id: int, o
     Returns:
         The inserted usage-log dictionary, or None if no row was inserted.
 
-    Logging or charging failure is tolerated: the AI response is preserved
-    and no second provider call is made.
+    When AI-credit enforcement is enabled, usage-log or charging failure fails
+    closed so a customer-billed response is not returned without a debit
+    transaction. No second provider call is made.
     """
     try:
         record = insert_usage_log(
@@ -394,6 +402,8 @@ def _make_usage_log(result: _ProviderResult, company_id: int, chatbot_id: int, o
             "Failed to write AI usage log for company %s chatbot %s: %s",
             company_id, chatbot_id, exc,
         )
+        if is_ai_credit_enforcement_enabled():
+            raise RuntimeError("AI usage logging failed for a customer-billed request.") from exc
         return None
 
     if record is None:
@@ -410,10 +420,14 @@ def _make_usage_log(result: _ProviderResult, company_id: int, chatbot_id: int, o
                     result.provider, result.generation_id, exc,
                 )
         if record is None:
+            if is_ai_credit_enforcement_enabled():
+                raise RuntimeError("AI usage logging did not return a chargeable record.")
             return None
 
     usage_log_id = record.get("id")
     if not usage_log_id:
+        if is_ai_credit_enforcement_enabled():
+            raise RuntimeError("AI usage log is missing an ID for charging.")
         return None
 
     if is_ai_credit_enforcement_enabled():
@@ -430,7 +444,9 @@ def _charge_logged_usage(usage_log_id: int, company_id: int, chatbot_id: int, op
     This is called centrally from _make_usage_log when enforcement is enabled.
     It uses the atomic charge RPC to prevent double-charging.
 
-    Logging or charging failure never repeats the provider request.
+    Charging failure never repeats the provider request, but it does fail
+    closed so customer-billed usage is not silently completed without a debit
+    transaction.
     """
     try:
         charge_result = charge_logged_ai_usage(
@@ -443,7 +459,7 @@ def _charge_logged_usage(usage_log_id: int, company_id: int, chatbot_id: int, op
             "AI-credit charging failed for usage_log %s (company %s chatbot %s): %s",
             usage_log_id, company_id, chatbot_id, exc,
         )
-        return
+        raise RuntimeError("AI-credit charging failed.") from exc
 
     status = charge_result.get("status", "unknown")
     if status == "charged":
@@ -458,28 +474,33 @@ def _charge_logged_usage(usage_log_id: int, company_id: int, chatbot_id: int, op
     elif status == "unknown_cost":
         logging.error(
             "AI-credit charge failed for usage_log %s: provider cost unknown. "
-            "Provider response still returned to customer.", usage_log_id,
+            "Provider response will not be returned to customer.", usage_log_id,
         )
+        raise RuntimeError("AI-credit charging failed because provider cost is unknown.")
     elif status == "no_active_subscription":
         logging.error(
             "AI-credit charge failed for usage_log %s: no active subscription "
-            "(company %s). Provider response still returned.", usage_log_id, company_id,
+            "(company %s). Provider response will not be returned.", usage_log_id, company_id,
         )
+        raise RuntimeError("AI-credit charging failed because no active subscription exists.")
     elif status == "no_balance":
         logging.error(
             "AI-credit charge failed for usage_log %s: no balance after initialisation "
-            "(company %s). Provider response still returned.", usage_log_id, company_id,
+            "(company %s). Provider response will not be returned.", usage_log_id, company_id,
         )
+        raise RuntimeError("AI-credit charging failed because no AI-credit balance exists.")
     elif status == "usage_not_found":
         logging.error(
             "AI-credit charge failed for usage_log %s: usage log not found "
             "immediately after insert (company %s).", usage_log_id, company_id,
         )
+        raise RuntimeError("AI-credit charging failed because usage log was not found.")
     else:
         logging.error(
             "AI-credit charge returned unexpected status %r for usage_log %s",
             status, usage_log_id,
         )
+        raise RuntimeError("AI-credit charging returned an unexpected status.")
 
 
 # ---------------------------------------------------------------------------

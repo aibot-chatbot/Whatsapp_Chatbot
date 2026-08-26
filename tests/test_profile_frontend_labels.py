@@ -321,6 +321,13 @@ class TestTransactionTypeLabels(unittest.TestCase):
     def test_usage_debit_operation_type_labels_present(self):
         self.assertIn("function getAiUsageDebitLabel", self.html)
         self.assertIn('"knowledge_extraction": "Knowledge Training"', self.html)
+        self.assertIn('"knowledge_refinement_questions": "Refine Answers"', self.html)
+        self.assertIn('"knowledge_refinement_verification": "Refine Answers"', self.html)
+        self.assertIn('"test_scenario_generation": "Test Scenario Generation"', self.html)
+        self.assertIn('"persona_derivation": "Persona Derivation"', self.html)
+        self.assertIn('"profile_knowledge_match": "Profile / Knowledge Validation"', self.html)
+        self.assertIn('"website_knowledge_extraction": "Website Knowledge Training"', self.html)
+        self.assertIn('"knowledge_graph_extraction": "Knowledge Graph Training"', self.html)
         self.assertIn('"chat_reply": "Chat Reply"', self.html)
         self.assertIn('"message_reply": "Chat Reply"', self.html)
         self.assertIn('"customer_reply": "Chat Reply"', self.html)

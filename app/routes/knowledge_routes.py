@@ -1156,13 +1156,18 @@ def get_refinement_questions():
             )
 
             import os
-            from app.services.ai_router import generate_system_response
+            from app.services.ai_router import (
+                OPERATION_KNOWLEDGE_REFINEMENT_QUESTIONS,
+                OPERATION_KNOWLEDGE_REFINEMENT_VERIFICATION,
+                generate_system_response,
+            )
             full_prompt = system_prompt + "\n\nKnowledge Graph:\n" + graph_text
             content = generate_system_response(
                 prompt=full_prompt,
                 chatbot_id=chatbot_id,
                 temperature=0.3,
                 json_response=True,
+                operation_type=OPERATION_KNOWLEDGE_REFINEMENT_QUESTIONS,
             )
             if not content:
                 content = "[]"
@@ -1231,6 +1236,7 @@ def get_refinement_questions():
                     prompt=verify_prompt,
                     chatbot_id=chatbot_id,
                     temperature=0.1,
+                    operation_type=OPERATION_KNOWLEDGE_REFINEMENT_VERIFICATION,
                 )
                 if not verify_res:
                     verify_reply = "AMBIGUOUS"

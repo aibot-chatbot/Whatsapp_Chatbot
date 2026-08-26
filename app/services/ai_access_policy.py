@@ -48,8 +48,8 @@ STATE_UNKNOWN = "unknown"
 TRIAL_DURATION_DAYS = 7
 
 TRIAL_PROVIDER = "deepseek"
-DEFAULT_TRIAL_MODEL = "deepseek-chat"
-TRIAL_MODEL = "deepseek-chat"
+DEFAULT_TRIAL_MODEL = "deepseek-v4-flash"
+TRIAL_MODEL = "deepseek-v4-flash"
 
 OPENROUTER_PROVIDER_FAMILIES = frozenset({
     "openai",
