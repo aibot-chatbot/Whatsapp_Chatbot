@@ -17,6 +17,7 @@ from app.database.wasender_channel_repository import (
     disconnect_wasender_channel,
 )
 from app.services.wasender_service import process_wasender_webhook
+from app.utils.api_errors import server_error
 
 
 wasender_blueprint = Blueprint("wasender", __name__)
@@ -165,10 +166,7 @@ def connect_wasender():
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Connect Wasender error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("connect_wasender", e)
 
 
 @wasender_blueprint.route("/api/wasender/channels", methods=["GET"])
@@ -198,10 +196,7 @@ def list_wasender_channels():
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"List Wasender channels error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("list_wasender_channels", e)
 
 
 @wasender_blueprint.route("/api/wasender/channels/<int:channel_id>/disconnect", methods=["PUT"])
@@ -249,10 +244,7 @@ def disconnect_wasender(channel_id):
 
     except Exception as e:
         logging.error(f"Disconnect Wasender error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("disconnect_wasender", e)
 
 
 @wasender_blueprint.route("/wasender/webhook/<webhook_secret>", methods=["GET"])

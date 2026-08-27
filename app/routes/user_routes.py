@@ -8,6 +8,7 @@ from app.utils.access_control import role_required
 from app.routes.auth_routes import validate_password_strength
 from app.services.billing_guard import can_add_team_member, BillingLimitError
 import re
+from app.utils.api_errors import server_error
 
 
 
@@ -63,10 +64,7 @@ def fetch_current_user():
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("fetch_current_user", e)
 
 
 @user_bp.route("", methods=["PUT"])
@@ -130,10 +128,7 @@ def update_current_user():
             "message": str(e)
         }), 400
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("update_current_user", e)
 
 
 @user_bp.route("/password", methods=["PUT"])
@@ -196,10 +191,7 @@ def change_password():
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("change_password", e)
 
 
 # ===== Team users blueprint (separate prefix) =====
@@ -234,10 +226,7 @@ def list_company_users():
             "message": str(e)
         }), 400
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("list_company_users", e)
 
 
 @team_bp.route("/<int:user_id>/role", methods=["PUT"])

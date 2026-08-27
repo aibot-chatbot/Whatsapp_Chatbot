@@ -17,6 +17,7 @@ from app.database.whatsapp_channel_repository import (
     sanitize_whatsapp_channel_for_frontend,
     upsert_whatsapp_channel_by_phone_number_id,
 )
+from app.utils.api_errors import server_error
 
 whatsapp_blueprint = Blueprint("whatsapp", __name__)
 
@@ -248,10 +249,7 @@ def complete_embedded_signup():
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Complete WhatsApp Embedded Signup error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("complete_embedded_signup", e)
 
 
 @whatsapp_blueprint.route("/api/whatsapp/embedded-signup/config", methods=["GET"])
@@ -307,10 +305,7 @@ def list_whatsapp_channels():
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"List WhatsApp channels error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("list_whatsapp_channels", e)
 
 
 @whatsapp_blueprint.route("/api/whatsapp/channels/<int:channel_id>/disconnect", methods=["PUT"])
@@ -358,7 +353,4 @@ def disconnect_whatsapp_channel(channel_id):
 
     except Exception as e:
         logging.error(f"Disconnect WhatsApp channel error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("disconnect_whatsapp_channel", e)

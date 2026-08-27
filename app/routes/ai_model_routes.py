@@ -4,6 +4,7 @@ from app.services.model_catalog import get_models_with_tiers
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required
 from app.utils.access_control import get_current_company_id
+from app.utils.api_errors import server_error
 
 ai_model_blueprint = Blueprint("ai_models", __name__)
 
@@ -65,7 +66,4 @@ def get_ai_models():
         }), 200
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_ai_models", e)

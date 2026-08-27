@@ -7,6 +7,7 @@ from app.services.test_scenario_service import build_test_scenarios
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import BillingLimitError
+from app.utils.api_errors import server_error
 
 testbot_blueprint = Blueprint("testbot", __name__)
 TESTBOT_SESSION_ID = "web_testbot_session"
@@ -53,10 +54,7 @@ def get_testbot_context():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_testbot_context", e)
 
 @testbot_blueprint.route("/api/testbot/scenarios", methods=["GET"])
 @token_required
@@ -146,7 +144,4 @@ def chat_with_testbot():
             "details": e.details or {}
         }), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("chat_with_testbot", e)

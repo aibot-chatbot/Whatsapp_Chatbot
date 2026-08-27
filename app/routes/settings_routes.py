@@ -9,6 +9,7 @@ from app.services.settings_service import (
 )
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
+from app.utils.api_errors import server_error
 
 settings_blueprint = Blueprint("settings", __name__)
 
@@ -34,10 +35,7 @@ def fetch_settings():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("fetch_settings", e)
 
 
 @settings_blueprint.route("/api/settings", methods=["PUT"])
@@ -71,10 +69,7 @@ def save_settings():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("save_settings", e)
 
 
 @settings_blueprint.route("/api/settings/active-profile", methods=["PUT"])
@@ -109,10 +104,7 @@ def save_active_profile():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("save_active_profile", e)
 
 @settings_blueprint.route("/api/settings/apply-profile", methods=["PUT"])
 @token_required
@@ -156,8 +148,5 @@ def apply_profile():
             "message": str(e)
         }), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("apply_profile", e)
 

@@ -8,6 +8,7 @@ from app.database.conversation_repository import (
     get_conversations_for_company,
 )
 from app.database.message_repository import get_messages_by_conversation_and_chatbot
+from app.utils.api_errors import server_error
 
 conversation_blueprint = Blueprint("conversations", __name__)
 
@@ -60,10 +61,7 @@ def get_conversations():
             "message": str(e)
         }), 401
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_conversations", e)
 
 
 @conversation_blueprint.route("/api/conversations/<int:conversation_id>/intents", methods=["GET"])
@@ -114,10 +112,7 @@ def get_conversation_intents(conversation_id):
             "message": str(e)
         }), 401
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_conversation_intents", e)
 
 
 @conversation_blueprint.route("/api/conversations/<int:conversation_id>/messages", methods=["GET"])
@@ -162,7 +157,4 @@ def get_conversation_messages(conversation_id):
             "message": str(e)
         }), 401
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_conversation_messages", e)

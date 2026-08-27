@@ -10,6 +10,7 @@ from app.database.analytics_repository import (
     get_message_chart_last_7_days,
 )
 from app.database.agent_action_repository import get_agent_insights_by_chatbot
+from app.utils.api_errors import server_error
 
 analytics_blueprint = Blueprint("analytics", __name__)
 
@@ -91,10 +92,7 @@ def get_analytics():
         }), 401
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_analytics", e)
 
 
 @analytics_blueprint.route("/api/analytics/report", methods=["GET"])
@@ -147,10 +145,7 @@ def get_ai_report():
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_ai_report", e)
 
 
 @analytics_blueprint.route("/api/dashboard/live-workflow", methods=["GET"])
@@ -188,10 +183,7 @@ def get_live_workflow():
         }), 401
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_live_workflow", e)
 
 
 @analytics_blueprint.route("/api/dashboard/health", methods=["GET"])
@@ -229,10 +221,7 @@ def get_dashboard_health_summary():
         }), 401
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_dashboard_health_summary", e)
 
 
 @analytics_blueprint.route("/api/agent/insights", methods=["GET"])
@@ -284,7 +273,4 @@ def get_agent_insights():
         }), 401
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_agent_insights", e)
