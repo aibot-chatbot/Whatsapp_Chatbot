@@ -130,3 +130,39 @@ rendered under the heading "No graph to show yet"), `media_attachments.html`,
 `test_tenant_account_menu_frontend.py:164-165` pin `support.html`'s exact call strings.
 Safe to migrate with **no** test changes: `integration.html` (done), `new_prompt.html`,
 `crm.html`, `media_attachments.html`, `meta-templates.js`, `new_linkdocs.html`.
+
+---
+
+## 2026-08-27 — Integrated with team and pushed (`adf3c9c`)
+
+Local `main` had 0 commits and was 5 behind. Committed the outstanding work as
+`d6e7a5d` (API error-leak hardening) and `4f17bb6` (frontend rebuild/resilience),
+rebased onto `origin/main`, resolved 3 conflicts, pushed.
+
+**Conflicts resolved (all "keep both intents"):**
+
+- `app/routes/knowledge_routes.py` — import block only; both sides added imports.
+- `docs/DEVELOPMENT_ROADMAP.md` — add/add of dated sections; kept both, order was
+  already chronological (08-26 team, then 08-27 mine).
+- `docs/FEATURE_STATUS.md` — both rewrote the same two CRM rows. Kept my
+  workspace description but took the team's **Migration 047**; my draft said 046,
+  which is wrong — `046` is `harden_knowledge_pdf_candidate_grants`, and
+  `047_widen_crm_lead_status_check.sql` is the real file.
+
+**The one that had no conflict and still broke — read this before the next merge:**
+
+`tests/test_tenant_account_menu_frontend.py` (new, team commit `f6c6406`) asserts every
+entry in `AUTHENTICATED_SIDEBAR_PAGES` renders `<chatbot-sidebar>`. My commit turned
+`reports.html` into a redirect to `crm.html?view=performance`, which renders no sidebar.
+The test file and `reports.html` share **no lines and no file** — git auto-merged silently
+and the break only showed up in the test run. Removed the stale entry with a comment;
+`crm.html` stays in the list and the redirect is covered by
+`test_crm_frontend_status.py::test_reports_page_redirects_to_performance_view_and_preserves_bot_context`.
+
+**Verification method (reuse this):** raw pass/fail counts are meaningless here — the suite
+has a standing failure baseline. Ran `origin/main` in a throwaway worktree (must copy `.env`
+in, or collection dies on missing `OPENAI_API_KEY`), diffed the failing-file sets, and
+required the delta to be empty. Result: 0 regressions, 2937 passed vs baseline 2936.
+
+Note: `scratch/test_ai.py` is untracked local junk that executes network code at import and
+aborts collection — run `pytest tests/`, not bare `pytest`.
