@@ -6,6 +6,7 @@ from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.ai_router import generate_response, OPERATION_TEST_CHAT
 from app.services.billing_guard import BillingLimitError
 from app.services.company_status_service import company_operational_required
+from app.utils.api_errors import server_error
 
 # create blueprint
 chat_blueprint = Blueprint("chat", __name__)
@@ -66,7 +67,4 @@ def test_chat():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("test_chat", e)

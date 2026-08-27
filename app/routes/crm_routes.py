@@ -13,6 +13,7 @@ from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access
 from app.services.billing_guard import can_use_plan_feature, BillingLimitError
 from app.services.company_status_service import company_operational_required
+from app.utils.api_errors import server_error
 
 
 crm_blueprint = Blueprint("crm", __name__)
@@ -69,10 +70,7 @@ def get_crm_leads():
         }), 401
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_crm_leads", e)
 
 
 @crm_blueprint.route("/api/crm/leads/<int:lead_id>", methods=["PATCH"])
@@ -156,10 +154,7 @@ def update_crm_lead(lead_id):
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("update_crm_lead", e)
 
 
 @crm_blueprint.route("/api/crm/leads/upsert", methods=["POST"])
@@ -257,7 +252,4 @@ def upsert_crm_lead():
         }), 400
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("upsert_crm_lead", e)

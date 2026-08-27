@@ -2,6 +2,7 @@ from flask import Blueprint, g, jsonify
 
 from app.database.user_repository import get_users_by_company
 from app.decorators.auth_decorator import token_required
+from app.utils.api_errors import server_error
 
 company_blueprint = Blueprint("company", __name__)
 
@@ -44,7 +45,4 @@ def get_company_members():
             "message": str(e)
         }), 400
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_company_members", e)

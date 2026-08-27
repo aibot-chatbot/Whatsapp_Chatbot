@@ -15,6 +15,7 @@ from app.services.bot_service import (
     permanently_delete_archived_bot,
     PermanentBotDeleteError,
 )
+from app.utils.api_errors import server_error
 
 bot_blueprint = Blueprint("bots", __name__)
 
@@ -47,10 +48,7 @@ def fetch_bots():
         }), 401
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("fetch_bots", e)
 
 
 @bot_blueprint.route("/api/bots/archived", methods=["GET"])
@@ -98,10 +96,7 @@ def fetch_bot(bot_id):
         }), 404
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("fetch_bot", e)
 
 
 @bot_blueprint.route("/api/bots", methods=["POST"])
@@ -136,10 +131,7 @@ def create_new_bot():
         }), 403
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("create_new_bot", e)
 
 
 @bot_blueprint.route("/api/bots/<int:bot_id>", methods=["PUT"])
@@ -174,10 +166,7 @@ def update_existing_bot(bot_id):
         }), 403
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("update_existing_bot", e)
 
 
 @bot_blueprint.route("/api/bots/<int:bot_id>", methods=["DELETE"])
@@ -202,10 +191,7 @@ def delete_existing_bot(bot_id):
         }), 404
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("delete_existing_bot", e)
 
 
 @bot_blueprint.route("/api/bots/<int:bot_id>/restore", methods=["POST"])

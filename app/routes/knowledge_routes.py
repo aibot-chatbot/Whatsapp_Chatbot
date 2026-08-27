@@ -38,6 +38,7 @@ from app.services.pdf_relevance_validation_service import (
     confirm_supporting_pdf_candidate,
     validate_supporting_pdf_candidate,
 )
+from app.utils.api_errors import server_error
 
 knowledge_blueprint = Blueprint("knowledge", __name__)
 
@@ -114,10 +115,7 @@ def get_uploaded_pdfs():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_uploaded_pdfs", e)
 
 @knowledge_blueprint.route("/api/knowledge/active", methods=["GET"])
 @token_required
@@ -140,10 +138,7 @@ def get_current_active_pdf():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_current_active_pdf", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/pdf-candidates/validate", methods=["POST"])
@@ -371,10 +366,7 @@ def set_current_active_pdf():
             "message": str(e)
         }), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("set_current_active_pdf", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/toggle-support", methods=["POST"])
@@ -427,10 +419,7 @@ def toggle_supporting_knowledge_source():
             "message": str(e)
         }), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("toggle_supporting_knowledge_source", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/files/<path:file_name>", methods=["DELETE"])
@@ -465,10 +454,7 @@ def delete_uploaded_pdf(file_name):
             "message": str(e)
         }), 400
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("delete_uploaded_pdf", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/scrape", methods=["POST"])
@@ -522,10 +508,7 @@ def scrape_website_knowledge():
         }), 403
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("scrape_website_knowledge", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/scrape-analyze", methods=["POST"])
@@ -566,10 +549,7 @@ def scrape_analyze_website():
             "message": str(e)
         }), 400
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("scrape_analyze_website", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/scrape-batch", methods=["POST"])
@@ -626,10 +606,7 @@ def scrape_batch_website():
         }), 403
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("scrape_batch_website", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/scrape-extract", methods=["POST"])
@@ -705,10 +682,7 @@ def scrape_extract_website():
             "details": e.details or {}
         }), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("scrape_extract_website", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/scrape-embed", methods=["POST"])
@@ -773,10 +747,7 @@ def scrape_embed_website():
         }), 403
 
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("scrape_embed_website", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/ingest", methods=["POST"])
@@ -871,10 +842,7 @@ def ingest_knowledge_sources():
         }), 403
     except Exception as e:
         logging.error(f"[Ingest] Unified ingestion failed: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("ingest_knowledge_sources", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/graph", methods=["GET"])
@@ -1057,10 +1025,7 @@ def get_knowledge_graph_data():
             "message": e.message
         }), e.status_code
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_knowledge_graph_data", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/refinement/questions", methods=["GET"])
@@ -1346,10 +1311,7 @@ def submit_refinement_answers():
 
     except Exception as e:
         logging.error(f"[Refinement] Failed to submit answers: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("submit_refinement_answers", e)
 
 
 @knowledge_blueprint.route("/api/knowledge/graph/node", methods=["POST"])

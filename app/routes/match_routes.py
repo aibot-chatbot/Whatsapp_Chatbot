@@ -4,6 +4,7 @@ from app.services.match_service import check_pdf_config_match
 from app.services.settings_service import update_chatbot_runtime
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
+from app.utils.api_errors import server_error
 
 match_blueprint = Blueprint("match", __name__)
 
@@ -56,7 +57,4 @@ def check_match():
             "message": str(e)
         }), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("check_match", e)

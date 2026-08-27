@@ -5,6 +5,7 @@ from app.decorators.auth_decorator import token_required
 from app.services.company_status_service import company_operational_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.workspace_service import get_workspace_summary, update_workspace_company
+from app.utils.api_errors import server_error
 
 profile_blueprint = Blueprint("profile", __name__)
 
@@ -73,10 +74,7 @@ def fetch_profiles():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("fetch_profiles", e)
 
 @profile_blueprint.route("/api/profiles", methods=["POST"])
 @token_required
@@ -114,10 +112,7 @@ def create_profile():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("create_profile", e)
 
 @profile_blueprint.route("/api/profiles/<profile_name>", methods=["DELETE"])
 @token_required
@@ -150,7 +145,4 @@ def remove_profile(profile_name):
             "message": str(e)
         }), 403
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("remove_profile", e)

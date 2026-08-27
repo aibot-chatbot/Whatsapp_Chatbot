@@ -19,6 +19,7 @@ from app.database.telegram_channel_repository import (
     get_telegram_channels_by_chatbot,
 )
 from app.utils.telegram_utils import process_telegram_update
+from app.utils.api_errors import server_error
 
 
 telegram_blueprint = Blueprint("telegram", __name__)
@@ -427,10 +428,7 @@ def connect_telegram():
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Connect Telegram error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("connect_telegram", e)
 
 
 @telegram_blueprint.route("/api/telegram/channels", methods=["GET"])
@@ -476,10 +474,7 @@ def list_telegram_channels():
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"List Telegram channels error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("list_telegram_channels", e)
 
 
 @telegram_blueprint.route("/api/telegram/channels/<int:channel_id>/disconnect", methods=["PUT"])
@@ -543,10 +538,7 @@ def disconnect_telegram_channel(channel_id):
 
     except Exception as e:
         logging.error(f"Disconnect Telegram channel error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("disconnect_telegram_channel", e)
 
 
 @telegram_blueprint.route("/api/telegram/channels/<int:channel_id>/reconnect", methods=["PUT"])
@@ -707,10 +699,7 @@ def reconnect_telegram_channel(channel_id):
 
     except Exception as e:
         logging.error(f"Reconnect Telegram channel error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("reconnect_telegram_channel", e)
 
 
 @telegram_blueprint.route("/api/telegram/channels/<int:channel_id>/delivery", methods=["GET"])
@@ -784,10 +773,7 @@ def get_telegram_channel_delivery(channel_id):
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Telegram channel delivery check error: {e}")
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return server_error("get_telegram_channel_delivery", e)
 
 
 @telegram_blueprint.route("/telegram/webhook/<webhook_secret>", methods=["GET"])
