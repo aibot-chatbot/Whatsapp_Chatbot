@@ -23,7 +23,9 @@ AUTHENTICATED_SIDEBAR_PAGES = [
     "conversations.html",
     "pricing.html",
     "profile.html",
-    "reports.html",
+    # reports.html is intentionally absent: it is now a compatibility redirect to
+    # crm.html?view=performance and renders no sidebar. Its behaviour is covered by
+    # test_crm_frontend_status.py::test_reports_page_redirects_to_performance_view_and_preserves_bot_context
     "support.html",
     "team.html",
     "new_prompt.html",

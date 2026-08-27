@@ -321,5 +321,3 @@ def test_authenticated_pricing_redirects_only_for_valid_checkout_url():
     # A rejected URL surfaces an error instead of navigating.
     assert "showError(" in pricing_js
     assert "window.alert(" not in pricing_js
-
-
