@@ -397,7 +397,7 @@ PLAN_FEATURES = frozenset({
     "ai_generated_reports",
     "ai_assisted_menu_generation",
     "crm_lead_assignment",
-    # Cost-aligned gating (data/034). conversation_memory adds no LLM call
+    # Cost-aligned gating (data/042). conversation_memory adds no LLM call
     # (pure regex extraction), ai_derived_persona costs one LLM call per
     # document upload, unified_knowledge_ingestion is the expensive unbounded
     # one.

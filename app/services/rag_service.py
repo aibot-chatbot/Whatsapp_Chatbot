@@ -15,6 +15,8 @@ from app.database.knowledge_file_repository import get_active_knowledge_file, ge
 
 load_dotenv()
 
+# Gemini is used here for embedding/vector retrieval infrastructure only.
+# Generative replies route through ai_router according to subscription/model policy.
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 EMBEDDING_MODEL = "gemini-embedding-2"
 EMBEDDING_DIMENSION = 768
@@ -678,7 +680,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
             try:
                 from app.services import conversation_memory_service
 
-                # Plan gate (data/034 conversation_memory), checked on read as
+                # Plan gate (data/042 conversation_memory), checked on read as
                 # well as on write: a tenant who downgrades must stop recalling
                 # the facts stored while they were entitled. Returns a code
                 # instead of raising, so the except below cannot turn a plan
@@ -746,7 +748,8 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
 
 def build_rag_prompt(message, context_chunks):
     """
-    Simplified prompt builder for external providers (DeepSeek, Groq, etc.)
+    Simplified prompt builder for central AI router/provider callers after
+    retrieving relevant context.
     """
     context = "\n\n".join(context_chunks)
     prompt = f"""

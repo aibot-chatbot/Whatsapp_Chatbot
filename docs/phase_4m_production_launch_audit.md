@@ -146,10 +146,10 @@ All migrations use `IF NOT EXISTS` and are idempotent where documented. No test-
 
 | Variable | Provider |
 |----------|----------|
-| `OPENROUTER_API_KEY` | OpenRouter (enables OpenAI, Anthropic, etc.) |
-| `GEMINI_API_KEY` | Google Gemini |
-| `DEEPSEEK_API_KEY` | DeepSeek |
-| `OPENAI_API_KEY` | OpenAI direct |
+| `OPENROUTER_API_KEY` | Paid-plan generative routing for selected supported models |
+| `GEMINI_API_KEY` | Gemini embedding infrastructure (`gemini-embedding-2` vector generation / semantic retrieval) |
+| `DEEPSEEK_API_KEY` | Free trial direct DeepSeek policy (`deepseek-v4-flash`) |
+| `OPENAI_API_KEY` | Legacy/direct OpenAI helpers; not the normal chatbot/RAG generative path |
 | `GROQ_API_KEY` | Groq |
 | `XAI_API_KEY` | xAI/Grok |
 | `CLOUDFLARE_API_TOKEN` | Cloudflare Workers AI |

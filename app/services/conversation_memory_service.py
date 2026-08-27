@@ -19,7 +19,7 @@ embedding misses ("remind me of my name") still hits.
 
 Plan gate
 ---------
-Memory is a paid capability (``conversation_memory``, data/034). The check is
+Memory is a paid capability (``conversation_memory``, data/042). The check is
 :func:`conversation_memory_denial`. Both seams call it from *inside* the
 try/except that swallows their failures -- the producer in
 ``chat_pipeline_service``, the consumer in ``rag_service`` -- so it returns a
