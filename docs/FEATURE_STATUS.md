@@ -129,7 +129,7 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 | Model catalog | Implemented | Static/catalog-based model definitions |
 | OpenRouter routing | Implemented | External API verification required |
 | DeepSeek routing | Implemented | External API verification required |
-| Gemini usage | Implemented | Used in AI and/or embedding flows; verify exact active paths |
+| Gemini usage | Implemented | Current hardcoded runtime use is Gemini `gemini-embedding-2` for vector generation and semantic retrieval. Customer-facing generative usage is routed through the central AI router and selected model policy; no hardcoded Gemini generative bypass is currently known |
 | AI usage logging | Implemented | Integrated with AI-credit charging |
 | Provider fallback behavior | Implemented | Cross-provider fallback is disabled; selected-provider failures return the safe generic chatbot failure response without trying another provider |
 

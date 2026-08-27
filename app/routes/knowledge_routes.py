@@ -820,7 +820,7 @@ def ingest_knowledge_sources():
         primary_guard = _reject_without_active_primary_pdf(chatbot_id)
         if primary_guard:
             return primary_guard
-        # Plan gate for this endpoint's own capability (data/034). Checked
+        # Plan gate for this endpoint's own capability (data/042). Checked
         # first so a plan without single-call ingestion is told exactly that.
         can_use_plan_feature(g.company_id, "unified_knowledge_ingestion")
         # Same gates, in the same order, as the staged chain this composes:

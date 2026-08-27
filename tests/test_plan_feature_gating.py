@@ -58,6 +58,13 @@ EXPECTED_MATRIX = {
     "pro": {UNIFIED_INGESTION: True, DERIVED_PERSONA: True, CONVERSATION_MEMORY: True},
 }
 EXPECTED_PLAN_CODES = frozenset(EXPECTED_MATRIX)
+VALID_FREE_TRIAL_END = "2099-01-01T00:00:00+00:00"
+ACTIVE_PRIMARY_PDF = {
+    "file_name": "primary.pdf",
+    "file_type": "pdf",
+    "is_active": True,
+    "is_enabled": True,
+}
 
 
 # =========================================================================
@@ -229,7 +236,7 @@ class TestMigrationSetsEveryKeyOnEveryPlan(unittest.TestCase):
         self.assertIn("free", missing_flags(loose, PLAN_FEATURES))
 
 
-class TestMigration034(unittest.TestCase):
+class TestMigration042(unittest.TestCase):
     """The new migration is a new file, not an edit to an applied one."""
 
     @classmethod
@@ -242,7 +249,7 @@ class TestMigration034(unittest.TestCase):
             else ""
         )
 
-    def test_the_new_flags_ship_as_migration_034(self):
+    def test_the_new_flags_ship_as_migration_042(self):
         self.assertTrue(
             self.forward,
             "004 has already been applied to real databases, so editing it "
@@ -311,7 +318,7 @@ class TestMigration034(unittest.TestCase):
 
 def subscription_for(plan_code: str) -> dict:
     """An active subscription carrying the *migrated* flags for that plan."""
-    return {
+    subscription = {
         "status": "active",
         "plan": {
             "code": plan_code,
@@ -319,6 +326,9 @@ def subscription_for(plan_code: str) -> dict:
             "feature_flags": dict(MIGRATED_FLAGS[plan_code]),
         },
     }
+    if plan_code == "free":
+        subscription["trial_ends_at"] = VALID_FREE_TRIAL_END
+    return subscription
 
 
 class TestGuardMatchesTheMatrix(unittest.TestCase):
@@ -371,10 +381,10 @@ class TestGuardFailsOpenWithoutTheMigration(unittest.TestCase):
     Nothing else in the suite pins this, so nothing else would notice if it
     changed -- in *either* direction.  It is pinned here because the entire
     gate rests on it: the code grants, the data denies, and every plan row that
-    data/034 has not reached keeps all three capabilities.
+    data/042 has not reached keeps all three capabilities.
 
     If someone deliberately inverts this to deny-by-default, these three tests
-    fail and say so -- at which point data/034 stops being load-bearing and the
+    fail and say so -- at which point data/042 stops being load-bearing and the
     migration's own header comments need rewriting too.  Change them together
     or not at all.
     """
@@ -384,6 +394,7 @@ class TestGuardFailsOpenWithoutTheMigration(unittest.TestCase):
     def _allowed_with_flags(self, feature_flags) -> bool:
         subscription = {
             "status": "active",
+            "trial_ends_at": VALID_FREE_TRIAL_END,
             "plan": {"code": "free", "name": "Free", "feature_flags": feature_flags},
         }
         with patch(
@@ -399,10 +410,10 @@ class TestGuardFailsOpenWithoutTheMigration(unittest.TestCase):
                 return False
 
     def test_a_plan_row_the_migration_never_reached_keeps_the_capability(self):
-        # The 034-not-applied case, and the new-plan-row-added-later case.
+        # The 042-not-applied case, and the new-plan-row-added-later case.
         self.assertTrue(
             self._allowed_with_flags({"batch_website_scraping": True}),
-            "an absent key is allowed: data/034 must reach every plan row",
+            "an absent key is allowed: data/042 must reach every plan row",
         )
 
     def test_a_null_feature_flags_column_keeps_the_capability(self):
@@ -522,6 +533,9 @@ class IngestRouteGateTests(unittest.TestCase):
             "app.database.user_repository.get_user_by_id", return_value=CURRENT_USER
         ), patch(
             "app.routes.knowledge_routes.verify_chatbot_access"
+        ), patch(
+            "app.routes.knowledge_routes.get_active_knowledge_file",
+            return_value=ACTIVE_PRIMARY_PDF,
         ), patch(
             "app.routes.knowledge_routes.can_upload_knowledge_file"
         ), patch(

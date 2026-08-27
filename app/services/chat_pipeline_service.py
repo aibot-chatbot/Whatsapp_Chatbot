@@ -115,7 +115,7 @@ def prepare_chat_prompt(
         try:
             from app.services import conversation_memory_service
 
-            # Plan gate (data/034 conversation_memory). Resolved through
+            # Plan gate (data/042 conversation_memory). Resolved through
             # conversation_memory_denial, which returns instead of raising, so
             # a denial cannot be caught below and logged as a store failure --
             # "not on your plan" and "the write broke" must stay distinct.

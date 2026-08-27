@@ -19,10 +19,10 @@
 | `TOYYIBPAY_USER_SECRET_KEY` | Required | Production ToyyibPay secret |
 | `TOYYIBPAY_CALLBACK_URL` | Required | Public HTTPS URL where ToyyibPay sends payment callbacks (`/api/billing/toyyibpay/callback`). Must be a deployed production URL. |
 | `TOYYIBPAY_RETURN_URL` | Required | URL where customers are redirected after payment. Must be a production URL. |
-| `OPENROUTER_API_KEY` | Required | AI provider key |
-| `OPENAI_API_KEY` | Required | OpenAI API key (used for guide/RAG) |
-| `GEMINI_API_KEY` | Required | Gemini API key (used for RAG and Gemini provider) |
-| `DEEPSEEK_API_KEY` | Required | DeepSeek AI provider key |
+| `OPENROUTER_API_KEY` | Required | Paid-plan generative AI routing key for tenant-selected supported models |
+| `OPENAI_API_KEY` | Optional / legacy | Direct OpenAI helper key; not the normal current chatbot/RAG generative path |
+| `GEMINI_API_KEY` | Required | Gemini embedding infrastructure key for vector generation and semantic retrieval |
+| `DEEPSEEK_API_KEY` | Required | Direct DeepSeek key for Free trial policy (`deepseek-v4-flash`) |
 | `PUBLIC_BASE_URL` | Required | Public backend URL for Meta WhatsApp webhook callbacks |
 | `AI_CREDIT_ENFORCEMENT_ENABLED` | `true` | Master switch for AI-credit charging. Requires `AI_RETAIL_MARKUP_BPS` and `AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD`. |
 | `AI_RETAIL_MARKUP_BPS` | Required (enforcement) | Retail markup in basis points (100 bps = 1%). Required when `AI_CREDIT_ENFORCEMENT_ENABLED` is true. |
@@ -121,8 +121,8 @@ The file contains verified runtime packages:
 - **flask-limiter** --- rate limiting
 - **python-dotenv** --- environment configuration
 - **requests** --- HTTP client
-- **openai** --- AI provider SDK (DeepSeek via OpenAI-compatible API)
-- **google-genai** --- Gemini API client for RAG
+- **openai** --- AI provider SDK used by DeepSeek's OpenAI-compatible client and legacy/direct OpenAI helpers
+- **google-genai** --- Gemini client used by embedding infrastructure for vector generation and semantic retrieval
 
 Optional: **redis** --- required only for multi-worker Redis-backed rate limiting
 

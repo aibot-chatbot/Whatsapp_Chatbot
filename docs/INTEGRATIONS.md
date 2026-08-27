@@ -35,7 +35,7 @@ All credentials must remain server-side.
 
 ### Purpose
 
-Provide access to multiple AI models through a common API.
+Provide paid-plan access to tenant-selected supported AI models through a common API.
 
 ### Flow
 
@@ -57,7 +57,11 @@ Provide access to multiple AI models through a common API.
 
 ### Purpose
 
-Direct AI model access for configured chatbot flows.
+Direct AI model access for the Free trial provider policy.
+
+Free trial generative access is forced to `deepseek-v4-flash`. Paid-plan
+generative calls use the tenant-selected supported model through OpenRouter and
+do not fall back to direct DeepSeek.
 
 ### Verification
 
@@ -71,14 +75,16 @@ Direct AI model access for configured chatbot flows.
 
 ### Purpose
 
-Used in AI and/or embedding-related flows.
+Used by the current embedding infrastructure for vector generation and semantic
+retrieval. Tenant-selected generative Gemini models, when available, are routed
+through the central AI router rather than through this embedding path.
 
 ### Verification
 
-- Active call paths
+- Active embedding call paths
 - API key
 - Embedding model
-- Generation model
+- Cataloged generative model identifiers, where routed through OpenRouter
 - Rate limits
 - Failure handling
 
