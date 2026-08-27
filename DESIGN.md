@@ -2,15 +2,16 @@
 
 ## Source of truth
 - Status: Active
-- Last refreshed: 2026-08-21
-- Primary product surfaces: bot list, selected-bot dashboard, bot configuration and operations pages, channel publishing, and the conversations/lead pipeline
-- Evidence reviewed: `frontend/bots.html`, `frontend/index.html`, `frontend/integration.html`, `frontend/conversations.html`, `frontend/sidebar-component.js`, `frontend/assets/css/dashboard-control-room.css`, `app/routes/conversation_routes.py`, `app/routes/crm_routes.py`, `app/routes/agent_routes.py`, `app/database/crm_lead_repository.py`, and a read-only inspection of the live `conversations`, `messages`, `crm_leads` and `agent_actions` tables
+- Last refreshed: 2026-08-26
+- Primary product surfaces: bot list, selected-bot dashboard, bot configuration and operations pages, channel publishing, the conversations/lead pipeline, the combined Insights & Actions workspace, team administration, and plans/billing
+- Evidence reviewed: `frontend/bots.html`, `frontend/index.html`, `frontend/integration.html`, `frontend/conversations.html`, `frontend/sidebar-component.js`, `frontend/assets/css/dashboard-control-room.css`, `app/routes/conversation_routes.py`, `app/routes/crm_routes.py`, `app/routes/agent_routes.py`, `app/database/crm_lead_repository.py`, and a read-only inspection of the live `conversations`, `messages`, `crm_leads` and `agent_actions` tables. The 2026-08-26 pass added `frontend/team.html`, `frontend/pricing.html`, `app/routes/billing_routes.py`, `app/services/billing_service.py`, `app/services/workspace_service.py`, `app/database/billing_usage_repository.py`, `app/routes/invite_routes.py`, `app/routes/user_routes.py`, `tests/browser/landing-pricing.spec.js`, `tests/test_team_member_limit_frontend.py` and `tests/test_workspace_frontend.py`
 - Visual source of truth: the control-room system in `frontend/assets/css/dashboard-control-room.css`. Stitch remains the historical reference for the dashboard shell only.
 
 ## Brand
 - Personality: calm, precise, operational, trustworthy
 - Trust signals: clear bot/workspace context, explicit statuses, readable timestamps, restrained semantic color, and never showing a number the backend did not produce
 - Avoid: decorative glass gradients, neon glows, emoji controls, oversized cards, hidden primary actions, and ambiguous status-only color
+- Commercial surfaces (scoped exception, added 2026-08-26): `pricing.html` is the one screen whose job is a purchase decision rather than an operation. It keeps every control-room token, type ramp and spacing step, and gains exactly three extra affordances: tier emphasis on the recommended plan, comparative weight between tiers, and entrance choreography over the usage meters. It gains no new colors, gradients, glow, or decorative imagery. Another screen inheriting these affordances is a violation, not a precedent.
 
 ## Product goals
 - Goals: make the selected bot and its readiness immediately obvious; guide clients toward the next useful action; keep bot operations scannable; turn recorded conversations into worked sales leads
@@ -103,8 +104,93 @@ Frontend and backend are built against exactly this. Anything not listed is out 
 
 `OPEN_CRM_LEAD_STATUSES` and `ALLOWED_CRM_LEAD_STATUSES` at `app/database/crm_lead_repository.py:13-14` are enforced on write and filtered on read at `:121`, `:256` and `:300`. Moving to `new / contacted / qualified / won / lost` changes behaviour for every reader; `frontend/support.html` still displays the old vocabulary and remains migration debt. `in_progress` maps to `contacted`; `closed` maps to `lost` when no outcome is known. Three live rows are affected, all `new`, so the data migration is trivial; the code blast radius is not.
 
+### Pinned API contract for the team and pricing redesign
+
+Verified 2026-08-26 by direct source audit of `app/`. Anything not listed is out of scope.
+
+- `GET /api/billing/usage` - the authoritative usage source. `data.usage.{chatbots, team_members,
+  knowledge_files, knowledge_storage_bytes, channels}` each carry `used` and `limit` (`limit: null`
+  means unlimited); `team_members` also carries `pending_invitations`; `data.usage.ai_tokens` carries
+  token counts only. `data.period.{start, end}` bound the window. Returns `data: null` at HTTP 200
+  when the company has no resolvable subscription. Already consumed by `bots.html` and
+  `integration.html`; new to both redesigned pages.
+- `GET /api/billing/ai-credit/summary` - `included_balance_micro_myr`, `topup_balance_micro_myr`,
+  `total_balance_micro_myr` (null when uninitialised), `period_start`, `period_end`, `currency`,
+  `unit`. The only truthful source of remaining credit. Read-only; never initialises or charges.
+- `GET /api/billing/plans` - 15 fields per plan. `price` is a **string**; parse before arithmetic.
+- `GET /api/billing/subscription` - `status`, `current_period_start`, `current_period_end`,
+  `trial_ends_at`, `trial_days_remaining`, `cancellation_effective_at`, `pending_plan`, `can_renew`,
+  `renewal_required`. The nested `plan` key is **absent entirely** when the plan row cannot resolve.
+- `GET /api/billing/subscription/downgrade-check/<code>` - used only at the downgrade confirm step.
+  `blocking_items[].resource` is one of six values, and `team_members` and
+  `team_members_including_pending` can both appear for one underlying cause; de-duplicate first.
+- `GET /api/workspace` - `active_member_count`, `pending_invitation_count`, `plan_member_limit`,
+  `remaining_seats`, `current_user_role`, `can_edit_company`, `can_manage_team`.
+- `GET /api/users` - 9 fields per user. Readable by `member`; every mutation requires admin/owner.
+- `GET /api/invites?status=pending` - 6 whitelisted fields. `POST /api/invites` returns `invite_link`
+  and **no `data` key**; `POST /api/invites/resend` takes `invite_id` in the **body** and returns no
+  fresh link; `DELETE /api/invites/<id>` takes the id in the **URL**.
+
+### Truth constraints recorded rather than rendered
+
+- **There is no annual billing.** `SUPPORTED_BILLING_INTERVALS` is monthly-only and the period math
+  raises `ValueError` on any other value. Every seeded plan is monthly. No monthly/annual toggle.
+- **`feature_flags` fails open in the backend, but the pricing table shows a cross.** The guard
+  treats an absent key as GRANTED; `pricing.js` renders an absent key as `data-enabled="false"`,
+  because `landing-pricing.spec.js` deletes a key and asserts exactly that. The two disagree, so
+  the plan table can show a capability as unavailable that the API would in fact allow. Recorded
+  as an open question below rather than resolved unilaterally.
+- **Invites have only two written statuses**, `pending` and `accepted`. Expiry is derived by
+  comparing `expires_at` to now, never read from `status`. Cancellation hard-deletes the row.
+- **Two different pending-invite counts exist.** `/api/workspace` excludes invites whose `expires_at`
+  is null or malformed; `/api/billing/usage` includes them. One screen picks one source, never both.
+- **`subscription_status` from `/api/billing/reports/plan-usage` is always the literal `unknown`**
+  because it reads a key that endpoint never sets. Status comes from `/api/billing/subscription`.
+- **Web widget channels are not counted** toward `channel_limit`, so the channel meter is not a count
+  of every reachable surface and is not labelled as one.
+- **AI tokens are not money.** `usage.ai_tokens` is a token count; credit is MYR from the credit
+  summary endpoint. The two are never merged into one figure.
+
+### Components added in this pass
+
+- `team-*` under `.dashboard-page` - roster row, seat rail, entitlement meter, invite row. Styles in
+  `frontend/assets/css/team.css`, behaviour in `frontend/assets/js/team.js`.
+- `pri-*` under `.dashboard-page` - usage meter, tier row, upgrade diff, feature disclosure. Styles in
+  `frontend/assets/css/pricing.css`, behaviour in `frontend/assets/js/pricing.js`.
+- `ia-*` under `.dashboard-page` - daily brief, action queue, lead pipeline/table, performance chart,
+  report output, role-gated signals and lead detail dialog. Styles live in
+  `frontend/assets/css/insights-actions.css`, behaviour in `frontend/assets/js/insights-actions.js`.
+- Motion vocabulary extended in `control-room-motion.css` with meter fill and numeric count-up. Both
+  are entrance-only, run once, animate `transform`/`opacity` only, and resolve instantly under
+  reduced motion.
+
+### Test contracts these pages must satisfy
+
+- `tests/browser/landing-pricing.spec.js` pins `pricing.html` to four `.plan-card` elements, each with
+  `.plan-name`, `.plan-price`, `.plan-desc` and twelve `[data-feature-key]` rows whose final five are
+  the approved customer-facing flags in order. Collapsed tiers therefore stay in the DOM and are
+  hidden visually, never omitted. The spec also asserts HTML-like plan text renders as text, so plan
+  strings keep using `textContent`.
+- `tests/test_team_member_limit_frontend.py` and `tests/test_workspace_frontend.py` assert against the
+  raw source text of `team.html`, including exact indentation, inline `onclick=` attributes and
+  function order. Extracting behaviour to `assets/js/team.js` is incompatible with them, so they are
+  rewritten in this pass to assert behaviour rather than source text. Every entitlement rule they
+  protect is preserved.
+
 ## Open questions
-- [x] Should the control-room shell roll out to every selected-bot subpage? Yes. `integration.html` and now `conversations.html` join `index`, `behaviour`, `new_prompt` and `new_linkdocs`. `bots.html`, `crm.html`, `support.html`, `reports.html` and `profile.html` remain legacy and are the remaining migration debt.
+- [x] Should the control-room shell roll out to every selected-bot subpage? Yes. `integration.html`, `conversations.html`, and the combined `crm.html` Insights & Actions workspace join `index`, `behaviour`, `new_prompt` and `new_linkdocs`. `reports.html` is now a compatibility redirect; `support.html` and `profile.html` remain migration debt.
 - [ ] Should a conversation ever close automatically after inactivity, so `conversation_status` and `ended_at` become meaningful? / owner: product / impact: unlocks open-vs-closed reporting and a real capture rate
-- [ ] Do `crm.html` and `support.html` get migrated to the new stage vocabulary in this pass, or pinned to a compatibility mapping until they are redesigned? / owner: product / impact: two screens show stale stage names until resolved
+- [x] `crm.html` now uses the canonical five-stage vocabulary in the combined Insights & Actions workspace. `support.html` remains compatibility/migration debt.
+- [x] Should `team.html` and `pricing.html` join the control-room shell? Yes, resolved
+      2026-08-26. `bots.html`, `support.html` and `profile.html`
+      remain the migration debt.
+- [ ] `/api/billing/reports/plan-usage` reports `subscription_status` as a hardcoded literal.
+      Fix the service or drop the field? / owner: backend / impact: the endpoint ships a value
+      no code writes, which the Preserve-truth principle forbids rendering
+- [ ] Should the seat rail read `/api/workspace` or `/api/billing/usage`, given their
+      pending-invite counts can disagree? / owner: product / impact: team and pricing can
+      otherwise show different seat totals for the same tenant
+- [ ] `feature_flags` disagrees between enforcement and display: the backend guard treats an
+      absent key as granted, the pricing table shows it as a cross. Which is correct?
+      / owner: product / impact: a plan may advertise less than it actually delivers
 - [ ] Wasender conversations report `connected` with no validation anywhere in the stack. Should the pipeline visually distinguish a lead that arrived over an unverified channel? / owner: product / impact: trust in channel attribution

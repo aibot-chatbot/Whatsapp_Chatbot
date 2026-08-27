@@ -71,7 +71,75 @@
         el.classList.add("cr-swap");
     }
 
-    window.controlRoomMotion = { setValue: setValue };
+    /**
+     * Count an element's text from zero up to a target number.
+     *
+     * The element must ALREADY contain the final formatted string. We read
+     * the numeric target from a data attribute and restore that exact
+     * string on the last frame, so currency symbols, separators and units
+     * stay owned by the page and are never re-implemented here.
+     *
+     * Under reduced motion, or for a non-finite target, the markup is left
+     * exactly as it was.
+     *
+     * @param {HTMLElement|null} el
+     * @param {number} target
+     * @param {string} finalText
+     */
+    function countUp(el, target, finalText) {
+        var DURATION = 560;
+
+        if (!el || !isFinite(target)) return;
+        if (prefersReduced.matches) {
+            el.textContent = finalText;
+            return;
+        }
+
+        var decimals = (String(finalText).split(".")[1] || "").replace(/[^0-9]/g, "").length;
+        var start = null;
+
+        function frame(now) {
+            if (start === null) start = now;
+            var t = Math.min((now - start) / DURATION, 1);
+            /* Cubic ease-out, the same deceleration family as
+               --motion-ease-out, so a counting number and the meter beside
+               it settle together rather than fighting each other. */
+            var eased = 1 - Math.pow(1 - t, 3);
+
+            if (t >= 1) {
+                el.textContent = finalText;
+                return;
+            }
+            el.textContent = (target * eased).toFixed(decimals);
+            requestAnimationFrame(frame);
+        }
+
+        el.textContent = (0).toFixed(decimals);
+        requestAnimationFrame(frame);
+    }
+
+    /**
+     * Run every [data-countup] inside a container once. The attribute holds
+     * the numeric target; the element's existing text is the truth we count
+     * toward and restore verbatim.
+     *
+     * @param {ParentNode} [root]
+     */
+    function countUpAll(root) {
+        var nodes = (root || document).querySelectorAll("[data-countup]");
+        for (var i = 0; i < nodes.length; i += 1) {
+            var el = nodes[i];
+            if (el.hasAttribute("data-countup-done")) continue;
+            el.setAttribute("data-countup-done", "");
+            countUp(el, parseFloat(el.getAttribute("data-countup")), el.textContent);
+        }
+    }
+
+    window.controlRoomMotion = {
+        setValue: setValue,
+        countUp: countUp,
+        countUpAll: countUpAll
+    };
 
     if (document.readyState === "loading") {
         document.addEventListener("DOMContentLoaded", init);

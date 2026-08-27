@@ -17,6 +17,7 @@
 
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
+    <script src="assets/js/resilient-load.js"></script>
     <script>requireLogin(); requireAdminOrOwner();</script>
     <script src="sidebar-component.js"></script>
     <script src="assets/js/qrcode-gen.js" defer></script>
@@ -284,7 +285,11 @@
             entitlement: { loaded: false, used: 0, limit: null },
             metaSignup: { available: false, appId: null, configId: null, version: null },
             openFlow: null,
-            busy: false
+            busy: false,
+            // Channel kinds whose last read failed. Kept apart from the
+            // channel records themselves so a failed read never masquerades
+            // as "no channel connected".
+            loadErrors: new Set()
         };
 
         const ICON = {
@@ -366,8 +371,29 @@
 
         /* ---- Loading ---------------------------------------------------- */
 
+        /* Reads go through resilientLoad so a blip retries with backoff.
+           Writes deliberately do NOT: `options` is only ever passed here for
+           POST/DELETE, and silently repeating a mutation can connect or
+           disconnect a channel twice. The fetch is also inside a try now - it
+           used to be bare, so an offline throw escaped Promise.all as an
+           unhandled rejection and the page never finished loading. */
         async function getJson(url, options) {
-            const response = await authenticatedFetch(url, options);
+            if (!options && window.resilientLoad) {
+                const outcome = await resilientLoad.loadJson(url);
+                return {
+                    ok: outcome.ok,
+                    status: outcome.status,
+                    body: outcome.ok
+                        ? { status: 'success', data: outcome.data }
+                        : { status: 'error', message: outcome.message }
+                };
+            }
+            let response;
+            try {
+                response = await authenticatedFetch(url, options);
+            } catch (e) {
+                return { ok: false, status: 0, body: {} };
+            }
             let body = {};
             try { body = await response.json(); } catch (e) { body = {}; }
             return { ok: response.ok && body.status === 'success', status: response.status, body };
@@ -387,7 +413,16 @@
 
         async function loadChannel(kind) {
             const result = await getJson(`/api/${kind}/channels?chatbot_id=${BOT_ID}`);
-            const rows = result.ok ? (result.body.data || []) : [];
+            if (!result.ok) {
+                /* Do not blank the record. Treating an unreadable answer as
+                   "not connected" showed a live WhatsApp number as offline and
+                   invited the user to reconnect something that never went
+                   down. Keep the last known state and flag it as unverified. */
+                state.loadErrors.add(kind);
+                return;
+            }
+            state.loadErrors.delete(kind);
+            const rows = result.body.data || [];
             /* Prefer a live row; the repositories return disconnected rows too. */
             state.channels[kind] = rows.find(r => r.is_active
                 && String(r.connection_status || '').toLowerCase() === 'connected')
@@ -861,9 +896,11 @@
                 ? (e.limit === null ? String(e.used) : `${e.used} of ${e.limit}`)
                 : '-';
 
-            document.getElementById('pub-status-text').textContent = liveCount === 0
-                ? 'Not live anywhere yet'
-                : (liveCount === 1 ? 'Live in 1 place' : `Live in ${liveCount} places`);
+            document.getElementById('pub-status-text').textContent = state.loadErrors.size
+                ? 'Some channels could not be checked - still trying'
+                : (liveCount === 0
+                    ? 'Not live anywhere yet'
+                    : (liveCount === 1 ? 'Live in 1 place' : `Live in ${liveCount} places`));
 
             document.getElementById('pub-live-dot').className =
                 'cr-live-dot' + (liveCount > 0 ? ' is-live' : ' is-idle');

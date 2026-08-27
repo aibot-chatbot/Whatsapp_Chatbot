@@ -23,7 +23,7 @@ class ChatbotSidebar extends HTMLElement {
         this.innerHTML = `
         <style>
             .sidebar {
-                width: 280px;
+                width: 260px;
                 background: var(--sidebar-bg, rgba(15, 23, 42, 0.85));
                 backdrop-filter: blur(20px);
                 -webkit-backdrop-filter: blur(20px);
@@ -35,7 +35,7 @@ class ChatbotSidebar extends HTMLElement {
                 position: sticky;
                 top: 0;
                 z-index: 100;
-                font-family: 'Outfit', sans-serif;
+                font-family: "Geist", "Outfit", sans-serif;
                 transition: width 0.28s ease, padding 0.28s ease;
                 overflow-y: auto;
                 overflow-x: hidden;
@@ -54,7 +54,7 @@ class ChatbotSidebar extends HTMLElement {
                 background: rgba(255, 255, 255, 0.3);
             }
             .sidebar, .sidebar * {
-                font-family: 'Outfit', sans-serif;
+                font-family: "Geist", "Outfit", sans-serif;
                 /* Owned here rather than inherited from each host page's
                    global reset: at <=768px the sidebar is width:100% with
                    horizontal padding, so content-box sizing pushes it wider
@@ -152,17 +152,17 @@ class ChatbotSidebar extends HTMLElement {
                 transform: translateX(4px);
             }
             .nav-link:hover i, .nav-link:hover svg {
-                color: var(--primary, #3b82f6);
+                color: var(--accent, #3e9c89);
             }
             .nav-link.active {
-                background: linear-gradient(135deg, var(--primary, #3b82f6), #2563eb);
-                color: white;
-                box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
-                border-color: transparent;
+                background: rgba(62, 156, 137, .12);
+                color: var(--primary-hover, #4ab09b);
+                box-shadow: none;
+                border-color: rgba(62, 156, 137, .28);
                 transform: none;
             }
             .nav-link.active i, .nav-link.active svg {
-                color: white;
+                color: var(--primary-hover, #4ab09b);
             }
             .dropdown-toggle {
                 width: 100%;
@@ -407,8 +407,8 @@ class ChatbotSidebar extends HTMLElement {
         <aside class="sidebar ${isCollapsed ? "collapsed" : ""}">
             <div class="sidebar-top">
                 <div class="logo">
-                    <i data-lucide="bot" style="color: var(--primary, #3b82f6); width: 28px; height: 28px;"></i>
-                    <span>AI CHATBOT</span>
+                    <i data-lucide="bot" style="color: var(--accent, #3e9c89); width: 28px; height: 28px;"></i>
+                    <span>Aveon</span>
                 </div>
                 <button class="sidebar-toggle" type="button" aria-label="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}" title="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}">
                     <span class="sidebar-toggle-icon">${initialIcon}</span>
@@ -515,21 +515,21 @@ class ChatbotSidebar extends HTMLElement {
                     `}
 
                     <div class="dropdown-container" id="crm-analytics-dropdown">
-                        <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('crm-analytics-dropdown')" title="CRM &amp; Analytics">
+                        <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('crm-analytics-dropdown')" title="Insights &amp; Actions">
                             <div class="nav-link-content">
                                 <i data-lucide="bar-chart-3"></i>
-                                <span>CRM &amp; Analytics</span>
+                                <span>Insights &amp; Actions</span>
                             </div>
                             <i data-lucide="chevron-down" class="chevron"></i>
                         </button>
                         <div class="dropdown-content">
-                            <a href="crm.html${botQuery}" class="nav-link sub-link" title="CRM / Leads">
+                            <a href="crm.html${botQuery}" class="nav-link sub-link" title="Today and leads">
                                 <i data-lucide="users"></i>
-                                <span>CRM / Leads</span>
+                                <span>Today &amp; leads</span>
                             </a>
-                            <a href="reports.html${botQuery}" class="nav-link sub-link" title="Reports">
+                            <a href="reports.html${botQuery}" class="nav-link sub-link" title="Performance">
                                 <i data-lucide="bar-chart-3"></i>
-                                <span>Reports</span>
+                                <span>Performance</span>
                             </a>
                         </div>
                     </div>
@@ -579,7 +579,7 @@ class ChatbotSidebar extends HTMLElement {
         } else {
             // Load it dynamically if missing
             const script = document.createElement('script');
-            script.src = 'https://unpkg.com/lucide@latest';
+            script.src = 'https://unpkg.com/lucide@1.31.0';
             script.onload = () => {
                 window.lucide.createIcons({ root: this });
                 refreshAccountMenuIcons();

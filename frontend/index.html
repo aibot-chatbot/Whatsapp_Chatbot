@@ -273,6 +273,10 @@
     </main>
 
     <script src="assets/js/auth.js"></script>
+    <!-- Shared retry/backoff wrapper. Every load below goes through it so a
+         transient blip retries behind the loading state instead of becoming a
+         dead end the user can only escape by reloading. -->
+    <script src="assets/js/resilient-load.js"></script>
     <script src="assets/js/control-room-motion.js" defer></script>
     <script>
         requireLogin();
@@ -405,58 +409,91 @@
 
         /* -- Data --------------------------------------------------- */
 
+        /**
+         * A dropped packet and a deleted bot are not the same event and must
+         * not get the same response. Ejecting the user back to the picker is
+         * correct only for a terminal answer - the bot is gone, or is not
+         * theirs. Anything the server might still answer differently is
+         * retried behind the loading state, so a blip costs a few seconds
+         * instead of the page they were on.
+         */
         async function fetchSelectedBot() {
-            try {
-                const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
-                const result = await response.json();
+            const outcome = await resilientLoad.loadJson(`/api/bots/${selectedBotId}`, {
+                onRetry: () => setText('dash-live-label', "Reconnecting…")
+            });
 
-                if (!response.ok || result.status !== "success" || !result.data) {
-                    window.location.href = "bots.html";
-                    return;
-                }
-
-                const botName = result.data.bot_name || "Selected bot";
+            if (outcome.ok && outcome.data) {
+                const botName = outcome.data.bot_name || "Selected bot";
                 setText('dashboard-title', botName);
                 document.title = `${botName} - Dashboard | AI Chatbot`;
-            } catch (err) {
-                console.error("Failed to fetch selected bot", err);
-                window.location.href = "bots.html";
+                return;
             }
+
+            if (outcome.terminal) {
+                window.location.href = "bots.html";
+                return;
+            }
+
+            setText('dash-live-label', "Offline");
+            setText('dash-systems', "We cannot reach the server. Still trying…");
+            scheduleDashboardRecovery();
         }
 
+        /**
+         * Last line of defence. resilientLoad has already spent its attempts;
+         * this keeps the page trying quietly afterwards so an outage that ends
+         * on its own resolves without the user touching anything. One timer is
+         * shared by every loader, so three failed loads schedule one recovery,
+         * not three.
+         */
+        let dashboardRecoveryTimer = null;
+        const DASHBOARD_RECOVERY_DELAY = 15000;
+
+        function scheduleDashboardRecovery() {
+            if (dashboardRecoveryTimer) return;
+            dashboardRecoveryTimer = setTimeout(() => {
+                dashboardRecoveryTimer = null;
+                fetchSelectedBot();
+                fetchBotHealth();
+                fetchDashboardData();
+            }, DASHBOARD_RECOVERY_DELAY);
+        }
+
+        /**
+         * The three reads here are independent and are now kept that way. They
+         * used to share one try/catch, so a failure fetching the active
+         * knowledge file blanked the message trend that had already rendered
+         * successfully - the page lost data it was holding. Each read now owns
+         * its own outcome and only writes its own cells.
+         */
         async function fetchDashboardData() {
-            try {
-                const analyticsRes = await authenticatedFetch(`/api/analytics?chatbot_id=${selectedBotId}`);
-                const analytics = await analyticsRes.json();
+            const analytics = await resilientLoad.loadJson(`/api/analytics?chatbot_id=${selectedBotId}`);
 
-                if (!analyticsRes.ok || analytics.status !== "success") {
-                    showDashboardError("Unable to load dashboard data.");
-                    return;
-                }
-
+            if (analytics.ok && analytics.data) {
                 setText('stat-total-users', formatCount(analytics.data.total_users));
                 setText('stat-total-msgs', formatCount(analytics.data.total_messages));
 
-                renderChart(analytics.data.chart.labels, analytics.data.chart.data);
+                renderChart(analytics.data.chart?.labels, analytics.data.chart?.data);
                 renderHistory(analytics.data.recent_history);
-
-                const settingsRes = await authenticatedFetch(`/api/settings?chatbot_id=${selectedBotId}`);
-                const settings = await settingsRes.json();
-                setText('stat-active-profile', settings.status === "success"
-                    ? (settings.data.active_profile || "Not selected")
-                    : "Unavailable");
-
-                const knowledgeRes = await authenticatedFetch(`/api/knowledge/active?chatbot_id=${selectedBotId}`);
-                if (knowledgeRes.ok) {
-                    const knowledge = await knowledgeRes.json();
-                    setText('stat-active-pdf', knowledge.data?.file_name || "Not selected");
-                } else {
-                    setText('stat-active-pdf', "Unavailable");
-                }
-            } catch (err) {
-                console.error("Dashboard failed to fetch data", err);
-                showDashboardError("Unable to load dashboard data.");
+            } else {
+                // Terminal is the server's considered answer and is worth
+                // stating. Transient is not an answer yet, so say we are still
+                // working and keep trying rather than parking on an error.
+                showDashboardError(analytics.terminal
+                    ? (analytics.message || "Unable to load dashboard data.")
+                    : "Still reconnecting to the server…");
+                if (!analytics.terminal) scheduleDashboardRecovery();
             }
+
+            const settings = await resilientLoad.loadJson(`/api/settings?chatbot_id=${selectedBotId}`);
+            setText('stat-active-profile', settings.ok
+                ? (settings.data?.active_profile || "Not selected")
+                : "Unavailable");
+
+            const knowledge = await resilientLoad.loadJson(`/api/knowledge/active?chatbot_id=${selectedBotId}`);
+            setText('stat-active-pdf', knowledge.ok
+                ? (knowledge.data?.file_name || "Not selected")
+                : "Unavailable");
         }
 
         function formatCount(value) {
@@ -491,21 +528,21 @@
         /* -- Setup progress ----------------------------------------- */
 
         async function fetchBotHealth() {
-            try {
-                const response = await authenticatedFetch(`/api/dashboard/health?chatbot_id=${selectedBotId}`);
-                const result = await response.json();
+            const outcome = await resilientLoad.loadJson(`/api/dashboard/health?chatbot_id=${selectedBotId}`);
 
-                if (!response.ok || result.status !== "success" || !result.data) {
-                    setText('dash-systems', "Bot health is unavailable.");
-                    return;
-                }
-
-                renderSetup(result.data);
-                maybeAutoValidate(result.data);
-            } catch (err) {
-                console.error("Bot health failed to fetch", err);
-                setText('dash-systems', "Bot health is unavailable.");
+            if (!outcome.ok || !outcome.data) {
+                // "Unavailable" is a verdict and should only be shown once the
+                // server has actually given one. Until then the four setup
+                // steps keep reading "Checking…", which is the truth.
+                setText('dash-systems', outcome.terminal
+                    ? "Bot health is unavailable."
+                    : "Checking this bot's setup…");
+                if (!outcome.terminal) scheduleDashboardRecovery();
+                return;
             }
+
+            renderSetup(outcome.data);
+            maybeAutoValidate(outcome.data);
         }
 
         // True only while an automatic check is in flight, so step 3 can show

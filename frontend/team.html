@@ -1,1447 +1,232 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="color-scheme: dark">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Team Members | AI Chatbot</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Team | AI Chatbot</title>
+    <meta name="theme-color" content="#0e0f11">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Order matters. Every kw-* rule is .dashboard-page .kw-*, so page CSS
+         must load last to override at equal specificity. shared-glass.css is
+         legacy in intent but still load-bearing: its 768px !important block
+         governs the mobile shell on every control-room page. -->
     <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/team.css">
+
     <script src="assets/js/shared-ui.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-rgb: 59, 130, 246;
-            --bg: #050b18;
-            --sidebar-bg: rgba(15, 23, 42, 0.8);
-            --card-bg: rgba(30, 41, 59, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --accent: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.1) 0%, transparent 50%);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            overflow-x: hidden;
-        }
-
-        .main-container {
-            flex-grow: 1;
-            padding: 50px 60px;
-            max-width: 100%;
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .header {
-            margin-bottom: 28px;
-        }
-
-        .header h1 {
-            font-size: 1.9rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #ffffff, #cbd5e1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .header h1 i, .header h1 svg {
-            -webkit-text-fill-color: initial;
-            color: var(--primary);
-        }
-
-        .header p {
-            color: var(--text-dim);
-            margin-top: 4px;
-            font-size: 0.95rem;
-        }
-
-        .info-banner {
-            padding: 10px 16px;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            margin-bottom: 24px;
-            background: rgba(59, 130, 246, 0.08);
-            border: 1px solid rgba(59, 130, 246, 0.15);
-            color: var(--text-dim);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .info-banner i, .info-banner svg {
-            color: var(--primary);
-            flex-shrink: 0;
-        }
-
-        .loading-state, .empty-state, .error-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-dim);
-        }
-
-        .loading-state i, .loading-state svg {
-            margin-bottom: 12px;
-            color: var(--primary);
-        }
-
-        .empty-state i, .empty-state svg {
-            margin-bottom: 12px;
-            color: var(--text-dim);
-        }
-
-        .error-state {
-            color: var(--danger);
-        }
-
-        /* ===== Team Table ===== */
-        .team-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .team-table th {
-            text-align: left;
-            padding: 12px 16px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .team-table td {
-            padding: 14px 16px;
-            font-size: 0.92rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-            vertical-align: middle;
-        }
-
-        .team-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .team-table tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
-        }
-
-        .member-name {
-            font-weight: 600;
-            color: var(--text-main);
-        }
-
-        .member-email {
-            color: var(--text-dim);
-            font-size: 0.85rem;
-        }
-
-        .role-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            text-transform: capitalize;
-        }
-
-        .role-badge.admin {
-            background: rgba(59, 130, 246, 0.12);
-            color: var(--primary);
-        }
-
-        .role-badge.member {
-            background: rgba(16, 185, 129, 0.1);
-            color: var(--accent);
-        }
-
-        .status-indicator {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.85rem;
-        }
-
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            display: inline-block;
-        }
-
-        .status-dot.active { background: var(--accent); }
-        .status-dot.inactive { background: var(--text-dim); }
-
-        /* ===== Invitations Section ===== */
-        .invitations-section {
-            margin-top: 36px;
-        }
-
-        .invitations-section .section-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px;
-        }
-
-        .invitations-section .section-title {
-            font-size: 1.1rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .invitations-section .section-title svg {
-            color: var(--primary);
-        }
-
-        .invitations-section .loading-state,
-        .invitations-section .empty-state {
-            padding: 32px 20px;
-        }
-
-        .invitations-section .empty-state p {
-            color: var(--text-dim);
-            margin-top: 8px;
-        }
-
-        .invite-row {
-            display: flex;
-            align-items: center;
-            padding: 14px 20px;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-            gap: 16px;
-        }
-
-        .invite-row:last-child {
-            border-bottom: none;
-        }
-
-        .invite-row:hover {
-            background: rgba(255,255,255,0.02);
-            border-radius: 0;
-        }
-
-        .invite-email {
-            flex: 2;
-            min-width: 0;
-        }
-
-        .invite-email .email-text {
-            font-weight: 600;
-            color: var(--text-main);
-            font-size: 0.92rem;
-        }
-
-        .invite-role {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .invite-status {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .invite-date {
-            flex: 1.5;
-            min-width: 0;
-            color: var(--text-dim);
-            font-size: 0.85rem;
-        }
-
-        .invite-actions {
-            flex: 1.5;
-            min-width: 0;
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.78rem;
-            font-weight: 600;
-        }
-
-        .status-badge.pending {
-            background: rgba(245, 158, 11, 0.1);
-            color: var(--warning);
-        }
-
-        .status-badge.expired {
-            background: rgba(239, 68, 68, 0.1);
-            color: var(--danger);
-        }
-
-        .invite-header-row {
-            display: flex;
-            align-items: center;
-            padding: 12px 20px;
-            gap: 16px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-
-        .invite-header-row .invite-email { flex: 2; }
-        .invite-header-row .invite-role { flex: 1; }
-        .invite-header-row .invite-status { flex: 1; }
-        .invite-header-row .invite-date { flex: 1.5; }
-        .invite-header-row .invite-actions { flex: 1.5; }
-        /* ===== Action Buttons ===== */
-        .team-action-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            padding: 5px 11px;
-            border-radius: 8px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255,255,255,0.03);
-            color: var(--text-dim);
-            font-size: 0.78rem;
-            font-weight: 600;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.2s;
-            white-space: nowrap;
-            line-height: 1;
-        }
-        .team-action-btn:hover {
-            background: rgba(255,255,255,0.07);
-            color: var(--text-main);
-        }
-        .team-action-btn.danger:hover {
-            color: var(--danger);
-            border-color: rgba(239,68,68,0.3);
-            background: rgba(239,68,68,0.08);
-        }
-        .team-action-btn.success:hover {
-            color: var(--accent);
-            border-color: rgba(16,185,129,0.3);
-            background: rgba(16,185,129,0.08);
-        }
-        .team-action-btn.primary:hover {
-            color: var(--primary);
-            border-color: rgba(59,130,246,0.3);
-            background: rgba(59,130,246,0.08);
-        }
-        .team-action-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-        .team-action-btn i, .team-action-btn svg {
-            width: 14px;
-            height: 14px;
-            flex-shrink: 0;
-        }
-        .team-actions-wrap {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            align-items: center;
-        }
-        .team-role-select {
-            background: rgba(15,23,42,0.6);
-            border: 1px solid var(--glass-border);
-            border-radius: 6px;
-            color: var(--text-main);
-            padding: 4px 8px;
-            font-size: 0.78rem;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .team-role-select:focus {
-            border-color: var(--primary);
-        }
-        .team-role-select option {
-            background: #1e293b;
-            color: var(--text-main);
-        }
-
-        .verified-yes {
-            color: var(--accent);
-        }
-
-        .verified-no {
-            color: var(--text-dim);
-        }
-
-        /* ===== Header Row with Add Button ===== */
-        .header-row {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 20px;
-            flex-wrap: wrap;
-        }
-
-        .header-row .header-text h1 {
-            font-size: 1.9rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #ffffff, #cbd5e1);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .header-row .header-text h1 i, .header-row .header-text h1 svg {
-            -webkit-text-fill-color: initial;
-            color: var(--primary);
-        }
-        .header-row .header-text p {
-            color: var(--text-dim);
-            margin-top: 4px;
-            font-size: 0.95rem;
-        }
-
-        .btn-add-member {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 20px;
-            border-radius: 12px;
-            border: none;
-            background: linear-gradient(135deg, var(--primary), #2563eb);
-            color: white;
-            font-weight: 600;
-            font-size: 0.9rem;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-        .btn-add-member:hover {
-            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
-            transform: translateY(-1px);
-        }
-
-        /* ===== Modal ===== */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(4px);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            padding: 20px;
-        }
-        .modal-overlay.open {
-            display: flex;
-        }
-
-        .modal-content {
-            background: var(--card-bg, rgba(30, 41, 59, 0.95));
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 28px 32px;
-            width: 100%;
-            max-width: 480px;
-            max-height: 90vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-        }
-
-        .modal-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 22px;
-        }
-        .modal-header h2 {
-            font-size: 1.3rem;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .modal-header h2 i, .modal-header h2 svg {
-            color: var(--primary);
-        }
-        .modal-close {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            border: 1px solid var(--glass-border);
-            background: rgba(255,255,255,0.04);
-            color: var(--text-dim);
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-        }
-        .modal-close:hover {
-            background: rgba(255,255,255,0.08);
-            color: var(--text-main);
-        }
-
-        .modal-body .form-row {
-            margin-bottom: 16px;
-        }
-        .modal-body .form-row label {
-            display: block;
-            font-size: 0.78rem;
-            font-weight: 600;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 5px;
-        }
-        .modal-body .form-row input,
-        .modal-body .form-row select {
-            width: 100%;
-            padding: 10px 14px;
-            background: var(--input-bg, rgba(15, 23, 42, 0.6));
-            border: 1px solid var(--glass-border);
-            border-radius: 10px;
-            color: var(--text-main);
-            font-size: 0.92rem;
-            font-family: 'Outfit', sans-serif;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .modal-body .form-row input:focus,
-        .modal-body .form-row select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
-        }
-        .modal-body .form-row select option {
-            background: #1e293b;
-            color: var(--text-main);
-        }
-        .modal-body .form-row .input-wrapper {
-            position: relative;
-            display: flex;
-            align-items: center;
-        }
-        .modal-body .form-row .input-wrapper input {
-            padding-right: 36px;
-        }
-        .pwd-toggle {
-            position: absolute;
-            right: 10px;
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
-            border: none;
-            color: var(--text-dim);
-            cursor: pointer;
-            padding: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s;
-        }
-        .pwd-toggle:hover { color: var(--text-main); }
-
-        .modal-footer {
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-            margin-top: 22px;
-            padding-top: 18px;
-            border-top: 1px solid rgba(255, 255, 255, 0.04);
-        }
-
-        .btn-cancel {
-            padding: 10px 20px;
-            border-radius: 10px;
-            border: 1px solid var(--glass-border);
-            background: transparent;
-            color: var(--text-dim);
-            font-weight: 600;
-            font-size: 0.9rem;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-cancel:hover {
-            background: rgba(255,255,255,0.04);
-            color: var(--text-main);
-        }
-
-        .btn-submit {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 24px;
-            border-radius: 10px;
-            border: none;
-            background: linear-gradient(135deg, var(--primary), #2563eb);
-            color: white;
-            font-weight: 600;
-            font-size: 0.9rem;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
-        .btn-submit:hover {
-            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
-        }
-        .btn-submit:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .btn-danger {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 24px;
-            border-radius: 10px;
-            border: none;
-            background: linear-gradient(135deg, var(--danger), #dc2626);
-            color: white;
-            font-weight: 600;
-            font-size: 0.9rem;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
-        .btn-danger:hover {
-            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
-        }
-        .btn-success {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 24px;
-            border-radius: 10px;
-            border: none;
-            background: linear-gradient(135deg, var(--accent), #059669);
-            color: white;
-            font-weight: 600;
-            font-size: 0.9rem;
-            font-family: 'Outfit', sans-serif;
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
-        .btn-success:hover {
-            box-shadow: 0 4px 20px rgba(16, 185, 129, 0.4);
-        }
-
-        /* ===== Confirm Modal ===== */
-        .confirm-modal-body {
-            text-align: center;
-            padding: 8px 0;
-        }
-        .confirm-modal-body .confirm-icon {
-            margin-bottom: 12px;
-        }
-        .confirm-modal-body .confirm-message {
-            font-size: 1rem;
-            color: var(--text-main);
-            line-height: 1.5;
-        }
-        .confirm-modal-body .confirm-sub {
-            font-size: 0.85rem;
-            color: var(--text-dim);
-            margin-top: 6px;
-        }
-
-        .spinner {
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            100% { transform: rotate(360deg); }
-        }
-
-        .spinner {
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            100% { transform: rotate(360deg); }
-        }
-
-        .field-error {
-            color: var(--danger);
-            font-size: 0.78rem;
-            margin-top: 3px;
-        }
-        .hidden {
-            display: none;
-        }
-        @media (max-width: 768px) {
-            .main-container { padding: 24px 20px; }
-            .team-table th, .team-table td { padding: 10px 12px; }
-            .member-email { display: none; }
-        }
-    </style>
+    <script src="assets/js/kw-a11y.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <!-- requireLogin only. Reading the roster is open to every role; the
+         write actions are gated per control instead, so a member sees the
+         team rather than a redirect. -->
+    <script>requireLogin();</script>
+    <script src="sidebar-component.js"></script>
+    <script src="assets/js/control-room-motion.js" defer></script>
+    <!-- Only the sidebar still renders <i data-lucide> placeholders; this
+         page draws its own icons inline. -->
+    <script src="https://unpkg.com/lucide@latest" defer></script>
 </head>
 
-<body>
+<body class="dashboard-page">
     <chatbot-sidebar></chatbot-sidebar>
-    <script src="sidebar-component.js"></script>
-    <script src="assets/js/auth.js"></script>
-    <script>
-        function getBotQuery() { var p = new URLSearchParams(window.location.search); var bId = p.get("bot_id"); return bId ? "?bot_id=" + encodeURIComponent(bId) : ""; }
-        document.addEventListener("DOMContentLoaded", function() {
-            var sidebar = document.querySelector("chatbot-sidebar");
-            if (sidebar && typeof sidebar.initSidebar === "function") {
-                sidebar.initSidebar();
-            }
-        });
 
-    </script>
-
-    <div class="main-container">
-        <div class="header-row">
-            <div class="header-text">
-                <h1>
-                    <i data-lucide="users" style="width:30px;height:30px;"></i>
-                    Team Members
-                </h1>
-                <p>View all users in your company workspace.</p>
+    <main class="main-container kw-page">
+        <header class="kw-header">
+            <div>
+                <h1>Team</h1>
+                <p class="kw-header-sub">Everyone who can sign in to this workspace.</p>
             </div>
-                <button class="btn-add-member" id="btn-add-member" onclick="openAddMemberModal()" title="Loading team entitlement" style="display:none;" disabled>
-                <i data-lucide="mail-plus" style="width:18px;height:18px;"></i> Send Invite
-            </button>
-        </div>
-        <div class="info-banner">
-            <i data-lucide="info" style="width:18px;height:18px;"></i>
-            <span>Admins can send invitations to new team members. Only admins and owners can manage the team.</span>
+            <!-- Nothing interactive belongs in this right slot: a fixed
+                 account menu at z-index 1001 sits over it and swallows
+                 clicks. The invite button lives in the panel head below. -->
+        </header>
+
+        <div class="kw-banner" id="tm-banner" hidden>
+            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+            </svg>
+            <span id="tm-banner-text"></span>
+            <button type="button" class="kw-btn cr-press" id="tm-retry" style="margin-left:auto">Reload</button>
         </div>
 
-        <!-- Team Usage Summary -->
-        <div class="glass-card" id="team-usage-card" style="margin-bottom:20px;padding:16px 20px;">
-            <div id="team-usage-loading" style="color:var(--text-dim);font-size:0.9rem;">
-                <i data-lucide="loader-2" class="spin" style="width:16px;height:16px;vertical-align:middle;"></i> Loading usage...
+        <div class="kw-locked" id="tm-readonly" hidden>
+            <span class="kw-locked-icon" aria-hidden="true">
+                <svg class="dashboard-icon" viewBox="0 0 24 24">
+                    <path d="M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM8 11V7a4 4 0 0 1 8 0v4" />
+                </svg>
+            </span>
+            <div>
+                <h4>You have view-only access</h4>
+                <p>Any admin, or the workspace owner, can invite people and change roles.</p>
             </div>
-            <div id="team-usage-content" style="display:none;">
-                <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:12px;">
-                    <div>
-                        <div style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;">Active Members</div>
-                        <div id="team-usage-members" style="font-size:1.1rem;font-weight:700;color:var(--text-main);margin-top:4px;">&mdash;</div>
+        </div>
+
+        <div class="team-layout">
+            <div class="team-main">
+                <!-- Roster -->
+                <section class="kw-panel cr-reveal" aria-labelledby="tm-roster-title">
+                    <div class="kw-panel-head">
+                        <div>
+                            <h2 class="kw-panel-title" id="tm-roster-title">Members</h2>
+                            <p class="kw-help" id="tm-count">Loading…</p>
+                        </div>
+                        <button type="button" class="kw-btn kw-btn-primary cr-press" id="tm-invite" hidden disabled>
+                            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M12 5v14M5 12h14" />
+                            </svg>
+                            Invite someone
+                        </button>
                     </div>
-                    <div>
-                        <div style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;">Pending Invitations</div>
-                        <div id="team-usage-pending" style="font-size:1.1rem;font-weight:700;color:var(--text-main);margin-top:4px;">&mdash;</div>
+
+                    <div id="tm-loading">
+                        <div class="cr-skeleton team-skeleton-row"></div>
+                        <div class="cr-skeleton team-skeleton-row"></div>
+                        <div class="cr-skeleton team-skeleton-row"></div>
                     </div>
-                    <div>
-                        <div style="font-size:0.78rem;font-weight:600;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;">Plan Limit</div>
-                        <div id="team-usage-limit" style="font-size:1.1rem;font-weight:700;color:var(--text-main);margin-top:4px;">&mdash;</div>
+
+                    <div class="kw-empty" id="tm-empty" hidden>
+                        <span class="kw-empty-icon" aria-hidden="true">
+                            <svg class="dashboard-icon" viewBox="0 0 24 24">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8z" />
+                            </svg>
+                        </span>
+                        <h3>No members yet</h3>
+                        <p>Invite a teammate to give them access to this workspace.</p>
                     </div>
-                </div>
-                <div id="team-upgrade-warning" style="display:none;margin-top:10px;padding:10px 14px;border-radius:10px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);color:var(--warning);font-size:0.85rem;">
-                    <i data-lucide="alert-triangle" style="width:16px;height:16px;vertical-align:middle;margin-right:6px;"></i> Team limit reached. Remove a member, cancel an invitation, or <a id="team-upgrade-href" href="pricing.html" style="color:var(--primary);text-decoration:underline;font-weight:600;">upgrade your plan &rarr;</a>
-                </div>
+
+                    <div class="kw-table-wrap" id="tm-table-wrap" hidden>
+                        <div class="kw-table-scroll">
+                            <table class="kw-table">
+                                <caption class="kw-visually-hidden">People with access to this workspace</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Member</th>
+                                        <th scope="col">Role</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Joined</th>
+                                        <th scope="col"><span class="kw-visually-hidden">Actions</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tm-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Pending invitations -->
+                <section class="kw-panel cr-reveal" aria-labelledby="tm-invites-title">
+                    <div class="kw-panel-head">
+                        <div>
+                            <h2 class="kw-panel-title" id="tm-invites-title">Pending invitations</h2>
+                            <p class="kw-help">Each one holds a seat until it is accepted or cancelled.</p>
+                        </div>
+                    </div>
+
+                    <div id="tm-invites-loading">
+                        <div class="cr-skeleton team-skeleton-row"></div>
+                    </div>
+
+                    <div class="kw-empty" id="tm-invites-empty" hidden>
+                        <span class="kw-empty-icon" aria-hidden="true">
+                            <svg class="dashboard-icon" viewBox="0 0 24 24">
+                                <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 7l-10 6L2 7" />
+                            </svg>
+                        </span>
+                        <h3>No invitations waiting</h3>
+                        <p>Anyone you invite appears here until they accept.</p>
+                    </div>
+
+                    <div id="tm-invites"></div>
+                </section>
             </div>
+
+            <!-- Seat entitlement rail -->
+            <aside class="team-rail" aria-labelledby="tm-seats-title">
+                <section class="kw-panel cr-reveal">
+                    <div class="kw-panel-head">
+                        <h2 class="kw-panel-title" id="tm-seats-title">Seats</h2>
+                    </div>
+                    <div class="team-seats" id="tm-seats"></div>
+                </section>
+
+                <a class="kw-btn cr-press" id="tm-upgrade" href="pricing.html" hidden
+                   style="justify-content:center">Upgrade for more seats</a>
+            </aside>
         </div>
 
+        <p class="kw-visually-hidden" role="status" aria-live="polite" id="tm-announce"></p>
+    </main>
 
-        <div class="glass-card" id="team-card">
-            <div class="loading-state" id="loading-state">
-                <i data-lucide="loader-2" style="width:32px;height:32px;" class="spinner"></i>
-                <p>Loading team members...</p>
-            </div>
-            <div class="empty-state" id="empty-state" style="display:none;">
-                <i data-lucide="users" style="width:40px;height:40px;"></i>
-                <p>No team members found.</p>
-            </div>
-            <div class="error-state" id="error-state" style="display:none;">
-                <i data-lucide="alert-circle" style="width:32px;height:32px;"></i>
-                <p id="error-text">Failed to load team members.</p>
-            </div>
-            <table class="team-table" id="team-table" style="display:none;">
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Role</th>
-                        <th>Status</th>
-                        <th>Verified</th>
-                        <th>Joined</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="team-tbody"></tbody>
-            </table>
-        </div>
-        <!-- Pending Invitations Section -->
-        <div class="glass-card invitations-section" id="invites-section">
-            <div class="section-header">
-                <div class="section-title">
-                    <i data-lucide="mail" style="width:20px;height:20px;"></i> Pending Invitations
+    <!-- Modals live outside <main>, as direct children of <body>. -->
+    <div class="kw-backdrop" id="tm-invite-modal">
+        <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="tm-invite-title">
+            <div class="kw-modal-head">
+                <div>
+                    <h2 id="tm-invite-title">Invite someone</h2>
+                    <p>They receive an email with a link that expires in three days.</p>
                 </div>
-            </div>
-            <div class="loading-state" id="invites-loading" style="display:block;">
-                <i data-lucide="loader-2" style="width:28px;height:28px;" class="spinner"></i>
-                <p>Loading pending invitations...</p>
-            </div>
-            <div class="empty-state" id="invites-empty" style="display:none;">
-                <i data-lucide="send" style="width:36px;height:36px;"></i>
-                <p>No pending invitations.</p>
-            </div>
-            <div id="invites-list" style="display:none;">
-                <div class="invite-header-row">
-                    <div class="invite-email">Email</div>
-                    <div class="invite-role">Role</div>
-                    <div class="invite-status">Status</div>
-                    <div class="invite-date">Sent</div>
-                    <div class="invite-date">Expires</div>
-                    <div class="invite-actions">Actions</div>
-                </div>
-                <div id="invites-tbody"></div>
-            </div>
-        </div>
-    <!-- Add Member Modal -->
-    <div class="modal-overlay" id="add-member-modal">
-        <div class="modal-content glass-card">
-            <div class="modal-header">
-                <h2><i data-lucide="mail-plus" style="width:22px;height:22px;"></i> Send Invitation</h2>
-                <button class="modal-close" onclick="closeAddMemberModal()" aria-label="Close modal">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-row">
-                    <label for="member-email">Email</label>
-                    <input type="email" id="member-email" placeholder="Enter email address" autocomplete="off">
-                </div>
-                <div class="form-row">
-                    <label for="member-role">Role</label>
-                    <select id="member-role">
-                        <option value="member">Member</option>
-                        <option value="admin">Admin</option>
-                    </select>
-                </div>
-                <div id="member-form-error" class="field-error hidden"></div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-cancel" onclick="closeAddMemberModal()">Cancel</button>
-                <button class="btn-submit" id="btn-submit-member" onclick="submitAddMember()">
-                    <i data-lucide="mail-plus" style="width:16px;height:16px;"></i> Send Invite
+                <button type="button" class="kw-iconbtn cr-press" id="tm-invite-close" aria-label="Close">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
                 </button>
             </div>
-        </div>
-    </div>    </div>
-
-
-    <!-- Confirm Action Modal -->
-    <div class="modal-overlay" id="confirm-modal">
-        <div class="modal-content glass-card" style="max-width:400px;text-align:center;">
-            <div class="confirm-modal-body">
-                <div class="confirm-icon" id="confirm-icon">
-                    <i data-lucide="alert-triangle" style="width:40px;height:40px;color:var(--warning);"></i>
+            <form class="kw-modal-body" id="tm-invite-form" novalidate>
+                <!-- Kept as flat siblings: kw-field spacing is adjacency-only
+                     (.kw-field + .kw-field), so wrapping these in a div would
+                     silently remove the gap between them. -->
+                <div class="kw-field">
+                    <label class="kw-label" for="tm-invite-email">Email address</label>
+                    <input class="kw-input" type="email" id="tm-invite-email" name="email"
+                           inputmode="email" autocomplete="off" spellcheck="false"
+                           placeholder="name@company.com…" aria-describedby="tm-invite-error">
                 </div>
-                <div class="confirm-message" id="confirm-message"></div>
-                <div class="confirm-sub" id="confirm-sub"></div>
-            </div>
-            <div class="modal-footer" style="justify-content:center;">
-                <button class="btn-cancel" id="btn-confirm-cancel" onclick="closeConfirmModal(false)">Cancel</button>
-                <button class="btn-submit" id="btn-confirm-ok" onclick="closeConfirmModal(true)">Confirm</button>
+                <div class="kw-field">
+                    <label class="kw-label" for="tm-invite-role">Role</label>
+                    <select class="kw-select" id="tm-invite-role" name="role">
+                        <option value="member">Member — can use the bots</option>
+                        <option value="admin">Admin — can also manage the team</option>
+                    </select>
+                </div>
+                <p class="kw-help" id="tm-invite-error" role="alert"
+                   style="color:var(--control-warning)" hidden></p>
+            </form>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="tm-invite-cancel">Cancel</button>
+                <button type="submit" class="kw-btn kw-btn-primary cr-press" id="tm-invite-submit"
+                        form="tm-invite-form">Send invitation</button>
             </div>
         </div>
     </div>
 
-    <script>
-        requireLogin();
-        refreshIcons();
-
-        function formatDate(dateStr) {
-            if (!dateStr) return "-";
-            try {
-                var d = new Date(dateStr);
-                if (isNaN(d.getTime())) return "-";
-                return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-            } catch (_) { return "-"; }
-        }
-
-        function capitalize(str) {
-            if (!str) return "";
-            return str.charAt(0).toUpperCase() + str.slice(1);
-        }
-
-        async function loadTeam() {
-            var loadingEl = document.getElementById("loading-state");
-            var emptyEl = document.getElementById("empty-state");
-            var errorEl = document.getElementById("error-state");
-            var errorText = document.getElementById("error-text");
-            var tableEl = document.getElementById("team-table");
-            var tbody = document.getElementById("team-tbody");
-
-            loadingEl.style.display = "block";
-            emptyEl.style.display = "none";
-            errorEl.style.display = "none";
-            tableEl.style.display = "none";
-
-            try {
-                var res = await authenticatedFetch("/api/users");
-                var json = await res.json();
-
-                loadingEl.style.display = "none";
-
-                if (json.status !== "success") {
-                    errorText.textContent = json.message || "Failed to load team members.";
-                    errorEl.style.display = "block";
-                    return;
-                }
-
-                var users = json.data || [];
-
-                if (users.length === 0) {
-                    emptyEl.style.display = "block";
-                    return;
-                }
-
-                var rows = users.map(function(u) {
-                    var normalizedRole = String(u.role || "").trim().toLowerCase();
-                    var roleClass = normalizedRole === "admin" || normalizedRole === "owner" ? "admin" : "member";
-                    var statusClass = u.status === "active" ? "active" : "inactive";
-                    var verifiedHtml = u.is_verified
-                        ? '<span class="verified-yes"><i data-lucide="badge-check" style="width:16px;height:16px;"></i> Verified</span>'
-                        : '<span class="verified-no"><i data-lucide="x-circle" style="width:16px;height:16px;"></i> Not Verified</span>';
-
-                    var isCurrentUser = currentUserId && u.id === currentUserId;
-                    var isAdminView = currentUserRole === "admin" || currentUserRole === "owner";
-                    var isOwner = normalizedRole === "owner";
-                    var actionsHtml = "";
-                    if (isAdminView && !isCurrentUser && !isOwner) {
-                        var roleOpts = '<select class=\"team-role-select\" data-user-name=\"' + escapeHtml(u.full_name || 'User') + '\" onchange=\"changeUserRole(' + u.id + ', this)\" aria-label=\"Change role\">' +
-                            "<option value=\"member\"" + (u.role === "member" ? " selected" : "") + ">Member</option>" +
-                            "<option value=\"admin\"" + (u.role === "admin" ? " selected" : "") + ">Admin</option>" +
-                            "</select>";
-                        var statusBtn = "";
-                        if (u.status === "active") {
-                            statusBtn = '<button class="team-action-btn danger" data-user-name="' + escapeHtml(u.full_name || 'User') + '" onclick="changeUserStatus(' + u.id + ', &#39;inactive&#39;, this)" aria-label="Deactivate user"><i data-lucide="user-x" style="width:14px;height:14px;"></i> Deactivate</button>';
-                        } else {
-                            statusBtn = '<button class="team-action-btn success" data-user-name="' + escapeHtml(u.full_name || 'User') + '" onclick="changeUserStatus(' + u.id + ', &#39;active&#39;, this)" aria-label="Reactivate user"><i data-lucide="user-check" style="width:14px;height:14px;"></i> Reactivate</button>';
-                        }
-                        actionsHtml = '<div class="team-actions-wrap">' + roleOpts + statusBtn + '</div>';
-                    }
-
-                    return '<tr>' +
-                        '<td><div class="member-name">' + escapeHtml(u.full_name || "Unknown") + '</div></td>' +
-                        '<td><div class="member-email">' + escapeHtml(u.email || "-") + '</div></td>' +
-                        '<td><span class="role-badge ' + roleClass + '">' + capitalize(u.role || "") + '</span></td>' +
-                        '<td><span class="status-indicator"><span class="status-dot ' + statusClass + '"></span>' + capitalize(u.status || "unknown") + '</span></td>' +
-                        '<td>' + verifiedHtml + '</td>' +
-                        '<td style="color:var(--text-dim);font-size:0.85rem;">' + formatDate(u.created_at) + '</td>' +
-                        '<td>' + actionsHtml + '</td>' +
-                        '</tr>';
-                }).join("");
-
-                tbody.innerHTML = rows;
-                tableEl.style.display = "table";
-                refreshIcons();
-
-            } catch (err) {
-                loadingEl.style.display = "none";
-                errorText.textContent = "Could not connect to server.";
-                errorEl.style.display = "block";
-            }
-        }
-
-        function escapeHtml(str) {
-            if (!str) return "";
-            return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
-        }
-
-        /* ===== Add Member Modal ===== */
-        var currentUserRole = null;
-        var currentUserId = null;
-        var resendInviteInFlight = Object.create(null);
-        var teamMemberEntitlement = {
-            loaded: false,
-            used: 0,
-            pending: 0,
-            limit: null
-        };
-
-        function getTeamLimitMessage() {
-            return "Team limit reached. Remove a member, cancel an invitation, or upgrade your plan.";
-        }
-
-        function isTeamMemberLimitReached() {
-            if (!teamMemberEntitlement.loaded || teamMemberEntitlement.limit === null) {
-                return false;
-            }
-            return (teamMemberEntitlement.used + teamMemberEntitlement.pending) >= teamMemberEntitlement.limit;
-        }
-
-        function applyTeamInviteLimitState() {
-            var btn = document.getElementById("btn-add-member");
-            var warnEl = document.getElementById("team-upgrade-warning");
-            var limitReached = isTeamMemberLimitReached();
-            var canManage = currentUserRole === "admin" || currentUserRole === "owner";
-
-            if (btn) {
-                btn.disabled = !canManage || !teamMemberEntitlement.loaded || limitReached;
-                btn.title = limitReached ? getTeamLimitMessage() : (teamMemberEntitlement.loaded ? "Send an invitation" : "Loading team entitlement");
-            }
-
-            if (warnEl) {
-                warnEl.style.display = limitReached ? "block" : "none";
-            }
-        }
-
-        async function changeUserRole(userId, selectEl) {
-            var newRole = selectEl.value;
-            var userName = selectEl.getAttribute("data-user-name") || "User";
-            if (!await showConfirmModal({ message: "Change " + userName + "'s role to " + capitalize(newRole) + "?", confirmText: "Change Role", confirmType: "primary" })) {
-                loadTeam();
-            loadTeamUsage();
-                return;
-            }
-            try {
-                var res = await authenticatedFetch("/api/users/" + userId + "/role", {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ role: newRole })
-                });
-                var json = await res.json();
-                if (json.status === "success") {
-                    showMessage("Role updated to " + capitalize(newRole) + ".", "success");
-                    loadTeam();
-            loadTeamUsage();
-                } else {
-                    showMessage(json.message || "Failed to update role.", "error");
-                }
-            } catch (err) {
-                showMessage("Could not connect to server.", "error");
-            }
-        }
-
-        async function changeUserStatus(userId, newStatus, btnEl) {
-            var userName = btnEl.getAttribute("data-user-name") || "User";
-            var label = newStatus === "active" ? "reactivate" : "deactivate";
-            var msg = newStatus === "active" ? "Reactivate " + userName + "? This user will be able to log in again." : "Deactivate " + userName + "? This user will not be able to log in.";
-            var confirmType = newStatus === "active" ? "success" : "danger";
-            if (!await showConfirmModal({ message: msg, confirmText: capitalize(label), confirmType: confirmType })) return;
-            try {
-                var res = await authenticatedFetch("/api/users/" + userId + "/status", {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ status: newStatus })
-                });
-                var json = await res.json();
-                if (json.status === "success") {
-                    showMessage("User " + label + "d successfully.", "success");
-                    loadTeam();
-            loadTeamUsage();
-                } else {
-                    showMessage(json.message || "Failed to update status.", "error");
-                }
-            } catch (err) {
-                showMessage("Could not connect to server.", "error");
-            }
-        }
-
-        function openAddMemberModal() {
-            if (currentUserRole !== "admin" && currentUserRole !== "owner") {
-                showMessage("You do not have permission to invite team members.", "error");
-                return;
-            }
-            if (!teamMemberEntitlement.loaded) {
-                showMessage("Team entitlement is still loading. Please try again.", "error");
-                return;
-            }
-            if (isTeamMemberLimitReached()) {
-                showMessage(getTeamLimitMessage(), "error");
-                applyTeamInviteLimitState();
-                return;
-            }
-            document.getElementById("add-member-modal").classList.add("open");
-            document.getElementById("member-form-error").classList.add("hidden");
-            document.getElementById("member-form-error").textContent = "";
-            refreshIcons();
-        }
-        function closeAddMemberModal() {
-            document.getElementById("add-member-modal").classList.remove("open");
-            // Clear form
-            document.getElementById("member-email").value = "";
-            document.getElementById("member-role").value = "member";
-            document.getElementById("member-form-error").classList.add("hidden");
-            document.getElementById("member-form-error").textContent = "";
-        }
-
-        /* ===== Confirm Modal ===== */
-        var _confirmResolve = null;
-        function closeConfirmModal(result) {
-            document.getElementById("confirm-modal").classList.remove("open");
-            if (_confirmResolve) { _confirmResolve(result); _confirmResolve = null; }
-        }
-
-        function showConfirmModal(opts) {
-            return new Promise(function(resolve) {
-                _confirmResolve = resolve;
-                document.getElementById("confirm-message").textContent = opts.message || "Are you sure?";
-                document.getElementById("confirm-sub").textContent = opts.sub || "";
-                var btnOk = document.getElementById("btn-confirm-ok");
-                btnOk.textContent = opts.confirmText || "Confirm";
-                var btnClass = 'btn-submit';
-                if (opts.confirmType === 'danger') btnClass = 'btn-danger';
-                else if (opts.confirmType === 'success') btnClass = 'btn-success';
-                btnOk.className = btnClass;
-                var icon = document.getElementById("confirm-icon").querySelector("i, svg");
-                if (icon) icon.setAttribute("data-lucide", opts.icon || "alert-triangle");
-                refreshIcons();
-                document.getElementById("confirm-modal").classList.add("open");
-            });
-        }
-
-        function showMemberFormError(msg) {
-            var el = document.getElementById("member-form-error");
-            el.textContent = msg;
-            el.classList.remove("hidden");
-        }
-
-        
-        async function submitAddMember() {
-            if (currentUserRole !== "admin" && currentUserRole !== "owner") {
-                showMemberFormError("You do not have permission to invite team members.");
-                return;
-            }
-            if (!teamMemberEntitlement.loaded) {
-                showMemberFormError("Team entitlement is still loading. Please try again.");
-                return;
-            }
-            if (isTeamMemberLimitReached()) {
-                showMemberFormError(getTeamLimitMessage());
-                applyTeamInviteLimitState();
-                return;
-            }
-
-            var email = document.getElementById("member-email").value.trim();
-            var role = document.getElementById("member-role").value;
-
-            // Validation
-            if (!email) { showMemberFormError("Email is required."); return; }
-            var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (!emailRegex.test(email)) { showMemberFormError("Please enter a valid email address."); return; }
-            if (!role) { showMemberFormError("Role is required."); return; }
-
-            var btn = document.getElementById("btn-submit-member");
-            btn.disabled = true;
-            btn.innerHTML = '<i data-lucide="loader-2" style="width:16px;height:16px;" class="spinner"></i> Sending...';
-            refreshIcons();
-
-            try {
-                var res = await authenticatedFetch("/api/invites", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        email: email,
-                        role: role
-                    })
-                });
-
-                var json = await res.json();
-
-                if (json.status === "success") {
-                    closeAddMemberModal();
-                    showMessage("Invitation sent successfully.", "success");
-                    loadTeam();
-            loadTeamUsage();
-                } else {
-                    showMemberFormError(json.message || "Failed to send invitation.");
-                }
-            } catch (err) {
-                showMemberFormError("Could not connect to server.");
-            }
-
-            btn.disabled = false;
-            btn.innerHTML = '<i data-lucide="mail-plus" style="width:16px;height:16px;"></i> Send Invite';
-            refreshIcons();
-        }
-
-        // Override showMessage to create a toast-like message
-        function showMessage(text, type) {
-            // Remove existing toast
-            var old = document.getElementById("team-toast");
-            if (old) old.remove();
-
-            var toast = document.createElement("div");
-            toast.id = "team-toast";
-            toast.style.cssText = "position:fixed;top:24px;left:50%;transform:translateX(-50%);padding:14px 22px;border-radius:12px;font-size:0.92rem;font-weight:600;z-index:9999;max-width:400px;white-space:nowrap;opacity:0;transition:opacity 0.25s ease, transform 0.25s ease;";
-            if (type === "success") {
-                toast.style.background = "rgba(16,185,129,0.15)";
-                toast.style.border = "1px solid rgba(16,185,129,0.3)";
-                toast.style.color = "#10b981";
-            } else {
-                toast.style.background = "rgba(239,68,68,0.15)";
-                toast.style.border = "1px solid rgba(239,68,68,0.3)";
-                toast.style.color = "#ef4444";
-            }
-            toast.textContent = text;
-            document.body.appendChild(toast);
-            requestAnimationFrame(function() {
-                toast.style.opacity = "1";
-            });
-
-            setTimeout(function() {
-                toast.style.opacity = "0";
-                setTimeout(function() { toast.remove(); }, 300);
-            }, 4000);
-        }
-
-        async function loadInvites() {
-            var loadingEl = document.getElementById("invites-loading");
-            var emptyEl = document.getElementById("invites-empty");
-            var listEl = document.getElementById("invites-list");
-            var tbody = document.getElementById("invites-tbody");
-
-            if (!loadingEl || !emptyEl || !listEl || !tbody) {
-                return;
-            }
-
-            loadingEl.style.display = "block";
-            emptyEl.style.display = "none";
-            listEl.style.display = "none";
-
-            try {
-                var res = await authenticatedFetch("/api/invites?status=pending");
-                var json = await res.json();
-
-                loadingEl.style.display = "none";
-
-                if (json.status !== "success") {
-                    emptyEl.style.display = "block";
-                    emptyEl.innerHTML = "<i data-lucide=\"alert-circle\" style=\"width:36px;height:36px;color:var(--danger);\"></i><p style=\"color:var(--danger);\">" + escapeHtml(json.message || "Failed to load invitations.") + "</p>";
-                    refreshIcons();
-                    return;
-                }
-
-                var invites = json.data || [];
-                if (invites.length === 0) {
-                    emptyEl.style.display = "block";
-                    return;
-                }
-
-                // Build rows
-                var html = "";
-                for (var i = 0; i < invites.length; i++) {
-                    var inv = invites[i];
-                    var inviteId = Number(inv.id);
-                    var roleLabel = inv.role === "admin" ? "Admin" : "Member";
-
-                    var isExpired = false;
-                    if (inv.expires_at) {
-                        try { isExpired = new Date(inv.expires_at) < new Date(); } catch(_) {}
-                    }
-                    var statusBadge = isExpired
-                        ? "<span class=\"status-badge expired\">Expired</span>"
-                        : "<span class=\"status-badge pending\">Pending</span>";
-
-                    var createdDate = inv.created_at ? formatDate(inv.created_at) : "-";
-                    var expiresDate = inv.expires_at ? formatDate(inv.expires_at) : "-";
-                    var escapedEmail = escapeHtml(inv.email || "");
-
-                    var actionsHtml = "";
-                    if ((currentUserRole === "admin" || currentUserRole === "owner") && Number.isInteger(inviteId) && inviteId > 0) {
-                        actionsHtml = "<button class=\"team-action-btn\" data-invite-id=\"" + inviteId + "\" onclick=\"resendInvite(" + inviteId + ", this)\" title=\"Resend\"><i data-lucide=\"repeat\" style=\"width:13px;height:13px;\"></i> Resend</button>" +
-                            "<button class=\"team-action-btn danger\" onclick=\"cancelInvite(" + inv.id + ")\" title=\"Cancel\"><i data-lucide=\"x-circle\" style=\"width:13px;height:13px;\"></i> Cancel</button>";
-                    }
-
-                    html += "<div class=\"invite-row\">" +
-                        "<div class=\"invite-email\"><span class=\"email-text\">" + escapedEmail + "</span></div>" +
-                        "<div class=\"invite-role\"><span class=\"role-badge " + inv.role + "\">" + roleLabel + "</span></div>" +
-                        "<div class=\"invite-status\">" + statusBadge + "</div>" +
-                        "<div class=\"invite-date\">" + createdDate + "</div>" +
-                        "<div class=\"invite-date\">" + expiresDate + "</div>" +
-                        "<div class=\"invite-actions\">" + actionsHtml + "</div>" +
-                        "</div>";
-                }
-
-                tbody.innerHTML = html;
-                listEl.style.display = "block";
-                refreshIcons();
-            } catch (err) {
-                console.error("loadInvites ERROR:", err, err.stack);
-                loadingEl.style.display = "none";
-                emptyEl.style.display = "block";
-            }
-        }
-
-        async function resendInvite(inviteId, clickedButton) {
-            inviteId = Number(inviteId);
-            if (!Number.isInteger(inviteId) || inviteId <= 0) {
-                showMessage("Unable to resend this invitation.", "error");
-                return;
-            }
-
-            var inviteKey = String(inviteId);
-            if (resendInviteInFlight[inviteKey]) {
-                return;
-            }
-            resendInviteInFlight[inviteKey] = true;
-            if (clickedButton) {
-                clickedButton.disabled = true;
-            }
-
-            try {
-                var res = await authenticatedFetch("/api/invites/resend", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ invite_id: inviteId })
-                });
-                var json = await res.json();
-                if (json.status === "success") {
-                    showMessage("Invitation resent successfully.", "success");
-                    await Promise.all([loadInvites(), loadTeamUsage()]);
-                } else {
-                    showMessage(json.message || "Failed to resend invitation.", "error");
-                }
-            } catch (err) {
-                showMessage("Could not connect to server.", "error");
-            } finally {
-                delete resendInviteInFlight[inviteKey];
-                if (clickedButton && clickedButton.isConnected) {
-                    clickedButton.disabled = false;
-                }
-            }
-        }
-
-        async function cancelInvite(inviteId) {
-            var confirmed = await showConfirmModal({
-                message: "Cancel this pending invitation? The invite link will no longer be usable.",
-                confirmText: "Cancel Invite",
-                confirmType: "danger"
-            });
-            if (!confirmed) return;
-
-            try {
-                var res = await authenticatedFetch("/api/invites/" + inviteId, {
-                    method: "DELETE"
-                });
-                var json = await res.json();
-                if (json.status === "success") {
-                    showMessage("Invitation cancelled successfully.", "success");
-                    loadInvites();
-                    loadTeamUsage();
-                } else {
-                    showMessage(json.message || "Failed to cancel invitation.", "error");
-                }
-            } catch (err) {
-                showMessage("Could not connect to server.", "error");
-            }
-        }
-
-        // Update loadTeam to capture current user role and control Add Member button visibility
-        var originalLoadTeam = loadTeam;
-        loadTeam = async function() {
-            // First try to get current user role
-            try {
-                var userRes = await authenticatedFetch("/api/user");
-                var userJson = await userRes.json();
-                if (userJson.status === "success" && userJson.data) {
-                    currentUserRole = (userJson.data.role || "").toLowerCase();
-                    currentUserId = userJson.data.id;
-                    var btn = document.getElementById("btn-add-member");
-                    if (btn) {
-                        if (currentUserRole === "admin" || currentUserRole === "owner") {
-                            btn.style.display = "inline-flex";
-                        } else {
-                            btn.style.display = "none";
-                        }
-                    }
-                    applyTeamInviteLimitState();
-                }
-            } catch (_) {}
-
-            // Then load the team
-            await originalLoadTeam();
-
-            // Also load pending invitations
-            await loadInvites();
-        };
-
-        // Hide add button initially until role is known
-        document.addEventListener("DOMContentLoaded", function() {
-            var btn = document.getElementById("btn-add-member");
-            if (btn) btn.style.display = "none";
-        });
-        try {
-            loadTeam();
-            loadTeamUsage();
-        } catch (e) {
-            console.warn("team.html: loadTeam error (page continues safely):", e);
-        }
-
-        async function loadTeamUsage() {
-            var loading = document.getElementById("team-usage-loading");
-            var content = document.getElementById("team-usage-content");
-            var membersEl = document.getElementById("team-usage-members");
-            var pendingEl = document.getElementById("team-usage-pending");
-            var limitEl = document.getElementById("team-usage-limit");
-            var warnEl = document.getElementById("team-upgrade-warning");
-            if (!content) return;
-            try {
-                var usageRes = await authenticatedFetch("/api/workspace");
-                var usageJson = await usageRes.json();
-                if (!usageRes.ok || usageJson.status !== "success") throw new Error(usageJson.message || "Unable to load team usage.");
-                if (loading) loading.style.display = "none";
-                content.style.display = "block";
-
-                var usageData = usageJson.data;
-                var used = Number(usageData.active_member_count || 0);
-                var pending = Number(usageData.pending_invitation_count || 0);
-                var rawLimit = usageData.plan_member_limit;
-                var limit = rawLimit != null ? rawLimit : "Unlimited";
-                var usedCount = Number(used || 0);
-                var pendingCount = Number(pending || 0);
-                var numericLimit = rawLimit != null ? Number(rawLimit) : null;
-
-                teamMemberEntitlement = {
-                    loaded: true,
-                    used: Number.isFinite(usedCount) ? usedCount : 0,
-                    pending: Number.isFinite(pendingCount) ? pendingCount : 0,
-                    limit: numericLimit !== null && Number.isFinite(numericLimit) ? numericLimit : null
-                };
-
-                if (membersEl) membersEl.textContent = used;
-                if (pendingEl) pendingEl.textContent = pending;
-                if (limitEl) limitEl.textContent = limit;
-
-                applyTeamInviteLimitState();
-                refreshIcons();
-            } catch (e) {
-                console.error("Failed to load team usage:", e);
-                if (loading) { loading.textContent = "Unable to load usage information."; }
-            }
-        }
-    </script>
+    <div class="kw-backdrop" id="tm-confirm">
+        <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="tm-confirm-title">
+            <div class="kw-modal-head">
+                <div>
+                    <h2 id="tm-confirm-title"></h2>
+                    <p id="tm-confirm-body"></p>
+                </div>
+                <button type="button" class="kw-iconbtn cr-press" id="tm-confirm-close" aria-label="Close">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="tm-confirm-cancel">Cancel</button>
+                <button type="button" class="kw-btn kw-btn-primary cr-press" id="tm-confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/team.js"></script>
 </body>
 
 </html>
-
-
-
-
-
-
