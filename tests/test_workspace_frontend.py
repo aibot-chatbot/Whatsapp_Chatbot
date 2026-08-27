@@ -45,9 +45,16 @@ class WorkspaceFrontendTests(unittest.TestCase):
         self.assertIn("Saving...", self.profile)
 
     def test_team_uses_same_workspace_summary_and_allows_read_only_members(self):
-        self.assertIn('authenticatedFetch("/api/workspace")', self.team)
+        # The Team screen keeps its behaviour in assets/js/team.js now, so the
+        # workspace call is asserted there rather than in the page source.
+        # Full behaviour coverage lives in tests/browser/team.spec.js.
+        team_js = (ROOT / "frontend" / "assets" / "js" / "team.js").read_text(
+            encoding="utf-8", errors="replace")
+        self.assertIn('getJson("/api/workspace")', team_js)
+        # Members keep read access; only the write controls are gated.
         self.assertNotIn("requireAdminOrOwner();", self.team)
-        self.assertIn('currentUserRole !== "admin" && currentUserRole !== "owner"', self.team)
+        self.assertIn("state.canManage = workspace.can_manage_team === true;", team_js)
+        self.assertIn('id="tm-readonly"', self.team)
 
     def test_google_invitation_passes_invite_token(self):
         self.assertIn("invite_token: getTokenFromUrl()", self.accept)

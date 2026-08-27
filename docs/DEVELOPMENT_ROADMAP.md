@@ -105,6 +105,9 @@ Recent AI Credit Activity. Manual verification passed for Knowledge Workspace
 Refine Answers; broader operation-label behavior is covered by automated
 accounting/source-contract tests. This note does not claim live verification for
 every operation type, staging deployment, or production deployment.
+### Insights & Actions workspace - 2026-08-27
+
+The bot-scoped CRM and Reports experiences are now one role-aware control-room workspace at `crm.html`. Its default Today view derives a plain-language action brief only from existing lead and analytics responses; Leads keeps the canonical five-stage pipeline, filtering, inline updates, notes and conversation links; Performance keeps the 7-day chart, AI report generator and lazy PDF export; AI Signals remains owner/admin-only. `reports.html` is a compatibility redirect to the Performance view, preserving `bot_id`. Focused static and mocked desktop/mobile browser coverage is current; live backend, external report-model and live PDF verification remain outstanding.
 
 ### Phase 4L update - Platform-admin controls
 

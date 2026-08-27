@@ -113,8 +113,19 @@
         return hours + "h " + (minutes % 60) + "m";
     }
 
+    /* The fetch itself is inside the try, not just the json() parse. It used
+       to sit outside, so an offline/DNS/connection-reset throw escaped as an
+       unhandled rejection: the caller never received a result, never cleared
+       its skeleton, and the page spun forever with no error and no way back
+       except a reload. status 0 means "never reached the server", which is
+       what the callers already render as a retryable failure. */
     async function api(url, options) {
-        var response = await authenticatedFetch(url, options);
+        var response;
+        try {
+            response = await authenticatedFetch(url, options);
+        } catch (e) {
+            return { ok: false, status: 0, body: {}, offline: true };
+        }
         var body = {};
         try {
             body = await response.json();

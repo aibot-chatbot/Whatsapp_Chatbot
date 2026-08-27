@@ -12,7 +12,7 @@
     <script src="assets/js/shared-ui.js"></script>
     <!-- Pinned. @latest resolved to 1.31.0 on 2026-08-11; an unpinned CDN tag
          lets a breaking release reach customers with no deploy on our side. -->
-    <script src="https://unpkg.com/lucide@1.31.0"></script>
+    <script src="https://unpkg.com/lucide@1.31.0" defer></script>
 
     <style>
         :root {
@@ -475,9 +475,16 @@
 
 
     <script src="assets/js/auth.js"></script>
+    <!-- Must load before the inline block below. fetchBots() calls
+         resilientLoad.loadJson(); without this tag that is an undefined
+         global, the call throws, and the page sits on its skeleton forever
+         without ever sending a request. -->
+    <script src="assets/js/resilient-load.js"></script>
     <script>
-        // Initialize lucide icons for the static parts
-        lucide.createIcons();
+        // Icons are decoration. refreshIcons() (shared-ui.js) no-ops when the
+        // CDN has not loaded, so a blocked or slow icon script can never abort
+        // this block and prevent the data from loading.
+        refreshIcons();
 
         requireLogin();
         
@@ -764,28 +771,31 @@
             </div>`;
             const apiStatus = document.getElementById("api-status-label");
             if (apiStatus) apiStatus.textContent = "Checking";
-            lucide.createIcons();
+            refreshIcons();
 
-            try {
+            {
                 const endpoint = requestedView === "archived" ? "/api/bots/archived" : "/api/bots";
-                const response = await authenticatedFetch(endpoint);
-                const result = await response.json();
+
+                // Transient failures are retried with backoff rather than shown
+                // to the user. The skeleton stays on screen throughout, so a
+                // blip reads as "still loading" instead of "broken, press this".
+                const outcome = await resilientLoad.loadJson(endpoint, {
+                    onRetry(info) {
+                        if (requestGeneration !== botsRequestGeneration) return;
+                        showLoadingRetry(info);
+                    }
+                });
+
                 if (requestGeneration !== botsRequestGeneration || requestedView !== currentBotView) return;
 
-                if (result.status !== "success") {
+                if (!outcome.ok) {
                     loadedBots = [];
-                    if (apiStatus) apiStatus.textContent = "Unavailable";
-                    grid.innerHTML = `<div class="empty-state" role="alert">
-                        <div class="empty-icon"><i data-lucide="triangle-alert" style="width:32px;height:32px;color:var(--warning);"></i></div>
-                        <h2>Failed to load bots</h2>
-                        <p>${escapeHtml(result.message || "The bot service did not return a usable response.")}</p>
-                        <button class="cancel-btn" onclick="fetchBots()"><i data-lucide="refresh-cw"></i> Try again</button>
-                    </div>`;
-                    lucide.createIcons();
+                    if (apiStatus) apiStatus.textContent = outcome.status === 0 ? "Offline" : "Unavailable";
+                    renderLoadFailure(outcome);
                     return;
                 }
 
-                const bots = result.data;
+                const bots = outcome.data;
                 loadedBots = Array.isArray(bots) ? bots : [];
                 if (apiStatus) apiStatus.textContent = "Online";
                 if (visibleCount) visibleCount.textContent = String(loadedBots.length);
@@ -801,7 +811,7 @@
                                 <p>Archived bots will appear here after you remove them from active use.</p>
                             </div>
                         `;
-                        lucide.createIcons();
+                        refreshIcons();
                         applyChatbotLimitState();
                         return;
                     }
@@ -818,7 +828,7 @@
                             </button>
                         </div>
                     `;
-                    lucide.createIcons();
+                    refreshIcons();
                     applyChatbotLimitState();
 
                     return;
@@ -827,18 +837,50 @@
                 renderFilteredBots();
 
 
-            } catch (error) {
-                if (requestGeneration !== botsRequestGeneration || requestedView !== currentBotView) return;
-                console.error(error);
-                loadedBots = [];
-                if (apiStatus) apiStatus.textContent = "Offline";
-                grid.innerHTML = `<div class="empty-state" role="alert">
-                    <div class="empty-icon"><i data-lucide="wifi-off" style="width:32px;height:32px;color:var(--warning);"></i></div>
-                    <h2>Connection interrupted</h2><p>Check your connection and try loading the bots again.</p>
-                    <button class="cancel-btn" onclick="fetchBots()"><i data-lucide="refresh-cw"></i> Try again</button>
-                </div>`;
-                lucide.createIcons();
             }
+        }
+
+        /* Keeps the skeleton on screen while resilientLoad backs off, and says
+           what is happening. Silence through a multi-second backoff reads as a
+           hang, which is what sends people to the reload button. */
+        function showLoadingRetry(info) {
+            const grid = document.getElementById("bots-grid");
+            if (!grid) return;
+
+            let note = document.getElementById("bots-retry-note");
+            if (!note) {
+                grid.innerHTML = `<div class="loading-state" aria-label="Loading bots">
+                    <div class="skeleton-row"></div><div class="skeleton-row"></div><div class="skeleton-row"></div>
+                </div>
+                <p id="bots-retry-note" class="panel-context" role="status"></p>`;
+                note = document.getElementById("bots-retry-note");
+            }
+            if (note) {
+                note.textContent = `Still loading. Retrying (${info.attempt} of ${info.of})…`;
+            }
+            const apiStatus = document.getElementById("api-status-label");
+            if (apiStatus) apiStatus.textContent = "Retrying";
+        }
+
+        /* Reached only once automatic recovery has genuinely failed, or at once
+           for a terminal answer that no amount of retrying can change. The two
+           are worded differently because they need different actions. */
+        function renderLoadFailure(outcome) {
+            const grid = document.getElementById("bots-grid");
+            if (!grid) return;
+
+            const heading = outcome.terminal ? "We could not load your bots" : "Still cannot reach the server";
+            const detail = outcome.terminal
+                ? escapeHtml(outcome.message || "The bot service did not return a usable response.")
+                : `We tried ${outcome.attempts} times. ${escapeHtml(outcome.message || "")}`;
+
+            grid.innerHTML = `<div class="empty-state" role="alert">
+                <div class="empty-icon"><i data-lucide="${outcome.status === 0 ? "wifi-off" : "triangle-alert"}" style="width:32px;height:32px;color:var(--warning);"></i></div>
+                <h2>${heading}</h2>
+                <p>${detail}</p>
+                <button class="cancel-btn" onclick="fetchBots()"><i data-lucide="refresh-cw"></i> Try again</button>
+            </div>`;
+            refreshIcons();
         }
 
         function renderFilteredBots() {
@@ -862,7 +904,7 @@
             } else {
                 grid.innerHTML = bots.map(bot => renderBotCard(bot, currentBotView === "archived")).join("");
             }
-            lucide.createIcons();
+            refreshIcons();
             applyChatbotLimitState();
         }
 
@@ -971,7 +1013,7 @@
             const originalText = submitBtn.innerHTML;
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="lucide-spin" data-lucide="loader-2"></i> Creating...';
-            if (window.lucide) window.lucide.createIcons();
+            refreshIcons();
 
             try {
                 const response = await authenticatedFetch("/api/bots", {

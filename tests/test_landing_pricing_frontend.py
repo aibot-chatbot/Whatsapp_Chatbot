@@ -229,18 +229,27 @@ def test_public_catalog_matches_billing_service_serialization_shape():
 
 
 def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
+    # The pricing screen keeps its behaviour in assets/js/pricing.js now, so
+    # the JS contracts below are asserted there rather than in the page source.
     landing = _read(FRONTEND / "landing.html")
     pricing = _read(FRONTEND / "pricing.html")
+    pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
 
     assert 'src="assets/js/plan-catalog.js"' in landing
     assert 'id="landing-pricing-grid"' in landing
-    assert "/api/billing/plans" in pricing
-    assert "authenticatedFetch" in pricing
-    assert "grid.innerHTML" not in pricing
-    assert ".textContent = desc" in pricing
-    assert "OpenRouter" not in pricing
-    assert "GPT-4.1" not in pricing
-    assert "GPT-5.5" not in pricing
+    assert 'src="assets/js/pricing.js"' in pricing
+    assert "/api/billing/plans" in pricing_js
+    assert "authenticatedFetch" in pricing_js
+
+    # Plan text is attacker-controlled, so it is only ever written as text.
+    # No innerHTML anywhere in the pricing behaviour is the strong form of
+    # the old ".textContent = desc" assertion.
+    assert ".innerHTML" not in pricing_js
+    assert "innerHTML =" not in pricing_js
+
+    for banned in ["OpenRouter", "GPT-4.1", "GPT-5.5"]:
+        assert banned not in pricing
+        assert banned not in pricing_js
 
     for stale in [
         "RM 29.00",
@@ -263,7 +272,7 @@ def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
 
 def test_customer_facing_feature_labels_are_canonical():
     landing = _read(FRONTEND / "landing.html")
-    pricing = _read(FRONTEND / "pricing.html")
+    pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
     for label in [
         "AI-Assisted Menu Generation",
         "AI-Generated Reports",
@@ -273,29 +282,44 @@ def test_customer_facing_feature_labels_are_canonical():
         "AI Credit",
     ]:
         assert label in landing
-        assert label in pricing
+        assert label in pricing_js
 
     assert " Ai " not in landing
 
 
 def test_authenticated_pricing_uses_explicit_customer_feature_allowlist():
-    pricing = _read(FRONTEND / "pricing.html")
+    pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
 
-    assert "var CUSTOMER_FEATURE_FLAGS = [" in pricing
-    assert pricing.index('"ai_assisted_menu_generation"') < pricing.index('"ai_generated_reports"')
-    assert pricing.index('"ai_generated_reports"') < pricing.index('"crm_lead_assignment"')
-    assert pricing.index('"crm_lead_assignment"') < pricing.index('"single_website_scraping"')
-    assert pricing.index('"single_website_scraping"') < pricing.index('"batch_website_scraping"')
-    assert "Object.keys(features)" not in pricing
-    assert "key.replace(/_/g" not in pricing
-    assert "features[key] === true" in pricing
+    assert "var CUSTOMER_FEATURE_FLAGS = [" in pricing_js
+    order = [
+        "ai_assisted_menu_generation",
+        "ai_generated_reports",
+        "crm_lead_assignment",
+        "single_website_scraping",
+        "batch_website_scraping",
+    ]
+    positions = [pricing_js.index(chr(34) + key + chr(34)) for key in order]
+    assert positions == sorted(positions)
+
+    # Internal flags must never leak into the plan table by enumeration.
+    assert "Object.keys(features)" not in pricing_js
+    assert "key.replace(/_/g" not in pricing_js
+    assert "flags[key] === true" in pricing_js
 
 
 def test_authenticated_pricing_redirects_only_for_valid_checkout_url():
-    pricing = _read(FRONTEND / "pricing.html")
+    pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
 
-    assert 'authenticatedFetch("/api/billing/subscription/checkout"' in pricing
-    assert 'body.status === "success" && body.data && body.data.checkout_url' in pricing
-    assert 'checkoutUrl.indexOf("http://") === 0 || checkoutUrl.indexOf("https://") === 0' in pricing
-    assert "window.location.assign(checkoutUrl)" in pricing
-    assert 'showPricingError(body.message || "Failed to create checkout. Please try again.")' in pricing
+    assert 'authenticatedFetch("/api/billing/subscription/checkout"' in pricing_js
+    assert "body.data.checkout_url" in pricing_js
+
+    # Only an absolute http(s) URL may be navigated to. A relative or
+    # javascript: URL returned by a compromised backend must not be followed.
+    assert "^https?:" in pricing_js
+    assert "window.location.assign(url)" in pricing_js
+
+    # A rejected URL surfaces an error instead of navigating.
+    assert "showError(" in pricing_js
+    assert "window.alert(" not in pricing_js
+
+

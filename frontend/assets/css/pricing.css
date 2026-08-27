@@ -1,0 +1,421 @@
+/* ══════════════════════════════════════════════════════════════════════
+   PRICING — usage-first upgrade console
+   Namespaced pri-* under .dashboard-page, per DESIGN.md "Components".
+
+   This is the one screen DESIGN.md treats as a commercial surface: its job
+   is a purchase decision, not an operation. It therefore carries tier
+   emphasis and entrance choreography that no other screen may inherit. It
+   still uses only control-room tokens — no new colours, no gradients, no
+   glow.
+
+   Class-naming trap: never put the substring "grid" in a wrapper class on
+   a control-room page. shared-glass.css:254 force-collapses
+   div[class*="grid"] to a single column at <=768px with !important, and
+   that sheet still loads on every control-room page.
+   ══════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Current plan summary ────────────────────────────────────────────── */
+
+.dashboard-page .pri-current {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--control-panel);
+}
+
+.dashboard-page .pri-current-name {
+    font-family: var(--font-heading);
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+}
+
+.dashboard-page .pri-current-price {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--control-text-tertiary);
+}
+
+/* Pushes the renewal note to the far end on one line, wrapping underneath
+   on narrow viewports rather than being clipped. */
+.dashboard-page .pri-current-note {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--control-text-secondary);
+}
+
+
+/* ── Usage meters ────────────────────────────────────────────────────── */
+
+.dashboard-page .pri-meters {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.dashboard-page .pri-meter-row {
+    display: grid;
+    /* label | track | figures. The track is the only flexible column, so
+       the numbers never reflow as values change. */
+    grid-template-columns: minmax(120px, 148px) minmax(0, 1fr) minmax(96px, auto);
+    align-items: center;
+    gap: 16px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .pri-meter-row:last-child {
+    border-bottom: 0;
+}
+
+.dashboard-page .pri-meter-label {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.dashboard-page .pri-meter-label svg {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .pri-meter-figures {
+    justify-self: end;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--control-text);
+}
+
+.dashboard-page .pri-meter-figures .pri-meter-limit {
+    color: var(--control-text-secondary);
+}
+
+/* The word that carries the state. Colour is never the only signal, so
+   this text is present whenever the bar changes colour. */
+.dashboard-page .pri-meter-state {
+    display: block;
+    margin-top: 2px;
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-align: right;
+}
+
+.dashboard-page .pri-meter-state.is-warn { color: var(--control-warning); }
+.dashboard-page .pri-meter-state.is-full { color: var(--control-text); }
+
+/* An unlimited row has no meaningful bar, so it shows a dashed rule rather
+   than an empty track that would read as "nothing used". */
+.dashboard-page .pri-meter-none {
+    height: 6px;
+    border-radius: 999px;
+    background: repeating-linear-gradient(
+        90deg,
+        var(--control-border) 0 6px,
+        transparent 6px 12px
+    );
+}
+
+
+/* ── Recommendation ──────────────────────────────────────────────────── */
+
+.dashboard-page .pri-advice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 13px 16px;
+    border-top: 1px solid var(--control-border);
+    background: var(--control-raised);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.dashboard-page .pri-advice svg {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: var(--control-accent);
+}
+
+.dashboard-page .pri-advice strong {
+    font-weight: 600;
+}
+
+
+/* ── Tier cards ──────────────────────────────────────────────────────── */
+
+.dashboard-page .pri-tiers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+}
+
+/* .plan-card, .plan-name, .plan-price and .plan-desc are pinned by
+   tests/browser/landing-pricing.spec.js and must keep these exact names. */
+.dashboard-page .plan-card {
+    display: flex;
+    flex: 1 1 232px;
+    flex-direction: column;
+    min-width: 0;
+    padding: 18px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--control-panel);
+    transition: border-color 180ms cubic-bezier(.2, 0, 0, 1),
+                background-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .plan-card:hover {
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+/* Tier emphasis — the strongest visual move on the page, reserved for the
+   one plan that actually resolves the pressured limits above it. */
+.dashboard-page .plan-card.is-recommended {
+    border-color: var(--control-accent);
+    background: var(--control-raised);
+}
+
+.dashboard-page .plan-card.is-current {
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Lower tiers stay in the DOM — landing-pricing.spec.js counts four cards
+   — but collapse out of the reading order until asked for. */
+.dashboard-page .plan-card.is-collapsed {
+    display: none;
+}
+
+.dashboard-page .pri-tiers.is-expanded .plan-card.is-collapsed {
+    display: flex;
+}
+
+.dashboard-page .pri-card-flag {
+    align-self: flex-start;
+    margin-bottom: 9px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: var(--control-accent-subtle);
+    color: var(--control-accent);
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .pri-card-flag.is-neutral {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .plan-name {
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+    /* Plan names arrive from the API and can be long or hostile. They are
+       written with textContent and wrapped rather than trusted to fit. */
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .plan-price {
+    margin-top: 6px;
+    font-family: var(--font-mono);
+    font-size: 23px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .plan-price .pri-interval {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .plan-desc {
+    margin-top: 8px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--control-text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .pri-card-foot {
+    margin-top: auto;
+    padding-top: 14px;
+}
+
+.dashboard-page .pri-card-foot .kw-btn {
+    width: 100%;
+    justify-content: center;
+}
+
+/* A non-actionable footer slot: the current plan, a scheduled change, or a
+   tier that cannot be chosen. Reads as text, never as a dead button. */
+.dashboard-page .pri-static {
+    padding: 10px 12px;
+    border: 1px dashed var(--control-border);
+    border-radius: 9px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    text-align: center;
+}
+
+
+/* ── Feature disclosure inside a card ────────────────────────────────── */
+
+.dashboard-page .pri-features {
+    margin-top: 14px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .pri-features > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 0 0;
+    cursor: pointer;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    list-style: none;
+}
+
+.dashboard-page .pri-features > summary::-webkit-details-marker {
+    display: none;
+}
+
+.dashboard-page .pri-features > summary:hover {
+    color: var(--control-text);
+}
+
+.dashboard-page .pri-features-chevron {
+    margin-left: auto;
+    transition: transform 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .pri-features[open] .pri-features-chevron {
+    transform: rotate(180deg);
+}
+
+.dashboard-page .pri-feature-list {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* Each row is a [data-feature-key] element carrying data-enabled. Both
+   attributes are asserted by the spec, so neither is presentational. */
+.dashboard-page .pri-feature-list li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.dashboard-page .pri-feature-list li svg {
+    flex: 0 0 auto;
+    margin-top: 2px;
+}
+
+.dashboard-page .pri-feature-list li[data-enabled="true"] svg {
+    color: var(--control-accent);
+}
+
+.dashboard-page .pri-feature-list li[data-enabled="false"] {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .pri-feature-list li[data-enabled="false"] svg {
+    color: var(--control-text-secondary);
+    opacity: 0.55;
+}
+
+.dashboard-page .pri-feature-list .label {
+    color: var(--control-text-secondary);
+}
+
+
+/* ── Upgrade diff ────────────────────────────────────────────────────── */
+
+.dashboard-page .pri-diff-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 14px 16px;
+}
+
+.dashboard-page .pri-diff-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 11px;
+    border: 1px solid var(--control-border);
+    border-radius: 999px;
+    background: var(--control-raised);
+    font-size: 12px;
+}
+
+.dashboard-page .pri-diff-item .pri-diff-plus {
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--control-accent);
+}
+
+
+/* ── Loading skeletons ───────────────────────────────────────────────── */
+
+/* cr-skeleton supplies the shimmer but no dimensions, so every skeleton
+   needs its own box or it collapses to nothing. */
+.dashboard-page .pri-skeleton-row {
+    height: 14px;
+    margin: 14px 16px;
+    border-radius: 6px;
+}
+
+.dashboard-page .pri-skeleton-card {
+    height: 232px;
+    flex: 1 1 232px;
+    border-radius: 12px;
+}
+
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+
+/* This sheet loads after dashboard-control-room.css, so these win at equal
+   specificity against both of that file's 768px blocks. */
+@media (max-width: 860px) {
+    .dashboard-page .pri-meter-row {
+        grid-template-columns: minmax(0, 1fr) minmax(88px, auto);
+        gap: 6px 12px;
+    }
+
+    /* The track drops to its own full-width line beneath the label. */
+    .dashboard-page .pri-meter-track {
+        grid-column: 1 / -1;
+        order: 3;
+    }
+}
+
+@media (max-width: 640px) {
+    .dashboard-page .pri-current-note {
+        margin-left: 0;
+        flex-basis: 100%;
+    }
+
+    .dashboard-page .plan-card {
+        flex-basis: 100%;
+    }
+}

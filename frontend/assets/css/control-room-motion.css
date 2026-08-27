@@ -124,6 +124,69 @@ html[data-motion-ready] .cr-reveal.is-in {
 }
 
 
+/* -- Entitlement meter -------------------------------------------------
+   Reports how much of a plan limit is consumed. The track is the element,
+   the fill is a child scaled on the X axis, so the fill stays on the
+   compositor. Animating width here would trigger layout on every frame.
+
+   --cr-meter-value is a 0..1 ratio written by the page from real API data.
+   The bar is always a SECOND encoding: the same figures are printed as
+   text beside it and the bar itself is aria-hidden, per the DESIGN.md rule
+   that a state is never carried by colour alone.
+
+   The fill only starts collapsed under data-motion-ready, so if the motion
+   JS never runs the meter renders at its true value immediately. An empty
+   meter would be a lie; a static one is merely undramatic. */
+
+.cr-meter {
+    position: relative;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--control-sunken, #0a0b0d);
+    box-shadow: inset 0 0 0 1px var(--control-border, rgba(255, 255, 255, 0.08));
+    overflow: hidden;
+}
+
+.cr-meter-fill {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    transform-origin: left center;
+    transform: scaleX(var(--cr-meter-value, 0));
+    background: var(--control-accent, #3e9c89);
+}
+
+/* Approaching the limit, and at or over it. Both are paired with a text
+   label in the markup; the colour shift only reinforces it. */
+.cr-meter-fill.is-warn { background: var(--control-warning, #c4795a); }
+.cr-meter-fill.is-full { background: var(--control-danger, #a65648); }
+
+html[data-motion-ready] .cr-meter-fill {
+    transform: scaleX(0);
+}
+
+html[data-motion-ready] .cr-reveal.is-in .cr-meter-fill {
+    transform: scaleX(var(--cr-meter-value, 0));
+    transition: transform var(--motion-slow) var(--motion-ease-out);
+    /* Trails the section reveal so the bar is on screen before it moves. */
+    transition-delay: calc(var(--motion-index, 0) * 45ms + 90ms);
+}
+
+
+/* -- Numeric count-up --------------------------------------------------
+   Draws the eye to a figure as it settles. The animation itself lives in
+   control-room-motion.js; this rule only pins the glyph width so counting
+   digits cannot jitter the layout around them.
+
+   Any counting element MUST carry its final value in the markup, so a
+   crawler, a reduced-motion user and a JS failure all read the real
+   number rather than a zero. */
+
+.cr-countup {
+    font-variant-numeric: tabular-nums;
+}
+
+
 /* ── Reduced motion ────────────────────────────────────────────────────
    Reveals resolve instantly rather than being removed, so content is
    never left invisible. Looping animation is stopped outright. */
@@ -145,5 +208,14 @@ html[data-motion-ready] .cr-reveal.is-in {
 
     .cr-press:active:not(:disabled) {
         transform: none;
+    }
+
+    /* The meter resolves straight to its true value. It is never left at
+       scaleX(0), which would silently report "nothing used". */
+    html[data-motion-ready] .cr-meter-fill,
+    html[data-motion-ready] .cr-reveal.is-in .cr-meter-fill {
+        transform: scaleX(var(--cr-meter-value, 0));
+        transition: none;
+        transition-delay: 0ms;
     }
 }

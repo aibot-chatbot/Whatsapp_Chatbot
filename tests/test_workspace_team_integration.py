@@ -634,20 +634,29 @@ class InvitationRepositoryTests(unittest.TestCase):
 
 class TeamFrontendRegressionTests(unittest.TestCase):
     def test_owner_rows_are_rendered_without_management_controls(self):
-        source = open("frontend/team.html", encoding="utf-8").read()
+        # Behaviour lives in assets/js/team.js now; the browser-level proof is
+        # in tests/browser/team.spec.js. This keeps the rule pinned cheaply.
+        source = open("frontend/assets/js/team.js", encoding="utf-8").read()
         self.assertIn('var isOwner = normalizedRole === "owner";', source)
-        self.assertIn("if (isAdminView && !isCurrentUser && !isOwner)", source)
-        self.assertNotIn('<option value=\\"owner\\"', source)
+        self.assertIn("if (state.canManage && !isSelf && !isOwner)", source)
+        # Owner must never be offered as a selectable role: the API rejects it.
+        self.assertNotIn('value = "owner"', source)
+        self.assertNotIn('["owner",', source)
 
     def test_team_table_and_action_styles_are_well_formed(self):
-        source = open("frontend/team.html", encoding="utf-8").read()
-        actions_start = source.index(".team-actions-wrap {")
-        actions_end = source.index("}", actions_start)
-        role_start = source.index(".team-role-select {")
-        self.assertLess(actions_end, role_start)
-        header = source[source.index('<table class="team-table"'):source.index('<tbody id="team-tbody">')]
-        self.assertIn("</tr>", header)
+        css = open("frontend/assets/css/team.css", encoding="utf-8").read()
+        html = open("frontend/team.html", encoding="utf-8").read()
 
+        # The roster styles live in the extracted stylesheet.
+        self.assertIn(".team-role-select", css)
+        self.assertIn(".team-person", css)
+
+        # The table head is well formed and every column is labelled, so the
+        # Actions column is not an unnamed header to a screen reader.
+        head = html[html.index("<thead>"):html.index("</thead>")]
+        self.assertEqual(head.count("<tr>"), 1)
+        self.assertEqual(head.count('scope="col"'), 5)
+        self.assertIn("kw-visually-hidden", head)
 
 class InvitationAcceptanceTests(unittest.TestCase):
     def valid_invite(self, **overrides):

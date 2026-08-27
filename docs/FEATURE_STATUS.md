@@ -165,12 +165,12 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 | Copy conversation link | Implemented | Previously reviewed |
 | Copy transcript | Implemented | Previously reviewed |
 | Download transcript | Implemented | Previously reviewed |
-| CRM lead list | Implemented | Company/chatbot scoped |
-| Lead status | Implemented | Canonical stages are `new`, `contacted`, `qualified`, `won`, and `lost`; the legacy CRM page and company-wide conversations pipeline use the same vocabulary. API reads and writes accept `in_progress`/`closed` aliases during the compatibility window. Migration 047 widens the database check; live schema application and browser verification remain outstanding. |
+| CRM lead list | Implemented | The bot-scoped list now lives in the combined Insights & Actions workspace with a plain-language daily brief, pipeline filters, inline updates, a lead detail dialog, and conversation links. Mocked desktop/mobile browser coverage is current; live backend verification remains outstanding. |
+| Lead status | Implemented | Canonical stages are `new`, `contacted`, `qualified`, `won`, and `lost`; the combined Insights & Actions workspace and company-wide conversations pipeline use the same vocabulary. API reads and writes accept `in_progress`/`closed` aliases during the compatibility window. Migration 047 widens the database check; live schema application and browser verification remain outstanding. |
 | Lead priority | Implemented | Priority editing exists |
 | Lead assignment | Verified complete | Non-empty assignment uses the authenticated database-backed company context and remains gated by crm_lead_assignment; assignment clearing remains available to all plans; focused route regression tests cover success and rejection paths |
 | Lead follow-up | Implemented | Follow-up fields and UI exist |
-| CRM filters | Implemented | Status, assignment, and related filtering exist across the legacy CRM page and the company-wide conversations pipeline |
+| CRM filters | Implemented | Stage, priority, follow-up, and text filtering exist in the combined Insights & Actions workspace; the company-wide conversations pipeline keeps its own filters. |
 | CRM-to-conversation navigation | Implemented | Conversation ID linking was previously reviewed |
 
 ## Analytics and Operations
@@ -178,11 +178,11 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 | Feature | Status | Notes |
 |---|---|---|
 | Dashboard metrics | Implemented | Requires broader regression tests |
-| Message charts | Implemented | Data aggregation and frontend display exist |
+| Message charts | Implemented | Data aggregation and responsive frontend display exist in Dashboard and the Insights & Actions Performance view; the latter has mocked desktop/mobile browser coverage. |
 | Live workflow status | Implemented | Requires runtime verification |
 | Dashboard health | Implemented | Requires environment verification |
-| Agent insights | Implemented | Server-side owner/admin access uses the database-refreshed role and preserves chatbot ownership checks; new Agent Actions and automatic CRM leads derive company ownership from the authoritative chatbot record. Staging migrations 028 and 027 hardened stored data and service-role-only access. Expanded review/dismissal/linkage lifecycle fields and frontend actions remain deferred; production database migrations remain unapplied. |
-| AI-generated reports | Implemented | External model and feature-gate verification required |
+| Agent insights | Implemented | Server-side owner/admin access uses the database-refreshed role and preserves chatbot ownership checks; the combined workspace hides the Signals view from members and lazily loads it for owners/admins. New Agent Actions and automatic CRM leads derive company ownership from the authoritative chatbot record. Staging migrations 028 and 027 hardened stored data and service-role-only access. Expanded review/dismissal/linkage lifecycle fields and frontend actions remain deferred; production database migrations remain unapplied. |
+| AI-generated reports | Implemented | The report generator and lazy PDF export now live in the combined Performance view; `reports.html` preserves old links by redirecting there. External model, feature-gate, and live PDF verification remain outstanding. |
 | Escalation handling | Implemented | Listing and exact-ID resolution require the current database-backed owner/admin role; resolution is compare-and-set idempotent and leaves unrelated signals unchanged. Same-action retries cannot repeat the AI-resumed notification; atomic deduplication across two different concurrently resolved final actions remains deferred to the lifecycle transaction/RPC phase. Focused regression tests are present; execution remains pending in a repaired test environment. |
 
 ## Subscription and AI Credit

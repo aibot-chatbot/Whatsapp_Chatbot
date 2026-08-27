@@ -1,0 +1,338 @@
+/* ══════════════════════════════════════════════════════════════════════
+   TEAM — roster with a seat-entitlement rail
+   Namespaced team-* under .dashboard-page, per DESIGN.md "Components".
+
+   Layout note: the system ships .kw-split.has-rail, which is the same
+   1fr/rail shape. It is deliberately NOT reused here, because
+   dashboard-control-room.css:1621-1632 hides table columns 2 and 5 inside
+   that class above 1181px — a rule written for a different screen that
+   would silently delete this roster's Email and Joined columns.
+
+   Class-naming trap: never put the substring "grid" in a wrapper class on
+   a control-room page. shared-glass.css:254 force-collapses
+   div[class*="grid"] to one column at <=768px with !important.
+   ══════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Two-column shell ────────────────────────────────────────────────── */
+
+.dashboard-page .team-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    align-items: start;
+    gap: 20px;
+}
+
+.dashboard-page .team-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 20px;
+}
+
+/* The rail follows the roster on long pages, so "can I invite anyone?" is
+   answerable without scrolling back up. 24px clears the fixed account menu
+   that floats at the top of every control-room page. */
+.dashboard-page .team-rail {
+    position: sticky;
+    top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+
+/* ── Seat meter ──────────────────────────────────────────────────────── */
+
+.dashboard-page .team-seats {
+    padding: 16px;
+}
+
+.dashboard-page .team-seats-figure {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .team-seats-used {
+    font-size: 29px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1;
+}
+
+.dashboard-page .team-seats-limit {
+    font-size: 14px;
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .team-seats-meter {
+    margin: 12px 0 10px;
+}
+
+.dashboard-page .team-seats-note {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .team-seats-note.is-warn {
+    color: var(--control-warning);
+}
+
+/* Who occupies the seats. A definition list, because that is what it is:
+   term and value. */
+.dashboard-page .team-breakdown {
+    margin: 14px 0 0;
+    padding: 12px 0 0;
+    border-top: 1px solid var(--control-border);
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.dashboard-page .team-breakdown-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 12.5px;
+}
+
+.dashboard-page .team-breakdown-row dt {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .team-breakdown-row dd {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+
+/* ── Roster rows ─────────────────────────────────────────────────────── */
+
+.dashboard-page .team-person {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    min-width: 0;
+}
+
+/* Initials rather than a photo: the API returns no avatar, and inventing
+   one would be decoration standing in for data we do not have. */
+.dashboard-page .team-initials {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    background: var(--control-raised);
+    border: 1px solid var(--control-border);
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .team-initials.is-you {
+    border-color: var(--control-accent);
+    color: var(--control-accent);
+}
+
+.dashboard-page .team-person-text {
+    min-width: 0;
+}
+
+.dashboard-page .team-name {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .team-email {
+    display: block;
+    margin-top: 1px;
+    color: var(--control-text-secondary);
+    font-size: 11.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .team-you {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--control-accent-subtle);
+    color: var(--control-accent);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .team-date {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--control-text-secondary);
+    white-space: nowrap;
+}
+
+/* An unverified member has not accepted yet, so the state earns a word
+   rather than just an absent tick. */
+.dashboard-page .team-verify {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.dashboard-page .team-verify.is-yes { color: var(--control-text-secondary); }
+.dashboard-page .team-verify.is-no { color: var(--control-warning); }
+
+/* Inside the name line it needs to breathe, the same way the You chip does. */
+.dashboard-page .team-name .team-verify {
+    margin-left: 8px;
+    font-size: 11px;
+}
+
+.dashboard-page .team-role-select {
+    min-height: 32px;
+    padding: 0 26px 0 9px;
+    font-size: 12px;
+}
+
+
+/* ── Pending invitations ─────────────────────────────────────────────── */
+
+.dashboard-page .team-invite-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .team-invite-row:last-child {
+    border-bottom: 0;
+}
+
+.dashboard-page .team-invite-email {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .team-invite-meta {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--control-text-secondary);
+    white-space: nowrap;
+}
+
+.dashboard-page .team-invite-actions {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 6px;
+}
+
+
+/* ── Toolbar ─────────────────────────────────────────────────────────── */
+
+/* The primary action lives here rather than in .kw-header-aside: a fixed
+   account menu at z-index 1001 covers the header's right slot and swallows
+   clicks on anything interactive placed there. */
+.dashboard-page .team-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.dashboard-page .team-toolbar .kw-btn {
+    margin-left: auto;
+}
+
+
+/* ── Skeletons ───────────────────────────────────────────────────────── */
+
+/* cr-skeleton supplies the shimmer but no dimensions. */
+.dashboard-page .team-skeleton-row {
+    height: 40px;
+    margin: 10px 16px;
+    border-radius: 8px;
+}
+
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+
+/* This sheet loads after dashboard-control-room.css, so these win at equal
+   specificity against both of that file's 768px blocks. */
+@media (max-width: 1080px) {
+    .dashboard-page .team-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    /* Once stacked, a sticky rail would hover over the roster it describes,
+       so it becomes an ordinary block placed above it. */
+    .dashboard-page .team-rail {
+        position: static;
+        order: -1;
+    }
+}
+
+@media (max-width: 768px) {
+    .dashboard-page .team-invite-row {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .dashboard-page .team-invite-email {
+        flex-basis: 100%;
+    }
+
+    .dashboard-page .team-invite-actions {
+        margin-left: auto;
+    }
+}
+
+/* ── Roster table width ──────────────────────────────────────────────── */
+
+/* dashboard-control-room.css forces .kw-table to min-width 760px, sized for
+   a full-width table. Inside this two-column layout the main column is only
+   about 772px, and six columns overflowed it by 140px -- putting the role
+   select and the deactivate button into horizontal scroll, where nobody
+   would find them. Folding the Verified column into the member cell removed
+   one column; this lets the remaining five use the space they have. */
+.dashboard-page .team-main .kw-table {
+    min-width: 0;
+}
+
+.dashboard-page .team-main .kw-table th:first-child,
+.dashboard-page .team-main .kw-table td:first-child {
+    min-width: 0;
+}
+
+/* Below the layout breakpoint the roster is full width again, so the shared
+   760px floor is restored and the table scrolls as the system intends. */
+@media (max-width: 1080px) {
+    .dashboard-page .team-main .kw-table {
+        min-width: 640px;
+    }
+}
