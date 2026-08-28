@@ -101,6 +101,8 @@ def google_auth():
     data = request.get_json() or {}
     credential = (data.get("credential") or "").strip()
     company_name = (data.get("company_name") or "").strip()
+    password = data.get("password") or ""
+    confirm_password = data.get("confirm_password") or ""
     invite_token = (data.get("invite_token") or "").strip()
 
     if not credential:
@@ -211,15 +213,23 @@ def google_auth():
             }
         })
 
-    # New user â€” need company name
-    if not company_name:
+    # New user â€” need company name and a password they can use later.
+    if not company_name or not password or not confirm_password:
         return jsonify({
             "status": "needs_company",
-            "message": "Please enter your company name to complete registration."
+            "message": "Please enter your company name and password to complete registration."
         }), 200
+
+    if password != confirm_password:
+        return jsonify({"status": "error", "message": "Passwords do not match"}), 400
+
+    is_strong, msg = validate_password_strength(password)
+    if not is_strong:
+        return jsonify({"status": "error", "message": msg}), 400
 
     # Create company and user
     try:
+        password_hash = generate_password_hash(password)
         company = create_company(
             company_name=company_name,
             contact_email=email
@@ -229,7 +239,7 @@ def google_auth():
             company_id=company["id"],
             full_name=full_name,
             email=email,
-            password_hash=None,  # Google users don't need a password
+            password_hash=password_hash,
             role="admin",
             status="active"
         )
