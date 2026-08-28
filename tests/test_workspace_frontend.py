@@ -12,8 +12,6 @@ os.environ.setdefault("CORS_ORIGINS", "http://localhost:8000")
 os.environ.setdefault("FLASK_DEBUG", "1")
 os.environ.setdefault("RATELIMIT_ENABLED", "false")
 
-from app import create_app
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -24,6 +22,8 @@ class WorkspaceFrontendTests(unittest.TestCase):
         cls.profile = (ROOT / "frontend" / "profile.html").read_text(encoding="utf-8", errors="replace")
         cls.team = (ROOT / "frontend" / "team.html").read_text(encoding="utf-8", errors="replace")
         cls.accept = (ROOT / "frontend" / "accept-invite.html").read_text(encoding="utf-8", errors="replace")
+        cls.login = (ROOT / "frontend" / "login.html").read_text(encoding="utf-8", errors="replace")
+        cls.register = (ROOT / "frontend" / "register.html").read_text(encoding="utf-8", errors="replace")
 
     def test_profile_has_two_compact_workspace_cards_and_no_placeholders(self):
         self.assertIn("Company Information", self.profile)
@@ -60,6 +60,102 @@ class WorkspaceFrontendTests(unittest.TestCase):
         self.assertIn("invite_token: getTokenFromUrl()", self.accept)
         self.assertIn("onGoogleInviteCredential", self.accept)
 
+    def test_google_login_and_register_use_runtime_configuration_without_hardcoded_client_id(self):
+        for source in (self.login, self.register):
+            with self.subTest(page=source[:80]):
+                self.assertNotIn(".apps.googleusercontent.com", source)
+                self.assertNotIn("g_id_onload", source)
+                self.assertNotIn("data-client_id", source)
+                self.assertIn("fetch('/api/auth/google-config')", source)
+                self.assertIn("google.accounts.id.initialize({", source)
+                self.assertIn("client_id: googleClientId", source)
+                self.assertIn("google.accounts.id.renderButton(", source)
+                self.assertIn("parentElement.clientWidth", source)
+                self.assertIn("Math.min(400", source)
+                self.assertNotIn("width: 400 }", source)
+
+    def test_google_login_and_register_initialization_is_race_safe_and_fails_closed(self):
+        for source in (self.login, self.register):
+            with self.subTest(page=source[:80]):
+                self.assertIn("googleLibraryLoaded = false", source)
+                self.assertIn("googleClientId = ''", source)
+                self.assertIn("googleInitialized = false", source)
+                self.assertIn("if (googleInitialized || !googleLibraryLoaded || !googleClientId)", source)
+                self.assertIn("handleGoogleLibraryLoad()", source)
+                self.assertIn("loadGoogleConfiguration();", source)
+                self.assertIn("Google Sign-In is currently unavailable.", source)
+
+    def test_google_login_and_register_missing_credential_does_not_post(self):
+        for source in (self.login, self.register):
+            callback = re.search(
+                r"function onGoogleCredentialResponse\(response\) \{.*?\n        \}",
+                source,
+                flags=re.S,
+            ).group(0)
+            with self.subTest(page=source[:80]):
+                self.assertIn("if (!response || !response.credential)", callback)
+                self.assertIn("showGoogleAuthError(", callback)
+                self.assertIn("return;", callback)
+                self.assertNotIn("fetch('/api/auth/google'", callback)
+
+    def test_google_login_and_register_completion_modal_requires_password_fields(self):
+        for source in (self.login, self.register):
+            with self.subTest(page=source[:80]):
+                self.assertIn("google-company-password", source)
+                self.assertIn("google-company-confirm-password", source)
+                self.assertIn('<label>Password</label>', source)
+                self.assertIn('<label>Confirm Password</label>', source)
+                self.assertIn('type="password" id="google-company-password"', source)
+                self.assertIn('type="password" id="google-company-confirm-password"', source)
+                self.assertIn("showGoogleCompanyError('Password is required.')", source)
+                self.assertIn("showGoogleCompanyError('Please confirm your password.')", source)
+                self.assertIn("showGoogleCompanyError('Passwords do not match.')", source)
+
+    def test_google_login_and_register_completion_payload_includes_password_only_on_completion(self):
+        for source in (self.login, self.register):
+            callback = re.search(
+                r"function onGoogleCredentialResponse\(response\) \{.*?\n        \}",
+                source,
+                flags=re.S,
+            ).group(0)
+            submit = re.search(
+                r"async function submitGoogleWithCompany\(\) \{.*?\n        \}",
+                source,
+                flags=re.S,
+            ).group(0)
+            sender = re.search(
+                r"async function sendGoogleCredential\(credential, companyName, completion\) \{.*?\n        \}",
+                source,
+                flags=re.S,
+            ).group(0)
+            with self.subTest(page=source[:80]):
+                self.assertIn("sendGoogleCredential(response.credential, null)", callback)
+                self.assertNotIn("password", callback)
+                self.assertIn("payload.password = completion.password || ''", sender)
+                self.assertIn("payload.confirm_password = completion.confirm_password || ''", sender)
+                self.assertIn("password: password", submit)
+                self.assertIn("confirm_password: confirmPassword", submit)
+
+    def test_google_login_and_register_completion_modal_cleanup_avoids_browser_storage(self):
+        for source in (self.login, self.register):
+            cleanup = re.search(
+                r"function clearGoogleCompanyForm\(\) \{.*?\n        \}",
+                source,
+                flags=re.S,
+            ).group(0)
+            close = re.search(
+                r"function closeCompanyModal\(\) \{.*?\n        \}",
+                source,
+                flags=re.S,
+            ).group(0)
+            with self.subTest(page=source[:80]):
+                self.assertIn("_pendingGoogleCredential = null", close)
+                self.assertIn("clearGoogleCompanyForm();", close)
+                self.assertIn("passwordInput.value = ''", cleanup)
+                self.assertIn("confirmInput.value = ''", cleanup)
+                self.assertNotRegex(source, r"sessionStorage\.setItem\([^)]*password")
+                self.assertNotRegex(source, r"localStorage\.setItem\([^)]*password")
+
     def test_google_invitation_uses_runtime_configuration_without_hardcoded_client_id(self):
         self.assertNotIn(".apps.googleusercontent.com", self.accept)
         self.assertNotIn("g_id_onload", self.accept)
@@ -85,6 +181,8 @@ class WorkspaceFrontendTests(unittest.TestCase):
 
 class GoogleConfigRouteTests(unittest.TestCase):
     def setUp(self):
+        from app import create_app
+
         app = create_app()
         app.config["TESTING"] = True
         self.client = app.test_client()
