@@ -9,9 +9,20 @@ def validate_signature(payload, signature):
     """
     Validate the incoming payload's signature against our expected signature
     """
+    app_secret = current_app.config.get("APP_SECRET") or ""
+    if not app_secret:
+        # Fail closed. An unset secret used to raise TypeError here and surface
+        # as a 500; an empty one is worse, because HMAC-SHA256 keyed on b"" is
+        # computable by anyone, so every "verified" Meta callback would be
+        # forgeable for any tenant whose phone_number_id could be guessed.
+        logging.error(
+            "APP_SECRET is not configured; rejecting Meta webhook delivery"
+        )
+        return False
+
     # Use the App Secret to hash the payload
     expected_signature = hmac.new(
-        bytes(current_app.config["APP_SECRET"], "latin-1"),
+        bytes(app_secret, "latin-1"),
         msg=payload.encode("utf-8"),
         digestmod=hashlib.sha256,
     ).hexdigest()
