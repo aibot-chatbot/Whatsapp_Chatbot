@@ -43,6 +43,15 @@ services:
       - key: FRONTEND_URL
         sync: false
 
+      # Boot blocker. FLASK_DEBUG=false below makes _is_production() true, and
+      # app/config.py:31 raises RuntimeError when CORS_ORIGINS is empty - the
+      # service crash-loops before serving one request. A bare "*" is rejected
+      # too (app/config.py:24). The app serves its own frontend
+      # (app/__init__.py static_folder), so this is normally just its own
+      # origin: https://<service>.onrender.com
+      - key: CORS_ORIGINS
+        sync: false
+
       # Exactly one process may run the Wasender retry loop. With more than one,
       # every process retries the same message and the customer gets duplicates.
       - key: WASENDER_RETRY_WORKER_ENABLED
@@ -50,6 +59,11 @@ services:
 
       - key: FLASK_DEBUG
         value: "false"
+
+      # ENABLE_DEV_BILLING_ROUTES is deliberately absent and must stay absent.
+      # app/config.py:52 tests the raw string for truthiness, so the *string*
+      # "false" is truthy and raises RuntimeError in production. Unset is the
+      # only safe state - do not "disable" it by setting it to false.
 
       # ---- Datastore ----
       - key: SUPABASE_URL

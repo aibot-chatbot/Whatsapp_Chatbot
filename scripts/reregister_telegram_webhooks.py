@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import secrets
 import sys
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -33,6 +34,8 @@ import os  # noqa: E402  (must follow load_dotenv)
 from app.database.db import supabase  # noqa: E402
 from app.database.telegram_channel_repository import update_telegram_channel  # noqa: E402
 from app.routes.telegram_routes import (  # noqa: E402
+    DELIVERY_STATUS_OK,
+    DELIVERY_STATUS_UNKNOWN,
     check_telegram_webhook_delivery,
     clean_public_base_url,
     set_telegram_webhook,
@@ -74,6 +77,11 @@ def reregister(channel: dict, base_url: str, apply: bool) -> tuple[str, str]:
     if not apply:
         return "would-update", f"{label}: would point at {base_url}/telegram/webhook/***"
 
+    # Stamped before the call: getWebhookInfo reports the last delivery error
+    # whenever it happened, and the URL we are replacing has almost certainly
+    # been failing for a while. Without this the old tunnel's error condemns
+    # the new registration on every single bot.
+    registered_at = int(time.time())
     ok, error = set_telegram_webhook(bot_token, webhook_url, secret_token=secret)
     if not ok:
         update_telegram_channel(channel["id"], {
@@ -93,9 +101,17 @@ def reregister(channel: dict, base_url: str, apply: bool) -> tuple[str, str]:
 
     # setWebhook returning ok proves nothing about delivery, so ask Telegram
     # whether it can actually reach us before calling this a success.
-    status, reason, _ = check_telegram_webhook_delivery(bot_token, webhook_url)
-    if status == "ok":
+    status, reason, _ = check_telegram_webhook_delivery(
+        bot_token, webhook_url, registered_since=registered_at
+    )
+    if status == DELIVERY_STATUS_OK:
         return "connected", f"@{info.get('username')}: delivering"
+
+    if status == DELIVERY_STATUS_UNKNOWN:
+        # Telegram would not tell us. That is our blind spot, not proof the new
+        # registration is broken, so the row keeps the "connected" written above
+        # rather than reporting a working bot as failed.
+        return "unverified", f"@{info.get('username')}: re-pointed, delivery unconfirmed"
 
     update_telegram_channel(channel["id"], {
         "connection_status": "failed",
@@ -136,7 +152,14 @@ def main() -> int:
 
     print("-" * 60)
     print(", ".join(f"{count} {name}" for name, count in sorted(tally.items())))
-    return 0 if not (tally.get("failed") or tally.get("undelivered")) else 2
+    if tally.get("failed") or tally.get("undelivered"):
+        return 2
+    # "unverified" means Telegram would not tell us whether it can deliver. The
+    # row keeps the connected status we wrote, but nothing was confirmed - so a
+    # caller reading only the exit code must not be told this was a success.
+    if tally.get("unverified"):
+        return 3
+    return 0
 
 
 if __name__ == "__main__":

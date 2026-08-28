@@ -166,3 +166,129 @@ required the delta to be empty. Result: 0 regressions, 2937 passed vs baseline 2
 
 Note: `scratch/test_ai.py` is untracked local junk that executes network code at import and
 aborts collection — run `pytest tests/`, not bare `pytest`.
+
+---
+
+## 2026-08-28 — Render deploy preflight; the blueprint could not have booted
+
+Goal was to publish bots to channels (Telegram / WhatsApp / Wasender / widget).
+The finding that reframed the work: **the channel backend is not the blocker.**
+`docs/CHANNEL_PUBLISHING_REDESIGN.md` was right — Telegram `setWebhook`
+auto-registration, WhatsApp Embedded Signup and the hosted widget are all built.
+What blocks publishing is the absence of a stable public HTTPS origin, because
+Telegram only delivers to https on 443/80/88/8443 and ngrok URLs rotate. **The
+deploy IS the feature unblock.** Cloudflare is not on that path at all — see
+`docs/CLOUDFLARE_EDGE_PLAN.md`.
+
+### Deploy-blocking, found and fixed
+
+- **`render.yaml` omitted `CORS_ORIGINS`.** It sets `FLASK_DEBUG="false"`, so
+  `app/config.py` is in production mode and raises `RuntimeError` on the missing
+  key. Proven by booting `create_app()` with the blueprint's env and no `.env`:
+  exit 1. **The blueprint as committed crash-looped 100% of the time.**
+- **`ENABLE_DEV_BILLING_ROUTES` must be ABSENT, not `false`.** `app/config.py`
+  tests the raw string for truthiness, so `"false"` is truthy and raises. The
+  checklist told you to set it to false — that instruction alone would have
+  failed the deploy. Doc corrected; blueprint carries a warning comment.
+
+### Security, found and fixed
+
+- **CRITICAL — the CORS allowlist was inert.** `app/__init__.py` called
+  `CORS(app, origins="*")` *before* `load_configurations()`, plus the real
+  config-driven call after. The wildcard won and every response reflected the
+  caller's `Origin`. Removed. Before: `ACAO: https://evil.example.com`. After:
+  `ACAO: None`. Pinned by `tests/test_cors_allowlist.py`.
+- **HIGH — no `ProxyFix`.** `app/rate_limit.py` keys unauthenticated limits on
+  `remote_addr`, which behind Render's router is the proxy — so every visitor on
+  the platform shared one login/OTP bucket. That is an unauthenticated DoS, not
+  just a bypass. Added `ProxyFix` with `TRUSTED_PROXY_HOPS` (default 1).
+  **Do not raise it to 2 until Render ingress is locked to Cloudflare** — a
+  higher count trusts forgeable `X-Forwarded-For` entries.
+- **HIGH — Meta webhook now fails closed.** An unset `APP_SECRET` used to raise
+  `TypeError` (500); an empty one made `hmac.new(b"", ...)` forgeable by anyone.
+- **MEDIUM — webhook path secrets were logged in plaintext** in
+  `telegram_routes.py` / `wasender_routes.py`. Now a SHA-256 prefix. For Wasender
+  that secret is the *only* auth factor.
+- **`.dockerignore` only excluded `.env`**, while `.env.bak-20260803`, `.env.txt`
+  and `Company acc & pswd.txt` sit in the build context. Patterns widened.
+
+### Data loss, found and fixed
+
+**Media uploads were written outside the disk.** Render attaches one disk, at
+`/app/data`, but `media_attachment_routes.py` wrote to `/app/media_uploads` —
+wiped on every deploy while the rows holding its `/media/` URL survived.
+`app/storage_paths.py` now owns both paths; reads fall back to the legacy
+in-image directory so existing attachments still resolve.
+
+### The post-deploy script was broken in exactly our scenario
+
+`scripts/reregister_telegram_webhooks.py` is the bulk recovery path
+`render.yaml` names. Two bugs:
+
+1. Line 97 compared `status == "ok"`, but `check_telegram_webhook_delivery`
+   returns `DELIVERY_STATUS_OK`, which is `"connected"`. Dead branch — it
+   re-pointed every bot correctly and then wrote them all back as `failed`,
+   exiting 2. Every working channel would have shown "Needs a fix".
+2. It passed no `registered_since`, so the stale error from the *dead ngrok URL*
+   condemned the fresh registration. This bites hardest precisely when you run it.
+
+**The existing test hid bug 1** — its mock returned the literal `"ok"`, a value
+production never produces. It now asserts against the imported constant.
+
+### Verification
+
+Method from the 2026-08-27 entry, reused: clean worktree at HEAD, `.env` copied
+in, full-suite diff. **Baseline 15 failed / 2937 passed / 37 errors → final
+19 failed / 2952 passed / 37 errors. Zero regressions; +15 passing tests.**
+All 4 extra failures belong to the *other* uncommitted stream: two are its own
+new untracked test files, and the migration-number tests fail `assert 49 == 47`
+because its new `data/048_*` / `049_*` bump the count past a pinned constant.
+
+**Do not diff truncated output.** Piping a background `pytest` through
+`tail -30` produced a convincing but fake regression set.
+
+### Next
+
+1. Merge the branch, then Blueprint deeplink → fill secrets → Apply. Note MCP
+   **cannot** create this service: `create_web_service` supports neither Docker
+   nor disks.
+2. Set `PUBLIC_BASE_URL` to the Render host, plus `APP_SECRET` / `VERIFY_TOKEN` /
+   `VERSION` (`VERSION` is not optional — it is interpolated into the outbound
+   WhatsApp send URL with no default).
+3. Run `scripts/reregister_telegram_webhooks.py --apply` from a Render shell.
+4. WhatsApp and Wasender have **no bulk re-point path**. WhatsApp is a manual
+   Meta dashboard edit; Wasender needs disconnect+reconnect per tenant and a
+   re-paste by the tenant. Budget for that.
+
+### Diff review outcome — and one false positive worth remembering
+
+A reviewer **blocked** this change on a CRITICAL: that tracked `.env.txt` holds
+live secrets, inferred from value *lengths* (`APP_SECRET` len=20, `VERIFY_TOKEN`
+len=24). It does not. Every one of those values begins with `your_` —
+`APP_SECRET` is literally `your_meta_app_secret`, which is 20 characters. The
+only populated values in the file are `v22.0`, two `http://` URLs, `production`
+and `false`. An earlier agent that actually read the content across all 361
+commits reached the correct conclusion; this one judged by length alone.
+
+`.env.txt` is a tracked placeholder template — an `.env.example` by another
+name. It appears in `.gitignore`, which does nothing for an already-tracked
+file, and that mismatch is what makes it look alarming. **Do not spend another
+session re-litigating this.** (The `docs/DEPLOYMENT_CHECKLIST.md` "credentials
+found in Git history" claim was likewise unsubstantiated and is now marked as
+such.)
+
+Two genuine MEDIUM findings from the same review were fixed:
+
+- `int(os.getenv("TRUSTED_PROXY_HOPS", "1"))` crash-looped with a bare
+  `ValueError` on a typo. Now raises an actionable `RuntimeError`, and rejects
+  negatives — `ProxyFix` treats a negative count as truthy and indexes
+  `values[-n]`, silently trusting a *less* distant hop instead of failing.
+- `reregister_telegram_webhooks.py` returned 0 when every bot came back
+  `unverified`, so a run that confirmed nothing read as success to anything
+  checking only the exit code. It now returns 3.
+
+Also confirmed by reading flask-cors 6.0.5 and Flask's `process_response`:
+blueprint `after_request` hooks run **before** app-level ones, and flask-cors
+skips a response that already carries `Access-Control-Allow-Origin`. So the
+widget's own CORS headers survive — removing the global wildcard does not break
+third-party embeds.

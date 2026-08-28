@@ -1,8 +1,10 @@
 from flask import Flask, request
 import os
+from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
 from app.rate_limit import init_limiter
 from app.config import load_configurations, configure_logging
+from app.storage_paths import MEDIA_FOLDER, LEGACY_MEDIA_FOLDER
 from .views import webhook_blueprint
 from app.routes.chat_routes import chat_blueprint
 from app.routes.settings_routes import settings_blueprint
@@ -35,6 +37,7 @@ from app.routes.platform_admin_routes import platform_admin_bp
 from app.routes.support_routes import support_bp
 from app.routes.widget_routes import widget_blueprint
 from app.routes.flow_routes import flow_blueprint
+from app.routes.automation_routes import automation_blueprint
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -46,9 +49,37 @@ def create_app():
                 static_folder=os.path.join(root_dir, 'frontend'),
                 static_url_path='/static')
 
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    # Behind Render's router the socket peer is the proxy, not the visitor.
+    # Two things break without this. app/rate_limit.py keys unauthenticated
+    # limits on remote_addr, so every visitor across every tenant would share
+    # one login/OTP bucket - one bad actor locks out the whole platform. And
+    # request.host_url comes back http://, which gets baked into widget embed
+    # snippets and media URLs.
+    #
+    # 1 = trust Render's hop only. Raise it only once ingress is restricted to
+    # Cloudflare's ranges; until then anything hitting *.onrender.com directly
+    # can forge the extra X-Forwarded-For entries a higher count would trust.
+    _hops_raw = os.getenv("TRUSTED_PROXY_HOPS", "1").strip()
+    try:
+        _proxy_hops = int(_hops_raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"TRUSTED_PROXY_HOPS must be an integer, got {_hops_raw!r}."
+        ) from exc
+    if _proxy_hops < 0:
+        # ProxyFix treats a negative count as truthy and indexes values[-n],
+        # so it would quietly trust a *less* distant hop rather than fail.
+        raise RuntimeError(
+            f"TRUSTED_PROXY_HOPS must be zero or positive, got {_proxy_hops}."
+        )
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app, x_for=_proxy_hops, x_proto=_proxy_hops, x_host=_proxy_hops
+    )
 
-    # Load configurations and logging settings
+    # Load configurations and logging settings. This must come before CORS is
+    # registered: the allowed origins are read from config, and an earlier
+    # CORS(origins="*") call here would win over this one and echo back any
+    # Origin the caller sends, silently voiding CORS_ORIGINS entirely.
     load_configurations(app)
     configure_logging()
 
@@ -108,6 +139,7 @@ def create_app():
     app.register_blueprint(support_bp)
     app.register_blueprint(widget_blueprint)
     app.register_blueprint(flow_blueprint)
+    app.register_blueprint(automation_blueprint)
     if app.config.get("ENABLE_DEV_BILLING_ROUTES"):
         app.register_blueprint(dev_billing_bp)
 
@@ -115,14 +147,19 @@ def create_app():
     # Serve frontend files as fallback for unmatched GET routes
     FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
     
-    # Serve media uploads
-    MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "media_uploads"))
-    os.makedirs(MEDIA_DIR, exist_ok=True)
-    
+    # Serve media uploads. MEDIA_FOLDER lives on the mounted disk so uploads
+    # survive a deploy; files predating that move are still in the image, so a
+    # miss falls back to the legacy directory rather than 404ing a live bot.
+    os.makedirs(MEDIA_FOLDER, exist_ok=True)
+
     @app.route('/media/<path:filename>')
     def serve_media(filename):
         from flask import send_from_directory
-        return send_from_directory(MEDIA_DIR, filename)
+        from werkzeug.exceptions import NotFound
+        try:
+            return send_from_directory(MEDIA_FOLDER, filename)
+        except NotFound:
+            return send_from_directory(LEGACY_MEDIA_FOLDER, filename)
 
     @app.errorhandler(404)
     def serve_frontend_fallback(error):

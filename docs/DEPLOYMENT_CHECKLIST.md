@@ -12,7 +12,7 @@
 | `JWT_SECRET` | Required | JWT signing secret |
 | `FRONTEND_URL` | **Required** | Production frontend URL; startup raises RuntimeError if missing |
 | `CORS_ORIGINS` | **Required** | Comma-separated production origins; startup raises if missing/empty |
-| `RATELIMIT_STORAGE_URI` | **Required (prod)** | Redis URI (`redis://localhost:6379/0`). Memory backend (`memory://`) safe only for single-process dev. Use Redis for multi-worker production. |
+| `RATELIMIT_STORAGE_URI` | Optional | No code requires it; `app/config.py:63` silently defaults to `memory://`. Note `redis` is **not** in `requirements.txt`, so a `redis://` value cannot work in the image as built. Acceptable only because the service is pinned to one instance and one worker. |
 | `RATELIMIT_ENABLED` | `true` | Enable rate limiting in production |
 | `TOYYIBPAY_ENV` | `production` | Switch from sandbox to production |
 | `TOYYIBPAY_CATEGORY_CODE` | Required | Production ToyyibPay category |
@@ -23,7 +23,10 @@
 | `OPENAI_API_KEY` | Optional / legacy | Direct OpenAI helper key; not the normal current chatbot/RAG generative path |
 | `GEMINI_API_KEY` | Required | Gemini embedding infrastructure key for vector generation and semantic retrieval |
 | `DEEPSEEK_API_KEY` | Required | Direct DeepSeek key for Free trial policy (`deepseek-v4-flash`) |
-| `PUBLIC_BASE_URL` | Required | Public backend URL for Meta WhatsApp webhook callbacks |
+| `PUBLIC_BASE_URL` | Required (channels) | Public backend URL baked into Telegram/Wasender webhook registrations. Nothing raises if unset - webhook registration just returns HTTP 400 and widget embed URLs silently fall back to `request.host_url`. Must be `https://`. |
+| `APP_SECRET` | **Required (WhatsApp)** | Meta app secret used to verify `X-Hub-Signature-256` on every inbound WhatsApp message (`app/decorators/security.py`). Must be the **same Meta app** whose secret is in `WHATSAPP_META_APP_SECRET` - nothing in the code enforces that, and a mismatch 403s every delivery. If unset the webhook now fails closed and rejects deliveries. |
+| `VERIFY_TOKEN` | **Required (WhatsApp)** | Compared against `hub.verify_token` at `app/views.py:78`. If it does not match what you type into the Meta dashboard, the callback URL cannot be saved at all. |
+| `VERSION` | **Required (WhatsApp)** | Graph API version interpolated into the *outbound* send URL (`app/utils/whatsapp_utils.py:99`) with no default. Unset produces `https://graph.facebook.com/None/...` and every reply fails. Distinct from `WHATSAPP_GRAPH_API_VERSION`; set both to the same value, e.g. `v22.0`. |
 | `AI_CREDIT_ENFORCEMENT_ENABLED` | `true` | Master switch for AI-credit charging. Requires `AI_RETAIL_MARKUP_BPS` and `AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD`. |
 | `AI_RETAIL_MARKUP_BPS` | Required (enforcement) | Retail markup in basis points (100 bps = 1%). Required when `AI_CREDIT_ENFORCEMENT_ENABLED` is true. |
 | `AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD` | Required (enforcement) | USD to MYR exchange rate in micro-MYR per USD. Example: 4500000 = RM 4.50 per USD. Required when enforcement is enabled. |
@@ -33,7 +36,7 @@
 | `AI_CREDIT_LOW_THRESHOLD_MICRO_MYR` | `5000000` | RM5.00 (RM1 = 1,000,000 micro-MYR) |
 | `AI_CREDIT_CRITICAL_THRESHOLD_MICRO_MYR` | `1000000` | RM1.00 |
 | `BILLING_GRACE_PERIOD_DAYS` | `3` | Grace period after expiry |
-| `ENABLE_DEV_BILLING_ROUTES` | Must be `false` | Production rejects this flag with RuntimeError |
+| `ENABLE_DEV_BILLING_ROUTES` | **Must be absent** | Do NOT set it to `false`. `app/config.py:52` tests the raw string for truthiness, so the *string* `"false"` is truthy and raises RuntimeError in production. Unset (or empty) is the only safe state. |
 
 ### Application Server
 
@@ -48,7 +51,7 @@ For production, use a production-grade WSGI server. The repository includes a
 
 ```
 # Gunicorn (Linux/macOS)
-gunicorn wsgi:app --bind 0.0.0.0:8000 --workers 4
+gunicorn wsgi:app --bind 0.0.0.0:8000 --workers 1 --threads 8
 
 # Waitress (Windows-friendly)
 pip install waitress
@@ -63,7 +66,7 @@ External callbacks require a separately deployed public HTTPS server.
 
 - [ ] `.env` is NOT tracked in Git
 - [ ] Exposed secrets have been rotated (see below)
-- [ ] `ENABLE_DEV_BILLING_ROUTES` is not set (or set to false)
+- [ ] `ENABLE_DEV_BILLING_ROUTES` is **not set at all** (setting it to `false` crash-loops the deploy)
 - [ ] `CORS_ORIGINS` contains only production domains (no wildcard)
 - [ ] `FRONTEND_URL` matches the production frontend
 - [ ] Rate limiting is enabled with Redis backend
@@ -75,7 +78,19 @@ External callbacks require a separately deployed public HTTPS server.
 
 ### Exposed Credentials Requiring Rotation
 
-The following credential categories were found in Git history and should be rotated:
+**This claim could not be substantiated (re-audited 2026-08-28).** `git log --all
+--full-history -- .env` is empty - `.env` was never tracked. `.env.txt` *is*
+tracked, but every one of its revisions across all 361 commits on all 6 branches
+holds placeholders (`APP_SECRET=""`, `SUPABASE_URL=""`).
+Pickaxe searches of the full history for `eyJ...`, `AIza...`, `sk-...` and
+populated `SUPABASE_SERVICE_ROLE_KEY=` / `JWT_SECRET=` /
+`TOYYIBPAY_USER_SECRET_KEY=` assignments returned nothing real.
+
+Either name the specific commit this item was written about - so it can be
+purged with `git-filter-repo` before anyone treats the public repo as sensitive
+- or delete this section. Do not ship a checklist item nobody can act on.
+
+Categories originally listed, kept for reference:
 
 - WhatsApp/Meta access tokens
 - Supabase service-role key
