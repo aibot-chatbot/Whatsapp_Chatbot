@@ -1,4 +1,5 @@
 import hmac
+import hashlib
 import logging
 import os
 import secrets
@@ -815,7 +816,13 @@ def telegram_webhook_post(webhook_secret):
         chat = message.get("chat") or {}
         from_user = message.get("from") or {}
 
-        logging.info(f"Telegram webhook received for secret: {webhook_secret}")
+        # Fingerprint, never the secret itself: this path segment is the
+        # primary authentication factor for the channel, and this file
+        # already refuses to log the webhook URL for exactly that reason.
+        logging.info(
+            "Telegram webhook received for channel %s",
+            hashlib.sha256(webhook_secret.encode()).hexdigest()[:12],
+        )
         logging.info(
             "Telegram update summary: update_id=%s message_id=%s chat_id=%s "
             "from_user_id=%s has_contact=%s has_text=%s",

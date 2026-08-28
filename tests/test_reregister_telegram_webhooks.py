@@ -11,6 +11,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from app.routes.telegram_routes import DELIVERY_STATUS_OK, DELIVERY_STATUS_UNKNOWN
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "reregister_telegram_webhooks.py"
 
@@ -63,7 +65,7 @@ class ReregisterTests(unittest.TestCase):
                           return_value=({"id": 1, "username": "olympicedu_bot"}, None)), \
              patch.object(self.mod, "set_telegram_webhook", return_value=(True, None)), \
              patch.object(self.mod, "check_telegram_webhook_delivery",
-                          return_value=("ok", "", {})), \
+                          return_value=(DELIVERY_STATUS_OK, "", {})), \
              patch.object(self.mod, "update_telegram_channel") as update:
             outcome, _ = self.mod.reregister(self.channel(), "https://x.example.com", apply=True)
 
@@ -83,7 +85,7 @@ class ReregisterTests(unittest.TestCase):
                           return_value=({"id": 1, "username": "b"}, None)), \
              patch.object(self.mod, "set_telegram_webhook", side_effect=capture), \
              patch.object(self.mod, "check_telegram_webhook_delivery",
-                          return_value=("ok", "", {})), \
+                          return_value=(DELIVERY_STATUS_OK, "", {})), \
              patch.object(self.mod, "update_telegram_channel"):
             self.mod.reregister(self.channel(), "https://x.example.com", apply=True)
             self.mod.reregister(self.channel(), "https://x.example.com", apply=True)
@@ -125,6 +127,52 @@ class ReregisterTests(unittest.TestCase):
         self.assertFalse(written["is_active"])
         # The row and its token survive, so a later run can retry it.
         self.assertNotIn("bot_token", written)
+
+    def test_success_is_matched_against_the_real_constant(self):
+        """Regression. check_telegram_webhook_delivery returns
+        DELIVERY_STATUS_OK, which is the string "connected" - never "ok". The
+        script compared against the literal "ok", so the success branch was
+        dead and every re-pointed bot was written back as failed. Asserting on
+        the imported constant is what stops a literal creeping back in."""
+        self.assertNotEqual(DELIVERY_STATUS_OK, "ok")
+
+        with patch.object(self.mod, "validate_telegram_bot_token",
+                          return_value=({"id": 1, "username": "b"}, None)),              patch.object(self.mod, "set_telegram_webhook", return_value=(True, None)),              patch.object(self.mod, "check_telegram_webhook_delivery",
+                          return_value=(DELIVERY_STATUS_OK, None, {})),              patch.object(self.mod, "update_telegram_channel") as update:
+            outcome, _ = self.mod.reregister(self.channel(), "https://x.example.com", apply=True)
+
+        self.assertEqual(outcome, "connected")
+        statuses = [c[0][1].get("connection_status") for c in update.call_args_list]
+        self.assertNotIn("failed", statuses)
+
+    def test_an_unreadable_delivery_report_does_not_condemn_the_channel(self):
+        """getWebhookInfo being unreachable is our blind spot, not proof the
+        bot is broken - check_telegram_webhook_delivery documents exactly that."""
+        with patch.object(self.mod, "validate_telegram_bot_token",
+                          return_value=({"id": 1, "username": "b"}, None)),              patch.object(self.mod, "set_telegram_webhook", return_value=(True, None)),              patch.object(self.mod, "check_telegram_webhook_delivery",
+                          return_value=(DELIVERY_STATUS_UNKNOWN, None, {})),              patch.object(self.mod, "update_telegram_channel") as update:
+            outcome, _ = self.mod.reregister(self.channel(), "https://x.example.com", apply=True)
+
+        self.assertEqual(outcome, "unverified")
+        statuses = [c[0][1].get("connection_status") for c in update.call_args_list]
+        self.assertNotIn("failed", statuses)
+
+    def test_the_delivery_check_is_told_when_we_registered(self):
+        """The URL being replaced has usually been failing for a while. Without
+        registered_since, that stale error is read as a failure of the brand new
+        registration and every bot in the run is condemned."""
+        seen = {}
+
+        def capture(bot_token, webhook_url, registered_since=None):
+            seen["registered_since"] = registered_since
+            return DELIVERY_STATUS_OK, None, {}
+
+        with patch.object(self.mod, "validate_telegram_bot_token",
+                          return_value=({"id": 1, "username": "b"}, None)),              patch.object(self.mod, "set_telegram_webhook", return_value=(True, None)),              patch.object(self.mod, "check_telegram_webhook_delivery", side_effect=capture),              patch.object(self.mod, "update_telegram_channel"):
+            self.mod.reregister(self.channel(), "https://x.example.com", apply=True)
+
+        self.assertIsInstance(seen["registered_since"], int)
+        self.assertGreater(seen["registered_since"], 0)
 
     def test_no_detail_line_ever_carries_a_token(self):
         with patch.object(self.mod, "validate_telegram_bot_token",

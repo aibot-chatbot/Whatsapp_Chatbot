@@ -57,14 +57,18 @@ def upload_attachment_file():
         import os
         from werkzeug.utils import secure_filename
         
-        # Save to media_uploads
-        MEDIA_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "media_uploads"))
-        os.makedirs(MEDIA_DIR, exist_ok=True)
+        # Save into MEDIA_FOLDER, which sits on the mounted disk. Writing to
+        # the old repo-relative media_uploads/ put uploads outside the volume,
+        # so every file a tenant uploaded was deleted on the next deploy while
+        # the rows and campaigns referencing its URL survived.
+        from app.storage_paths import MEDIA_FOLDER
+
+        os.makedirs(MEDIA_FOLDER, exist_ok=True)
         
         original_name = secure_filename(file.filename)
         safe_name = f"bot_{chatbot_id}_{original_name}"
         
-        filepath = os.path.join(MEDIA_DIR, safe_name)
+        filepath = os.path.join(MEDIA_FOLDER, safe_name)
         file.save(filepath)
         
         public_url = request.host_url.rstrip("/") + f"/media/{safe_name}"
