@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import secrets
@@ -260,7 +261,12 @@ def wasender_webhook_post(webhook_secret):
     try:
         payload = request.get_json(silent=True) or {}
 
-        logging.info(f"Wasender webhook received for secret: {webhook_secret}")
+        # Fingerprint, never the secret itself - for Wasender the path
+        # secret is the ONLY authentication factor (no signature header).
+        logging.info(
+            "Wasender webhook received for channel %s",
+            hashlib.sha256(webhook_secret.encode()).hexdigest()[:12],
+        )
         logging.info(f"Wasender payload: {payload}")
 
         process_wasender_webhook(payload, webhook_secret)
