@@ -524,33 +524,8 @@ def delete_pdf_file(file_name, chatbot_id):
     }
 
 
-from html.parser import HTMLParser
-import re
-
-class HTMLTextExtractor(HTMLParser):
-    def __init__(self):
-        super().__init__()
-        self.result = []
-        self.ignore = False
-        self.ignore_tags = {'script', 'style', 'header', 'footer', 'nav', 'noscript', 'head', 'iframe'}
-
-    def handle_starttag(self, tag, attrs):
-        if tag in self.ignore_tags:
-            self.ignore = True
-
-    def handle_endtag(self, tag):
-        if tag in self.ignore_tags:
-            self.ignore = False
-
-    def handle_data(self, data):
-        if not self.ignore:
-            clean = data.strip()
-            if clean:
-                self.result.append(clean)
-
-    def get_text(self):
-        return "\n".join(self.result)
-
+import httpx
+import trafilatura
 
 def fetch_and_parse_url(url):
     if not url:
@@ -559,57 +534,31 @@ def fetch_and_parse_url(url):
     if not (url.startswith("http://") or url.startswith("https://")):
         raise ValueError("Invalid URL protocol. URL must start with http:// or https://")
 
-    text_content = ""
-    used_fallback = False
-
-    # 1. Try Jina Reader API first (supports dynamic websites, returns clean markdown/text)
     try:
-        import requests
-        import logging
-        reader_url = f"https://r.jina.ai/{url}"
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        logging.info(f"Attempting to scrape via Jina Reader: {reader_url}")
-        response = requests.get(reader_url, headers=headers, timeout=25)
+        # using follow_redirects in case the page redirects
+        response = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
         response.raise_for_status()
-
-        scraped_text = response.text.strip()
-        if scraped_text and len(scraped_text) >= 50:
-            text_content = scraped_text
-            logging.info("Successfully scraped and parsed content using Jina Reader.")
-        else:
-            logging.warning("Jina Reader returned empty or too short content. Falling back to static scraping.")
-            used_fallback = True
+        html_content = response.text
     except Exception as e:
         import logging
-        logging.warning(f"Jina Reader scraping failed: {str(e)}. Falling back to static scraping.")
-        used_fallback = True
+        logging.error(f"HTTP request failed for URL {url}: {str(e)}")
+        raise ValueError(f"Failed to fetch and parse URL: {str(e)}")
 
-    # 2. Fallback to static requests + HTMLTextExtractor if Jina failed
-    if used_fallback or not text_content:
-        try:
-            import requests
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
-            response = requests.get(url, headers=headers, timeout=15)
-            response.raise_for_status()
-            html_content = response.text
+    # Extract text using trafilatura (removes boilerplate, nav, footers)
+    text_content = trafilatura.extract(
+        html_content, 
+        include_links=True,
+        include_formatting=True,
+        include_comments=False
+    )
 
-            extractor = HTMLTextExtractor()
-            extractor.feed(html_content)
-            text_content = extractor.get_text()
-        except Exception as fallback_err:
-            raise ValueError(f"Failed to fetch and parse URL: {str(fallback_err)}")
-
-    # Remove excessive blank lines
-    text_content = re.sub(r'\n{3,}', '\n\n', text_content).strip()
-
-    if not text_content or len(text_content) < 50:
+    if not text_content or len(text_content.strip()) < 50:
         raise ValueError("The webpage does not contain enough extractable text.")
 
-    return text_content
+    return text_content.strip()
 
 
 def scrape_pages(urls) -> tuple[list[dict], list[dict]]:
@@ -697,24 +646,24 @@ def scrape_website_url(url, chatbot_id, company_id=None):
 
 
 from urllib.parse import urlparse, urljoin
+import httpx
+from selectolax.parser import HTMLParser
 
 def discover_website_links(url):
     if not url:
         raise ValueError("URL is required")
 
-    # Fetch raw HTML directly for link discovery to ensure navigation links (headers, menus, footers) are not stripped by Jina
     try:
-        import requests
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         }
-        response = requests.get(url, headers=headers, timeout=15)
+        response = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
         response.raise_for_status()
         html_content = response.text
     except Exception as e:
         import logging
-        logging.warning(f"Static request for link discovery failed: {e}. Falling back to fetch_and_parse_url.")
-        html_content = fetch_and_parse_url(url)
+        logging.warning(f"Static request for link discovery failed: {e}")
+        raise ValueError(f"Failed to discover links: {str(e)}")
 
     parsed_base = urlparse(url)
     base_domain = parsed_base.netloc
@@ -723,14 +672,15 @@ def discover_website_links(url):
     cleaned_base_url = url.split('?')[0].split('#')[0].rstrip('/')
     links.add(cleaned_base_url)
 
-    # Extract raw HTML links in case of raw HTML content
-    html_links = re.findall(r'href=["\'](https?://[^\s"\']+|/[^\s"\']*)["\']', html_content)
-    # Extract Markdown links [text](url) in case fallback fetch_and_parse_url was used and returned markdown
-    md_links = re.findall(r'\[.*?\]\(((?:https?://[^\s\)]+|/[^\s\)]+))\)', html_content)
+    # Parse HTML using selectolax
+    tree = HTMLParser(html_content)
 
-    all_extracted = html_links + md_links
+    # Extract all a[href] tags
+    for node in tree.css('a[href]'):
+        link = node.attributes.get('href', '').strip()
+        if not link:
+            continue
 
-    for link in all_extracted:
         full_link = urljoin(url, link)
         # Clean query parameters and hash anchors
         full_link = full_link.split('?')[0].split('#')[0].rstrip('/')
