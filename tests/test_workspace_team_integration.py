@@ -2,6 +2,7 @@ import os
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, call, patch
+from werkzeug.security import generate_password_hash
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
@@ -659,6 +660,24 @@ class TeamFrontendRegressionTests(unittest.TestCase):
         self.assertIn("kw-visually-hidden", head)
 
 class InvitationAcceptanceTests(unittest.TestCase):
+    def make_google_client(self):
+        app = create_app()
+        app.config["TESTING"] = True
+        return app.test_client()
+
+    def google_token_response(self, **overrides):
+        payload = {
+            "aud": "configured-google-client",
+            "email": "new@example.com",
+            "email_verified": "true",
+            "name": "New User",
+            "sub": "google-id",
+        }
+        payload.update(overrides)
+        google_response = MagicMock(status_code=200)
+        google_response.json.return_value = payload
+        return google_response
+
     def valid_invite(self, **overrides):
         invite = {
             "id": 7,
@@ -763,11 +782,8 @@ class InvitationAcceptanceTests(unittest.TestCase):
         create_user.assert_not_called()
 
     def test_google_invitation_path_does_not_create_a_company(self):
-        app = create_app()
-        app.config["TESTING"] = True
-        client = app.test_client()
-        google_response = MagicMock(status_code=200)
-        google_response.json.return_value = {"aud": "configured-google-client", "email": "invited@example.com", "email_verified": "true", "name": "Invited User", "sub": "google-id"}
+        client = self.make_google_client()
+        google_response = self.google_token_response(email="invited@example.com", name="Invited User")
         invited_user = {"id": 8, "company_id": 42, "email": "invited@example.com", "role": "member", "full_name": "Invited User"}
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
              patch("requests.get", return_value=google_response), \
@@ -781,10 +797,219 @@ class InvitationAcceptanceTests(unittest.TestCase):
         accept.assert_called_once_with("invite-token", "Invited User", password_hash=None, verified_email="invited@example.com")
         create_company.assert_not_called()
 
+    def test_google_existing_user_signs_in_without_password_fields(self):
+        client = self.make_google_client()
+        google_response = self.google_token_response(email="existing@example.com")
+        existing_user = {
+            "id": 7,
+            "company_id": 42,
+            "email": "existing@example.com",
+            "role": "admin",
+            "status": "active",
+            "full_name": "Existing User",
+            "password_hash": None,
+        }
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.get_user_by_email", return_value=existing_user), \
+             patch("app.routes.auth_routes.create_company") as create_company, \
+             patch("app.routes.auth_routes.create_user") as create_user, \
+             patch("app.routes.auth_routes.jwt.encode", return_value="jwt"):
+            response = client.post("/api/auth/google", json={"credential": "google-token"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "success")
+        self.assertEqual(response.get_json()["token"], "jwt")
+        create_company.assert_not_called()
+        create_user.assert_not_called()
+
+    def test_google_existing_password_user_signs_in_without_password_fields(self):
+        client = self.make_google_client()
+        google_response = self.google_token_response(email="password@example.com")
+        existing_user = {
+            "id": 8,
+            "company_id": 42,
+            "email": "password@example.com",
+            "role": "member",
+            "status": "active",
+            "full_name": "Password User",
+            "password_hash": generate_password_hash("StrongPass1!"),
+        }
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.get_user_by_email", return_value=existing_user), \
+             patch("app.routes.auth_routes.create_company") as create_company, \
+             patch("app.routes.auth_routes.create_user") as create_user, \
+             patch("app.routes.auth_routes.jwt.encode", return_value="jwt"):
+            response = client.post("/api/auth/google", json={"credential": "google-token"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "success")
+        create_company.assert_not_called()
+        create_user.assert_not_called()
+
+    def test_google_new_user_without_completion_fields_needs_company_without_creation(self):
+        client = self.make_google_client()
+        google_response = self.google_token_response()
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.get_user_by_email", return_value=None), \
+             patch("app.routes.auth_routes.create_company") as create_company, \
+             patch("app.routes.auth_routes.create_user") as create_user:
+            response = client.post("/api/auth/google", json={"credential": "google-token"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "needs_company")
+        create_company.assert_not_called()
+        create_user.assert_not_called()
+
+    def test_google_new_user_with_company_only_is_not_created(self):
+        client = self.make_google_client()
+        google_response = self.google_token_response()
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.get_user_by_email", return_value=None), \
+             patch("app.routes.auth_routes.create_company") as create_company, \
+             patch("app.routes.auth_routes.create_user") as create_user:
+            response = client.post(
+                "/api/auth/google",
+                json={"credential": "google-token", "company_name": "Acme"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "needs_company")
+        create_company.assert_not_called()
+        create_user.assert_not_called()
+
+    def test_google_new_user_missing_confirm_password_is_not_created(self):
+        client = self.make_google_client()
+        google_response = self.google_token_response()
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.get_user_by_email", return_value=None), \
+             patch("app.routes.auth_routes.create_company") as create_company, \
+             patch("app.routes.auth_routes.create_user") as create_user:
+            response = client.post(
+                "/api/auth/google",
+                json={
+                    "credential": "google-token",
+                    "company_name": "Acme",
+                    "password": "StrongPass1!",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "needs_company")
+        create_company.assert_not_called()
+        create_user.assert_not_called()
+
+    def test_google_new_user_password_mismatch_is_rejected_without_creation(self):
+        client = self.make_google_client()
+        google_response = self.google_token_response()
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.get_user_by_email", return_value=None), \
+             patch("app.routes.auth_routes.create_company") as create_company, \
+             patch("app.routes.auth_routes.create_user") as create_user:
+            response = client.post(
+                "/api/auth/google",
+                json={
+                    "credential": "google-token",
+                    "company_name": "Acme",
+                    "password": "StrongPass1!",
+                    "confirm_password": "DifferentPass1!",
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("match", response.get_json()["message"].lower())
+        create_company.assert_not_called()
+        create_user.assert_not_called()
+
+    def test_google_new_user_weak_password_is_rejected_without_creation(self):
+        client = self.make_google_client()
+        google_response = self.google_token_response()
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.get_user_by_email", return_value=None), \
+             patch("app.routes.auth_routes.create_company") as create_company, \
+             patch("app.routes.auth_routes.create_user") as create_user:
+            response = client.post(
+                "/api/auth/google",
+                json={
+                    "credential": "google-token",
+                    "company_name": "Acme",
+                    "password": "weak",
+                    "confirm_password": "weak",
+                },
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Password must", response.get_json()["message"])
+        create_company.assert_not_called()
+        create_user.assert_not_called()
+
+    def test_google_new_user_valid_completion_hashes_password(self):
+        client = self.make_google_client()
+        google_response = self.google_token_response(email="new@example.com")
+        company = {"id": 42, "company_name": "Acme"}
+        user = {"id": 9, "company_id": 42, "email": "new@example.com", "role": "admin", "full_name": "New User"}
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.get_user_by_email", return_value=None), \
+             patch("app.routes.auth_routes.generate_password_hash", return_value="hashed-password") as hash_password, \
+             patch("app.routes.auth_routes.create_company", return_value=company), \
+             patch("app.routes.auth_routes.create_user", return_value=user) as create_user, \
+             patch("app.routes.auth_routes.ensure_default_company_subscription"), \
+             patch("app.routes.auth_routes.jwt.encode", return_value="jwt"):
+            response = client.post(
+                "/api/auth/google",
+                json={
+                    "credential": "google-token",
+                    "company_name": "Acme",
+                    "password": "StrongPass1!",
+                    "confirm_password": "StrongPass1!",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["status"], "success")
+        hash_password.assert_called_once_with("StrongPass1!")
+        self.assertEqual(create_user.call_args.kwargs["password_hash"], "hashed-password")
+        self.assertNotEqual(create_user.call_args.kwargs["password_hash"], "StrongPass1!")
+
+    def test_google_generated_password_hash_works_with_existing_password_checker(self):
+        from app.routes.auth_routes import is_password_valid
+
+        password = "StrongPass1!"
+        password_hash = generate_password_hash(password)
+        self.assertNotEqual(password_hash, password)
+        self.assertTrue(is_password_valid(password_hash, password))
+
+    def test_invalid_google_credential_cannot_create_account_with_password_fields(self):
+        client = self.make_google_client()
+        google_response = MagicMock(status_code=401)
+        google_response.json.return_value = {"error_description": "Invalid Value"}
+        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), \
+             patch("requests.get", return_value=google_response), \
+             patch("app.routes.auth_routes.create_company") as create_company, \
+             patch("app.routes.auth_routes.create_user") as create_user:
+            response = client.post(
+                "/api/auth/google",
+                json={
+                    "credential": "bad-google-token",
+                    "company_name": "Acme",
+                    "password": "StrongPass1!",
+                    "confirm_password": "StrongPass1!",
+                },
+            )
+
+        self.assertEqual(response.status_code, 401)
+        create_company.assert_not_called()
+        create_user.assert_not_called()
+
     def test_google_auth_fails_closed_when_client_id_is_missing(self):
-        app = create_app()
-        app.config["TESTING"] = True
-        client = app.test_client()
+        client = self.make_google_client()
         with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": ""}), \
              patch("requests.get") as google_request:
             response = client.post("/api/auth/google", json={"credential": "google-token"})
@@ -794,9 +1019,7 @@ class InvitationAcceptanceTests(unittest.TestCase):
         google_request.assert_not_called()
 
     def test_google_auth_rejects_incorrect_audience(self):
-        app = create_app()
-        app.config["TESTING"] = True
-        client = app.test_client()
+        client = self.make_google_client()
         google_response = MagicMock(status_code=200)
         google_response.json.return_value = {
             "aud": "wrong-client",
@@ -816,9 +1039,7 @@ class InvitationAcceptanceTests(unittest.TestCase):
         accept.assert_not_called()
 
     def test_google_auth_rejects_unverified_email(self):
-        app = create_app()
-        app.config["TESTING"] = True
-        client = app.test_client()
+        client = self.make_google_client()
         google_response = MagicMock(status_code=200)
         google_response.json.return_value = {
             "aud": "configured-google-client",
@@ -838,9 +1059,7 @@ class InvitationAcceptanceTests(unittest.TestCase):
         accept.assert_not_called()
 
     def test_google_invitation_rejects_email_mismatch(self):
-        app = create_app()
-        app.config["TESTING"] = True
-        client = app.test_client()
+        client = self.make_google_client()
         google_response = MagicMock(status_code=200)
         google_response.json.return_value = {
             "aud": "configured-google-client",

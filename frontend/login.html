@@ -320,6 +320,12 @@
             position: relative;
         }
         .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 8px 20px var(--primary-glow); }
+        .modal-validation-error {
+            color: #f87171;
+            font-size: 0.85rem;
+            margin: -6px 0 14px;
+            display: none;
+        }
         @media (max-width: 480px) {
             body {
                 overflow: auto;
@@ -382,14 +388,7 @@
         <div class="divider">or continue with</div>
 
         <div style="display: flex; justify-content: center; width: 100%;">
-            <div class="g_id_signin"
-                 data-type="standard"
-                 data-shape="rectangular"
-                 data-theme="outline"
-                 data-text="continue_with"
-                 data-size="large"
-                 data-width="400">
-            </div>
+            <div id="googleLoginButton"></div>
         </div>
 
         <div class="footer-links" style="margin-top: 20px;">
@@ -406,11 +405,26 @@
                 </div>
                 <h3>One last step 🎉</h3>
             </div>
-            <p>Welcome! Since you're new here, please enter your company name to set up your workspace.</p>
+            <p>Welcome! Since you're new here, please enter your company name and choose a password to set up your workspace.</p>
             <div class="input-group" style="margin-bottom:20px;">
                 <label>Company Name</label>
                 <input type="text" id="modal-company-name" placeholder="Your Company Sdn Bhd" style="border-radius:14px;">
             </div>
+            <div class="input-group" style="margin-bottom:20px;">
+                <label>Password</label>
+                <div class="password-field">
+                    <input type="password" id="google-company-password" placeholder="Create a strong password" autocomplete="new-password" style="border-radius:14px;">
+                    <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('google-company-password', this)">Show</button>
+                </div>
+            </div>
+            <div class="input-group" style="margin-bottom:20px;">
+                <label>Confirm Password</label>
+                <div class="password-field">
+                    <input type="password" id="google-company-confirm-password" placeholder="Confirm your password" autocomplete="new-password" style="border-radius:14px;">
+                    <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('google-company-confirm-password', this)">Show</button>
+                </div>
+            </div>
+            <p id="google-company-error" class="modal-validation-error"></p>
             <button class="btn-confirm" id="btn-confirm-company" onclick="submitGoogleWithCompany()">
                 <span class="btn-confirm-text">Complete Sign Up</span>
                 <div class="loader" id="confirm-loader" style="position:absolute;left:50%;margin-left:-10px;"></div>
@@ -491,6 +505,9 @@
 
         // ---- Google OAuth Logic ----
         let _pendingGoogleCredential = null;
+        let googleLibraryLoaded = false;
+        let googleClientId = '';
+        let googleInitialized = false;
 
         function togglePasswordVisibility(inputId, button) {
             const input = document.getElementById(inputId);
@@ -500,24 +517,120 @@
             button.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
         }
 
-        function handleGoogleLogin() {
-            if (typeof google === 'undefined' || !google.accounts) {
-                alert('Google Sign-In is not configured yet.\n\nPlease add your GOOGLE_CLIENT_ID to the .env file and set data-client_id on the Google script tag.');
-                return;
+        function showGoogleAuthError(message) {
+            const errEl = document.getElementById('login-error');
+            if (errEl) {
+                errEl.textContent = message || 'Google Sign-In is currently unavailable.';
+                errEl.style.display = 'block';
             }
-            google.accounts.id.prompt();
+        }
+
+        function showGoogleCompanyError(message) {
+            const errorEl = document.getElementById('google-company-error');
+            if (errorEl) {
+                errorEl.textContent = message;
+                errorEl.style.display = 'block';
+            }
+        }
+
+        function clearGoogleCompanyForm() {
+            const companyInput = document.getElementById('modal-company-name');
+            const passwordInput = document.getElementById('google-company-password');
+            const confirmInput = document.getElementById('google-company-confirm-password');
+            const errorEl = document.getElementById('google-company-error');
+            if (companyInput) companyInput.value = '';
+            if (passwordInput) passwordInput.value = '';
+            if (confirmInput) confirmInput.value = '';
+            if (errorEl) {
+                errorEl.textContent = '';
+                errorEl.style.display = 'none';
+            }
         }
 
         function onGoogleCredentialResponse(response) {
+            if (!response || !response.credential) {
+                showGoogleAuthError('Google sign-in could not be completed. Please try again.');
+                return;
+            }
             sendGoogleCredential(response.credential, null);
         }
 
-        async function sendGoogleCredential(credential, companyName) {
+        function hideGoogleLoginButton() {
+            const button = document.getElementById('googleLoginButton');
+            if (button) button.innerHTML = '';
+        }
+
+        function getGoogleLoginButtonWidth() {
+            const button = document.getElementById('googleLoginButton');
+            const availableWidth = button && button.parentElement ? button.parentElement.clientWidth : 400;
+            return Math.min(400, availableWidth || 400);
+        }
+
+        function initializeGoogleLoginOption() {
+            if (googleInitialized || !googleLibraryLoaded || !googleClientId) {
+                return;
+            }
+            if (typeof google === 'undefined' || !google.accounts || !google.accounts.id) {
+                hideGoogleLoginButton();
+                return;
+            }
+
             try {
+                google.accounts.id.initialize({
+                    client_id: googleClientId,
+                    callback: onGoogleCredentialResponse
+                });
+                google.accounts.id.renderButton(
+                    document.getElementById('googleLoginButton'),
+                    { type: 'standard', shape: 'rectangular', theme: 'outline', text: 'continue_with', size: 'large', width: getGoogleLoginButtonWidth() }
+                );
+                googleInitialized = true;
+            } catch (err) {
+                hideGoogleLoginButton();
+                showGoogleAuthError('Google Sign-In is currently unavailable.');
+            }
+        }
+
+        function handleGoogleLibraryLoad() {
+            googleLibraryLoaded = typeof google !== 'undefined' && !!google.accounts && !!google.accounts.id;
+            initializeGoogleLoginOption();
+        }
+
+        function handleGoogleLibraryError() {
+            googleLibraryLoaded = false;
+            hideGoogleLoginButton();
+            showGoogleAuthError('Google Sign-In is currently unavailable.');
+        }
+
+        async function loadGoogleConfiguration() {
+            try {
+                const res = await fetch('/api/auth/google-config');
+                const result = await res.json();
+                const runtimeClientId = result && result.data && result.data.client_id;
+                if (!res.ok || result.status !== 'success' || typeof runtimeClientId !== 'string' || !runtimeClientId.trim()) {
+                    hideGoogleLoginButton();
+                    showGoogleAuthError('Google Sign-In is currently unavailable.');
+                    return;
+                }
+                googleClientId = runtimeClientId.trim();
+                initializeGoogleLoginOption();
+            } catch (err) {
+                hideGoogleLoginButton();
+                showGoogleAuthError('Google Sign-In is currently unavailable.');
+            }
+        }
+
+        async function sendGoogleCredential(credential, companyName, completion) {
+            try {
+                const payload = { credential, company_name: companyName || '' };
+                if (completion) {
+                    payload.password = completion.password || '';
+                    payload.confirm_password = completion.confirm_password || '';
+                }
                 const res = await fetch('/api/auth/google', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ credential, company_name: companyName || '' })
+                    body: JSON.stringify(payload)
                 });
                 const result = await res.json();
 
@@ -536,7 +649,11 @@
                     }
                     window.location.href = 'bots.html';
                 } else {
-                    alert(result.message || 'Google sign-in failed. Please try again.');
+                    if (completion) {
+                        showGoogleCompanyError(result.message || 'Google sign-in failed. Please try again.');
+                    } else {
+                        alert(result.message || 'Google sign-in failed. Please try again.');
+                    }
                 }
             } catch (err) {
                 console.error('Google auth error:', err);
@@ -546,8 +663,30 @@
 
         async function submitGoogleWithCompany() {
             const companyName = document.getElementById('modal-company-name').value.trim();
+            const password = document.getElementById('google-company-password').value;
+            const confirmPassword = document.getElementById('google-company-confirm-password').value;
+            const errorEl = document.getElementById('google-company-error');
+            if (errorEl) {
+                errorEl.textContent = '';
+                errorEl.style.display = 'none';
+            }
             if (!companyName) {
                 document.getElementById('modal-company-name').focus();
+                return;
+            }
+            if (!password) {
+                showGoogleCompanyError('Password is required.');
+                document.getElementById('google-company-password').focus();
+                return;
+            }
+            if (!confirmPassword) {
+                showGoogleCompanyError('Please confirm your password.');
+                document.getElementById('google-company-confirm-password').focus();
+                return;
+            }
+            if (password !== confirmPassword) {
+                showGoogleCompanyError('Passwords do not match.');
+                document.getElementById('google-company-confirm-password').focus();
                 return;
             }
             const btn = document.getElementById('btn-confirm-company');
@@ -555,7 +694,10 @@
             btn.querySelector('#confirm-loader').style.display = 'block';
             btn.disabled = true;
 
-            await sendGoogleCredential(_pendingGoogleCredential, companyName);
+            await sendGoogleCredential(_pendingGoogleCredential, companyName, {
+                password: password,
+                confirm_password: confirmPassword
+            });
 
             btn.querySelector('.btn-confirm-text').style.visibility = '';
             btn.querySelector('#confirm-loader').style.display = 'none';
@@ -565,12 +707,21 @@
         function closeCompanyModal() {
             document.getElementById('company-modal').classList.remove('open');
             _pendingGoogleCredential = null;
+            clearGoogleCompanyForm();
         }
 
         // Allow Enter key in company modal
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('modal-company-name').addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') submitGoogleWithCompany();
+            });
+            document.getElementById('google-company-password').addEventListener('input', () => {
+                const errorEl = document.getElementById('google-company-error');
+                if (errorEl) errorEl.style.display = 'none';
+            });
+            document.getElementById('google-company-confirm-password').addEventListener('input', () => {
+                const errorEl = document.getElementById('google-company-error');
+                if (errorEl) errorEl.style.display = 'none';
             });
         });
 
@@ -586,14 +737,11 @@
                 }
             }
         })();
+
+        loadGoogleConfiguration();
     </script>
 
-    <!-- Google Identity Services - replace YOUR_CLIENT_ID with your actual Client ID from .env -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <div id="g_id_onload"
-         data-client_id="255732339270-qo1r1j1il5kkifb5igh8n1dvbl3cl49n.apps.googleusercontent.com"
-         data-callback="onGoogleCredentialResponse"
-         data-auto_prompt="false">
-    </div>
+    <script src="https://accounts.google.com/gsi/client" async defer
+            onload="handleGoogleLibraryLoad()" onerror="handleGoogleLibraryError()"></script>
 </body>
 </html>
