@@ -1130,25 +1130,7 @@ def _call_deepseek_direct(prompt, model, temperature, json_response=False, strea
     raise RuntimeError("DeepSeek returned an empty response.")
 
 
-def _call_gemini_direct(prompt, model, temperature):
-    """Call Google Gemini directly with a plain prompt.
 
-    Returns a _ProviderResult with the generated text and usage metadata.
-    """
-    from google import genai
-    import os
-
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY environment variable is missing.")
-
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=model or "gemini-2.5-flash",
-        contents=prompt,
-    )
-    text = response.text.strip()
-    return _complete_provider_result(text, "google", model or "gemini-2.5-flash", response)
 
 
 def _call_openrouter_direct(prompt, model, temperature):
