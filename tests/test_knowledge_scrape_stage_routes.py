@@ -144,7 +144,9 @@ def test_scrape_analyze_returns_discovered_links(client, authenticated):
     # Act
     with patch(
         "app.routes.knowledge_routes.discover_website_links", return_value=discovered
-    ) as discover:
+    ) as discover, patch(
+        "app.routes.knowledge_routes.can_use_plan_feature", return_value=True
+    ) as feature_gate:
         response = client.post(
             f"/api/knowledge/scrape-analyze?chatbot_id={CHATBOT_ID}",
             json={"url": "https://example.test"},
@@ -156,6 +158,7 @@ def test_scrape_analyze_returns_discovered_links(client, authenticated):
     body = response.get_json()
     assert body["status"] == "success"
     assert body["data"] == {"url": "https://example.test", "links": discovered}
+    feature_gate.assert_called_once_with(COMPANY_ID, "single_website_scraping")
     discover.assert_called_once_with("https://example.test")
 
 
@@ -196,6 +199,87 @@ def test_scrape_analyze_requires_active_primary_pdf_before_discovery(
     body = response.get_json()
     assert body["code"] == "primary_pdf_required"
     assert body["message"] == "Upload a Primary PDF before adding website knowledge."
+    discover.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "message, details",
+    [
+        ("Upgrade required", {"feature_key": "single_website_scraping"}),
+        ("Feature flag is missing", {"feature_key": "single_website_scraping"}),
+        ("Feature flags are missing", {"feature_key": "single_website_scraping"}),
+        ("Feature flags are malformed", {"feature_key": "single_website_scraping"}),
+    ],
+)
+def test_scrape_analyze_denies_when_single_website_scraping_is_not_available(
+    client, authenticated, message, details
+):
+    with patch(
+        "app.routes.knowledge_routes.can_use_plan_feature",
+        side_effect=BillingLimitError(
+            message,
+            code="feature_not_available",
+            details=details,
+        ),
+    ) as feature_gate, patch(
+        "app.routes.knowledge_routes.discover_website_links"
+    ) as discover:
+        response = client.post(
+            f"/api/knowledge/scrape-analyze?chatbot_id={CHATBOT_ID}",
+            json={"url": "https://example.test"},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 403
+    body = response.get_json()
+    assert body["status"] == "error"
+    assert body["code"] == "feature_not_available"
+    assert body["message"] == message
+    assert body["details"] == details
+    feature_gate.assert_called_once_with(COMPANY_ID, "single_website_scraping")
+    discover.assert_not_called()
+
+
+def test_scrape_analyze_ignores_client_company_id_when_checking_entitlement(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.can_use_plan_feature", return_value=True
+    ) as feature_gate, patch(
+        "app.routes.knowledge_routes.discover_website_links",
+        return_value=["https://example.test"],
+    ):
+        response = client.post(
+            f"/api/knowledge/scrape-analyze?chatbot_id={CHATBOT_ID}&company_id=999",
+            json={"url": "https://example.test", "company_id": 999},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 200
+    feature_gate.assert_called_once_with(COMPANY_ID, "single_website_scraping")
+
+
+def test_scrape_analyze_keeps_chatbot_ownership_enforcement_before_entitlement(
+    client, authenticated
+):
+    with patch(
+        "app.routes.knowledge_routes.verify_chatbot_access",
+        side_effect=ValueError("Chatbot not found or access denied"),
+    ) as ownership, patch(
+        "app.routes.knowledge_routes.can_use_plan_feature"
+    ) as feature_gate, patch(
+        "app.routes.knowledge_routes.discover_website_links"
+    ) as discover:
+        response = client.post(
+            f"/api/knowledge/scrape-analyze?chatbot_id={CHATBOT_ID}",
+            json={"url": "https://example.test"},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 400
+    assert response.get_json()["message"] == "Chatbot not found or access denied"
+    ownership.assert_called_once_with(CHATBOT_ID)
+    feature_gate.assert_not_called()
     discover.assert_not_called()
 
 
