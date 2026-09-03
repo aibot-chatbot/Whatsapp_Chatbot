@@ -535,6 +535,7 @@ def scrape_analyze_website():
         primary_guard = _reject_without_active_primary_pdf(chatbot_id)
         if primary_guard:
             return primary_guard
+        can_use_plan_feature(g.company_id, "single_website_scraping")
         links = discover_website_links(data["url"])
         return jsonify({
             "status": "success",
@@ -548,6 +549,13 @@ def scrape_analyze_website():
             "status": "error",
             "message": str(e)
         }), 400
+    except BillingLimitError as e:
+        return jsonify({
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+            "details": e.details or {}
+        }), 403
     except Exception as e:
         return server_error("scrape_analyze_website", e)
 

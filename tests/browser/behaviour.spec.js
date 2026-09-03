@@ -44,7 +44,14 @@ function makeWorld(overrides = {}) {
       telegram_markdown_enabled: true,
       welcome_menu_labels: ["Book appointment", "Services & pricing", "Talk to our team"]
     },
-    subscription: { status: "active", plan: { code: "pro", model_access_tier: "premium" } },
+    subscription: {
+      status: "active",
+      plan: {
+        code: "pro",
+        model_access_tier: "premium",
+        feature_flags: { ai_assisted_menu_generation: true }
+      }
+    },
     readOnly: false,
     context: { bot_name: "Northweave Clinic", active_profile: "Clinic Support", active_pdf: "Services-2026.pdf" },
     activeKnowledge: { file_name: "Services-2026.pdf", display_name: "Services-2026.pdf" },
