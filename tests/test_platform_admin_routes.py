@@ -330,6 +330,49 @@ class PlatformAdminRouteTests(unittest.TestCase):
         self.assertEqual(response.json["data"]["id"], 200)
         service.assert_called_once_with(200, 3)
 
+    def test_company_detail_related_routes_forward_only_requested_company_id(self):
+        seen = []
+
+        def record(name):
+            def _inner(company_id, actor_id, **kwargs):
+                seen.append((name, company_id, actor_id, kwargs))
+                return {"company_id": company_id, name: f"company-{company_id}"}
+            return _inner
+
+        patches = [
+            patch.object(platform_admin_service, "get_company_detail", side_effect=record("detail")),
+            patch.object(platform_admin_service, "get_company_subscription", side_effect=record("subscription")),
+            patch.object(platform_admin_service, "get_company_ai_credit_usage", side_effect=record("ai_credit_usage")),
+            patch.object(platform_admin_service, "get_company_billing_orders", side_effect=record("billing_orders")),
+            patch.object(platform_admin_service, "get_company_users", side_effect=record("users")),
+            patch.object(platform_admin_service, "get_company_chatbots", side_effect=record("chatbots")),
+        ]
+        with ExitStack() as stack:
+            for item in patches:
+                stack.enter_context(item)
+            urls = [
+                "/api/platform-admin/companies/200",
+                "/api/platform-admin/companies/200/subscription",
+                "/api/platform-admin/companies/200/ai-credit-usage",
+                "/api/platform-admin/companies/200/billing-orders?limit=10",
+                "/api/platform-admin/companies/200/users?search=owner",
+                "/api/platform-admin/companies/200/chatbots?state=current",
+                "/api/platform-admin/companies/201",
+                "/api/platform-admin/companies/201/subscription",
+                "/api/platform-admin/companies/201/ai-credit-usage",
+                "/api/platform-admin/companies/201/billing-orders?limit=10",
+                "/api/platform-admin/companies/201/users?search=owner",
+                "/api/platform-admin/companies/201/chatbots?state=current",
+            ]
+            for url in urls:
+                with self.subTest(url=url):
+                    response = self.client.get(url, headers=self.headers)
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.json["data"]["company_id"], int(url.split("/companies/")[1].split("/")[0].split("?")[0]))
+
+        self.assertEqual([entry[1] for entry in seen], [200] * 6 + [201] * 6)
+        self.assertTrue(all(actor_id == 3 for _, _, actor_id, _ in seen))
+
     def test_support_case_detail_forwards_event_pagination(self):
         with patch.object(
             platform_admin_service,

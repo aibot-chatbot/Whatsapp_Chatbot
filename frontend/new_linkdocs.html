@@ -2484,9 +2484,14 @@ const ROLE_LABELS = {
                 }
             };
 
+            const hasPlanFeature = (flags, featureKey) => {
+                if (!flags || typeof flags !== "object" || Array.isArray(flags)) return false;
+                return flags[featureKey] === true;
+            };
+
             const handleToggleLink = (link) => {
                 setSelectedLinks(prev => {
-                    const canBatch = planFlags ? planFlags.batch_website_scraping === true : true;
+                    const canBatch = hasPlanFeature(planFlags, "batch_website_scraping");
                     if (!canBatch && !prev[link]) {
                         return { [link]: true };
                     }
@@ -2498,7 +2503,7 @@ const ROLE_LABELS = {
             };
 
             const handleToggleAllLinks = () => {
-                const canBatch = planFlags ? planFlags.batch_website_scraping === true : true;
+                const canBatch = hasPlanFeature(planFlags, "batch_website_scraping");
                 if (!canBatch) {
                     setStatus({ type: "error", text: "Batch website scraping is only available on Pro plans.", action: "" });
                     return;
@@ -2971,10 +2976,9 @@ const ROLE_LABELS = {
             }, []);
 
             const planFlags = (planInfo && planInfo.plan && planInfo.plan.feature_flags) || null;
-            // /api/knowledge/scrape-extract — the second step of the import — is
-            // guarded on batch_website_scraping, so the whole website path is
-            // only completable where that flag is on.
-            const canImportWebsite = planFlags ? planFlags.single_website_scraping === true : true;
+            // The backend route guard fails closed, so the frontend only exposes
+            // website import when the exact feature flag is present and true.
+            const canImportWebsite = hasPlanFeature(planFlags, "single_website_scraping");
             const canAddWebsite = canImportWebsite && hasActivePrimaryPdf;
             const WEBSITE_PLAN = "Advanced";
 

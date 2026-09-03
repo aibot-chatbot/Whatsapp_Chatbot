@@ -288,7 +288,9 @@ def generate_bot_welcome_menu(bot_id):
         bot = get_bot(bot_id, company_id)
         if not bot:
             return jsonify({"status": "error", "message": "Bot not found"}), 404
-            
+
+        can_use_plan_feature(company_id, "ai_assisted_menu_generation")
+
         from app.services.ai_router import generate_welcome_menu_suggestions
         suggestions, source_document = generate_welcome_menu_suggestions(bot_id, company_id)
         
@@ -310,6 +312,15 @@ def generate_bot_welcome_menu(bot_id):
             "status": "error",
             "message": str(ve)
         }), 400
+    except BillingLimitError as e:
+        response = {
+            "status": "error",
+            "code": e.code,
+            "message": str(e),
+        }
+        if getattr(e, "details", None):
+            response["details"] = e.details
+        return jsonify(response), 403
     except Exception as e:
         import logging
         logging.error(f"Error generating welcome menu suggestions: {e}")
