@@ -254,6 +254,54 @@
 }
 
 
+/* ── Company information ─────────────────────────────────────────── */
+
+/* cr-skeleton carries the shimmer but no dimensions. These bars stand in for
+   three label+input pairs and the save button so the panel keeps its height
+   when the form replaces them. */
+.dashboard-page .team-company-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 16px;
+}
+
+.dashboard-page .team-company-skeleton > div {
+    height: 60px;
+}
+
+/* Scoped through the parent so it outranks the bar height above rather than
+   tying at 0,2,0 and losing to source order. */
+.dashboard-page .team-company-skeleton > .team-company-skeleton-action {
+    width: 190px;
+    height: 40px;
+}
+
+/* Read-only for a member. The dashed edge and the still cursor carry the
+   state without leaning on colour, and the note beneath the fields says it in
+   words. The field stays focusable, so its value is still reachable and
+   readable by keyboard. */
+.dashboard-page .team-company .kw-input[readonly] {
+    border-style: dashed;
+    color: var(--control-text-secondary);
+    cursor: default;
+}
+
+/* A read-only field must not borrow the accent border that means "typing here
+   does something". The :focus-visible ring is a separate rule and survives. */
+.dashboard-page .team-company .kw-input[readonly]:focus {
+    border-color: var(--control-border);
+}
+
+/* .kw-field spacing is adjacency-only and stops after the last field, so the
+   trailing notes and the action carry their own rhythm. Both are [hidden] in
+   some roles, and [hidden] is display:none, so neither leaves a gap behind. */
+.dashboard-page .team-company-note,
+.dashboard-page .team-company-save {
+    margin-top: 18px;
+}
+
+
 /* ── Toolbar ─────────────────────────────────────────────────────────── */
 
 /* The primary action lives here rather than in .kw-header-aside: a fixed

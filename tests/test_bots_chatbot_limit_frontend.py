@@ -242,7 +242,9 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
         self.assertIn('font-family: "JetBrains Mono"', self.html)
         self.assertIn('id="bot-search"', self.html)
         self.assertIn('id="bot-status-filter"', self.html)
-        self.assertIn('setAttribute("variant", "control-room")', self.html)
+        # The variant is now declared on the element itself rather than being
+        # assigned by script; the guarantee under test is unchanged.
+        self.assertIn('variant="control-room"', self.html)
         self.assertIn(':host([variant="control-room"]) .account-button', self.shared_ui)
 
     def test_bot_rendering_escapes_user_controlled_text(self):

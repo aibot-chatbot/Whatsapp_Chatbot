@@ -546,10 +546,16 @@ class ChatbotSidebar extends HTMLElement {
                     </div>
                 </a>
                 ` : ""}
-                <a href="pricing.html${botQuery}" class="profile-link" title="Pricing & Billing">
+                <a href="billing.html${botQuery}" class="profile-link" title="Billing & Credits">
                     <div class="profile-link-content">
                         <i data-lucide="credit-card"></i>
                         <span>Billing</span>
+                    </div>
+                </a>
+                <a href="pricing.html${botQuery}" class="profile-link" title="Plans & Usage">
+                    <div class="profile-link-content">
+                        <i data-lucide="layers"></i>
+                        <span>Plans</span>
                     </div>
                 </a>
                 <div class="sidebar-account">

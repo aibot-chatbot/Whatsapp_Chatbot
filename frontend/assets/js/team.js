@@ -41,6 +41,7 @@
         role: null,
         userId: null,
         canManage: false,
+        canEditCompany: false,
         entitlement: { loaded: false, used: 0, pending: 0, limit: null }
     };
 
@@ -439,6 +440,138 @@
         state.invites.forEach(function (invite) { host.appendChild(inviteRow(invite)); });
     }
 
+    /* ── company information ───────────────────────────────────────────
+
+       Moved off the profile page, which is personal-only now. It costs no
+       extra request: loadAll() already reads /api/workspace, and that payload
+       carries the company record and can_edit_company together.
+
+       The three states are the panel's own. The skeleton is the markup's
+       starting state rather than something re-applied on every reload, so a
+       roster mutation does not flash this panel back to loading — exactly how
+       #tm-loading behaves for the roster. */
+
+    var COMPANY_FIELDS = [
+        ["tm-company-name", "name"],
+        ["tm-company-email", "contact_email"],
+        ["tm-company-phone", "contact_phone"]
+    ];
+
+    function setCompanyPhase(phase) {
+        var nodes = {
+            loading: $("tm-company-loading"),
+            error: $("tm-company-error"),
+            ready: $("tm-company-form")
+        };
+        Object.keys(nodes).forEach(function (key) {
+            if (nodes[key]) nodes[key].hidden = key !== phase;
+        });
+    }
+
+    /* One message node shared by the two validated fields, mirroring the
+       invite dialog. aria-invalid marks only the field at fault. */
+    function setCompanyError(message, fieldId) {
+        var node = $("tm-company-note");
+        if (node) {
+            node.textContent = message || "";
+            node.hidden = !message;
+        }
+        COMPANY_FIELDS.forEach(function (pair) {
+            var input = $(pair[0]);
+            if (input) {
+                input.setAttribute("aria-invalid",
+                    (message && pair[0] === fieldId) ? "true" : "false");
+            }
+        });
+        if (message && fieldId && $(fieldId)) $(fieldId).focus();
+    }
+
+    function renderCompany(workspace) {
+        var company = asObject(workspace && workspace.company) || {};
+        /* can_edit_company, not can_manage_team: the server computes them the
+           same way today, but this endpoint is guarded by the former. */
+        state.canEditCompany = !!(workspace && workspace.can_edit_company === true);
+
+        COMPANY_FIELDS.forEach(function (pair) {
+            var input = $(pair[0]);
+            if (!input) return;
+            input.value = company[pair[1]] || "";
+            /* readonly, not disabled. A disabled input leaves the tab order
+               and goes unread, so a member could not review the value they
+               are being shown; readonly stays focusable and is announced as
+               read-only. Neither is a control — see saveCompany(). */
+            input.readOnly = !state.canEditCompany;
+            input.setAttribute("aria-readonly", state.canEditCompany ? "false" : "true");
+        });
+
+        var note = $("tm-company-readonly-note");
+        if (note) note.hidden = state.canEditCompany;
+
+        var save = $("tm-company-save");
+        if (save) {
+            save.hidden = !state.canEditCompany;
+            save.disabled = !state.canEditCompany;
+        }
+
+        setCompanyError("");
+        setCompanyPhase("ready");
+    }
+
+    async function saveCompany() {
+        /* The disabled button and the readonly inputs are affordances, not
+           the control. This guard stops a re-enabled DOM, and the server
+           answers a non-admin PUT with 403 whatever the DOM says. */
+        if (!state.canEditCompany) return;
+
+        var name = String($("tm-company-name").value || "").trim();
+        var email = String($("tm-company-email").value || "").trim().toLowerCase();
+        var phone = String($("tm-company-phone").value || "").trim();
+
+        /* Mirrors app/services/workspace_service.py so the reader is told
+           before the round trip, never instead of it. */
+        if (!name) {
+            setCompanyError("Company name is required.", "tm-company-name");
+            return;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            setCompanyError("Please enter a valid company contact email.", "tm-company-email");
+            return;
+        }
+        setCompanyError("");
+
+        var button = $("tm-company-save");
+        if (button) button.disabled = true;
+
+        try {
+            var res = await authenticatedFetch("/api/workspace", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    company_name: name,
+                    contact_email: email,
+                    contact_phone: phone
+                })
+            });
+            var body = await res.json();
+            if (body && body.status === "success") {
+                /* Reload first, announce after, like every other mutation
+                   here: loadAll() opens with clearBanner(). It also re-reads
+                   the stored record, so the fields end up showing what the
+                   server actually kept after trimming and lowercasing, not
+                   what was typed. */
+                var message = body.message || "Company information updated successfully.";
+                await loadAll();
+                showBanner(message, "success");
+            } else {
+                showBanner(messageFor(body, "Unable to update company information."), "error");
+            }
+        } catch (_) {
+            showBanner("We could not reach the server. Check your connection and try again.", "error");
+        }
+
+        if (button) button.disabled = !state.canEditCompany;
+    }
+
     /* ── mutations ─────────────────────────────────────────────────────
 
        Every success path reloads FIRST and raises the banner afterwards.
@@ -722,11 +855,13 @@
                 pending: Number(workspace.pending_invitation_count) || 0,
                 limit: (numericLimit !== null && isFinite(numericLimit)) ? numericLimit : null
             };
+            renderCompany(workspace);
         } else {
             showBanner(
                 "We could not load your workspace details. Some actions are unavailable.",
                 "error"
             );
+            setCompanyPhase("error");
         }
 
         var session = null;
@@ -754,6 +889,12 @@
             event.preventDefault();
             submitInvite();
         });
+
+        $("tm-company-form").addEventListener("submit", function (event) {
+            event.preventDefault();
+            saveCompany();
+        });
+        $("tm-company-retry").addEventListener("click", function () { loadAll(); });
 
         $("tm-confirm-cancel").addEventListener("click", function () { settleConfirm(false); });
         $("tm-confirm-close").addEventListener("click", function () { settleConfirm(false); });

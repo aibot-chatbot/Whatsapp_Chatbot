@@ -145,6 +145,78 @@
 
                     <div id="tm-invites"></div>
                 </section>
+
+                <!-- Company information. Moved here from the old profile
+                     page, which is now personal-only. Reading it is open to
+                     every role; the write controls are gated per control, the
+                     same way the roster's are, so a member sees the details
+                     rather than a locked panel. -->
+                <section class="kw-panel cr-reveal team-company" aria-labelledby="tm-company-title">
+                    <div class="kw-panel-head">
+                        <div>
+                            <h2 class="kw-panel-title" id="tm-company-title">Company information</h2>
+                            <p class="kw-help">How this workspace is named on invitations, receipts and support requests.</p>
+                        </div>
+                    </div>
+
+                    <div class="team-company-skeleton" id="tm-company-loading">
+                        <div class="cr-skeleton"></div>
+                        <div class="cr-skeleton"></div>
+                        <div class="cr-skeleton"></div>
+                        <div class="cr-skeleton team-company-skeleton-action"></div>
+                    </div>
+
+                    <div class="kw-panel-body" id="tm-company-error" hidden>
+                        <div class="kw-banner kw-banner-error">
+                            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                            </svg>
+                            <span>We could not load your company information.</span>
+                            <button type="button" class="kw-btn cr-press" id="tm-company-retry"
+                                    style="margin-left:auto">Try again</button>
+                        </div>
+                    </div>
+
+                    <form class="kw-panel-body" id="tm-company-form" novalidate hidden>
+                        <!-- Flat siblings on purpose: kw-field spacing is
+                             adjacency-only (.kw-field + .kw-field), so a
+                             wrapper div between these would silently remove
+                             the gap. The email note sits INSIDE its own field
+                             for the same reason. -->
+                        <div class="kw-field">
+                            <label class="kw-label" for="tm-company-name">Company name</label>
+                            <input class="kw-input" type="text" id="tm-company-name" name="company_name"
+                                   maxlength="200" autocomplete="organization"
+                                   aria-describedby="tm-company-note">
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="tm-company-email">Company contact email</label>
+                            <input class="kw-input" type="email" id="tm-company-email" name="contact_email"
+                                   maxlength="320" autocomplete="email" inputmode="email" spellcheck="false"
+                                   aria-describedby="tm-company-email-note tm-company-note">
+                            <p class="kw-help" id="tm-company-email-note">This is separate from your read-only login email.</p>
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="tm-company-phone">Company phone</label>
+                            <input class="kw-input" type="tel" id="tm-company-phone" name="contact_phone"
+                                   maxlength="50" autocomplete="tel">
+                        </div>
+
+                        <p class="kw-help team-company-note" id="tm-company-note" role="alert"
+                           style="color:var(--control-warning)" hidden></p>
+                        <p class="kw-help team-company-note" id="tm-company-readonly-note" hidden>Only company administrators can edit this information.</p>
+
+                        <!-- No wrapper: hiding the sole action for a member
+                             must leave no empty row behind it. -->
+                        <button type="submit" class="kw-btn kw-btn-primary cr-press team-company-save"
+                                id="tm-company-save" hidden disabled>
+                            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" />
+                            </svg>
+                            Save company information
+                        </button>
+                    </form>
+                </section>
             </div>
 
             <!-- Seat entitlement rail -->
