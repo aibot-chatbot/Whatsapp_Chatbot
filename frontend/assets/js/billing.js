@@ -472,7 +472,7 @@
     }
 
     function planActionLabel(sub, plan) {
-        var status = (sub.status || "").toLowerCase();
+        var status = (sub.effective_status || sub.status || "").toLowerCase();
         var code = (plan.code || "").toLowerCase();
         var cancelScheduled = sub.cancellation_effective_at != null;
         var downgradeScheduled = sub.pending_plan != null;
