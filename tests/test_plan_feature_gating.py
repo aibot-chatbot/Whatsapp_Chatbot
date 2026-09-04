@@ -2,19 +2,16 @@
 
 What is actually under test
 ---------------------------
-``billing_guard.can_use_plan_feature`` **fails open twice**: a plan whose
-``feature_flags`` is NULL/not-a-dict is allowed (``billing_guard.py:435-436``),
-and so is a plan whose flags map simply lacks the key
-(``billing_guard.py:439-440``).  Registering a key in ``PLAN_FEATURES``
-therefore gates *nothing* on its own -- the migration that writes the key on
-every plan row is the gate.  A plan code the migration forgets keeps the
-capability silently, for free, forever.
+``billing_guard.can_use_plan_feature`` fails closed: a plan must carry an
+exact boolean ``True`` for the requested key.  ``None``, malformed flags,
+missing keys, explicit ``False`` values, and non-boolean truthy values are
+all denied.
 
 So the load-bearing test in this module is
 :class:`TestMigrationSetsEveryKeyOnEveryPlan`, which parses the shipped SQL and
 asserts that **every** ``PLAN_FEATURES`` key has an **explicit boolean** on
-**every** plan code the migrations know about.  A key added to one plan and not
-another fails here rather than failing open in production.
+**every** plan code the migrations know about, so intended grants stay visible
+in data instead of depending on application defaults.
 
 LLM cost
 --------
@@ -176,8 +173,8 @@ class TestPlanFeatureRegistry(unittest.TestCase):
             with self.subTest(feature_key=key):
                 self.assertIn(key, PLAN_FEATURES)
 
-    def test_an_unregistered_key_is_rejected_rather_than_allowed(self):
-        with self.assertRaises(ValueError):
+    def test_an_unregistered_key_is_denied_rather_than_allowed(self):
+        with self.assertRaises(BillingLimitError):
             can_use_plan_feature(1, "unified_knowledge_ingest")  # near-miss typo
 
 
@@ -375,19 +372,8 @@ class TestGuardMatchesTheMatrix(unittest.TestCase):
         )
 
 
-class TestGuardFailsOpenWithoutTheMigration(unittest.TestCase):
-    """Characterisation of the fail-open. Not an endorsement of it.
-
-    Nothing else in the suite pins this, so nothing else would notice if it
-    changed -- in *either* direction.  It is pinned here because the entire
-    gate rests on it: the code grants, the data denies, and every plan row that
-    data/042 has not reached keeps all three capabilities.
-
-    If someone deliberately inverts this to deny-by-default, these three tests
-    fail and say so -- at which point data/042 stops being load-bearing and the
-    migration's own header comments need rewriting too.  Change them together
-    or not at all.
-    """
+class TestGuardFailsClosedWithoutTheMigration(unittest.TestCase):
+    """The application denies malformed or incomplete feature-flag data."""
 
     COMPANY_ID = 4242
 
@@ -409,20 +395,21 @@ class TestGuardFailsOpenWithoutTheMigration(unittest.TestCase):
             except BillingLimitError:
                 return False
 
-    def test_a_plan_row_the_migration_never_reached_keeps_the_capability(self):
-        # The 042-not-applied case, and the new-plan-row-added-later case.
-        self.assertTrue(
-            self._allowed_with_flags({"batch_website_scraping": True}),
-            "an absent key is allowed: data/042 must reach every plan row",
-        )
+    def test_a_plan_row_the_migration_never_reached_is_denied(self):
+        self.assertFalse(self._allowed_with_flags({"batch_website_scraping": True}))
 
-    def test_a_null_feature_flags_column_keeps_the_capability(self):
-        self.assertTrue(self._allowed_with_flags(None))
+    def test_a_null_feature_flags_column_is_denied(self):
+        self.assertFalse(self._allowed_with_flags(None))
 
-    def test_a_non_object_feature_flags_column_keeps_the_capability(self):
+    def test_a_non_object_feature_flags_column_is_denied(self):
         for junk in ("[]", [], 0, "true"):
             with self.subTest(feature_flags=junk):
-                self.assertTrue(self._allowed_with_flags(junk))
+                self.assertFalse(self._allowed_with_flags(junk))
+
+    def test_truthy_non_boolean_values_are_denied(self):
+        for value in ("true", 1):
+            with self.subTest(value=value):
+                self.assertFalse(self._allowed_with_flags({CONVERSATION_MEMORY: value}))
 
 
 class TestChatbotScopedGuard(unittest.TestCase):
@@ -492,17 +479,11 @@ CURRENT_USER = {
 def plan_gate_for(plan_code: str):
     """A can_use_plan_feature double answering from the migrated flags.
 
-    Mirrors the real guard's semantics exactly, including the fail-open on an
-    absent key (``billing_guard.py:439-440``).  A double that raised for an
-    absent key would make the route tests below structurally incapable of ever
-    observing a fail-open, which is the single failure mode this whole module
-    exists to catch.
+    Mirrors the real guard's fail-closed semantics for absent keys.
     """
 
     def gate(company_id, feature_key):
         flags = MIGRATED_FLAGS[plan_code]
-        if feature_key not in flags:
-            return True  # fail-open, exactly as can_use_plan_feature does
         if flags.get(feature_key) is True:
             return True
         raise BillingLimitError(

@@ -276,6 +276,16 @@
         note.textContent = "Your plan decides which models you can choose.";
     }
 
+    function hasEntitledFeature(featureKey) {
+        if (!catalogue || !window.modelCatalog || !window.modelCatalog.hasAnyAccess(catalogue)) {
+            return false;
+        }
+        var flags = catalogue.access
+            && catalogue.access.plan
+            && catalogue.access.plan.feature_flags;
+        return Boolean(flags && typeof flags === "object" && flags[featureKey] === true);
+    }
+
     function readyRow(iconPath, name, value, tone, label) {
         var li = document.createElement("li");
         li.className = "bh-ready-row";
@@ -1082,15 +1092,13 @@
         $("bh-quick-replies").checked = draft.quickReplies;
         $("bh-markdown").checked = draft.markdown;
 
-        if (catalogue && catalogue.access && catalogue.access.plan && catalogue.access.plan.feature_flags) {
-            if (!catalogue.access.plan.feature_flags.ai_assisted_menu_generation) {
-                var menuGenerateBtn = $("bh-menu-generate");
-                if (menuGenerateBtn) {
-                    menuGenerateBtn.disabled = true;
-                    menuGenerateBtn.title = "Upgrade to use";
-                    menuGenerateBtn.style.opacity = "0.5";
-                    menuGenerateBtn.style.cursor = "not-allowed";
-                }
+        if (!hasEntitledFeature("ai_assisted_menu_generation")) {
+            var menuGenerateBtn = $("bh-menu-generate");
+            if (menuGenerateBtn) {
+                menuGenerateBtn.disabled = true;
+                menuGenerateBtn.title = "Upgrade to use";
+                menuGenerateBtn.style.opacity = "0.5";
+                menuGenerateBtn.style.cursor = "not-allowed";
             }
         }
 

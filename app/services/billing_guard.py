@@ -387,10 +387,9 @@ def can_accept_team_invitation(company_id: int) -> bool:
 # Model-access categories (Economy, Standard, Premium) are NOT boolean
 # features and require separate design.
 #
-# Registering a key here gates NOTHING on its own: can_use_plan_feature
-# returns True when feature_flags is NULL/not-a-dict (:435-436) or lacks
-# the key (:439-440). data/042_gate_new_capability_feature_flags.sql is the
-# real gate: every key below must be set explicitly on every plan code there.
+# Registering a key here makes can_use_plan_feature fail closed unless the
+# current plan carries an exact boolean True for that key. The seed/migration
+# data still sets every key explicitly so intended grants are visible in data.
 PLAN_FEATURES = frozenset({
     "batch_website_scraping",
     "single_website_scraping",
@@ -419,21 +418,19 @@ def can_use_plan_feature(company_id, feature_key):
         absent).  If no subscription can be resolved, the feature is
         denied.
 
-    Backward-compatibility rules (temporary - each plan must be configured
-    explicitly before public launch):
-        * Feature key missing from the plan ``feature_flags``   -> allowed
-        * ``feature_flags`` column is NULL or empty dict        -> allowed
+    Fail-closed rules:
+        * Feature explicitly set to boolean ``true``            -> allowed
+        * Feature missing, malformed, or any non-true value     -> denied
         * No active subscription exists                         -> denied
-        * Feature explicitly set to ``true``                    -> allowed
-        * Feature explicitly set to ``false``                   -> blocked
     """
     if not feature_key or not isinstance(feature_key, str):
         raise ValueError("feature_key must be a non-empty string")
 
     if feature_key not in PLAN_FEATURES:
-        raise ValueError(
-            "Unknown feature key: " + repr(feature_key) + ". "
-            "Recognised keys: " + str(sorted(PLAN_FEATURES))
+        raise BillingLimitError(
+            "The feature \"" + feature_key + "\" is not available on your current subscription plan.",
+            code="feature_not_available",
+            details={"feature_key": feature_key},
         )
 
     subscription = _resolve_company_subscription(company_id)
@@ -446,20 +443,18 @@ def can_use_plan_feature(company_id, feature_key):
     plan = subscription.get("plan") or {}
     feature_flags = plan.get("feature_flags")
 
-    # Backward compatibility: missing or null flags -> allow
     if feature_flags is None or not isinstance(feature_flags, dict):
-        return True
-
-    # Feature key not present in the flags map -> allow (temporary compat)
-    if feature_key not in feature_flags:
-        return True
+        raise BillingLimitError(
+            "The feature \"" + feature_key + "\" is not available on your current subscription plan.",
+            code="feature_not_available",
+            details={"feature_key": feature_key},
+        )
 
     enabled = feature_flags.get(feature_key)
 
     if enabled is True:
         return True
 
-    # Explicitly false (or any falsy non-None value) -> block
     raise BillingLimitError(
         "The feature \"" + feature_key + "\" is not available on your current subscription plan.",
         code="feature_not_available",
