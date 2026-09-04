@@ -1144,18 +1144,16 @@ def get_subscription_renewal_status(company_id: int) -> dict:
     subscription = _get_latest_sub(company_id)
     if not subscription:
         raise ValueError(f"No subscription found for company {company_id}")
-    status = (subscription.get("status") or "").strip().lower()
+    raw_status = (subscription.get("status") or "").strip().lower()
     now = datetime.now(timezone.utc)
     period_end_str = subscription.get("current_period_end")
-    period_end = None
-    if period_end_str:
-        try:
-            period_end = datetime.fromisoformat(period_end_str)
-        except (ValueError, TypeError):
-            pass
+    period_end = parse_iso_datetime(period_end_str)
     period_start_str = subscription.get("current_period_start")
     pending_plan_id = subscription.get("pending_plan_id")
     cancellation_effective_at = subscription.get("cancellation_effective_at")
+    plan = subscription.get("plan")
+    effective = resolve_effective_subscription_status(subscription, plan, now=now)
+    status = (effective.get("effective_status") or raw_status).strip().lower()
     days_until_expiry = None
     expiry_date = None
     if period_end:
@@ -1185,8 +1183,8 @@ def get_subscription_renewal_status(company_id: int) -> dict:
                 break
     next_plan = None
     if pending_plan_id:
-        from app.database.subscription_plan_repository import get_plan_by_id
-        plan = get_plan_by_id(pending_plan_id)
+        from app.database.subscription_plan_repository import get_plan_by_id as _get_pending_plan_by_id
+        plan = _get_pending_plan_by_id(pending_plan_id)
         if plan:
             next_plan = {
                 "id": plan.get("id"),
@@ -1201,6 +1199,7 @@ def get_subscription_renewal_status(company_id: int) -> dict:
     message = _build_renewal_message(status, days_until_expiry, grace_period_active, grace_period_end, pending_renewal_order, cancellation_effective_at)
     return {
         "subscription_status": status,
+        "raw_subscription_status": raw_status,
         "period_start": period_start_str,
         "period_end": expiry_date,
         "days_until_expiry": days_until_expiry,
