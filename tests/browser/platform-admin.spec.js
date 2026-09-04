@@ -1112,6 +1112,28 @@ test.describe("platform-admin state clearing and lifecycle", () => {
     await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
     await expect(page.getByText("Example Tenant")).toHaveCount(0);
   });
+
+  test("logout prevents direct platform reload and leaves no stale tenant data", async ({ page }) => {
+    let meCalls = 0;
+    await installSession(page);
+    await mockPlatformApi(page, ({ url }) => {
+      if (url.pathname === "/api/platform-admin/me") {
+        meCalls += 1;
+        return meCalls === 1 ? success(identity) : failure(401, "invalid_token");
+      }
+      return defaultHandler({ url });
+    });
+
+    await page.goto("/platform-admin-companies.html");
+    await expect(page.getByRole("cell", { name: "Example Tenant <script>window.__xss = true</script>" })).toBeVisible();
+    await page.getByRole("button", { name: "Logout" }).click();
+    await expect(page).toHaveURL(/login\.html$/);
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem("token"))).toBeNull();
+
+    await page.goto("/platform-admin-companies.html");
+    await expect(page).toHaveURL(/login\.html$/);
+    await expect(page.getByText("Example Tenant")).toHaveCount(0);
+  });
 });
 
 test.describe("platform-admin dashboard and directory", () => {
@@ -1587,18 +1609,32 @@ test.describe("platform-admin support workspace", () => {
   });
 
   test("case detail renders operational controls and uses split mutation endpoints", async ({ page }) => {
+    let currentCase = { ...supportCase };
+    const currentDetail = () => ({ ...supportCaseDetail, case: { ...currentCase } });
     const calls = await openPlatformPage(page, "/platform-admin-support.html", ({ request, url }) => {
-      if (url.pathname === "/api/platform-admin/support-cases/9/assignment") {
-        return success({ ...supportCaseDetail, case: { ...supportCase, assigned_platform_admin_user_id: null } });
+      if (url.pathname === "/api/platform-admin/support-cases") {
+        return success({ ...supportCases, cases: [{ ...currentCase }] });
       }
-      if (url.pathname === "/api/platform-admin/support-cases/9/status") {
-        return success({ ...supportCaseDetail, case: { ...supportCase, status: "in_progress" } });
+      if (url.pathname === "/api/platform-admin/support-cases/9") {
+        return success(currentDetail());
       }
-      if (url.pathname === "/api/platform-admin/support-cases/9/priority") {
-        return success({ ...supportCaseDetail, case: { ...supportCase, priority: "high" } });
+      if (url.pathname === "/api/platform-admin/support-cases/9/replies") {
+        return success({ ...supportCaseReplies, case: { ...currentCase } });
       }
-      if (url.pathname === "/api/platform-admin/support-cases/9/notes") {
-        return success(supportCaseDetail);
+      if (url.pathname === "/api/platform-admin/support-cases/9/assignment" && request.method() === "PATCH") {
+        currentCase = { ...currentCase, assigned_platform_admin_user_id: null };
+        return success(currentDetail());
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/status" && request.method() === "PATCH") {
+        currentCase = { ...currentCase, status: "in_progress" };
+        return success(currentDetail());
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/priority" && request.method() === "PATCH") {
+        currentCase = { ...currentCase, priority: "high" };
+        return success(currentDetail());
+      }
+      if (url.pathname === "/api/platform-admin/support-cases/9/notes" && request.method() === "POST") {
+        return success(currentDetail());
       }
       return defaultHandler({ request, url });
     });
@@ -1618,6 +1654,7 @@ test.describe("platform-admin support workspace", () => {
     await page.getByRole("button", { name: "Update assignee" }).click();
     await page.getByLabel("Next status").selectOption("in_progress");
     await page.getByRole("button", { name: "Update status" }).click();
+    await expect(page.getByText("In progress", { exact: true }).first()).toBeVisible();
     await page.getByLabel("Priority").selectOption("high");
     await expect(page.getByRole("button", { name: "Update priority" })).toBeEnabled();
     await page.getByRole("button", { name: "Update priority" }).click();
@@ -2100,6 +2137,325 @@ test.describe("platform-admin company detail", () => {
     const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=0", ({ url }) => defaultHandler({ url }));
     await expect(page.getByRole("heading", { name: "Invalid company" })).toBeVisible();
     expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me"]);
+  });
+
+  test("mocked company detail navigation does not leak data across tenants", async ({ page }) => {
+    const tenants = {
+      200: {
+        company: {
+          id: 200,
+          company_name: "Company A Isolation",
+          business_type: "Education",
+          status: "active",
+          contact_email: "owner-a@example.test",
+          contact_phone: "+60000000200",
+          created_at: "2026-08-01T00:00:00+00:00",
+          updated_at: "2026-08-02T00:00:00+00:00"
+        },
+        plan: { code: "essential", name: "Essential", billing_interval: "monthly", currency: "MYR", price: "39.00" },
+        users: ["a-owner@example.test", "a-agent@example.test"],
+        balance: 5000000,
+        orders: [{ id: 2001, status: "credited", amount_sen: 3900, new_plan: { code: "essential", name: "Essential" } }],
+        supportTitle: "Company A billing question"
+      },
+      201: {
+        company: {
+          id: 201,
+          company_name: "Company B Isolation",
+          business_type: "Retail",
+          status: "active",
+          contact_email: "owner-b@example.test",
+          contact_phone: "+60000000201",
+          created_at: "2026-08-03T00:00:00+00:00",
+          updated_at: "2026-08-04T00:00:00+00:00"
+        },
+        plan: { code: "pro", name: "Pro", billing_interval: "monthly", currency: "MYR", price: "169.00" },
+        users: ["b-owner@example.test", "b-ops@example.test", "b-sales@example.test", "b-agent@example.test", "b-admin@example.test"],
+        balance: 60000000,
+        orders: [{ id: 2011, status: "credited", amount_sen: 16900, new_plan: { code: "pro", name: "Pro" } }],
+        supportTitle: "Company B onboarding question"
+      }
+    };
+
+    function tenantPayload(id) {
+      return tenants[id] || null;
+    }
+
+    function listUsers(id) {
+      const tenant = tenantPayload(id);
+      return {
+        users: tenant.users.map((email, index) => ({
+          id: id * 10 + index,
+          company_id: id,
+          full_name: `${tenant.company.company_name} User ${index + 1}`,
+          email,
+          role: index === 0 ? "owner" : "member",
+          status: "active",
+          created_at: tenant.company.created_at,
+          updated_at: tenant.company.updated_at
+        })),
+        pagination: { limit: 25, offset: 0, returned: tenant.users.length, total: tenant.users.length, has_more: false },
+        sort: { by: "created_at", order: "desc" },
+        filters: { search_applied: false }
+      };
+    }
+
+    function handler({ url }) {
+      if (url.pathname === "/api/platform-admin/me") return success(identity);
+      const companyMatch = url.pathname.match(/^\/api\/platform-admin\/companies\/(\d+)(?:\/([^?]+))?$/);
+      if (companyMatch) {
+        const id = Number(companyMatch[1]);
+        const tenant = tenantPayload(id);
+        const child = companyMatch[2] || "";
+        if (!tenant) return failure(404, "company_not_found");
+        if (!child) return success(tenant.company);
+        if (child === "subscription") {
+          return success({
+            company: { id },
+            subscription: {
+              company_id: id,
+              status: "active",
+              plan: tenant.plan,
+              current_period_start: "2026-08-01T00:00:00+00:00",
+              current_period_end: "2026-09-01T00:00:00+00:00"
+            }
+          });
+        }
+        if (child === "ai-credit-usage") {
+          return success({
+            company: { id },
+            period: { start: "2026-08-01T00:00:00+00:00", end: "2026-09-01T00:00:00+00:00" },
+            credit_balance: {
+              initialized: true,
+              included_balance_micro_myr: tenant.balance,
+              topup_balance_micro_myr: 0,
+              total_balance_micro_myr: tenant.balance
+            },
+            usage: { request_count: id === 200 ? 2 : 5, prompt_tokens: 10, completion_tokens: 5, total_tokens: 15, provider_cost_micro_usd: 100 },
+            charges: { transaction_count: 0, customer_charge_micro_myr: 0, uncovered_charge_micro_myr: 0, provider_cost_micro_usd: 0 }
+          });
+        }
+        if (child === "billing-orders") {
+          return success({
+            billing_orders: tenant.orders,
+            pagination: { limit: 25, offset: 0, returned: tenant.orders.length, total: tenant.orders.length, has_more: false },
+            filters: { status: null },
+            ordering: { by: "created_at", order: "desc", tie_breaker: "id desc" },
+            amount_units: { amount_sen: "integer sen as stored; currency is not returned or inferred" }
+          });
+        }
+        if (child === "users") return success(listUsers(id));
+        if (child === "chatbots") {
+          return success({
+            chatbots: [],
+            pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false },
+            sort: { by: "created_at", order: "desc" },
+            filters: { search_applied: false, state: "current" }
+          });
+        }
+      }
+      if (url.pathname === "/api/platform-admin/tenant-support-requests") {
+        const id = Number(url.searchParams.get("company_id"));
+        const tenant = tenantPayload(id);
+        return success({
+          requests: tenant ? [{
+            request_id: id * 100,
+            company_id: id,
+            requester_user_id: id * 10,
+            category: "billing",
+            status: "reviewed",
+            priority: "normal",
+            source: "tenant_portal",
+            title: tenant.supportTitle,
+            created_at: tenant.company.created_at,
+            updated_at: tenant.company.updated_at
+          }] : [],
+          pagination: { limit: 10, offset: 0, returned: tenant ? 1 : 0, total: tenant ? 1 : 0, has_more: false },
+          filters: { company_id: id, category: null, status: null }
+        });
+      }
+      if (url.pathname === "/api/platform-admin/support-cases") {
+        const id = Number(url.searchParams.get("company_id"));
+        const tenant = tenantPayload(id);
+        return success({
+          cases: tenant ? [{
+            id: id * 200,
+            company_id: id,
+            title: `${tenant.company.company_name} internal case`,
+            status: "open",
+            priority: "normal",
+            updated_at: tenant.company.updated_at
+          }] : [],
+          pagination: { limit: 10, offset: 0, returned: tenant ? 1 : 0, total: tenant ? 1 : 0, has_more: false },
+          filters: { company_id: id, status: null, priority: null }
+        });
+      }
+      return failure(404, "company_not_found");
+    }
+
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=200", handler);
+
+    async function loadLazyDetail() {
+      await page.getByRole("button", { name: "Load billing orders" }).click();
+      await page.getByRole("button", { name: "Load support history" }).click();
+      await page.getByRole("button", { name: "Load users" }).click();
+    }
+
+    async function expectTenantVisible(id, absentId) {
+      const tenant = tenantPayload(id);
+      const absent = tenantPayload(absentId);
+      await expect(page.getByRole("heading", { name: tenant.company.company_name })).toBeVisible();
+      await expect(page.getByText(tenant.plan.name, { exact: true }).first()).toBeVisible();
+      await expect(page.getByText(tenant.company.contact_email)).toBeVisible();
+      await loadLazyDetail();
+      await expect(page.getByRole("cell", { name: tenant.users[0] }).first()).toBeVisible();
+      await expect(page.getByRole("cell", { name: tenant.users[tenant.users.length - 1] }).first()).toBeVisible();
+      await expect(page.getByRole("cell", { name: String(tenant.orders[0].amount_sen) + " sen" }).first()).toBeVisible();
+      await expect(page.getByRole("cell", { name: tenant.supportTitle }).first()).toBeVisible();
+      await expect(page.getByText(absent.company.company_name)).toHaveCount(0);
+      await expect(page.getByText(absent.company.contact_email)).toHaveCount(0);
+      await expect(page.getByText(absent.users[0])).toHaveCount(0);
+      await expect(page.getByText(absent.supportTitle)).toHaveCount(0);
+    }
+
+    await expectTenantVisible(200, 201);
+    await page.goto("/platform-admin-company.html?company_id=201");
+    await expectTenantVisible(201, 200);
+    await page.goto("/platform-admin-company.html?company_id=200");
+    await expectTenantVisible(200, 201);
+
+    await page.goto("/platform-admin-company.html?company_id=999");
+    await expect(page.getByRole("heading", { name: "Company Not Found" })).toBeVisible();
+    await expect(page.getByText("Company A Isolation")).toHaveCount(0);
+    await expect(page.getByText("Company B Isolation")).toHaveCount(0);
+
+    await page.goto("/platform-admin-company.html?company_id=0");
+    await expect(page.getByRole("heading", { name: "Invalid company" })).toBeVisible();
+    await expect(page.getByText("Company A Isolation")).toHaveCount(0);
+    await expect(page.getByText("Company B Isolation")).toHaveCount(0);
+
+    const scopedCompanyCalls = calls
+      .filter(call => call.path.startsWith("/api/platform-admin/companies/"))
+      .map(call => call.path);
+    expect(scopedCompanyCalls.some(path => path.includes("/companies/200"))).toBe(true);
+    expect(scopedCompanyCalls.some(path => path.includes("/companies/201"))).toBe(true);
+    expect(scopedCompanyCalls.filter(path => path.includes("/companies/999"))).toEqual(["/api/platform-admin/companies/999"]);
+    expect(calls
+      .filter(call => call.path === "/api/platform-admin/tenant-support-requests" || call.path === "/api/platform-admin/support-cases")
+      .every(call => call.search.includes("company_id=200") || call.search.includes("company_id=201"))).toBe(true);
+  });
+
+  test("subscription states remain company-scoped across active expired and scheduled-change tenants", async ({ page }) => {
+    const tenants = {
+      200: {
+        company: { id: 200, company_name: "Company A Essential Active", business_type: "Education", status: "active", contact_email: "owner-a@example.test" },
+        subscription: {
+          company_id: 200,
+          status: "active",
+          plan: { code: "essential", name: "Essential", billing_interval: "monthly", currency: "MYR", price: "39.00" },
+          current_period_start: "2026-08-01T00:00:00+00:00",
+          current_period_end: "2026-09-01T00:00:00+00:00",
+          pending_plan: null,
+          pending_plan_id: null
+        }
+      },
+      201: {
+        company: { id: 201, company_name: "Company B Pro Active", business_type: "Retail", status: "active", contact_email: "owner-b@example.test" },
+        subscription: {
+          company_id: 201,
+          status: "active",
+          plan: { code: "pro", name: "Pro", billing_interval: "monthly", currency: "MYR", price: "169.00" },
+          current_period_start: "2026-08-03T00:00:00+00:00",
+          current_period_end: "2026-09-03T00:00:00+00:00",
+          pending_plan: null,
+          pending_plan_id: null
+        }
+      },
+      202: {
+        company: { id: 202, company_name: "Company C Expired Pro", business_type: "Services", status: "active", contact_email: "owner-c@example.test" },
+        subscription: {
+          company_id: 202,
+          status: "expired",
+          plan: { code: "pro", name: "Pro", billing_interval: "monthly", currency: "MYR", price: "169.00" },
+          current_period_start: "2026-07-01T00:00:00+00:00",
+          current_period_end: "2026-08-01T00:00:00+00:00",
+          pending_plan: null,
+          pending_plan_id: null
+        }
+      },
+      203: {
+        company: { id: 203, company_name: "Company D Scheduled Downgrade", business_type: "Hospitality", status: "active", contact_email: "owner-d@example.test" },
+        subscription: {
+          company_id: 203,
+          status: "active",
+          plan: { code: "pro", name: "Pro", billing_interval: "monthly", currency: "MYR", price: "169.00" },
+          current_period_start: "2026-08-15T00:00:00+00:00",
+          current_period_end: "2026-09-15T00:00:00+00:00",
+          pending_plan: { code: "essential", name: "Essential", billing_interval: "monthly", currency: "MYR", price: "39.00" },
+          pending_plan_id: 1
+        }
+      }
+    };
+
+    function handler({ url }) {
+      if (url.pathname === "/api/platform-admin/me") return success(identity);
+      const companyMatch = url.pathname.match(/^\/api\/platform-admin\/companies\/(\d+)(?:\/([^?]+))?$/);
+      if (!companyMatch) return defaultHandler({ url });
+      const id = Number(companyMatch[1]);
+      const child = companyMatch[2] || "";
+      const tenant = tenants[id];
+      if (!tenant) return failure(404, "company_not_found");
+      if (!child) return success(tenant.company);
+      if (child === "subscription") return success({ company: { id }, subscription: tenant.subscription });
+      if (child === "ai-credit-usage") {
+        return success({
+          company: { id },
+          period: { start: "2026-08-01T00:00:00+00:00", end: "2026-09-01T00:00:00+00:00" },
+          credit_balance: { initialized: true, included_balance_micro_myr: id * 1000, topup_balance_micro_myr: 0, total_balance_micro_myr: id * 1000 },
+          usage: { request_count: id, prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, provider_cost_micro_usd: 0 },
+          charges: { transaction_count: 0, customer_charge_micro_myr: 0, uncovered_charge_micro_myr: 0, provider_cost_micro_usd: 0 }
+        });
+      }
+      return success({ pagination: { limit: 25, offset: 0, returned: 0, total: 0, has_more: false } });
+    }
+
+    const calls = await openPlatformPage(page, "/platform-admin-company.html?company_id=200", handler);
+
+    async function expectCompanySubscription(id, absentIds) {
+      const tenant = tenants[id];
+      await expect(page.getByRole("heading", { name: tenant.company.company_name })).toBeVisible();
+      await expect(page.getByText(tenant.company.contact_email)).toBeVisible();
+      await expect(page.getByText(tenant.subscription.status, { exact: true }).first()).toBeVisible();
+      await expect(page.getByText(tenant.subscription.plan.name, { exact: true }).first()).toBeVisible();
+      if (tenant.subscription.pending_plan) {
+        await expect(page.getByText(String(tenant.subscription.pending_plan_id), { exact: true }).first()).toBeVisible();
+      }
+      for (const absentId of absentIds) {
+        await expect(page.getByText(tenants[absentId].company.company_name)).toHaveCount(0);
+        await expect(page.getByText(tenants[absentId].company.contact_email)).toHaveCount(0);
+      }
+    }
+
+    await expectCompanySubscription(200, [201, 202, 203]);
+    await page.goto("/platform-admin-company.html?company_id=201");
+    await expectCompanySubscription(201, [200, 202, 203]);
+    await page.goto("/platform-admin-company.html?company_id=202");
+    await expectCompanySubscription(202, [200, 201, 203]);
+    await page.goto("/platform-admin-company.html?company_id=203");
+    await expectCompanySubscription(203, [200, 201, 202]);
+    await page.goto("/platform-admin-company.html?company_id=200");
+    await expectCompanySubscription(200, [201, 202, 203]);
+
+    const subscriptionCalls = calls
+      .filter(call => call.path.endsWith("/subscription"))
+      .map(call => call.path);
+    expect(subscriptionCalls).toEqual([
+      "/api/platform-admin/companies/200/subscription",
+      "/api/platform-admin/companies/201/subscription",
+      "/api/platform-admin/companies/202/subscription",
+      "/api/platform-admin/companies/203/subscription",
+      "/api/platform-admin/companies/200/subscription"
+    ]);
   });
 
   test("loads company first, then subscription and AI-credit summaries", async ({ page }) => {
