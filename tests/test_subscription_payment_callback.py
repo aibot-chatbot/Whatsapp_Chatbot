@@ -11,7 +11,9 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 import sys
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 import unittest
 from unittest.mock import patch, MagicMock
@@ -55,6 +57,10 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
         self.valid_callback = {
             "payment_gateway": "toyyibpay",
             "gateway_order_id": "bill-001",
+            # The gateway-signed order id. The handler cross-checks it against
+            # the order it finds by gateway_order_id, so it must match
+            # mock_order["order_reference"] below.
+            "order_reference": "abc-123",
             "paid": True,
             "payment_reference": "txn-001",
             "amount_sen": 3900,
@@ -343,6 +349,37 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
             and call.kwargs.get("reconciliation_required") is False
             for call in mock_update_activation_state.call_args_list
         ))
+
+
+    @patch(_SVC + "._get_order_by_gateway")
+    def test_callback_for_a_different_order_is_rejected(self, mock_get_order):
+        """A genuine callback must not be able to activate someone else's order.
+
+        ToyyibPay signs status, order_id and refno - but NOT billcode. The order
+        is located by billcode, so without comparing the signed order_id to the
+        order that was found, a valid callback paired with another order's
+        billcode activates the wrong subscription.
+        """
+        mock_get_order.return_value = self.mock_order  # order_reference "abc-123"
+
+        hostile = dict(self.valid_callback)
+        hostile["order_reference"] = "some-other-order"
+
+        with self.assertRaises(ValueError) as ctx:
+            process_subscription_payment_callback(hostile)
+        self.assertIn("does not match", str(ctx.exception))
+
+    @patch(_SVC + "._get_order_by_gateway")
+    def test_callback_without_order_reference_is_rejected(self, mock_get_order):
+        """The signed order id is mandatory; a callback lacking it cannot be trusted."""
+        mock_get_order.return_value = self.mock_order
+
+        incomplete = dict(self.valid_callback)
+        incomplete.pop("order_reference")
+
+        with self.assertRaises(ValueError) as ctx:
+            process_subscription_payment_callback(incomplete)
+        self.assertIn("order_reference", str(ctx.exception))
 
 
 class TestToyyibpayRouteDetection(unittest.TestCase):

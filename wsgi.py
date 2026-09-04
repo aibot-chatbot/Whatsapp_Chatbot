@@ -43,3 +43,17 @@ if _env_flag("WASENDER_RETRY_WORKER_ENABLED", default=True):
     except Exception as worker_error:
         # A dead retry worker must not stop the app from serving requests.
         logging.error("Wasender retry worker failed to start: %s", worker_error)
+
+
+# Same reasoning as above, for the billing jobs under app/jobs/. The runbook
+# prescribes cron for them, but fly.toml has no [processes] and Fly has no
+# built-in cron, so nothing ever ran them: subscriptions were never transitioned
+# to past_due/expired, stuck orders were never reconciled, and no expiry notice
+# was ever generated. Single-process only - see billing_scheduler_service.
+if _env_flag("BILLING_SCHEDULER_ENABLED", default=True):
+    try:
+        from app.services.billing_scheduler_service import start_billing_scheduler
+
+        start_billing_scheduler()
+    except Exception as scheduler_error:
+        logging.error("Billing scheduler failed to start: %s", scheduler_error)

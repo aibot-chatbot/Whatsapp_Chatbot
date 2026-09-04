@@ -1,9 +1,4 @@
-"""
-subscription_checkout_service.py
-
-Creates a pending subscription payment order and generates a ToyyibPay
-checkout bill.  No subscription activation or AI-credit grant happens here.
-"""
+"""Create pending subscription orders and hosted gateway checkouts."""
 
 import logging
 import os
@@ -19,7 +14,15 @@ from app.database.company_subscription_order_repository import (
     get_subscription_order_by_activation_sequence_key,
     expire_pending_subscription_order_for_checkout_retry,
     fail_pending_subscription_order_without_gateway_and_release_key,
+    update_subscription_order_activation_state,
     update_subscription_order_status,
+)
+from app.services.hitpay_service import (
+    HitPayAmbiguousError,
+    HitPayConfig,
+    HitPayConfigError,
+    HitPayRequestRejectedError,
+    create_payment_request,
 )
 from app.services.toyyibpay_service import (
     ToyyibPayConfig,
@@ -29,6 +32,8 @@ from app.services.toyyibpay_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+_PAYMENT_GATEWAYS = frozenset({"hitpay", "toyyibpay"})
 
 _PLAN_CODE_TO_SEN = {
     "essential": 3900,
@@ -53,13 +58,41 @@ def _clean(value: object) -> str:
 def _has_usable_checkout(order: dict) -> bool:
     checkout_url = _clean(order.get("checkout_url"))
     gateway_order_id = _clean(order.get("gateway_order_id"))
+    payment_gateway = _clean(order.get("payment_gateway")).lower() or "toyyibpay"
+    prefixes = {
+        "hitpay": (
+            "https://securecheckout.sandbox.hit-pay.com/",
+            "https://securecheckout.hit-pay.com/",
+        ),
+        "toyyibpay": (
+            "https://toyyibpay.com/",
+            "https://dev.toyyibpay.com/",
+        ),
+    }
     return (
         bool(gateway_order_id)
-        and (
-            checkout_url.startswith("https://toyyibpay.com/")
-            or checkout_url.startswith("https://dev.toyyibpay.com/")
-        )
+        and payment_gateway in prefixes
+        and checkout_url.startswith(prefixes[payment_gateway])
     )
+
+
+def get_subscription_payment_gateway(company_id: int | None = None) -> str:
+    """Resolve the server-controlled gateway, with an optional HitPay canary list."""
+    raw_canaries = os.getenv("HITPAY_CANARY_COMPANY_IDS", "").strip()
+    if raw_canaries and company_id is not None:
+        try:
+            canaries = {int(value.strip()) for value in raw_canaries.split(",") if value.strip()}
+        except ValueError as exc:
+            raise RuntimeError("HITPAY_CANARY_COMPANY_IDS must contain integer IDs") from exc
+        if company_id in canaries:
+            return "hitpay"
+
+    gateway = os.getenv("SUBSCRIPTION_PAYMENT_GATEWAY", "toyyibpay").strip().lower()
+    if gateway not in _PAYMENT_GATEWAYS:
+        raise RuntimeError(
+            "SUBSCRIPTION_PAYMENT_GATEWAY must be 'toyyibpay' or 'hitpay'"
+        )
+    return gateway
 
 
 def _is_incomplete_pending_checkout(order: dict) -> bool:
@@ -260,6 +293,7 @@ def _build_existing_checkout_result(order: dict) -> dict:
         "checkout_url": checkout_url,
         "amount_sen": amount_sen,
         "expires_at": order.get("expires_at"),
+        "payment_gateway": _clean(order.get("payment_gateway")).lower() or "toyyibpay",
         "existing_order": True,
     }
 
@@ -269,9 +303,13 @@ def prepare_subscription_checkout_order(
     user_id: int,
     plan_code: str,
     *,
+    payment_gateway: str = "toyyibpay",
     allow_existing_reusable_checkout: bool = False,
 ) -> dict:
-    """Create a pending subscription order without contacting ToyyibPay."""
+    """Create a pending subscription order without contacting a gateway."""
+    payment_gateway = _clean(payment_gateway).lower()
+    if payment_gateway not in _PAYMENT_GATEWAYS:
+        raise ValueError("Unsupported subscription payment gateway")
     # --- Validate plan code ---
     norm_code = plan_code.strip().lower()
     if norm_code not in _VALID_PLAN_CODES:
@@ -443,7 +481,7 @@ def prepare_subscription_checkout_order(
             subscription_id=subscription_id,
             new_plan_id=plan_id,
             amount_sen=amount_sen,
-            payment_gateway="toyyibpay",
+            payment_gateway=payment_gateway,
             idempotency_key=idempotency_key,
             created_by_user_id=user_id,
             expires_at=expires_at,
@@ -476,6 +514,7 @@ def prepare_subscription_checkout_order(
         "subscription_id": subscription_id,
         "activation_type": activation_type,
         "activation_sequence_key": activation_sequence_key,
+        "payment_gateway": payment_gateway,
     }
 
 
@@ -486,8 +525,10 @@ def create_subscription_checkout(
     customer_name: str,
     customer_email: str,
     customer_phone: str | None = None,
+    *,
+    payment_gateway: str | None = None,
 ) -> dict:
-    """Validate the plan, create an order, and generate a ToyyibPay bill.
+    """Validate the plan, create an order, and generate a hosted checkout.
 
     Args:
         company_id: Authenticated company ID.
@@ -503,12 +544,14 @@ def create_subscription_checkout(
     Raises:
         ValueError: If plan_code is invalid, plan is inactive, or company
             has no current subscription.
-        RuntimeError: If ToyyibPay bill creation fails.
+        RuntimeError: If gateway checkout creation fails.
     """
+    payment_gateway = payment_gateway or get_subscription_payment_gateway(company_id)
     prepared = prepare_subscription_checkout_order(
         company_id=company_id,
         user_id=user_id,
         plan_code=plan_code,
+        payment_gateway=payment_gateway,
         allow_existing_reusable_checkout=True,
     )
     if prepared.get("existing_order"):
@@ -521,21 +564,35 @@ def create_subscription_checkout(
     norm_code = prepared["plan_code"]
     activation_sequence_key = prepared["activation_sequence_key"]
 
-    # --- Convert sen to micro-MYR for ToyyibPay ---
-    amount_micro_myr = amount_sen * 10_000
-
-    # --- Create the ToyyibPay bill ---
     try:
-        bill = create_bill(
-            order_reference=order_reference,
-            amount_micro_myr=amount_micro_myr,
-            customer_name=customer_name,
-            customer_email=customer_email,
-            customer_phone=customer_phone,
-            description=f"Subscription - {norm_code.title()}",
-            bill_expiry_days=_checkout_expiry_days(),
-        )
-    except (ValueError, ToyyibPayConfigError, ToyyibPayBillRejectedError) as exc:
+        if payment_gateway == "hitpay":
+            bill = create_payment_request(
+                config=HitPayConfig.from_env(),
+                order_reference=order_reference,
+                amount_sen=amount_sen,
+                customer_name=customer_name,
+                customer_email=customer_email,
+                customer_phone=customer_phone,
+                description=f"Subscription - {norm_code.title()}",
+                expires_after=f"{_checkout_expiry_days()} day(s)",
+            )
+        else:
+            bill = create_bill(
+                order_reference=order_reference,
+                amount_micro_myr=amount_sen * 10_000,
+                customer_name=customer_name,
+                customer_email=customer_email,
+                customer_phone=customer_phone,
+                description=f"Subscription - {norm_code.title()}",
+                bill_expiry_days=_checkout_expiry_days(),
+            )
+    except (
+        ValueError,
+        HitPayConfigError,
+        HitPayRequestRejectedError,
+        ToyyibPayConfigError,
+        ToyyibPayBillRejectedError,
+    ) as exc:
         # Definite no-bill failures can release the source activation key.
         try:
             fail_pending_subscription_order_without_gateway_and_release_key(
@@ -553,6 +610,25 @@ def create_subscription_checkout(
         logger.exception("Payment gateway bill creation was rejected for order %s", order_reference)
         raise RuntimeError(
             "Payment gateway bill creation failed. Please try again later."
+        ) from exc
+    except HitPayAmbiguousError as exc:
+        try:
+            update_subscription_order_activation_state(
+                order_reference=order_reference,
+                activation_error_code="gateway_create_ambiguous",
+                activation_error_message="HitPay checkout creation requires reconciliation.",
+                reconciliation_required=True,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to mark HitPay order %s for reconciliation", order_reference
+            )
+        logger.exception(
+            "HitPay checkout creation outcome is ambiguous for order %s", order_reference
+        )
+        raise RuntimeError(
+            "Payment gateway checkout outcome is pending verification. "
+            "Please do not retry yet."
         ) from exc
     except RuntimeError as exc:
         # Ambiguous gateway outcomes keep the canonical activation key so a
@@ -602,4 +678,5 @@ def create_subscription_checkout(
         "checkout_url": checkout_url,
         "amount_sen": amount_sen,
         "expires_at": expires_at,
+        "payment_gateway": payment_gateway,
     }

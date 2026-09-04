@@ -17,6 +17,7 @@ receive a Flask request object.
 import logging
 from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 from app.database.company_subscription_order_repository import (
     get_subscription_order_by_gateway_id as _get_order_by_gateway,
@@ -64,6 +65,8 @@ def process_subscription_payment_callback(normalized_callback: dict) -> dict:
             ``parse_verified_callback()``. Must contain:
             - payment_gateway (str)
             - gateway_order_id (str)
+            - order_reference (str): the gateway-signed order id, cross-checked
+              against the order located by gateway_order_id
             - paid (bool)
             - payment_reference (str)
             - amount_sen (int)
@@ -119,6 +122,38 @@ def process_subscription_payment_callback(normalized_callback: dict) -> dict:
         raise RuntimeError(
             f"Subscription order for {payment_gateway} ID {gateway_order_id!r} is missing required fields"
         )
+
+    # The order was looked up by billcode alone, but billcode is NOT covered by
+    # the ToyyibPay hash - only status, order_id and refno are. So the signed
+    # order_id must be compared against the order we actually found, or a
+    # genuine callback can be paired with a different order's billcode and
+    # activate the wrong subscription. Checked before any status branching, so
+    # a mismatched callback cannot even report on an order it does not name.
+    # This mirrors the same check in ai_credit_topup_callback_service.
+    callback_order_reference = normalized_callback.get("order_reference")
+    if not callback_order_reference:
+        raise ValueError("Callback is missing required field 'order_reference'")
+
+    # Production references are uuid4 (subscription_checkout_service), so
+    # canonicalise when both sides parse - that absorbs case and hyphenation
+    # differences. Anything else falls back to an exact match rather than
+    # imposing a format this function never promised.
+    def _canonical(value):
+        try:
+            return str(UUID(str(value)))
+        except (ValueError, AttributeError, TypeError):
+            return str(value).strip()
+
+    canonical_callback_ref = _canonical(callback_order_reference)
+    canonical_stored_ref = _canonical(order_reference)
+
+    if canonical_callback_ref != canonical_stored_ref:
+        logger.error(
+            "%s callback order_reference %r does not match stored order_reference "
+            "%r for gateway ID %s. Rejecting.",
+            payment_gateway, callback_order_reference, order_reference, gateway_order_id,
+        )
+        raise ValueError("Callback order reference does not match the stored order")
 
     if paid is not True:
         logger.warning(
