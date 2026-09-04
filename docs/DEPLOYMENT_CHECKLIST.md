@@ -145,9 +145,17 @@ Optional: **redis** --- required only for multi-worker Redis-backed rate limitin
 
 | Job | Command | Schedule | Purpose |
 |---|---|---|---|
-| Lifecycle | `python -m app.jobs.process_subscription_lifecycle` | Daily (02:00 UTC) | Active -> past_due -> expired transitions |
-| Reconciliation | `python -m app.jobs.reconcile_subscription_orders` | Hourly | Process paid incomplete orders |
-| Notifications | `python -m app.jobs.generate_billing_notifications` | Daily before lifecycle | Generate renewal/credit alerts |
+| Lifecycle | `python -m app.jobs.process_subscription_lifecycle` | Every 10 minutes by default through the in-process billing scheduler | Persist Active -> past_due -> expired transitions |
+| Reconciliation | `python -m app.jobs.reconcile_subscription_orders` | Every 15 minutes | Process paid incomplete orders |
+| Notifications | `python -m app.jobs.generate_billing_notifications` | Daily | Generate renewal/credit alerts |
+
+The billing scheduler currently runs inside the single production web process.
+That singleton assumption depends on one Gunicorn worker and one Render instance.
+If workers or instances are increased, revisit the scheduler architecture because
+there is no cross-process leader lock. Subscription renewal correctness does not
+depend on the scheduler timing: UI and checkout use `effective_status`; the
+lifecycle job persists the raw database lifecycle state for reporting,
+notifications, and audit clarity.
 
 ## 3. Monitoring
 

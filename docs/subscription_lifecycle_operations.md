@@ -30,8 +30,17 @@ python -m app.jobs.process_subscription_lifecycle [--batch-size N] [--dry-run]
 
 ### Recommended Frequency
 
-Every **5–15 minutes** is sufficient. The command is idempotent -- subscriptions
-already in `expired` status are skipped.
+The current in-process billing scheduler runs lifecycle persistence every
+**10 minutes** by default. The command is idempotent -- subscriptions already in
+`expired` status are skipped. Subscription renewal correctness does not depend
+on this timing because UI and checkout use `effective_status`; the scheduler
+persists the raw database lifecycle state for reporting, notifications, and
+audit clarity.
+
+The singleton scheduler assumption depends on the current production shape: one
+Gunicorn worker and one Render instance. If workers or instances are increased,
+revisit the scheduler architecture because there is no cross-process leader
+lock.
 
 ## Example Scheduler Configurations
 
@@ -49,21 +58,22 @@ Arguments:        -m app.jobs.process_subscription_lifecycle --batch-size 100
 Start in:         C:\path\to\project
 ```
 
-### Hosting Platform (Render / Heroku / etc.)
+### Current Web Scheduler
 
-Create a **Cron Job** or **Scheduled Task** that runs:
+The current deployment starts the billing scheduler from `wsgi.py` when
+`BILLING_SCHEDULER_ENABLED` is enabled. The lifecycle job cadence can be
+overridden without a code change:
 
 ```bash
-python -m app.jobs.process_subscription_lifecycle
+BILLING_SCHEDULER_PROCESS_SUBSCRIPTION_LIFECYCLE_SECONDS=600
 ```
 
 ## Required Environment Variables
 
-The same environment as the main application:
+Lifecycle processing requires datastore access:
 
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
-- `SECRET_KEY`
 
 No additional environment variables are required specifically for this command.
 

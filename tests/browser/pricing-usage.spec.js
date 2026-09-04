@@ -158,6 +158,94 @@ async function openPricing(page, options = {}) {
     await expect(page.locator(".plan-card")).toHaveCount(4);
 }
 
+function deferred() {
+    let resolve;
+    let reject;
+    const promise = new Promise((res, rej) => {
+        resolve = res;
+        reject = rej;
+    });
+    return { promise, resolve, reject };
+}
+
+async function openPricingWithDeferredUsageAndCredit(page, options = {}) {
+    const plans = options.plans || PLANS;
+    const sub = options.subscription === undefined ? subscription() : options.subscription;
+    const use = options.usage === undefined ? usage() : options.usage;
+    const credit = options.credit === undefined ? CREDIT : options.credit;
+    const usageGate = deferred();
+    const creditGate = deferred();
+    const checkoutCalls = [];
+
+    await page.route("https://fonts.googleapis.com/**", route => route.abort());
+    await page.route("https://fonts.gstatic.com/**", route => route.abort());
+    await page.route("https://unpkg.com/**", route => route.fulfill({
+        status: 200, contentType: "application/javascript",
+        body: "window.lucide={createIcons:function(){}};"
+    }));
+
+    await page.addInitScript(() => {
+        sessionStorage.setItem("token", "fake-tenant-token");
+        sessionStorage.setItem("isLoggedIn", "true");
+        sessionStorage.setItem("user", JSON.stringify({
+            id: 1, company_id: 42, email: "owner@example.test", role: "owner"
+        }));
+    });
+
+    await page.route("**/api/**", route => {
+        const url = new URL(route.request().url());
+        if (url.pathname === "/api/billing/plans") {
+            return route.fulfill(json(200, { status: "success", data: plans }));
+        }
+        if (url.pathname === "/api/billing/subscription") {
+            return route.fulfill(json(200, { status: "success", data: sub }));
+        }
+        if (url.pathname === "/api/billing/usage") {
+            return usageGate.promise.then(() => {
+                if (use === "failure") {
+                    return route.fulfill(json(500, { status: "error", message: "usage unavailable" }));
+                }
+                return route.fulfill(json(200, { status: "success", data: use }));
+            });
+        }
+        if (url.pathname === "/api/billing/ai-credit/summary") {
+            return creditGate.promise.then(() => {
+                if (credit === "failure") {
+                    return route.fulfill(json(500, { status: "error", message: "credit unavailable" }));
+                }
+                return route.fulfill(json(200, { status: "success", data: credit }));
+            });
+        }
+        if (url.pathname === "/api/billing/subscription/checkout") {
+            checkoutCalls.push({
+                method: route.request().method(),
+                body: JSON.parse(route.request().postData() || "{}")
+            });
+            return route.fulfill(json(200, {
+                status: "success",
+                data: {
+                    checkout_url: "https://toyyibpay.example/checkout",
+                    order_reference: "sub-order-1"
+                }
+            }));
+        }
+        if (url.pathname.startsWith("/api/billing/dev")) {
+            throw new Error("renewal CTA must not call development billing completion routes");
+        }
+        if (url.pathname.includes("callback")) {
+            throw new Error("checkout alone must not simulate a payment callback");
+        }
+        if (url.pathname === "/api/platform-admin/me") {
+            return route.fulfill(json(403, { status: "error" }));
+        }
+        return route.fulfill(json(200, { status: "success", data: [] }));
+    });
+
+    await page.goto("/pricing.html");
+    await expect(page.locator(".plan-card")).toHaveCount(4);
+    return { usageGate, creditGate, checkoutCalls };
+}
+
 test.describe("current plan summary", () => {
     test("names the plan, its price and the renewal date", async ({ page }) => {
         await openPricing(page);
@@ -182,6 +270,159 @@ test.describe("current plan summary", () => {
         await openPricing(page, { subscription: null, usage: null, credit: null });
         await expect(page.locator("#pri-current")).toContainText("No active plan");
         await expect(page.locator("#pri-usage-section")).toBeHidden();
+    });
+
+    test("expired current plan says expired instead of renews", async ({ page }) => {
+        await openPricing(page, {
+            subscription: subscription("pro", {
+                status: "active",
+                effective_status: "expired",
+                current_period_end: "2026-08-01T00:00:00Z",
+                can_renew: true,
+                renewal_required: true
+            }),
+            usage: null
+        });
+        await expect(page.locator("#pri-current")).toContainText("Expired on");
+        await expect(page.locator("#pri-current")).not.toContainText("Renews on");
+    });
+});
+
+test.describe("phased loading", () => {
+    test("free user can click Essential before delayed usage and credit resolve", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page, {
+            subscription: null,
+            usage: null,
+            credit: null
+        });
+
+        await page.locator('.plan-card[data-plan-code="essential"]')
+            .getByRole("button", { name: /Upgrade to Essential/ })
+            .click();
+
+        expect(delayed.checkoutCalls).toEqual([
+            { method: "POST", body: { plan_code: "essential" } }
+        ]);
+        delayed.usageGate.resolve();
+        delayed.creditGate.resolve();
+    });
+
+    test("active Essential can click Advanced before delayed usage and credit resolve", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page);
+
+        await page.locator('.plan-card[data-plan-code="advanced"]')
+            .getByRole("button", { name: /Upgrade to Advanced/ })
+            .click();
+
+        expect(delayed.checkoutCalls).toEqual([
+            { method: "POST", body: { plan_code: "advanced" } }
+        ]);
+        delayed.usageGate.resolve();
+        delayed.creditGate.resolve();
+    });
+
+    test("expired Pro shows Renew Pro before delayed usage and credit resolve", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page, {
+            subscription: subscription("pro", {
+                status: "active",
+                effective_status: "expired",
+                current_period_end: "2026-08-01T00:00:00Z",
+                can_renew: true,
+                renewal_required: true
+            }),
+            usage: null,
+            credit: null
+        });
+        const pro = page.locator('.plan-card[data-plan-code="pro"]');
+        await expect(pro.getByRole("button", { name: "Renew Pro" })).toBeVisible();
+        await pro.getByRole("button", { name: "Renew Pro" }).click();
+
+        expect(delayed.checkoutCalls).toEqual([
+            { method: "POST", body: { plan_code: "pro" } }
+        ]);
+        delayed.usageGate.resolve();
+        delayed.creditGate.resolve();
+    });
+
+    test("active Pro remains current before delayed usage and credit resolve", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page, {
+            subscription: subscription("pro")
+        });
+        const pro = page.locator('.plan-card[data-plan-code="pro"]');
+        await expect(pro).toContainText("Current plan");
+        await expect(pro.locator("button")).toHaveCount(0);
+        delayed.usageGate.resolve();
+        delayed.creditGate.resolve();
+    });
+
+    test("delayed usage later updates the recommendation without blocking plan actions", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page, {
+            usage: usage({
+                knowledge_files: { used: 24, limit: 25 }
+            })
+        });
+
+        await expect(page.locator(".plan-card.is-recommended")).toHaveAttribute(
+            "data-plan-code", "advanced");
+        delayed.usageGate.resolve();
+        await expect(page.locator("#pri-advice")).toContainText("knowledge files");
+        delayed.creditGate.resolve();
+    });
+
+    test("delayed credit later updates only the AI-credit usage row", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page);
+        delayed.usageGate.resolve();
+        await expect(page.locator("#pri-usage-section")).toBeVisible();
+        await expect(page.locator(".pri-meter-row").filter({ hasText: "AI credit left" }))
+            .toHaveCount(0);
+        delayed.creditGate.resolve();
+        await expect(page.locator(".pri-meter-row").filter({ hasText: "AI credit left" }))
+            .toContainText("RM 2.00");
+    });
+
+    test("delayed usage and credit do not replace an already actionable button", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page);
+        const button = page.locator('.plan-card[data-plan-code="advanced"]')
+            .getByRole("button", { name: /Upgrade to Advanced/ });
+        await button.evaluate(node => {
+            node.dataset.stabilityProbe = "kept";
+        });
+        delayed.usageGate.resolve();
+        delayed.creditGate.resolve();
+        await expect(page.locator("#pri-usage-section")).toBeVisible();
+        await expect(button).toHaveAttribute("data-stability-probe", "kept");
+        await button.click();
+        expect(delayed.checkoutCalls).toEqual([
+            { method: "POST", body: { plan_code: "advanced" } }
+        ]);
+    });
+
+    test("usage failure does not block plan actions", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page, {
+            usage: "failure"
+        });
+        delayed.usageGate.resolve();
+        delayed.creditGate.resolve();
+        await page.locator('.plan-card[data-plan-code="advanced"]')
+            .getByRole("button", { name: /Upgrade to Advanced/ })
+            .click();
+        expect(delayed.checkoutCalls).toEqual([
+            { method: "POST", body: { plan_code: "advanced" } }
+        ]);
+    });
+
+    test("credit failure does not block plan actions", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page, {
+            credit: "failure"
+        });
+        delayed.usageGate.resolve();
+        delayed.creditGate.resolve();
+        await page.locator('.plan-card[data-plan-code="advanced"]')
+            .getByRole("button", { name: /Upgrade to Advanced/ })
+            .click();
+        expect(delayed.checkoutCalls).toEqual([
+            { method: "POST", body: { plan_code: "advanced" } }
+        ]);
     });
 });
 
