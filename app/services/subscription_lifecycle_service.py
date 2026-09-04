@@ -731,7 +731,8 @@ def process_subscription_expiry(
             # Grace period started — compute grace period end
             grace_days = int(os.environ.get("BILLING_GRACE_PERIOD_DAYS", "3"))
             try:
-                grace_end = p_end + timedelta(days=grace_days)
+                end_dt = datetime.fromisoformat(period_end)
+                grace_end = end_dt + timedelta(days=grace_days)
                 notify_grace_period_started(
                     company_id=company_id,
                     subscription_id=sub_id,

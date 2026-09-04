@@ -181,6 +181,10 @@ def dev_complete_subscription_order(reference):
         callback_payload = {
             "payment_gateway": "toyyibpay",
             "gateway_order_id": gateway_order_id,
+            # A real ToyyibPay callback always carries order_id (the signed
+            # billExternalReferenceNo); the handler cross-checks it against the
+            # order it found by billcode, so the simulation must send it too.
+            "order_reference": reference,
             "payment_reference": "DEV_TEST_PAYMENT",
             "paid": True,
             "amount_sen": amount_sen,

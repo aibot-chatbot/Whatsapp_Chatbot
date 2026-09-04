@@ -12,7 +12,9 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 import sys
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 import unittest
 from unittest.mock import patch, MagicMock
@@ -51,6 +53,9 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         self.valid_callback = {
             "payment_gateway": "toyyibpay",
             "gateway_order_id": "bill-001",
+            # The gateway-signed order id, cross-checked against the order
+            # found by gateway_order_id. Must track order_reference below.
+            "order_reference": "abc-123",
             "paid": True,
             "payment_reference": "txn-001",
             "amount_sen": 3900,
@@ -121,6 +126,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
 
         second_callback = dict(self.valid_callback)
         second_callback["gateway_order_id"] = "bill-002"
+        second_callback["order_reference"] = "abc-456"
         second_callback["payment_reference"] = "txn-002"
 
         result2 = process_subscription_payment_callback(second_callback)
@@ -228,6 +234,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
 
         callback = dict(self.valid_callback)
         callback["gateway_order_id"] = "bill-legacy"
+        callback["order_reference"] = "legacy-001"
         callback["payment_reference"] = "txn-legacy"
 
         result = process_subscription_payment_callback(callback)
@@ -265,6 +272,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
 
         callback = dict(self.valid_callback)
         callback["gateway_order_id"] = "bill-renewal"
+        callback["order_reference"] = "renewal-001"
         callback["payment_reference"] = "txn-renewal"
 
         result = process_subscription_payment_callback(callback)
@@ -325,6 +333,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
 
         callback = dict(self.valid_callback)
         callback["gateway_order_id"] = "bill-hist"
+        callback["order_reference"] = "hist-001"
         callback["payment_reference"] = "txn-hist"
 
         result = process_subscription_payment_callback(callback)
@@ -360,10 +369,12 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         mock_get_order.return_value = malformed_order
         mock_get_plan.return_value = self.mock_plan
 
-        result = process_subscription_payment_callback(self.valid_callback.copy())
-        # Update gateway_order_id in callback
+        # Point the callback at the malformed order. (An earlier call here used
+        # self.valid_callback, whose result was immediately overwritten by the
+        # one below and never asserted on - dead code, removed.)
         malformed_callback = dict(self.valid_callback)
         malformed_callback["gateway_order_id"] = "bill-mal"
+        malformed_callback["order_reference"] = "malformed-001"
         malformed_callback["payment_reference"] = "txn-mal"
 
         result = process_subscription_payment_callback(malformed_callback)
@@ -399,6 +410,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
 
         bad_callback = dict(self.valid_callback)
         bad_callback["gateway_order_id"] = "bill-badver"
+        bad_callback["order_reference"] = "badver-001"
         bad_callback["payment_reference"] = "txn-badver"
 
         result = process_subscription_payment_callback(bad_callback)
@@ -429,6 +441,7 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
 
         cred_callback = dict(self.valid_callback)
         cred_callback["gateway_order_id"] = "bill-credhist"
+        cred_callback["order_reference"] = "credit-hist"
         cred_callback["payment_reference"] = "txn-credhist"
 
         result = process_subscription_payment_callback(cred_callback)
