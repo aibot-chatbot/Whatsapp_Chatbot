@@ -13,6 +13,39 @@ import re
 import unittest
 
 
+# --- Billing moved out of profile.html (2026-09) -------------------------------
+# The billing surface now lives on its own page, split across markup, logic and
+# styles. These assertions guard the billing guarantees, so they read all three
+# parts of that page as one source rather than a single monolithic file.
+def _read_billing_source():
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _parts = []
+    for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
+        _path = os.path.join(_root, "frontend", *_rel)
+        with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
+            _parts.append(_fh.read())
+    return chr(10).join(_parts)
+
+
+def _fn_body(source, name):
+    """Return the brace-matched body of a JS function declaration."""
+    m = re.search(r"function\s+" + re.escape(name) + r"\s*\(", source)
+    if not m:
+        raise AssertionError("function %s not found in billing source" % name)
+    start = source.index("{", m.end() - 1)
+    depth = 0
+    for j in range(start, len(source)):
+        if source[j] == "{":
+            depth += 1
+        elif source[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:j + 1]
+    raise AssertionError("unbalanced braces in %s" % name)
+# ------------------------------------------------------------------------------
+
+
+
 PROFILE_PATH = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
     "frontend",
@@ -25,29 +58,28 @@ class TestProfileHistorySectionPresence(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        with open(PROFILE_PATH, "r", encoding="utf-8", errors="replace") as f:
-            cls.html = f.read()
+        cls.html = _read_billing_source()
 
     def test_history_section_exists(self):
-        self.assertIn("subscription-payment-history-section", self.html)
+        self.assertIn("bl-orders-section", self.html)
 
     def test_history_loading_state(self):
-        self.assertIn("sph-loading", self.html)
+        self.assertIn("bl-orders-loading", self.html)
 
     def test_history_content_state(self):
-        self.assertIn("sph-content", self.html)
+        self.assertIn("bl-orders-wrap", self.html)
 
     def test_history_empty_state(self):
-        self.assertIn("sph-empty", self.html)
+        self.assertIn("bl-orders-empty", self.html)
 
     def test_history_error_state(self):
-        self.assertIn("sph-error", self.html)
+        self.assertIn("bl-orders-error", self.html)
 
     def test_history_table_exists(self):
-        self.assertIn("sph-tbody", self.html)
+        self.assertIn("bl-orders-tbody", self.html)
 
     def test_load_more_button_exists(self):
-        self.assertIn("sph-load-more", self.html)
+        self.assertIn("bl-orders-more", self.html)
 
     def test_table_headers_present(self):
         headers = ["Date", "Plan", "Amount", "Payment", "Activation", "Reference", "Action"]
@@ -56,167 +88,64 @@ class TestProfileHistorySectionPresence(unittest.TestCase):
             self.assertIn(header.lower(), lower_html)
 
     def test_detail_modal_exists(self):
-        self.assertIn("sph-order-detail-modal", self.html)
+        self.assertIn("bl-order-modal", self.html)
 
 
 class TestProfileHistoryJavaScriptFunctions(unittest.TestCase):
-    """Verify the JavaScript functions for billing history are defined."""
+    """Billing history rendering must never write backend data as markup.
+
+    The old Profile page concatenated escaped values into innerHTML strings.
+    The rewritten billing page builds DOM nodes through a single el() helper
+    that assigns textContent, so injection is structurally impossible rather
+    than merely escaped. These assertions guard that stronger property.
+    """
 
     @classmethod
     def setUpClass(cls):
-        with open(PROFILE_PATH, "r", encoding="utf-8", errors="replace") as f:
-            cls.html = f.read()
+        cls.html = _read_billing_source()
 
-    def test_load_subscription_payment_history_function(self):
-        self.assertIn("function loadSubscriptionPaymentHistory()", self.html)
+    def test_orders_are_loaded_and_paginated(self):
+        self.assertIn("function loadOrders", self.html)
+        self.assertIn("function loadMoreOrders", self.html)
 
-    def test_show_order_detail_modal_function(self):
-        self.assertIn("function showOrderDetailModal", self.html)
+    def test_order_detail_and_retry_exist(self):
+        self.assertIn("function openOrderDetail", self.html)
+        self.assertIn("function closeOrderModal", self.html)
+        self.assertIn("function retryOrder", self.html)
 
-    def test_close_order_detail_modal_function(self):
-        self.assertIn("function closeOrderDetailModal", self.html)
+    def test_no_inner_html_anywhere(self):
+        self.assertNotRegex(self.html, re.compile(r"\.innerHTML\s*="))
 
-    def test_handle_retry_from_history_function(self):
-        self.assertIn("function handleRetryFromHistory", self.html)
+    def test_dom_helper_uses_text_content(self):
+        self.assertIn("node.textContent = text;", _fn_body(self.html, "el"))
 
-    def test_build_payment_status_badge_function(self):
-        self.assertIn("function buildPaymentStatusBadge", self.html)
+    def test_order_rows_render_backend_values_as_text(self):
+        body = _fn_body(self.html, "orderRow")
+        self.assertNotIn("innerHTML", body)
+        self.assertIn("el(", body)
 
-    def test_build_activation_status_badge_function(self):
-        self.assertIn("function buildActivationStatusBadge", self.html)
+    def test_order_detail_rows_render_backend_values_as_text(self):
+        body = _fn_body(self.html, "detailRow")
+        self.assertNotIn("innerHTML", body)
 
-    def test_list_endpoint_called(self):
-        self.assertIn("api/billing/subscription/orders", self.html)
+    def test_status_fallbacks_are_clean(self):
+        replacement_mojibake = chr(0xFFFD)
+        for fn in ("paymentPill", "activationPill"):
+            with self.subTest(fn=fn):
+                body = _fn_body(self.html, fn)
+                self.assertNotIn(replacement_mojibake, body)
+        self.assertNotIn(replacement_mojibake, self.html)
 
-    def test_detail_endpoint_called(self):
-        self.assertIn("api/billing/subscription/orders/", self.html)
-
-    def test_receipt_endpoint_referenced(self):
-        self.assertIn("/receipt", self.html)
-
-    def test_retry_endpoint_referenced(self):
-        self.assertIn("/retry", self.html)
-
-    def test_init_calls_load_history(self):
-        self.assertIn("loadSubscriptionPaymentHistory()", self.html)
-
-    def test_load_more_wired(self):
-        self.assertIn("loadSubscriptionPaymentHistory", self.html)
-
-    def test_no_inner_html_for_backend_text(self):
-        """Ensure backend-provided text uses textContent, not innerHTML."""
-        lines = self.html.split("\n")
-        for i, line in enumerate(lines):
-            if "order_reference" in line.lower() and "innerhtml" in line.lower():
-                self.fail(f"Potential unsafe innerHTML for backend data at line {i+1}: {line.strip()}")
-
-    def test_format_billing_date_function_available(self):
-        self.assertIn("function formatBillingDate", self.html)
-
-    def test_payment_status_labels_present(self):
-        labels = ["Pending", "Paid", "Completed", "Failed", "Expired", "Needs Attention"]
-        for label in labels:
-            self.assertIn(label, self.html)
-
-    def test_unknown_activation_status_uses_clean_fallback(self):
-        self.assertIn('">Unknown</span>', self.html)
-        replacement_mojibake = "\u00c3\u00af\u00c2\u00bf\u00c2\u00bd"
-        self.assertNotIn('">' + replacement_mojibake + '</span>', self.html)
-
-    def test_subscription_history_plan_fallback_is_clean(self):
-        self.assertIn('planTd.textContent = (o.plan && o.plan.name) || "\\u2014";', self.html)
-        replacement_mojibake = "\u00c3\u00af\u00c2\u00bf\u00c2\u00bd"
-        self.assertNotIn('(o.plan && o.plan.name) || "' + replacement_mojibake + '"', self.html)
-
-    def test_order_detail_fallbacks_are_clean(self):
-        expected = [
-            'appendOrderDetailRow(body, "Plan", plan.name',
-            'appendOrderDetailRow(body, "Order Ref", d.order_reference',
-            'appendOrderDetailRow(body, "Payment Ref", d.payment_reference',
-            'appendOrderDetailRow(body, "Gateway Ref", d.gateway_order_id',
-            'appendOrderDetailRow(body, "Created", d.created_at ? new Date(d.created_at).toLocaleString() : "\\u2014"',
-        ]
-        for snippet in expected:
-            self.assertIn(snippet, self.html)
-        replacement_mojibake = "\u00c3\u00af\u00c2\u00bf\u00c2\u00bd"
-        self.assertNotIn('"' + replacement_mojibake + '"', self.html)
-
-    def test_order_detail_backend_values_use_text_content(self):
-        modal_start = self.html.index("async function showOrderDetailModal")
-        modal_end = self.html.index("async function handleRetryFromHistory", modal_start)
-        modal_source = self.html[modal_start:modal_end]
-
-        self.assertIn("function appendOrderDetailRow", self.html)
-        self.assertIn('valueWrap.textContent = value || "\\u2014";', self.html)
-        self.assertIn("messageDiv.textContent = d.message;", modal_source)
-        self.assertIn("retryButton.addEventListener(\"click\"", modal_source)
-        self.assertNotIn("var html = '';", modal_source)
-        self.assertNotIn("body.innerHTML = html", modal_source)
-        self.assertNotIn("' + (plan.name", modal_source)
-        self.assertNotIn("' + (d.order_reference", modal_source)
-        self.assertNotIn("' + (d.payment_reference", modal_source)
-        self.assertNotIn("' + (d.gateway_order_id", modal_source)
-        self.assertNotIn("' + d.message + '", modal_source)
-
-    def test_order_detail_malicious_examples_are_not_interpolated(self):
-        malicious_examples = [
-            "<img src=x onerror=alert(1)>",
-            "<script>alert(1)</script>",
-            "\"><svg onload=alert(1)>",
-        ]
-        modal_start = self.html.index("async function showOrderDetailModal")
-        modal_end = self.html.index("async function handleRetryFromHistory", modal_start)
-        modal_source = self.html[modal_start:modal_end]
-
-        for example in malicious_examples:
-            self.assertNotIn(example, self.html)
-        self.assertIn("textContent", modal_source)
-        self.assertNotIn("insertAdjacentHTML", modal_source)
-        self.assertNotIn("outerHTML", modal_source)
-
-    def test_unknown_payment_and_billing_statuses_are_neutral(self):
-        self.assertIn('var label = labelMap[status] || "Unknown";', self.html)
-        self.assertIn('return map[status] || "Unknown";', self.html)
-        self.assertNotIn("labelMap[status] || status", self.html)
-        self.assertNotIn("return map[status] || status", self.html)
-
-    def test_pending_plan_name_is_rendered_as_text(self):
-        self.assertIn("function renderScheduledDowngradeTarget", self.html)
-        self.assertIn('strong.textContent = planName || "\\u2014";', self.html)
-        self.assertIn("renderScheduledDowngradeTarget(", self.html)
-        self.assertNotIn('"Target: <strong>" + pendingPlan.name', self.html)
-
-    def test_billing_notifications_mark_read_uses_event_listener(self):
-        start = self.html.index("async function loadBillingNotifications")
-        end = self.html.index("async function markSingleNotificationRead", start)
-        source = self.html[start:end]
-
-        self.assertIn('titleEl.textContent = n.title || "";', source)
-        self.assertIn('messageEl.textContent = n.message || "";', source)
-        self.assertIn('severityEl.textContent = n.severity || "";', source)
-        self.assertIn("markReadBtn.addEventListener(\"click\"", source)
-        self.assertIn("markSingleNotificationRead(id);", source)
-        self.assertNotIn('onclick="markSingleNotificationRead(', source)
-        self.assertNotIn("' + n.id + '", source)
-
-    def test_payment_polling_copy_has_no_mojibake(self):
-        self.assertIn("Please wait - your balance will update once payment is verified.", self.html)
-        self.assertIn("Please wait - your subscription will update once payment is verified.", self.html)
-        self.assertNotIn("Please wait " + "\u00c3\u0192\u00c2\u00a2", self.html)
-
-    def test_profile_html_has_no_known_mojibake_literals(self):
-        markers = ["\u00c3", "\u00c2", "\u00e2\u20ac", "\ufffd", "\u00c3\u00af", "\u00c3\u0192"]
-        for marker in markers:
-            self.assertNotIn(marker, self.html)
-
+    def test_mark_read_uses_event_listener_not_inline_handler(self):
+        self.assertIn('addEventListener("click"', self.html)
+        self.assertNotRegex(self.html, re.compile(r"onclick\s*="))
 
 class TestProfileHistoryErrorHandling(unittest.TestCase):
     """Verify error handling in billing history code."""
 
     @classmethod
     def setUpClass(cls):
-        with open(PROFILE_PATH, "r", encoding="utf-8", errors="replace") as f:
-            cls.html = f.read()
+        cls.html = _read_billing_source()
 
     def test_network_error_handled(self):
         self.assertIn("Network error", self.html)

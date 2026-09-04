@@ -40,7 +40,15 @@ def handle_message():
         response: A tuple containing a JSON response and an HTTP status code.
     """
     body = request.get_json()
-    logging.info(f"request body: {body}")
+    # Never log the body. It carries the customer's message text, their phone
+    # number and their WhatsApp profile name - personal data belonging to our
+    # tenants' customers, who never agreed to it sitting in our logs. The shape
+    # is enough to debug routing; the branches below already distinguish
+    # statuses from messages.
+    logging.info(
+        "WhatsApp webhook received (%d entry)",
+        len(body.get("entry", [])) if isinstance(body, dict) else 0,
+    )
 
     # Check if it's a WhatsApp status update
     if (

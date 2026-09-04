@@ -1,0 +1,720 @@
+/* ══════════════════════════════════════════════════════════════════════
+   BILLING — company-wide plan, credit and payment console
+
+   Loads LAST, after dashboard-control-room.css, because every kw-* rule is
+   written as `.dashboard-page .kw-*`. Page rules only win at equal
+   specificity by arriving later, so each override below is scoped the same
+   way rather than reaching for !important.
+
+   No new colour is introduced. Everything here is expressed in the control
+   tokens (--control-accent is the teal #3e9c89); the old profile page's
+   blue #3b82f6 and the Outfit font are deliberately absent.
+
+   Money and counts use --font-mono with tabular-nums so a column of figures
+   lines up and cannot jitter as digits change.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ── Shared numerics ───────────────────────────────────────────────── */
+
+.dashboard-page .bl-mono {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Standalone figure groups. .kw-legend itself is position:absolute and is
+   display:none under 768px — it belongs over a graph canvas — so only the
+   figure children are reused here, inside a normal-flow wrapper. */
+.dashboard-page .bl-figures {
+    flex-wrap: wrap;
+    gap: 22px 30px;
+}
+
+.dashboard-page .bl-figures:first-child {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+/* ── Loading skeletons ─────────────────────────────────────────────── */
+
+.dashboard-page .bl-skeleton-panel {
+    padding: 20px;
+}
+
+.dashboard-page .bl-skeleton-row {
+    height: 14px;
+    margin-bottom: 12px;
+    border-radius: 6px;
+}
+
+.dashboard-page .bl-skeleton-row:last-child {
+    margin-bottom: 0;
+}
+
+/* Matches the rendered chart height exactly, so swapping the skeleton for
+   the real chart moves nothing. */
+.dashboard-page .bl-skeleton-block {
+    height: 260px;
+    border-radius: 10px;
+}
+
+/* ── Inline field errors ───────────────────────────────────────────── */
+
+.dashboard-page .bl-inline-error {
+    color: var(--control-warning);
+}
+
+/* ── Payment return banner ─────────────────────────────────────────── */
+
+.dashboard-page .bl-return-body {
+    display: grid;
+    grid-template-columns: 34px minmax(0, 1fr);
+    gap: 4px 14px;
+    align-items: start;
+}
+
+.dashboard-page .bl-return-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    color: var(--control-text-secondary);
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+}
+
+.dashboard-page .bl-return.is-success .bl-return-icon { color: var(--control-accent); }
+.dashboard-page .bl-return.is-warn .bl-return-icon { color: var(--control-warning); }
+.dashboard-page .bl-return.is-error .bl-return-icon { color: #cf8578; }
+
+.dashboard-page .bl-return-actions {
+    grid-column: 2;
+    margin-top: 10px;
+}
+
+.dashboard-page .bl-return-actions:empty {
+    display: none;
+}
+
+/* The checking state spins its own icon rather than pulling in a library. */
+.dashboard-page .bl-return.is-checking .bl-return-icon svg {
+    animation: bl-spin 900ms linear infinite;
+}
+
+@keyframes bl-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ── 1. Plan ───────────────────────────────────────────────────────── */
+
+.dashboard-page .bl-plan-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+}
+
+.dashboard-page .bl-plan-identity {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .bl-plan-name {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+.dashboard-page .bl-plan-facts {
+    max-width: 560px;
+}
+
+/* Standing notices carry a heading, a value and an explanation, so the
+   banner's default single-line flow has to become a stack. */
+.dashboard-page .bl-notice > span {
+    display: block;
+    min-width: 0;
+}
+
+.dashboard-page .bl-notice strong {
+    display: block;
+    color: inherit;
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dashboard-page .bl-notice-value {
+    display: block;
+    margin-top: 3px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .bl-notice-note {
+    display: block;
+    margin-top: 6px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.55;
+}
+
+/* ── 2. Credits ────────────────────────────────────────────────────── */
+
+.dashboard-page .bl-balance {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 20px;
+    align-items: center;
+    padding: 18px 0;
+}
+
+.dashboard-page .bl-balance-body {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+/* Top-up */
+
+.dashboard-page .bl-topup {
+    display: grid;
+    gap: 12px;
+    justify-items: start;
+    padding-top: 18px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .bl-topup-amounts {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .bl-topup-field {
+    width: 100%;
+    max-width: 260px;
+}
+
+.dashboard-page .bl-topup-input {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .bl-topup-locked {
+    padding: 34px 24px;
+    border-top: 1px solid var(--control-border);
+}
+
+/* Analytics */
+
+.dashboard-page .bl-analytics {
+    padding-top: 18px;
+    margin-top: 18px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .bl-analytics-bar {
+    margin-bottom: 16px;
+}
+
+.dashboard-page .bl-filters {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 18px;
+}
+
+/* kw-field spacing is adjacency-only (.kw-field + .kw-field); inside this
+   grid the gap does the work instead, so the inherited margin is dropped to
+   keep the row baselines aligned. */
+.dashboard-page .bl-filters .kw-field + .kw-field {
+    margin-top: 0;
+}
+
+/* kw-stats hard-codes a 5-column grid. These two counts are set explicitly,
+   per the design contract. */
+.dashboard-page .kw-stats.bl-stats-6 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dashboard-page .kw-stats.bl-stats-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+/* kw-stat's left border assumes one unbroken row; on a wrapped grid the
+   first cell of each row must lose it and gain a top rule instead. */
+.dashboard-page .kw-stats.bl-stats-6 .kw-stat:nth-child(3n + 1) {
+    border-left: 0;
+}
+
+.dashboard-page .kw-stats.bl-stats-6 .kw-stat:nth-child(n + 4) {
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .bl-chart-panel {
+    padding: 16px;
+    margin-top: 16px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 11px;
+}
+
+.dashboard-page .bl-chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+}
+
+.dashboard-page .bl-chart-grid .bl-chart-panel {
+    min-width: 0;
+}
+
+/* ── Charts ────────────────────────────────────────────────────────── */
+
+/* The SVG scales to the panel while keeping a fixed viewBox, so bars stay
+   proportional and the height never shifts as data changes. */
+.dashboard-page .bl-chart {
+    margin-top: 12px;
+    overflow-x: auto;
+}
+
+.dashboard-page .bl-chart svg {
+    display: block;
+    width: 100%;
+    height: 260px;
+}
+
+.dashboard-page .bl-grid-line {
+    stroke: rgba(255, 255, 255, 0.06);
+    stroke-width: 1;
+}
+
+.dashboard-page .bl-axis-label {
+    fill: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .bl-bar-primary { fill: var(--control-accent); }
+.dashboard-page .bl-bar-secondary { fill: var(--control-warning); }
+
+/* Series colours for the stacked model chart. Five steps that stay inside
+   the control palette rather than introducing a rainbow. */
+.dashboard-page .bl-series-0 { fill: var(--control-accent); }
+.dashboard-page .bl-series-1 { fill: #4ab09b; }
+.dashboard-page .bl-series-2 { fill: var(--control-warning); }
+.dashboard-page .bl-series-3 { fill: #8a9096; }
+.dashboard-page .bl-series-4 { fill: var(--control-danger); }
+
+.dashboard-page .bl-chart-note {
+    padding: 34px 12px;
+    color: var(--control-text-secondary);
+    font-size: 13px;
+    text-align: center;
+}
+
+/* Legend keys, in normal flow. kw-legend-key supplies the text style; only
+   the swatch and the row wrapper are new. */
+.dashboard-page .bl-keys {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.dashboard-page .bl-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+}
+
+.dashboard-page .bl-key-swatch {
+    width: 9px;
+    height: 9px;
+    flex: 0 0 auto;
+    border-radius: 2px;
+}
+
+.dashboard-page .bl-key-0 { background: var(--control-accent); }
+.dashboard-page .bl-key-1 { background: #4ab09b; }
+.dashboard-page .bl-key-2 { background: var(--control-warning); }
+.dashboard-page .bl-key-3 { background: #8a9096; }
+.dashboard-page .bl-key-4 { background: var(--control-danger); }
+
+/* Horizontal ranked bars, used for feature and provider breakdowns. */
+
+.dashboard-page .bl-bars {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.dashboard-page .bl-bar-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+}
+
+.dashboard-page .bl-bar-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.dashboard-page .bl-bar-name {
+    min-width: 0;
+    color: var(--control-text);
+    font-size: 12px;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dashboard-page .bl-bar-sub {
+    display: block;
+    margin-top: 2px;
+    color: var(--control-text-tertiary);
+    font-size: 11px;
+    font-weight: 400;
+}
+
+.dashboard-page .bl-bar-metric {
+    flex: 0 0 auto;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+/* kw-progress is a fixed 180px; these tracks span the row instead. The fill
+   is driven by transform: scaleX, never by width. */
+.dashboard-page .bl-bar-row .kw-progress {
+    width: 100%;
+}
+
+/* Input/output token composition. */
+
+.dashboard-page .bl-composition {
+    display: flex;
+    height: 8px;
+    margin-top: 12px;
+    overflow: hidden;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 999px;
+}
+
+.dashboard-page .bl-composition span {
+    height: 100%;
+    transition: width 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .bl-composition-input { background: var(--control-accent); }
+.dashboard-page .bl-composition-output { background: var(--control-warning); }
+
+/* ── 3. Usage meters ───────────────────────────────────────────────── */
+
+.dashboard-page .bl-meters {
+    display: grid;
+    gap: 16px;
+}
+
+.dashboard-page .bl-meter-row {
+    display: grid;
+    grid-template-columns: minmax(0, 200px) minmax(0, 1fr) auto;
+    gap: 8px 16px;
+    align-items: center;
+}
+
+.dashboard-page .bl-meter-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    color: var(--control-text);
+    font-size: 13px;
+}
+
+.dashboard-page .bl-meter-label svg {
+    flex: 0 0 auto;
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .bl-meter-figures {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    color: var(--control-text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.dashboard-page .bl-meter-limit {
+    color: var(--control-text-tertiary);
+}
+
+/* A threshold is never signalled by colour alone: the meter's colour shift
+   is always accompanied by one of these words. */
+.dashboard-page .bl-meter-state {
+    font-family: var(--font-body);
+    font-size: 11px;
+}
+
+.dashboard-page .bl-meter-state.is-warn { color: var(--control-warning); }
+.dashboard-page .bl-meter-state.is-full { color: #cf8578; }
+
+.dashboard-page .bl-meter-none {
+    height: 6px;
+    border-radius: 999px;
+    background: repeating-linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.09) 0 6px,
+        transparent 6px 12px
+    );
+}
+
+/* ── 4/5. Tables ───────────────────────────────────────────────────── */
+
+.dashboard-page .bl-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.dashboard-page .bl-ref {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--control-text-secondary);
+    white-space: nowrap;
+}
+
+.dashboard-page .bl-row-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: flex-end;
+    white-space: nowrap;
+}
+
+.dashboard-page .bl-txn-detail {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.dashboard-page .bl-txn-desc {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .bl-txn-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    color: var(--control-text-tertiary);
+    font-size: 11px;
+}
+
+.dashboard-page .bl-amount-credit { color: var(--control-accent); }
+.dashboard-page .bl-amount-debit { color: var(--control-warning); }
+
+/* ── 6. Notifications ──────────────────────────────────────────────── */
+
+.dashboard-page .bl-notif-list {
+    display: grid;
+    gap: 10px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-page .bl-notif-item {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 4px 12px;
+    align-items: start;
+    padding: 13px 14px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+/* Unread carries a left rule as well as the dot, so the distinction
+   survives for anyone who cannot see the accent colour. */
+.dashboard-page .bl-notif-item.is-unread {
+    border-left: 2px solid var(--control-accent);
+}
+
+.dashboard-page .bl-notif-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    color: var(--control-text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+}
+
+.dashboard-page .bl-notif-item.is-warning .bl-notif-icon { color: var(--control-warning); }
+.dashboard-page .bl-notif-item.is-critical .bl-notif-icon { color: #cf8578; }
+
+.dashboard-page .bl-notif-title {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.dashboard-page .bl-notif-message {
+    margin-top: 3px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .bl-notif-meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 7px;
+    color: var(--control-text-tertiary);
+    font-size: 11px;
+}
+
+.dashboard-page .bl-notif-severity {
+    text-transform: capitalize;
+}
+
+/* ── 7. Reports ────────────────────────────────────────────────────── */
+
+.dashboard-page .bl-report-bar {
+    display: flex;
+    gap: 12px;
+    align-items: end;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+}
+
+.dashboard-page .bl-report-bar .kw-field {
+    min-width: 190px;
+}
+
+.dashboard-page .bl-report-bar .kw-field + .kw-field {
+    margin-top: 0;
+}
+
+/* ── Order detail modal ────────────────────────────────────────────── */
+
+.dashboard-page .bl-order-note {
+    margin-top: 12px;
+    padding: 11px 13px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.55;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+}
+
+.dashboard-page .bl-order-note.is-error {
+    color: #cf8578;
+    background: rgba(166, 86, 72, 0.1);
+    border-color: rgba(166, 86, 72, 0.26);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 900px) {
+    .dashboard-page .kw-stats.bl-stats-6,
+    .dashboard-page .kw-stats.bl-stats-4 {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .dashboard-page .kw-stats.bl-stats-6 .kw-stat:nth-child(3n + 1) {
+        border-left: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .kw-stats.bl-stats-6 .kw-stat:nth-child(odd),
+    .dashboard-page .kw-stats.bl-stats-4 .kw-stat:nth-child(odd) {
+        border-left: 0;
+    }
+
+    .dashboard-page .kw-stats.bl-stats-6 .kw-stat:nth-child(n + 3),
+    .dashboard-page .kw-stats.bl-stats-4 .kw-stat:nth-child(n + 3) {
+        border-top: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .bl-meter-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .bl-balance {
+        grid-template-columns: minmax(0, 1fr);
+        justify-items: start;
+    }
+}
+
+@media (max-width: 640px) {
+    .dashboard-page .kw-stats.bl-stats-6,
+    .dashboard-page .kw-stats.bl-stats-4 {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .kw-stats.bl-stats-6 .kw-stat,
+    .dashboard-page .kw-stats.bl-stats-4 .kw-stat {
+        border-left: 0;
+        border-top: 1px solid var(--control-border);
+    }
+
+    .dashboard-page .kw-stats.bl-stats-6 .kw-stat:first-child,
+    .dashboard-page .kw-stats.bl-stats-4 .kw-stat:first-child {
+        border-top: 0;
+    }
+
+    .dashboard-page .bl-return-body {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .bl-return-actions {
+        grid-column: 1;
+    }
+
+    .dashboard-page .bl-plan-name {
+        font-size: 20px;
+    }
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────────
+   control-room-motion.css already neutralises every cr-* animation. Only
+   the motion this page adds itself needs stopping here. */
+
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-page .bl-return.is-checking .bl-return-icon svg {
+        animation: none;
+    }
+
+    .dashboard-page .bl-composition span {
+        transition: none;
+    }
+}

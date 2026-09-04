@@ -59,7 +59,17 @@ def fetch_current_user():
                 "email": user.get("email"),
                 "role": user.get("role"),
                 "company_id": user.get("company_id"),
-                "phone": user.get("phone")
+                "phone": user.get("phone"),
+                # Account-standing fields. The row already carries these
+                # (get_user_by_id selects *); the profile page needs them for
+                # "member since", the verified badge and the security posture
+                # score. Nothing sensitive is added - no password hash, no
+                # tokens - and the same four fields are already returned for
+                # every colleague by GET /api/team.
+                "status": user.get("status"),
+                "is_verified": user.get("is_verified"),
+                "created_at": user.get("created_at"),
+                "updated_at": user.get("updated_at")
             }
         }), 200
 

@@ -1,0 +1,635 @@
+/* ══════════════════════════════════════════════════════════════════════
+   PROFILE — personal account, security and workspace standing
+   Namespaced pro-* under .dashboard-page, per DESIGN.md "Components".
+
+   This page has no tab bar and no billing. It is one scrolling column
+   whose anchor is the identity hero: the only composition in the product
+   that puts a person, their security score and their tenure in one frame.
+   That hero is the page's single moment of emphasis; everything below it
+   is deliberately quieter so the eye lands there first.
+
+   Only control-room tokens are used. No new colour, no gradient, no glow.
+   The role ramp in the composition donut is the accent at three opacities,
+   which is a privilege ramp rather than a decorative palette.
+
+   Class-naming trap: never put the substring "grid" in a wrapper class on
+   a control-room page. shared-glass.css:254 force-collapses
+   div[class*="grid"] to one column at <=768px with !important, and that
+   sheet still loads here.
+   ══════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Identity hero ───────────────────────────────────────────────────── */
+
+/* avatar | identity | gauge. Only the identity column flexes, so neither
+   the avatar nor the gauge ever changes size as a long name wraps. */
+.dashboard-page .pro-hero {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 26px;
+    padding: 24px 26px;
+    border: 1px solid var(--control-border);
+    border-radius: 14px;
+    background: var(--control-panel);
+    /* A single hairline along the top edge. It is what separates this from
+       a default card: the panel reads as lit from above rather than as a
+       flat rectangle, using the border token already in the system. */
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Two surfaces above the panel, so the hero has three depth planes rather
+   than one. The initials are data (the name), never a decorative glyph. */
+.dashboard-page .pro-avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 76px;
+    height: 76px;
+    flex: 0 0 auto;
+    border-radius: 20px;
+    background: var(--control-raised);
+    border: 1px solid rgba(62, 156, 137, 0.34);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    color: var(--control-accent);
+    font-family: var(--font-mono);
+    font-size: 25px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.dashboard-page .pro-hero-ident {
+    min-width: 0;
+}
+
+.dashboard-page .pro-eyebrow {
+    color: var(--control-text-secondary);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+/* The scale contrast that carries the hierarchy: 30px against the 10.5px
+   eyebrow above and the 12.5px meta below it. */
+.dashboard-page .pro-name {
+    margin-top: 7px;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    /* Names arrive from the API and can be long or hostile. They are
+       written with textContent and wrapped rather than trusted to fit. */
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .pro-email {
+    margin-top: 6px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .pro-hero-tags {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+
+.dashboard-page .pro-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--control-border);
+    background: var(--control-raised);
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.dashboard-page .pro-tag.is-role {
+    border-color: rgba(62, 156, 137, 0.3);
+    background: var(--control-accent-subtle);
+    color: var(--control-accent);
+}
+
+/* An unverified address is a real security gap, so it earns the warning
+   token — and always carries the word, never the colour alone. */
+.dashboard-page .pro-tag.is-unverified {
+    border-color: rgba(196, 121, 90, 0.34);
+    color: var(--control-warning);
+}
+
+.dashboard-page .pro-tag svg {
+    width: 13px;
+    height: 13px;
+}
+
+/* Tenure sits under a rule rather than in the tag row: it is context, not
+   status, and the rule is what keeps the hero from reading as one blob. */
+.dashboard-page .pro-tenure {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--control-border);
+    color: var(--control-text-tertiary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.dashboard-page .pro-tenure b {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+    color: var(--control-text-secondary);
+}
+
+/* The gauge sits in the deepest plane of the three, which is what makes it
+   read as an instrument set into the panel rather than a card on top. */
+.dashboard-page .pro-hero-gauge {
+    flex: 0 0 auto;
+}
+
+.dashboard-page .pro-hero-gauge .kw-readiness {
+    background: var(--control-sunken);
+    min-width: 260px;
+}
+
+
+/* ── Security signals ────────────────────────────────────────────────── */
+
+.dashboard-page .pro-signals {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dashboard-page .pro-signal {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 13px 16px;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.dashboard-page .pro-signal:last-child {
+    border-bottom: 0;
+}
+
+.dashboard-page .pro-signal-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--control-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .pro-signal-mark svg {
+    width: 13px;
+    height: 13px;
+}
+
+.dashboard-page .pro-signal[data-met="true"] .pro-signal-mark {
+    border-color: rgba(62, 156, 137, 0.4);
+    background: var(--control-accent-subtle);
+    color: var(--control-accent);
+}
+
+.dashboard-page .pro-signal-label {
+    min-width: 0;
+    font-size: 13px;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+/* Unmet rows keep the label at full strength — they are the ones the user
+   is meant to act on, so dimming them would be exactly backwards. */
+.dashboard-page .pro-signal[data-met="true"] .pro-signal-label {
+    color: var(--control-text-secondary);
+    font-weight: 400;
+}
+
+.dashboard-page .pro-signal-state {
+    justify-self: end;
+    color: var(--control-text-tertiary);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    text-align: right;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.dashboard-page .pro-signal[data-met="false"] .pro-signal-state {
+    color: var(--control-warning);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 12px;
+}
+
+.dashboard-page .pro-signal-fix {
+    justify-self: end;
+    min-height: 32px;
+    padding: 0 11px;
+    font-size: 12px;
+}
+
+
+/* ── Forms ───────────────────────────────────────────────────────────── */
+
+/* A hidden banner is still a sibling, so the margin lives on the banner
+   rather than on the field that follows it. */
+.dashboard-page .pro-form > .kw-banner {
+    margin-bottom: 18px;
+}
+
+/* The toggle sits inside the field, not between two fields, so the
+   .kw-field + .kw-field adjacency that owns the vertical rhythm survives. */
+.dashboard-page .pro-secret {
+    position: relative;
+}
+
+.dashboard-page .pro-secret .kw-input {
+    padding-right: 44px;
+}
+
+.dashboard-page .pro-secret-toggle {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+}
+
+.dashboard-page .pro-secret-toggle svg {
+    width: 17px;
+    height: 17px;
+}
+
+.dashboard-page .pro-strength {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 3px;
+}
+
+/* kw-progress is a fixed 180px in the system. Here it should track the
+   field it describes, so it stretches instead. */
+.dashboard-page .pro-strength .kw-progress {
+    width: auto;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+/* The fill is animated with scaleX, never width: transform-origin is
+   already left center in the system sheet. */
+.dashboard-page .pro-strength .kw-progress-fill {
+    width: 100%;
+    transform: scaleX(0);
+}
+
+.dashboard-page .pro-strength .kw-progress-fill.is-weak {
+    background: var(--control-danger);
+}
+
+.dashboard-page .pro-strength .kw-progress-fill.is-fair {
+    background: var(--control-warning);
+}
+
+.dashboard-page .pro-strength-text {
+    flex: 0 0 auto;
+    min-width: 92px;
+    color: var(--control-text-secondary);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-align: right;
+    text-transform: uppercase;
+}
+
+.dashboard-page .pro-strength-text.is-weak { color: #cf8578; }
+.dashboard-page .pro-strength-text.is-fair { color: var(--control-warning); }
+.dashboard-page .pro-strength-text.is-strong { color: var(--control-accent); }
+
+.dashboard-page .pro-formfoot {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+
+/* ── Workspace standing ──────────────────────────────────────────────── */
+
+.dashboard-page .pro-standing,
+.dashboard-page #pro-standing-loading {
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+.dashboard-page .pro-inline-banner {
+    margin: 16px;
+}
+
+.dashboard-page .pro-standing-lede .kw-label {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.dashboard-page .pro-role-line {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.dashboard-page .pro-role-name {
+    font-family: var(--font-heading);
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+}
+
+.dashboard-page .pro-role-note {
+    color: var(--control-text-secondary);
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.dashboard-page .pro-block {
+    padding-top: 18px;
+    border-top: 1px solid var(--control-border);
+}
+
+/* Each step carries a date under its label, so the shared inline step
+   cannot stay a single baseline row. */
+.dashboard-page .pro-steps {
+    align-items: flex-start;
+    gap: 14px;
+    row-gap: 16px;
+}
+
+.dashboard-page .pro-steps .kw-step {
+    align-items: flex-start;
+}
+
+.dashboard-page .pro-step-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+}
+
+.dashboard-page .pro-step-date {
+    color: var(--control-text-tertiary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 400;
+    white-space: nowrap;
+}
+
+.dashboard-page .pro-steps .kw-step-sep {
+    margin-top: 10px;
+}
+
+/* Seat meter */
+.dashboard-page .pro-seats-figure {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .pro-seats-used {
+    font-size: 27px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.02em;
+}
+
+.dashboard-page .pro-seats-limit {
+    font-size: 13px;
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .pro-seats .kw-progress {
+    width: 100%;
+    margin: 12px 0 10px;
+}
+
+.dashboard-page .pro-seats .kw-progress-fill {
+    width: 100%;
+    transform: scaleX(0);
+}
+
+.dashboard-page .pro-seats .kw-progress-fill.is-tight {
+    background: var(--control-warning);
+}
+
+.dashboard-page .pro-seats-note {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.dashboard-page .pro-seats-note.is-warn {
+    color: var(--control-warning);
+}
+
+/* The legend row that is you. A left rule plus a chip, so the highlight
+   survives for anyone who cannot see the accent. */
+.dashboard-page .kw-composition-row.is-you {
+    margin-left: -10px;
+    padding-left: 7px;
+    border-left: 2px solid var(--control-accent);
+}
+
+.dashboard-page .pro-you {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--control-accent-subtle);
+    color: var(--control-accent);
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.dashboard-page .pro-standing-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding-top: 18px;
+    border-top: 1px solid var(--control-border);
+}
+
+
+/* ── Preferences ─────────────────────────────────────────────────────── */
+
+/* One row only, so the shared 240px scroll box would be a scrollbar around
+   nothing. */
+.dashboard-page .pro-prefs {
+    max-height: none;
+    overflow: visible;
+}
+
+.dashboard-page .pro-prefs-note {
+    margin-top: 10px;
+}
+
+
+/* ── Loading skeletons ───────────────────────────────────────────────── */
+
+/* cr-skeleton supplies the shimmer but no dimensions, so every skeleton
+   needs its own box or it collapses to nothing. These mirror the real
+   boxes exactly so the swap costs zero layout shift. */
+.dashboard-page .pro-hero-skeleton {
+    align-items: center;
+}
+
+.dashboard-page .pro-skeleton-avatar {
+    width: 76px;
+    height: 76px;
+    border-radius: 20px;
+}
+
+.dashboard-page .pro-skeleton-line {
+    height: 13px;
+    margin-bottom: 12px;
+    border-radius: 6px;
+}
+
+.dashboard-page .pro-skeleton-line.is-tall {
+    height: 30px;
+    border-radius: 8px;
+}
+
+.dashboard-page .pro-skeleton-line:last-child {
+    margin-bottom: 0;
+}
+
+.dashboard-page .pro-skeleton-gauge {
+    width: 260px;
+    height: 106px;
+    border-radius: 12px;
+}
+
+.dashboard-page .pro-skeleton-signal {
+    height: 22px;
+    margin: 16px;
+    border-radius: 6px;
+}
+
+.dashboard-page .pro-skeleton-block {
+    height: 78px;
+    border-radius: 10px;
+}
+
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+
+/* This sheet loads after dashboard-control-room.css, so these win at equal
+   specificity against that file's own breakpoints. */
+@media (max-width: 900px) {
+    /* The gauge drops under the identity block and spans the full width,
+       keeping the avatar beside the name rather than orphaning it. */
+    .dashboard-page .pro-hero {
+        grid-template-columns: auto minmax(0, 1fr);
+        gap: 20px;
+    }
+
+    .dashboard-page .pro-hero-gauge,
+    .dashboard-page .pro-skeleton-gauge {
+        grid-column: 1 / -1;
+        width: auto;
+    }
+
+    .dashboard-page .pro-hero-gauge .kw-readiness {
+        min-width: 0;
+    }
+
+    .dashboard-page .pro-name {
+        font-size: 25px;
+    }
+}
+
+@media (max-width: 640px) {
+    .dashboard-page .pro-hero {
+        padding: 20px;
+    }
+
+    .dashboard-page .pro-avatar,
+    .dashboard-page .pro-skeleton-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 16px;
+        font-size: 20px;
+    }
+
+    .dashboard-page .pro-name {
+        font-size: 22px;
+    }
+
+    /* The action drops under the label rather than being squeezed against
+       it, which at this width would put both on one illegible line. */
+    .dashboard-page .pro-signal {
+        grid-template-columns: 22px minmax(0, 1fr);
+        row-gap: 9px;
+    }
+
+    .dashboard-page .pro-signal-state,
+    .dashboard-page .pro-signal-fix {
+        grid-column: 2;
+        justify-self: start;
+        text-align: left;
+    }
+
+    .dashboard-page .pro-strength {
+        flex-wrap: wrap;
+    }
+
+    .dashboard-page .pro-strength-text {
+        text-align: left;
+    }
+
+    .dashboard-page .pro-formfoot .kw-btn,
+    .dashboard-page .pro-standing-foot .kw-btn {
+        width: 100%;
+    }
+}
+
+
+/* ── Reduced motion ──────────────────────────────────────────────────── */
+
+/* control-room-motion.css already stills cr-reveal, cr-press and the
+   skeleton shimmer. These are this page's own transitions, which that
+   sheet knows nothing about. */
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-page .pro-strength .kw-progress-fill,
+    .dashboard-page .pro-seats .kw-progress-fill,
+    .dashboard-page .kw-gauge-fill {
+        transition: none;
+    }
+}
