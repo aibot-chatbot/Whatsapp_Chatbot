@@ -1,10 +1,27 @@
-﻿"""Tests for Phase 4H — printable receipts, CSV exports, and usage summary."""
+"""Tests for Phase 4H — printable receipts, CSV exports, and usage summary."""
+import os
 import json
 from unittest.mock import patch, MagicMock
 
 from tests.test_phase_4f_tenant_isolation import (
+
     TestBillingTenantIsolation as BaseTest,
 )
+
+
+# --- Billing moved out of profile.html (2026-09) -------------------------------
+# The billing surface now lives on its own page, split across markup, logic and
+# styles. These assertions guard the billing guarantees, so they read all three
+# parts of that page as one source rather than a single monolithic file.
+def _read_billing_source():
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _parts = []
+    for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
+        _path = os.path.join(_root, "frontend", *_rel)
+        with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
+            _parts.append(_fh.read())
+    return chr(10).join(_parts)
+# ------------------------------------------------------------------------------
 
 
 class BasePhase4HTest(BaseTest):
@@ -408,8 +425,7 @@ class TestProfileFrontendPhase4H(BasePhase4HTest):
 
     @classmethod
     def setUpClass(cls):
-        with open("frontend/profile.html", "r", encoding="utf-8") as f:
-            cls.html = f.read()
+        cls.html = _read_billing_source()
 
     def test_print_receipt_endpoint_wired(self):
         """Profile HTML contains the print receipt endpoint."""
@@ -417,11 +433,11 @@ class TestProfileFrontendPhase4H(BasePhase4HTest):
 
     def test_billing_csv_export_function_exists(self):
         """Profile HTML contains billing CSV export function."""
-        self.assertIn("exportSubscriptionOrdersCsv", self.html)
+        self.assertIn("exportOrders", self.html)
 
     def test_credit_csv_export_function_exists(self):
         """Profile HTML contains AI-credit CSV export function."""
-        self.assertIn("exportAiCreditCsv", self.html)
+        self.assertIn("exportTransactions", self.html)
 
     def test_usage_summary_cards_exist(self):
         """Profile HTML contains usage summary card containers."""

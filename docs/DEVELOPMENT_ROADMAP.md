@@ -109,6 +109,18 @@ every operation type, staging deployment, or production deployment.
 
 The bot-scoped CRM and Reports experiences are now one role-aware control-room workspace at `crm.html`. Its default Today view derives a plain-language action brief only from existing lead and analytics responses; Leads keeps the canonical five-stage pipeline, filtering, inline updates, notes and conversation links; Performance keeps the 7-day chart, AI report generator and lazy PDF export; AI Signals remains owner/admin-only. `reports.html` is a compatibility redirect to the Performance view, preserving `bot_id`. Focused static and mocked desktop/mobile browser coverage is current; live backend, external report-model and live PDF verification remain outstanding.
 
+### Knowledge follow-up and CRM stage automation - 2026-08-27
+
+Added a guarded automation seam for two tenant workflows: successful PDF
+indexing emits an idempotent document-review follow-up event, and owner/admin
+requests can apply a compare-and-set CRM stage transition with an audit event.
+`GET /api/automation/events` exposes tenant-scoped monitoring data. This is a
+partial implementation: a durable consumer/queue and live Langflow runtime
+remain separate work. The `automation_events` table is defined in Migration
+049 and is applied/live-verified in the active Supabase project. Langflow integration is intentionally
+opt-in and server-side; no external runtime or tenant-facing editor is enabled
+by this change.
+
 ### Phase 4L update - Platform-admin controls
 
 Current Superadmin prototype roadmap status after this milestone:

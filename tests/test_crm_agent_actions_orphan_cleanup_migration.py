@@ -63,7 +63,7 @@ def _top_level_keywords(sql):
 
 # Highest migration number currently in data/. Bump this deliberately when a
 # new migration is added, so numbering conflicts surface as a test failure.
-HIGHEST_MIGRATION_NUMBER = 47
+HIGHEST_MIGRATION_NUMBER = 49
 
 
 def test_028_is_the_next_selected_migration_number():

@@ -108,7 +108,7 @@ def check_subscription_belongs_to_company(company_id: int, subscription_id: int)
         sys.exit(1)
     row = data[0]
     if row.get("company_id") != company_id:
-        print(f"FAIL: Subscription {subscription_id} belongs to company {row.get("company_id")}, not {company_id}")
+        print(f"FAIL: Subscription {subscription_id} belongs to company {row.get('company_id')}, not {company_id}")
         sys.exit(1)
     print(f"PASS: Subscription {subscription_id} belongs to company {company_id}")
 
@@ -207,7 +207,7 @@ def main():
     except Exception as exc:
         print(f"FAIL: create_pending_topup_order: {exc}"); sys.exit(1)
     order_reference = order.get("order_reference", "")
-    print(f"PASS: Order created  ref={order_reference}  status={order.get("status")}")
+    print(f"PASS: Order created  ref={order_reference}  status={order.get('status')}")
     try:
         parsed = uuid_mod.UUID(order_reference)
         assert str(parsed) == order_reference
@@ -250,10 +250,10 @@ def main():
         if cleanup: _delete_order(order_reference, company_id)
         sys.exit(1)
     if not claim_result.get("claimed"):
-        print(f"FAIL: Claim failed: {claim_result.get("reason")}")
+        print(f"FAIL: Claim failed: {claim_result.get('reason')}")
         if cleanup: _delete_order(order_reference, company_id)
         sys.exit(1)
-    print(f"PASS: Claimed  reason={claim_result.get("reason")}")
+    print(f"PASS: Claimed  reason={claim_result.get('reason')}")
     print(); print("--- Failing checkout ---")
     from app.services.ai_credit_topup_order_service import fail_checkout_creation
     try:
@@ -262,7 +262,7 @@ def main():
         print(f"FAIL: Fail: {exc}")
         if cleanup: _delete_order(order_reference, company_id)
         sys.exit(1)
-    print(f"PASS: Failed  status={fail_result.get("status")}")
+    print(f"PASS: Failed  status={fail_result.get('status')}")
     try:
         stored_after = get_topup_order_by_reference(order_reference)
     except Exception as exc:

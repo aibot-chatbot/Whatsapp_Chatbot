@@ -9,7 +9,9 @@ os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 if "google" not in sys.modules:
     _g = types.ModuleType("google")

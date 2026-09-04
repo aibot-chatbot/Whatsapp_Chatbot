@@ -16,7 +16,9 @@ os.environ.setdefault("TOYYIBPAY_USER_SECRET_KEY", "test-secret-key")
 os.environ.setdefault("TOYYIBPAY_CATEGORY_CODE", "test-category")
 os.environ.setdefault("TOYYIBPAY_REDIRECT_URL", "https://test.example/profile")
 
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 if "google" not in sys.modules:
     _g = types.ModuleType("google")

@@ -4,9 +4,43 @@ import inspect
 import os
 import sys
 import types
+import re
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+
+# --- Billing moved out of profile.html (2026-09) -------------------------------
+# The billing surface now lives on its own page, split across markup, logic and
+# styles. These assertions guard the billing guarantees, so they read all three
+# parts of that page as one source rather than a single monolithic file.
+def _read_billing_source():
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _parts = []
+    for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
+        _path = os.path.join(_root, "frontend", *_rel)
+        with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
+            _parts.append(_fh.read())
+    return chr(10).join(_parts)
+
+
+def _fn_body(source, name):
+    """Return the brace-matched body of a JS function declaration."""
+    m = re.search(r"function\s+" + re.escape(name) + r"\s*\(", source)
+    if not m:
+        raise AssertionError("function %s not found in billing source" % name)
+    start = source.index("{", m.end() - 1)
+    depth = 0
+    for j in range(start, len(source)):
+        if source[j] == "{":
+            depth += 1
+        elif source[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:j + 1]
+    raise AssertionError("unbalanced braces in %s" % name)
+# ------------------------------------------------------------------------------
+
 
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
@@ -213,29 +247,31 @@ class TestGenerativeUsageDebitContract(unittest.TestCase):
 class TestBillingActivityLabels(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.profile_html = (REPO_ROOT / "frontend" / "profile.html").read_text(
-            encoding="utf-8"
-        )
+        cls.profile_html = _read_billing_source()
 
     def test_recent_activity_has_labels_for_distinct_ai_operations(self):
-        expected_labels = {
-            '"knowledge_refinement_questions": "Refine Answers"',
-            '"knowledge_refinement_verification": "Refine Answers"',
-            '"test_scenario_generation": "Test Scenario Generation"',
-            '"persona_derivation": "Persona Derivation"',
-            '"profile_knowledge_match": "Profile / Knowledge Validation"',
-            '"website_knowledge_extraction": "Website Knowledge Training"',
-            '"knowledge_graph_extraction": "Knowledge Graph Training"',
-        }
+        expected_labels = [
+            ("knowledge_refinement_questions", "Refine Answers"),
+            ("knowledge_refinement_verification", "Refine Answers"),
+            ("test_scenario_generation", "Test Scenario Generation"),
+            ("persona_derivation", "Persona Derivation"),
+            ("profile_knowledge_match", "Profile / Knowledge Validation"),
+            ("website_knowledge_extraction", "Website Knowledge Training"),
+            ("knowledge_graph_extraction", "Knowledge Graph Training"),
+        ]
 
-        for label in expected_labels:
-            with self.subTest(label=label):
-                self.assertIn(label, self.profile_html)
+        # The rewritten billing page writes unquoted object keys; the data is
+        # identical, so match either quoting style rather than a formatting
+        # convention.
+        for key, label in expected_labels:
+            with self.subTest(label=key):
+                self.assertRegex(self.profile_html, re.compile(
+                    '"?' + re.escape(key) + '"?[ ]*:[ ]*"' + re.escape(label) + '"'))
 
-        self.assertIn(
-            'return usageLabelMap[usageType] || formatOperationDisplayName(usageType) || "AI Usage";',
-            self.profile_html,
-        )
+        # Same three-tier fallback as before: explicit map, humanised slug,
+        # then the generic label - asserted without pinning identifiers.
+        self.assertRegex(_fn_body(self.profile_html, "usageLabel"), re.compile(
+            r'return\s+\w+\[\w+\]\s*\|\|\s*\w+\(\w+\)\s*\|\|\s*"AI Usage";'))
 
 
 if __name__ == "__main__":

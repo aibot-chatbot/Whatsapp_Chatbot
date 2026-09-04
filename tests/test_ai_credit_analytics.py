@@ -3,8 +3,42 @@
 import os
 import sys
 import types
+import re
 import unittest
 from unittest.mock import MagicMock, patch
+
+
+# --- Billing moved out of profile.html (2026-09) -------------------------------
+# The billing surface now lives on its own page, split across markup, logic and
+# styles. These assertions guard the billing guarantees, so they read all three
+# parts of that page as one source rather than a single monolithic file.
+def _read_billing_source():
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _parts = []
+    for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
+        _path = os.path.join(_root, "frontend", *_rel)
+        with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
+            _parts.append(_fh.read())
+    return chr(10).join(_parts)
+
+
+def _fn_body(source, name):
+    """Return the brace-matched body of a JS function declaration."""
+    m = re.search(r"function\s+" + re.escape(name) + r"\s*\(", source)
+    if not m:
+        raise AssertionError("function %s not found in billing source" % name)
+    start = source.index("{", m.end() - 1)
+    depth = 0
+    for j in range(start, len(source)):
+        if source[j] == "{":
+            depth += 1
+        elif source[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:j + 1]
+    raise AssertionError("unbalanced braces in %s" % name)
+# ------------------------------------------------------------------------------
+
 
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
@@ -471,39 +505,40 @@ class TestAiCreditAnalyticsRoute(unittest.TestCase):
 class TestProfileAiAnalyticsFrontend(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        with open("frontend/profile.html", "r", encoding="utf-8") as f:
-            cls.html = f.read()
+        cls.html = _read_billing_source()
 
     def test_analytics_endpoint_and_period_selector_are_wired(self):
         self.assertIn("/api/billing/ai-credit/analytics?", self.html)
-        self.assertIn('id="ai-analytics-period-select"', self.html)
+        self.assertIn('id="bl-analytics-period"', self.html)
         self.assertIn("Last 30 days", self.html)
         self.assertIn("Top Model by Tokens", self.html)
 
     def test_filter_controls_are_wired(self):
-        self.assertIn('id="ai-analytics-chatbot-filter"', self.html)
-        self.assertIn('id="ai-analytics-provider-filter"', self.html)
-        self.assertIn('id="ai-analytics-model-filter"', self.html)
-        self.assertIn('id="ai-analytics-feature-filter"', self.html)
+        self.assertIn('id="bl-filter-chatbot"', self.html)
+        self.assertIn('id="bl-filter-provider"', self.html)
+        self.assertIn('id="bl-filter-model"', self.html)
+        self.assertIn('id="bl-filter-feature"', self.html)
         self.assertIn("Reset Filters", self.html)
-        self.assertIn('"chatbot_id", "ai-analytics-chatbot-filter"', self.html)
-        self.assertIn('"provider", "ai-analytics-provider-filter"', self.html)
-        self.assertIn('"model", "ai-analytics-model-filter"', self.html)
-        self.assertIn('"operation_type", "ai-analytics-feature-filter"', self.html)
+        self.assertIn('"chatbot_id", "bl-filter-chatbot"', self.html)
+        self.assertIn('"provider", "bl-filter-provider"', self.html)
+        self.assertIn('"model", "bl-filter-model"', self.html)
+        self.assertIn('"operation_type", "bl-filter-feature"', self.html)
         self.assertIn("No AI usage matches these filters for the selected period.", self.html)
 
     def test_unavailable_chatbot_options_are_disabled(self):
-        self.assertIn("disabled: bot.available === false", self.html)
-        self.assertIn("option.disabled ? ' disabled' : ''", self.html)
-        self.assertIn("filter(function(option) { return !option.disabled; })", self.html)
+        """Unavailable chatbots appear as disabled options and are excluded
+        from the available set used to validate the current selection."""
+        body = _fn_body(self.html, "populateFilter")
+        self.assertRegex(body, re.compile(r"if \(\w+\.disabled\)\s*\w+\.disabled = true;"))
+        self.assertRegex(body, re.compile(r"filter\(function \(\w+\) \{ return !\w+\.disabled; \}\)"))
 
     def test_visualization_containers_exist(self):
-        self.assertIn('id="ai-usage-analytics-section"', self.html)
-        self.assertIn('id="ai-main-chart"', self.html)
-        self.assertIn('id="ai-model-time-chart"', self.html)
-        self.assertIn('id="ai-feature-chart"', self.html)
-        self.assertIn('id="ai-provider-chart"', self.html)
-        self.assertIn('id="ai-model-table-body"', self.html)
+        self.assertIn('id="bl-analytics"', self.html)
+        self.assertIn('id="bl-main-chart"', self.html)
+        self.assertIn('id="bl-model-chart"', self.html)
+        self.assertIn('id="bl-feature-chart"', self.html)
+        self.assertIn('id="bl-provider-chart"', self.html)
+        self.assertIn('id="bl-model-table"', self.html)
 
     def test_empty_and_legacy_copy_exists(self):
         self.assertIn("No AI usage recorded for this period", self.html)

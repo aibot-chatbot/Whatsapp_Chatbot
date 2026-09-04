@@ -181,19 +181,30 @@ def test_account_session_changes_clear_cached_chatbot_state():
 
 
 def test_profile_continues_loading_when_chatbot_navigation_context_is_stale():
-    profile_source = Path("frontend/profile.html").read_text(encoding="utf-8")
-    refresh = profile_source.index("await refreshProfileChatbotContext(chatbotContext)")
-    profile_load = profile_source.index("loadProfile();", refresh)
-    team_load = profile_source.index("loadTeamInfo();", refresh)
-    billing_load = profile_source.index("loadBillingInfo();", refresh)
-    helper_start = profile_source.index("async function refreshProfileChatbotContext")
-    helper_end = profile_source.index("/* ===== Subscription Management", helper_start)
-    context_helper = profile_source[helper_start:helper_end]
+    """A stale chatbot navigation context must never gate Profile or redirect.
 
-    assert refresh < profile_load < team_load < billing_load
-    assert "clearChatbotContext();" in context_helper
-    assert "window.location" not in context_helper
-    assert "validateChatbotContext(chatbotContext)" not in profile_source
+    The old Profile page refreshed the chatbot context first and then loaded
+    profile, team and billing data in order, so the guarantee was expressed as
+    an ordering plus "the helper must not touch window.location".
+
+    The rewritten Profile page is personal-only: it never reads the chatbot
+    navigation context and never navigates. A stale context therefore cannot
+    block its data or move the user, which is strictly stronger than the
+    ordering it replaces.
+    """
+    profile_html = Path("frontend/profile.html").read_text(encoding="utf-8")
+    profile_js = Path("frontend/assets/js/profile.js").read_text(encoding="utf-8")
+    source = profile_html + profile_js
+
+    for token in (
+        "chatbotContext",
+        "validateChatbotContext",
+        "refreshProfileChatbotContext",
+        "selectedBotId",
+    ):
+        assert token not in source, f"Profile must not depend on chatbot context: {token}"
+
+    assert "window.location" not in source, "Profile must never redirect"
 
 
 def test_all_chatbot_access_helpers_scope_by_current_company():

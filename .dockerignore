@@ -7,6 +7,24 @@ node_modules
 tests/
 scratch/
 frontend_backup_before_ui_overhaul/
+
+# Local AI/agent tooling artifacts. These live in the repo root, are not
+# application code, and added ~81MB to the build context (.omx 53MB,
+# graphify-out 17MB, .understand-anything 11MB) before they were excluded.
+# The Dockerfile does `COPY . .`, so anything here that is not ignored is
+# baked into a published, immutable image layer.
+.omx/
+.understand-anything/
+graphify-out/
+output/
+
+# NOTE: media_uploads/ is deliberately NOT ignored, and that is a known
+# privacy problem rather than an endorsement. It is LEGACY_MEDIA_FOLDER
+# (app/storage_paths.py) and serve_media() still falls back to it, so
+# excluding it would 404 every pre-existing tenant media URL. The fix is to
+# copy those files onto the Fly volume at /app/data/media_uploads and THEN
+# ignore this directory - until that happens, ~7MB of real customer media is
+# baked into every published image layer.
 data/*.pdf
 data/*.md
 # Secrets and env files. Dockerfile does

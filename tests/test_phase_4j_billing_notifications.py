@@ -14,9 +14,43 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 import sys
+import re
 import unittest
 from unittest.mock import MagicMock, patch, ANY
 import pytest
+
+
+# --- Billing moved out of profile.html (2026-09) -------------------------------
+# The billing surface now lives on its own page, split across markup, logic and
+# styles. These assertions guard the billing guarantees, so they read all three
+# parts of that page as one source rather than a single monolithic file.
+def _read_billing_source():
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _parts = []
+    for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
+        _path = os.path.join(_root, "frontend", *_rel)
+        with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
+            _parts.append(_fh.read())
+    return chr(10).join(_parts)
+
+
+def _fn_body(source, name):
+    """Return the brace-matched body of a JS function declaration."""
+    m = re.search(r"function\s+" + re.escape(name) + r"\s*\(", source)
+    if not m:
+        raise AssertionError("function %s not found in billing source" % name)
+    start = source.index("{", m.end() - 1)
+    depth = 0
+    for j in range(start, len(source)):
+        if source[j] == "{":
+            depth += 1
+        elif source[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return source[start:j + 1]
+    raise AssertionError("unbalanced braces in %s" % name)
+# ------------------------------------------------------------------------------
+
 
 # Patch supabase before any app import
 with patch("app.database.db.supabase", MagicMock()):
@@ -747,63 +781,67 @@ class TestProfileBillingNotificationsFrontend(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        with open(PROFILE_PATH, "r", encoding="utf-8", errors="replace") as f:
-            cls.html = f.read()
+        cls.html = _read_billing_source()
 
     def test_notification_section_exists(self):
-        self.assertIn('billing-notifications-section', self.html)
+        self.assertIn('bl-notif-section', self.html)
 
     def test_loading_state_exists(self):
-        self.assertIn('billing-notifications-loading', self.html)
+        self.assertIn('bl-notif-loading', self.html)
 
     def test_empty_state_exists(self):
-        self.assertIn('billing-notifications-empty', self.html)
+        self.assertIn('bl-notif-empty', self.html)
 
     def test_error_state_exists(self):
-        self.assertIn('billing-notifications-error', self.html)
+        self.assertIn('bl-notif-error', self.html)
 
     def test_content_container_exists(self):
-        self.assertIn('billing-notifications-content', self.html)
+        self.assertIn('bl-notif-list', self.html)
 
     def test_notification_list_exists(self):
-        self.assertIn('billing-notifications-list', self.html)
+        self.assertIn('bl-notif-list', self.html)
 
     def test_mark_all_read_button_exists(self):
-        self.assertIn('btn-mark-all-read', self.html)
+        self.assertIn('bl-notif-readall', self.html)
 
     def test_unread_count_badge(self):
-        self.assertIn("loadBillingNotificationsUnreadCount", self.html)
+        self.assertIn("loadUnreadCount", self.html)
 
     def test_company_wide_wording(self):
         self.assertIn("shared by all chatbots", self.html.lower())
 
     def test_js_functions_exist(self):
-        self.assertIn("function loadBillingNotifications", self.html)
-        self.assertIn("function markSingleNotificationRead", self.html)
+        self.assertIn("function loadNotifications", self.html)
+        self.assertIn("function markNotificationRead", self.html)
         self.assertIn("function markAllNotificationsRead", self.html)
-        self.assertIn("function loadBillingNotificationsUnreadCount", self.html)
+        self.assertIn("function loadUnreadCount", self.html)
 
     def test_init_calls_exist(self):
-        self.assertIn("loadBillingNotifications()", self.html)
-        self.assertIn("loadBillingNotificationsUnreadCount()", self.html)
+        self.assertIn("loadNotifications()", self.html)
+        self.assertIn("loadUnreadCount()", self.html)
 
     def test_retry_button_exists(self):
-        self.assertIn('btn-notifications-retry', self.html)
+        self.assertIn('bl-notif-retry', self.html)
 
     def test_notification_section_labels(self):
         self.assertIn("Billing Notifications", self.html)
 
-    def test_escape_html_function_exists(self):
-        self.assertIn("function escapeHtml", self.html)
+    def test_backend_text_is_never_written_as_markup(self):
+        """Stronger than escaping: the page never assigns innerHTML at all.
+
+        The old page escaped values before concatenating them into an innerHTML
+        string, so it needed an escapeHtml() helper. The rewritten billing page
+        builds DOM nodes and assigns textContent, so there is no escaping
+        function to test - and no injection sink to escape for.
+        """
+        self.assertNotRegex(self.html, re.compile(r"\.innerHTML\s*="))
+        self.assertIn("node.textContent = text;", self.html)
 
     def test_safe_rendering_of_notification_title(self):
-        # "Harden Profile billing DOM rendering" (12cb8ef) replaced the
-        # innerHTML + escapeHtml(n.title ...) concatenation with a textContent
-        # assignment.  textContent cannot inject markup at all, so it is a
-        # stronger guarantee than escaping -- but the assertion had to move
-        # with the implementation.
-        self.assertIn("titleEl.textContent = n.title", self.html)
-        self.assertNotIn("escapeHtml(n.title", self.html)
+        body = _fn_body(self.html, "notificationItem")
+        self.assertIn("notification.title", body)
+        self.assertNotIn("innerHTML", body)
+        self.assertNotIn("escapeHtml", self.html)
 
 
 # ---------------------------------------------------------------------------

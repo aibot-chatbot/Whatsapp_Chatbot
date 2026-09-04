@@ -9,7 +9,9 @@ os.environ.setdefault("TOYYIBPAY_CATEGORY_CODE", "test-category")
 os.environ.setdefault("TOYYIBPAY_CALLBACK_URL", "https://test.ngrok.app/api/billing/toyyibpay/callback")
 
 import sys
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 import unittest
 from unittest.mock import patch, MagicMock

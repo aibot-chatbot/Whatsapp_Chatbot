@@ -11,7 +11,9 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 import sys
-sys.path.insert(0, r"C:\\Users\\User\\PycharmProjects\\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 import unittest
 from unittest.mock import patch, MagicMock
@@ -392,7 +394,7 @@ class TestListSubscriptionOrdersForCompany(unittest.TestCase):
 
     def setUp(self):
         import sys
-        sys.path.insert(0, r'C:\Users\User\PycharmProjects\python-whatsapp-bot-main')
+        sys.path.insert(0, str(_REPO_ROOT))
         with patch('app.database.db.supabase', MagicMock()):
             from app.database.company_subscription_order_repository import list_subscription_orders_for_company
             self.repo_func = list_subscription_orders_for_company

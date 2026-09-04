@@ -7,7 +7,9 @@ os.environ.setdefault("AI_CREDIT_ENFORCEMENT_ENABLED", "true")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 import sys
-sys.path.insert(0, "C:\\Users\\User\\PycharmProjects\\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 import unittest
 from unittest.mock import patch, MagicMock

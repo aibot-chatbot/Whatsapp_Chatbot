@@ -16,7 +16,9 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 os.environ.setdefault("FLASK_DEBUG", "1")
 
 import sys
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 import json
 import unittest

@@ -1,7 +1,9 @@
 """Tests for pure helper functions in the smoke script."""
 
 import os, sys
-sys.path.insert(0, 'C:\\Users\\User\\PycharmProjects\\python-whatsapp-bot-main')
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -33,7 +35,7 @@ class TestSmokeScriptHelpers(unittest.TestCase):
         spec = importlib.util.spec_from_file_location(
             "smoke_test_ai_credit_topup_supabase",
             os.path.join(
-                'C:\\Users\\User\\PycharmProjects\\python-whatsapp-bot-main',
+                str(_REPO_ROOT),
                 "scripts", "smoke_test_ai_credit_topup_supabase.py"
             ),
         )
