@@ -2,6 +2,7 @@ import re
 from datetime import datetime, timezone
 
 from app.database.db import supabase
+from app.database.db_errors import database_error_code, is_unique_violation
 
 
 SAFE_CRM_LEAD_FIELDS = (
@@ -89,20 +90,11 @@ def _normalize_follow_up_date(value):
     return text
 
 
-def _database_error_code(error):
-    code = getattr(error, "code", None)
-    if code:
-        return str(code)
-
-    for argument in getattr(error, "args", ()):
-        if isinstance(argument, dict) and argument.get("code"):
-            return str(argument["code"])
-
-    return None
-
-
-def _is_unique_violation(error):
-    return _database_error_code(error) == "23505"
+# Kept as module-private aliases so existing call sites keep working; the
+# implementation now lives in app/database/db_errors.py because the Telegram and
+# Meta de-dup ledgers need the same check.
+_database_error_code = database_error_code
+_is_unique_violation = is_unique_violation
 
 
 def get_crm_leads_by_chatbot(chatbot_id, status=None, limit=50, conversation_id=None):
@@ -188,6 +180,45 @@ def get_crm_lead_by_conversation(chatbot_id, conversation_id):
         .execute()
     )
 
+    rows = result.data or []
+    return _sanitize_crm_lead(rows[0]) if rows else None
+
+
+def get_crm_lead_by_id(lead_id, chatbot_id, company_id):
+    """Load one lead with both chatbot and company ownership enforced."""
+    result = (
+        supabase.table("crm_leads")
+        .select(SAFE_CRM_LEAD_FIELDS)
+        .eq("id", lead_id)
+        .eq("chatbot_id", chatbot_id)
+        .eq("company_id", company_id)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return _sanitize_crm_lead(rows[0]) if rows else None
+
+
+def transition_crm_lead_stage(*, lead_id, company_id, chatbot_id, from_status, to_status):
+    """Apply a compare-and-set stage transition within the tenant boundary."""
+    raw_from = str(from_status or "").strip().lower()
+    normalized_from = normalize_crm_lead_status(raw_from)
+    normalized_to = normalize_crm_lead_status(to_status)
+    if normalized_to not in ALLOWED_CRM_LEAD_STATUSES:
+        raise ValueError("Invalid CRM lead status.")
+
+    result = (
+        supabase.table("crm_leads")
+        .update({
+            "status": normalized_to,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", lead_id)
+        .eq("chatbot_id", chatbot_id)
+        .eq("company_id", company_id)
+        .eq("status", raw_from)
+        .execute()
+    )
     rows = result.data or []
     return _sanitize_crm_lead(rows[0]) if rows else None
 

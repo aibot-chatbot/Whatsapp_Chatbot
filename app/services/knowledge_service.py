@@ -169,6 +169,32 @@ def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candid
             "last_match_reason": "",
         }, chatbot_id)
 
+    # Queue a tenant-scoped review event after a successful document ingest.
+    # Automation is advisory and must never turn a successful upload into a
+    # failed request when its optional table has not been migrated yet.
+    try:
+        from app.database.bot_repository import get_bot_by_id
+        from app.services.automation_service import schedule_knowledge_document_follow_up
+
+        bot = get_bot_by_id(chatbot_id) or {}
+        company_id = bot.get("company_id")
+        if company_id:
+            schedule_knowledge_document_follow_up(
+                company_id=company_id,
+                chatbot_id=chatbot_id,
+                file_id=file_id,
+                display_name=original_name,
+                chunk_count=chunk_count,
+                target_role=target_role,
+            )
+    except Exception as automation_err:
+        logging.warning(
+            "Knowledge follow-up automation unavailable for chatbot_id=%s, file_id=%s: %s",
+            chatbot_id,
+            file_id,
+            automation_err,
+        )
+
     # "List out content": what we actually read, and how. The operator needs to
     # know a scan was involved, because OCR text is good but not perfect and it
     # is worth a glance before the bot starts answering from it.

@@ -267,7 +267,10 @@ def wasender_webhook_post(webhook_secret):
             "Wasender webhook received for channel %s",
             hashlib.sha256(webhook_secret.encode()).hexdigest()[:12],
         )
-        logging.info(f"Wasender payload: {payload}")
+        # Keys only, never values: the payload carries the customer's message
+        # text and phone number. The channel fingerprint above already
+        # identifies which tenant this belongs to.
+        logging.info("Wasender payload keys: %s", sorted(payload)[:10])
 
         process_wasender_webhook(payload, webhook_secret)
 
