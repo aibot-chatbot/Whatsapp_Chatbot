@@ -30,7 +30,7 @@ class TestSilentBotResponse(unittest.TestCase):
         app.config["TESTING"] = True
 
     # ------------------------------------------------------------------ #
-    #  chat_pipeline_service — prepare_chat_prompt escalation check
+    #  chat_pipeline_service ï¿½ prepare_chat_prompt escalation check
     # ------------------------------------------------------------------ #
     # The pipeline calls get_or_create_conversation (which uses
     # app.database.conversation_repository.supabase) and then
@@ -89,7 +89,7 @@ class TestSilentBotResponse(unittest.TestCase):
         self.assertNotEqual(result.get("direct_reply"), "<SILENT_BOT_RESPONSE>")
 
     # ------------------------------------------------------------------ #
-    #  agent_action_repository — is_conversation_escalated
+    #  agent_action_repository ï¿½ is_conversation_escalated
     # ------------------------------------------------------------------ #
 
     @patch("app.database.agent_action_repository.supabase")
@@ -112,7 +112,7 @@ class TestSilentBotResponse(unittest.TestCase):
 
 
     # ------------------------------------------------------------------ #
-    #  WhatsApp channel — process_whatsapp_message
+    #  WhatsApp channel ï¿½ process_whatsapp_message
     # ------------------------------------------------------------------ #
 
     @patch("app.database.processed_message_repository.supabase")
@@ -165,10 +165,14 @@ class TestSilentBotResponse(unittest.TestCase):
     @patch("app.utils.whatsapp_utils.get_or_create_conversation")
     @patch("app.utils.whatsapp_utils.is_processed")
     @patch("app.utils.whatsapp_utils.get_whatsapp_channel_by_phone_number_id")
+    # The send path reads the bot record for style settings
+    # (whatsapp_utils.get_bot_by_id); the silent path returns before reaching it.
+    @patch("app.database.bot_repository.supabase")
     @patch("app.utils.whatsapp_utils.generate_response")
     def test_whatsapp_normal_response_does_send(
         self,
         mock_generate,
+        mock_bot_supa,
         mock_get_channel,
         mock_is_processed,
         mock_get_conv,
@@ -198,7 +202,7 @@ class TestSilentBotResponse(unittest.TestCase):
 
         process_whatsapp_message(body)
 
-        # Normal response — should send via send_message
+        # Normal response ï¿½ should send via send_message
         mock_generate.assert_called_once()
         mock_send.assert_called_once()
         # Verify the silent sentinel does not leak
@@ -206,7 +210,7 @@ class TestSilentBotResponse(unittest.TestCase):
         self.assertNotIn("<SILENT_BOT_RESPONSE>", str(call_text))
 
     # ------------------------------------------------------------------ #
-    #  Telegram channel — process_telegram_update
+    #  Telegram channel ï¿½ process_telegram_update
     # ------------------------------------------------------------------ #
 
     @patch("app.database.processed_telegram_update_repository.supabase")
@@ -268,10 +272,14 @@ class TestSilentBotResponse(unittest.TestCase):
     @patch("app.utils.telegram_utils.get_or_create_platform_conversation")
     @patch("app.utils.telegram_utils.is_telegram_update_processed")
     @patch("app.utils.telegram_utils.get_telegram_channel_by_secret")
+    # The send path reads the bot record for style settings
+    # (telegram_utils.get_bot_by_id); the silent path returns before reaching it.
+    @patch("app.database.bot_repository.supabase")
     @patch("app.utils.telegram_utils.generate_response")
     def test_telegram_normal_response_does_send(
         self,
         mock_generate,
+        mock_bot_supa,
         mock_get_channel,
         mock_is_processed,
         mock_get_conv,
@@ -302,14 +310,14 @@ class TestSilentBotResponse(unittest.TestCase):
 
         process_telegram_update(update, "test-secret")
 
-        # Normal response — should send
+        # Normal response ï¿½ should send
         mock_generate.assert_called_once()
         mock_send_tg.assert_called_once()
         call_text = mock_send_tg.call_args[0][2]
         self.assertNotIn("<SILENT_BOT_RESPONSE>", str(call_text))
 
     # ------------------------------------------------------------------ #
-    #  Wasender channel — process_wasender_webhook
+    #  Wasender channel ï¿½ process_wasender_webhook
     # ------------------------------------------------------------------ #
 
     @patch("app.database.processed_wasender_message_repository.supabase")
@@ -402,7 +410,7 @@ class TestSilentBotResponse(unittest.TestCase):
 
         process_wasender_webhook({"event": "messages.received", "data": {}}, "test-secret")
 
-        # Normal response — should send via text or interactive
+        # Normal response ï¿½ should send via text or interactive
         mock_generate.assert_called_once()
         self.assertTrue(mock_send_text.called)
         if mock_send_text.called:

@@ -277,7 +277,14 @@ def _serving_stack(
                 "company_id": None,
             },
         ))
-        enter(patch.object(flow_executor_service, "process_flow_message", return_value=None))
+        # process_flow_message returns a FlowExecutionResult, not None; ai_router
+        # reads .handled off it. "no_flow" is the status that hands the message
+        # to the AI/RAG path these tests exercise.
+        enter(patch.object(
+            flow_executor_service,
+            "process_flow_message",
+            return_value=flow_executor_service.FlowExecutionResult(status="no_flow"),
+        ))
 
         # -- chat pipeline repositories --------------------------------------
         enter(patch.object(
@@ -310,12 +317,14 @@ def _serving_stack(
         # existed here, so patch.object raised AttributeError before the stack
         # was even built.
         #
-        # KNOWN: fixing this uncovers a second, older break in the same stack --
-        # ensure_company_operational rejects the resolved company id
-        # ("Unable to validate company access.", company_context_invalid), so
-        # this module and tests/browser/testbot-persona.spec.js are both still
-        # red. That one is not diagnosed yet; it is unrelated to the patch
-        # target and predates it.
+        # That fix uncovered a second, older break in the same stack, now
+        # diagnosed: ai_router.generate_response calls ensure_company_operational
+        # on the bot's company_id, and the bot stub above sets it to None on
+        # purpose (this file does not test billing). _positive_company_id
+        # rejects None as company_context_invalid, so every reply came back as
+        # the generic failure string. Patched below, matching the convention in
+        # test_flow_builder_runtime.py and test_ai_access_enforcement.py.
+        enter(patch("app.services.company_status_service.ensure_company_operational"))
         enter(patch.object(
             chat_logic_service, "get_active_knowledge_file", return_value=active_document
         ))

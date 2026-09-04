@@ -6,7 +6,9 @@ os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("AI_CREDIT_ENFORCEMENT_ENABLED", "True")
 
 import sys
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 import unittest
 from unittest.mock import patch, MagicMock, ANY

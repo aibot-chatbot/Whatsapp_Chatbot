@@ -20,29 +20,43 @@ class WorkspaceFrontendTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.profile = (ROOT / "frontend" / "profile.html").read_text(encoding="utf-8", errors="replace")
+        # Profile and Team are now split across markup and logic files, and the
+        # admin-only Company Information editor moved from Profile to Team.
+        cls.profile_js = (ROOT / "frontend" / "assets" / "js" / "profile.js").read_text(encoding="utf-8", errors="replace")
+        cls.team_js = (ROOT / "frontend" / "assets" / "js" / "team.js").read_text(encoding="utf-8", errors="replace")
         cls.team = (ROOT / "frontend" / "team.html").read_text(encoding="utf-8", errors="replace")
         cls.accept = (ROOT / "frontend" / "accept-invite.html").read_text(encoding="utf-8", errors="replace")
         cls.login = (ROOT / "frontend" / "login.html").read_text(encoding="utf-8", errors="replace")
         cls.register = (ROOT / "frontend" / "register.html").read_text(encoding="utf-8", errors="replace")
 
-    def test_profile_has_two_compact_workspace_cards_and_no_placeholders(self):
-        self.assertIn("Company Information", self.profile)
-        self.assertIn("Team Summary", self.profile)
-        self.assertIn('authenticatedFetch("/api/workspace")', self.profile)
+    def test_company_information_lives_on_the_team_page(self):
+        """The admin-only Company Information editor moved to team.html."""
+        self.assertIn("Company information", self.team)
+        self.assertIn("saveCompany", self.team_js)
+        self.assertIn("/api/workspace", self.team_js)
+        self.assertNotIn("Company information", self.profile)
+        self.assertNotIn("Company Information", self.profile)
+
+    def test_profile_shows_workspace_standing_and_no_admin_writes(self):
+        """Profile keeps a read-only view of where you stand in the workspace."""
+        self.assertIn("Your standing in this workspace", self.profile)
+        self.assertIn("/api/workspace", self.profile_js)
+        self.assertNotIn("saveCompanyInformation", self.profile_js)
         self.assertNotIn("AI Chatbot Team", self.profile)
         self.assertNotIn("your-app.com/invite/ABC123", self.profile)
         self.assertNotIn("member-avatar-mini", self.profile)
 
     def test_profile_renders_role_counts_and_singular_plural(self):
-        self.assertIn("data.current_user_role", self.profile)
-        self.assertIn("data.active_member_count", self.profile)
-        self.assertIn("data.pending_invitation_count", self.profile)
-        self.assertIn('active === 1 ? "" : "s"', self.profile)
+        self.assertIn("roleBreakdown", self.profile_js)
+        self.assertIn("pending_invitation_count", self.profile_js)
+        self.assertRegex(self.profile_js,
+                         re.compile(r"count === 1 \? singular : plural"))
 
-    def test_profile_company_save_has_loading_and_permission_states(self):
-        self.assertIn("saveCompanyInformation", self.profile)
-        self.assertIn("data.can_edit_company", self.profile)
-        self.assertIn("Saving...", self.profile)
+    def test_company_save_has_loading_and_permission_states(self):
+        """Company editing is permission-gated and disables while in flight."""
+        self.assertIn("can_edit_company", self.team_js)
+        self.assertIn("Only company administrators can edit this information.", self.team)
+        self.assertRegex(self.team_js, re.compile(r"disabled\s*=\s*true"))
 
     def test_team_uses_same_workspace_summary_and_allows_read_only_members(self):
         # The Team screen keeps its behaviour in assets/js/team.js now, so the

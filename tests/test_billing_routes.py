@@ -11,7 +11,9 @@ os.environ.setdefault("TOYYIBPAY_CATEGORY_CODE", "test-category")
 os.environ.setdefault("TOYYIBPAY_REDIRECT_URL", "https://test.example/profile")
 
 import sys
-sys.path.insert(0, "C:\\Users\\User\\PycharmProjects\\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 
 import unittest
 from unittest.mock import patch, MagicMock
@@ -507,6 +509,34 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         _, kwargs = service.call_args
         self.assertEqual(kwargs["customer_phone"], "+60123456789")
+
+    def test_hitpay_checkout_uses_server_gateway_and_does_not_require_phone(self):
+        hitpay_result = dict(
+            self.service_result,
+            payment_gateway="hitpay",
+            checkout_url="https://securecheckout.sandbox.hit-pay.com/test-checkout",
+        )
+        with (
+            self._patch_jwt_decode(),
+            self._patch_user_repo(),
+            self._patch_billing_get_user_with_phone(None),
+            patch(
+                "app.routes.billing_routes.get_subscription_payment_gateway",
+                return_value="hitpay",
+            ),
+            self._patch_checkout_service(return_value=hitpay_result) as service,
+        ):
+            resp = self.client.post(
+                "/api/billing/subscription/checkout",
+                json={"plan_code": "essential", "payment_gateway": "toyyibpay"},
+                headers={"Authorization": "Bearer test-token"},
+            )
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.get_json()["data"]["payment_gateway"], "hitpay")
+        _, kwargs = service.call_args
+        self.assertEqual(kwargs["payment_gateway"], "hitpay")
+        self.assertIsNone(kwargs["customer_phone"])
 
     # ----- Successful checkout -----
 

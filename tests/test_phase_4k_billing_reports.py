@@ -1,4 +1,4 @@
-﻿"""tests/test_phase_4k_billing_reports.py - Tests for Phase 4K billing reports.
+"""tests/test_phase_4k_billing_reports.py - Tests for Phase 4K billing reports.
 
 Tests cover:
   - Report summary calculations (orders, AI credit, AI usage)
@@ -23,6 +23,22 @@ import sys
 import unittest
 from unittest.mock import patch, MagicMock
 import json, types, os
+
+
+# --- Billing moved out of profile.html (2026-09) -------------------------------
+# The billing surface now lives on its own page, split across markup, logic and
+# styles. These assertions guard the billing guarantees, so they read all three
+# parts of that page as one source rather than a single monolithic file.
+def _read_billing_source():
+    _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _parts = []
+    for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
+        _path = os.path.join(_root, "frontend", *_rel)
+        with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
+            _parts.append(_fh.read())
+    return chr(10).join(_parts)
+# ------------------------------------------------------------------------------
+
 
 if "google" not in sys.modules:
     _g = types.ModuleType("google")
@@ -904,8 +920,7 @@ class TestProfileReportsFrontend(unittest.TestCase):
     def setUpClass(cls):
         if not os.path.exists(PROFILE_PATH):
             raise unittest.SkipTest("profile.html not found")
-        with open(PROFILE_PATH, "r", encoding="utf-8", errors="replace") as f:
-            cls.html = f.read()
+        cls.html = _read_billing_source()
 
     def test_reports_section_exists(self):
         self.assertIn("Billing", self.html) and self.assertIn("Reports", self.html)

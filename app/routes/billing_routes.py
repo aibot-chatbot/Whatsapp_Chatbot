@@ -25,6 +25,7 @@ from app.services.ai_credit_topup_checkout_service import (
 )
 from app.services.subscription_checkout_service import (
     create_subscription_checkout,
+    get_subscription_payment_gateway,
 )
 from app.services.ai_access_policy import resolve_ai_access
 from app.database.subscription_plan_repository import get_plan_by_code as _get_plan_by_code
@@ -637,14 +638,14 @@ def toyyibpay_order_status(order_reference):
 @token_required
 @company_operational_required
 def subscription_checkout():
-    """Create a subscription payment checkout (ToyyibPay bill).
+    """Create a hosted subscription payment checkout.
 
     Request body:
         plan_code: Required, lowercase plan code ("essential", "advanced", "pro").
 
     Response:
         order_reference: UUID string for the created order.
-        checkout_url:    ToyyibPay payment page URL.
+        checkout_url:    Hosted payment page URL.
         amount_sen:      Amount billed in sen.
 
     Does not activate the subscription or grant AI credits.
@@ -695,8 +696,9 @@ def subscription_checkout():
                 "status": "error",
                 "message": "Authenticated user has no email."
             }), 400
+        payment_gateway = get_subscription_payment_gateway(company_id)
         normalized_phone = _validate_toyyibpay_customer_phone(customer_phone)
-        if not normalized_phone:
+        if payment_gateway == "toyyibpay" and not normalized_phone:
             return jsonify({
                 "status": "error",
                 "message": "A valid phone number is required before creating a ToyyibPay checkout."
@@ -709,6 +711,7 @@ def subscription_checkout():
             customer_name=customer_name,
             customer_email=customer_email,
             customer_phone=normalized_phone,
+            payment_gateway=payment_gateway,
         )
 
         return jsonify({
@@ -718,6 +721,7 @@ def subscription_checkout():
                 "checkout_url": result["checkout_url"],
                 "amount_sen": result["amount_sen"],
                 "expires_at": result.get("expires_at"),
+                "payment_gateway": result.get("payment_gateway", payment_gateway),
             },
         }), 200
 

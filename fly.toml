@@ -1,0 +1,71 @@
+# Fly.io deployment for the chatbot SaaS.
+#
+# Three invariants drive this file. Two are correctness, one is privacy, and
+# all three were learned by breaking them:
+#
+#  1. Exactly ONE machine. The volume is single-attach, and wsgi.py runs the
+#     Wasender retry loop in-process - a second machine retries the same
+#     messages and the customer receives duplicates.
+#  2. The volume MUST mount at /app/data. That is where knowledge PDFs and
+#     media_uploads live (app/storage_paths.py). Mount it elsewhere and tenant
+#     uploads are wiped on every deploy while the database rows holding their
+#     /media/ URLs survive.
+#  3. Region is a privacy decision, not a latency one. See primary_region.
+
+# "whatsapp-chatbot" was taken - Fly app names are unique across all of Fly.io,
+# not just this org. The name IS the hostname, and that hostname gets written
+# into PUBLIC_BASE_URL, every Telegram setWebhook call and every widget embed
+# snippet. Renaming later means re-pointing every channel by hand.
+app = "wa-chatbot-my"
+
+# Singapore: nearest region to the Malaysian tenant base, and it keeps our
+# tenants' customers' message content in-region. Changing this moves personal
+# data into another jurisdiction and may need a transfer basis under PDPA/GDPR.
+# Do not change it for performance without checking that first.
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8000"
+  FLASK_DEBUG = "false"
+  WASENDER_RETRY_WORKER_ENABLED = "true"
+  # Fly's proxy is exactly one hop. Raising this trusts a forged
+  # X-Forwarded-For and hands out an unauthenticated rate-limit bypass.
+  TRUSTED_PROXY_HOPS = "1"
+  # ENABLE_DEV_BILLING_ROUTES is deliberately ABSENT, not "false".
+  # app/config.py tests the raw string for truthiness, so even the string
+  # "false" is truthy and raises RuntimeError at boot.
+
+[mounts]
+  source = "chatbot_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # Never scale to zero: the retry worker is an in-process loop, and a stopped
+  # machine silently stops retrying failed customer sends.
+  # Never scale out: invariant 1.
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 40
+    hard_limit = 60
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  # 1GB, not 512MB: the image loads PyMuPDF and the Google GenAI client at
+  # import time and OOMs on the smaller size.
+  memory = "1gb"

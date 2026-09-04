@@ -2,7 +2,9 @@
 
 import os
 import sys
-sys.path.insert(0, r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main")
+import pathlib
+_REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO_ROOT))
 import unittest
 from unittest.mock import patch, MagicMock, call
 
@@ -15,7 +17,7 @@ class TestToyyibPayProductionCheckoutScript(unittest.TestCase):
         spec = importlib.util.spec_from_file_location(
             "smoke_test_toyyibpay_production_checkout",
             os.path.join(
-                r"C:\Users\User\PycharmProjects\python-whatsapp-bot-main",
+                str(_REPO_ROOT),
                 "scripts", "smoke_test_toyyibpay_production_checkout.py"
             ),
         );
