@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import os
+from datetime import datetime, timezone, timedelta
 from math import ceil
 from typing import Any
 
 
 PLAN_CODE_FREE = "free"
+
+
+def get_subscription_grace_period_days() -> int:
+    """Return the configured paid-subscription renewal grace period."""
+    try:
+        days = int(os.environ.get("BILLING_GRACE_PERIOD_DAYS", "3"))
+    except (TypeError, ValueError):
+        return 3
+    return max(days, 1)
 
 
 def parse_iso_datetime(raw_value: Any) -> datetime | None:
@@ -42,9 +52,10 @@ def resolve_effective_subscription_status(
 ) -> dict:
     """Return presentation/enforcement fields for subscription entitlement.
 
-    For paid plans this preserves the stored status. For the Free plan,
-    trial_ends_at is the entitlement source of truth: an expired or missing
-    trial end fails closed without mutating the subscription row.
+    For paid plans, current_period_end is the entitlement source of truth when
+    the lifecycle scheduler has not normalized the stored status yet. For the
+    Free plan, trial_ends_at is the entitlement source of truth: an expired or
+    missing trial end fails closed without mutating the subscription row.
     """
     if now is None:
         now = datetime.now(timezone.utc)
@@ -68,6 +79,10 @@ def resolve_effective_subscription_status(
     }
 
     if code != PLAN_CODE_FREE:
+        period_end = parse_iso_datetime((subscription or {}).get("current_period_end"))
+        if raw_status in ("active", "past_due") and period_end is not None and period_end <= now:
+            grace_end = period_end + timedelta(days=get_subscription_grace_period_days())
+            fields["effective_status"] = "past_due" if now < grace_end else "expired"
         return fields
 
     trial_end = parse_iso_datetime((subscription or {}).get("trial_ends_at"))

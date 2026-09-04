@@ -7,6 +7,7 @@ from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.services.billing_service import get_current_subscription
+from app.services.free_trial_status_service import resolve_effective_subscription_status
 from app.database.subscription_plan_repository import get_plan_by_code
 from app.database.company_subscription_order_repository import (
     create_subscription_order,
@@ -338,7 +339,14 @@ def prepare_subscription_checkout_order(
     subscription_id = subscription["id"]
     current_plan = subscription.get("plan") or {}
     current_code = (current_plan.get("code") or "").lower()
-    current_status = (subscription.get("status") or "").lower().strip()
+    raw_current_status = (subscription.get("status") or "").lower().strip()
+    effective_fields = resolve_effective_subscription_status(
+        subscription,
+        current_plan,
+    )
+    current_status = raw_current_status
+    if current_code != "free":
+        current_status = (effective_fields.get("effective_status") or raw_current_status).lower().strip()
 
     # --- Purchase protections ---
     _plan_rank = {"free": 0, "essential": 1, "advanced": 2, "pro": 3}
@@ -379,14 +387,14 @@ def prepare_subscription_checkout_order(
     source_plan_id = subscription.get("plan_id")
     source_period_start = subscription.get("current_period_start")
     source_period_end = subscription.get("current_period_end")
-    source_status = current_status
+    source_status = raw_current_status
 
     # Determine activation type for this order
-    if source_status == "trialing":
+    if current_status == "trialing":
         activation_type = "initial_purchase"
-    elif source_status in ("expired", "past_due", "cancelled"):
+    elif current_status in ("expired", "past_due", "cancelled"):
         activation_type = "renewal"
-    elif source_status == "active":
+    elif current_status == "active":
         activation_type = "upgrade"
     else:
         activation_type = "initial_purchase"

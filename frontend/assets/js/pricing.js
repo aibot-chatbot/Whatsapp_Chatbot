@@ -395,6 +395,17 @@
         return r === undefined ? -1 : r;
     }
 
+    function subscriptionStatus(sub) {
+        return sub ? String(sub.effective_status || sub.status || "").toLowerCase() : "";
+    }
+
+    function isRenewableCurrentPlan(code) {
+        var sub = asObject(state.subscription);
+        var status = subscriptionStatus(sub);
+        return code !== "free" && (status === "past_due" || status === "expired" ||
+            (sub && (sub.can_renew === true || sub.renewal_required === true)));
+    }
+
     /* The cheapest plan strictly above the current one that lifts every
        pressured limit. Falls back to the next tier up when usage is
        unknown, and to null when nothing is under pressure or the tenant is
@@ -505,61 +516,131 @@
         return node;
     }
 
-    function cardFooter(plan, isCurrent, recommended) {
-        var foot = el("div", "pri-card-foot");
+    function syncCardFooter(foot, plan, isCurrent, recommended) {
         var code = String(plan.code || "").toLowerCase();
         var sub = asObject(state.subscription);
-        var status = sub ? String(sub.status || "").toLowerCase() : "";
+        var status = subscriptionStatus(sub);
         var thisRank = rankOf(code);
         var currentRank = rankOf(state.currentCode);
+        var action = null;
 
         if (isCurrent) {
-            var label = "Current plan";
-            if (code === "free" && status === "trialing") label = "Current trial";
-            else if (sub && sub.pending_plan) label = "Changing at period end";
-            else if (sub && sub.cancellation_effective_at) label = "Cancelling at period end";
-            foot.appendChild(el("div", "pri-static", label));
-            return foot;
-        }
-
-        if (code === "free") {
+            if (isRenewableCurrentPlan(code)) {
+                action = {
+                    kind: "upgrade",
+                    className: "kw-btn kw-btn-primary cr-press",
+                    icon: "arrow",
+                    text: "Renew " + (plan.name || titleCase(code)),
+                    aria: "Renew " + (plan.name || code)
+                };
+            } else {
+                var label = "Current plan";
+                if (code === "free" && status === "trialing") label = "Current trial";
+                else if (sub && sub.pending_plan) label = "Changing at period end";
+                else if (sub && sub.cancellation_effective_at) label = "Cancelling at period end";
+                action = { kind: "static", text: label };
+            }
+        } else if (code === "free") {
             /* Free is a trial state for new accounts, not something an
                existing tenant can select. */
-            foot.appendChild(el("div", "pri-static", "For new accounts only"));
+            action = { kind: "static", text: "For new accounts only" };
+        } else if (thisRank > currentRank) {
+            var upgradeText = (status === "past_due" || status === "expired")
+                ? "Renew and upgrade"
+                : "Upgrade";
+            action = {
+                kind: "upgrade",
+                className: "kw-btn kw-btn-primary cr-press",
+                icon: recommended ? "spark" : "arrow",
+                text: upgradeText,
+                aria: upgradeText + " to " + (plan.name || code)
+            };
+        } else {
+            action = {
+                kind: "downgrade",
+                className: "kw-btn cr-press",
+                text: "Switch at period end",
+                aria: "Switch at period end to " + (plan.name || code)
+            };
+        }
+
+        var actionState = [
+            action.kind,
+            action.text,
+            action.className || "",
+            action.icon || "",
+            action.aria || "",
+            code
+        ].join("|");
+        if (foot.dataset.actionState === actionState) return foot;
+
+        foot.replaceChildren();
+        foot.dataset.actionState = actionState;
+
+        if (action.kind === "static") {
+            foot.appendChild(el("div", "pri-static", action.text));
             return foot;
         }
 
         var btn = el("button");
         btn.type = "button";
-
-        if (thisRank > currentRank) {
-            btn.className = "kw-btn kw-btn-primary cr-press";
-            btn.appendChild(icon(recommended ? "spark" : "arrow", 16));
-            btn.appendChild(document.createTextNode(
-                (status === "past_due" || status === "expired")
-                    ? " Renew and upgrade"
-                    : " Upgrade"));
-            btn.addEventListener("click", function () { startUpgrade(code); });
-        } else {
-            btn.className = "kw-btn cr-press";
-            btn.appendChild(document.createTextNode("Switch at period end"));
-            btn.addEventListener("click", function () { startDowngrade(code); });
-        }
-
-        btn.setAttribute("aria-label",
-            btn.textContent.trim() + " to " + (plan.name || code));
+        btn.className = action.className;
+        if (action.icon) btn.appendChild(icon(action.icon, 16));
+        btn.appendChild(document.createTextNode(action.icon ? " " + action.text : action.text));
+        btn.setAttribute("aria-label", action.aria);
+        btn.addEventListener("click", function () {
+            if (action.kind === "downgrade") startDowngrade(code);
+            else startUpgrade(code);
+        });
         foot.appendChild(btn);
         return foot;
+    }
+
+    function cardFooter(plan, isCurrent, recommended) {
+        return syncCardFooter(el("div", "pri-card-foot"), plan, isCurrent, recommended);
+    }
+
+    function syncPlanCardState(card, plan, recommendedCode) {
+        var code = String(plan.code || "").toLowerCase();
+        var isCurrent = code === state.currentCode;
+        var isRenewableCurrent = isCurrent && isRenewableCurrentPlan(code);
+        var isRecommended = code === recommendedCode && !isCurrent;
+        var flag = card.querySelector(".pri-card-flag");
+
+        card.classList.toggle("is-current", isCurrent && !isRenewableCurrent);
+        card.classList.toggle("is-recommended", isRecommended);
+        card.classList.toggle(
+            "is-collapsed",
+            !isCurrent && !isRecommended && rankOf(code) < rankOf(state.currentCode)
+        );
+
+        if (isRecommended || (isCurrent && !isRenewableCurrent)) {
+            var flagText = isRecommended ? "Recommended" : "Current";
+            var flagClass = isRecommended ? "pri-card-flag" : "pri-card-flag is-neutral";
+            if (!flag) {
+                flag = el("div", flagClass, flagText);
+                card.insertBefore(flag, card.firstChild);
+            } else {
+                flag.className = flagClass;
+                flag.textContent = flagText;
+            }
+        } else if (flag) {
+            flag.remove();
+        }
+
+        var foot = card.querySelector(".pri-card-foot");
+        if (foot) syncCardFooter(foot, plan, isCurrent, isRecommended);
     }
 
     function planCard(plan, recommendedCode) {
         var code = String(plan.code || "").toLowerCase();
         var isCurrent = code === state.currentCode;
+        var isRenewableCurrent = isCurrent && isRenewableCurrentPlan(code);
         var isRecommended = code === recommendedCode && !isCurrent;
 
         var card = el("div", "plan-card");
         card.dataset.planCode = code;
-        if (isCurrent) card.classList.add("is-current");
+        if (isCurrent && !isRenewableCurrent) card.classList.add("is-current");
         if (isRecommended) card.classList.add("is-recommended");
 
         /* A tier below the current one is collapsed but still rendered: the
@@ -570,7 +651,7 @@
 
         if (isRecommended) {
             card.appendChild(el("div", "pri-card-flag", "Recommended"));
-        } else if (isCurrent) {
+        } else if (isCurrent && !isRenewableCurrent) {
             card.appendChild(el("div", "pri-card-flag is-neutral", "Current"));
         }
 
@@ -602,10 +683,20 @@
         var recommended = recommendedPlan();
         var recommendedCode = recommended
             ? String(recommended.code || "").toLowerCase() : null;
+        var activeCodes = {};
 
-        host.replaceChildren();
         state.plans.forEach(function (plan) {
-            host.appendChild(planCard(plan, recommendedCode));
+            var code = String(plan.code || "").toLowerCase();
+            activeCodes[code] = true;
+            var card = host.querySelector('.plan-card[data-plan-code="' + code + '"]');
+            if (card) {
+                syncPlanCardState(card, plan, recommendedCode);
+            } else {
+                host.appendChild(planCard(plan, recommendedCode));
+            }
+        });
+        Array.prototype.slice.call(host.querySelectorAll(".plan-card")).forEach(function (card) {
+            if (!activeCodes[card.dataset.planCode]) card.remove();
         });
 
         var collapsed = host.querySelectorAll(".plan-card.is-collapsed").length;
@@ -851,7 +942,15 @@
             note = sub.trial_days_remaining + " " +
                 pluralize(sub.trial_days_remaining, "day", "days") + " left in trial";
         } else if (sub && sub.current_period_end) {
-            note = "Renews on " + (formatDate(sub.current_period_end) || "period end");
+            var status = subscriptionStatus(sub);
+            var periodEnd = formatDate(sub.current_period_end) || "period end";
+            if (status === "expired") {
+                note = "Expired on " + periodEnd;
+            } else if (status === "past_due") {
+                note = "Renewal required since " + periodEnd;
+            } else {
+                note = "Renews on " + periodEnd;
+            }
         }
         if (note) host.appendChild(el("span", "pri-current-note", note));
     }
@@ -861,23 +960,46 @@
         if (skeleton) skeleton.hidden = !isLoading;
     }
 
+    var loadSequence = 0;
+
+    function refreshPricingRender() {
+        renderCurrent();
+        renderTiers();
+        renderMeters();
+
+        if (window.controlRoomMotion) window.controlRoomMotion.countUpAll(document);
+        if (typeof refreshIcons === "function") refreshIcons();
+    }
+
     async function load() {
+        var sequence = loadSequence + 1;
+        loadSequence = sequence;
         setLoading(true);
         clearError();
 
-        /* Four independent reads, issued together. Serialising them would
-           add three round trips to first paint for no benefit. */
-        var results = await Promise.all([
-            getJson("/api/billing/plans"),
-            getJson("/api/billing/subscription"),
-            getJson("/api/billing/usage"),
-            getJson("/api/billing/ai-credit/summary")
-        ]);
+        /* Plans and subscription are the safe gate for plan actions. Usage
+           and credit load beside them, but do not block the card buttons. */
+        var usagePromise = getJson("/api/billing/usage");
+        var creditPromise = getJson("/api/billing/ai-credit/summary");
+        var criticalResults;
+        try {
+            criticalResults = await Promise.all([
+                getJson("/api/billing/plans"),
+                getJson("/api/billing/subscription")
+            ]);
+        } catch (_) {
+            if (sequence !== loadSequence) return;
+            setLoading(false);
+            showError("Unable to load subscription plans. Please try again in a moment.");
+            return;
+        }
 
-        state.plans = Array.isArray(results[0]) ? results[0].slice() : [];
-        state.subscription = asObject(results[1]);
-        state.usage = asObject(results[2]);
-        state.credit = asObject(results[3]);
+        if (sequence !== loadSequence) return;
+
+        state.plans = Array.isArray(criticalResults[0]) ? criticalResults[0].slice() : [];
+        state.subscription = asObject(criticalResults[1]);
+        state.usage = null;
+        state.credit = null;
 
         state.plans.sort(function (a, b) {
             return rankOf(a.code) - rankOf(b.code);
@@ -895,12 +1017,29 @@
             return;
         }
 
-        renderCurrent();
-        renderTiers();
-        renderMeters();
+        refreshPricingRender();
 
-        if (window.controlRoomMotion) window.controlRoomMotion.countUpAll(document);
-        if (typeof refreshIcons === "function") refreshIcons();
+        usagePromise.then(function (usage) {
+            if (sequence !== loadSequence) return;
+            state.usage = asObject(usage);
+            refreshPricingRender();
+        }).catch(function () {
+            if (sequence !== loadSequence) return;
+            state.usage = null;
+            renderMeters();
+        });
+
+        creditPromise.then(function (credit) {
+            if (sequence !== loadSequence) return;
+            state.credit = asObject(credit);
+            renderMeters();
+            if (window.controlRoomMotion) window.controlRoomMotion.countUpAll(document);
+            if (typeof refreshIcons === "function") refreshIcons();
+        }).catch(function () {
+            if (sequence !== loadSequence) return;
+            state.credit = null;
+            renderMeters();
+        });
     }
 
     function wire() {

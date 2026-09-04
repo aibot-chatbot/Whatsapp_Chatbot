@@ -99,8 +99,6 @@ def get_current_subscription(company_id):
     )
 
     subscription_status = (subscription.get("status") or "").lower().strip()
-    can_renew = subscription_status in ("expired", "past_due", "cancelled")
-    renewal_required = subscription_status in ("expired", "past_due")
 
     result = {
         "id": subscription.get("id"),
@@ -116,8 +114,8 @@ def get_current_subscription(company_id):
         "payment_gateway": subscription.get("payment_gateway"),
         "created_at": subscription.get("created_at"),
         "updated_at": subscription.get("updated_at"),
-        "can_renew": can_renew,
-        "renewal_required": renewal_required,
+        "can_renew": False,
+        "renewal_required": False,
         "cancellation_scheduled": subscription.get("cancellation_scheduled_at") is not None,
         "cancellation_scheduled_at": subscription.get("cancellation_scheduled_at"),
         "cancellation_effective_at": subscription.get("cancellation_effective_at"),
@@ -164,6 +162,14 @@ def get_current_subscription(company_id):
         }
 
     result.update(resolve_effective_subscription_status(result, plan))
+    effective_status = (result.get("effective_status") or subscription_status).lower().strip()
+    plan_code = ((plan or {}).get("code") or "").lower().strip()
+    is_paid_plan = bool(plan_code and plan_code != "free")
+    result["can_renew"] = is_paid_plan and (
+        effective_status in ("expired", "past_due")
+        or subscription_status == "cancelled"
+    )
+    result["renewal_required"] = is_paid_plan and effective_status in ("expired", "past_due")
 
     return result
 
