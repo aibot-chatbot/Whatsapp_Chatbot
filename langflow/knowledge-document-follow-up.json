@@ -1,0 +1,54 @@
+{
+  "contract_version": "1.0",
+  "name": "knowledge-document-follow-up",
+  "description": "Review a successfully indexed tenant knowledge document and return a bounded follow-up decision.",
+  "trigger": {
+    "event_type": "knowledge_document_follow_up",
+    "source": "POST /api/v1/webhook/{FLOW_ID}",
+    "required": ["company_id", "chatbot_id", "file_id", "display_name", "chunk_count", "target_role"]
+  },
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["company_id", "chatbot_id", "file_id", "display_name", "chunk_count", "target_role"],
+    "properties": {
+      "company_id": {"type": "integer", "minimum": 1},
+      "chatbot_id": {"type": "integer", "minimum": 1},
+      "file_id": {"type": "integer", "minimum": 1},
+      "display_name": {"type": "string", "maxLength": 200},
+      "chunk_count": {"type": "integer", "minimum": 1, "maximum": 100000},
+      "target_role": {"type": "string", "enum": ["primary", "supporting"]},
+      "correlation_id": {"type": "string", "maxLength": 128}
+    }
+  },
+  "steps": [
+    {"id": "validate", "type": "json_validation", "fail_status": "blocked"},
+    {"id": "review", "type": "deterministic_decision", "decision": "review_document"},
+    {"id": "emit", "type": "json_output", "side_effects": false}
+  ],
+  "output_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["decision", "requires_approval", "correlation_id"],
+    "properties": {
+      "decision": {"type": "string", "const": "review_document"},
+      "requires_approval": {"type": "boolean", "const": true},
+      "correlation_id": {"type": "string", "maxLength": 128},
+      "summary": {"type": "string", "maxLength": 500}
+    }
+  },
+  "monitoring": {
+    "event_type": "knowledge_document_follow_up",
+    "record_status": ["queued", "running", "completed", "failed", "blocked"],
+    "redact": ["document_text", "embedding", "api_key", "access_token"],
+    "retention_days": 30
+  },
+  "security": {
+    "tenant_authority": "Flask authenticated company context",
+    "side_effect_authority": "Flask automation service",
+    "allow_custom_components": false,
+    "allow_code_interpreter": false,
+    "allow_arbitrary_network": false,
+    "allow_filesystem": false
+  }
+}

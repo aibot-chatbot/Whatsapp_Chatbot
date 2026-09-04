@@ -54,7 +54,23 @@ def retry_failed_wasender_messages_once():
         customer_phone = conversation.get("customer_phone")
 
         if not message_id or not message_text or not chatbot_id or not customer_phone:
-            logging.warning(f"Wasender retry skipped invalid message: {message}")
+            # The record holds message_text and, via conversation,
+            # customer_phone. Name the missing fields instead - it is both
+            # safer and more useful than dumping the row.
+            missing = [
+                name
+                for name, value in (
+                    ("id", message_id),
+                    ("message_text", message_text),
+                    ("chatbot_id", chatbot_id),
+                    ("customer_phone", customer_phone),
+                )
+                if not value
+            ]
+            logging.warning(
+                "Wasender retry skipped invalid message: missing %s",
+                ", ".join(missing),
+            )
             continue
 
         channel = get_active_wasender_channel(chatbot_id)

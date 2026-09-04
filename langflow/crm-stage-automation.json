@@ -1,0 +1,61 @@
+{
+  "contract_version": "1.0",
+  "name": "crm-stage-automation",
+  "description": "Validate a proposed CRM stage transition and return a bounded decision for Flask to apply.",
+  "trigger": {
+    "event_type": "crm_stage_transition",
+    "source": "POST /api/v1/webhook/{FLOW_ID}",
+    "required": ["company_id", "chatbot_id", "lead_id", "current_status", "target_status"]
+  },
+  "input_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["company_id", "chatbot_id", "lead_id", "current_status", "target_status"],
+    "properties": {
+      "company_id": {"type": "integer", "minimum": 1},
+      "chatbot_id": {"type": "integer", "minimum": 1},
+      "lead_id": {"type": "integer", "minimum": 1},
+      "current_status": {"type": "string", "enum": ["new", "contacted", "qualified", "won", "lost"]},
+      "target_status": {"type": "string", "enum": ["new", "contacted", "qualified", "won", "lost"]},
+      "reason": {"type": "string", "maxLength": 500},
+      "idempotency_key": {"type": "string", "maxLength": 80},
+      "correlation_id": {"type": "string", "maxLength": 128}
+    }
+  },
+  "steps": [
+    {"id": "validate", "type": "json_validation", "fail_status": "blocked"},
+    {"id": "authorize", "type": "transition_allowlist", "policy": "new->contacted|qualified|lost;contacted->qualified|won|lost;qualified->won|lost"},
+    {"id": "emit", "type": "json_output", "side_effects": false}
+  ],
+  "output_schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["decision", "company_id", "chatbot_id", "lead_id", "target_status", "correlation_id"],
+    "properties": {
+      "decision": {"type": "string", "enum": ["apply_crm_stage", "block_crm_stage"]},
+      "company_id": {"type": "integer", "minimum": 1},
+      "chatbot_id": {"type": "integer", "minimum": 1},
+      "lead_id": {"type": "integer", "minimum": 1},
+      "target_status": {"type": "string", "enum": ["contacted", "qualified", "won", "lost"]},
+      "reason": {"type": "string", "maxLength": 500},
+      "correlation_id": {"type": "string", "maxLength": 128}
+    }
+  },
+  "monitoring": {
+    "event_type": "crm_stage_transition",
+    "record_status": ["queued", "running", "completed", "failed", "blocked"],
+    "record_fields": ["company_id", "chatbot_id", "lead_id", "from_status", "to_status", "correlation_id"],
+    "redact": ["customer_phone", "email", "api_key", "access_token"],
+    "retention_days": 30
+  },
+  "security": {
+    "tenant_authority": "Flask authenticated company context",
+    "side_effect_authority": "Flask POST /api/automation/crm-stage",
+    "require_owner_or_admin": true,
+    "require_compare_and_set": true,
+    "allow_custom_components": false,
+    "allow_code_interpreter": false,
+    "allow_arbitrary_network": false,
+    "allow_filesystem": false
+  }
+}
