@@ -144,6 +144,26 @@ async function accountMenuMetrics(page) {
   });
 }
 
+async function legacySidebarAccountLinks(page) {
+  return page.locator("chatbot-sidebar").evaluate(sidebar => {
+    return Array.from(sidebar.querySelectorAll("a, button"))
+      .filter(element => {
+        const text = (element.textContent || "").trim();
+        const href = element.getAttribute("href") || "";
+        return (
+          (text === "Profile" && /profile\.html/.test(href)) ||
+          text === "Logout" ||
+          element.classList.contains("logout-link")
+        );
+      })
+      .map(element => ({
+        tag: element.tagName.toLowerCase(),
+        text: (element.textContent || "").trim(),
+        href: element.getAttribute("href") || ""
+      }));
+  });
+}
+
 async function elementRect(page, selector) {
   return page.locator(selector).evaluate(element => {
     const rect = element.getBoundingClientRect();
@@ -216,8 +236,7 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.locator(".tenant-account-menu-floating")).toHaveCount(0);
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toHaveAttribute("href", /profile\.html\?bot_id=42$/);
-    await expect(page.locator("chatbot-sidebar")).not.toContainText("Profile");
-    await expect(page.locator("chatbot-sidebar")).not.toContainText("Logout");
+    expect(await legacySidebarAccountLinks(page)).toEqual([]);
   });
 
   test("representative non-dashboard sidebar page gets the shared account menu", async ({ page }) => {
@@ -229,8 +248,7 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Logout" })).toBeVisible();
-    await expect(page.locator("chatbot-sidebar")).not.toContainText("Profile");
-    await expect(page.locator("chatbot-sidebar")).not.toContainText("Logout");
+    expect(await legacySidebarAccountLinks(page)).toEqual([]);
   });
 
   test("shared-sidebar account submenu uses sidebar alignment and renders Lucide SVG icons", async ({ page }) => {
@@ -544,6 +562,8 @@ test.describe("tenant support page", () => {
     await openTenantPage(page, "/support.html");
 
     await expect(page.locator("tenant-account-menu")).toHaveCount(1);
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
     await openAccountMenu(page);
     await expect(page.getByRole("menu")).toBeVisible();
     const rect = await accountMenuRect(page);
