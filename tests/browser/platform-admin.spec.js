@@ -1657,8 +1657,15 @@ test.describe("platform-admin support workspace", () => {
     await expect(page.getByText("In progress", { exact: true }).first()).toBeVisible();
     await page.getByLabel("Priority").selectOption("high");
     await expect(page.getByRole("button", { name: "Update priority" })).toBeEnabled();
+    const detailRefreshesBeforePriority = calls.filter(call => (
+      call.method === "GET" && call.path === "/api/platform-admin/support-cases/9"
+    )).length;
     await page.getByRole("button", { name: "Update priority" }).click();
+    await expect.poll(() => calls.filter(call => (
+      call.method === "GET" && call.path === "/api/platform-admin/support-cases/9"
+    )).length).toBeGreaterThan(detailRefreshesBeforePriority);
     await page.getByLabel("Redacted internal note").fill("Follow-up note");
+    await expect(page.getByLabel("Redacted internal note")).toHaveValue("Follow-up note");
     await page.getByRole("button", { name: "Add internal note" }).click();
     await expect(page.getByRole("heading", { name: "Tenant-visible conversation" })).toBeVisible();
     await expect(page.getByText("Visible update <img src=x onerror=window.__replyXss=true>")).toBeVisible();
@@ -2011,7 +2018,7 @@ test.describe("platform-admin user management", () => {
       await expect(page.getByRole("button", { name: label })).toHaveCount(0);
     }
     await page.getByRole("button", { name: "Activate", exact: true }).click();
-    expect(calls.some(call => (
+    await expect.poll(() => calls.some(call => (
       call.method === "PATCH" && call.path === "/api/platform-admin/platform-admin-users/7002/active"
     ))).toBe(true);
   });
