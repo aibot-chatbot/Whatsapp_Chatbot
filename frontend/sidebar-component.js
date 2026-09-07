@@ -22,6 +22,8 @@ class ChatbotSidebar extends HTMLElement {
         try { storedUser = JSON.parse(sessionStorage.getItem("user") || "null"); } catch (_) { }
         var userRole = (storedUser && storedUser.role || "").toLowerCase();
         var isAdmin = userRole === "admin" || userRole === "owner";
+        const existingAccountMenu = document.querySelector('chatbot-sidebar tenant-account-menu');
+        const shouldRenderAccountMenu = !existingAccountMenu || this.contains(existingAccountMenu);
 
         this.innerHTML = `
         <style>
@@ -227,6 +229,10 @@ class ChatbotSidebar extends HTMLElement {
                 gap: 2px;
                 padding-top: 6px;
                 border-top: 1px solid rgba(255, 255, 255, 0.04);
+                position: sticky;
+                bottom: 0;
+                background: var(--sidebar-bg, rgba(15, 23, 42, 0.96));
+                z-index: 2;
             }
 
             .profile-link {
@@ -415,9 +421,23 @@ class ChatbotSidebar extends HTMLElement {
                     display: flex !important;
                 }
 
+                .sidebar.mobile-open .sidebar-bottom-section {
+                    position: relative;
+                    bottom: 0;
+                    width: auto;
+                    background: var(--sidebar-bg, rgba(15, 23, 42, 0.98));
+                    border-radius: 14px;
+                    border: 1px solid rgba(255, 255, 255, 0.08);
+                    padding: 6px;
+                    z-index: 1002;
+                }
+
                 .sidebar.mobile-open {
                     height: 100dvh;
                     overflow-y: hidden;
+                    position: fixed;
+                    left: 0;
+                    right: 0;
                 }
                 .sidebar.mobile-open .sidebar-context { display: block !important; }
             }
@@ -529,9 +549,11 @@ class ChatbotSidebar extends HTMLElement {
                         <span>Plans</span>
                     </div>
                 </a>
+                ${shouldRenderAccountMenu ? `
                 <div class="sidebar-account">
                     <tenant-account-menu placement="sidebar" preserve-bot-query></tenant-account-menu>
                 </div>
+                ` : ""}
             </div>
 
         </aside>

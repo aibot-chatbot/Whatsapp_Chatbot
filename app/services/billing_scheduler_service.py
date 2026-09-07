@@ -25,13 +25,13 @@ import threading
 import time
 
 
-# The runbook (docs/PHASE_4F_OPERATIONS_RUNBOOK.md) asks for reconciliation
-# every 15 minutes and the lifecycle sweep daily. Intervals are measured from
-# process start rather than wall-clock times: a fixed cadence needs no cron
+# The runbook asks for reconciliation every 15 minutes, lifecycle persistence
+# every 10 minutes, and notification generation daily. Intervals are measured
+# from process start rather than wall-clock times: a fixed cadence needs no cron
 # parsing, and every job here is idempotent, so the phase it lands on does not
 # matter.
 RECONCILE_INTERVAL_SECONDS = 15 * 60
-LIFECYCLE_INTERVAL_SECONDS = 24 * 60 * 60
+LIFECYCLE_INTERVAL_SECONDS = 10 * 60
 NOTIFICATIONS_INTERVAL_SECONDS = 24 * 60 * 60
 
 # How often the loop wakes to see whether anything is due.

@@ -130,6 +130,50 @@ async function openPage(page, path) {
     await expect(page.locator("main.kw-page")).toBeVisible();
 }
 
+async function openBillingWithSubscription(page, subscription, usage = null) {
+    await stubExternals(page);
+    await installSession(page);
+    await page.route("**/api/**", route => {
+        const url = new URL(route.request().url());
+        const p = url.pathname;
+
+        if (p === "/api/user") return route.fulfill(json(200, { status: "success", data: ME }));
+        if (p === "/api/users") return route.fulfill(json(200, { status: "success", data: ROSTER }));
+        if (p === "/api/workspace") return route.fulfill(json(200, { status: "success", data: WORKSPACE }));
+        if (p === "/api/invites") return route.fulfill(json(200, { status: "success", data: [] }));
+        if (p === "/api/billing/subscription") {
+            return route.fulfill(json(200, { status: "success", data: subscription }));
+        }
+        if (p === "/api/billing/usage") {
+            return route.fulfill(json(200, { status: "success", data: usage }));
+        }
+        if (p === "/api/billing/subscription/renewal-status") {
+            return route.fulfill(json(200, { status: "success", data: {
+                subscription_status: subscription.effective_status || subscription.status,
+                renewal_required: subscription.renewal_required,
+                renewal_allowed: subscription.can_renew
+            }}));
+        }
+        if (p === "/api/billing/ai-credit/summary") {
+            return route.fulfill(json(200, { status: "success", data: {
+                initialised: true,
+                total_balance_micro_myr: 12500000,
+                included_balance_micro_myr: 10000000,
+                topup_balance_micro_myr: 2500000,
+                period_start: "2026-08-01T00:00:00Z",
+                period_end: "2026-09-01T00:00:00Z"
+            }}));
+        }
+        if (p === "/api/platform-admin/me") {
+            return route.fulfill(json(403, { status: "error", code: "platform_admin_access_denied" }));
+        }
+        return route.fulfill(json(200, { status: "success", data: [] }));
+    });
+
+    await page.goto("/billing.html");
+    await expect(page.locator("main.kw-page")).toBeVisible();
+}
+
 /* ------------------------------------------------------------------ */
 /* Responsive layout                                                    */
 /* ------------------------------------------------------------------ */
@@ -280,6 +324,60 @@ test.describe("profile page", () => {
         for (const word of ["Invoice", "Top Up", "Credit Transactions", "Billing History"]) {
             expect(text).not.toContain(word);
         }
+    });
+});
+
+test.describe("billing renewal actions", () => {
+    test("expired paid plan shows Renew Plan even when usage is unavailable", async ({ page }) => {
+        await openBillingWithSubscription(page, Object.assign({}, SUBSCRIPTION, {
+            plan: { code: "pro", name: "Pro", billing_interval: "month", team_member_limit: 5 },
+            status: "active",
+            effective_status: "expired",
+            can_renew: true,
+            renewal_required: true
+        }), null);
+
+        await expect(page.locator("#bl-plan-status")).toContainText("Expired");
+        await expect(page.locator("#bl-plan-change")).toHaveText("Renew Plan");
+    });
+
+    test("past due paid plan shows Renew Plan", async ({ page }) => {
+        await openBillingWithSubscription(page, Object.assign({}, SUBSCRIPTION, {
+            plan: { code: "pro", name: "Pro", billing_interval: "month", team_member_limit: 5 },
+            status: "active",
+            effective_status: "past_due",
+            can_renew: true,
+            renewal_required: true
+        }), null);
+
+        await expect(page.locator("#bl-plan-status")).toContainText("Past Due");
+        await expect(page.locator("#bl-plan-change")).toHaveText("Renew Plan");
+    });
+
+    test("active paid plan is not incorrectly rendered as renewable", async ({ page }) => {
+        await openBillingWithSubscription(page, Object.assign({}, SUBSCRIPTION, {
+            plan: { code: "pro", name: "Pro", billing_interval: "month", team_member_limit: 5 },
+            status: "active",
+            effective_status: "active",
+            can_renew: false,
+            renewal_required: false
+        }), null);
+
+        await expect(page.locator("#bl-plan-status")).toContainText("Active");
+        await expect(page.locator("#bl-plan-change")).not.toHaveText("Renew Plan");
+    });
+
+    test("one click on Renew Plan navigates to pricing", async ({ page }) => {
+        await openBillingWithSubscription(page, Object.assign({}, SUBSCRIPTION, {
+            plan: { code: "pro", name: "Pro", billing_interval: "month", team_member_limit: 5 },
+            status: "active",
+            effective_status: "expired",
+            can_renew: true,
+            renewal_required: true
+        }), null);
+
+        await page.locator("#bl-plan-change").click();
+        await expect(page).toHaveURL(/\/pricing\.html/);
     });
 });
 
