@@ -16,7 +16,7 @@ function json(body) {
   return { status: 200, contentType: "application/json", body: JSON.stringify(body) };
 }
 
-async function openWorkspace(page, role = "owner") {
+async function openWorkspace(page, role = "owner", flags = { crm_lead_assignment: true, ai_generated_reports: true }) {
   await page.addInitScript(({ roleValue }) => {
     sessionStorage.setItem("token", "test-token");
     sessionStorage.setItem("selectedBotId", "42");
@@ -26,6 +26,7 @@ async function openWorkspace(page, role = "owner") {
   await page.route("https://fonts.gstatic.com/**", route => route.abort());
   await page.route("**/api/**", async route => {
     const url = route.request().url();
+    if (url.includes("/api/billing/subscription")) return route.fulfill(json({ status: "success", data: { plan: { code: "pro", feature_flags: flags } } }));
     if (url.includes("/api/bots/")) return route.fulfill(json({ status: "success", data: { bot_name: "Support Bot" } }));
     if (url.includes("/api/crm/leads/") && route.request().method() === "PATCH") {
       const payload = JSON.parse(route.request().postData() || "{}");
@@ -95,3 +96,16 @@ test("legacy Reports entry lands in the Performance view", async ({ page }) => {
   await page.goto(`/reports.html?bot_id=${BOT_ID}`, { waitUntil: "domcontentloaded" });
   await expect(page).toHaveURL(/\/crm\.html\?bot_id=42&view=performance$/);
 });
+
+for (const flags of [{ crm_lead_assignment: false, ai_generated_reports: false }, {}]) {
+  test(`server flags fail closed for assignment and reports: ${JSON.stringify(flags)}`, async ({ page }) => {
+    await openWorkspace(page, "owner", flags);
+    await page.locator("#leads-tab").click();
+    await expect(page.getByRole("textbox", { name: "Assigned staff member" }).first()).toBeDisabled();
+    const requestPromise = page.waitForRequest(request => request.method() === "PATCH" && request.url().includes("/api/crm/leads/"));
+    await page.locator("#leads-table-body tr").nth(1).getByRole("button", { name: "Save", exact: true }).click();
+    expect((await requestPromise).postDataJSON()).not.toHaveProperty("assigned_to");
+    await page.getByRole("tab", { name: "Performance" }).click();
+    await expect(page.locator("#generate-report")).toBeDisabled();
+  });
+}

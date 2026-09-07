@@ -349,14 +349,9 @@ def _invalid_escalation_context(detail):
 def _escalation_context(value):
     """A bounded, structurally validated self-service trail, or None.
 
-    FORBIDDEN_TERMS is deliberately NOT applied here. That check exists for
-    user-authored prose in redacted_description, where a mention of a password
-    or a token is a sign the user pasted something they should not have. This
-    field carries machine-collected article titles and search terms instead, so
-    a perfectly legitimate help article called "Rotate your API token" would
-    otherwise make escalation impossible for the users who most need it. The
-    defence here is structural: four known keys, ten items, 200 characters an
-    item, and a hard cap on the serialised whole.
+    Search terms are user-authored: omit entries that the description's
+    sensitive-content policy rejects. Keep article titles intact so a help
+    article called "Rotate your API token" does not prevent escalation.
     """
     if value is None:
         return None
@@ -383,7 +378,9 @@ def _escalation_context(value):
                 _escalation_string(entry, maximum=MAX_ESCALATION_ITEM_LENGTH)
                 for entry in items
             )
-            if item
+            if item and not (key == "searches" and any(
+                term in item.casefold() for term in FORBIDDEN_TERMS
+            ))
         ]
         if cleaned:
             context[key] = cleaned

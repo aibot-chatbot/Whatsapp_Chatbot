@@ -17,6 +17,7 @@
         currentView: normalizeView(params.get("view") || (params.get("tab") === "ai-signals" ? "signals" : "today")),
         selectedLead: null,
         reportHtml: "",
+        featureFlags: {},
     };
 
     if (!selectedBotId) {
@@ -158,6 +159,28 @@
             setStatus(error.message || "Unable to load this bot.", true);
             window.setTimeout(() => window.location.replace("bots.html"), 900);
         }
+    }
+
+    function hasPlanFeature(key) {
+        return state.featureFlags[key] === true;
+    }
+
+    async function loadSubscription() {
+        try {
+            const response = await authenticatedFetch("/api/billing/subscription");
+            const result = await readJson(response);
+            const flags = result.data && result.data.plan && result.data.plan.feature_flags;
+            if (response.ok && result.status === "success" && flags && typeof flags === "object" && !Array.isArray(flags)) {
+                state.featureFlags = flags;
+            }
+        } catch (_) {
+            setStatus("Plan access could not be verified. Reload to try again.", true);
+        }
+        const reportButton = $("generate-report");
+        reportButton.disabled = !hasPlanFeature("ai_generated_reports");
+        reportButton.textContent = reportButton.disabled ? "Plan access required" : "Generate report";
+        reportButton.title = reportButton.disabled ? "AI reports require an enabled Pro subscription feature." : "";
+        renderLeads();
     }
 
     async function loadLeads() {
@@ -369,7 +392,9 @@
             assignedInput.className = "ia-input";
             assignedInput.value = lead.assigned_to || "";
             assignedInput.maxLength = 100;
-            assignedInput.placeholder = "Staff name";
+            assignedInput.disabled = !hasPlanFeature("crm_lead_assignment");
+            assignedInput.placeholder = assignedInput.disabled ? "Plan access required" : "Staff name";
+            assignedInput.title = assignedInput.disabled ? "Lead assignment requires an enabled Advanced or Pro feature." : "";
             assignedInput.setAttribute("aria-label", "Assigned staff member");
             assignment.appendChild(assignedInput);
             row.appendChild(assignment);
@@ -406,7 +431,7 @@
             const response = await authenticatedFetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chatbot_id: Number(selectedBotId), status: status.value, notes: lead.notes || "", assigned_to: assigned.value, follow_up_date: followUp.value || null }),
+                body: JSON.stringify({ chatbot_id: Number(selectedBotId), status: status.value, notes: lead.notes || "", ...(hasPlanFeature("crm_lead_assignment") ? { assigned_to: assigned.value } : {}), follow_up_date: followUp.value || null }),
             });
             const result = await readJson(response);
             if (!response.ok || result.status !== "success") throw new Error(result.message || "Unable to save this lead.");
@@ -459,7 +484,7 @@
             const response = await authenticatedFetch(`/api/crm/leads/${encodeURIComponent(lead.id)}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ chatbot_id: Number(selectedBotId), status: lead.status, notes: $("lead-notes").value, assigned_to: lead.assigned_to || "", follow_up_date: lead.follow_up_date || null }),
+                body: JSON.stringify({ chatbot_id: Number(selectedBotId), status: lead.status, notes: $("lead-notes").value, ...(hasPlanFeature("crm_lead_assignment") ? { assigned_to: lead.assigned_to || "" } : {}), follow_up_date: lead.follow_up_date || null }),
             });
             const result = await readJson(response);
             if (!response.ok || result.status !== "success") throw new Error(result.message || "Unable to save notes.");
@@ -584,6 +609,7 @@
     }
 
     async function generateReport() {
+        if (!hasPlanFeature("ai_generated_reports")) return;
         const button = $("generate-report");
         const output = $("report-output");
         button.disabled = true;
@@ -663,10 +689,11 @@
         wireViewNavigation();
         wireFilters();
         wireDialog();
+        $("generate-report").disabled = true;
         $("generate-report").addEventListener("click", generateReport);
         $("download-report").addEventListener("click", downloadReport);
         setView(state.currentView, "replace");
-        await Promise.all([loadBot(), loadLeads(), loadAnalytics()]);
+        await Promise.all([loadBot(), loadLeads(), loadAnalytics(), loadSubscription()]);
         renderPipeline();
     }
 

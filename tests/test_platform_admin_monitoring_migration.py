@@ -7,6 +7,54 @@ from app.database import platform_admin_repository
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATION = ROOT / "data" / "037_platform_admin_monitoring_aggregates.sql"
 
+# Migration 037 is immutable history. Later audit actions require a later
+# migration; they must not retroactively change the approved Phase 6 allowlist.
+PHASE_6_ACTIONS = frozenset("""
+platform_admin.identity.read
+platform_admin.operations.overview.read
+platform_admin.company.list
+platform_admin.company.read
+platform_admin.company.subscription.read
+platform_admin.company.ai_credit_usage.read
+platform_admin.company.users.read
+platform_admin.company.chatbots.read
+platform_admin.company.subscription_history.read
+platform_admin.company.ai_credit_transactions.read
+platform_admin.company.billing_orders.read
+platform_admin.company.suspend
+platform_admin.company.restore
+platform_admin.audit_events.list
+platform_admin.support_case.list
+platform_admin.support_case.read
+platform_admin.support_case.create
+platform_admin.support_case.note.create
+platform_admin.support_case.assignee.list
+platform_admin.support_case.assign
+platform_admin.support_case.unassign
+platform_admin.support_case.status.update
+platform_admin.support_case.priority.update
+platform_admin.support_case.reply.list
+platform_admin.support_case.reply.create
+platform_admin.tenant_support_request.list
+platform_admin.tenant_support_request.read
+platform_admin.tenant_support_request.review
+platform_admin.tenant_support_request.close
+platform_admin.tenant_support_request.convert
+platform_admin.user.list
+platform_admin.user.read
+platform_admin.user.create
+platform_admin.user.activate
+platform_admin.user.deactivate
+""".split())
+PHASE_6_RESOURCE_TYPES = frozenset("""
+company company_ai_credit_transactions company_ai_credit_usage
+company_billing_orders company_chatbots company_subscription
+company_subscription_history company_users platform_admin
+platform_admin_audit_events platform_admin_users platform_operations_overview
+platform_support_case_events platform_support_cases tenant_support_replies
+tenant_support_requests
+""".split())
+
 
 def _sql():
     return MIGRATION.read_text(encoding="utf-8").lower()
@@ -144,22 +192,15 @@ def test_monitoring_rpc_returns_fixed_safe_sections_and_windows():
     assert "'days', 7" in sql
 
 
-def test_monitoring_rpc_filters_audit_activity_to_current_contract():
+def test_monitoring_rpc_filters_audit_activity_to_frozen_phase_6_contract():
     sql = _sql()
-    assert "and e.action in (" in sql
-    assert "and e.resource_type in (" in sql
-    phase_6_actions = [
-        action for action in platform_admin_repository.AUDIT_EVENT_SCHEMAS
-        if not action.startswith("platform_admin.billing.")
-    ]
-    for action in phase_6_actions:
-        assert f"'{action}'" in sql
-    phase_6_resource_types = [
-        resource_type for resource_type in platform_admin_repository.ALLOWED_RESOURCE_TYPES
-        if not resource_type.startswith("platform_billing_")
-    ]
-    for resource_type in phase_6_resource_types:
-        assert f"'{resource_type}'" in sql
+    for column, expected in (("action", PHASE_6_ACTIONS), ("resource_type", PHASE_6_RESOURCE_TYPES)):
+        allowlist = re.search(rf"and e\.{column} in \((.*?)\)", sql, re.S)
+        assert allowlist, f"Missing {column} filter"
+        assert set(re.findall(r"'([^']+)'", allowlist.group(1))) == expected
+    # The current runtime must continue recognizing every historical metric.
+    assert PHASE_6_ACTIONS <= platform_admin_repository.AUDIT_EVENT_SCHEMAS.keys()
+    assert PHASE_6_RESOURCE_TYPES <= platform_admin_repository.ALLOWED_RESOURCE_TYPES
     assert "'platform_admin.support_case.update'" not in sql
     assert "delete from public.platform_admin_audit_events" not in sql
     assert "update public.platform_admin_audit_events" not in sql

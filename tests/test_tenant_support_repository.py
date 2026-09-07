@@ -5,6 +5,17 @@ from app.database import tenant_support_repository
 
 
 class TenantSupportRepositoryTests(unittest.TestCase):
+    def test_staff_details_include_the_escalation_trail(self):
+        query = MagicMock()
+        for method in ("select", "eq", "limit"):
+            getattr(query, method).return_value = query
+        query.execute.return_value = MagicMock(data=[{"id": 31, "escalation_context": {"searches": ["connect"]}}])
+        with patch.object(tenant_support_repository.supabase, "table", return_value=query):
+            tenant_support_repository.get_tenant_support_request_for_platform_admin(31)
+            self.assertIn("escalation_context", query.select.call_args.args[0])
+            tenant_support_repository.get_tenant_support_request_by_converted_case_id_for_platform_admin(7)
+            self.assertIn("escalation_context", query.select.call_args.args[0])
+
     def test_submission_calls_only_atomic_rpc_with_safe_parameters(self):
         response = MagicMock(data=31)
         with patch.object(tenant_support_repository.supabase, "rpc", return_value=MagicMock(execute=MagicMock(return_value=response))) as rpc:

@@ -1,10 +1,8 @@
 """Slice 3 - escalation trail, urgency and source on a support request.
 
 Contract: docs/sdlc/01-requirements.md FR-3 and FR-4, docs/sdlc/02-analysis.md
-section 3. The trail is machine-collected article titles and search terms, so
-it is bounded structurally and deliberately NOT run through FORBIDDEN_TERMS -
-a legitimate article titled "Rotate your API token" must not make escalation
-impossible. redacted_description is user prose and keeps that check.
+section 3. User-authored searches follow the description's sensitive-content
+policy; published article titles remain usable even when discussing tokens.
 """
 
 import json
@@ -373,16 +371,24 @@ class EscalationContextValidationTests(unittest.TestCase):
 
     # --- the FORBIDDEN_TERMS asymmetry -----------------------------------
 
-    def test_the_trail_is_not_run_through_forbidden_terms(self):
+    def test_sensitive_searches_are_omitted_but_article_titles_are_preserved(self):
         """A real help article is called "Rotate your API token"."""
         context = {
             "viewed": ["Rotate your API token"],
             "unhelpful": ["Where do I find my password reset link"],
-            "searches": ["cookie banner", "payment reference"],
+            "searches": ["cookie banner", "PASSWORD=fake-review-value", "connect a number"],
             "from_page": "support.html",
         }
         kwargs = self._kwargs(_payload(escalation_context=context))
-        self.assertEqual(kwargs["escalation_context"], context)
+        self.assertEqual(kwargs["escalation_context"], {
+            **context, "searches": ["connect a number"],
+        })
+
+    def test_sensitive_only_searches_are_not_persisted(self):
+        for term in tenant_support_service.FORBIDDEN_TERMS:
+            with self.subTest(term=term):
+                kwargs = self._kwargs(_payload(escalation_context={"searches": [term + "=fake"]}))
+                self.assertIsNone(kwargs["escalation_context"])
 
     def test_redacted_description_still_runs_through_forbidden_terms(self):
         error, rpc = self._submit(

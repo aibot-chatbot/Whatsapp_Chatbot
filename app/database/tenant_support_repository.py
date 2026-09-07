@@ -99,7 +99,7 @@ def get_tenant_support_request_for_platform_admin(request_id):
     _positive_id(request_id, "request_id")
     response = (
         supabase.table("tenant_support_requests")
-        .select(REQUEST_DETAIL_FIELDS)
+        .select(REQUEST_DETAIL_FIELDS + ",escalation_context")
         .eq("id", request_id)
         .limit(1)
         .execute()
@@ -112,7 +112,7 @@ def get_tenant_support_request_by_converted_case_id_for_platform_admin(case_id):
     _positive_id(case_id, "case_id")
     response = (
         supabase.table("tenant_support_requests")
-        .select(REQUEST_FIELDS + ",converted_platform_support_case_id")
+        .select(REQUEST_FIELDS + ",converted_platform_support_case_id,escalation_context")
         .eq("converted_platform_support_case_id", case_id)
         .limit(1)
         .execute()

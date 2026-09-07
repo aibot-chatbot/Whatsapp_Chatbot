@@ -21,6 +21,7 @@ const plans = [
     feature_flags: {
       single_website_scraping: false,
       batch_website_scraping: false,
+      knowledge_refinement: false,
       ai_assisted_menu_generation: false,
       ai_generated_reports: false,
       crm_lead_assignment: false
@@ -43,6 +44,7 @@ const plans = [
     feature_flags: {
       single_website_scraping: false,
       batch_website_scraping: false,
+      knowledge_refinement: false,
       ai_assisted_menu_generation: false,
       ai_generated_reports: false,
       crm_lead_assignment: false
@@ -65,6 +67,7 @@ const plans = [
     feature_flags: {
       single_website_scraping: true,
       batch_website_scraping: false,
+      knowledge_refinement: false,
       ai_assisted_menu_generation: true,
       ai_generated_reports: false,
       crm_lead_assignment: true
@@ -88,6 +91,7 @@ const plans = [
     feature_flags: {
       single_website_scraping: true,
       batch_website_scraping: true,
+      knowledge_refinement: true,
       ai_assisted_menu_generation: true,
       ai_generated_reports: true,
       crm_lead_assignment: true
@@ -212,7 +216,8 @@ function expectedFeatureMap(plan) {
     ai_generated_reports: { enabled: plan.feature_flags.ai_generated_reports, text: "AI-Generated Reports" },
     crm_lead_assignment: { enabled: plan.feature_flags.crm_lead_assignment, text: "CRM Lead Assignment" },
     single_website_scraping: { enabled: plan.feature_flags.single_website_scraping, text: "Single Website Scraping" },
-    batch_website_scraping: { enabled: plan.feature_flags.batch_website_scraping, text: "Batch Website Scraping" }
+    batch_website_scraping: { enabled: plan.feature_flags.batch_website_scraping, text: "Batch Website Scraping" },
+    knowledge_refinement: { enabled: plan.feature_flags.knowledge_refinement, text: "Knowledge Refinement Q&A" }
   };
 }
 
@@ -221,7 +226,8 @@ const approvedFeatureFlagOrder = [
   "ai_generated_reports",
   "crm_lead_assignment",
   "single_website_scraping",
-  "batch_website_scraping"
+  "batch_website_scraping",
+  "knowledge_refinement"
 ];
 
 function normalizedPrice(text) {
@@ -329,12 +335,12 @@ test.describe("public landing pricing", () => {
       text: item.textContent.replace(/\s+/g, " ").trim()
     })));
 
-    expect(essentialFeatures.map(feature => feature.key).slice(-5)).toEqual(approvedFeatureFlagOrder);
+    expect(essentialFeatures.map(feature => feature.key).slice(-6)).toEqual(approvedFeatureFlagOrder);
     expect(essentialFeatures.some(feature => feature.key === "internal_margin_override")).toBe(false);
     expect(essentialFeatures.map(feature => feature.text).join(" ")).not.toMatch(/internal margin override/i);
 
     const approvedRows = essentialFeatures.filter(feature => approvedFeatureFlagOrder.includes(feature.key));
-    expect(approvedRows).toHaveLength(5);
+    expect(approvedRows).toHaveLength(6);
     expect(approvedRows.find(feature => feature.key === "ai_generated_reports").enabled).toBe("false");
     for (const key of approvedFeatureFlagOrder) {
       expect(approvedRows.find(feature => feature.key === key), `${key} row`).toBeTruthy();

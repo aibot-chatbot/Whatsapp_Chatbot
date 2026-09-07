@@ -81,6 +81,7 @@ class PlatformAdminTenantSupportIntakeTests(unittest.TestCase):
             "category": "technical", "status": "new", "priority": "normal",
             "source": "tenant", "created_at": "now", "updated_at": "now", "closed_at": None,
             "title": "redacted title", "redacted_description": "redacted description",
+            "escalation_context": {"searches": ["connect a number", "password=fake"], "viewed": ["Rotate your API token"]},
         }
         event = {"event_type": "created", "actor_type": "tenant", "created_at": "now",
                  "raw_metadata": "must not escape"}
@@ -96,6 +97,9 @@ class PlatformAdminTenantSupportIntakeTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["data"]["request"]["title"], "redacted title")
+        self.assertEqual(response.json["data"]["request"]["escalation_context"], {
+            "searches": ["connect a number"], "viewed": ["Rotate your API token"],
+        })
         self.assertEqual(response.json["data"]["events"], [{
             "event_type": "created", "actor_type": "tenant", "created_at": "now",
         }])
@@ -103,6 +107,7 @@ class PlatformAdminTenantSupportIntakeTests(unittest.TestCase):
         self.assertNotIn("title", metadata)
         self.assertNotIn("redacted_description", metadata)
         self.assertNotIn("raw_metadata", metadata)
+        self.assertNotIn("escalation_context", metadata)
 
     def test_filter_and_request_id_validation(self):
         cases = {

@@ -10,8 +10,8 @@
    is hidden rather than guessed at.
 
    DOM contract: tests/browser/landing-pricing.spec.js pins .plan-card
-   (exactly four), .plan-name, .plan-price, .plan-desc, and twelve
-   [data-feature-key] rows per card whose final five are the approved
+   (exactly four), .plan-name, .plan-price, .plan-desc, and thirteen
+   [data-feature-key] rows per card whose final six are the approved
    customer-facing flags in order. Collapsed tiers stay in the DOM.
    ══════════════════════════════════════════════════════════════════════ */
 
@@ -20,14 +20,15 @@
 
     var PLAN_RANK = { free: 0, essential: 1, advanced: 2, pro: 3 };
 
-    /* Order is asserted by the spec: these five must be the last five
+    /* Order is asserted by the spec: these six must be the last six
        [data-feature-key] rows in every card. */
     var CUSTOMER_FEATURE_FLAGS = [
         "ai_assisted_menu_generation",
         "ai_generated_reports",
         "crm_lead_assignment",
         "single_website_scraping",
-        "batch_website_scraping"
+        "batch_website_scraping",
+        "knowledge_refinement"
     ];
 
     var FLAG_LABELS = {
@@ -35,7 +36,8 @@
         ai_generated_reports: "AI-Generated Reports",
         crm_lead_assignment: "CRM Lead Assignment",
         single_website_scraping: "Single Website Scraping",
-        batch_website_scraping: "Batch Website Scraping"
+        batch_website_scraping: "Batch Website Scraping",
+        knowledge_refinement: "Knowledge Refinement Q&A"
     };
 
     /* The usage dimensions /api/billing/usage can actually report, in
