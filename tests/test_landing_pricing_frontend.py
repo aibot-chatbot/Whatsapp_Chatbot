@@ -35,6 +35,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
             "ai_assisted_menu_generation": False,
             "ai_generated_reports": False,
             "crm_lead_assignment": False,
+            "knowledge_refinement": False,
         },
     },
     "essential": {
@@ -55,6 +56,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
             "ai_assisted_menu_generation": False,
             "ai_generated_reports": False,
             "crm_lead_assignment": False,
+            "knowledge_refinement": False,
         },
     },
     "advanced": {
@@ -75,6 +77,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
             "ai_assisted_menu_generation": True,
             "ai_generated_reports": False,
             "crm_lead_assignment": True,
+            "knowledge_refinement": False,
         },
     },
     "pro": {
@@ -95,6 +98,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
             "ai_assisted_menu_generation": True,
             "ai_generated_reports": True,
             "crm_lead_assignment": True,
+            "knowledge_refinement": True,
         },
     },
 }
