@@ -1,5 +1,27 @@
 # Development Roadmap
 
+### Guided client setup and channel publishing — 2026-09-07
+
+**Local implementation complete; release verification pending.** The approved
+full journey now guides creation, PDF readiness, instructions, testing and explicit
+channel choice. Both sidebars keep account controls at the bottom and distinguish
+the workspace from the selected bot. Website links preserve their key through
+disconnect/reconnect and explain when the hosting address needs attention.
+
+Focused synthetic tests and the first-client review are in
+[CLIENT_JOURNEY_REVIEW.md](CLIENT_JOURNEY_REVIEW.md). Public rollout needs the
+permanent hostname/account, restored origin availability and final security evidence.
+No production configuration, schema, payment or customer-message mutation was made.
+
+### Approved Admin and Super Admin replacement — 2026-09-07
+
+**Shared Supabase activation completed.** Independent portals, role-based login destinations, individually assigned staff modules, approval records and existing billing/support operations are active for the requested accounts. Local mocked tests, PostgreSQL checks, completed security scan/remediation, live permission checks and both actual browser logins are recorded in [the rollout plan](PLATFORM_STAFF_PORTALS_ROLLOUT.md). The local application is verified; public hosting remains pending.
+
+The Super Admin overview chart enhancement uses the existing plan/status aggregates
+and separate payment queues. Status links open existing filtered subscriptions;
+current-state counts never imply revenue history or growth. The expanded 13-test
+browser suite passes, with live data also rendered by the local application.
+
 > **Note:** The roadmap below uses original Phase numbering (1–8) from early development.
 > The current billing and subscription work follows Phases 4E–4M:
 >
@@ -121,6 +143,29 @@ remain separate work. The `automation_events` table is defined in Migration
 opt-in and server-side; no external runtime or tenant-facing editor is enabled
 by this change.
 
+### HitPay hosted subscription checkout - 2026-09-04
+
+The existing company-scoped subscription checkout now has a dormant,
+server-selected HitPay path while ToyyibPay remains the default and historical
+callback handler. HitPay uses one platform merchant account and hosted checkout;
+the browser cannot select a tenant, gateway, or activation outcome. Signed event
+webhooks are verified over the exact raw body, then payment state is re-fetched
+from HitPay and matched to the stored provider ID, internal reference, MYR
+currency, and exact amount before the existing idempotent subscription
+activation and included-credit flow runs.
+
+The current phase covers one-time initial purchases and manual monthly renewals.
+Ambiguous create outcomes are searched by internal reference before any retry,
+missed events are recovered by the existing reconciliation job, stale terminal
+events cannot downgrade paid or credited orders, and `/api/billing/health`
+reports degraded HitPay configuration or missing recent reconciliation evidence
+without blocking tenant workflows. `data/051_unique_subscription_gateway_order.sql`
+is an unapplied additive proposal with a duplicate preflight. Migration 049 is
+unrelated and was not changed or applied. Remaining gates are merchant-dashboard
+configuration, sandbox checkout/event evidence, a separately approved low-value
+FPX/DuitNow production pilot, Migration 051 approval/application, security scan,
+and recurring-card validation before any automatic renewal.
+
 ### Phase 4L update - Platform-admin controls
 
 Current Superadmin prototype roadmap status after this milestone:
@@ -175,7 +220,7 @@ existing attention-company data without adding a route or page.
 The older Phase 2 alert design contract remains historical guidance for
 unimplemented alert concepts; Phase 6 later implements a bounded set of
 deterministic aggregate alerts while AI low-balance alerts, generic background
-job monitoring, provider-cost monitoring, charts, exports, and remediation
+job monitoring, provider-cost monitoring, exports, and remediation
 controls remain deferred.
 
 In the current local implementation, localhost manual verification recorded on 2026-08-03

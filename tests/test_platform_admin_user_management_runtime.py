@@ -21,7 +21,7 @@ def query(data=None, *, count=0):
 class PlatformAdminUserRepositoryTests(unittest.TestCase):
     def test_list_uses_safe_projection_creator_fallback_and_recent_audit_activity(self):
         mappings = query([
-            {
+            {"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True},
                 "id": 3,
                 "user_id": 7,
                 "is_active": True,
@@ -29,7 +29,7 @@ class PlatformAdminUserRepositoryTests(unittest.TestCase):
                 "updated_at": "2026-08-02T00:00:00+00:00",
                 "created_by_user_id": None,
             },
-            {
+            {"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True},
                 "id": 4,
                 "user_id": 8,
                 "is_active": False,
@@ -91,7 +91,7 @@ class PlatformAdminUserRepositoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             platform_admin_repository.get_platform_admin_user_for_platform_admin(True)
 
-        mapping = query([{
+        mapping = query([{"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True},
             "id": 3,
             "user_id": 7,
             "is_active": True,
@@ -235,7 +235,7 @@ class PlatformAdminUserRepositoryTests(unittest.TestCase):
 
     def _create_rpc_result(self):
         return {
-            "platform_admin_user": {
+            "platform_admin_user": {"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True},
                 "id": 6,
                 "user_id": 8,
                 "is_active": True,
@@ -251,7 +251,7 @@ class PlatformAdminUserRepositoryTests(unittest.TestCase):
 
     def _active_rpc_result(self, *, is_active):
         return {
-            "platform_admin_user": {
+            "platform_admin_user": {"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True},
                 "id": 6,
                 "user_id": 8,
                 "is_active": is_active,
@@ -369,7 +369,7 @@ class PlatformAdminUserServiceTests(unittest.TestCase):
             platform_admin_service.platform_admin_repository,
             "create_platform_admin_user_mapping_for_platform_admin",
             return_value={
-                "platform_admin_user": {"id": 6, "user_id": 8, "is_active": True, "created_by_user_id": 7},
+                "platform_admin_user": {"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 6, "user_id": 8, "is_active": True, "created_by_user_id": 7},
                 "audit_event": {"id": 100},
             },
         ) as repo, patch.object(
@@ -437,7 +437,7 @@ class PlatformAdminUserServiceTests(unittest.TestCase):
             platform_admin_service.platform_admin_repository,
             "set_platform_admin_user_active_for_platform_admin",
             return_value={
-                "platform_admin_user": {"id": 6, "user_id": 8, "is_active": False},
+                "platform_admin_user": {"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 6, "user_id": 8, "is_active": False},
                 "audit_event": {"id": 101},
             },
         ) as repo, patch.object(
@@ -467,7 +467,7 @@ class PlatformAdminUserRouteTests(unittest.TestCase):
             }),
             patch(
                 "app.decorators.platform_admin_decorator.get_active_platform_admin_by_user_id",
-                return_value={"id": 3, "user_id": 7, "is_active": True},
+                return_value={"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 3, "user_id": 7, "is_active": True},
             ),
         ]
         for item in self.patches:
@@ -504,7 +504,7 @@ class PlatformAdminUserRouteTests(unittest.TestCase):
                 json={"user_id": 8},
             )
         self.assertEqual(response.status_code, 200)
-        create_service.assert_called_once_with({"user_id": 8}, {"id": 3, "user_id": 7, "is_active": True})
+        create_service.assert_called_once_with({"user_id": 8}, {"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 3, "user_id": 7, "is_active": True})
 
         with patch.object(
             platform_admin_service,

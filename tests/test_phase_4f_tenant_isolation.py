@@ -400,6 +400,46 @@ class TestHealthCheck(unittest.TestCase):
         self.assertNotIn("test-secret-key", body)
         self.assertNotIn("service-role-key", body)
 
+    def test_enabled_hitpay_without_credentials_is_operator_visible_degraded(self):
+        with patch.dict(os.environ, {
+            "SUBSCRIPTION_PAYMENT_GATEWAY": "hitpay",
+            "HITPAY_ENABLED": "true",
+            "HITPAY_ENV": "sandbox",
+            "HITPAY_API_KEY": "",
+            "HITPAY_WEBHOOK_SALT": "",
+            "HITPAY_REDIRECT_URL": "",
+            "HITPAY_WEBHOOK_URL": "",
+        }, clear=False):
+            resp = self.client.get("/api/billing/health")
+
+        data = resp.get_json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(data["status"], "degraded")
+        self.assertEqual(data["selected_subscription_gateway"], "hitpay")
+        self.assertFalse(data["checks"]["hitpay_api_key"])
+        self.assertFalse(data["checks"]["hitpay_webhook_salt"])
+
+    def test_hitpay_missing_recent_reconciliation_is_degraded_without_blocking(self):
+        with patch.dict(os.environ, {
+            "SUBSCRIPTION_PAYMENT_GATEWAY": "hitpay",
+            "HITPAY_ENABLED": "true",
+            "HITPAY_ENV": "sandbox",
+            "HITPAY_API_KEY": "test-key",
+            "HITPAY_WEBHOOK_SALT": "test-salt",
+            "HITPAY_REDIRECT_URL": "https://example.test/profile.html",
+            "HITPAY_WEBHOOK_URL": "https://example.test/api/billing/hitpay/webhook",
+            "BILLING_SCHEDULER_ENABLED": "true",
+        }, clear=False), patch(
+            "app.services.billing_scheduler_service.get_last_successful_run",
+            return_value=None,
+        ):
+            resp = self.client.get("/api/billing/health")
+
+        data = resp.get_json()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(data["status"], "degraded")
+        self.assertFalse(data["checks"]["hitpay_recent_reconciliation"])
+
 
 if __name__ == "__main__":
     unittest.main()

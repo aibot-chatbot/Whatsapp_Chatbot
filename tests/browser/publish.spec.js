@@ -31,6 +31,8 @@ function makeWorld(overrides = {}) {
       allowed_domains: [], max_messages_per_session: 50
     },
     embed: {
+      delivery: { persistent_url: true, base_kind: 'permanent', base_configured: true,
+        reachability: 'not_checked', message: 'A permanent address is configured.' },
       base_url: "https://bot.example.test",
       script_url: "https://bot.example.test/widget.js",
       share_url: SHARE_URL,
@@ -144,17 +146,19 @@ async function install(page, world) {
 async function open(page, world) {
   await install(page, world);
   await page.goto(`/integration.html?bot_id=${BOT_ID}`);
-  await expect(page.locator("#pub-live-body .pub-share")).toBeVisible();
+  await expect(page.locator("#pub-options > .pub-option")).toHaveCount(4);
 }
 
-test("the share link and its QR are the first thing on the page", async ({ page }) => {
+test("equal channel choices come before existing connections", async ({ page }) => {
   const world = makeWorld();
   await open(page, world);
 
   // Section order is the reading order and the tab order.
   const sections = await page.locator("main > .kw-panel, main > .pub-settings")
     .evaluateAll(nodes => nodes.map(n => n.id));
-  expect(sections).toEqual(["pub-live", "pub-add", "pub-settings"]);
+  expect(sections).toEqual(["pub-add", "pub-live", "pub-settings"]);
+  await expect(page.locator('#pub-options > .pub-option.is-lead')).toHaveCount(0);
+  expect(world.puts).toHaveLength(0);
 
   // The QR is real vector output, not a placeholder.
   const qr = page.locator("#pub-qr svg");
@@ -197,14 +201,16 @@ test("a disabled link reads as off and offers one tap to fix it", async ({ page 
   world.widget.is_enabled = false;
   await open(page, world);
 
-  await expect(page.locator("#pub-live-body .kw-pill-off")).toContainText("Turned off");
+  await expect(page.locator('[data-option="website"] .kw-pill-off')).toContainText("Turned off");
   await expect(page.locator("#pub-live-count")).toHaveText("0");
 
-  const turnOn = page.getByRole("button", { name: "Turn the link on" });
+  await page.getByRole('button', { name: 'Choose website', exact: true }).click();
+  expect(world.puts).toHaveLength(0);
+  const turnOn = page.getByRole("button", { name: "Enable website and share link", exact: true });
   await expect(turnOn).toBeVisible();
   await turnOn.click();
 
-  await expect(page.locator("#pub-live-body .kw-pill-ready")).toContainText("Working");
+  await expect(page.locator("#pub-live-body .kw-pill-ready")).toContainText("Enabled · not checked");
   expect(world.puts.at(-1)).toEqual({ is_enabled: true });
 });
 
@@ -229,7 +235,7 @@ test("WhatsApp reads as a real state when the operator has not enabled it", asyn
   await expect(row.locator(".kw-badge-support")).toHaveText("Not available yet");
   // Never a live-looking button that cannot work.
   await expect(row.locator("#pub-meta-connect")).toHaveCount(0);
-  await expect(row).toContainText("still finishing our approval");
+  await expect(row).toContainText("not available in this workspace");
 });
 
 test("a full plan explains itself instead of failing after the click", async ({ page }) => {
@@ -284,12 +290,12 @@ test("a valid code shows the bot's real name and moves it to the live list", asy
   const liveRow = page.locator('#pub-live-body [data-live="telegram"]');
   await expect(liveRow).toBeVisible();
   await expect(liveRow).toContainText("@northweave_bot");
-  await expect(liveRow.locator(".kw-pill-ready")).toContainText("Working");
+  await expect(liveRow.locator(".kw-pill-ready")).toContainText("Connected");
   await expect(liveRow.getByRole("link", { name: /Open in Telegram/ }))
     .toHaveAttribute("href", "https://t.me/northweave_bot");
 
   await expect(page.locator("#pub-live-count")).toHaveText("2");
-  await expect(page.locator('[data-option="telegram"]')).toHaveCount(0);
+  await expect(page.locator('[data-option="telegram"]')).toContainText('Manage connection');
 });
 
 test("a malformed code is caught before a request is sent", async ({ page }) => {
@@ -384,4 +390,75 @@ test("option descriptions stay readable at phone width", async ({ page }) => {
   for (const width of widths) expect(width).toBeGreaterThan(180);
 
   await expect(page.locator('[data-option="website"] .kw-tab-icon')).toBeVisible();
+});
+
+test('choosing Telegram does not enable website, including after reload', async ({ page }) => {
+  test.setTimeout(45000);
+  const world = makeWorld();
+  world.widget.is_enabled = false;
+  await open(page, world);
+  await expect(page.getByText('No channels connected yet', { exact: true })).toBeVisible();
+  await expect(page.locator('#pub-settings')).toBeHidden();
+  await page.getByRole('button', { name: 'Choose Telegram', exact: true }).click();
+  await page.locator('#pub-telegram-code').fill('8123456789:AAHxxxxxxxxxxxxxxxxxxxxx');
+  await page.locator('#pub-telegram-connect').click();
+  await expect(page.locator('#pub-live-body [data-live="telegram"]')).toBeVisible();
+  await expect(page.locator('#pub-live-body .pub-share')).toHaveCount(0);
+  expect(world.puts).toHaveLength(0);
+  expect(world.widget.is_enabled).toBe(false);
+  await page.reload();
+  await expect(page.locator('[data-option="website"]')).toContainText('Turned off');
+  expect(world.puts).toHaveLength(0);
+});
+
+test('a temporary website address is never reported as working', async ({ page }) => {
+  const world = makeWorld();
+  world.embed.delivery = { persistent_url: false, base_kind: 'temporary',
+    reachability: 'not_checked', message: 'This test link can stop when the tunnel closes. A permanent address is needed.' };
+  await open(page, world);
+  await expect(page.locator('#pub-live-body')).toContainText('Address needs setup');
+  await expect(page.locator('#pub-live-body')).toContainText('A permanent address is needed');
+  await expect(page.locator('#pub-live-count')).toHaveText('0');
+  await expect(page.locator('#pub-live-body')).not.toContainText('Working');
+});
+
+test('disconnect and reconnect keep the same share link; settings cannot publish it', async ({ page }) => {
+  test.setTimeout(45000);
+  const world = makeWorld();
+  await open(page, world);
+  await page.getByRole('button', { name: 'Turn the link off', exact: true }).click();
+  await expect(page.locator('#pub-confirm-cancel')).toBeFocused();
+  await page.locator('#pub-confirm-ok').click();
+  await expect(page.locator('[data-option="website"]')).toContainText('Turned off');
+  await page.reload();
+  await page.getByRole('button', { name: 'Choose website', exact: true }).click();
+  await page.locator('#pub-look > summary').click();
+  await page.locator('#ww-display_name').fill('New display name');
+  await page.locator('[data-save="look"]').click();
+  await expect(page.locator('[data-savestate="look"]')).toContainText('still off');
+  expect(world.puts.at(-1)).not.toHaveProperty('is_enabled');
+  await page.getByRole('button', { name: 'Enable website and share link', exact: true }).click();
+  await expect(page.locator('#pub-live-body .kw-idrow code')).toHaveText(SHARE_URL);
+  expect(world.calls.some(call => call.includes('regenerate-key'))).toBe(false);
+});
+
+test('a website read failure cannot hide a connected Telegram channel', async ({ page }) => {
+  const world = makeWorld({ telegram: [{ id: 3, bot_username: 'northweave_bot',
+    connection_status: 'connected', is_active: true }] });
+  await install(page, world);
+  await page.route('**/api/bots/42/widget', route => route.fulfill({ status: 400,
+    contentType: 'application/json', body: JSON.stringify({ status: 'error' }) }));
+  await page.goto('/integration.html?bot_id=42');
+  await expect(page.locator('#pub-live-body [data-live="telegram"]')).toBeVisible();
+  await expect(page.locator('#pub-live-body')).toContainText('could not be refreshed');
+});
+
+test('an unknown connection state is never presented as an empty account', async ({ page }) => {
+  await install(page, makeWorld());
+  await page.route('**/api/bots/42/widget', route => route.fulfill({ status: 400,
+    contentType: 'application/json', body: JSON.stringify({ status: 'error' }) }));
+  await page.goto('/integration.html?bot_id=42');
+  await expect(page.locator('#pub-live-body')).toContainText('could not be refreshed');
+  await expect(page.getByRole('heading', { name: 'No channels connected yet' })).toHaveCount(0);
+  await expect(page.locator('#pub-live-count')).toHaveText('-');
 });

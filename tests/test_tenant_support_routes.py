@@ -62,12 +62,17 @@ class TenantSupportRouteTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json, {"status": "success", "data": {"request_id": 31}})
+        # Slice 3: a submission that names none of the new fields still carries
+        # their defaults into the RPC, so the row is never written half-formed.
         rpc.assert_called_once_with(
             company_id=100,
             requester_user_id=7,
             category="technical",
             title="Widget setup question",
             redacted_description="The test widget needs review.",
+            priority="normal",
+            source="direct",
+            escalation_context=None,
         )
 
     def test_browser_identity_and_admin_fields_are_rejected(self):

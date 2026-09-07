@@ -1,0 +1,817 @@
+/* ══════════════════════════════════════════════════════════════════════
+   SUPPORT — help centre first, a person second
+   Namespaced under .dashboard-page, per docs/sdlc/03-design.md section 4.
+
+   One scrolling column. Regions 3-5 (results / dead-end / escalation)
+   swap in place by toggling [hidden] rather than routing, so the page
+   never loses the reader's position or the trail of what they tried.
+
+   Only control-room tokens from dashboard-control-room.css :root are
+   used. No new palette, no gradient, no glow.
+
+   Deliberately NOT re-declared here, because the shared sheets already
+   own them: buttons (.kw-btn/.kw-btn-primary), form controls
+   (.kw-input/.kw-textarea/.kw-select/.kw-field/.kw-label), the shimmer
+   (.cr-skeleton), reveal-on-scroll (.cr-reveal) and its reduced-motion
+   stilling, and the 19px inline icon box (.dashboard-icon).
+
+   Class-naming trap inherited from profile.css: never put the substring
+   "grid" in a wrapper class here. shared-glass.css force-collapses
+   div[class*="grid"] to one column at <=768px with !important, and that
+   sheet still loads on this page. The two-column history wrapper is
+   .hist for exactly that reason.
+   ══════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Page measure ────────────────────────────────────────────────────── */
+
+/* The control-room canvas is 1264px, which is right for a table or a
+   three-column console. This page is prose and one form: at that width
+   the description field runs past 100 characters a line and the category
+   label on an article row ends up a hand-span from its title. 944px
+   minus the 32px gutters is the 880px column the prototype was approved
+   at. */
+.dashboard-page .main-container {
+    max-width: 944px;
+}
+
+/* .kw-page ships a 20px gap, tuned for panels that already carry their own
+   border. Half this page's regions are bare - an eyebrow over a list - so
+   at 20px the search block, the results and the history read as one slab.
+   30px is what separates them into three answers to three questions. */
+.dashboard-page .kw-page {
+    gap: 30px;
+}
+
+
+/* ── Page header: the always-present handoff ─────────────────────────── */
+
+/* Quiet by design. It is a standing offer, not a call to action - the
+   help centre gets first refusal on every visit. It only becomes the
+   loud option when the articles fail to load (see .errbox). */
+.dashboard-page .human-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex: 0 0 auto;
+    padding: 7px 13px;
+    color: var(--control-text-tertiary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--control-border);
+    border-radius: 999px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1),
+                background 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .human-link:hover {
+    color: var(--control-text);
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.5);
+}
+
+.dashboard-page .human-link .dashboard-icon {
+    width: 15px;
+    height: 15px;
+}
+
+
+/* ── Section scaffolding ─────────────────────────────────────────────── */
+
+.dashboard-page .sec-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 12px;
+}
+
+.dashboard-page .eyebrow {
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .count {
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+}
+
+
+/* ── Search hero ─────────────────────────────────────────────────────── */
+
+.dashboard-page .search-field {
+    position: relative;
+}
+
+.dashboard-page .search-field .dashboard-icon {
+    position: absolute;
+    top: 50%;
+    left: 16px;
+    width: 17px;
+    height: 17px;
+    color: var(--control-text-secondary);
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+/* Bigger than a .kw-input on purpose: this is the one field the page
+   wants a first-time visitor to type into. */
+.dashboard-page .search-field input {
+    width: 100%;
+    padding: 15px 16px 15px 44px;
+    color: var(--control-text);
+    font-family: var(--font-body);
+    font-size: 16px;
+    background: var(--control-sunken);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 14px;
+    outline: none;
+    transition: border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .search-field input::placeholder {
+    color: var(--control-text-secondary);
+}
+
+.dashboard-page .search-field input:focus {
+    border-color: rgba(62, 156, 137, 0.55);
+}
+
+.dashboard-page .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    margin-top: 13px;
+}
+
+.dashboard-page .chip {
+    padding: 5px 12px;
+    color: var(--control-text-tertiary);
+    font-family: var(--font-body);
+    font-size: 12.5px;
+    cursor: pointer;
+    background: transparent;
+    border: 1px solid var(--control-border);
+    border-radius: 999px;
+}
+
+.dashboard-page .chip:hover {
+    color: var(--control-text);
+    border-color: rgba(255, 255, 255, 0.16);
+}
+
+.dashboard-page .chip[aria-pressed="true"] {
+    color: var(--control-accent);
+    font-weight: 600;
+    background: var(--control-accent-subtle);
+    border-color: rgba(62, 156, 137, 0.45);
+}
+
+/* Destinations, not filters. Squared off and arrow-suffixed so they can
+   never be mistaken for the pill-shaped category toggles above them. */
+.dashboard-page .sup-jump {
+    margin-top: 18px;
+    padding-top: 15px;
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .quick-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+}
+
+.dashboard-page .quick-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 11px;
+    color: var(--control-text-tertiary);
+    font-size: 12.5px;
+    text-decoration: none;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+    transition: color 180ms cubic-bezier(.2, 0, 0, 1),
+                border-color 180ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .quick-link:hover {
+    color: var(--control-text);
+    border-color: rgba(62, 156, 137, 0.45);
+}
+
+.dashboard-page .quick-link .dashboard-icon {
+    width: 13px;
+    height: 13px;
+    color: var(--control-text-secondary);
+}
+
+
+/* ── Article list ────────────────────────────────────────────────────── */
+
+/* 1px gaps over a border-coloured ground give hairline dividers without a
+   border on each row, so hover can repaint the whole row cleanly. */
+.dashboard-page .articles {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--control-border);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.dashboard-page .art {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    padding: 15px 17px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    background: var(--control-panel);
+    border: 0;
+    transition: background 130ms cubic-bezier(.2, 0, 0, 1);
+}
+
+.dashboard-page .art:hover,
+.dashboard-page .art:focus-visible {
+    background: var(--control-raised);
+}
+
+.dashboard-page .art-t {
+    min-width: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .art-c {
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+
+/* ── Article reader ──────────────────────────────────────────────────── */
+
+/* Replaces the list rather than expanding inside it, so the reading
+   column keeps its measure and the vote row is always in view. */
+.dashboard-page .reader,
+.dashboard-page .esc {
+    /* One gutter token per card, narrowed once in the 560px block below
+       instead of re-declaring padding on six inner elements. */
+    --sup-gutter: 22px;
+}
+
+.dashboard-page .reader {
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.dashboard-page .reader-top {
+    padding: 20px var(--sup-gutter) 4px;
+}
+
+.dashboard-page .back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 14px;
+    padding: 0;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    background: none;
+    border: 0;
+}
+
+.dashboard-page .back:hover {
+    color: var(--control-accent);
+}
+
+.dashboard-page .reader h2 {
+    margin: 0 0 12px;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 21px;
+    letter-spacing: -0.015em;
+}
+
+.dashboard-page .reader-body {
+    max-width: 66ch;
+    padding: 0 var(--sup-gutter) 22px;
+    color: var(--control-text-tertiary);
+    font-size: 14.5px;
+    line-height: 1.6;
+}
+
+.dashboard-page .reader-body p {
+    margin: 0 0 12px;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .reader-body p:last-child {
+    margin-bottom: 0;
+}
+
+.dashboard-page .vote {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 15px var(--sup-gutter);
+    background: var(--control-sunken);
+    border-top: 1px solid var(--control-border);
+}
+
+.dashboard-page .vote-q {
+    color: var(--control-text-secondary);
+    font-size: 13.5px;
+}
+
+.dashboard-page .vote-done {
+    color: var(--control-accent);
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+
+/* ── Dead end ────────────────────────────────────────────────────────── */
+
+/* Warning-toned, not danger: nothing has broken, self-service has simply
+   run out. Sits below the article rather than over it, so it never
+   interrupts a reader who is still mid-sentence. */
+.dashboard-page .deadend {
+    padding: 20px 22px;
+    background: rgba(196, 121, 90, 0.07);
+    border: 1px solid rgba(196, 121, 90, 0.34);
+    border-left: 3px solid var(--control-warning);
+    border-radius: 10px;
+}
+
+.dashboard-page .deadend h3 {
+    margin: 0 0 7px;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 17px;
+}
+
+.dashboard-page .deadend p {
+    max-width: 58ch;
+    margin: 0 0 15px;
+    color: var(--control-text-tertiary);
+    font-size: 14px;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+}
+
+
+/* ── Escalation ──────────────────────────────────────────────────────── */
+
+.dashboard-page .esc {
+    background: var(--control-panel);
+    border: 1px solid rgba(62, 156, 137, 0.34);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.dashboard-page .esc-head {
+    padding: 19px var(--sup-gutter) 0;
+}
+
+.dashboard-page .esc-head h3 {
+    margin: 0 0 5px;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 18px;
+}
+
+.dashboard-page .esc-head p {
+    margin: 0;
+    color: var(--control-text-secondary);
+    font-size: 13.5px;
+}
+
+/* Dashed, because this content is assembled rather than typed. It is the
+   page's promise that nobody will ask "what have you tried?". */
+.dashboard-page .trail {
+    margin: 16px var(--sup-gutter);
+    padding: 14px 16px;
+    background: var(--control-sunken);
+    border: 1px dashed rgba(255, 255, 255, 0.16);
+    border-radius: 6px;
+}
+
+.dashboard-page .trail-h {
+    margin-bottom: 10px;
+    color: var(--control-accent);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.dashboard-page .trail-row {
+    display: grid;
+    grid-template-columns: 118px minmax(0, 1fr);
+    gap: 4px 12px;
+    margin-bottom: 6px;
+    font-size: 13px;
+}
+
+.dashboard-page .trail-row:last-child {
+    margin-bottom: 0;
+}
+
+.dashboard-page .trail-k {
+    padding-top: 1px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+}
+
+.dashboard-page .trail-v {
+    color: var(--control-text-tertiary);
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .trail-v em {
+    color: var(--control-warning);
+    font-style: normal;
+}
+
+.dashboard-page .fields {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 4px var(--sup-gutter) 22px;
+}
+
+.dashboard-page .urgency {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.dashboard-page .u-opt {
+    flex: 1 1 0;
+    min-width: 108px;
+    padding: 10px 13px;
+    color: var(--control-text-tertiary);
+    font-family: var(--font-body);
+    text-align: left;
+    cursor: pointer;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+}
+
+.dashboard-page .u-opt strong {
+    display: block;
+    margin-bottom: 1px;
+    color: var(--control-text);
+    font-size: 13.5px;
+}
+
+.dashboard-page .u-opt span {
+    color: var(--control-text-secondary);
+    font-size: 11.5px;
+}
+
+.dashboard-page .u-opt[aria-pressed="true"] {
+    background: var(--control-accent-subtle);
+    border-color: var(--control-accent);
+}
+
+.dashboard-page .u-opt[aria-pressed="true"] strong {
+    color: var(--control-accent);
+}
+
+.dashboard-page .warn-note {
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--control-warning);
+    font-size: 12.5px;
+    line-height: 1.5;
+    background: rgba(196, 121, 90, 0.07);
+    border: 1px solid rgba(196, 121, 90, 0.22);
+    border-radius: 6px;
+}
+
+.dashboard-page .esc-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.dashboard-page .esc-status {
+    color: var(--control-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .esc-status.is-ok {
+    color: var(--control-accent);
+    font-weight: 600;
+}
+
+.dashboard-page .esc-status.is-bad {
+    color: var(--control-warning);
+}
+
+
+/* ── Support history ─────────────────────────────────────────────────── */
+
+.dashboard-page .hist {
+    display: grid;
+    grid-template-columns: minmax(210px, 0.8fr) minmax(0, 1.2fr);
+    gap: 14px;
+    align-items: start;
+}
+
+.dashboard-page .hist-list,
+.dashboard-page .hist-detail {
+    min-height: 172px;
+    padding: 12px;
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.dashboard-page .tick {
+    display: block;
+    width: 100%;
+    margin-bottom: 7px;
+    padding: 11px 12px;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    background: var(--control-raised);
+    border: 1px solid transparent;
+    border-radius: 6px;
+}
+
+.dashboard-page .tick:last-child {
+    margin-bottom: 0;
+}
+
+.dashboard-page .tick:hover {
+    border-color: rgba(62, 156, 137, 0.4);
+}
+
+.dashboard-page .tick[aria-pressed="true"] {
+    background: var(--control-accent-subtle);
+    border-color: var(--control-accent);
+}
+
+.dashboard-page .tick-ref {
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.dashboard-page .tick-t {
+    margin: 2px 0 5px;
+    font-size: 13.5px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+/* Status is never carried by colour alone: the pill prints the word. */
+.dashboard-page .pill {
+    display: inline-block;
+    padding: 2px 7px;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 3px;
+}
+
+.dashboard-page .pill-new {
+    color: var(--control-accent);
+    background: var(--control-accent-subtle);
+}
+
+.dashboard-page .pill-reviewed {
+    color: var(--control-warning);
+    background: rgba(196, 121, 90, 0.13);
+}
+
+.dashboard-page .pill-closed {
+    color: var(--control-text-secondary);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.dashboard-page .pill-urgent {
+    color: var(--control-danger);
+    background: rgba(166, 86, 72, 0.16);
+}
+
+.dashboard-page .hist-detail h4 {
+    margin: 2px 0 12px;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 16px;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .dl {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 8px 12px;
+    margin: 0 0 14px;
+    font-size: 13px;
+}
+
+.dashboard-page .dl dt {
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+}
+
+.dashboard-page .dl dd {
+    margin: 0;
+    color: var(--control-text-tertiary);
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page .reply {
+    margin-top: 11px;
+    padding: 8px 0 8px 13px;
+    border-left: 2px solid var(--control-accent);
+}
+
+.dashboard-page .reply-meta {
+    margin: 0 0 4px;
+    color: var(--control-accent);
+    font-size: 11.5px;
+    font-weight: 600;
+}
+
+.dashboard-page .reply p,
+.dashboard-page .hist-detail > p {
+    margin: 0;
+    color: var(--control-text-tertiary);
+    font-size: 13.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+
+/* ── Loading, empty and error ────────────────────────────────────────── */
+
+/* Holds the exact height four article rows will occupy, so nothing jumps
+   when the fetch lands. The shimmer itself is .cr-skeleton, which
+   already stills under prefers-reduced-motion. */
+.dashboard-page .skel {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--control-border);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.dashboard-page .skel-row {
+    height: 52px;
+    border-radius: 0;
+}
+
+.dashboard-page .empty,
+.dashboard-page .errbox {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 26px 22px;
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.dashboard-page .errbox {
+    background: rgba(166, 86, 72, 0.06);
+    border-color: rgba(166, 86, 72, 0.4);
+    border-left: 3px solid var(--control-danger);
+}
+
+.dashboard-page .empty h3,
+.dashboard-page .errbox h3 {
+    margin: 0;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 16px;
+}
+
+.dashboard-page .empty p,
+.dashboard-page .errbox p {
+    max-width: 52ch;
+    margin: 0;
+    color: var(--control-text-secondary);
+    font-size: 13.5px;
+    line-height: 1.55;
+}
+
+
+/* ── Footer note ─────────────────────────────────────────────────────── */
+
+.dashboard-page .foot-note {
+    margin: 6px 0 0;
+    padding: 15px 17px;
+    color: var(--control-text-secondary);
+    font-size: 13px;
+    line-height: 1.6;
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+
+/* ── Reduced motion ──────────────────────────────────────────────────── */
+
+/* control-room-motion.css already stills .cr-reveal, .cr-press and
+   .cr-skeleton. These are this page's own transitions; the smooth
+   scrollIntoView calls are switched to "auto" in the page script. */
+@media (prefers-reduced-motion: reduce) {
+    .dashboard-page .human-link,
+    .dashboard-page .quick-link,
+    .dashboard-page .art,
+    .dashboard-page .search-field input {
+        transition: none;
+    }
+}
+
+
+/* ── Responsive ──────────────────────────────────────────────────────── */
+
+/* 820px is where the two-column history stops holding a readable ticket
+   title beside its detail panel. */
+@media (max-width: 820px) {
+    .dashboard-page .hist {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 560px) {
+    .dashboard-page .kw-header .human-link {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .dashboard-page .search-field input {
+        padding: 13px 14px 13px 42px;
+        font-size: 15px;
+    }
+
+    .dashboard-page .trail-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .dl {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .dashboard-page .dl dd {
+        margin-bottom: 4px;
+    }
+
+    .dashboard-page .u-opt {
+        flex: 1 1 100%;
+    }
+
+    .dashboard-page .reader,
+    .dashboard-page .esc {
+        --sup-gutter: 16px;
+    }
+}

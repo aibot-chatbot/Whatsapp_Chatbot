@@ -28,6 +28,7 @@ const PROFILES = [
 function makeWorld(overrides = {}) {
   return Object.assign({
     activeProfile: "Test - Support Specialist",
+    deployedProfile: "Test - Support Specialist",
     activeKnowledge: "Aveon Knowledge Base.pdf",
     files: [{ file_name: "https://aveon.example/faq", file_type: "url" }],
     channels: 1,
@@ -83,7 +84,7 @@ async function install(page, world) {
       return route.fulfill(json({ status: "success", message: "Bot deployed." }));
     }
     if (url.includes("/api/settings")) {
-      return route.fulfill(json({ status: "success", data: { active_profile: world.activeProfile } }));
+      return route.fulfill(json({ status: "success", data: { active_profile: world.deployedProfile || "None" } }));
     }
     if (url.includes("/api/profiles")) {
       if (method === "POST") {
@@ -108,7 +109,7 @@ async function install(page, world) {
       return route.fulfill(json({ status: "success", data: world.matchResult }));
     }
     if (url.includes("/api/bots/")) {
-      return route.fulfill(json({ status: "success", data: { bot_name: "Test" } }));
+      return route.fulfill(json({ status: "success", data: { bot_name: "Test", draft_profile_name: world.activeProfile } }));
     }
     return route.fulfill(json({ status: "success", data: {} }));
   });
@@ -326,4 +327,101 @@ test("supporting websites read as optional, not as an outstanding task", async (
 
   // And it must never gate deployment.
   await expect(page.locator("#bc-deploy")).toBeEnabled();
+});
+
+test("guided setup waits for apply success and lets the owner continue to testing", async ({ page }) => {
+  const world = makeWorld({ storedMatch: true });
+  await install(page, world);
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await expect(page.locator("#bc-setup-journey")).toBeVisible();
+  await expect(page.locator("#bc-validate-title")).toHaveText("Check instructions");
+  await expect(page.locator("#bc-validate-copy")).not.toContainText("active profile");
+  await expect(page.locator("#bc-validate-status")).toHaveText("Instructions match the PDF.");
+  await expect(page.locator("#bc-validate-label")).toHaveText("Check again");
+  await expect(page.locator("#bc-setup-next")).toBeHidden();
+  await expect(page.locator("#bc-deploy")).toBeEnabled();
+  await expect(page.locator("#bc-deploy")).toContainText("Apply instructions");
+
+  await page.locator("#bc-deploy").click();
+  await expect(page.locator("#bc-continue-test")).toBeVisible();
+  await expect(page.locator("#bc-continue-test")).toBeFocused();
+  await expect(page.locator("#bc-continue-test")).toHaveAttribute("href", `testbot.html?bot_id=${BOT_ID}&setup=1`);
+  expect(world.calls.filter(c => c.startsWith("PUT /api/settings/apply-profile"))).toHaveLength(1);
+  // The old success path redirected after 1.2 seconds, before it could be read.
+  await page.waitForTimeout(1400);
+  await expect(page).toHaveURL(new RegExp(`/new_prompt\\.html\\?bot_id=${BOT_ID}&setup=1$`));
+  await expect(page.locator("#bc-deploy")).toBeHidden();
+});
+
+test("guided setup cannot continue when the profile and document do not match", async ({ page }) => {
+  const world = makeWorld({ storedMatch: false, storedReason: "The document describes a different business." });
+  await install(page, world);
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await expect(page.locator("#bc-validate-status")).toHaveText("Mismatch detected.");
+  await expect(page.locator("#bc-deploy")).toBeDisabled();
+  await expect(page.locator("#bc-deploy-copy")).toHaveText("Your instructions and PDF do not match. Review them before applying.");
+  await expect(page.locator("#bc-setup-next")).toBeHidden();
+  expect(world.calls.some(c => c.startsWith("PUT /api/settings/apply-profile"))).toBe(false);
+});
+
+test("a fresh bot cannot validate the deployed None label as a selected profile", async ({ page }) => {
+  const world = makeWorld({ activeProfile: null, deployedProfile: null, profiles: [], storedMatch: null });
+  await install(page, world);
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await expect(page.locator("#bc-profiles")).toContainText("No instructions yet");
+  await expect(page.locator("#bc-deploy-copy")).toHaveText("Choose instructions for your bot first.");
+  await expect(page.locator("#bc-validate")).toBeDisabled();
+  await expect(page.locator("#bc-deploy")).toBeDisabled();
+  expect(matchCalls(world)).toBe(0);
+});
+
+test("reloading setup keeps the selected draft even before it is deployed", async ({ page }) => {
+  const world = makeWorld({ activeProfile: "Sales Assistant", deployedProfile: null, storedMatch: true });
+  await install(page, world);
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await expect(page.locator(".bc-profile-row.is-selected .bc-profile-name")).toHaveText("Sales Assistant");
+  await page.reload();
+  await expect(page.locator(".bc-profile-row.is-selected .bc-profile-name")).toHaveText("Sales Assistant");
+  await expect(page.locator("#bc-deploy")).toBeEnabled();
+  expect(world.calls.some(c => /^GET \/api\/settings(?:\?|$)/.test(c))).toBe(false);
+});
+
+test("guided instruction save tells the owner to choose it before any check", async ({ page }) => {
+  const world = makeWorld({ activeProfile: null, deployedProfile: null, profiles: [], storedMatch: null });
+  await install(page, world);
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await page.locator("#bc-create").click();
+  await expect(page.locator("#bc-modal-title")).toHaveText("Create instructions");
+  await expect(page.locator("#bc-save")).toHaveText("Save instructions");
+  await page.locator("#bc-f-name").fill("Bakery support");
+  await page.locator("#bc-f-bot").fill("Bakery helper");
+  await page.locator("#bc-f-company").fill("Bakery");
+  await page.locator("#bc-f-tone").fill("Friendly");
+  await page.locator("#bc-f-desc").fill("A bakery answering menu questions.");
+  await page.locator("#bc-save").click();
+  await expect(page.locator("#bc-page-banner")).toContainText("Choose these instructions to check them against your PDF.");
+  await expect(page.getByRole("button", { name: "Choose these instructions", exact: true })).toBeVisible();
+  expect(matchCalls(world)).toBe(0);
+  expect(world.calls.some(c => c.startsWith("PUT /api/settings/active-profile"))).toBe(false);
+  expect(world.calls.some(c => c.startsWith("PUT /api/settings/apply-profile"))).toBe(false);
+});
+
+test("advanced prompt disclosure preserves a saved override when closed", async ({ page }) => {
+  const profiles = PROFILES.map(profile => ({ ...profile, custom_prompt: "Use the bakery menu." }));
+  const world = makeWorld({ profiles, storedMatch: true });
+  await install(page, world);
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await page.locator("#bc-edit").click();
+  const details = page.locator("#bc-prompt-options");
+  await expect(details).not.toHaveAttribute("open");
+  await expect(page.locator("#bc-f-prompt")).toBeHidden();
+  await expect(page.locator("#bc-f-prompt")).toHaveValue("Use the bakery menu.");
+  await details.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#bc-f-prompt")).toBeVisible();
+  await page.locator("#bc-f-prompt").fill("Answer only from the bakery menu.");
+  await details.locator("summary").click();
+  await page.locator("#bc-save").click();
+  await expect(page.locator("#bc-modal")).not.toHaveClass(/is-open/);
+  expect(world.profiles.find(profile => profile.name === world.activeProfile).custom_prompt).toBe("Answer only from the bakery menu.");
 });

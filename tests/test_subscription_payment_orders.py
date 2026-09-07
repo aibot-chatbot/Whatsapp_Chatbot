@@ -180,6 +180,59 @@ class TestUpdateStatus(_RepoTestBase):
             self.repo.update_subscription_order_status("nonexistent", "paid")
 
 
+class TestGuardedGatewayOrderUpdates(_RepoTestBase):
+    def _chain_update(self, rows):
+        chain = MagicMock()
+        chain.eq.return_value = chain
+        chain.is_.return_value = chain
+        chain.execute.return_value = _resp(rows)
+        self.mock_table.update.return_value = chain
+        return chain
+
+    def test_attach_gateway_details_is_pending_compare_and_set(self):
+        expected = {"status": "pending", "gateway_order_id": "hp-1"}
+        chain = self._chain_update([expected])
+
+        result = self.repo.attach_pending_subscription_gateway_details(
+            "order-1", "hitpay", "hp-1", "https://securecheckout.hit-pay.com/x"
+        )
+
+        self.assertEqual(result, expected)
+        chain.eq.assert_any_call("payment_gateway", "hitpay")
+        chain.eq.assert_any_call("status", "pending")
+        chain.is_.assert_any_call("gateway_order_id", "null")
+        chain.is_.assert_any_call("paid_at", "null")
+        chain.is_.assert_any_call("credited_at", "null")
+
+    def test_terminal_event_does_not_downgrade_paid_order(self):
+        self._chain_update([])
+        paid = {"status": "paid", "order_reference": "order-1"}
+        with patch.object(
+            self.repo, "get_subscription_order_by_reference", return_value=paid
+        ):
+            result = self.repo.transition_pending_subscription_order_terminal(
+                "order-1",
+                "failed",
+                "released:hitpay:failed:order-1",
+                "hitpay_failed",
+            )
+
+        self.assertEqual(result, paid)
+
+    def test_mark_paid_is_pending_compare_and_set(self):
+        expected = {"status": "paid", "payment_reference": "payment-1"}
+        chain = self._chain_update([expected])
+
+        result = self.repo.mark_pending_subscription_order_paid(
+            "order-1", "payment-1", "2026-09-04T00:00:00+00:00"
+        )
+
+        self.assertEqual(result, expected)
+        chain.eq.assert_any_call("status", "pending")
+        chain.is_.assert_any_call("paid_at", "null")
+        chain.is_.assert_any_call("credited_at", "null")
+
+
 class TestExpirePendingSubscriptionOrderForCheckoutRetry(_RepoTestBase):
     """Tests for expiring unpaid subscription checkouts and releasing keys."""
 

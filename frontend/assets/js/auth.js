@@ -37,6 +37,12 @@ function establishAuthenticatedSession(user, token) {
     return true;
 }
 
+function getLoginDestination(result) {
+    const destination = result && result.redirect_url;
+    return ["bots.html", "admin.html", "superadmin.html"].includes(destination)
+        ? destination : null;
+}
+
 function parsePositiveSafeInteger(value) {
     if (typeof value !== "string" || !/^[1-9][0-9]*$/.test(value)) {
         return null;

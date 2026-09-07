@@ -21,6 +21,8 @@
     <!-- Loaded after shared-glass so the control-room system wins, matching
          the migration pattern already used by index.html and bots.html. -->
     <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/bot-setup-journey.css">
+    <script src="assets/js/bot-setup-journey.js" defer></script>
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
     <script>requireLogin();requireAdminOrOwner();</script>
@@ -121,6 +123,15 @@
             0% { left: -35%; }
             100% { left: 100%; }
         }
+
+        .kw-guided-upload { padding: 28px; }
+        .kw-guided-upload h2 { font-size: 20px; margin: 0 0 10px; }
+        .kw-guided-upload p { max-width: 60ch; color: var(--control-text-secondary); line-height: 1.6; }
+        .kw-guided-upload .kw-btn { margin-top: 16px; }
+        .kw-guided-upload .kw-evidence-source { margin: 16px 0; overflow-wrap: anywhere; }
+        .kw-guided-tools-toggle { margin: 16px 0; }
+        .kw-page [hidden] { display: none !important; }
+        @media (max-width: 600px) { .kw-guided-upload { padding: 20px; } }
     </style>
 </head>
 
@@ -1908,12 +1919,16 @@ const ROLE_LABELS = {
             const [pdfCandidateResult, setPdfCandidateResult] = useState(null);
             const [files, setFiles] = useState([]);
             const [activeFile, setActiveFile] = useState("");
+            const [knowledgeLoadState, setKnowledgeLoadState] = useState("loading");
+            const [showSetupDetails, setShowSetupDetails] = useState(false);
             const [isModalOpen, setIsModalOpen] = useState(false);
             const [fileToDelete, setFileToDelete] = useState(null);
             const [activeTab, setActiveTab] = useState("file");
             const [linkUrl, setLinkUrl] = useState("");
             const [activeViewTab, setActiveViewTab] = useState("sources");
             const pdfFileInputRef = React.useRef(null);
+            const sourceDialogRef = React.useRef(null);
+            const sourceTriggerRef = React.useRef(null);
             const [operationStage, setOperationStage] = useState("");
             const [operationStartedAt, setOperationStartedAt] = useState(null);
             const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -1987,11 +2002,12 @@ const ROLE_LABELS = {
             const [expandedHistoryIdx, setExpandedHistoryIdx] = useState(null);
 
             const urlParams = new URLSearchParams(window.location.search);
+            const isSetup = urlParams.get("setup") === "1";
             const urlBotId = urlParams.get("bot_id");
             const storedBotId = sessionStorage.getItem("selectedBotId");
 
             if (!urlBotId && storedBotId) {
-                window.location.href = `new_linkdocs.html?bot_id=${encodeURIComponent(storedBotId)}`;
+                window.location.href = `new_linkdocs.html?bot_id=${encodeURIComponent(storedBotId)}${isSetup ? "&setup=1" : ""}`;
                 return null;
             }
 
@@ -2003,7 +2019,7 @@ const ROLE_LABELS = {
             const selectedBotId = urlBotId;
             sessionStorage.setItem("selectedBotId", selectedBotId);
             const botQuery = `?chatbot_id=${selectedBotId}`;
-            const pageQuery = `?bot_id=${selectedBotId}`;
+            const pageQuery = `?bot_id=${encodeURIComponent(selectedBotId)}${isSetup ? "&setup=1" : ""}`;
             const [botName, setBotName] = useState("");
 
             const fetchBotInfo = async () => {
@@ -2013,6 +2029,7 @@ const ROLE_LABELS = {
 
                     if (data.status === "success") {
                         setBotName(data.data.bot_name || "Bot");
+                        document.querySelector("chatbot-sidebar")?.setBotName?.(data.data.bot_name);
                     }
                 } catch (error) {
                     setBotName("Bot");
@@ -2035,6 +2052,9 @@ const ROLE_LABELS = {
             const hasActivePrimaryPdf = Boolean(primarySource && !isWebsiteKnowledge(primarySource) && isSourceEnabled(primarySource));
             const hasPrimarySource = hasActivePrimaryPdf;
             const primarySourceDisplayName = primarySource ? getSourceDisplayName(primarySource, "") : "";
+            const primaryKnowledgeReady = knowledgeLoadState === "ready" && hasActivePrimaryPdf
+                && activeFile === getSourceActionName(primarySource)
+                && ["", "completed"].includes(String(primarySource?.processing_status || "").toLowerCase());
 
             const clearSelectedPdf = () => {
                 setFile(null);
@@ -2044,6 +2064,7 @@ const ROLE_LABELS = {
             };
 
             const openModal = () => {
+                sourceTriggerRef.current = document.activeElement;
                 setStatus({ type: "", text: "", action: "" });
                 clearSelectedPdf();
                 setPdfCandidateResult(null);
@@ -2093,6 +2114,39 @@ const ROLE_LABELS = {
                 setIsExtracting(false);
                 setExtractedPrimaryUrl("");
             };
+
+            useEffect(() => {
+                if (!isModalOpen) return;
+                const dialog = sourceDialogRef.current;
+                const background = [document.querySelector("main"), document.querySelector("chatbot-sidebar")].filter(Boolean);
+                background.forEach(node => { node.inert = true; });
+                const focusFrame = requestAnimationFrame(() => {
+                    (dialog.querySelector(".kw-drop") || dialog.querySelector("button:not([disabled])"))?.focus();
+                });
+                const onKeyDown = (event) => {
+                    if (event.key === "Escape") {
+                        event.preventDefault();
+                        dialog.querySelector('button[aria-label="Close"]')?.click();
+                    }
+                    if (event.key !== "Tab") return;
+                    const controls = [...dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]')]
+                        .filter(node => node.offsetParent !== null);
+                    const first = controls[0];
+                    const last = controls[controls.length - 1];
+                    if (event.shiftKey && document.activeElement === first) {
+                        event.preventDefault(); last?.focus();
+                    } else if (!event.shiftKey && document.activeElement === last) {
+                        event.preventDefault(); first?.focus();
+                    }
+                };
+                document.addEventListener("keydown", onKeyDown);
+                return () => {
+                    cancelAnimationFrame(focusFrame);
+                    document.removeEventListener("keydown", onKeyDown);
+                    background.forEach(node => { node.inert = false; });
+                    sourceTriggerRef.current?.focus();
+                };
+            }, [isModalOpen]);
 
             const formatRelevanceScore = (score) => {
                 const numeric = Number(score);
@@ -2153,12 +2207,17 @@ const ROLE_LABELS = {
             };
 
             const fetchFiles = async () => {
+                setKnowledgeLoadState("loading");
                 try {
                     const res = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
                     const data = await res.json();
 
                     const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
                     const activeData = await activeRes.json();
+
+                    if (!res.ok || !activeRes.ok || data.status !== "success" || activeData.status !== "success") {
+                        throw new Error("Knowledge state is unavailable");
+                    }
 
                     if (data.status === "success") {
                         setFiles(data.data || []);
@@ -2167,8 +2226,10 @@ const ROLE_LABELS = {
                     if (activeData.status === "success") {
                         setActiveFile(activeData.data?.file_name || "");
                     }
+                    setKnowledgeLoadState("ready");
                 } catch (error) {
-                    setStatus({ type: "error", text: "Failed to load files from backend.", action: "" });
+                    setKnowledgeLoadState("error");
+                    setStatus({ type: "error", text: "We could not check your documents. Try again to confirm what is ready.", action: "" });
                 }
             };
 
@@ -3162,16 +3223,17 @@ const ROLE_LABELS = {
                     <chatbot-sidebar></chatbot-sidebar>
 
                     <main className="main-container kw-page">
+                        {isSetup && <bot-setup-journey current="knowledge" bot-id={selectedBotId}></bot-setup-journey>}
                         <header className="kw-header">
                             <div>
                                 <a className="dashboard-back-link" href={`index.html${pageQuery}`}>
                                     <Icon name="arrow-left" size={15} /> {botName || "Bot"} dashboard
                                 </a>
-                                <h1>Knowledge workspace</h1>
-                                <p className="kw-header-sub">Build, connect, and refine the information your bot can trust.</p>
+                                <h1>{isSetup ? "Add your business document" : "Knowledge workspace"}</h1>
+                                <p className="kw-header-sub">{isSetup ? "Give your bot the information it needs to answer customers." : "Build, connect, and refine the information your bot can trust."}</p>
                             </div>
 
-                            <div className="kw-header-aside">
+                            <div className="kw-header-aside" hidden={isSetup && !showSetupDetails}>
                                 <div className="kw-readiness">
                                     <div className="kw-gauge">
                                         <svg viewBox="0 0 74 74" role="img" aria-label={`${readiness} percent of sources ready`}>
@@ -3268,8 +3330,8 @@ const ROLE_LABELS = {
                             </div>
                         </header>
 
-                        {status.text && (
-                            <div className={`kw-banner kw-banner-${status.type || "success"}`}>
+                        {status.text && !isModalOpen && (
+                            <div className={`kw-banner kw-banner-${status.type || "success"}`} role="status" aria-live="polite">
                                 {status.type === "success"
                                     ? <Icon name="circle-check" size={16} />
                                     : status.type === "deleted"
@@ -3279,18 +3341,51 @@ const ROLE_LABELS = {
                             </div>
                         )}
 
-                        {status.type === "success" && status.action === "setActive" && (
+                        {isSetup && (
+                            <>
+                                <section className="kw-panel kw-guided-upload" aria-labelledby="kw-guided-title" aria-busy={busyAddingSource || knowledgeLoadState === "loading"}>
+                                    <h2 id="kw-guided-title">{primaryKnowledgeReady ? "Your document is ready" : "Start with one PDF"}</h2>
+                                    {knowledgeLoadState === "loading" ? (
+                                        <p role="status">Checking your saved documents…</p>
+                                    ) : knowledgeLoadState === "error" ? (
+                                        <>
+                                            <p>We need to check your documents before continuing.</p>
+                                            <button type="button" className="kw-btn kw-btn-primary" onClick={fetchFiles}>Check documents again</button>
+                                        </>
+                                    ) : primaryKnowledgeReady ? (
+                                        <>
+                                            <div className="kw-evidence-source"><Icon name="file-check" size={20} /><span>{primarySourceDisplayName}</span></div>
+                                            <p>Your bot can use this document. Next, review how it should introduce your business and answer customers.</p>
+                                            {!busyAddingSource && <a className="kw-btn kw-btn-primary" href={`new_prompt.html${pageQuery}`}>Continue to instructions <Icon name="arrow-right" size={16} /></a>}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p>Upload a PDF with readable text, such as your services, prices or frequently asked questions. PDF files only; keep the file name to 60 characters or fewer.</p>
+                                            {primarySource && <p role="status">{String(primarySource.processing_status).toLowerCase() === "failed" ? "This document could not be processed. Open document details to review it, or upload a readable PDF." : "Your document is not ready yet. Check its processing status before continuing."}</p>}
+                                            {primarySource ? <button type="button" className="kw-btn kw-btn-primary" onClick={fetchFiles} disabled={busyAddingSource}>Check document status</button>
+                                                : <button type="button" className="kw-btn kw-btn-primary" onClick={() => startAdd("file")} disabled={busyAddingSource}><Icon name="upload" size={16} /> Upload a document</button>}
+                                        </>
+                                    )}
+                                </section>
+                                <button type="button" className="kw-btn kw-guided-tools-toggle" aria-expanded={showSetupDetails} aria-controls="kw-document-tools" onClick={() => setShowSetupDetails(!showSetupDetails)}>
+                                    {showSetupDetails ? "Hide document details" : "Document details and advanced tools"} <Icon name={showSetupDetails ? "chevron-up" : "chevron-down"} size={16} />
+                                </button>
+                            </>
+                        )}
+
+                        {!isSetup && primaryKnowledgeReady && status.type === "success" && ["setActive", "upload"].includes(status.action) && (
                             <div className="kw-nextstep">
                                 <div>
                                     <strong>Next step</strong>
                                     <span>Check bot configuration so the replies match this primary source.</span>
                                 </div>
                                 <a href={`new_prompt.html${pageQuery}`} className="kw-btn">
-                                    Open bot configuration <Icon name="arrow-right" size={15} />
+                                    Continue to instructions <Icon name="arrow-right" size={15} />
                                 </a>
                             </div>
                         )}
 
+                        <div id="kw-document-tools" hidden={isSetup && !showSetupDetails}>
                         <div className="kw-stats">
                             {STAT_TILES.map(tile => (
                                 <div className="kw-stat" key={tile.label}>
@@ -3726,11 +3821,12 @@ const ROLE_LABELS = {
                         {activeViewTab === "refinement" && (
                             <KnowledgeRefinement botId={selectedBotId} activeFile={activeFile} activeFileDisplayName={primarySourceDisplayName} />
                         )}
+                        </div>
                     </main>
 
                     {/* Add source */}
                     <div className={`kw-backdrop ${isModalOpen ? "is-open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-                        <div className="kw-modal" role="dialog" aria-modal="true" aria-label="Add a knowledge source">
+                        <div className="kw-modal" role="dialog" aria-modal="true" aria-label="Add a knowledge source" ref={sourceDialogRef}>
                             <div className="kw-modal-head">
                                 <div>
                                     <h2>Add a knowledge source</h2>
@@ -3742,6 +3838,7 @@ const ROLE_LABELS = {
                             </div>
 
                             <div className="kw-modal-body">
+                                {status.text && isModalOpen && <p className={`kw-banner kw-banner-${status.type || "success"}`} role="status" aria-live="polite">{status.text}</p>}
                                 <div className="kw-segment" role="tablist" aria-label="Source type" style={{ marginBottom: "20px" }}>
                                     <button
                                         type="button"

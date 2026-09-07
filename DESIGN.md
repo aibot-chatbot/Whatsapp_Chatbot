@@ -1,5 +1,34 @@
 # Design
 
+## Guided client setup — approved 2026-09-07
+
+The first-client path is My bots → Add knowledge → Review instructions → Test
+replies → Publish. A newly created bot opens document setup directly. Preserve
+`bot_id` and `setup=1` through the path; current-step markers describe navigation,
+not completed backend work. The first PDF must be confirmed active before the
+next action appears. Instructions use the bot's `draft_profile_name`; deployed
+settings remain a separate runtime state. Applying instructions does not publish
+a channel.
+
+Keep the established Aveon palette and typography. The signature is a quiet
+four-step navigation strip, one dominant next action, and optional advanced tools.
+`dashboard-control-room.css` remains the token owner; the shared strip lives in
+`assets/css/bot-setup-journey.css` and `assets/js/bot-setup-journey.js`.
+
+Workspace navigation on `bots.html` contains company-wide tasks. Selected-bot
+navigation shows the bot name, direct setup destinations and secondary tools.
+Both place account controls at the bottom; navigation owns its scroll area so
+account controls remain reachable on shorter screens. Preserve role restrictions.
+
+Publishing offers Website & share link, Telegram, WhatsApp Business and Wasender
+with equal visual emphasis. Website and share link share a single connection.
+New website records start off until explicitly enabled. Existing connections and
+public keys are preserved. Show plan/provider restrictions beside the relevant
+choice; distinguish saved connection state, configured address and verified
+availability. A temporary hostname must never receive a Working label.
+
+Acceptance and current evidence: [client journey review](docs/CLIENT_JOURNEY_REVIEW.md).
+
 ## Source of truth
 - Status: Active
 - Last refreshed: 2026-08-26
@@ -178,6 +207,38 @@ Verified 2026-08-26 by direct source audit of `app/`. Anything not listed is out
   protect is preserved.
 
 ## Open questions
+### Approved platform staff portals (7 September 2026)
+
+The approved Admin and Super Admin prototypes establish two dedicated platform-staff
+surfaces, separate from the tenant control-room theme. Admin uses the compact light
+Linear application layout at `frontend/admin.html`; Super Admin uses the dark Stripe
+Dashboard composition at `frontend/superadmin.html`. The shared tenant identity and
+existing tenant routes retain their current purpose.
+
+Runtime CSS remains canonical (token ownership model B): `admin-portal.css` and
+`superadmin-portal.css` under `frontend/assets/css/` own the respective portal themes.
+Their `:root` variables feed every route in that portal; no page-level token copies.
+Admin canvas/sidebar/text/accent map to `--canvas: #fff`, `--sidebar: #f7f7f6`,
+`--ink: #25252b`, `--accent: #5c5bc7`. Super Admin's approved dark canvas, navy sidebar
+and violet action palette are defined in its stylesheet. Both use a system sans-serif
+stack with tabular numerals and monospace identifiers, native labeled controls, thin
+borders and restrained semantic status colors. Keep the approved density and sidebar
+composition while substituting real records for illustrative prototype content.
+
+`frontend/assets/js/auth.js` owns session transport; `platform-admin-api.js` owns the
+shared platform API client; `platform-admin-shell.js` owns cancellation, stale response
+handling and authorization lifecycle. The new portal renderers own their domain pages.
+The production behavior map is in `UX-CONTRACT.md`. Unavailable data is not represented
+as zero or replaced with fabricated totals, trends, success messages or sample users.
+
+Super Admin overview charts reuse these same tokens: violet horizontal plan bars,
+a status ring with directly labeled green/violet/amber/red/neutral categories, and
+separate payment follow-up bars. Two-column desktop panels stack at narrow widths.
+Counts remain readable without hover, status labels link to existing filtered lists,
+and each source carries its own update timestamp. Payment queues can overlap and
+must never be combined into a percentage or total. These are current snapshots,
+not revenue or historical trend reports.
+
 - [x] Should the control-room shell roll out to every selected-bot subpage? Yes. `integration.html`, `conversations.html`, and the combined `crm.html` Insights & Actions workspace join `index`, `behaviour`, `new_prompt` and `new_linkdocs`. `reports.html` is now a compatibility redirect; `support.html` and `profile.html` remain migration debt.
 - [ ] Should a conversation ever close automatically after inactivity, so `conversation_status` and `ended_at` become meaningful? / owner: product / impact: unlocks open-vs-closed reporting and a real capture rate
 - [x] `crm.html` now uses the canonical five-stage vocabulary in the combined Insights & Actions workspace. `support.html` remains compatibility/migration debt.

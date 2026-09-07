@@ -2037,13 +2037,61 @@ def billing_health_check():
     """
     try:
         import os
+        import time
+        from app.services.hitpay_service import HitPayConfig, HitPayConfigError
+
+        try:
+            selected_gateway = get_subscription_payment_gateway()
+        except RuntimeError:
+            selected_gateway = "invalid"
         checks = {
             "secret_key": bool(os.environ.get("SECRET_KEY")),
             "supabase_url": bool(os.environ.get("SUPABASE_URL")),
             "supabase_key": bool(os.environ.get("SUPABASE_SERVICE_ROLE_KEY")),
-            "toyyibpay_secret_key": bool(os.environ.get("TOYYIBPAY_USER_SECRET_KEY")),
-            "toyyibpay_category_code": bool(os.environ.get("TOYYIBPAY_CATEGORY_CODE")),
+            "subscription_gateway_valid": selected_gateway in {"toyyibpay", "hitpay"},
         }
+        if selected_gateway == "toyyibpay":
+            checks.update({
+                "toyyibpay_secret_key": bool(os.environ.get("TOYYIBPAY_USER_SECRET_KEY")),
+                "toyyibpay_category_code": bool(os.environ.get("TOYYIBPAY_CATEGORY_CODE")),
+            })
+
+        hitpay_required = (
+            selected_gateway == "hitpay"
+            or bool(os.environ.get("HITPAY_CANARY_COMPANY_IDS", "").strip())
+            or os.environ.get("HITPAY_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
+        )
+        if hitpay_required:
+            try:
+                hitpay = HitPayConfig.from_env()
+                hitpay_environment_valid = hitpay.environment in {"sandbox", "production"}
+            except HitPayConfigError:
+                hitpay = None
+                hitpay_environment_valid = False
+            checks.update({
+                "hitpay_enabled": bool(hitpay and hitpay.enabled),
+                "hitpay_environment_valid": hitpay_environment_valid,
+                "hitpay_api_key": bool(hitpay and hitpay.api_key),
+                "hitpay_webhook_salt": bool(hitpay and hitpay.webhook_salt),
+                "hitpay_redirect_url": bool(hitpay and hitpay.redirect_url),
+                "hitpay_webhook_url": bool(hitpay and hitpay.webhook_url),
+                "hitpay_reconciliation_enabled": os.environ.get(
+                    "BILLING_SCHEDULER_ENABLED", "true"
+                ).strip().lower() in {"1", "true", "yes", "on"},
+            })
+
+            from app.services.billing_scheduler_service import (
+                RECONCILE_INTERVAL_SECONDS,
+                get_last_successful_run,
+            )
+            last_reconciliation = get_last_successful_run(
+                "reconcile_subscription_orders"
+            )
+            checks["hitpay_recent_reconciliation"] = bool(
+                last_reconciliation is not None
+                and time.monotonic() - last_reconciliation
+                <= RECONCILE_INTERVAL_SECONDS * 2
+            )
 
         from app.database.db import supabase
         supabase_ok = False
@@ -2060,6 +2108,7 @@ def billing_health_check():
         all_ok = all(checks.values())
         return jsonify({
             "status": "ok" if all_ok else "degraded",
+            "selected_subscription_gateway": selected_gateway,
             "checks": {k: v for k, v in checks.items() if k != "supabase_key"},
         }), 200 if all_ok else 200
 

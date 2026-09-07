@@ -1,573 +1,279 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="color-scheme: dark">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Support | AI Chatbot</title>
+    <meta name="theme-color" content="#0e0f11">
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Order matters. Every kw-* rule is .dashboard-page .kw-*, so page CSS
+         must load last to override at equal specificity. shared-glass.css is
+         legacy in intent but still load-bearing: its 768px !important block
+         governs the mobile shell on every control-room page. -->
     <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/support.css">
+
     <script src="assets/js/shared-ui.js"></script>
+    <script src="assets/js/kw-a11y.js"></script>
     <script src="assets/js/auth.js"></script>
     <script>requireLogin();</script>
     <script src="sidebar-component.js"></script>
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-glow: rgba(59, 130, 246, 0.5);
-            --bg: #050b18;
-            --sidebar-bg: rgba(15, 23, 42, 0.8);
-            --card-bg: rgba(30, 41, 59, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.1);
-            --accent: #10b981;
-            --warning: #f59e0b;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            background-image:
-                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 42%),
-                radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 42%);
-            background-attachment: fixed;
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            overflow-x: hidden;
-        }
-
-        .main-container {
-            flex-grow: 1;
-            width: 100%;
-            max-width: 1240px;
-            margin: 0 auto;
-            padding: 52px 56px 80px;
-        }
-
-        .header {
-            margin-bottom: 28px;
-            padding-right: 180px;
-        }
-
-        .header h1 {
-            font-size: 2.15rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #ffffff, #cbd5e1);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .header p {
-            color: var(--text-dim);
-            margin-top: 8px;
-            font-size: 1rem;
-            line-height: 1.6;
-            max-width: 760px;
-        }
-
-        .support-grid {
-            display: grid;
-            grid-template-columns: minmax(0, 1.4fr) minmax(300px, 0.8fr);
-            gap: 22px;
-            align-items: start;
-        }
-
-        .section-title {
-            color: var(--text-main);
-            font-size: 1rem;
-            font-weight: 700;
-            margin-bottom: 14px;
-        }
-
-        .section-subtitle {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            line-height: 1.5;
-            margin-bottom: 16px;
-        }
-
-        .account-card {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
-
-        .account-avatar {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: rgba(59, 130, 246, 0.16);
-            border: 1px solid rgba(59, 130, 246, 0.28);
-            color: #bfdbfe;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            flex: 0 0 auto;
-        }
-
-        .account-lines {
-            min-width: 0;
-        }
-
-        .account-name {
-            font-weight: 700;
-            overflow-wrap: anywhere;
-        }
-
-        .account-email {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            margin-top: 3px;
-            overflow-wrap: anywhere;
-        }
-
-        .topic-list {
-            display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 14px;
-        }
-
-        .topic-card {
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 12px;
-            padding: 16px;
-        }
-
-        .topic-card h2 {
-            font-size: 0.98rem;
-            margin-bottom: 8px;
-        }
-
-        .topic-card p {
-            color: var(--text-dim);
-            font-size: 0.88rem;
-            line-height: 1.5;
-        }
-
-        .quick-links {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 8px;
-        }
-
-        .quick-link {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            color: var(--text-main);
-            text-decoration: none;
-            border: 1px solid rgba(255, 255, 255, 0.07);
-            background: rgba(255, 255, 255, 0.035);
-            border-radius: 10px;
-            padding: 11px 13px;
-            font-weight: 600;
-            transition: background 0.18s, border-color 0.18s, transform 0.18s;
-        }
-
-        .quick-link:hover,
-        .quick-link:focus-visible {
-            background: rgba(59, 130, 246, 0.12);
-            border-color: rgba(59, 130, 246, 0.32);
-            outline: none;
-            transform: translateY(-1px);
-        }
-
-        .quick-link span:last-child {
-            color: var(--text-dim);
-            font-weight: 700;
-        }
-
-        .notice {
-            border-color: rgba(245, 158, 11, 0.24);
-            background: rgba(245, 158, 11, 0.08);
-        }
-
-        .notice p {
-            color: #fcd34d;
-            line-height: 1.55;
-            font-size: 0.92rem;
-        }
-
-        .support-request {
-            margin-top: 24px;
-            padding-top: 24px;
-            border-top: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .support-request-form {
-            display: grid;
-            gap: 14px;
-        }
-
-        .support-request-form label {
-            color: var(--text-dim);
-            font-size: 0.88rem;
-            font-weight: 600;
-        }
-
-        .support-request-form input,
-        .support-request-form select,
-        .support-request-form textarea {
-            width: 100%;
-            margin-top: 6px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 9px;
-            padding: 10px 12px;
-            color: var(--text-main);
-            background: rgba(15, 23, 42, 0.72);
-            font-size: 0.95rem;
-        }
-
-        .support-request-form textarea {
-            min-height: 130px;
-            resize: vertical;
-        }
-
-        .support-request-form input:focus,
-        .support-request-form select:focus,
-        .support-request-form textarea:focus {
-            outline: 2px solid rgba(59, 130, 246, 0.55);
-            outline-offset: 1px;
-        }
-
-        .support-request-warning {
-            color: #fcd34d;
-            font-size: 0.88rem;
-            line-height: 1.5;
-        }
-
-        .support-request-submit {
-            width: fit-content;
-            border: 0;
-            border-radius: 9px;
-            padding: 10px 16px;
-            color: #fff;
-            background: var(--primary);
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        .support-request-submit:disabled {
-            cursor: wait;
-            opacity: 0.65;
-        }
-
-        .support-request-status {
-            min-height: 1.4em;
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            line-height: 1.5;
-        }
-
-        .support-request-status.error {
-            color: #fca5a5;
-        }
-
-        .support-request-status.success {
-            color: #86efac;
-        }
-
-        .support-history-layout {
-            display: grid;
-            grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
-            gap: 16px;
-        }
-
-        .support-history-list,
-        .support-history-detail {
-            min-height: 130px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 10px;
-            background: rgba(15, 23, 42, 0.46);
-            padding: 12px;
-            color: var(--text-dim);
-        }
-
-        .support-history-item {
-            display: block;
-            width: 100%;
-            margin-bottom: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            padding: 10px 12px;
-            color: var(--text-main);
-            background: rgba(255, 255, 255, 0.04);
-            text-align: left;
-            cursor: pointer;
-        }
-
-        .support-history-item:hover,
-        .support-history-item:focus-visible {
-            outline: none;
-            border-color: rgba(59, 130, 246, 0.36);
-            background: rgba(59, 130, 246, 0.12);
-        }
-
-        .support-history-detail h3 {
-            color: var(--text-main);
-            font-size: 0.98rem;
-            margin: 0 0 10px;
-        }
-
-        .support-history-line {
-            display: grid;
-            grid-template-columns: 110px minmax(0, 1fr);
-            gap: 10px;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-        }
-
-        .support-history-label {
-            color: var(--text-dim);
-            font-weight: 700;
-        }
-
-        .support-history-value {
-            color: var(--text-main);
-            overflow-wrap: anywhere;
-        }
-
-        .support-reply-message {
-            margin-top: 10px;
-            border-left: 3px solid rgba(16, 185, 129, 0.65);
-            padding: 8px 0 8px 12px;
-            color: var(--text-main);
-        }
-
-        .support-reply-message p {
-            white-space: pre-wrap;
-            overflow-wrap: anywhere;
-        }
-
-        .support-reply-meta {
-            color: #86efac;
-            font-size: 0.82rem;
-            font-weight: 700;
-            margin-bottom: 5px;
-        }
-
-        @media (max-width: 1020px) {
-            .support-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .header {
-                padding-right: 86px;
-            }
-        }
-
-        @media (max-width: 760px) {
-            .main-container {
-                padding: 28px 16px 56px;
-            }
-
-            .header {
-                padding-right: 70px;
-            }
-
-            .header h1 {
-                font-size: 1.8rem;
-            }
-
-            .topic-list {
-                grid-template-columns: 1fr;
-            }
-
-            .support-history-layout {
-                grid-template-columns: 1fr;
-            }
-
-            .support-history-line {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <script src="assets/js/control-room-motion.js" defer></script>
+    <!-- No icon CDN here, unlike the other control-room pages. This page's
+         source contract forbids a remote <script>, so every glyph below is a
+         hand-authored inline path. The sidebar still loads its own. -->
 </head>
-<body>
+
+<body class="dashboard-page">
     <chatbot-sidebar></chatbot-sidebar>
-    <main class="main-container">
-        <header class="header">
-            <h1>Support</h1>
-            <p>Find self-service guidance for common product tasks, account settings, billing review, and workspace setup.</p>
+
+    <main class="main-container kw-page">
+        <header class="kw-header">
+            <div>
+                <h1>Support</h1>
+                <p class="kw-header-sub">Search the help centre first. If nothing here solves it, hand the problem to a person.</p>
+            </div>
+            <!-- Standing offer, deliberately quiet: self-service gets first
+                 refusal. It only becomes the loud option when the article
+                 fetch fails, where the error card promotes it. -->
+            <button class="human-link cr-press" id="sup-open-escalation" type="button">
+                <svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                Talk to a human
+            </button>
         </header>
 
-        <div class="support-grid">
-            <section class="glass-card">
-                <div class="section-title">Common Help Topics</div>
-                <p class="section-subtitle">Use these starting points to resolve setup and account questions without leaving the tenant app.</p>
-                <div class="topic-list">
-                    <article class="topic-card">
-                        <h2>Chatbot Setup</h2>
-                        <p>Create or review bots from My Bots, then open a bot dashboard to configure its operating pages.</p>
-                    </article>
-                    <article class="topic-card">
-                        <h2>Knowledge Files</h2>
-                        <p>Use Documents to manage primary PDFs, supporting website knowledge, refinement questions, and graph data for a selected bot.</p>
-                    </article>
-                    <article class="topic-card">
-                        <h2>AI Model Settings</h2>
-                        <p>Use Tune AI to review provider and model settings. Admin or owner permissions may be required for changes.</p>
-                    </article>
-                    <article class="topic-card">
-                        <h2>Messaging Integrations</h2>
-                        <p>Use Integrations to connect or review WhatsApp, Telegram, and Wasender channels for a selected bot.</p>
-                    </article>
-                    <article class="topic-card">
-                        <h2>Conversations And CRM</h2>
-                        <p>Use Inbox &amp; Chat for customer messages and CRM / Leads for follow-up tracking, assignment, and lead status review.</p>
-                    </article>
-                    <article class="topic-card">
-                        <h2>Team And Profile</h2>
-                        <p>Use Profile for personal and workspace information. Owners and admins can manage team membership from Team Members.</p>
-                    </article>
-                    <article class="topic-card">
-                        <h2>Billing And AI Credits</h2>
-                        <p>Use Billing to review subscriptions, payment history, AI-credit balances, and manual-review payment states. This page accepts only redacted support requests and tenant-visible support replies.</p>
-                    </article>
+        <!-- ── 2. Search hero ──────────────────────────────────────────── -->
+        <section class="cr-reveal" aria-labelledby="sup-search-heading">
+            <h2 class="kw-visually-hidden" id="sup-search-heading">Search the help centre</h2>
+
+            <div class="search-field">
+                <svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="11" cy="11" r="7" />
+                    <path d="m20 20-3.6-3.6" />
+                </svg>
+                <input id="sup-query" type="search" autocomplete="off"
+                       aria-describedby="sup-result-count"
+                       placeholder="Search help articles &mdash; try &ldquo;credits&rdquo; or &ldquo;telegram&rdquo;">
+            </div>
+
+            <div class="chips" id="sup-chips" role="group" aria-label="Filter articles by category">
+                <button class="chip" data-cat="all" aria-pressed="true" type="button">All</button>
+                <button class="chip" data-cat="chatbot" aria-pressed="false" type="button">Chatbot</button>
+                <button class="chip" data-cat="integration" aria-pressed="false" type="button">Integration</button>
+                <button class="chip" data-cat="billing_question" aria-pressed="false" type="button">Billing</button>
+                <button class="chip" data-cat="ai_credits" aria-pressed="false" type="button">AI credits</button>
+                <button class="chip" data-cat="account" aria-pressed="false" type="button">Account</button>
+                <button class="chip" data-cat="technical" aria-pressed="false" type="button">Technical</button>
+                <button class="chip" data-cat="other" aria-pressed="false" type="button">Other</button>
+            </div>
+
+            <!-- Destinations, not filters. Squared corners and a trailing
+                 arrow keep them visually separate from the pill chips above,
+                 which toggle rather than navigate. -->
+            <div class="sup-jump">
+                <span class="eyebrow" id="sup-jump-label">Or open a page directly</span>
+                <nav class="quick-links" aria-labelledby="sup-jump-label">
+                    <a class="quick-link" href="bots.html" data-support-link>My Bots<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                    <a class="quick-link" href="profile.html" data-support-link>Profile<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                    <a class="quick-link" href="team.html" data-support-link>Team Members<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                    <a class="quick-link" href="pricing.html" data-support-link>Billing<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                    <a class="quick-link" href="integration.html" data-support-link>Integrations<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                    <a class="quick-link" href="new_linkdocs.html" data-support-link>Documents<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                    <a class="quick-link" href="model_settings.html" data-support-link>Tune AI<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                    <a class="quick-link" href="conversations.html" data-support-link>Inbox &amp; Chat<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                    <a class="quick-link" href="crm.html" data-support-link>CRM &amp; Leads<svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" /></svg></a>
+                </nav>
+            </div>
+        </section>
+
+        <!-- ── 3. Results: list, then reader ───────────────────────────── -->
+        <section class="cr-reveal" aria-labelledby="sup-articles-heading">
+            <div class="sec-head">
+                <span class="eyebrow" id="sup-articles-heading">Help articles</span>
+                <span class="count" id="sup-result-count" aria-live="polite">Loading</span>
+            </div>
+
+            <!-- Holds the height four rows will occupy, so the layout does
+                 not jump when the fetch lands. Hidden from assistive tech:
+                 the live count above already says "Loading". -->
+            <div class="skel" id="sup-skeleton" aria-hidden="true">
+                <div class="skel-row cr-skeleton"></div>
+                <div class="skel-row cr-skeleton"></div>
+                <div class="skel-row cr-skeleton"></div>
+                <div class="skel-row cr-skeleton"></div>
+            </div>
+
+            <div class="errbox" id="sup-articles-error" hidden>
+                <h3>Help articles could not be loaded</h3>
+                <p>The connection to the help centre failed. Your support history and the option to contact a person both still work.</p>
+                <div class="esc-actions">
+                    <button class="kw-btn cr-press" id="sup-retry-articles" type="button">Try again</button>
+                    <button class="kw-btn kw-btn-primary cr-press" id="sup-error-escalate" type="button">Talk to a human instead</button>
+                </div>
+            </div>
+
+            <div class="articles" id="sup-article-list" hidden></div>
+
+            <div class="reader" id="sup-reader" hidden>
+                <div class="reader-top">
+                    <button class="back" id="sup-reader-back" type="button">
+                        <svg class="dashboard-icon" viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px"><path d="M19 12H5m6 6-6-6 6-6" /></svg>
+                        All articles
+                    </button>
+                    <h2 id="sup-reader-title" tabindex="-1"></h2>
+                </div>
+                <div class="reader-body" id="sup-reader-body"></div>
+                <div class="vote" id="sup-vote" aria-live="polite"></div>
+            </div>
+        </section>
+
+        <!-- ── 4. Dead end: below the article, never over it ───────────── -->
+        <section class="cr-reveal" id="sup-deadend" hidden aria-labelledby="sup-deadend-title">
+            <div class="deadend">
+                <h3 id="sup-deadend-title" tabindex="-1">Still stuck? Hand it to a person.</h3>
+                <p id="sup-deadend-why">Nothing in the help centre matched. A member of the support team can pick this up &mdash; and they will already see what you tried.</p>
+                <div class="esc-actions">
+                    <button class="kw-btn kw-btn-primary cr-press" id="sup-deadend-escalate" type="button">Get help from a person</button>
+                    <button class="kw-btn cr-press" id="sup-keep-looking" type="button">Keep looking</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ── 5. Escalation ──────────────────────────────────────────── -->
+        <section class="cr-reveal" id="sup-escalation" hidden aria-labelledby="sup-escalation-title">
+            <div class="esc">
+                <div class="esc-head">
+                    <h3 id="sup-escalation-title" tabindex="-1">Contact the support team</h3>
+                    <p>Everything below travels with your request, so nobody has to ask what you already tried.</p>
                 </div>
 
-                <section class="support-request" aria-labelledby="support-request-title">
-                    <div class="section-title" id="support-request-title">Submit a Support Request</div>
-                    <p class="section-subtitle">Send a redacted request for review. Tenant-visible replies will appear in your support history.</p>
-                    <p class="support-request-warning">Do not include passwords, tokens, cookies, payment details, provider payloads, or private customer conversation content.</p>
-                    <form class="support-request-form" id="support-request-form" novalidate>
-                        <label for="support-request-category">Category
-                            <select id="support-request-category" name="category" required>
-                                <option value="">Select a category</option>
-                                <option value="technical">Technical</option>
-                                <option value="account">Account</option>
-                                <option value="chatbot">Chatbot</option>
-                                <option value="integration">Integration</option>
-                                <option value="billing_question">Billing question</option>
-                                <option value="ai_credits">AI credits</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </label>
-                        <label for="support-request-title-input">Subject
-                            <input id="support-request-title-input" name="title" type="text" maxlength="160" required>
-                        </label>
-                        <label for="support-request-description">Redacted description
-                            <textarea id="support-request-description" name="redacted_description" maxlength="2000" required></textarea>
-                        </label>
-                        <button class="support-request-submit" id="support-request-submit" type="submit">Submit request</button>
-                        <p class="support-request-status" id="support-request-status" role="status" aria-live="polite"></p>
-                    </form>
-                </section>
+                <div class="trail">
+                    <div class="trail-h">Attached automatically</div>
+                    <div class="trail-row"><span class="trail-k">Account</span><span class="trail-v" id="sup-trail-account">Signed in</span></div>
+                    <div class="trail-row"><span class="trail-k">Email</span><span class="trail-v" id="sup-trail-email">Account details unavailable</span></div>
+                    <div class="trail-row"><span class="trail-k">Searched</span><span class="trail-v" id="sup-trail-searched">nothing yet</span></div>
+                    <div class="trail-row"><span class="trail-k">Opened</span><span class="trail-v" id="sup-trail-opened">nothing yet</span></div>
+                    <div class="trail-row"><span class="trail-k">Didn&rsquo;t help</span><span class="trail-v" id="sup-trail-unhelpful">nothing yet</span></div>
+                    <div class="trail-row"><span class="trail-k">Came from</span><span class="trail-v">support</span></div>
+                </div>
 
-                <section class="support-request" aria-labelledby="support-history-title">
-                    <div class="section-title" id="support-history-title">Support History</div>
-                    <p class="section-subtitle">Your submitted requests and tenant-visible replies for this signed-in account.</p>
-                    <div class="support-history-layout">
-                        <div class="support-history-list" id="support-history-list" aria-live="polite">Loading support requests...</div>
-                        <div class="support-history-detail" id="support-history-detail" aria-live="polite">Select a request to view its conversation.</div>
+                <form class="fields" id="support-request-form" novalidate>
+                    <div class="kw-field">
+                        <span class="kw-label" id="sup-urgency-label">How urgent is this?</span>
+                        <div class="urgency" role="group" aria-labelledby="sup-urgency-label" id="sup-urgency">
+                            <button class="u-opt" data-urgency="low" aria-pressed="false" type="button">
+                                <strong>Low</strong><span>A question, not a blocker</span>
+                            </button>
+                            <button class="u-opt" data-urgency="normal" aria-pressed="true" type="button">
+                                <strong>Normal</strong><span>Something is not working right</span>
+                            </button>
+                            <button class="u-opt" data-urgency="urgent" aria-pressed="false" type="button">
+                                <strong>Urgent</strong><span>Customers are affected now</span>
+                            </button>
+                        </div>
                     </div>
-                </section>
-            </section>
 
-            <aside>
-                <section class="glass-card account-card" aria-labelledby="account-context-title">
-                    <div class="account-avatar" id="support-account-initials" aria-hidden="true">A</div>
-                    <div class="account-lines">
-                        <div class="section-title" id="account-context-title">Account Context</div>
-                        <div class="account-name" id="support-account-name">Signed in</div>
-                        <div class="account-email" id="support-account-email">Account details unavailable</div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="sup-category">Category</label>
+                        <select class="kw-select" id="sup-category" name="category" required>
+                            <option value="technical">Technical</option>
+                            <option value="account">Account</option>
+                            <option value="chatbot">Chatbot</option>
+                            <option value="integration">Integration</option>
+                            <option value="billing_question">Billing question</option>
+                            <option value="ai_credits">AI credits</option>
+                            <option value="other" selected>Other</option>
+                        </select>
                     </div>
-                </section>
 
-                <section class="glass-card" style="margin-top:22px;">
-                    <div class="section-title">Quick Links</div>
-                    <nav class="quick-links" aria-label="Support quick links">
-                        <a class="quick-link" href="bots.html" data-support-link><span>My Bots</span><span>Go</span></a>
-                        <a class="quick-link" href="profile.html" data-support-link><span>Profile</span><span>Go</span></a>
-                        <a class="quick-link" href="team.html" data-support-link><span>Team Members</span><span>Go</span></a>
-                        <a class="quick-link" href="pricing.html" data-support-link><span>Billing</span><span>Go</span></a>
-                        <a class="quick-link" href="integration.html" data-support-link><span>Integrations</span><span>Go</span></a>
-                        <a class="quick-link" href="new_linkdocs.html" data-support-link><span>Documents</span><span>Go</span></a>
-                        <a class="quick-link" href="model_settings.html" data-support-link><span>Tune AI</span><span>Go</span></a>
-                        <a class="quick-link" href="conversations.html" data-support-link><span>Inbox &amp; Chat</span><span>Go</span></a>
-                        <a class="quick-link" href="crm.html" data-support-link><span>CRM / Leads</span><span>Go</span></a>
-                        <a class="quick-link" href="reports.html" data-support-link><span>Reports</span><span>Go</span></a>
-                    </nav>
-                </section>
+                    <div class="kw-field">
+                        <label class="kw-label" for="sup-subject">Subject</label>
+                        <input class="kw-input" id="sup-subject" name="title" type="text" maxlength="160" required>
+                    </div>
 
-                <section class="glass-card notice" style="margin-top:22px;">
-                    <div class="section-title">Support Request Status</div>
-                    <p>Requests are submitted for internal review. Replies shown here are tenant-visible support messages only; email sending, attachments, billing actions, and internal notes are not exposed.</p>
-                </section>
-            </aside>
-        </div>
+                    <div class="kw-field">
+                        <label class="kw-label" for="sup-description">What is happening?</label>
+                        <textarea class="kw-textarea" id="sup-description" name="redacted_description" rows="5" maxlength="1600" required></textarea>
+                    </div>
+
+                    <p class="warn-note">Do not include passwords, tokens, cookies, payment details, provider payloads, or private customer conversation content.</p>
+
+                    <div class="esc-actions">
+                        <button class="kw-btn kw-btn-primary cr-press" id="sup-submit" type="submit">Send to support</button>
+                        <button class="kw-btn cr-press" id="sup-cancel" type="button">Cancel</button>
+                    </div>
+                    <p class="esc-status" id="sup-escalation-status" role="status" aria-live="polite"></p>
+                </form>
+            </div>
+        </section>
+
+        <!-- ── 6. Support history ─────────────────────────────────────── -->
+        <section class="cr-reveal" aria-labelledby="sup-history-heading">
+            <div class="sec-head">
+                <span class="eyebrow" id="sup-history-heading">Support History</span>
+                <span class="count" id="sup-history-count" aria-live="polite">Loading</span>
+            </div>
+
+            <div class="empty" id="sup-history-empty" hidden>
+                <h3>No support requests yet</h3>
+                <p>When you send something to the support team it appears here, along with any reply they write back.</p>
+            </div>
+
+            <div class="hist" id="sup-history">
+                <div class="hist-list" id="support-history-list" aria-live="polite">Loading support requests...</div>
+                <div class="hist-detail" id="support-history-detail" aria-live="polite">Select a request to view its conversation.</div>
+            </div>
+        </section>
+
+        <!-- ── 7. Footer note: the boundary, stated plainly ────────────── -->
+        <p class="foot-note">
+            Tenant-visible replies only. Email sending, attachments, billing actions, and
+            internal notes are not exposed. Requests are submitted for internal review.
+        </p>
     </main>
 
     <script>
+        /* ══════════════════════════════════════════════════════════════
+           Support page behaviour.
+
+           Inline on purpose, not extracted to assets/js/support.js: two
+           source-contract assertions read the support fetch calls out of
+           this file, so moving them breaks the suite.
+
+           Every node below is built with createElement + textContent.
+           Nothing on this page ever assigns markup from a string.
+           ══════════════════════════════════════════════════════════════ */
         (function () {
-            function parseStoredUser() {
-                try {
-                    var parsed = JSON.parse(sessionStorage.getItem("user") || "null");
-                    return parsed && typeof parsed === "object" ? parsed : null;
-                } catch (_) {
-                    return null;
-                }
-            }
+            "use strict";
 
-            function initialsFor(label) {
-                var words = String(label || "A").trim().split(/\s+/).filter(Boolean);
-                var initials = words.slice(0, 2).map(function (word) {
-                    return word.charAt(0).toUpperCase();
-                }).join("");
-                return initials || "A";
-            }
+            var ARTICLES_ENDPOINT = "/api/help/articles";
+            var SEARCH_DEBOUNCE_MS = 160;
+            var DESCRIPTION_LIMIT = 2000;
 
-            var user = parseStoredUser();
-            var fullName = user && typeof user.full_name === "string" ? user.full_name.trim() : "";
-            var email = user && typeof user.email === "string" ? user.email.trim() : "";
-            var displayName = fullName || "Signed in";
-            var initialsSource = fullName || email || "Signed in";
+            var CATEGORY_LABELS = {
+                technical: "Technical",
+                account: "Account",
+                chatbot: "Chatbot",
+                integration: "Integration",
+                billing_question: "Billing",
+                ai_credits: "AI credits",
+                other: "Other"
+            };
+            var ALLOWED_CATEGORIES = Object.keys(CATEGORY_LABELS);
 
-            document.getElementById("support-account-initials").textContent = initialsFor(initialsSource);
-            document.getElementById("support-account-name").textContent = displayName;
-            document.getElementById("support-account-email").textContent = email || "Account details unavailable";
-        })();
+            function byId(id) { return document.getElementById(id); }
 
-        (function () {
-            var form = document.getElementById("support-request-form");
-            var submitButton = document.getElementById("support-request-submit");
-            var status = document.getElementById("support-request-status");
-            var category = document.getElementById("support-request-category");
-            var title = document.getElementById("support-request-title-input");
-            var description = document.getElementById("support-request-description");
-            var historyList = document.getElementById("support-history-list");
-            var historyDetail = document.getElementById("support-history-detail");
-            var historySequence = 0;
-            var allowedCategories = new Set([
-                "technical", "account", "chatbot", "integration",
-                "billing_question", "ai_credits", "other"
-            ]);
-
-            function showStatus(message, state) {
-                status.textContent = message;
-                status.className = "support-request-status" + (state ? " " + state : "");
-            }
-
-            function validateForm(values) {
-                if (!allowedCategories.has(values.category)) return "Select a valid support category.";
-                if (!values.title || values.title.length > 160) return "Subject must contain 1 to 160 characters.";
-                if (!values.redacted_description || values.redacted_description.length > 2000) {
-                    return "Description must contain 1 to 2000 characters.";
-                }
-                return "";
+            function each(selector, fn) {
+                Array.prototype.forEach.call(document.querySelectorAll(selector), fn);
             }
 
             function element(tag, className, text) {
@@ -577,6 +283,385 @@
                 return node;
             }
 
+            var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+            function bringIntoView(node) {
+                node.scrollIntoView({
+                    behavior: reduceMotion.matches ? "auto" : "smooth",
+                    block: "start"
+                });
+            }
+
+            /* ── Signed-in identity ─────────────────────────────────────
+               Shown inside the trail rather than in a card of its own:
+               the account is one of the things that travels with the
+               request, which is exactly what the trail is for. */
+            function parseStoredUser() {
+                try {
+                    var parsed = JSON.parse(sessionStorage.getItem("user") || "null");
+                    return parsed && typeof parsed === "object" ? parsed : null;
+                } catch (_) {
+                    return null;
+                }
+            }
+
+            var storedUser = parseStoredUser();
+            var fullName = storedUser && typeof storedUser.full_name === "string" ? storedUser.full_name.trim() : "";
+            var storedEmail = storedUser && typeof storedUser.email === "string" ? storedUser.email.trim() : "";
+            var displayName = fullName || "Signed in";
+            var email = storedEmail || "Account details unavailable";
+
+            byId("sup-trail-account").textContent = displayName;
+            byId("sup-trail-email").textContent = email;
+
+            /* ── Region handles ─────────────────────────────────────── */
+            var query = byId("sup-query");
+            var resultCount = byId("sup-result-count");
+            var skeleton = byId("sup-skeleton");
+            var articlesError = byId("sup-articles-error");
+            var articleList = byId("sup-article-list");
+            var reader = byId("sup-reader");
+            var readerTitle = byId("sup-reader-title");
+            var readerBody = byId("sup-reader-body");
+            var voteRow = byId("sup-vote");
+            var deadEnd = byId("sup-deadend");
+            var deadEndTitle = byId("sup-deadend-title");
+            var deadEndWhy = byId("sup-deadend-why");
+            var escalation = byId("sup-escalation");
+            var escalationTitle = byId("sup-escalation-title");
+            var escalationStatus = byId("sup-escalation-status");
+            var escalationForm = byId("support-request-form");
+            var escCategory = byId("sup-category");
+            var escSubject = byId("sup-subject");
+            var escDescription = byId("sup-description");
+            var submitButton = byId("sup-submit");
+            var historyWrap = byId("sup-history");
+            var historyEmpty = byId("sup-history-empty");
+            var historyCount = byId("sup-history-count");
+            var historyList = byId("support-history-list");
+            var historyDetail = byId("support-history-detail");
+
+            var articles = [];
+            var articlesReady = false;
+            var activeCategory = "all";
+            var currentArticle = null;
+            var trail = { searches: [], viewed: [], unhelpful: [] };
+
+            function remember(bucket, value) {
+                if (!value || bucket.indexOf(value) !== -1) return;
+                bucket.push(value);
+            }
+
+            /* ── Article loading ────────────────────────────────────────
+               The response is not trusted: a row missing a title or a body
+               is dropped rather than rendered as an empty clickable row. */
+            function usableArticle(raw) {
+                return raw
+                    && typeof raw === "object"
+                    && typeof raw.title === "string" && raw.title.trim()
+                    && typeof raw.body === "string" && raw.body.trim();
+            }
+
+            function normalizeArticle(raw, index) {
+                var category = typeof raw.category === "string" ? raw.category.trim() : "";
+                var order = Number.isFinite(raw.sort_order) ? raw.sort_order : index;
+                return {
+                    key: typeof raw.slug === "string" && raw.slug ? raw.slug : "article-" + index,
+                    /* The feedback endpoint is keyed by the numeric id, so it has
+                       to survive normalisation. Null when the row omits it, which
+                       disables the vote for that article rather than posting to
+                       /feedback with an undefined path segment. */
+                    id: Number.isSafeInteger(raw.id) && raw.id > 0 ? raw.id : null,
+                    category: category,
+                    label: CATEGORY_LABELS[category] || "General",
+                    title: raw.title.trim(),
+                    paragraphs: raw.body.trim().split(/\n\s*\n/).filter(Boolean),
+                    haystack: (raw.title + " " + raw.body).toLowerCase(),
+                    order: order
+                };
+            }
+
+            function setArticleRegion(state) {
+                skeleton.hidden = state !== "loading";
+                articlesError.hidden = state !== "error";
+                if (state !== "ready") {
+                    articleList.hidden = true;
+                    reader.hidden = true;
+                }
+                if (state === "loading") resultCount.textContent = "Loading";
+                if (state === "error") resultCount.textContent = "Unavailable";
+            }
+
+            async function loadArticles() {
+                articlesReady = false;
+                setArticleRegion("loading");
+                deadEnd.hidden = true;
+                try {
+                    var response = await authenticatedFetch(ARTICLES_ENDPOINT, {
+                        method: "GET",
+                        headers: { "Accept": "application/json" }
+                    });
+                    var result = await response.json().catch(function () { return null; });
+                    if (!response.ok || !result || result.status !== "success") {
+                        setArticleRegion("error");
+                        return;
+                    }
+                    var rows = result.data && Array.isArray(result.data.articles) ? result.data.articles : [];
+                    articles = rows.filter(usableArticle).map(normalizeArticle).sort(function (a, b) {
+                        return a.order - b.order;
+                    });
+                    articlesReady = true;
+                    setArticleRegion("ready");
+                    renderArticleList();
+                } catch (_) {
+                    setArticleRegion("error");
+                }
+            }
+
+            /* ── List and filtering ─────────────────────────────────── */
+            function matchingArticles() {
+                var term = query.value.trim().toLowerCase();
+                return articles.filter(function (article) {
+                    if (activeCategory !== "all" && article.category !== activeCategory) return false;
+                    return !term || article.haystack.indexOf(term) !== -1;
+                });
+            }
+
+            function renderArticleList() {
+                if (!articlesReady) return;
+                var matches = matchingArticles();
+                articleList.replaceChildren();
+                matches.forEach(function (article) {
+                    var row = element("button", "art");
+                    row.type = "button";
+                    row.append(
+                        element("span", "art-t", article.title),
+                        element("span", "art-c", article.label)
+                    );
+                    row.addEventListener("click", function () { openArticle(article); });
+                    articleList.append(row);
+                });
+
+                resultCount.textContent = matches.length + (matches.length === 1 ? " article" : " articles");
+                reader.hidden = true;
+                articleList.hidden = matches.length === 0;
+
+                if (matches.length === 0) {
+                    var term = query.value.trim();
+                    deadEndWhy.textContent = term
+                        ? "Nothing matched “" + term + "”. A member of the support team can pick this up — and they will already see what you tried."
+                        : "There is nothing to show in this category yet. A member of the support team can pick this up — and they will already see what you tried.";
+                    deadEnd.hidden = false;
+                } else {
+                    deadEnd.hidden = true;
+                }
+            }
+
+            /* ── Reader and the helpfulness vote ────────────────────── */
+            /* Recording the vote is a side effect, never a gate. A user who
+               says "this did not help" must reach a human whether or not the
+               vote reaches the server, so every failure path here is silent
+               and the handoff below runs regardless. */
+            function recordVote(article, helpful) {
+                if (!article || !article.id) return;
+                try {
+                    var pending = authenticatedFetch(
+                        "/api/help/articles/" + String(article.id) + "/feedback",
+                        {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ was_helpful: helpful })
+                        }
+                    );
+                    if (pending && typeof pending.catch === "function") {
+                        pending.catch(function () { });
+                    }
+                } catch (_) { /* the handoff matters, the tally does not */ }
+            }
+
+            function voteButton(label, helpful) {
+                var button = element("button", "kw-btn cr-press", label);
+                button.type = "button";
+                button.addEventListener("click", function () {
+                    recordVote(currentArticle, helpful);
+                    if (helpful) {
+                        voteRow.replaceChildren(element("span", "vote-done", "Thanks — marked as helpful."));
+                        return;
+                    }
+                    if (currentArticle) remember(trail.unhelpful, currentArticle.title);
+                    voteRow.replaceChildren(element("span", "vote-q", "Understood — handing this to a person below."));
+                    deadEndWhy.textContent = "“" + (currentArticle ? currentArticle.title : "That article") +
+                        "” did not solve it. A member of the support team can pick this up — and they will already see what you tried.";
+                    deadEnd.hidden = false;
+                    bringIntoView(deadEnd);
+                    deadEndTitle.focus();
+                });
+                return button;
+            }
+
+            function openArticle(article) {
+                currentArticle = article;
+                remember(trail.viewed, article.title);
+
+                readerTitle.textContent = article.title;
+                readerBody.replaceChildren();
+                article.paragraphs.forEach(function (paragraph) {
+                    readerBody.append(element("p", "", paragraph));
+                });
+                voteRow.replaceChildren(
+                    element("span", "vote-q", "Did this answer your question?"),
+                    voteButton("Yes, it helped", true),
+                    voteButton("No, still stuck", false)
+                );
+
+                articleList.hidden = true;
+                deadEnd.hidden = true;
+                reader.hidden = false;
+                readerTitle.focus();
+            }
+
+            byId("sup-reader-back").addEventListener("click", function () {
+                reader.hidden = true;
+                renderArticleList();
+                query.focus();
+            });
+
+            byId("sup-retry-articles").addEventListener("click", loadArticles);
+
+            /* ── Escalation ─────────────────────────────────────────── */
+            function joined(bucket, separator) {
+                return bucket.length ? bucket.join(separator) : "nothing yet";
+            }
+
+            /* Renders the bounded values, not the raw buckets. The panel is
+               headed "Attached automatically", so it has to show what actually
+               travels - a long session collects more than the ten entries the
+               request carries, and displaying those would make the panel lie. */
+            function renderTrail() {
+                var sending = escalationContext();
+                byId("sup-trail-searched").textContent = joined(sending.searches, ", ");
+                byId("sup-trail-opened").textContent = joined(sending.viewed, "; ");
+
+                var unhelpful = byId("sup-trail-unhelpful");
+                unhelpful.replaceChildren();
+                if (!sending.unhelpful.length) {
+                    unhelpful.textContent = "nothing yet";
+                    return;
+                }
+                unhelpful.append(element("em", "", sending.unhelpful.join("; ")));
+            }
+
+            function selectedUrgency() {
+                var pressed = document.querySelector("#sup-urgency .u-opt[aria-pressed=\"true\"]");
+                return pressed ? pressed.getAttribute("data-urgency") : "normal";
+            }
+
+            /* Slice 1 folded urgency and the trail into the description text
+               because the intake accepted exactly three fields. Slice 3 gave
+               them real columns, so the description now carries only what the
+               user actually typed.
+
+               These bounds mirror the server's. The server rejects rather than
+               truncates, and a 400 caused by the user's own browsing history
+               would throw away the description they just wrote - so the
+               trimming happens here, before it can cost them anything. The
+               tail is kept rather than the head: the last thing someone
+               searched says more than the first. */
+            var TRAIL_MAX_ITEMS = 10;
+            var TRAIL_MAX_CHARS = 200;
+            var FROM_PAGE = "support";
+
+            /* How the user reached the form. Lets staff tell a considered
+               "I read the article and it did not help" apart from someone who
+               went straight for a person. The error path counts as direct: the
+               help centre never gave them a dead end, it was simply
+               unreachable. */
+            var escalationSource = "direct";
+
+            function boundedTrail(bucket) {
+                return bucket.slice(-TRAIL_MAX_ITEMS).map(function (entry) {
+                    return String(entry).slice(0, TRAIL_MAX_CHARS);
+                });
+            }
+
+            function escalationContext() {
+                return {
+                    searches: boundedTrail(trail.searches),
+                    viewed: boundedTrail(trail.viewed),
+                    unhelpful: boundedTrail(trail.unhelpful),
+                    from_page: FROM_PAGE
+                };
+            }
+
+            function showEscalationStatus(message, state) {
+                escalationStatus.textContent = message;
+                escalationStatus.className = "esc-status" + (state ? " " + state : "");
+            }
+
+            function openEscalation() {
+                renderTrail();
+                deadEnd.hidden = true;
+                escalation.hidden = false;
+                showEscalationStatus("", "");
+                if (!escSubject.value.trim() && currentArticle) {
+                    escSubject.value = currentArticle.title;
+                }
+                bringIntoView(escalation);
+                escalationTitle.focus();
+            }
+
+            function openEscalationFrom(origin) {
+                return function () {
+                    escalationSource = origin;
+                    openEscalation();
+                };
+            }
+
+            byId("sup-open-escalation").addEventListener("click", openEscalationFrom("direct"));
+            byId("sup-deadend-escalate").addEventListener("click", openEscalationFrom("faq_dead_end"));
+            byId("sup-error-escalate").addEventListener("click", openEscalationFrom("direct"));
+
+            byId("sup-keep-looking").addEventListener("click", function () {
+                deadEnd.hidden = true;
+                query.focus();
+            });
+
+            byId("sup-cancel").addEventListener("click", function () {
+                escalation.hidden = true;
+                query.focus();
+            });
+
+            each("#sup-urgency .u-opt", function (option) {
+                option.addEventListener("click", function () {
+                    each("#sup-urgency .u-opt", function (other) {
+                        other.setAttribute("aria-pressed", String(other === option));
+                    });
+                });
+            });
+
+            /* ── Search and category chips ──────────────────────────── */
+            var searchTimer = null;
+            query.addEventListener("input", function () {
+                window.clearTimeout(searchTimer);
+                searchTimer = window.setTimeout(function () {
+                    remember(trail.searches, query.value.trim());
+                    renderArticleList();
+                }, SEARCH_DEBOUNCE_MS);
+            });
+
+            each("#sup-chips .chip", function (chip) {
+                chip.addEventListener("click", function () {
+                    activeCategory = chip.getAttribute("data-cat");
+                    each("#sup-chips .chip", function (other) {
+                        other.setAttribute("aria-pressed", String(other === chip));
+                    });
+                    renderArticleList();
+                });
+            });
+
+            /* ── Support history ────────────────────────────────────── */
+            var historySequence = 0;
+
             function formatDate(value) {
                 if (!value) return "Not available";
                 var date = new Date(value);
@@ -584,27 +669,34 @@
                 return date.toLocaleString();
             }
 
-            function line(label, value) {
-                var item = element("div", "support-history-line");
-                item.append(element("span", "support-history-label", label));
-                item.append(element("span", "support-history-value", value || "Not available"));
-                return item;
+            function statusPill(status) {
+                var known = ["new", "reviewed", "closed"];
+                var safe = known.indexOf(status) === -1 ? "closed" : status;
+                return element("span", "pill pill-" + safe, String(status || "unknown"));
             }
 
             function renderHistoryList(requests) {
                 historyList.replaceChildren();
-                if (!requests.length) {
-                    historyList.append(element("p", "support-request-status", "No support requests yet."));
-                    return;
-                }
+                historyEmpty.hidden = requests.length > 0;
+                historyWrap.hidden = requests.length === 0;
+                historyCount.textContent = requests.length
+                    ? requests.filter(function (item) { return item.status !== "closed"; }).length + " open"
+                    : "None yet";
+
                 requests.forEach(function (item) {
-                    var button = element(
-                        "button",
-                        "support-history-item",
-                        "#" + item.request_id + " - " + item.category + " - " + item.status
-                    );
+                    var button = element("button", "tick");
                     button.type = "button";
+                    button.setAttribute("aria-pressed", "false");
+                    button.append(
+                        element("span", "tick-ref", "#" + item.request_id),
+                        element("div", "tick-t", item.title || "Support request"),
+                        statusPill(item.status)
+                    );
                     button.addEventListener("click", function () {
+                        Array.prototype.forEach.call(historyList.children, function (sibling) {
+                            sibling.setAttribute("aria-pressed", "false");
+                        });
+                        button.setAttribute("aria-pressed", "true");
                         loadSupportRequestDetail(item.request_id);
                     });
                     historyList.append(button);
@@ -614,36 +706,57 @@
             function renderHistoryDetail(data) {
                 var requestData = data && data.request ? data.request : null;
                 var replies = data && Array.isArray(data.replies) ? data.replies : [];
+
                 historyDetail.replaceChildren();
                 if (!requestData) {
-                    historyDetail.append(element("p", "support-request-status", "Select a request to view its conversation."));
+                    historyDetail.append(element("p", "", "Select a request to view its conversation."));
                     return;
                 }
+
+                historyDetail.append(element("h4", "", requestData.title || "Support request"));
+
+                var definitions = element("dl", "dl");
+                [
+                    ["Reference", "#" + requestData.request_id],
+                    ["Status", requestData.status],
+                    ["Category", CATEGORY_LABELS[requestData.category] || requestData.category],
+                    ["Sent", formatDate(requestData.created_at)],
+                    ["Updated", formatDate(requestData.updated_at)]
+                ].forEach(function (pair) {
+                    definitions.append(
+                        element("dt", "", pair[0]),
+                        element("dd", "", pair[1] || "Not available")
+                    );
+                });
+                historyDetail.append(definitions);
+
                 historyDetail.append(
-                    element("h3", "", requestData.title || "Support request"),
-                    line("Status", requestData.status),
-                    line("Category", requestData.category),
-                    line("Submitted", formatDate(requestData.created_at)),
-                    line("Updated", formatDate(requestData.updated_at)),
-                    line("Description", requestData.redacted_description)
+                    element("p", "reply-meta", "Your message"),
+                    element("p", "", requestData.redacted_description || "Not available")
                 );
-                historyDetail.append(element("h3", "", "Tenant-visible replies"));
+
+                historyDetail.append(element("p", "reply-meta", "Tenant-visible replies"));
                 if (!replies.length) {
-                    historyDetail.append(element("p", "support-request-status", "No replies yet."));
+                    historyDetail.append(element("p", "", "No replies yet."));
                     return;
                 }
                 replies.forEach(function (reply) {
-                    var message = element("article", "support-reply-message");
-                    message.append(
-                        element("div", "support-reply-meta", "Platform support - " + formatDate(reply.created_at)),
+                    var block = element("div", "reply");
+                    block.append(
+                        element("p", "reply-meta", "Platform support — " + formatDate(reply.created_at)),
                         element("p", "", reply.redacted_body)
                     );
-                    historyDetail.append(message);
+                    historyDetail.append(block);
                 });
             }
 
             async function loadSupportHistory() {
                 var sequence = ++historySequence;
+                historyCount.textContent = "Loading";
+                // The empty state may be on screen from a previous pass; the
+                // loading line lives inside the panel it hides.
+                historyEmpty.hidden = true;
+                historyWrap.hidden = false;
                 historyList.textContent = "Loading support requests...";
                 try {
                     var response = await authenticatedFetch("/api/support/requests?limit=25&offset=0", {
@@ -653,12 +766,15 @@
                     var result = await response.json().catch(function () { return null; });
                     if (sequence !== historySequence) return;
                     if (!response.ok || !result || result.status !== "success") {
+                        historyCount.textContent = "Unavailable";
                         historyList.textContent = "Support history could not be loaded.";
                         return;
                     }
                     renderHistoryList((result.data && result.data.requests) || []);
                 } catch (_) {
-                    if (sequence === historySequence) historyList.textContent = "Support history could not be loaded.";
+                    if (sequence !== historySequence) return;
+                    historyCount.textContent = "Unavailable";
+                    historyList.textContent = "Support history could not be loaded.";
                 }
             }
 
@@ -678,26 +794,71 @@
                     }
                     renderHistoryDetail(result.data);
                 } catch (_) {
-                    if (sequence === historySequence) historyDetail.textContent = "Support conversation could not be loaded.";
+                    if (sequence === historySequence) {
+                        historyDetail.textContent = "Support conversation could not be loaded.";
+                    }
                 }
             }
 
-            form.addEventListener("submit", async function (event) {
+            /* ── Submission ─────────────────────────────────────────── */
+            function validationProblem(payload) {
+                if (ALLOWED_CATEGORIES.indexOf(payload.category) === -1) {
+                    return "Select a valid support category.";
+                }
+                if (!payload.title || payload.title.length > 160) {
+                    return "Subject must contain 1 to 160 characters.";
+                }
+                if (!escDescription.value.trim()) {
+                    return "Describe what is happening before sending.";
+                }
+                if (payload.redacted_description.length > DESCRIPTION_LIMIT) {
+                    return "The description is over " + DESCRIPTION_LIMIT + " characters. Shorten it and try again.";
+                }
+                return "";
+            }
+
+            function rejectionMessage(result) {
+                var code = result && result.code;
+                if (code === "invalid_category") return "Select a valid support category.";
+                if (code === "invalid_title") return "Review the subject: it is empty, too long, or contains wording the intake rejects.";
+                if (code === "invalid_redacted_description") {
+                    return "Review the description: it is empty, too long, or contains wording the intake rejects, such as passwords or payment references.";
+                }
+                if (code === "invalid_priority") return "Choose an urgency level and try again.";
+                if (code === "invalid_escalation_context" || code === "invalid_source") {
+                    /* The trail is collected by this page, not typed by the user,
+                       so a rejection here is our bug rather than theirs. Say what
+                       to do instead of showing them a field they never filled in. */
+                    return "The details this page attached could not be sent. Reload the page and describe the problem again.";
+                }
+                if (code === "unsupported_field") {
+                    return "This page is out of date with the support intake. Reload the page and try again.";
+                }
+                if (code === "tenant_support_unavailable") return "Support intake is temporarily unavailable. Please try again shortly.";
+                return "Support request could not be submitted.";
+            }
+
+            escalationForm.addEventListener("submit", async function (event) {
                 event.preventDefault();
+
                 var values = {
-                    category: category.value.trim(),
-                    title: title.value.trim(),
-                    redacted_description: description.value.trim()
+                    category: escCategory.value.trim(),
+                    title: escSubject.value.trim(),
+                    redacted_description: escDescription.value.trim(),
+                    priority: selectedUrgency(),
+                    source: escalationSource,
+                    escalation_context: escalationContext()
                 };
-                var validationError = validateForm(values);
-                if (validationError) {
-                    showStatus(validationError, "error");
+
+                var problem = validationProblem(values);
+                if (problem) {
+                    showEscalationStatus(problem, "is-bad");
                     return;
                 }
 
                 submitButton.disabled = true;
-                submitButton.textContent = "Submitting...";
-                showStatus("Submitting support request...", "");
+                submitButton.textContent = "Sending...";
+                showEscalationStatus("Sending your request...", "");
                 try {
                     var response = await authenticatedFetch("/api/support/requests", {
                         method: "POST",
@@ -706,36 +867,40 @@
                     });
                     var result = await response.json().catch(function () { return null; });
                     if (response.status === 429) {
-                        showStatus("Too many requests. Please try again later.", "error");
+                        showEscalationStatus("Too many requests for now. Please try again later.", "is-bad");
                         return;
                     }
                     if (!response.ok) {
-                        if (result && result.code === "invalid_category") {
-                            showStatus("Select a valid support category.", "error");
-                        } else if (result && (result.code === "invalid_title" || result.code === "invalid_redacted_description")) {
-                            showStatus("Review the subject and redacted description.", "error");
-                        } else {
-                            showStatus("Support request could not be submitted.", "error");
-                        }
+                        showEscalationStatus(rejectionMessage(result), "is-bad");
                         return;
                     }
-                    var requestId = result && result.data && result.data.request_id;
-                    if (!Number.isSafeInteger(requestId) || requestId <= 0) {
-                        showStatus("Support request could not be confirmed.", "error");
+                    var newRequestId = result && result.data && result.data.request_id;
+                    if (!Number.isSafeInteger(newRequestId) || newRequestId <= 0) {
+                        showEscalationStatus("Support request could not be confirmed.", "is-bad");
                         return;
                     }
-                    showStatus("Request received. Reference: #" + requestId, "success");
-                    form.reset();
+                    showEscalationStatus("Sent — reference #" + newRequestId + ". It is listed below.", "is-ok");
+                    escalationForm.reset();
+                    // aria-pressed is not form state, so reset() leaves the
+                    // previous urgency selected on the next request.
+                    each("#sup-urgency .u-opt", function (option) {
+                        option.setAttribute("aria-pressed", String(option.getAttribute("data-urgency") === "normal"));
+                    });
+                    trail = { searches: [], viewed: [], unhelpful: [] };
+                    renderTrail();
                     loadSupportHistory();
                 } catch (_) {
-                    showStatus("Support request could not be submitted.", "error");
+                    showEscalationStatus("Support request could not be submitted.", "is-bad");
                 } finally {
                     submitButton.disabled = false;
-                    submitButton.textContent = "Submit request";
+                    submitButton.textContent = "Send to support";
                 }
             });
+
+            loadArticles();
             loadSupportHistory();
         })();
     </script>
 </body>
+
 </html>

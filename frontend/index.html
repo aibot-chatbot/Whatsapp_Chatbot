@@ -16,6 +16,8 @@
     <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
     <link rel="stylesheet" href="assets/css/control-room-motion.css">
     <link rel="stylesheet" href="assets/css/dashboard-overview.css">
+    <link rel="stylesheet" href="assets/css/bot-setup-journey.css">
+    <script src="assets/js/bot-setup-journey.js" defer></script>
     <meta name="theme-color" content="#0e0f11">
 </head>
 
@@ -53,11 +55,11 @@
                 <div class="dash-menu-list" id="dash-menu-list" hidden>
                     <a href="new_prompt.html" data-dashboard-link data-manage-only="true">
                         <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></svg>
-                        Bot configuration
+                        Bot instructions
                     </a>
                     <a href="new_linkdocs.html" data-dashboard-link data-manage-only="true">
                         <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h13a3 3 0 0 1 3 3v11H7a3 3 0 0 0-3 3V5Z"/><path d="M7 19h13M8 9h8M8 13h6"/></svg>
-                        Training data
+                        Add knowledge
                     </a>
                     <a href="model_settings.html" data-dashboard-link data-manage-only="true">
                         <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>
@@ -65,7 +67,7 @@
                     </a>
                     <a href="integration.html" data-dashboard-link>
                         <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
-                        Channels &amp; integration
+                        Publish
                     </a>
                     <a href="testbot.html" data-dashboard-link data-manage-only="true">
                         <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5 8a3 3 0 0 0 2.6 4.5h8.8A3 3 0 0 0 19 17l-5-8V3M8 15h8"/></svg>
@@ -75,42 +77,46 @@
             </div>
         </header>
 
+        <bot-setup-journey id="dashboard-setup-journey" hidden></bot-setup-journey>
         <section class="kw-panel dash-setup cr-reveal" aria-labelledby="dash-setup-title">
             <h2 class="kw-visually-hidden" id="dash-setup-title">Bot setup progress</h2>
+            <details id="dash-readiness" class="dash-readiness" open>
+            <summary>Setup checks</summary>
             <ol class="dash-steps" id="dash-steps">
-                <li class="dash-step" data-step="profile">
-                    <span class="kw-step-mark" aria-hidden="true"></span>
-                    <span class="dash-step-body">
-                        <span class="dash-step-name">Profile</span>
-                        <span class="dash-step-state">Checking…</span>
-                        <span class="dash-step-hint">Bot profile is complete</span>
-                    </span>
-                </li>
                 <li class="dash-step" data-step="knowledge">
                     <span class="kw-step-mark" aria-hidden="true"></span>
                     <span class="dash-step-body">
                         <span class="dash-step-name">Knowledge</span>
                         <span class="dash-step-state">Checking…</span>
-                        <span class="dash-step-hint">Add primary knowledge to get accurate answers</span>
+                        <span class="dash-step-hint">Add a primary PDF for your bot to learn from</span>
+                    </span>
+                </li>
+                <li class="dash-step" data-step="profile">
+                    <span class="kw-step-mark" aria-hidden="true"></span>
+                    <span class="dash-step-body">
+                        <span class="dash-step-name">Instructions</span>
+                        <span class="dash-step-state">Checking…</span>
+                        <span class="dash-step-hint">Review and apply your bot instructions</span>
                     </span>
                 </li>
                 <li class="dash-step" data-step="validate">
                     <span class="kw-step-mark" aria-hidden="true"></span>
                     <span class="dash-step-body">
-                        <span class="dash-step-name">Validate</span>
+                        <span class="dash-step-name">Content check</span>
                         <span class="dash-step-state">Checking…</span>
-                        <span class="dash-step-hint">Test your bot's answers and review</span>
+                        <span class="dash-step-hint">Check that the instructions match the PDF</span>
                     </span>
                 </li>
                 <li class="dash-step" data-step="channel">
                     <span class="kw-step-mark" aria-hidden="true"></span>
                     <span class="dash-step-body">
-                        <span class="dash-step-name">Channel</span>
+                        <span class="dash-step-name">Publishing</span>
                         <span class="dash-step-state">Checking…</span>
                         <span class="dash-step-hint">Connect a channel to reach customers</span>
                     </span>
                 </li>
             </ol>
+            </details>
             <div class="dash-nextstep">
                 <span class="dash-nextstep-label">Next step</span>
                 <h2 id="dash-next-title">Checking setup…</h2>
@@ -122,6 +128,8 @@
             </div>
         </section>
 
+        <details class="dash-monitoring" id="dash-monitoring" open>
+        <summary>Activity and reports <span>View messages, usage, and recent conversations</span></summary>
         <section class="kw-stats dash-stats cr-reveal" aria-label="Bot totals">
             <div class="kw-stat">
                 <div class="kw-stat-head">
@@ -267,6 +275,7 @@
                 </section>
             </div>
         </div>
+        </details>
 
         <div class="health-warnings" id="bot-health-warnings" role="status"></div>
 
@@ -284,6 +293,12 @@
         const urlParams = new URLSearchParams(window.location.search);
         const urlBotId = urlParams.get("bot_id");
         const storedBotId = sessionStorage.getItem("selectedBotId");
+        if (urlParams.get('setup') === '1') {
+            document.getElementById('dash-monitoring').open = false;
+            document.getElementById('dash-readiness').open = false;
+            document.body.classList.add('is-guided-setup');
+        }
+        let setupViewInitialized = false;
 
         let selectedBotId = urlBotId;
 
@@ -369,6 +384,7 @@
             document.querySelectorAll('[data-dashboard-link]').forEach(link => {
                 const url = new URL(link.getAttribute('href'), window.location.href);
                 url.searchParams.set('bot_id', selectedBotId);
+                if (urlParams.get('setup') === '1') url.searchParams.set('setup', '1');
                 link.href = `${url.pathname.split('/').pop()}${url.search}`;
 
                 if (link.dataset.manageOnly === "true" && !canManage) {
@@ -425,6 +441,7 @@
             if (outcome.ok && outcome.data) {
                 const botName = outcome.data.bot_name || "Selected bot";
                 setText('dashboard-title', botName);
+                document.querySelector('chatbot-sidebar')?.setBotName(botName);
                 document.title = `${botName} - Dashboard | AI Chatbot`;
                 return;
             }
@@ -639,12 +656,12 @@
                     done: Boolean(profile.active),
                     state: profile.active ? "Ready" : "Needs attention",
                     hint: profile.active
-                        ? `Active profile: ${profile.name || "unnamed"}`
-                        : "Choose the profile your bot answers with.",
+                        ? `Applied instructions: ${profile.name || "unnamed"}`
+                        : "Review and apply the instructions your bot will use.",
                     href: "new_prompt.html",
-                    cta: "Open bot configuration",
-                    title: "Choose an active profile",
-                    copy: "Pick the saved profile your bot should answer with, then activate it."
+                    cta: "Review instructions",
+                    title: "Tell your bot how to help",
+                    copy: "Choose your bot's instructions, check them against your PDF, and apply them before testing."
                 },
                 {
                     key: "knowledge",
@@ -654,9 +671,9 @@
                         ? `Primary knowledge: ${knowledge.file_name || "active"}`
                         : "Add primary knowledge to get accurate answers.",
                     href: "new_linkdocs.html",
-                    cta: "Open knowledge",
-                    title: "Add primary knowledge",
-                    copy: "Upload your key documents or add FAQs so your bot can provide accurate answers."
+                    cta: "Add knowledge",
+                    title: "Add a PDF for your bot to learn from",
+                    copy: "Upload a PDF about your business, products, or services. You can add more knowledge later."
                 },
                 {
                     key: "validate",
@@ -671,7 +688,7 @@
                             ? (knowledge.match_reason || "The profile and the primary knowledge describe different things.")
                             : "Checks the profile matches the primary knowledge.",
                     href: "new_prompt.html",
-                    cta: matchResult === false ? "Review in bot configuration" : "Validate setup",
+                    cta: matchResult === false ? "Review instructions" : "Check instructions",
                     title: matchResult === false ? "Profile and knowledge do not match" : "Validate your setup",
                     // The dashboard has no profile or knowledge controls, so a
                     // failure routes to bot configuration rather than trying to
@@ -690,9 +707,12 @@
                     href: "integration.html",
                     cta: "Open channels",
                     title: "Connect a channel",
-                    copy: "Link WhatsApp, Telegram or the web widget so customers can reach this bot."
+                    copy: "Choose WhatsApp, Telegram, a share link, or a website embed. Nothing is published until you choose."
                 }
             ];
+            // Knowledge comes first for a new bot; profile.active reflects
+            // applied runtime instructions, not an unreviewed draft.
+            [steps[0], steps[1]] = [steps[1], steps[0]];
 
             steps.forEach((step, index) => {
                 const el = document.querySelector(`.dash-step[data-step="${step.key}"]`);
@@ -711,7 +731,26 @@
                 if (hint) hint.textContent = step.hint;
             });
 
-            renderNextStep(steps.find(step => !step.done));
+            const next = steps.find(step => !step.done);
+            const guided = canManage && (urlParams.get('setup') === '1' || channelCount === 0);
+            document.body.classList.toggle('is-guided-setup', guided);
+            const journey = $('dashboard-setup-journey');
+            journey.hidden = !guided;
+            journey.setAttribute('bot-id', selectedBotId);
+            journey.setAttribute('current', next?.key === 'knowledge' ? 'knowledge'
+                : next?.key === 'channel' ? 'test' : next ? 'instructions' : 'publish');
+            if (!setupViewInitialized) {
+                $('dash-monitoring').open = !guided;
+                $('dash-readiness').open = !guided;
+                setupViewInitialized = true;
+            }
+            renderNextStep(next?.key === 'channel' ? {
+                ...next,
+                title: 'Check a reply before publishing',
+                copy: 'Ask your bot a customer question. When the reply looks right, choose where to publish it.',
+                cta: 'Test replies',
+                href: 'testbot.html'
+            } : next);
 
             const ready = Boolean(data.ready);
             const live = $('dash-live');
@@ -770,7 +809,7 @@
         }
 
         function setLinkHref(link, page) {
-            link.href = `${page}?bot_id=${encodeURIComponent(selectedBotId)}`;
+            link.href = `${page}?bot_id=${encodeURIComponent(selectedBotId)}${urlParams.get('setup') === '1' ? '&setup=1' : ''}`;
         }
 
         function svgEl(name, attrs) {

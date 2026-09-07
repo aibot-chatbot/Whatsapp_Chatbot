@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from app.services.billing_service import get_current_subscription
 from app.database.subscription_plan_repository import get_plan_by_code
 from app.database.company_subscription_order_repository import (
+    attach_pending_subscription_gateway_details,
     create_subscription_order,
     get_subscription_order_by_reference,
     get_subscription_order_by_activation_sequence_key,
@@ -566,6 +567,7 @@ def create_subscription_checkout(
 
     try:
         if payment_gateway == "hitpay":
+            expiry_days = _checkout_expiry_days()
             bill = create_payment_request(
                 config=HitPayConfig.from_env(),
                 order_reference=order_reference,
@@ -574,7 +576,9 @@ def create_subscription_checkout(
                 customer_email=customer_email,
                 customer_phone=customer_phone,
                 description=f"Subscription - {norm_code.title()}",
-                expires_after=f"{_checkout_expiry_days()} day(s)",
+                expires_after=(
+                    f"{expiry_days} day" if expiry_days == 1 else f"{expiry_days} days"
+                ),
             )
         else:
             bill = create_bill(
@@ -655,9 +659,9 @@ def create_subscription_checkout(
 
     # --- Save gateway details ---
     try:
-        update_subscription_order_status(
-            order_reference,
-            "pending",
+        attach_pending_subscription_gateway_details(
+            order_reference=order_reference,
+            payment_gateway=payment_gateway,
             gateway_order_id=gateway_order_id,
             checkout_url=checkout_url,
         )

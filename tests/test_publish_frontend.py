@@ -106,17 +106,18 @@ def test_no_emoji_and_no_em_dashes_in_page_chrome(html):
 
 def test_dom_order_is_reading_order(html):
     order = re.findall(r'id="(pub-live|pub-add|pub-settings)"', html)
-    assert order == ["pub-live", "pub-add", "pub-settings"]
+    assert order == ["pub-add", "pub-live", "pub-settings"]
 
 
-def test_share_link_leads_and_the_snippet_is_demoted(html):
+def test_channel_choice_leads_and_the_snippet_is_demoted(html):
     live_at = html.index('id="pub-live"')
     add_at = html.index('id="pub-add"')
-    assert live_at < add_at
+    assert add_at < live_at
 
-    # The snippet lives inside a flow that starts hidden, below the link.
+    # Installation stays inside the website choice and a closed disclosure.
     assert 'id="pub-flow-website" hidden' in html
-    assert html.index("Share this link") < html.index("Put it on your website")
+    assert '<summary>Install on an existing website</summary>' in html
+    assert "Enable website and share link" in html
 
 
 def test_every_settings_disclosure_starts_closed(html):
@@ -178,8 +179,8 @@ def test_the_only_external_script_is_loaded_on_demand(html):
     assert "function loadFacebookSdk(" in html
 
 
-def test_wasender_is_presented_as_a_risk_not_as_an_easy_default(html):
-    assert "Another WhatsApp option, with a risk" in html
+def test_wasender_choice_preserves_the_provider_risk_disclosure(html):
+    assert "WhatsApp via Wasender" in html
     assert "Your number can" in html and "blocked" in html
     wasender = re.search(r"function wasenderDisclosure\(\) \{.*?\n        \}",
                          html, flags=re.S).group(0)

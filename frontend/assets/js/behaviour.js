@@ -16,11 +16,14 @@
     /* ── Bot scope ───────────────────────────────────────────────── */
 
     var params = new URLSearchParams(window.location.search);
+    var isSetup = params.get("setup") === "1";
+    var setupSuffix = isSetup ? "&setup=1" : "";
     var urlBotId = params.get("bot_id");
     var storedBotId = sessionStorage.getItem("selectedBotId");
 
     if (!urlBotId && storedBotId) {
-        window.location.href = "behaviour.html?bot_id=" + encodeURIComponent(storedBotId);
+        window.location.href = "behaviour.html?bot_id=" + encodeURIComponent(storedBotId)
+            + "&tab=" + encodeURIComponent(params.get("tab") || "model") + setupSuffix;
         return;
     }
     if (!urlBotId) {
@@ -158,7 +161,7 @@
             var panel = $("bh-panel-" + name);
             var selected = name === tab;
             trigger.setAttribute("aria-selected", String(selected));
-            trigger.href = "?bot_id=" + encodeURIComponent(botId) + "&tab=" + name;
+            trigger.href = "?bot_id=" + encodeURIComponent(botId) + "&tab=" + name + setupSuffix;
             panel.hidden = !selected;
         });
 
@@ -166,9 +169,25 @@
         // button there would imply the conversation is a saveable document.
         $("bh-footer").hidden = tab === "test";
 
+        if (isSetup) {
+            var guidedTest = tab === "test";
+            var setupQuery = "?bot_id=" + encodeURIComponent(botId) + setupSuffix;
+            document.querySelector(".bh-page").classList.toggle("bh-guided", guidedTest);
+            document.querySelector(".bh-title").textContent = guidedTest ? "Test your bot" : "Behaviour Studio";
+            document.querySelector(".bh-subtitle").firstChild.textContent = guidedTest ? "See how " : "Decide how ";
+            document.querySelector(".bh-subtitle").lastChild.textContent = guidedTest ? " answers a customer question." : " thinks, speaks, and replies.";
+            $("bh-setup-journey").setAttribute("bot-id", botId);
+            ["bh-setup-journey", "bh-guided-help", "bh-guided-next", "bh-guided-settings"].forEach(function (id) {
+                $(id).hidden = !guidedTest;
+            });
+            $("bh-choose-channel").href = "integration.html" + setupQuery;
+            $("bh-guided-model").href = "behaviour.html" + setupQuery + "&tab=model";
+            $("bh-guided-message").href = "behaviour.html" + setupQuery + "&tab=message";
+        }
+
         if (pushState) {
             window.history.pushState({ tab: tab }, "",
-                "?bot_id=" + encodeURIComponent(botId) + "&tab=" + tab);
+                "?bot_id=" + encodeURIComponent(botId) + "&tab=" + tab + setupSuffix);
         }
 
         if (tab === "test") {
@@ -1079,7 +1098,8 @@
             botLoadFailed = false;
             var bot = body.data;
             $("bh-bot-name").textContent = bot.bot_name || "your bot";
-            document.title = (bot.bot_name || "Bot") + " - Behaviour Studio | AI CHATBOT";
+            document.querySelector("chatbot-sidebar")?.setBotName?.(bot.bot_name);
+            document.title = (bot.bot_name || "Bot") + (isSetup && readTab() === "test" ? " - Test your bot | Aveon" : " - Behaviour Studio | AI CHATBOT");
 
             draft = fromBot(bot);
             saved = clone(draft);

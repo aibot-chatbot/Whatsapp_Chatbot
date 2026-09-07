@@ -315,6 +315,143 @@ def update_subscription_order_status(
     return rows[0]
 
 
+def attach_pending_subscription_gateway_details(
+    order_reference: str,
+    payment_gateway: str,
+    gateway_order_id: str,
+    checkout_url: str,
+) -> dict:
+    """Attach gateway details only while an unpaid order is still pending."""
+    if not all((order_reference, payment_gateway, gateway_order_id, checkout_url)):
+        raise ValueError("Gateway attachment fields are required")
+    response = (
+        supabase.table(TABLE)
+        .update({
+            "gateway_order_id": gateway_order_id,
+            "checkout_url": checkout_url,
+            "updated_at": _now_iso(),
+        })
+        .eq("order_reference", order_reference)
+        .eq("payment_gateway", payment_gateway)
+        .eq("status", "pending")
+        .is_("gateway_order_id", "null")
+        .is_("paid_at", "null")
+        .is_("credited_at", "null")
+        .execute()
+    )
+    rows = response.data or []
+    if rows:
+        return rows[0]
+    existing = get_subscription_order_by_reference(order_reference)
+    if (
+        existing
+        and existing.get("payment_gateway") == payment_gateway
+        and str(existing.get("gateway_order_id") or "") == gateway_order_id
+        and existing.get("checkout_url") == checkout_url
+    ):
+        return existing
+    raise RuntimeError(
+        f"Cannot attach gateway details to subscription order {order_reference!r}"
+    )
+
+
+def mark_pending_subscription_order_paid(
+    order_reference: str,
+    payment_reference: str,
+    paid_at: str | None = None,
+) -> dict:
+    """Compare-and-set an unpaid pending order to paid."""
+    if not order_reference or not payment_reference:
+        raise ValueError("order_reference and payment_reference are required")
+    updates: dict[str, Any] = {
+        "status": "paid",
+        "payment_reference": payment_reference,
+        "updated_at": _now_iso(),
+    }
+    if paid_at:
+        updates["paid_at"] = paid_at
+    response = (
+        supabase.table(TABLE)
+        .update(updates)
+        .eq("order_reference", order_reference)
+        .eq("status", "pending")
+        .is_("paid_at", "null")
+        .is_("credited_at", "null")
+        .execute()
+    )
+    rows = response.data or []
+    if rows:
+        return rows[0]
+    existing = get_subscription_order_by_reference(order_reference)
+    if (
+        existing
+        and (existing.get("status") or "").strip().lower() in {"paid", "credited"}
+        and str(existing.get("payment_reference") or "") == payment_reference
+    ):
+        return existing
+    raise RuntimeError(
+        f"Cannot mark subscription order {order_reference!r} paid from its current state"
+    )
+
+
+def transition_pending_subscription_order_terminal(
+    order_reference: str,
+    target_status: str,
+    released_activation_sequence_key: str,
+    error_code: str,
+) -> dict:
+    """Terminalize an unpaid pending gateway order without downgrading paid work."""
+    if target_status not in {"failed", "expired", "cancelled"}:
+        raise ValueError("Unsupported terminal subscription order status")
+    if not all((order_reference, released_activation_sequence_key, error_code)):
+        raise ValueError("Terminal transition fields are required")
+    response = (
+        supabase.table(TABLE)
+        .update({
+            "status": target_status,
+            "activation_sequence_key": released_activation_sequence_key,
+            "activation_error_code": error_code,
+            "reconciliation_required": False,
+            "updated_at": _now_iso(),
+        })
+        .eq("order_reference", order_reference)
+        .eq("status", "pending")
+        .is_("activation_status", "null")
+        .is_("paid_at", "null")
+        .is_("credited_at", "null")
+        .execute()
+    )
+    rows = response.data or []
+    if rows:
+        return rows[0]
+    existing = get_subscription_order_by_reference(order_reference)
+    if existing and (existing.get("status") or "").strip().lower() in {
+        target_status,
+        "paid",
+        "credited",
+    }:
+        return existing
+    raise RuntimeError(
+        f"Cannot terminalize subscription order {order_reference!r} from its current state"
+    )
+
+
+def get_pending_hitpay_orders(limit: int = 100) -> list[dict]:
+    """Return oldest pending HitPay orders for authoritative reconciliation."""
+    if not isinstance(limit, int) or limit < 1:
+        raise ValueError("limit must be a positive integer")
+    response = (
+        supabase.table(TABLE)
+        .select("*")
+        .eq("payment_gateway", "hitpay")
+        .eq("status", "pending")
+        .order("updated_at", desc=False)
+        .limit(limit)
+        .execute()
+    )
+    return response.data or []
+
+
 def expire_pending_subscription_order_for_checkout_retry(
     order_reference: str,
     activation_sequence_key: str,

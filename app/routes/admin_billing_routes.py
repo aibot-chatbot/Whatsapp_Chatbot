@@ -300,6 +300,7 @@ def _safe_order(order: dict) -> dict:
         "paid_at": order.get("paid_at"),
         "credited_at": order.get("credited_at"),
         "payment_reference": order.get("payment_reference"),
+        "payment_gateway": order.get("payment_gateway"),
         "gateway_order_id": order.get("gateway_order_id"),
         "retry_allowed": _retry_allowed(order),
         "customer_message": _customer_message(order),

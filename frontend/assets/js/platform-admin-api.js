@@ -52,7 +52,15 @@
         "platform_admin_user_not_found",
         "self_deactivation_not_allowed",
         "final_active_platform_admin",
-        "protected_company"
+        "protected_company",
+        "platform_module_access_denied", "invalid_platform_role", "invalid_modules",
+        "invalid_reason", "invalid_approval_id", "invalid_approval_type",
+        "approval_request_not_found", "approval_already_decided",
+        "self_demotion_not_allowed", "final_active_super_admin",
+        "invalid_id", "invalid_order_id", "invalid_type", "invalid_summary",
+        "invalid_pagination", "approval_not_found", "platform_record_not_found",
+        "platform_change_denied", "self_demotion_denied", "platform_staff_data_unavailable",
+        "billing_order_not_found", "gateway_recheck_unavailable"
     ]);
 
     function makeError(category, status, code) {
@@ -69,6 +77,7 @@
         if (status === 401) return "unauthenticated";
         if (status === 403) return "access_denied";
         if (status === 404) return "not_found";
+        if (status === 409) return "conflict";
         if (status === 503) return "unavailable";
         return "unavailable";
     }
@@ -403,8 +412,53 @@
         return platformFetch("/support-cases/" + id + "/priority", (options || {}).signal, "PATCH", payload);
     }
 
+    function listApprovalRequests(options) {
+        const config = options || {};
+        const params = new URLSearchParams({limit: String(config.limit || 25), offset: String(config.offset || 0)});
+        if (config.status) params.set("status", config.status);
+        return platformFetch("/approval-requests?" + params.toString(), config.signal);
+    }
+
+    function approvalPath(approvalId) {
+        if (!Number.isSafeInteger(approvalId) || approvalId <= 0) {
+            throw makeError("validation", 400, "invalid_approval_id");
+        }
+        return "/approval-requests/" + String(approvalId);
+    }
+
+    function getApprovalRequest(approvalId, options) {
+        return platformFetch(approvalPath(approvalId), (options || {}).signal);
+    }
+
+    function createApprovalRequest(payload, options) {
+        return platformFetch("/approval-requests", (options || {}).signal, "POST", payload);
+    }
+
+    function decideApprovalRequest(approvalId, payload, options) {
+        return platformFetch(approvalPath(approvalId) + "/decision", (options || {}).signal, "POST", payload);
+    }
+
+    function updatePlatformAdminAccess(mappingId, payload, options) {
+        return platformFetch("/platform-admin-users/" + requirePlatformAdminUserId(mappingId) + "/access",
+            (options || {}).signal, "PATCH", payload);
+    }
+
+    function recheckCompanyBillingOrder(companyId, orderId, options) {
+        if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+            throw makeError("validation", 400, "invalid_order_id");
+        }
+        return platformFetch("/companies/" + requireCompanyId(companyId) + "/billing-orders/" + String(orderId) + "/recheck",
+            (options || {}).signal, "POST", {});
+    }
+
     window.PlatformAdminApi = Object.freeze({
         getMe: getMe,
+        listApprovalRequests: listApprovalRequests,
+        getApprovalRequest: getApprovalRequest,
+        createApprovalRequest: createApprovalRequest,
+        decideApprovalRequest: decideApprovalRequest,
+        updatePlatformAdminAccess: updatePlatformAdminAccess,
+        recheckCompanyBillingOrder: recheckCompanyBillingOrder,
         getOverview: getOverview,
         getBillingOverview: getBillingOverview,
         listBillingCompanies: listBillingCompanies,

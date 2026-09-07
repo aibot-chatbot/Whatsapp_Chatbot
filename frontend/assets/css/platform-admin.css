@@ -1062,6 +1062,159 @@ a {
     color: var(--platform-text);
 }
 
+/* Help article authoring */
+
+.platform-help-form {
+    display: grid;
+    gap: 1.1rem;
+    margin-top: 1rem;
+}
+
+.platform-help-body {
+    min-height: 12rem;
+    line-height: 1.55;
+    resize: vertical;
+}
+
+.platform-help-counter {
+    justify-self: end;
+    color: var(--platform-muted);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.platform-help-counter-full {
+    color: #fde68a;
+    font-weight: 700;
+}
+
+.platform-help-limit:empty {
+    display: none;
+}
+
+.platform-help-limit {
+    margin: 0;
+    color: #fde68a;
+    font-size: 0.82rem;
+}
+
+.platform-help-checkbox {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.3rem 0.6rem;
+}
+
+.platform-help-checkbox input {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--platform-accent);
+}
+
+.platform-help-checkbox label {
+    color: var(--platform-text);
+    font-weight: 600;
+}
+
+.platform-help-checkbox .platform-note {
+    grid-column: 2;
+    margin: 0;
+}
+
+.platform-help-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.platform-help-form-actions {
+    margin-top: 0.25rem;
+    gap: 0.75rem;
+}
+
+.platform-help-actions .platform-button {
+    min-height: 2.25rem;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.82rem;
+}
+
+.platform-help-form-actions .platform-button {
+    min-height: 2.6rem;
+    padding: 0.65rem 1rem;
+    font-size: 1rem;
+}
+
+.platform-help-danger {
+    border-color: rgba(251, 113, 133, 0.45);
+    color: #fecdd3;
+}
+
+.platform-help-title-cell {
+    min-width: 14rem;
+}
+
+.platform-help-title-cell strong {
+    display: block;
+    color: var(--platform-text);
+}
+
+.platform-help-slug {
+    display: block;
+    margin-top: 0.2rem;
+    color: var(--platform-muted);
+    font-size: 0.78rem;
+    word-break: break-word;
+}
+
+/* Published vs draft never rests on colour alone: the word differs, the border
+   style differs, and the fill differs. */
+.platform-help-published {
+    border-style: solid;
+    border-color: rgba(34, 211, 167, 0.55);
+    background: rgba(34, 211, 167, 0.14);
+    color: #a7f3d0;
+}
+
+.platform-help-draft {
+    border-style: dashed;
+    border-color: rgba(251, 191, 36, 0.55);
+    background: transparent;
+    color: #fde68a;
+}
+
+.platform-help-votes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 0.7rem;
+}
+
+.platform-help-count {
+    color: var(--platform-muted);
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.platform-help-flag {
+    padding: 0.15rem 0.5rem;
+    border: 1px solid rgba(251, 113, 133, 0.5);
+    border-radius: 999px;
+    color: #fecdd3;
+    font-size: 0.75rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.platform-help-cards {
+    display: none;
+}
+
+.platform-help-cards .platform-help-votes,
+.platform-help-cards .platform-help-actions {
+    margin-top: 0.85rem;
+}
+
 @media (max-width: 900px) {
     .platform-layout {
         grid-template-columns: 1fr;
@@ -1153,6 +1306,11 @@ a {
 
     .platform-company-cards {
         display: block;
+    }
+
+    .platform-help-cards {
+        display: grid;
+        gap: 0.85rem;
     }
 }
 

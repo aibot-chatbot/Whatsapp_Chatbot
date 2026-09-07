@@ -22,6 +22,9 @@ Two groups of endpoints live here:
 
 import logging
 import os
+import re
+from ipaddress import ip_address
+from urllib.parse import urlsplit
 
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
@@ -96,12 +99,28 @@ def _apply_widget_headers(response):
         # The chat UI is designed to be framed by third-party sites, so the
         # app-wide X-Frame-Options: DENY must not apply here.
         response.headers.pop("X-Frame-Options", None)
-        response.headers["Content-Security-Policy"] = "frame-ancestors *"
+        response.headers.setdefault("Content-Security-Policy", "frame-ancestors *")
+    if request.path.startswith(("/api/widget/", "/widget/", "/chat/")):
+        # Publication and domain permissions must be checked after disconnect.
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 
 def _error(message, status=400, code="widget_error"):
     return jsonify({"status": "error", "code": code, "message": message}), status
+
+
+def _http_origin(value):
+    """Compare browser origins including scheme and effective port."""
+    try:
+        parsed = urlsplit(value or "")
+        if (parsed.scheme not in ("http", "https") or not parsed.hostname
+                or parsed.username is not None or parsed.password is not None):
+            return None
+        port = parsed.port
+        return parsed.scheme, parsed.hostname, port if port is not None else (443 if parsed.scheme == "https" else 80)
+    except ValueError:
+        return None
 
 
 def _load_widget_or_error():
@@ -118,7 +137,11 @@ def _load_widget_or_error():
         )
 
     origin = request.headers.get("Origin") or request.headers.get("Referer")
-    if not is_origin_allowed(widget, origin):
+    hosted_origin = _http_origin(origin)
+    # Both chat HTML routes enforce the embedding site's allowlist through
+    # frame-ancestors. Their API calls originate on our own host, not that site.
+    is_hosted = hosted_origin is not None and hosted_origin == _http_origin(request.host_url)
+    if not is_hosted and not is_origin_allowed(widget, origin):
         raise WidgetError(
             "This chatbot is not permitted on this website.",
             status=403,
@@ -145,16 +168,37 @@ def widget_loader():
     return response
 
 
+def _widget_chat_page(public_key):
+    response = send_from_directory(FRONTEND_DIR, "widget-chat.html")
+    try:
+        widget, _bot = resolve_public_widget(public_key)
+    except WidgetError:
+        # Keep the visitor-facing error UI; the API explains inactive links.
+        ancestors = "'none'"
+    else:
+        allowed = widget.get("allowed_domains") or []
+        sources = ["'self'"]
+        for domain in allowed:
+            # Stored domain values must never become arbitrary CSP syntax.
+            if not isinstance(domain, str) or not re.fullmatch(r"[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*", domain):
+                continue
+            for scheme in ("http", "https"):
+                sources.extend((f"{scheme}://{domain}:*", f"{scheme}://*.{domain}:*"))
+        ancestors = " ".join(sources) if allowed else "*"
+    response.headers["Content-Security-Policy"] = f"frame-ancestors {ancestors}"
+    return response
+
+
 @widget_blueprint.route("/widget/<public_key>", methods=["GET"])
 def widget_frame(public_key):
     """Chat UI rendered inside the embedded iframe."""
-    return send_from_directory(FRONTEND_DIR, "widget-chat.html")
+    return _widget_chat_page(public_key)
 
 
 @widget_blueprint.route("/chat/<public_key>", methods=["GET"])
 def widget_share_page(public_key):
     """Standalone full-page chat, for sharing as a direct link."""
-    return send_from_directory(FRONTEND_DIR, "widget-chat.html")
+    return _widget_chat_page(public_key)
 
 
 # ── Public: JSON API ──────────────────────────────────────────────────
@@ -299,14 +343,60 @@ def widget_submit_lead(public_key):
 
 # ── Dashboard: widget configuration ───────────────────────────────────
 
+def _delivery_metadata(base, configured):
+    """Describe URL suitability without making a network or uptime claim."""
+    kind = "missing" if not configured else "invalid"
+    origin = _http_origin(base)
+    if configured and origin:
+        parsed = urlsplit(base)
+        scheme, host, port = origin
+        if port > 0 and not parsed.path and not parsed.query and not parsed.fragment:
+            valid_host = True
+            try:
+                local = not ip_address(host).is_global
+            except ValueError:
+                try:
+                    host = host.encode("idna").decode("ascii").removesuffix(".")
+                    valid_host = len(host) <= 253 and all(
+                        re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label, re.I)
+                        for label in host.split(".")
+                    )
+                except UnicodeError:
+                    valid_host = False
+                local = "." not in host or host.endswith((".localhost", ".local"))
+            if not valid_host:
+                kind = "invalid"
+            elif local:
+                kind = "local"
+            elif host.endswith((".trycloudflare.com", ".trycloudflare.app")):
+                kind = "temporary"
+            elif scheme == "https":
+                kind = "permanent"
+    messages = {
+        "permanent": "This link uses your configured HTTPS address. Reachability has not been checked.",
+        "temporary": "This test link can stop when the tunnel closes. Use a permanent address for customers.",
+        "local": "This address is for local testing. Use a permanent public address for customers.",
+        "missing": "Set a permanent public address before sharing this bot with customers.",
+        "invalid": "A valid HTTPS public address is required before sharing this bot with customers.",
+    }
+    return {
+        "base_configured": configured,
+        "base_kind": kind,
+        "persistent_url": kind == "permanent",
+        "reachability": "not_checked",
+        "message": messages[kind],
+    }
+
+
 def _embed_urls(widget):
-    base = (current_app.config.get("PUBLIC_BASE_URL")
-            or os.getenv("PUBLIC_BASE_URL")
-            or request.host_url.rstrip("/")).rstrip("/")
+    configured_base = (current_app.config.get("PUBLIC_BASE_URL")
+                       or os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    base = configured_base or request.host_url.rstrip("/")
     key = widget.get("public_key")
 
     return {
         "base_url": base,
+        "delivery": _delivery_metadata(base, bool(configured_base)),
         "script_url": f"{base}/widget.js",
         "share_url": f"{base}/chat/{key}",
         "iframe_url": f"{base}/widget/{key}",

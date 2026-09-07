@@ -28,7 +28,7 @@ class TestHitPaySubscriptionCheckout(unittest.TestCase):
                 "gateway_order_id": "hitpay-request-1",
                 "checkout_url": "https://securecheckout.sandbox.hit-pay.com/payment-request/@merchant/id/checkout",
             }) as create,
-            patch(_SERVICE + ".update_subscription_order_status") as update,
+            patch(_SERVICE + ".attach_pending_subscription_gateway_details") as update,
         ):
             result = create_subscription_checkout(
                 company_id=42,
@@ -49,8 +49,8 @@ class TestHitPaySubscriptionCheckout(unittest.TestCase):
         )
         create.assert_called_once()
         update.assert_called_once_with(
-            self.prepared["order_reference"],
-            "pending",
+            order_reference=self.prepared["order_reference"],
+            payment_gateway="hitpay",
             gateway_order_id="hitpay-request-1",
             checkout_url=result["checkout_url"],
         )

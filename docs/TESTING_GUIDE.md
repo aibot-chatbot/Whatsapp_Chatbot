@@ -24,25 +24,20 @@ The strongest recorded automated coverage is around:
 - Smoke-test helpers
 - Reconciliation helpers
 
-The latest recorded full suite passed:
-
-```text
-136 tests passed
-```
-
-A later audit environment could not rerun the suite because its virtual environment referenced a missing Python installation.
+Historical reports include 136 passing tests and a later environment with a broken
+Python path. Neither establishes the current suite result. Record a fresh command,
+exit code and counts for the active checkout; distinguish regressions from existing
+failures and environment problems.
 
 ## Environment Setup
 
 Use a valid local Python environment.
 
-Recommended workflow:
+Reuse the working project environment. If none exists, create one:
 
 ```powershell
-python -m venv venv
-.env\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
 If development-only test dependencies are not already included, document and install them separately.
@@ -72,7 +67,11 @@ Mock:
 
 ## Recommended Test Order
 
-### 1. Syntax and import checks
+Choose checks by changed behavior; documentation-only edits use the instruction
+checks in [Agent Workflow](AGENT_WORKFLOW.md). Broaden a passing focused run only
+when shared-code risk, failures or unresolved concerns justify it.
+
+### 1. Syntax checks (does not import or boot the app)
 
 ```powershell
 python -m compileall app tests

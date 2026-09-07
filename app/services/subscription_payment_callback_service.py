@@ -21,7 +21,8 @@ from uuid import UUID
 
 from app.database.company_subscription_order_repository import (
     get_subscription_order_by_gateway_id as _get_order_by_gateway,
-    update_subscription_order_status as _update_order_status,
+    mark_pending_subscription_order_paid as _mark_pending_order_paid,
+    update_subscription_order_status as _repository_update_order_status,
     claim_subscription_activation_sequence as _claim_activation_sequence,
     update_subscription_order_activation_state as _update_activation_state,
     get_subscription_order_by_reference as _get_order_by_reference,
@@ -46,6 +47,19 @@ from app.services.ai_credit_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _update_order_status(order_reference: str, status: str, **extra):
+    """Keep existing callers while making the payment claim compare-and-set."""
+    if status == "paid":
+        return _mark_pending_order_paid(
+            order_reference=order_reference,
+            payment_reference=extra["payment_reference"],
+            paid_at=extra.get("paid_at"),
+        )
+    return _repository_update_order_status(
+        order_reference=order_reference, status=status, **extra
+    )
 
 
 def _now_iso() -> str:

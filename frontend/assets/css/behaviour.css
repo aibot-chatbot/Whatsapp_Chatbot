@@ -988,3 +988,11 @@
     background: var(--control-accent-subtle);
     border: 1px solid rgba(62, 156, 137, 0.3);
 }
+
+/* Guided testing keeps the chat primary and makes settings an optional detour. */
+.dashboard-page .bh-page [hidden] { display: none !important; }
+.dashboard-page .bh-guided .bh-tabs,
+.dashboard-page .bh-guided .bh-header-aside { display: none; }
+.dashboard-page .bh-guided-help { margin: 0 0 20px; font-size: 15px; line-height: 1.6; }
+.dashboard-page .bh-guided-next { margin-top: 24px; }
+.dashboard-page .bh-guided-settings { margin-top: 16px; }

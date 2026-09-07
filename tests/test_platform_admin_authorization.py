@@ -53,7 +53,7 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
             self.assertEqual(response.json["code"], "platform_admin_access_denied")
 
     def test_active_mapped_member_allowed(self):
-        response, mapping = self._request(mapping={"id": 12, "user_id": 7, "is_active": True})
+        response, mapping = self._request(mapping={"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 12, "user_id": 7, "is_active": True})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["actor"], 12)
         mapping.assert_called_once_with(7)
@@ -72,13 +72,13 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
             "platform_admin": False, "is_platform_admin": False,
         }
         allowed, allowed_lookup = self._request(
-            mapping={"id": 12, "user_id": 7, "is_active": True}
+            mapping={"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 12, "user_id": 7, "is_active": True}
         )
         self.assertEqual(allowed.status_code, 200)
         allowed_lookup.assert_called_once_with(7)
 
     def test_missing_and_inactive_mapping_have_same_denial(self):
-        for mapping in (None, {"id": 12, "user_id": 7, "is_active": False}):
+        for mapping in (None, {"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 12, "user_id": 7, "is_active": False}):
             response, _ = self._request(mapping=mapping)
             self.assertEqual((response.status_code, response.json["code"]), (403, "platform_admin_access_denied"))
 
@@ -105,7 +105,7 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
         for role in ("owner", "admin", "member"):
             response, _ = self._request(
                 user={"id": 7, "company_id": 99, "status": "active", "role": role},
-                mapping={"id": 12, "user_id": 7, "is_active": True},
+                mapping={"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 12, "user_id": 7, "is_active": True},
             )
             self.assertEqual(response.status_code, 200)
 
@@ -114,7 +114,7 @@ class PlatformAdminAuthorizationTests(unittest.TestCase):
             "id": 7, "company_id": 99, "status": "active", "role": "member"
         }), patch(
             "app.decorators.platform_admin_decorator.get_active_platform_admin_by_user_id",
-            side_effect=[{"id": 12, "is_active": True}, None],
+            side_effect=[{"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 12, "is_active": True}, None],
         ) as lookup:
             self.assertEqual(self.client.get("/protected", headers=self.headers).status_code, 200)
             self.assertEqual(self.client.get("/protected", headers=self.headers).status_code, 403)

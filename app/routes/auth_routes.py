@@ -14,6 +14,7 @@ from app.services.email_service import send_otp_email
 from app.services.billing_service import ensure_default_company_subscription
 from app.services.invitation_service import InvitationValidationError, accept_pending_invitation
 from app.services.billing_guard import BillingLimitError
+from app.services.login_destination_service import LoginDestinationError, get_login_destination
 from app.utils.jwt_utils import get_jwt_secret
 import logging
 logger = logging.getLogger(__name__)
@@ -28,6 +29,24 @@ def auth_config_error_response():
         "status": "error",
         "message": "Authentication is not configured properly."
     }), 500
+
+def _login_success_response(user, token, message="Login successful"):
+    try:
+        destination = get_login_destination(user["id"])
+    except LoginDestinationError as exc:
+        return jsonify({
+            "status": "error", "code": exc.code, "message": exc.message,
+        }), exc.status_code
+    return jsonify({
+        "status": "success",
+        "message": message,
+        "token": token,
+        "redirect_url": destination,
+        "user": {key: user.get(key) for key in (
+            "id", "company_id", "full_name", "email", "role",
+        )},
+    })
+
 
 def validate_password_strength(password):
     """
@@ -158,18 +177,7 @@ def google_auth():
                 "role": user["role"],
                 "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
             }, get_jwt_secret(), algorithm="HS256")
-            return jsonify({
-                "status": "success",
-                "message": "Invitation accepted successfully!",
-                "token": token,
-                "user": {
-                    "id": user["id"],
-                    "company_id": user.get("company_id"),
-                    "full_name": user.get("full_name"),
-                    "email": user["email"],
-                    "role": user["role"],
-                },
-            })
+            return _login_success_response(user, token, "Invitation accepted successfully!")
         except InvitationValidationError as e:
             return jsonify({"status": "error", "message": str(e)}), e.status_code
         except BillingLimitError as e:
@@ -200,18 +208,7 @@ def google_auth():
         except RuntimeError:
             return auth_config_error_response()
 
-        return jsonify({
-            "status": "success",
-            "message": "Login successful",
-            "token": token,
-            "user": {
-                "id": existing_user["id"],
-                "company_id": existing_user.get("company_id"),
-                "full_name": existing_user.get("full_name"),
-                "email": existing_user["email"],
-                "role": existing_user["role"]
-            }
-        })
+        return _login_success_response(existing_user, token)
 
     # New user â€” need company name and a password they can use later.
     if not company_name or not password or not confirm_password:
@@ -271,18 +268,10 @@ def google_auth():
         except RuntimeError:
             return auth_config_error_response()
 
-        return jsonify({
-            "status": "success",
-            "message": "Account created successfully!",
-            "token": token,
-            "user": {
-                "id": user["id"],
-                "company_id": company["id"],
-                "full_name": full_name,
-                "email": email,
-                "role": "admin"
-            }
-        })
+        return _login_success_response({
+            **user, "company_id": company["id"], "full_name": full_name,
+            "email": email, "role": "admin",
+        }, token, "Account created successfully!")
 
     except Exception:
         logger.exception("Failed to create Google account")
@@ -345,18 +334,7 @@ def login():
     except RuntimeError:
         return auth_config_error_response()
 
-    return jsonify({
-        "status": "success",
-        "message": "Login successful",
-        "token": token,
-        "user": {
-            "id": user["id"],
-            "company_id": user.get("company_id"),
-            "full_name": user.get("full_name"),
-            "email": user["email"],
-            "role": user["role"]
-        }
-    })
+    return _login_success_response(user, token)
 
 
 @auth_bp.route("/register", methods=["POST"])

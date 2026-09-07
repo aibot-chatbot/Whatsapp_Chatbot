@@ -30,11 +30,13 @@ from app.routes.user_routes import user_bp, team_bp
 from app.routes.invite_routes import invite_bp
 from app.routes.billing_routes import billing_bp
 from app.routes.toyyibpay_routes import toyyibpay_bp
+from app.routes.hitpay_routes import hitpay_bp
 from app.routes.broadcast_routes import broadcast_blueprint
 from app.routes.admin_billing_routes import admin_billing_bp
 from app.routes.dev_billing_routes import dev_billing_bp
 from app.routes.platform_admin_routes import platform_admin_bp
 from app.routes.support_routes import support_bp
+from app.routes.help_routes import help_bp
 from app.routes.widget_routes import widget_blueprint
 from app.routes.flow_routes import flow_blueprint
 from app.routes.automation_routes import automation_blueprint
@@ -133,10 +135,12 @@ def create_app():
     app.register_blueprint(invite_bp)
     app.register_blueprint(billing_bp)
     app.register_blueprint(toyyibpay_bp)
+    app.register_blueprint(hitpay_bp)
     app.register_blueprint(broadcast_blueprint)
     app.register_blueprint(admin_billing_bp)
     app.register_blueprint(platform_admin_bp)
     app.register_blueprint(support_bp)
+    app.register_blueprint(help_bp)
     app.register_blueprint(widget_blueprint)
     app.register_blueprint(flow_blueprint)
     app.register_blueprint(automation_blueprint)

@@ -302,6 +302,12 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             keys,
             [
                 "getMe",
+                "listApprovalRequests",
+                "getApprovalRequest",
+                "createApprovalRequest",
+                "decideApprovalRequest",
+                "updatePlatformAdminAccess",
+                "recheckCompanyBillingOrder",
                 "getOverview",
                 "getBillingOverview",
                 "listBillingCompanies",
@@ -363,6 +369,10 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             "setPlatformAdminUserActive": ("/platform-admin-users/\" + id + \"/active", "PATCH"),
             "suspendCompany": ("/companies/\" + id + \"/suspend", "POST"),
             "restoreCompany": ("/companies/\" + id + \"/restore", "POST"),
+            "createApprovalRequest": ("/approval-requests", "POST"),
+            "decideApprovalRequest": ('approvalPath(approvalId) + "/decision"', "POST"),
+            "updatePlatformAdminAccess": ('requirePlatformAdminUserId(mappingId) + "/access"', "PATCH"),
+            "recheckCompanyBillingOrder": ('String(orderId) + "/recheck"', "POST"),
         }
         seen_mutations = {}
         for function_name, body in re.findall(
@@ -390,7 +400,10 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             "/delete",
             "/messages",
         ):
-            self.assertNotIn(forbidden, "\n".join(seen_mutations.values()))
+            # The approved, ID-scoped recheck retries an existing payment only.
+            other_mutations = (body for name, body in seen_mutations.items()
+                               if name != "recheckCompanyBillingOrder")
+            self.assertNotIn(forbidden, "\n".join(other_mutations))
 
     def test_tenant_support_intake_viewer_is_get_only_and_validates_display_paths(self):
         list_function = re.search(
@@ -556,8 +569,14 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         payload = page.split("var values = {", 1)[1].split("};", 1)[0]
         for field in ("category", "title", "redacted_description"):
             self.assertIn(field, payload)
+        # `priority` was forbidden here until the Help Desk redesign. It is now
+        # tenant input: the requester states their own urgency (low/normal/urgent)
+        # so staff can triage, and the server enum-validates it. It grants no
+        # entitlement and feeds no billing or access decision, which makes it a
+        # peer of `category`. `status` is different and stays forbidden - the
+        # platform alone owns a request's lifecycle state.
         for forbidden in (
-            "company_id", "user_id", "platform_admin", "status", "priority",
+            "company_id", "user_id", "platform_admin", "status",
             "assignment", "audit_metadata", "payment_reference", "token", "cookie",
         ):
             self.assertNotIn(forbidden, payload)
