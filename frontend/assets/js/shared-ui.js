@@ -20,8 +20,10 @@ function refreshIcons(root) {
     if (window.lucide && typeof window.lucide.createIcons === "function") {
         try {
             window.lucide.createIcons(root ? { root: root } : undefined);
+            return true;
         } catch (_) {}
     }
+    return false;
 }
 
 /* ===== Chat Message Renderer ===== */
@@ -285,8 +287,8 @@ function formatTimeSimple(dateStr) {
                 :host([variant="control-room"][placement="sidebar"]) .item:hover,:host([variant="control-room"][placement="sidebar"]) .item:focus-visible{background:#1e2125;color:#f2f3f4;}
                 :host([variant="control-room"][placement="sidebar"][compact]) .menu{position:absolute;left:calc(100% + 10px);bottom:0;width:210px;padding:6px;background:#16181b;border:1px solid #2b2f34;border-radius:10px;box-shadow:none;}
                 @media (max-width:900px){:host([placement="sidebar"]) .account-button{width:44px;justify-content:center;padding:6px;}:host([placement="sidebar"]) .label,:host([placement="sidebar"]) .chevron{display:none;}:host([placement="sidebar"]) .menu{position:absolute;left:calc(100% + 10px);bottom:0;width:210px;padding:6px;background:var(--panel,rgba(15,23,42,.97));border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.28);z-index:1000;}}
-                @media (max-width:768px){:host([placement="sidebar"][compact]){width:100%;}:host([placement="sidebar"][compact]) .account-button{width:100%;justify-content:flex-start;padding:8px 12px;}:host([placement="sidebar"][compact]) .label{display:flex;}:host([placement="sidebar"][compact]) .chevron{display:block;}:host([placement="sidebar"][compact]) .menu{position:static;width:100%;padding:2px 0 4px 8px;background:transparent;border:0;border-radius:0;box-shadow:none;}}
-                @media (max-width:768px){:host([placement="sidebar"]) .account-button{width:100%;justify-content:flex-start;padding:8px 12px;}:host([placement="sidebar"]) .label{display:flex;}:host([placement="sidebar"]) .chevron{display:block;}:host([placement="sidebar"]) .menu{position:static;width:100%;padding:2px 0 4px 8px;background:transparent;border:0;border-radius:0;box-shadow:none;}}
+                @media (max-width:768px){:host([placement="sidebar"][compact]){width:100%;}:host([placement="sidebar"][compact]) .account-button{width:100%;justify-content:flex-start;padding:8px 12px;}:host([placement="sidebar"][compact]) .label{display:flex;}:host([placement="sidebar"][compact]) .chevron{display:block;}:host([placement="sidebar"][compact]) .menu{position:absolute;left:0;right:0;bottom:calc(100% + 8px);width:100%;padding:6px;background:var(--panel,rgba(15,23,42,.97));border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.28);}}
+                @media (max-width:768px){:host([placement="sidebar"]) .account-button{width:100%;justify-content:flex-start;padding:8px 12px;}:host([placement="sidebar"]) .label{display:flex;}:host([placement="sidebar"]) .chevron{display:block;}:host([placement="sidebar"]) .menu{position:absolute;left:0;right:0;bottom:calc(100% + 8px);width:100%;padding:6px;background:var(--panel,rgba(15,23,42,.97));border:1px solid var(--glass-border,rgba(255,255,255,.12));border-radius:12px;box-shadow:0 18px 40px rgba(0,0,0,.28);}}
             `;
 
             var button = document.createElement("button");
@@ -358,7 +360,15 @@ function formatTimeSimple(dateStr) {
         }
 
         refreshMenuIcons() {
-            refreshIcons(this.shadowRoot);
+            if (refreshIcons(this.shadowRoot)) return;
+            if (this.iconRefreshPending) return;
+            this.iconRefreshPending = true;
+            var retry = () => {
+                this.iconRefreshPending = false;
+                refreshIcons(this.shadowRoot);
+            };
+            window.setTimeout(retry, 0);
+            window.addEventListener("load", retry, { once: true });
         }
 
         icon(name) {
