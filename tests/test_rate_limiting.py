@@ -307,7 +307,10 @@ class TestRateLimitNormalStartup(unittest.TestCase):
         }
         payload = {"credential": "credential", "invite_token": "invite-token"}
 
-        with patch.dict(os.environ, {"GOOGLE_CLIENT_ID": "configured-google-client"}), patch(
+        with patch.dict(os.environ, {
+            "GOOGLE_CLIENT_ID": "configured-google-client",
+            "JWT_SECRET": "test-only-google-rate-limit-jwt-secret",
+        }), patch(
             "requests.get",
             return_value=google_response,
         ) as google_request, patch(
@@ -316,7 +319,10 @@ class TestRateLimitNormalStartup(unittest.TestCase):
         ), patch(
             "app.routes.auth_routes.accept_pending_invitation",
             return_value=accepted_user,
-        ) as accept_invitation:
+        ) as accept_invitation, patch(
+            "app.database.platform_admin_repository.get_platform_admin_by_user_id",
+            return_value=None,
+        ) as staff_lookup:
             first = self._google_auth(client, "198.51.100.22", payload)
             blocked = self._google_auth(client, "198.51.100.22", payload)
 
@@ -324,6 +330,8 @@ class TestRateLimitNormalStartup(unittest.TestCase):
         self.assertEqual(blocked.status_code, 429)
         google_request.assert_called_once()
         accept_invitation.assert_called_once()
+        staff_lookup.assert_called_once_with(accepted_user["id"])
+        self.assertEqual(first.json["redirect_url"], "bots.html")
 
     def test_public_invitation_and_google_limits_have_independent_buckets(self):
         app = self._make_app(overrides={

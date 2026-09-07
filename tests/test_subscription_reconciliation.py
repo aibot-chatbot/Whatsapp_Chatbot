@@ -264,6 +264,12 @@ class TestReconciliationService(unittest.TestCase):
 
 
 class TestHitPayAuthoritativeReconciliation(unittest.TestCase):
+    def setUp(self):
+        self.update_fields = patch(
+            'app.services.subscription_reconciliation_service._update_fields'
+        ).start()
+        self.addCleanup(patch.stopall)
+
     def test_missed_webhook_is_recovered_from_authoritative_status(self):
         from app.services.subscription_reconciliation_service import (
             _reconcile_pending_hitpay_order,

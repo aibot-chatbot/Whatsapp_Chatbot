@@ -2079,6 +2079,13 @@ def billing_health_check():
                     "BILLING_SCHEDULER_ENABLED", "true"
                 ).strip().lower() in {"1", "true", "yes", "on"},
             })
+            try:
+                if hitpay is None:
+                    raise HitPayConfigError("HitPay configuration is unavailable")
+                hitpay.validate_for_checkout()
+                checks["hitpay_checkout_config_valid"] = True
+            except HitPayConfigError:
+                checks["hitpay_checkout_config_valid"] = False
 
             from app.services.billing_scheduler_service import (
                 RECONCILE_INTERVAL_SECONDS,
@@ -2101,6 +2108,12 @@ def billing_health_check():
         except Exception:
             pass
         checks["supabase_connectivity"] = supabase_ok
+        if hitpay_required:
+            try:
+                supabase.table("company_subscription_orders").select("id").limit(1).execute()
+                checks["hitpay_order_storage"] = True
+            except Exception:
+                checks["hitpay_order_storage"] = False
 
         from app.services.subscription_reconciliation_service import reconcile_subscription_order
         checks["reconciliation_service_loaded"] = callable(reconcile_subscription_order)

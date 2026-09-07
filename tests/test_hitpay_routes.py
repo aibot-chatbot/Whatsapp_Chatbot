@@ -100,6 +100,21 @@ class TestHitPayWebhook(unittest.TestCase):
 
         self.assertEqual(response.status_code, 500)
 
+    def test_configuration_failure_returns_retryable_error(self):
+        from app.services.hitpay_service import HitPayConfigError
+
+        with (
+            patch(_ROUTE + ".HitPayConfig.from_env", side_effect=HitPayConfigError("missing salt")),
+            patch(_ROUTE + ".get_payment_request") as lookup,
+        ):
+            response = self.client.post(
+                "/api/billing/hitpay/webhook", data=self.raw, headers=self.headers
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.get_json()["message"], "Temporary processing failure.")
+        lookup.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -403,6 +403,7 @@ PLAN_FEATURES = frozenset({
     "unified_knowledge_ingestion",
     "ai_derived_persona",
     "conversation_memory",
+    "knowledge_refinement",
 })
 
 

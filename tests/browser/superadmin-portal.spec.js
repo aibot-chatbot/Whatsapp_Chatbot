@@ -361,3 +361,39 @@ test("charts retain readable values on narrow screens and in forced colors", asy
   await expect(page.locator(".status-chart-link").first()).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+
+test("staff can read the escaped self-service trail on incoming requests and cases", async ({ page }) => {
+  const context = { searches: ["connect <img src=x onerror=window.trailInjected=true>"], viewed: ["Connection help"], unhelpful: ["Link setup"], from_page: "support" };
+  await setup(page, (call, state) => {
+    if (call.path === "/tenant-support-requests/8") return { body: { status: "success", data: { request: { request_id: 8, company_id: 42, title: "Customer question", status: "new", escalation_context: context } } } };
+    if (call.path === "/support-cases/5") return { body: { status: "success", data: { case: state.ticket, events: [], events_pagination: paging([]), status_transitions: [], source_tenant_request: { request_id: 8, escalation_context: context } } } };
+    return null;
+  });
+  for (const [hash, action] of [["support?tab=incoming", "incoming"], ["support", "ticket"]]) {
+    await page.goto(`${base}/superadmin.html#${hash}`);
+    await page.locator(`#list-content [data-action=${action}]`).first().click();
+    const trail = page.getByRole("region", { name: "Self-service trail" });
+    await expect(trail).toContainText(context.searches[0]);
+    await expect(trail).toContainText("Connection help");
+    await expect(trail.locator("img")).toHaveCount(0);
+  }
+  expect(await page.evaluate(() => window.trailInjected)).toBeUndefined();
+});
+
+test("help editor preserves and updates article display order", async ({ page }) => {
+  const article = { id: 2, title: "Billing help", category: "billing_question", body: "Contact the billing team", is_published: false, sort_order: 12 };
+  const { calls } = await setup(page, call => {
+    if (call.path === "/help/articles") return { body: { status: "success", data: { articles: [article] } } };
+    if (call.path === "/help/articles/2" && call.method === "PATCH") { Object.assign(article, call.body); return { body: { status: "success", data: { article } } }; }
+    return null;
+  });
+  await page.goto(`${base}/superadmin.html#help`);
+  await page.locator('#list-content [data-action=article]').first().click();
+  await page.getByRole("button", { name: "Edit article", exact: true }).click();
+  await expect(page.getByLabel("Display order", { exact: true })).toHaveValue("12");
+  await page.getByLabel("Display order", { exact: true }).fill("3");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.locator("#detail-dialog")).not.toBeVisible();
+  expect(calls.find(call => call.method === "PATCH" && call.path === "/help/articles/2").body.sort_order).toBe(3);
+});

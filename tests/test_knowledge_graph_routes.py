@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 import types
+import pytest
 
 # Mock standard broken imports
 if "google" not in sys.modules:
@@ -31,6 +32,18 @@ def test_default_knowledge_data_folder_remains_repository_data_folder():
     assert Path(knowledge_service.DATA_FOLDER).name == "data"
 
 
+@pytest.mark.parametrize("flags", [{"knowledge_refinement": True}, {"knowledge_refinement": False}, {}, {"knowledge_refinement": "true"}, None])
+def test_refinement_requires_explicit_server_grant(flags):
+    from app.services.billing_guard import BillingLimitError, can_use_plan_feature
+
+    with patch("app.services.billing_guard._resolve_company_subscription", return_value={"plan": {"code": "pro", "feature_flags": flags}}):
+        if flags == {"knowledge_refinement": True}:
+            assert can_use_plan_feature(42, "knowledge_refinement") is True
+        else:
+            with pytest.raises(BillingLimitError):
+                can_use_plan_feature(42, "knowledge_refinement")
+
+
 MOCK_USER = {
     "id": 1,
     "company_id": 42,
@@ -42,6 +55,9 @@ MOCK_USER = {
 
 class TestKnowledgeGraphRoutes(unittest.TestCase):
     def setUp(self):
+        jwt_secret_patch = patch("app.decorators.auth_decorator.get_jwt_secret", return_value="test-jwt-secret")
+        jwt_secret_patch.start()
+        self.addCleanup(jwt_secret_patch.stop)
         app = create_app()
         app.config["TESTING"] = True
         self.client = app.test_client()
@@ -352,3 +368,34 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
                 headers={"Authorization": "Bearer test-token"}
             )
             self.assertEqual(resp.status_code, 400)
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.routes.knowledge_routes.can_use_plan_feature")
+    def test_get_refinement_questions_feature_gated_denied(self, mock_can_use, mock_verify):
+        from app.services.billing_guard import BillingLimitError
+        mock_can_use.side_effect = BillingLimitError("Feature not available on your plan", code="feature_not_available")
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.get(
+                "/api/knowledge/refinement/questions?chatbot_id=1",
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 403)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "error")
+            self.assertEqual(data["code"], "feature_not_available")
+
+    @patch("app.routes.knowledge_routes.verify_chatbot_access")
+    @patch("app.routes.knowledge_routes.can_use_plan_feature")
+    def test_submit_refinement_answers_feature_gated_denied(self, mock_can_use, mock_verify):
+        from app.services.billing_guard import BillingLimitError
+        mock_can_use.side_effect = BillingLimitError("Feature not available on your plan", code="feature_not_available")
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            resp = self.client.post(
+                "/api/knowledge/refinement/submit?chatbot_id=1",
+                json={"answers": [{"question": "q", "answer": "a"}]},
+                headers={"Authorization": "Bearer test-token"}
+            )
+            self.assertEqual(resp.status_code, 403)
+            data = resp.get_json()
+            self.assertEqual(data["status"], "error")
+            self.assertEqual(data["code"], "feature_not_available")

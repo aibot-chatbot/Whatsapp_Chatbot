@@ -16,6 +16,11 @@ import pytest
 os.environ.setdefault("SUPABASE_URL", "https://test-collection.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-collection-service-key")
 os.environ.setdefault("SECRET_KEY", "test-collection-secret-key")
+os.environ.setdefault("JWT_SECRET", "test-collection-jwt-secret-at-least-32-bytes")
+os.environ.setdefault("OPENAI_API_KEY", "test-collection-openai-key")
+os.environ.setdefault("DEEPSEEK_API_KEY", "test-collection-deepseek-key")
+# Tests must not import live credentials from a developer's local .env.
+os.environ.setdefault("PYTHON_DOTENV_DISABLED", "1")
 os.environ.setdefault("FLASK_DEBUG", "1")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:8000")
 os.environ.setdefault("FRONTEND_URL", "http://localhost:3000")

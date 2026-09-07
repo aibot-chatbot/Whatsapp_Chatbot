@@ -50,12 +50,12 @@ def hitpay_webhook():
         authoritative = get_payment_request(config, request_id)
         result = process_hitpay_payment_request(authoritative)
         return jsonify({"status": "success", "result": result.get("status")}), 200
-    except ValueError as exc:
-        logger.warning("HitPay webhook rejected: %s", exc)
-        return jsonify({"status": "error", "message": "Invalid webhook data."}), 400
     except HitPayConfigError:
         logger.exception("HitPay webhook configuration is unavailable")
         return jsonify({"status": "error", "message": "Temporary processing failure."}), 500
+    except ValueError as exc:
+        logger.warning("HitPay webhook rejected: %s", exc)
+        return jsonify({"status": "error", "message": "Invalid webhook data."}), 400
     except (HitPayAPIError, RuntimeError):
         logger.exception("HitPay webhook processing will require retry")
         return jsonify({"status": "error", "message": "Temporary processing failure."}), 500

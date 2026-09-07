@@ -69,6 +69,12 @@ def _reconcile_pending_hitpay_order(order: dict) -> dict:
     config = HitPayConfig.from_env()
     gateway_order_id = str(order.get("gateway_order_id") or "").strip()
     order_reference = str(order.get("order_reference") or "").strip()
+    # Rotate polled orders in the oldest-first batch, including still-unpaid
+    # checkouts. Only polling timestamps change; expires_at remains fixed.
+    _update_fields(
+        order_reference,
+        last_reconciliation_at=datetime.now(timezone.utc).isoformat(),
+    )
     payment_request = (
         get_payment_request(config, gateway_order_id)
         if gateway_order_id

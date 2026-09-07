@@ -550,8 +550,8 @@ def delete_pdf_file(file_name, chatbot_id):
     }
 
 
-import httpx
 import trafilatura
+from app.services.public_web_fetch_service import fetch_public_html
 
 def fetch_and_parse_url(url):
     if not url:
@@ -561,13 +561,7 @@ def fetch_and_parse_url(url):
         raise ValueError("Invalid URL protocol. URL must start with http:// or https://")
 
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        # using follow_redirects in case the page redirects
-        response = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
-        response.raise_for_status()
-        html_content = response.text
+        html_content, _ = fetch_public_html(url)
     except Exception as e:
         import logging
         logging.error(f"HTTP request failed for URL {url}: {str(e)}")
@@ -672,7 +666,6 @@ def scrape_website_url(url, chatbot_id, company_id=None):
 
 
 from urllib.parse import urlparse, urljoin
-import httpx
 from selectolax.parser import HTMLParser
 
 def discover_website_links(url):
@@ -680,12 +673,7 @@ def discover_website_links(url):
         raise ValueError("URL is required")
 
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
-        response = httpx.get(url, headers=headers, timeout=15.0, follow_redirects=True)
-        response.raise_for_status()
-        html_content = response.text
+        html_content, url = fetch_public_html(url)
     except Exception as e:
         import logging
         logging.warning(f"Static request for link discovery failed: {e}")
@@ -712,7 +700,7 @@ def discover_website_links(url):
         full_link = full_link.split('?')[0].split('#')[0].rstrip('/')
 
         parsed_link = urlparse(full_link)
-        if parsed_link.netloc == base_domain:
+        if parsed_link.scheme in {"http", "https"} and parsed_link.netloc == base_domain:
             # Exclude obvious asset files
             if not any(full_link.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif', '.pdf', '.css', '.js', '.zip', '.tar']):
                 links.add(full_link)

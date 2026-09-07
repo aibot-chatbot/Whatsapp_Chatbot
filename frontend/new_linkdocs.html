@@ -3819,7 +3819,15 @@ const ROLE_LABELS = {
                             <GraphVisualizer botId={selectedBotId} activeFile={activeFile} />
                         )}
                         {activeViewTab === "refinement" && (
-                            <KnowledgeRefinement botId={selectedBotId} activeFile={activeFile} activeFileDisplayName={primarySourceDisplayName} />
+                            hasPlanFeature(planFlags, "knowledge_refinement") ? (
+                                <KnowledgeRefinement botId={selectedBotId} activeFile={activeFile} activeFileDisplayName={primarySourceDisplayName} />
+                            ) : (
+                                <div className="kw-card" role="status">
+                                    <h3>Knowledge refinement requires plan access</h3>
+                                    <p>Your current subscription does not enable Knowledge Refinement Q&amp;A.</p>
+                                    <a className="kw-btn" href="pricing.html">View plans</a>
+                                </div>
+                            )
                         )}
                         </div>
                     </main>

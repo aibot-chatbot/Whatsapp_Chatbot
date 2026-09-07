@@ -40,7 +40,7 @@ async function mock(page,state){
     if(path==='/api/platform-admin/companies/42/billing-orders/19/recheck')return state.recheckConflict?send(null,409,'gateway_recheck_unavailable'):send({order:state.order,outcome:state.recheckOutcome,source:'existing_reconciliation'});
     if(path==='/api/platform-admin/support-cases')return send({cases:[state.ticket],pagination:pagination([state.ticket])});
     if(path==='/api/platform-admin/support-case-assignees')return send({assignees:[{id:7,user_full_name:'Operator',is_active:true},{id:8,user_full_name:'Second operator',is_active:true}]});
-    if(path==='/api/platform-admin/support-cases/9')return send({case:state.ticket,events:state.events,events_pagination:pagination(state.events),source_tenant_request:{request_id:12},status_transitions:state.ticket.status==='resolved'?['in_progress']:['in_progress','resolved']});
+    if(path==='/api/platform-admin/support-cases/9')return send({case:state.ticket,events:state.events,events_pagination:pagination(state.events),source_tenant_request:{request_id:12,escalation_context:state.trail},status_transitions:state.ticket.status==='resolved'?['in_progress']:['in_progress','resolved']});
     if(path==='/api/platform-admin/support-cases/10')return send({case:{...state.ticket,id:10,title:'Second support ticket'},events:[],events_pagination:pagination([]),source_tenant_request:{request_id:13},status_transitions:['in_progress','resolved']});
     if(path==='/api/platform-admin/support-cases/10/replies')return send({replies:[],pagination:pagination([])});
     if(path==='/api/platform-admin/support-cases/9/replies'){
@@ -214,4 +214,15 @@ test('narrow shell, search clearing, skip navigation, and escaped text remain op
   await expect(page.getByRole('heading',{name:'Profile',exact:true})).toBeVisible();await page.keyboard.press('Tab');
   await page.locator('.skip-link').focus();await page.keyboard.press('Enter');expect(new URL(page.url()).hash).toBe('#profile');await expect(page.locator('#main')).toBeFocused();
   expect(await page.evaluate(()=>window.__xss)).toBeUndefined();
+});
+
+
+test('support case displays the saved self-service trail as text',async({page})=>{
+  const state=fixture();state.trail={searches:['connect <img src=x onerror=window.trailInjected=true>'],viewed:['Connection help'],unhelpful:['Link setup'],from_page:'support'};
+  await mock(page,state);await page.goto(base+'/admin.html#helpdesk/9');
+  const trail=page.getByRole('region',{name:'Self-service trail'});
+  await expect(trail).toContainText(state.trail.searches[0]);
+  await expect(trail).toContainText('Connection help');
+  expect(await trail.locator('img').count()).toBe(0);
+  expect(await page.evaluate(()=>window.trailInjected)).toBeUndefined();
 });

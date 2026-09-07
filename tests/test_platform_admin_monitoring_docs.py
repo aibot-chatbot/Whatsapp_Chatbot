@@ -196,20 +196,25 @@ class PlatformAdminMonitoringDocsTests(unittest.TestCase):
         self.assertFalse(INSPECTION_SQL.exists())
 
     def test_cross_company_dashboard_limitation_is_qualified(self):
-        self.assertIn(
-            "bounded read-only cross-tenant operational monitoring aggregates are implemented locally",
+        dashboard_row = re.search(
+            r"\| cross-company dashboard \| (?P<scope>[^|]+)\|",
             self.feature_flat,
         )
+        self.assertIsNotNone(dashboard_row)
+        scope = dashboard_row.group("scope")
         for phrase in [
+            "bounded read-only operational aggregates",
+            "operations/billing overview apis",
+            "charts",
+            "local application",
             "generic/unrestricted cross-company analytics",
             "arbitrary global drilldowns",
-            "charts",
-            "exports",
+            "unrestricted exports",
             "unrestricted tenant browsing",
-            "remediation/write controls remain deferred",
+            "generic remediation/write controls remain deferred",
         ]:
             with self.subTest(phrase=phrase):
-                self.assertIn(phrase, self.feature_flat)
+                self.assertIn(phrase, scope)
 
 
 if __name__ == "__main__":
