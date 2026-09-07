@@ -2,6 +2,7 @@
 
 import json
 import unittest
+from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -85,6 +86,50 @@ class TestHitPayWebhook(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["status"], "ignored")
         lookup.assert_not_called()
+
+    def test_oversized_bodies_are_bounded_before_signature_or_provider_work(self):
+        from app.routes.hitpay_routes import _MAX_WEBHOOK_BYTES
+
+        for declared_length in (True, False):
+            with self.subTest(declared_length=declared_length):
+                body = BytesIO(b"x" * (_MAX_WEBHOOK_BYTES + 2))
+                with (
+                    patch(_ROUTE + ".HitPayConfig.from_env") as config,
+                    patch(_ROUTE + ".verify_webhook_signature") as verify,
+                    patch(_ROUTE + ".get_payment_request") as lookup,
+                ):
+                    response = self.client.post(
+                        "/api/billing/hitpay/webhook",
+                        headers=self.headers,
+                        environ_overrides={
+                            "wsgi.input": body,
+                            "CONTENT_LENGTH": str(_MAX_WEBHOOK_BYTES + 2) if declared_length else "",
+                            "wsgi.input_terminated": True,
+                        },
+                    )
+
+                self.assertEqual(response.status_code, 413)
+                self.assertEqual(body.tell(), 0 if declared_length else _MAX_WEBHOOK_BYTES + 1)
+                config.assert_not_called()
+                verify.assert_not_called()
+                lookup.assert_not_called()
+
+    def test_body_at_limit_preserves_exact_signature_bytes(self):
+        from app.routes.hitpay_routes import _MAX_WEBHOOK_BYTES
+
+        raw = self.raw.ljust(_MAX_WEBHOOK_BYTES, b" ")
+        with (
+            patch(_ROUTE + ".HitPayConfig.from_env", return_value=self.config),
+            patch(_ROUTE + ".verify_webhook_signature", return_value=True) as verify,
+            patch(_ROUTE + ".get_payment_request", return_value={"id": "hp-request-1"}),
+            patch(_ROUTE + ".process_hitpay_payment_request", return_value={"status": "activated"}),
+        ):
+            response = self.client.post(
+                "/api/billing/hitpay/webhook", data=raw, headers=self.headers
+            )
+
+        self.assertEqual(response.status_code, 200)
+        verify.assert_called_once_with(raw, "signature", "salt")
 
     def test_temporary_status_lookup_failure_returns_retryable_error(self):
         from app.services.hitpay_service import HitPayAPIError

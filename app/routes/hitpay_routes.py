@@ -4,6 +4,7 @@ import json
 import logging
 
 from flask import Blueprint, jsonify, request
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.services.hitpay_payment_service import process_hitpay_payment_request
 from app.services.hitpay_service import (
@@ -17,13 +18,18 @@ from app.services.hitpay_service import (
 
 logger = logging.getLogger(__name__)
 hitpay_bp = Blueprint("hitpay", __name__, url_prefix="/api/billing/hitpay")
+_MAX_WEBHOOK_BYTES = 1024 * 1024
 
 
 @hitpay_bp.post("/webhook")
 def hitpay_webhook():
     """Verify exact bytes, re-fetch authoritative state, then fulfil."""
     try:
-        raw_body = request.get_data(cache=True)
+        if request.content_length is not None and request.content_length > _MAX_WEBHOOK_BYTES:
+            raise RequestEntityTooLarge()
+        raw_body = request.stream.read(_MAX_WEBHOOK_BYTES + 1)
+        if len(raw_body) > _MAX_WEBHOOK_BYTES:
+            raise RequestEntityTooLarge()
         config = HitPayConfig.from_env()
         config.validate_for_webhook()
         signature = request.headers.get("Hitpay-Signature", "")
@@ -50,6 +56,8 @@ def hitpay_webhook():
         authoritative = get_payment_request(config, request_id)
         result = process_hitpay_payment_request(authoritative)
         return jsonify({"status": "success", "result": result.get("status")}), 200
+    except RequestEntityTooLarge:
+        return jsonify({"status": "error", "message": "Webhook body is too large."}), 413
     except HitPayConfigError:
         logger.exception("HitPay webhook configuration is unavailable")
         return jsonify({"status": "error", "message": "Temporary processing failure."}), 500
