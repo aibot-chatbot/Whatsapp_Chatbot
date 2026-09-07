@@ -71,6 +71,12 @@ class HitPayConfig:
             raise HitPayConfigError("HITPAY_API_KEY is required")
         _ = self.base_url
 
+    def validate_for_webhook(self) -> None:
+        if not self.enabled:
+            raise HitPayConfigError("HitPay is not enabled")
+        if not self.webhook_salt:
+            raise HitPayConfigError("HITPAY_WEBHOOK_SALT is required")
+
 
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
@@ -90,7 +96,7 @@ def _require_https_url(value: str, name: str) -> None:
         raise HitPayConfigError(f"{name} must be an absolute HTTPS URL")
 
 
-def _validate_checkout_url(value: object, environment: str) -> str:
+def validate_checkout_url(value: object, environment: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise HitPayAmbiguousError("HitPay returned no checkout URL")
     url = value.strip()
@@ -175,10 +181,21 @@ def create_payment_request(
         raise HitPayAmbiguousError("HitPay returned no payment request ID")
     if str(body.get("reference_number") or "").strip() != order_reference:
         raise HitPayAmbiguousError("HitPay returned a mismatched order reference")
+    try:
+        returned_amount_sen = _amount_to_sen(body.get("amount"))
+    except ValueError as exc:
+        raise HitPayAmbiguousError("HitPay returned an invalid amount") from exc
+    if returned_amount_sen != amount_sen:
+        raise HitPayAmbiguousError("HitPay returned a mismatched amount")
+    if str(body.get("currency") or "").strip().upper() != "MYR":
+        raise HitPayAmbiguousError("HitPay returned a mismatched currency")
+    repeated = body.get("allow_repeated_payments")
+    if not (repeated is False or repeated == 0 or repeated in ("false", "0")):
+        raise HitPayAmbiguousError("HitPay enabled repeated payments unexpectedly")
 
     return {
         "gateway_order_id": gateway_order_id,
-        "checkout_url": _validate_checkout_url(body.get("url"), config.environment),
+        "checkout_url": validate_checkout_url(body.get("url"), config.environment),
         "gateway_status": str(body.get("status") or "pending").strip().lower(),
     }
 

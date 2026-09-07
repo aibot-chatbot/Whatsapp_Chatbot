@@ -12,6 +12,7 @@ from app.database import platform_company_user_repository
 from app.database import platform_monitoring_repository
 from app.database import platform_support_case_repository
 from app.database import tenant_support_repository
+from app.services import tenant_support_service
 
 
 logger = logging.getLogger(__name__)
@@ -327,6 +328,8 @@ def _empty_body(payload):
 
 
 def _handle_platform_admin_user_rpc_error(exc):
+    if str(getattr(exc, "code", "")) == "42501":
+        raise PlatformAdminServiceError(403, "platform_change_denied", "This change is not permitted; retain an active Super Admin and your own access.")
     text = _rpc_error_text(exc)
     if "target user not found" in text:
         raise PlatformAdminServiceError(404, "target_user_not_found", "Target user not found.")
@@ -387,6 +390,8 @@ def _safe_platform_admin_user(row):
     return {
         "platform_admin_user_id": row.get("platform_admin_user_id") or row.get("id"),
         "user_id": row.get("user_id"),
+        "platform_role": row.get("platform_role"),
+        "modules": row.get("modules") or {},
         "is_active": row.get("is_active"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
@@ -407,6 +412,8 @@ def _safe_rpc_mapping(row):
     return {
         "platform_admin_user_id": row.get("id"),
         "user_id": row.get("user_id"),
+        "platform_role": row.get("platform_role"),
+        "modules": row.get("modules") or {},
         "is_active": row.get("is_active"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),
@@ -813,9 +820,15 @@ def _safe_support_case_transition_options(status):
 
 
 def list_support_case_assignees(actor_id):
+    from app.database import platform_staff_repository
+    from app.decorators.platform_admin_decorator import platform_access_context
+
     actor_id = _validated_actor_id(actor_id)
     try:
         assignees = platform_support_case_repository.list_active_platform_admin_assignees_for_platform_admin()
+        allowed = {row["id"] for row in platform_staff_repository.support_staff_ids()
+                   if (platform_access_context(row) or {}).get("modules", {}).get("support") is True}
+        assignees = [row for row in assignees if row.get("id") in allowed]
     except Exception:
         logger.error("Platform support-case assignee lookup failed")
         _data_unavailable()
@@ -949,6 +962,11 @@ def create_support_case_reply(case_id, payload, actor_id):
         _validation("invalid_redacted_body", "redacted_body is invalid.")
     except Exception as exc:
         _handle_support_case_rpc_error(exc, operation="reply")
+    # FR-5. Placed before the company refresh below, which can raise 503: the
+    # reply row is already committed, so the requester must be told even when
+    # building the response fails. The notice is advisory and swallows its own
+    # failures - it can never turn a delivered reply into an error.
+    tenant_support_service.notify_tenant_of_reply(result.get("reply"))
     try:
         company = platform_company_repository.get_company_for_platform_admin(
             result["case"].get("company_id")
@@ -1035,6 +1053,9 @@ def add_support_case_note(case_id, payload, actor_id):
 
 
 def assign_support_case(case_id, payload, actor_id):
+    from app.database import platform_staff_repository
+    from app.decorators.platform_admin_decorator import platform_access_context
+
     actor_id = _validated_actor_id(actor_id)
     _positive_id(case_id, "invalid_case_id")
     if not isinstance(payload, dict):
@@ -1052,6 +1073,9 @@ def assign_support_case(case_id, payload, actor_id):
                 platform_support_case_repository
                 .get_active_platform_admin_assignee_for_platform_admin(assignee_id)
             )
+            access = platform_access_context(platform_staff_repository.get_staff_mapping(assignee_id))
+            if not access or access["modules"].get("support") is not True:
+                assignee = None
         except Exception:
             logger.error("Platform support-case assignee validation failed")
             _data_unavailable()
@@ -1342,12 +1366,18 @@ def _company_or_not_found(company_id, actor_id, action, resource_type, endpoint)
 
 
 def get_current_platform_admin_identity(authenticated_user, platform_admin_user):
+    from app.decorators.platform_admin_decorator import platform_access_context
+
+    access = platform_access_context(platform_admin_user)
+    if access is None:
+        raise PlatformAdminServiceError(503, "platform_admin_authorization_unavailable", "Platform access has not been configured.")
     user_id = authenticated_user.get("id") if isinstance(authenticated_user, dict) else None
     actor_id = platform_admin_user.get("id") if isinstance(platform_admin_user, dict) else None
     if isinstance(user_id, bool) or not isinstance(user_id, int) or user_id <= 0:
         raise PlatformAdminServiceError(500, "platform_admin_context_invalid", "Platform context is invalid.")
     actor_id = _validated_actor_id(actor_id)
     data = {
+        **access,
         "user": {
             "id": user_id,
             "email": authenticated_user.get("email"),

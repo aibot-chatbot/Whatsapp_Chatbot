@@ -55,6 +55,17 @@ const oldSession = {
 const oldLocal = {};
 
 {
+    const context = loadAuth({}, {});
+    for (const destination of ["bots.html", "admin.html", "superadmin.html"]) {
+        assert.strictEqual(context.getLoginDestination({redirect_url: destination}), destination);
+    }
+    for (const destination of [null, undefined, "https://evil.example", "//evil.example", "javascript:alert(1)", "../admin.html"]) {
+        assert.strictEqual(context.getLoginDestination({redirect_url: destination}), null);
+    }
+    assert.strictEqual(context.getLoginDestination({user: {role: "super_admin"}}), null);
+}
+
+{
     const context = loadAuth(oldSession, oldLocal);
     const created = context.establishAuthenticatedSession(
         { id: 31, company_id: 28 },

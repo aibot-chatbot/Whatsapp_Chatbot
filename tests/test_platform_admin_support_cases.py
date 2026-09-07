@@ -30,7 +30,7 @@ class PlatformAdminSupportCaseRouteTests(unittest.TestCase):
             }),
             patch(
                 "app.decorators.platform_admin_decorator.get_active_platform_admin_by_user_id",
-                return_value={"id": 3, "user_id": 7, "is_active": True},
+                return_value={"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 3, "user_id": 7, "is_active": True},
             ),
         ]
         for item in self.patches:
@@ -115,6 +115,15 @@ class PlatformAdminSupportCaseRouteTests(unittest.TestCase):
 
 
 class PlatformAdminSupportCaseServiceTests(unittest.TestCase):
+    def setUp(self):
+        # New grant lookups remain mocked alongside the existing support RPCs.
+        grant = {"id": 4, "user_id": 8, "is_active": True,
+                 "platform_role": "super_admin", "modules": {}}
+        for target, result in (("support_staff_ids", [grant]), ("get_staff_mapping", grant)):
+            item = patch("app.database.platform_staff_repository." + target, return_value=result)
+            item.start()
+            self.addCleanup(item.stop)
+
     def test_create_uses_atomic_rpc_and_safe_projection(self):
         company = {"id": 31, "company_name": "Safe Tenant", "status": "active"}
         case = {
@@ -469,11 +478,17 @@ class PlatformAdminSupportCaseServiceTests(unittest.TestCase):
             platform_admin_service.platform_company_repository,
             "get_company_for_platform_admin",
             return_value={"id": 31, "company_name": "Tenant", "status": "active"},
-        ):
+        ), patch.object(
+            platform_admin_service.tenant_support_service, "notify_tenant_of_reply"
+        ) as notify:
             result = platform_admin_service.create_support_case_reply(
                 9, {"redacted_body": " Tenant-visible update "}, 3
             )
         rpc.assert_called_once_with(9, 3, "Tenant-visible update")
+        # FR-5: the requester hears about a tenant-visible reply. Covered in
+        # depth by tests/test_tenant_support_reply_notification.py; asserted here
+        # so the hook cannot be dropped from this call site unnoticed.
+        notify.assert_called_once_with(rpc_result["reply"])
         self.assertEqual(result["reply"]["redacted_body"], "Tenant-visible update")
         self.assertEqual(result["notification"]["status"], "pending")
         self.assertNotIn("author_platform_admin_user_id", result["reply"])

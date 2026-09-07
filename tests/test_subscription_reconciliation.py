@@ -96,6 +96,47 @@ class TestReconciliationService(unittest.TestCase):
         r = self.svc.reconcile_subscription_order('r1')
         self.assertEqual(r['outcome'], 'unpaid_order_not_reconcilable')
 
+    def test_pending_hitpay_order_uses_authoritative_reconciliation(self):
+        order = {
+            'order_reference': 'hitpay-r1',
+            'status': 'pending',
+            'payment_gateway': 'hitpay',
+            'gateway_order_id': 'hp-1',
+        }
+        self._mock_order(order)
+        expected = {
+            'outcome': 'reconciled_and_completed',
+            'order_status': 'credited',
+            'message': 'done',
+        }
+        with patch.object(
+            self.svc, '_reconcile_pending_hitpay_order', return_value=expected
+        ) as reconcile_hitpay:
+            result = self.svc.reconcile_subscription_order('hitpay-r1')
+
+        self.assertEqual(result, expected)
+        reconcile_hitpay.assert_called_once_with(order)
+
+    def test_hitpay_provider_failure_preserves_pending_order_for_retry(self):
+        self._mock_order({
+            'order_reference': 'hitpay-r2',
+            'status': 'pending',
+            'payment_gateway': 'hitpay',
+            'gateway_order_id': 'hp-2',
+        })
+        with patch.object(
+            self.svc, '_reconcile_pending_hitpay_order', side_effect=RuntimeError('offline')
+        ), patch.object(self.svc, '_update_state') as update_state:
+            result = self.svc.reconcile_subscription_order('hitpay-r2')
+
+        self.assertEqual(result['outcome'], 'manual_review_required')
+        update_state.assert_called_once_with(
+            'hitpay-r2',
+            activation_error_code='hitpay_reconciliation_failed',
+            activation_error_message='HitPay reconciliation requires retry.',
+            reconciliation_required=True,
+        )
+
     def test_failed_payment_rejected(self):
         self._mock_order({'order_reference':'r1','status':'failed','activation_status':None,'reconciliation_required':False})
         r = self.svc.reconcile_subscription_order('r1')
@@ -220,6 +261,82 @@ class TestReconciliationService(unittest.TestCase):
         self.assertEqual(r['outcome'], 'already_completed')
         self.mt.assert_not_called()
         self.mc.assert_not_called()
+
+
+class TestHitPayAuthoritativeReconciliation(unittest.TestCase):
+    def test_missed_webhook_is_recovered_from_authoritative_status(self):
+        from app.services.subscription_reconciliation_service import (
+            _reconcile_pending_hitpay_order,
+        )
+        order = {
+            'id': 9,
+            'order_reference': 'hitpay-r3',
+            'status': 'pending',
+            'payment_gateway': 'hitpay',
+            'gateway_order_id': 'hp-3',
+            'amount_sen': 3900,
+        }
+        payment_request = {
+            'id': 'hp-3',
+            'reference_number': 'hitpay-r3',
+            'status': 'completed',
+            'currency': 'MYR',
+            'amount': '39.00',
+            'payments': [{'id': 'payment-3', 'status': 'succeeded'}],
+        }
+        config = types.SimpleNamespace(environment='sandbox')
+        with patch(
+            'app.services.hitpay_service.HitPayConfig.from_env', return_value=config
+        ), patch(
+            'app.services.hitpay_service.get_payment_request',
+            return_value=payment_request,
+        ) as lookup, patch(
+            'app.services.hitpay_payment_service.process_hitpay_payment_request',
+            return_value={'status': 'activated_and_credited'},
+        ):
+            result = _reconcile_pending_hitpay_order(order)
+
+        self.assertEqual(result['outcome'], 'reconciled_and_completed')
+        lookup.assert_called_once_with(config, 'hp-3')
+
+    def test_ambiguous_create_is_found_by_reference_before_any_second_post(self):
+        from app.services.subscription_reconciliation_service import (
+            _reconcile_pending_hitpay_order,
+        )
+        order = {
+            'id': 10,
+            'order_reference': 'hitpay-r4',
+            'status': 'pending',
+            'payment_gateway': 'hitpay',
+            'gateway_order_id': None,
+            'amount_sen': 3900,
+        }
+        payment_request = {
+            'id': 'hp-4',
+            'reference_number': 'hitpay-r4',
+            'status': 'pending',
+            'currency': 'MYR',
+            'amount': '39.00',
+            'url': 'https://securecheckout.sandbox.hit-pay.com/payment-request/x',
+            'payments': [],
+        }
+        config = types.SimpleNamespace(environment='sandbox')
+        with patch(
+            'app.services.hitpay_service.HitPayConfig.from_env', return_value=config
+        ), patch(
+            'app.services.hitpay_service.find_payment_request_by_reference',
+            return_value=payment_request,
+        ) as search, patch(
+            'app.database.company_subscription_order_repository.attach_pending_subscription_gateway_details'
+        ) as attach, patch(
+            'app.services.hitpay_payment_service.process_hitpay_payment_request',
+            return_value={'status': 'pending'},
+        ):
+            result = _reconcile_pending_hitpay_order(order)
+
+        self.assertEqual(result['outcome'], 'hitpay_pending')
+        search.assert_called_once_with(config, 'hitpay-r4')
+        attach.assert_called_once()
 
 if __name__ == '__main__':
     unittest.main()

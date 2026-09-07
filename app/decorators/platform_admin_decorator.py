@@ -14,6 +14,27 @@ from app.database.platform_admin_repository import (
 logger = logging.getLogger(__name__)
 
 
+PLATFORM_MODULES = ("billing", "support", "customers")
+
+
+def platform_access_context(mapping):
+    """Normalize database grants only; unknown roles and inactive staff deny access."""
+    if not isinstance(mapping, dict) or mapping.get("is_active") is not True:
+        return None
+    role = mapping.get("platform_role")
+    if role not in ("super_admin", "admin"):
+        return None
+    assigned = mapping.get("modules")
+    if not isinstance(assigned, dict):
+        assigned = {}
+    return {
+        "platform_role": role,
+        "modules": {name: role == "super_admin" or assigned.get(name) is True
+                    for name in PLATFORM_MODULES},
+        "landing_page": "superadmin.html" if role == "super_admin" else "admin.html",
+    }
+
+
 def platform_admin_required(view_function):
     """Require an active application user and active platform-admin mapping."""
 
@@ -47,7 +68,15 @@ def platform_admin_required(view_function):
                 "message": "Platform administrator access is required.",
             }), 403
 
+        access = platform_access_context(mapping)
+        if access is None:
+            return jsonify({
+                "status": "error",
+                "code": "platform_admin_authorization_unavailable",
+                "message": "Platform access has not been configured.",
+            }), 503
         g.platform_admin_user = mapping
+        g.platform_access = access
         return view_function(*args, **kwargs)
 
     return decorated

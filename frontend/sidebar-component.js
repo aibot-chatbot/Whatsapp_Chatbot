@@ -8,7 +8,10 @@ class ChatbotSidebar extends HTMLElement {
         const urlParams = new URLSearchParams(window.location.search);
         const rawBotId = urlParams.get("bot_id");
         const botId = (rawBotId && rawBotId !== "null") ? rawBotId : (sessionStorage.getItem("selectedBotId") || null);
-        const botQuery = botId ? `?bot_id=${botId}` : "";
+        const botParams = new URLSearchParams();
+        if (botId) botParams.set('bot_id', botId);
+        if (botId && urlParams.get('setup') === '1') botParams.set('setup', '1');
+        const botQuery = botId ? `?${botParams}` : "";
         const isMobileViewport = window.matchMedia('(max-width: 768px)').matches;
         const isCollapsed = localStorage.getItem("sidebarCollapsed") === "true" && !isMobileViewport;
         const initialIcon = isMobileViewport ? "☰" : (isCollapsed ? "☰" : "«");
@@ -37,7 +40,7 @@ class ChatbotSidebar extends HTMLElement {
                 z-index: 100;
                 font-family: "Geist", "Outfit", sans-serif;
                 transition: width 0.28s ease, padding 0.28s ease;
-                overflow-y: auto;
+                overflow-y: hidden;
                 overflow-x: hidden;
             }
             .sidebar::-webkit-scrollbar {
@@ -62,12 +65,18 @@ class ChatbotSidebar extends HTMLElement {
                 box-sizing: border-box;
             }
             .sidebar-top {
+                flex-shrink: 0;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
                 gap: 10px;
                 margin-bottom: 24px;
             }
+            .sidebar-context { flex-shrink: 0; padding: 12px; margin-bottom: 12px; border: 1px solid var(--control-border, #2b2f34); border-left: 3px solid var(--control-accent, #3e9c89); border-radius: 8px; }
+            .sidebar-context-label { display: block; color: var(--control-text-secondary, #8a9096); font-size: 11px; margin-bottom: 5px; }
+            .sidebar-context-name { display: block; color: var(--control-text, #f2f3f4); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+            .sidebar.collapsed .sidebar-context { display: none; }
+            .sidebar :focus-visible { outline: 2px solid var(--control-accent-hover, #4ab09b); outline-offset: 2px; }
             .logo {
                 font-size: 1.6rem;
                 font-weight: 700;
@@ -104,7 +113,10 @@ class ChatbotSidebar extends HTMLElement {
             }
             .nav-list {
                 list-style: none;
-                flex-grow: 1;
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+                overflow-x: hidden;
                 margin: 0;
                 padding: 0;
                 display: flex;
@@ -170,7 +182,9 @@ class ChatbotSidebar extends HTMLElement {
                 background: transparent;
                 border: none;
                 font-family: inherit;
+                list-style: none;
             }
+            .dropdown-toggle::-webkit-details-marker { display: none; }
             .dropdown-content {
                 max-height: 0;
                 overflow: hidden;
@@ -180,7 +194,7 @@ class ChatbotSidebar extends HTMLElement {
                 gap: 4px;
                 padding-left: 8px;
             }
-            .dropdown-container.open .dropdown-content {
+            .dropdown-container[open] .dropdown-content {
                 max-height: 500px;
                 margin-top: 4px;
                 padding-bottom: 6px;
@@ -190,7 +204,7 @@ class ChatbotSidebar extends HTMLElement {
                 width: 16px;
                 height: 16px;
             }
-            .dropdown-container.open .chevron {
+            .dropdown-container[open] .chevron {
                 transform: rotate(180deg);
                 color: var(--text-main, #f8fafc);
             }
@@ -206,6 +220,7 @@ class ChatbotSidebar extends HTMLElement {
 
             /* ===== Bottom section: tenant navigation plus account actions ===== */
             .sidebar-bottom-section {
+                flex-shrink: 0;
                 margin-top: auto;
                 display: flex;
                 flex-direction: column;
@@ -387,142 +402,98 @@ class ChatbotSidebar extends HTMLElement {
                 }
 
                 /* Hide menu contents by default on small viewports */
+                .sidebar .sidebar-context,
                 .sidebar .nav-list,
                 .sidebar .sidebar-bottom-section {
                     display: none !important;
                 }
 
                 /* Show when mobile-open is active */
+                .sidebar.mobile-open .sidebar-context,
                 .sidebar.mobile-open .nav-list,
                 .sidebar.mobile-open .sidebar-bottom-section {
                     display: flex !important;
                 }
 
                 .sidebar.mobile-open {
-                    height: 100vh;
-                    overflow-y: auto;
+                    height: 100dvh;
+                    overflow-y: hidden;
                 }
+                .sidebar.mobile-open .sidebar-context { display: block !important; }
             }
         </style>
-        <aside class="sidebar ${isCollapsed ? "collapsed" : ""}">
+        <aside class="sidebar ${isCollapsed ? "collapsed" : ""}" aria-label="${botId ? 'Selected bot navigation' : 'Workspace navigation'}">
             <div class="sidebar-top">
                 <div class="logo">
                     <i data-lucide="bot" style="color: var(--accent, #3e9c89); width: 28px; height: 28px;"></i>
-                    <span>Aveon</span>
+                    <span>${botId ? 'This bot' : 'Aveon'}</span>
                 </div>
-                <button class="sidebar-toggle" type="button" aria-label="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}" title="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}">
+                <button class="sidebar-toggle" type="button" aria-controls="bot-sidebar-navigation" aria-label="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}" title="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}">
                     <span class="sidebar-toggle-icon">${initialIcon}</span>
                 </button>
             </div>
 
-            <nav class="nav-list">
-                <a href="bots.html" class="nav-link" title="My Bots">
-                    <i data-lucide="home"></i>
-                    <span>My Bots</span>
+            ${!isBotsPage && botId ? '<div class="sidebar-context"><span class="sidebar-context-label">Selected bot</span><span class="sidebar-context-name"></span></div>' : ''}
+            <nav class="nav-list" id="bot-sidebar-navigation" aria-label="${botId ? 'This bot' : 'Workspace'}">
+                <a href="bots.html" class="nav-link" title="Back to My bots">
+                    <i data-lucide="arrow-left" aria-hidden="true"></i>
+                    <span>My bots</span>
                 </a>
 
                 ${!isBotsPage && botId ? `
-                    <div class="nav-group-header">General Overview</div>
-                    <a href="index.html${botQuery}" class="nav-link" title="Dashboard">
+                    <a href="index.html${botQuery}" class="nav-link" title="Bot overview">
                         <i data-lucide="layout-dashboard"></i>
-                        <span>Dashboard</span>
+                        <span>Overview</span>
                     </a>
 
                     ${isAdmin ? `
-                        <div class="nav-group-header">Build &amp; Configuration</div>
-                        <div class="dropdown-container" id="training-dropdown">
-                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('training-dropdown')" title="Training Data">
-                                <div class="nav-link-content">
-                                    <i data-lucide="folder-open"></i>
-                                    <span>Training Data</span>
-                                </div>
-                                <i data-lucide="chevron-down" class="chevron"></i>
-                            </button>
-                            <div class="dropdown-content">
-                                <a href="new_linkdocs.html${botQuery}" class="nav-link sub-link" title="Documents">
-                                    <i data-lucide="file-text"></i>
-                                    <span>Documents</span>
-                                </a>
-                                <a href="new_prompt.html${botQuery}" class="nav-link sub-link" title="Bot Config">
-                                    <i data-lucide="terminal-square"></i>
-                                    <span>Bot Config</span>
-                                </a>
-                            </div>
-                        </div>
-
-                        <div class="dropdown-container" id="behaviour-dropdown">
-                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('behaviour-dropdown')" title="Behaviour">
-                                <div class="nav-link-content">
-                                    <i data-lucide="settings"></i>
-                                    <span>Behaviour</span>
-                                </div>
-                                <i data-lucide="chevron-down" class="chevron"></i>
-                            </button>
-                            <div class="dropdown-content">
-
-                                <a href="behaviour.html?tab=model${botQuery ? "&" + botQuery.slice(1) : ""}" class="nav-link sub-link" title="Tune AI">
-                                    <i data-lucide="sliders-horizontal"></i>
-                                    <span>Tune AI</span>
-                                </a>
-                                <a href="behaviour.html?tab=message${botQuery ? "&" + botQuery.slice(1) : ""}" class="nav-link sub-link" title="Message Style">
-                                    <i data-lucide="message-circle"></i>
-                                    <span>Message Style</span>
-                                </a>
-                                <a href="behaviour.html?tab=test${botQuery ? "&" + botQuery.slice(1) : ""}" class="nav-link sub-link" title="Test Bot">
-                                    <i data-lucide="flask-conical"></i>
-                                    <span>Test Bot</span>
-                                </a>
-                            </div>
-                        </div>
-
-                        <a href="integration.html${botQuery}" class="nav-link" title="Integration">
+                        <div class="nav-group-header">Set up your bot</div>
+                        <a href="new_linkdocs.html${botQuery}" class="nav-link" title="Add knowledge">
+                            <i data-lucide="file-text"></i><span>Add knowledge</span>
+                        </a>
+                        <a href="new_prompt.html${botQuery}" class="nav-link" title="Bot instructions">
+                            <i data-lucide="notebook-pen"></i><span>Bot instructions</span>
+                        </a>
+                        <a href="testbot.html${botQuery}" class="nav-link" title="Test replies">
+                            <i data-lucide="flask-conical"></i><span>Test replies</span>
+                        </a>
+                        <a href="integration.html${botQuery}" class="nav-link" title="Publish">
                             <i data-lucide="plug"></i>
-                            <span>Integration</span>
+                            <span>Publish</span>
                         </a>
                     ` : ""}
 
-                    <div class="nav-group-header">Operate &amp; CRM</div>
+                    <div class="nav-group-header">Customer activity</div>
                     <a href="conversations.html${botQuery}" class="nav-link" title="Inbox & Conversations">
                         <i data-lucide="message-square"></i>
-                        <span>Inbox &amp; Chat</span>
+                        <span>Conversations</span>
                     </a>
 
-                    ${isAdmin ? `
-                        <div class="dropdown-container" id="campaigns-dropdown">
-                            <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('campaigns-dropdown')" title="Campaigns">
-                                <div class="nav-link-content">
-                                    <i data-lucide="send"></i>
-                                    <span>Campaigns</span>
-                                </div>
-                                <i data-lucide="chevron-down" class="chevron"></i>
-                            </button>
-                            <div class="dropdown-content">
-                                <a href="broadcast.html${botQuery}" class="nav-link sub-link" title="Broadcast / Campaigns">
-                                    <i data-lucide="send"></i>
-                                    <span>Broadcast</span>
-                                </a>
-                                <a href="meta_templates.html${botQuery}" class="nav-link sub-link" title="Meta Templates">
-                                    <i data-lucide="file-check"></i>
-                                    <span>Templates</span>
-                                </a>
-                            </div>
-                        </div>
-                    ` : `
-                        <a href="broadcast.html${botQuery}" class="nav-link" title="Broadcast / Campaigns">
-                            <i data-lucide="send"></i>
-                            <span>Campaigns</span>
-                        </a>
-                    `}
-
-                    <div class="dropdown-container" id="crm-analytics-dropdown">
-                        <button class="nav-link dropdown-toggle" onclick="window.toggleSidebarDropdown('crm-analytics-dropdown')" title="Insights &amp; Actions">
+                    <details class="dropdown-container" id="bot-tools-dropdown">
+                        <summary class="nav-link dropdown-toggle" title="More tools">
                             <div class="nav-link-content">
-                                <i data-lucide="bar-chart-3"></i>
-                                <span>Insights &amp; Actions</span>
+                                <i data-lucide="settings"></i>
+                                <span>More tools</span>
                             </div>
                             <i data-lucide="chevron-down" class="chevron"></i>
-                        </button>
+                        </summary>
                         <div class="dropdown-content">
+                            ${isAdmin ? `
+                                <a href="behaviour.html?tab=model${botQuery ? "&" + botQuery.slice(1) : ""}" class="nav-link sub-link" title="AI settings">
+                                    <i data-lucide="sliders-horizontal"></i><span>AI settings</span>
+                                </a>
+                                <a href="behaviour.html?tab=message${botQuery ? "&" + botQuery.slice(1) : ""}" class="nav-link sub-link" title="Message style">
+                                    <i data-lucide="message-circle"></i><span>Message style</span>
+                                </a>
+                            ` : ''}
+                            <a href="broadcast.html${botQuery}" class="nav-link sub-link" title="Campaigns">
+                                <i data-lucide="send"></i><span>Campaigns</span>
+                            </a>
+                            ${isAdmin ? `
+                                <a href="meta_templates.html${botQuery}" class="nav-link sub-link" title="Message templates">
+                                    <i data-lucide="file-check"></i><span>Message templates</span>
+                                </a>
+                            ` : ''}
                             <a href="crm.html${botQuery}" class="nav-link sub-link" title="Today and leads">
                                 <i data-lucide="users"></i>
                                 <span>Today &amp; leads</span>
@@ -532,7 +503,7 @@ class ChatbotSidebar extends HTMLElement {
                                 <span>Performance</span>
                             </a>
                         </div>
-                    </div>
+                    </details>
                 ` : ""}
             </nav>
 
@@ -568,6 +539,8 @@ class ChatbotSidebar extends HTMLElement {
 
         `;
 
+        this.setBotName(botId ? `Bot #${botId}` : '');
+        this.querySelectorAll('[data-lucide]').forEach(icon => icon.setAttribute('aria-hidden', 'true'));
         this.initSidebar();
         this.initCollapseToggle();
 
@@ -594,6 +567,11 @@ class ChatbotSidebar extends HTMLElement {
         }
     }
 
+    setBotName(name) {
+        const label = this.querySelector('.sidebar-context-name');
+        if (label && name) label.textContent = name;
+    }
+
     initSidebar() {
         const currentPath = window.location.pathname.split("/").pop() || "index.html";
         const navLinks = this.querySelectorAll(".nav-link");
@@ -604,7 +582,10 @@ class ChatbotSidebar extends HTMLElement {
             var h = pl.getAttribute("href");
             if (h) {
                 var p = h.split("?")[0];
-                if (p === currentPath) { pl.classList.add("active"); }
+                if (p === currentPath) {
+                    pl.classList.add("active");
+                    pl.setAttribute('aria-current', 'page');
+                }
             }
         });
 
@@ -616,39 +597,23 @@ class ChatbotSidebar extends HTMLElement {
                 var linkTab = new URLSearchParams((link.getAttribute("href") || "").split("?")[1] || "").get("tab");
                 var pageTab = new URLSearchParams(window.location.search).get("tab") || "model";
                 var tabMatches = !linkTab || linkTab === pageTab;
-                if (linkPath === currentPath && tabMatches && !link.classList.contains("dropdown-toggle")) {
+                const legacyTest = currentPath === 'behaviour.html' && pageTab === 'test' && linkPath === 'testbot.html';
+                const legacySettings = (currentPath === 'model_settings.html' && linkTab === 'model')
+                    || (currentPath === 'message_style.html' && linkTab === 'message');
+                if ((linkPath === currentPath && tabMatches) || legacyTest || legacySettings) {
                     link.classList.add("active");
+                    link.setAttribute('aria-current', 'page');
                 }
             }
         });
 
-        // Auto-expand dropdowns if child is active
-        if (['new_linkdocs.html', 'new_prompt.html', 'training.html'].includes(currentPath)) {
-            const drop = this.querySelector('#training-dropdown');
-            if (drop) {
-                drop.classList.add('open');
-            }
-        }
-        // message_style.html was missing here before the merge, so the group
-        // stayed collapsed on that page. behaviour.html now covers all three.
-        if (['behaviour.html', 'model_settings.html', 'message_style.html', 'testbot.html'].includes(currentPath)) {
-            const drop = this.querySelector('#behaviour-dropdown');
-            if (drop) {
-                drop.classList.add('open');
-            }
-        }
-        if (['broadcast.html', 'meta_templates.html'].includes(currentPath)) {
-            const drop = this.querySelector('#campaigns-dropdown');
-            if (drop) {
-                drop.classList.add('open');
-            }
-        }
-        if (['crm.html', 'reports.html'].includes(currentPath)) {
-            const drop = this.querySelector('#crm-analytics-dropdown');
-            if (drop) {
-                drop.classList.add('open');
-            }
-        }
+        this.querySelectorAll('details.dropdown-container').forEach(group => {
+            const summary = group.querySelector('summary');
+            group.open = Boolean(group.querySelector('a.active'));
+            const sync = () => summary.setAttribute('aria-expanded', String(group.open));
+            group.addEventListener('toggle', sync);
+            sync();
+        });
 
     }
 
@@ -672,6 +637,7 @@ class ChatbotSidebar extends HTMLElement {
                 icon.textContent = isOpen ? '✕' : '☰';
                 toggle.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
                 toggle.setAttribute('title', isOpen ? 'Close menu' : 'Open menu');
+                toggle.setAttribute('aria-expanded', String(isOpen));
             } else {
                 sidebar.classList.remove('mobile-open');
                 const shouldBeCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
@@ -680,6 +646,7 @@ class ChatbotSidebar extends HTMLElement {
                 icon.textContent = shouldBeCollapsed ? '☰' : '«';
                 toggle.setAttribute('aria-label', shouldBeCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
                 toggle.setAttribute('title', shouldBeCollapsed ? 'Expand sidebar' : 'Collapse sidebar');
+                toggle.setAttribute('aria-expanded', String(!shouldBeCollapsed));
             }
         };
 
@@ -699,6 +666,15 @@ class ChatbotSidebar extends HTMLElement {
             syncToggleState();
         });
 
+        this.querySelectorAll('summary.dropdown-toggle').forEach(summary => {
+            summary.addEventListener('click', () => {
+                if (sidebar.classList.contains('collapsed')) {
+                    localStorage.setItem('sidebarCollapsed', 'false');
+                    syncToggleState();
+                }
+            });
+        });
+
         window.addEventListener('resize', syncToggleState);
         syncToggleState();
     }
@@ -711,6 +687,6 @@ window.toggleSidebarDropdown = window.toggleSidebarDropdown || function (id) {
     const sb = document.querySelector('chatbot-sidebar');
     if (sb) {
         const insideEl = sb.querySelector('#' + id);
-        if (insideEl) insideEl.classList.toggle('open');
+        if (insideEl instanceof HTMLDetailsElement) insideEl.open = !insideEl.open;
     }
 };

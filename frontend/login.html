@@ -475,7 +475,8 @@
                     return;
                 }
 
-                if (!establishAuthenticatedSession(result.user, result.token)) {
+                const destination = getLoginDestination(result);
+                if (!destination || !establishAuthenticatedSession(result.user, result.token)) {
                     var sessionError = document.getElementById("login-error");
                     sessionError.textContent = "Login could not be completed. Please try again.";
                     sessionError.style.display = "block";
@@ -483,7 +484,7 @@
                     return;
                 }
 
-                window.location.href = "bots.html";
+                window.location.href = destination;
 
             } catch (error) {
                 console.error("Login error:", error);
@@ -643,11 +644,12 @@
                 }
 
                 if (result.status === 'success') {
-                    if (!establishAuthenticatedSession(result.user, result.token)) {
+                    const destination = getLoginDestination(result);
+                    if (!destination || !establishAuthenticatedSession(result.user, result.token)) {
                         alert('Sign-in could not be completed. Please try again.');
                         return;
                     }
-                    window.location.href = 'bots.html';
+                    window.location.href = destination;
                 } else {
                     if (completion) {
                         showGoogleCompanyError(result.message || 'Google sign-in failed. Please try again.');

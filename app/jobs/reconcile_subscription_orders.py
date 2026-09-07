@@ -20,7 +20,11 @@ import sys
 from datetime import datetime, timezone
 
 from app.services.subscription_reconciliation_service import reconcile_subscription_order
-from app.database.company_subscription_order_repository import get_reconcilable_subscription_orders
+from app.database.company_subscription_order_repository import (
+    get_pending_hitpay_orders,
+    get_reconcilable_subscription_orders,
+)
+from app.services.hitpay_service import HitPayConfig
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +56,17 @@ def main(argv=None):
     else:
         try:
             raw_orders = get_reconcilable_subscription_orders(limit=args.batch_size)
+            if HitPayConfig.from_env().enabled:
+                raw_orders.extend(get_pending_hitpay_orders(limit=args.batch_size))
+                by_reference = {
+                    order.get("order_reference"): order
+                    for order in raw_orders
+                    if isinstance(order, dict) and order.get("order_reference")
+                }
+                raw_orders = sorted(
+                    by_reference.values(),
+                    key=lambda order: order.get("updated_at") or order.get("created_at") or "",
+                )[:args.batch_size]
         except Exception as exc:
             logger.error("Failed to fetch reconcilable orders: %s", exc)
             return 1

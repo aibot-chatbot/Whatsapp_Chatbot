@@ -1,5 +1,11 @@
 # Cloudflare Edge Plan
 
+> Deployment update, 2026-09-07: start with
+> [Public Deployment Plan](PUBLIC_DEPLOYMENT_PLAN.md) for the current Fly.io
+> target, release gates and verification sequence. This file contains historical
+> Render instructions and unverified account/R2 assumptions; do not execute its
+> older runbook without reconciling them against that plan and live state.
+
 Companion to `render.yaml` and `docs/DEPLOYMENT_CHECKLIST.md`. Written
 2026-08-28 against the live Cloudflare account
 `1a382cd701e57fc2a4cf409a844dc4b6` (Aibot@iomaths.com).
@@ -135,3 +141,181 @@ across ~25 call sites and should not be bundled into the first deploy.
 
 Nothing in step 1 depends on Cloudflare. Treating the Cloudflare work as a
 prerequisite would delay channel publishing for no functional gain.
+
+---
+
+# Revision 2026-09-05 — what has changed since the above
+
+Three facts in the plan above are now stale. The reasoning still holds; the
+targets moved.
+
+| Written above | Actually true on 2026-09-05 |
+|---|---|
+| Render is the origin | **Fly.io is the origin** — app `wa-chatbot-my`, volume `chatbot_data` mounted at `/app/data` (`fly.toml:41-43`). `render.yaml` is a fallback, not the deployment. |
+| "R2 is not enabled" | **Cloudflare is now subscribed.** Part B is unblocked. |
+| Part B is about uploaded files only | Uploads are the *third* priority. Two bigger wins were missed — see §R2.1 and §R2.2. |
+
+Unchanged and still correct: **Cloudflare cannot host this application.** Nothing
+below proposes moving Flask to Workers.
+
+## Nothing is live right now, and R2 will not change that
+
+`auto_start_machines = false` (`fly.toml:52`), and the machine is stopped
+pending payment. Everything that depends on `PUBLIC_BASE_URL` is therefore down:
+the share link and QR code (`widget_routes.py:303`), and the Telegram
+(`telegram_routes.py:330`), WhatsApp (`whatsapp_routes.py:101`) and Wasender
+(`wasender_routes.py:115`) webhooks.
+
+`integration.html` will still show a channel as "Working" while this is true,
+because `channelState()` reads the last stored `connection_status` and
+`loadChannel()` deliberately refuses to treat an unreadable answer as
+"disconnected". That is the right behaviour — it stops a network blip inviting
+someone to reconnect a healthy channel — but it means the page reads healthier
+than reality while the origin is down.
+
+**Fix the host first. R2 optimises a server people can reach.**
+
+### Go-live runbook
+
+```bash
+# 1. Settle the Fly payment in the dashboard, then:
+fly machine start 7845322b441798 -a wa-chatbot-my
+
+# 2. Confirm it serves, not merely that it "started"
+fly status -a wa-chatbot-my
+curl -sS -o /dev/null -w "%{http_code}\n" https://wa-chatbot-my.fly.dev/
+
+# 3. Confirm it booted rather than crash-looped
+fly logs -a wa-chatbot-my | tail -40
+```
+
+Then, per bot, in `integration.html`: press **Check again**; repair anything
+showing "Needs a fix" with **Set it up again** (that re-registers the webhook);
+then open the share link and send one real message before trusting the page.
+
+**Two migrations are pending, and one is order-sensitive.** No migration runner
+exists — paste into the Supabase SQL editor:
+
+| File | Ordering |
+|---|---|
+| `data/050_help_articles.sql` | any time |
+| `data/052_support_escalation_context.sql` | **before deploying the new code** |
+
+052 replaces the 5-argument `create_tenant_support_request` RPC with an
+8-argument one. Old code against the new function is fine (the new params carry
+SQL defaults). New code against the old function is not — every support
+submission would 503.
+
+## R2, in priority order
+
+### R2.1 Frontend static assets — the biggest win, and it was missed above
+
+`app/__init__.py:51` sets `static_folder=frontend`, and the Dockerfile runs
+`gunicorn --workers 1`. **One** worker process serves every stylesheet, font and
+script, competing with real API traffic for the same process. Every CSS request
+is a request an API call waits behind.
+
+The caching note above ("default-cache `/static/*`") gets the edge half right
+but leaves the origin still generating those responses. Mirroring `frontend/`
+into R2 removes the work entirely.
+
+### R2.2 The embeddable widget bundle
+
+The script customers paste into *their* sites (`embed.script_snippet`). Served
+from your origin today, so your customers' page speed depends on your Fly
+machine. It needs `Access-Control-Allow-Origin: *`, which is a bucket rule
+rather than something to thread through Flask.
+
+### R2.3 Uploaded files — as Part B above, with the numbers confirmed
+
+Still 24 `DATA_FOLDER` references, still `MEDIA_FOLDER` (`app/storage_paths.py:23`;
+`LEGACY_MEDIA_FOLDER` at :18 records an earlier path that sat outside the
+volume). On Fly these live on the `chatbot_data` volume, which is why
+`min_machines_running = 1` and why a second machine cannot simply be added.
+
+The extra prize with presigned uploads: a PDF uploaded through Flask occupies
+the single worker for the whole transfer. Presigned PUT sends the browser
+straight to R2 and the worker never sees the bytes.
+
+## Buckets
+
+Two, because the access policy differs fundamentally.
+
+```
+wa-chatbot-static     PUBLIC, custom domain + CDN
+  /support.html                    (frontend/ mirrored)
+  /assets/css/*.css
+  /assets/js/*.js
+  /widget/embed.js                 -> Access-Control-Allow-Origin: *
+
+wa-chatbot-uploads    PRIVATE, presigned access only
+  /company/{company_id}/bot/{chatbot_id}/{uuid}.pdf
+```
+
+Upload keys are tenant-scoped **first**, so a guessed key cannot cross a company
+boundary and a company's data is deletable by prefix.
+
+## Cache strategy
+
+No build step exists, so content-hashed filenames would mean introducing
+bundling. Not worth it.
+
+| Object | `Cache-Control` |
+|---|---|
+| `*.html` | `no-cache` — always revalidate; a 304 is a few hundred bytes |
+| `assets/**` with unchanged filenames | `public, max-age=0, must-revalidate` until release-versioned URLs are implemented |
+| `widget/embed.js` | `public, max-age=3600` — customers must pick up fixes |
+
+Purge the CDN cache on every deploy if assets are cached there. A CDN purge does
+not remove files already cached in customers' browsers. Do not set a one-year
+immutable lifetime on filenames whose contents change between releases.
+
+Release-prefixed asset URLs (`/{git-sha}/assets/...`) can use immutable caching
+when HTML references that release explicitly. Keep mutable HTML revalidated.
+
+## Configuration
+
+Names only. Values go in Fly secrets and `.env` (gitignored at `.gitignore:58`);
+`.env.txt` is the tracked template and gets placeholders.
+
+```
+R2_ACCOUNT_ID   R2_ACCESS_KEY_ID   R2_SECRET_ACCESS_KEY
+R2_BUCKET_STATIC   R2_BUCKET_UPLOADS
+R2_PUBLIC_BASE            https://cdn.<your-domain>
+ASSET_BASE_URL            same, or EMPTY to serve from Flask as today
+```
+
+**Do not use the `*.r2.dev` URL in production** — it is rate-limited and
+explicitly not for production traffic. A custom domain on the bucket is free and
+is what actually puts the CDN in front of it.
+
+`ASSET_BASE_URL` empty must serve everything from Flask exactly as today. That
+is the rollback: unset one variable, redeploy. No code revert.
+
+**Still required, and still only doable in the dashboard:** a domain must be
+added to the Cloudflare account. As of 2026-08-28 `GET /zones` returned
+`total_count: 0`. Without a zone there is no custom domain, and without a custom
+domain there is no production-grade R2 URL.
+
+## Work items
+
+| # | Item | Depends on |
+|---|---|---|
+| 1 | Go-live runbook above | Fly payment |
+| 2 | Add a domain to Cloudflare; create both buckets | your dashboard access |
+| 3 | `scripts/deploy_static_to_r2.py` — mirror `frontend/`, set per-type cache headers, purge CDN. Idempotent, `--dry-run` first | 2 |
+| 4 | `ASSET_BASE_URL` wiring, empty = today's behaviour. Must not break the ~47 raw-source assertions pinning `support.html` | 3 |
+| 5 | Widget bundle + CORS rule; verify from a real third-party origin, not curl | 3 |
+| 6 | Presigned PDF upload; browser uploads direct; indexer reads back from R2 | 2 |
+| 7 | Tenant-isolation tests — company A cannot read or write company B's prefix | 6 |
+| 8 | Drop the volume, raise machine count | 6, 7 |
+
+Items 3–5 are independent of 6–8 and can ship first. **Item 7 is not optional**
+and ships red-green with item 6.
+
+## Not proposed
+
+- Flask on Workers. Unchanged from the original verdict above.
+- Caching `/api/*` at the edge. Tenant-scoped and authenticated; a caching
+  mistake there is a cross-tenant data leak, not a performance win.
+- Moving QR codes to R2. Generated client-side as SVG; they cost nothing.

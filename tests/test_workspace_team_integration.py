@@ -3,6 +3,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, call, patch
 from werkzeug.security import generate_password_hash
+from postgrest.exceptions import APIError
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
@@ -154,6 +155,19 @@ class WorkspaceRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         limit_guard.assert_called_once_with(42)
         scoped_update.assert_called_once_with(7, 42, {"status": "active"})
+
+    def test_platform_staff_deactivation_returns_database_guard_denial(self):
+        error = APIError({"code": "42501", "message": "platform_staff_account_protected",
+                          "details": "Internal database context", "hint": None})
+        auth, user = self.auth(ADMIN)
+        with auth, user, \
+             patch("app.routes.user_routes.get_user_by_id_for_company", return_value={**MEMBER, "id": 7}), \
+             patch("app.routes.user_routes.update_user_for_company", side_effect=error) as scoped_update:
+            response = self.client.put("/api/users/7/status", headers=self.headers, json={"status": "inactive"})
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.get_json()["code"], "platform_staff_account_protected")
+        self.assertNotIn("Internal database context", response.get_data(as_text=True))
+        scoped_update.assert_called_once_with(7, 42, {"status": "inactive"})
 
     def test_reactivation_rejects_limit_error_before_write(self):
         target_user = {**MEMBER, "id": 7, "status": "inactive"}
@@ -661,6 +675,9 @@ class TeamFrontendRegressionTests(unittest.TestCase):
 
 class InvitationAcceptanceTests(unittest.TestCase):
     def make_google_client(self):
+        staff_lookup = patch("app.database.platform_admin_repository.get_platform_admin_by_user_id", return_value=None)
+        staff_lookup.start()
+        self.addCleanup(staff_lookup.stop)
         app = create_app()
         app.config["TESTING"] = True
         return app.test_client()

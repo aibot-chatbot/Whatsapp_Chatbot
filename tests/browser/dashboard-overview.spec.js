@@ -133,8 +133,8 @@ test("desktop dashboard matches the mockup structure", async ({ page }) => {
   await expect(page.locator('.dash-step[data-step="profile"]')).toHaveClass(/is-done/);
 
   // Next step points at the first incomplete step
-  await expect(page.locator("#dash-next-title")).toHaveText("Add primary knowledge");
-  await expect(page.locator("#dash-next-cta-label")).toHaveText("Open knowledge");
+  await expect(page.locator("#dash-next-title")).toHaveText("Add a PDF for your bot to learn from");
+  await expect(page.locator("#dash-next-cta-label")).toHaveText("Add knowledge");
   await expect(page.locator("#dash-next-cta")).toHaveAttribute("href", `new_linkdocs.html?bot_id=${BOT_ID}`);
 
   // Stats

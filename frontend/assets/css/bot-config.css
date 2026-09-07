@@ -698,3 +698,18 @@
         display: none;
     }
 }
+
+/* First setup follows the shared journey; advanced readiness stays available. */
+.dashboard-page .bc-page [hidden] { display: none !important; }
+.dashboard-page .bc-guided .bc-wizard,
+.dashboard-page .bc-guided .bc-actionbar { display: none; }
+.dashboard-page .bc-guided .bc-grid { grid-template-columns: minmax(0, 1fr); }
+.dashboard-page .bc-guided .bc-readiness-details > summary {
+    padding: 14px 0;
+    cursor: pointer;
+    color: var(--control-text);
+}
+.dashboard-page .bc-setup-next { padding: 24px; }
+.dashboard-page .bc-setup-next h2 { margin: 0 0 8px; font-size: 20px; }
+.dashboard-page .bc-setup-next p { color: var(--control-text-secondary); line-height: 1.6; max-width: 62ch; }
+.dashboard-page .bc-setup-next .kw-btn { margin-top: 16px; }

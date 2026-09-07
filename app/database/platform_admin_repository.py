@@ -7,7 +7,7 @@ from app.database.db import supabase
 
 
 PLATFORM_ADMIN_FIELDS = (
-    "id,user_id,is_active,created_at,updated_at,created_by_user_id"
+    "id,user_id,is_active,platform_role,modules,created_at,updated_at,created_by_user_id"
 )
 AUDIT_EVENT_FIELDS = (
     "id,platform_admin_user_id,action,resource_type,resource_id,metadata,created_at"
@@ -521,6 +521,24 @@ AUDIT_EVENT_SCHEMAS = {
         "http_methods": {"PATCH"},
     },
 }
+for _action, _resource, _endpoint, _method in (
+    ("platform_admin.approval.list", "platform_approval_requests", "/api/platform-admin/approval-requests", "GET"),
+    ("platform_admin.approval.read", "platform_approval_requests", "/api/platform-admin/approval-requests/<approval_id>", "GET"),
+    ("platform_admin.approval.create", "platform_approval_requests", "/api/platform-admin/approval-requests", "POST"),
+    ("platform_admin.approval.decide", "platform_approval_requests", "/api/platform-admin/approval-requests/<approval_id>/decision", "POST"),
+    ("platform_admin.user.access.update", "platform_admin_users", "/api/platform-admin/platform-admin-users/<platform_admin_user_id>/access", "PATCH"),
+    ("platform_admin.billing.status_recheck", "company_billing_orders", "/api/platform-admin/companies/<company_id>/billing-orders/<order_id>/recheck", "POST"),
+):
+    AUDIT_EVENT_SCHEMAS[_action] = {
+        "resource_type": _resource,
+        "resource_id": _resource_id_none if _action.endswith(".list") else _resource_id_positive_integer_string,
+        "required_metadata": {"outcome", "endpoint", "http_method"},
+        "optional_metadata": {"company_id", "old_status", "new_status", "execution_status",
+                              "target_platform_admin_user_id", "target_user_id", "old_is_active",
+                              "new_is_active", "old_platform_role", "new_platform_role"},
+        "outcomes": {"success", "attempted"}, "endpoint": _endpoint, "http_methods": {_method},
+    }
+
 ALLOWED_AUDIT_ACTIONS = frozenset(AUDIT_EVENT_SCHEMAS)
 ALLOWED_RESOURCE_TYPES = frozenset(
     schema["resource_type"] for schema in AUDIT_EVENT_SCHEMAS.values()
@@ -927,6 +945,23 @@ def validate_audit_event(
         raise ValueError("Audit metadata exceeds the 8192-byte limit")
 
 
+def get_platform_admin_by_user_id(user_id):
+    """Include revoked mappings so login cannot fall through to a tenant portal."""
+    _positive_integer(user_id, "user_id")
+    # This additive rollout must still distinguish a tenant with no mapping
+    # before migration 053 exists; absent new fields then fail closed in the caller.
+    response = (supabase.table("platform_admin_users").select("id,user_id,is_active")
+                .eq("user_id", user_id).limit(1).execute())
+    rows = response.data or []
+    if not rows or rows[0].get("is_active") is not True:
+        return rows[0] if rows else None
+    response = (supabase.table("platform_admin_users").select(PLATFORM_ADMIN_FIELDS)
+                .eq("user_id", user_id).limit(1).execute())
+    if not response.data:
+        raise RuntimeError("Platform mapping changed during authorization")
+    return response.data[0]
+
+
 def get_active_platform_admin_by_user_id(user_id):
     _positive_integer(user_id, "user_id")
     response = (
@@ -942,7 +977,7 @@ def get_active_platform_admin_by_user_id(user_id):
 
 
 PLATFORM_ADMIN_USER_SAFE_FIELDS = (
-    "id,user_id,is_active,created_at,updated_at,created_by_user_id"
+    "id,user_id,is_active,platform_role,modules,created_at,updated_at,created_by_user_id"
 )
 PLATFORM_ADMIN_USER_IDENTITY_FIELDS = "id,email,full_name,status"
 
@@ -1024,6 +1059,8 @@ def _project_platform_admin_user(row, users_by_id, activity_by_id):
     return {
         "platform_admin_user_id": mapping_id,
         "user_id": row.get("user_id"),
+        "platform_role": row.get("platform_role"),
+        "modules": row.get("modules") or {},
         "is_active": row.get("is_active"),
         "created_at": row.get("created_at"),
         "updated_at": row.get("updated_at"),

@@ -1,3 +1,4 @@
+import html
 import os
 import smtplib
 from email.mime.text import MIMEText
@@ -338,4 +339,183 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
 
     except Exception as e:
         logging.error(f"Failed to send handoff notification email: {e}")
+        return False
+
+
+# The other senders here inherit the process-wide socket timeout, which is None
+# by default: a hung SMTP server would pin the caller forever. This one runs on
+# a daemon thread, so a hang leaks a thread instead of a request - bound it.
+SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS = 20
+
+
+def send_tenant_support_request_notification_email(
+    recipient_email,
+    *,
+    request_id,
+    company_id,
+    category,
+    status,
+    submitted_at,
+    redacted_description,
+):
+    """
+    Tells the platform support inbox that a tenant escalated an FAQ, so a human
+    picks the ticket up instead of it waiting to be noticed in the admin console.
+
+    Every field here is caller-supplied and already redacted; `redacted_description`
+    is the only free text and is HTML-escaped because passing FORBIDDEN_TERMS says
+    nothing about markup. Returns False rather than raising - the caller has
+    already created the ticket and must not be able to fail because of this.
+    """
+    sender_email = os.getenv("SMTP_SENDER_EMAIL")
+    sender_password = os.getenv("SMTP_APP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        logging.warning(
+            "SMTP credentials missing in .env. Tenant support notification not sent."
+        )
+        return False
+
+    safe_description = html.escape(str(redacted_description))
+    subject = f"New tenant support request #{request_id} ({category})"
+
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
+        <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <div style="background-color: #f59e0b; padding: 24px; text-align: center;">
+            <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT - Support Escalation</h2>
+          </div>
+          <div style="padding: 32px;">
+            <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">A tenant submitted a support request</h3>
+            <table style="width: 100%; border-collapse: collapse; font-size: 15px; color: #475569;">
+              <tr><td style="padding: 6px 0; color: #64748b;">Request ID</td><td style="padding: 6px 0;"><strong>{request_id}</strong></td></tr>
+              <tr><td style="padding: 6px 0; color: #64748b;">Category</td><td style="padding: 6px 0;"><strong>{category}</strong></td></tr>
+              <tr><td style="padding: 6px 0; color: #64748b;">Status</td><td style="padding: 6px 0;"><strong>{status}</strong></td></tr>
+              <tr><td style="padding: 6px 0; color: #64748b;">Company ID</td><td style="padding: 6px 0;"><strong>{company_id}</strong></td></tr>
+              <tr><td style="padding: 6px 0; color: #64748b;">Submitted (UTC)</td><td style="padding: 6px 0;"><strong>{submitted_at}</strong></td></tr>
+            </table>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin: 24px 0; font-size: 14px; line-height: 1.6; color: #334155; white-space: pre-wrap;">{safe_description}</div>
+            <p style="font-size: 13px; color: #94a3b8; margin-top: 24px;">
+              Open request {request_id} in the platform admin console to review it. This
+              notice carries no requester identity and no customer conversation content.
+            </p>
+          </div>
+          <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            &copy; AI CHATBOT. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+
+    try:
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = f"AI CHATBOT <{sender_email}>"
+        message["To"] = recipient_email
+        message.attach(MIMEText(html_content, "html"))
+
+        server = smtplib.SMTP(
+            "smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS
+        )
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient_email, message.as_string())
+        server.quit()
+        logging.info(
+            f"Tenant support notification sent for request {request_id}."
+        )
+        return True
+
+    except Exception as e:
+        logging.error(
+            f"Failed to send tenant support notification for request {request_id}: {e}"
+        )
+        return False
+def send_tenant_support_reply_notification_email(recipient_email, *, request_id):
+    """
+    Tells a tenant requester that platform staff replied, so the reply is read
+    instead of waiting to be stumbled on in Support History.
+
+    The signature is the guarantee: there is nowhere to put the reply, the
+    subject, the title or the description, so no caller can leak ticket content
+    into a mailbox. The notice is a nudge to open the app and nothing else -
+    which is what lets the support page keep promising that internal notes are
+    not exposed. Returns False rather than raising; the reply row already
+    exists and must not be able to fail because of this.
+    """
+    sender_email = os.getenv("SMTP_SENDER_EMAIL")
+    sender_password = os.getenv("SMTP_APP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        logging.warning(
+            "SMTP credentials missing in .env. Tenant reply notice not sent."
+        )
+        return False
+
+    reference = html.escape(str(request_id))
+    subject = f"A reply is waiting on your support request #{reference}"
+
+    app_url = (os.getenv("FRONTEND_URL") or "").strip().rstrip("/")
+    if app_url:
+        safe_url = html.escape(app_url, quote=True)
+        action = f"""
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="{safe_url}/support.html" style="background-color: #3e9c89; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block;">Open Support</a>
+            </div>
+    """
+    else:
+        # No configured app URL, so no link at all. A half-built href is worse
+        # than a sentence telling the reader where to look.
+        action = ""
+
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
+        <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <div style="background-color: #3e9c89; padding: 24px; text-align: center;">
+            <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT - Support</h2>
+          </div>
+          <div style="padding: 32px;">
+            <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">A reply is waiting</h3>
+            <p style="font-size: 16px; line-height: 1.6; color: #475569;">
+              Our support team has replied to your support request
+              <strong>#{reference}</strong>. Open the Support page in your
+              dashboard to read it.
+            </p>{action}
+            <p style="font-size: 13px; color: #94a3b8; margin-top: 24px;">
+              This notice deliberately carries no part of your request or of the
+              reply. Everything is in the app.
+            </p>
+          </div>
+          <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            &copy; AI CHATBOT. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+
+    try:
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = f"AI CHATBOT <{sender_email}>"
+        message["To"] = recipient_email
+        message.attach(MIMEText(html_content, "html"))
+
+        server = smtplib.SMTP(
+            "smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS
+        )
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient_email, message.as_string())
+        server.quit()
+        logging.info(f"Tenant reply notice sent for request {request_id}.")
+        return True
+
+    except Exception as e:
+        logging.error(
+            f"Failed to send tenant reply notice for request {request_id}: {e}"
+        )
         return False

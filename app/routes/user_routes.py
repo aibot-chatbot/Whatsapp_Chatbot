@@ -359,4 +359,10 @@ def update_member_status(user_id):
     except ValueError as e:
         return jsonify({"status": "error", "message": str(e)}), 400
     except Exception as e:
+        if getattr(e, "code", None) == "42501" and getattr(e, "message", None) == "platform_staff_account_protected":
+            return jsonify({
+                "status": "error",
+                "code": "platform_staff_account_protected",
+                "message": "A Super Admin must revoke platform staff access before this account can be deactivated.",
+            }), 403
         return jsonify({"status": "error", "message": str(e)}), 500

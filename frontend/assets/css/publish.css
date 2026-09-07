@@ -15,12 +15,12 @@
    rhymes with the recommended thing on the dashboard. */
 .dashboard-page .pub-share {
     display: grid;
-    grid-template-columns: 220px minmax(0, 1fr);
+    grid-template-columns: 144px minmax(0, 1fr);
     gap: 24px;
     padding: 20px;
-    border: 1px solid rgba(62, 156, 137, 0.26);
+    border: 1px solid var(--control-border);
     border-radius: 12px;
-    background: rgba(62, 156, 137, 0.04);
+    background: var(--control-panel);
 }
 
 .dashboard-page .pub-share.is-off {
@@ -451,6 +451,17 @@
 .dashboard-page .pub-gap {
     margin-top: 16px;
 }
+
+.dashboard-page .pub-choice-help { margin: 0 0 16px; }
+.dashboard-page .pub-delivery-note { display: flex; align-items: flex-start; gap: 8px; line-height: 1.6; }
+.dashboard-page .pub-delivery-note svg { flex: 0 0 18px; margin-top: 2px; }
+.dashboard-page .pub-delivery-note.needs-attention { color: var(--control-text); padding: 12px; border: 1px solid var(--control-warning); border-radius: 8px; }
+.dashboard-page .pub-page .pub-option-copy .kw-help { font-size: 13px; line-height: 1.6; max-width: 65ch; }
+.dashboard-page .pub-page #pub-options > .pub-option { padding: 20px; }
+.dashboard-page .pub-page #pub-options > .pub-option.is-quiet { background: transparent; }
+.dashboard-page .pub-page #pub-options .kw-tab-title { font-size: 15px; color: var(--control-text); }
+.dashboard-page .pub-page #pub-settings[hidden] { display: none; }
+.dashboard-page .pub-page .pub-flow .kw-desc { overflow-wrap: anywhere; }
 
 /* Reserving the real height stops "loading" from reading as "nothing here". */
 .dashboard-page .pub-skeleton-lg {

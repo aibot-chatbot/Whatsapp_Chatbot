@@ -47,7 +47,93 @@ RECONCILIATION_OUTCOMES = frozenset({
     "unpaid_order_not_reconcilable",
     "malformed_order",
     "manual_review_required",
+    "hitpay_pending",
+    "hitpay_terminal",
 })
+
+
+def _reconcile_pending_hitpay_order(order: dict) -> dict:
+    """Recover missed or ambiguous HitPay checkout events authoritatively."""
+    from app.database.company_subscription_order_repository import (
+        attach_pending_subscription_gateway_details,
+    )
+    from app.services.hitpay_payment_service import process_hitpay_payment_request
+    from app.services.hitpay_service import (
+        HitPayConfig,
+        find_payment_request_by_reference,
+        get_payment_request,
+        normalize_payment_request,
+        validate_checkout_url,
+    )
+
+    config = HitPayConfig.from_env()
+    gateway_order_id = str(order.get("gateway_order_id") or "").strip()
+    order_reference = str(order.get("order_reference") or "").strip()
+    payment_request = (
+        get_payment_request(config, gateway_order_id)
+        if gateway_order_id
+        else find_payment_request_by_reference(config, order_reference)
+    )
+    if payment_request is None:
+        _update_state(
+            order_reference,
+            activation_error_code="hitpay_request_not_found",
+            activation_error_message="HitPay payment request was not found yet.",
+            reconciliation_required=True,
+        )
+        return {
+            "outcome": "hitpay_pending",
+            "order_status": "pending",
+            "message": "HitPay payment request is not available yet.",
+        }
+
+    normalized = normalize_payment_request(payment_request)
+    if normalized["order_reference"] != order_reference:
+        raise ValueError("HitPay reconciliation reference mismatch")
+    if normalized["amount_sen"] != order.get("amount_sen"):
+        raise ValueError("HitPay reconciliation amount mismatch")
+    if not gateway_order_id:
+        checkout_url = validate_checkout_url(
+            payment_request.get("url"), config.environment
+        )
+        attach_pending_subscription_gateway_details(
+            order_reference=order_reference,
+            payment_gateway="hitpay",
+            gateway_order_id=normalized["gateway_order_id"],
+            checkout_url=checkout_url,
+        )
+
+    result = process_hitpay_payment_request(payment_request)
+    result_status = result.get("status")
+    if result_status in {
+        "activated",
+        "activated_and_credited",
+        "already_activated",
+        "legacy_order_activated",
+        "subscription_activated",
+    }:
+        return {
+            "outcome": "reconciled_and_completed",
+            "order_status": "credited",
+            "message": "HitPay payment was reconciled and fulfilled.",
+        }
+    if result_status == "pending":
+        return {
+            "outcome": "hitpay_pending",
+            "order_status": "pending",
+            "message": "HitPay payment remains pending.",
+        }
+    if result_status in {"failed", "expired", "cancelled"}:
+        return {
+            "outcome": "hitpay_terminal",
+            "order_status": result_status,
+            "message": "HitPay payment reached a terminal unpaid state.",
+        }
+    return {
+        "outcome": "manual_review_required",
+        "order_status": order.get("status"),
+        "message": "HitPay reconciliation requires operator review.",
+    }
 
 def reconcile_subscription_order(
     order_reference: str,
@@ -79,6 +165,28 @@ def reconcile_subscription_order(
     subscription_id = order.get("subscription_id")
     activation_seq_key = order.get("activation_sequence_key")
     order_schema_ver = order.get("order_schema_version")
+
+    if status == "pending" and order.get("payment_gateway") == "hitpay":
+        try:
+            return _reconcile_pending_hitpay_order(order)
+        except Exception as exc:
+            logger.warning("HitPay reconciliation failed for %s: %s", order_reference, exc)
+            try:
+                _update_state(
+                    order_reference,
+                    activation_error_code="hitpay_reconciliation_failed",
+                    activation_error_message="HitPay reconciliation requires retry.",
+                    reconciliation_required=True,
+                )
+            except Exception:
+                logger.exception(
+                    "Could not mark HitPay order %s for reconciliation", order_reference
+                )
+            return {
+                "outcome": "manual_review_required",
+                "order_status": status,
+                "message": "HitPay reconciliation is temporarily unavailable.",
+            }
 
     # Already completed
     if status == "credited" and act_status == "completed":

@@ -14,8 +14,14 @@ class TenantSupportRepositoryTests(unittest.TestCase):
                 category="technical",
                 title="Test",
                 redacted_description="Test description",
+                priority="normal",
+                source="direct",
+                escalation_context=None,
             )
         self.assertEqual(result, 31)
+        # Slice 3 widened this call: urgency, origin and the trail ride in the
+        # same RPC as the request, event and audit rows, so a ticket cannot be
+        # committed with half of itself missing.
         rpc.assert_called_once_with(
             "create_tenant_support_request",
             {
@@ -24,6 +30,9 @@ class TenantSupportRepositoryTests(unittest.TestCase):
                 "p_category": "technical",
                 "p_title": "Test",
                 "p_redacted_description": "Test description",
+                "p_priority": "normal",
+                "p_source": "direct",
+                "p_escalation_context": None,
             },
         )
 
@@ -45,6 +54,9 @@ class TenantSupportRepositoryTests(unittest.TestCase):
                             category="technical",
                             title="Test",
                             redacted_description="Test description",
+                            priority="normal",
+                            source="direct",
+                            escalation_context=None,
                         )
 
     def test_tenant_history_queries_are_scoped_to_company_and_requester(self):

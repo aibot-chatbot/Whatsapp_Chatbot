@@ -14,6 +14,8 @@
     <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
     <link rel="stylesheet" href="assets/css/control-room-motion.css">
     <link rel="stylesheet" href="assets/css/bot-config.css">
+    <link rel="stylesheet" href="assets/css/bot-setup-journey.css">
+    <script src="assets/js/bot-setup-journey.js" defer></script>
 
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
@@ -26,10 +28,11 @@
     <chatbot-sidebar></chatbot-sidebar>
 
     <main class="main-container bc-page">
+        <bot-setup-journey id="bc-setup-journey" current="instructions" hidden></bot-setup-journey>
         <header class="bc-header cr-reveal">
             <div>
                 <h1 class="bc-title">
-                    Bot configuration
+                    <span id="bc-page-title">Bot configuration</span>
                     <span class="bc-title-sep" aria-hidden="true">/</span>
                     <span class="bc-title-bot" id="bc-bot-name">&hellip;</span>
                 </h1>
@@ -115,13 +118,16 @@
                 </section>
             </div>
 
-            <div class="bc-col">
+            <div class="bc-col" id="bc-setup-details-column">
+                <details class="bc-readiness-details" id="bc-setup-details" open>
+                <summary class="kw-help" hidden>Review setup details</summary>
                 <section class="kw-panel cr-reveal" aria-labelledby="bc-readiness-title">
                     <div class="bc-panel-head">
                         <h2 id="bc-readiness-title">Setup readiness</h2>
                     </div>
                     <ul class="bc-readiness" id="bc-readiness"></ul>
                 </section>
+                </details>
             </div>
         </div>
 
@@ -133,7 +139,7 @@
             </span>
             <div class="bc-gate-body">
                 <h2 id="bc-validate-title">Validation checkpoint</h2>
-                <p>Validation checks your active profile against the active primary knowledge to help ensure accurate and reliable responses. It runs on its own when either one changes.</p>
+                <p id="bc-validate-copy">Validation checks your active profile against the active primary knowledge to help ensure accurate and reliable responses. It runs on its own when either one changes.</p>
                 <p class="bc-gate-reason" id="bc-validate-reason" hidden></p>
             </div>
             <div class="bc-gate-actions">
@@ -169,6 +175,12 @@
                     <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>
                 </a>
             </div>
+        </section>
+
+        <section class="kw-panel bc-setup-next" id="bc-setup-next" hidden aria-labelledby="bc-setup-next-title">
+            <h2 id="bc-setup-next-title">Your instructions are applied</h2>
+            <p>Try a customer question with these settings. You will choose where customers can reach your bot on the next step.</p>
+            <a class="kw-btn kw-btn-primary" id="bc-continue-test" href="testbot.html">Continue to test</a>
         </section>
 
         <!-- Phone-only mirror of the two gates above. -->
@@ -241,11 +253,18 @@
                             placeholder="Always be accurate and concise&hellip;"></textarea>
                     </div>
 
-                    <div class="kw-field">
-                        <label class="kw-label" for="bc-f-prompt">Custom prompt template</label>
-                        <textarea class="kw-textarea" id="bc-f-prompt" name="custom_prompt" rows="4"
-                            placeholder="Optional. Overrides the generated system prompt&hellip;"></textarea>
-                    </div>
+                    <details class="kw-advanced" id="bc-prompt-options">
+                        <summary>Advanced: custom prompt override
+                            <svg class="dashboard-icon kw-advanced-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                        </summary>
+                        <div class="kw-advanced-body">
+                            <div class="kw-field kw-wide">
+                                <label class="kw-label" for="bc-f-prompt">Custom prompt template</label>
+                                <textarea class="kw-textarea" id="bc-f-prompt" name="custom_prompt" rows="4"
+                                    placeholder="Optional. Overrides the generated system prompt&hellip;"></textarea>
+                            </div>
+                        </div>
+                    </details>
                 </form>
             </div>
             <div class="kw-modal-foot">
@@ -278,11 +297,12 @@
         /* ── Bot scope ───────────────────────────────────────────────── */
 
         const params = new URLSearchParams(window.location.search);
+        const isSetup = params.get("setup") === "1";
         const urlBotId = params.get("bot_id");
         const storedBotId = sessionStorage.getItem("selectedBotId");
 
         if (!urlBotId && storedBotId) {
-            window.location.href = `new_prompt.html?bot_id=${encodeURIComponent(storedBotId)}`;
+            window.location.href = `new_prompt.html?bot_id=${encodeURIComponent(storedBotId)}${isSetup ? "&setup=1" : ""}`;
         } else if (!urlBotId) {
             window.location.href = "bots.html";
         }
@@ -291,7 +311,7 @@
         if (botId) sessionStorage.setItem("selectedBotId", botId);
 
         const botQuery = `?chatbot_id=${encodeURIComponent(botId)}`;
-        const pageQuery = `?bot_id=${encodeURIComponent(botId)}`;
+        const pageQuery = `?bot_id=${encodeURIComponent(botId)}${isSetup ? "&setup=1" : ""}`;
 
         /* ── State ───────────────────────────────────────────────────── */
 
@@ -307,6 +327,7 @@
             checking: false,
             checkingAutomatic: false,
             deploying: false,
+            setupApplied: false,
             mode: "create"
         };
 
@@ -319,6 +340,33 @@
 
             $("bc-dashboard-link").href = `index.html${pageQuery}`;
             $("bc-testbot").href = `testbot.html${pageQuery}`;
+            $("bc-continue-test").href = `testbot.html${pageQuery}`;
+
+            if (isSetup) {
+                document.querySelector(".bc-page").classList.add("bc-guided");
+                $("bc-setup-journey").setAttribute("bot-id", botId);
+                $("bc-setup-journey").hidden = false;
+                $("bc-page-title").textContent = "Bot instructions";
+                document.querySelector(".bc-subtitle").textContent = "Review how your bot should answer, then apply the instructions before testing.";
+                $("bc-library-title").textContent = "How should your bot answer?";
+                $("bc-create").lastChild.textContent = "Create instructions";
+                $("bc-edit").lastChild.textContent = "Edit instructions";
+                $("bc-profiles").querySelector("legend").textContent = "Choose the instructions your bot will use";
+                document.querySelector('.bc-profiles-head span:nth-child(2)').textContent = "Instructions name";
+                document.querySelector('label[for="bc-f-name"]').textContent = "Instructions name";
+                $("bc-save").textContent = "Save instructions";
+                $("bc-delete").textContent = "Delete instructions";
+                $("bc-confirm-title").textContent = "Delete instructions?";
+                $("bc-validate-title").textContent = "Check instructions";
+                $("bc-validate-copy").textContent = "Check that your chosen instructions match your PDF. This happens automatically when you choose instructions or change the document.";
+                $("bc-deploy-title").textContent = "Apply your instructions";
+                $("bc-deploy").lastChild.textContent = "Apply instructions";
+                $("bc-deploy-mobile").textContent = "Apply instructions";
+                $("bc-setup-details").open = false;
+                $("bc-setup-details").querySelector("summary").hidden = false;
+                $("bc-testbot").hidden = true;
+                document.title = "Bot instructions | Aveon";
+            }
 
             wireEvents();
             loadAll();
@@ -328,7 +376,6 @@
             await Promise.all([
                 loadBot(),
                 loadProfiles(),
-                loadActiveProfile(),
                 loadActiveKnowledge(),
                 loadWebsites(),
                 loadHealth()
@@ -393,8 +440,13 @@
                     return;
                 }
                 const name = body.data.bot_name || "Bot";
+                // Setup edits the draft. /api/settings describes the deployed
+                // snapshot and returns the display label "None" before deploy.
+                state.active = body.data.draft_profile_name || "";
+                if (!state.selected && state.active) state.selected = state.active;
                 $("bc-bot-name").textContent = name;
-                document.title = `${name} - Bot Configuration | AI CHATBOT`;
+                document.querySelector("chatbot-sidebar")?.setBotName?.(name);
+                document.title = `${name} - ${isSetup ? "Bot instructions" : "Bot Configuration"} | Aveon`;
             } catch (_) {
                 window.location.href = "bots.html";
             }
@@ -407,16 +459,6 @@
                 if (!state.profiles.some(p => p.name === state.selected)) state.selected = "";
             } catch (_) {
                 banner("bc-page-banner", "error", "Could not load profiles. Check your connection and reload.");
-            }
-        }
-
-        async function loadActiveProfile() {
-            try {
-                const { body } = await api(`/api/settings?chatbot_id=${encodeURIComponent(botId)}`);
-                state.active = body.status === "success" ? (body.data?.active_profile || "") : "";
-                if (!state.selected && state.active) state.selected = state.active;
-            } catch (_) {
-                state.active = "";
             }
         }
 
@@ -499,13 +541,13 @@
 
         /** The one thing blocking deploy, in the order the user must fix it. */
         function deployBlocker() {
-            if (!state.active) return "Set an active profile first.";
-            if (!state.activeKnowledge) return "Select active primary knowledge first.";
-            if (!state.validation) return "Validate setup before deploying.";
+            if (!state.active) return isSetup ? "Choose instructions for your bot first." : "Set an active profile first.";
+            if (!state.activeKnowledge) return isSetup ? "Add a primary PDF first." : "Select active primary knowledge first.";
+            if (!state.validation) return isSetup ? "Check your instructions before applying them." : "Validate setup before deploying.";
             if (state.validation.validation_status === "unavailable" || state.validation.match === null) {
-                return "Validation is temporarily unavailable. Try again before deploying.";
+                return isSetup ? "The check is unavailable. Try again before applying your instructions." : "Validation is temporarily unavailable. Try again before deploying.";
             }
-            if (!state.validation.match) return "Profile and primary knowledge do not match. Fix them before deploying.";
+            if (!state.validation.match) return isSetup ? "Your instructions and PDF do not match. Review them before applying." : "Profile and primary knowledge do not match. Fix them before deploying.";
             return "";
         }
 
@@ -517,6 +559,7 @@
             renderPreview();
             renderReadiness();
             renderGates();
+            if (isSetup) $("bc-create").classList.toggle("kw-btn-primary", !state.profiles.length);
         }
 
         function svgEl(name, attrs) {
@@ -595,9 +638,9 @@
                 const empty = document.createElement("div");
                 empty.className = "kw-empty";
                 const h = document.createElement("h3");
-                h.textContent = "No profiles yet";
+                h.textContent = isSetup ? "No instructions yet" : "No profiles yet";
                 const p = document.createElement("p");
-                p.textContent = "Create a profile to describe who your bot is and how it should answer.";
+                p.textContent = isSetup ? "Create instructions to explain what your bot does and how it should answer." : "Create a profile to describe who your bot is and how it should answer.";
                 empty.append(h, p);
                 list.appendChild(empty);
                 $("bc-edit").disabled = true;
@@ -635,7 +678,7 @@
                 const pill = document.createElement("span");
                 const isActive = name === state.active;
                 pill.className = isActive ? "kw-pill kw-pill-ready" : "kw-pill";
-                pill.textContent = isActive ? "Active" : "Not active";
+                pill.textContent = isSetup ? (isActive ? "Chosen" : "Not chosen") : (isActive ? "Active" : "Not active");
 
                 row.append(radio, nameEl, tone, updated, pill);
                 list.appendChild(row);
@@ -668,7 +711,7 @@
             title.append(document.createTextNode(`Previewing: ${profile.name}`));
             const flag = document.createElement("span");
             flag.className = isActive ? "bc-preview-flag is-active" : "bc-preview-flag";
-            flag.textContent = isActive ? "(active)" : "(not active)";
+            flag.textContent = isSetup ? (isActive ? "(chosen)" : "(not chosen)") : (isActive ? "(active)" : "(not active)");
             title.appendChild(flag);
 
             const dl = document.createElement("dl");
@@ -681,6 +724,7 @@
                 ["Additional instructions", profile.additional_instructions],
                 ["Custom prompt template", profile.custom_prompt]
             ].forEach(([label, value]) => {
+                if (isSetup && label === "Custom prompt template" && !value) return;
                 const dt = document.createElement("dt");
                 dt.textContent = label;
                 const dd = document.createElement("dd");
@@ -696,7 +740,7 @@
                 const use = document.createElement("button");
                 use.type = "button";
                 use.className = "kw-btn kw-btn-primary cr-press";
-                use.textContent = "Use this profile";
+                use.textContent = isSetup ? "Choose these instructions" : "Use this profile";
                 use.addEventListener("click", () => setActiveProfile(profile.name));
                 actions.appendChild(use);
             }
@@ -751,10 +795,10 @@
 
             host.replaceChildren(
                 readyRow("M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z",
-                    "Active profile", state.active || "Not selected",
+                    isSetup ? "Chosen instructions" : "Active profile", state.active || "Not selected",
                     state.active ? READY : REVIEW, "Change", "#bc-library-title"),
                 readyRow("M6 3h9l5 5v13H6ZM14 3v6h6",
-                    "Active primary knowledge", activeKnowledgeLabel() || "Not selected",
+                    isSetup ? "Primary PDF" : "Active primary knowledge", activeKnowledgeLabel() || "Not selected",
                     state.activeKnowledge ? READY : REVIEW, "Manage", `new_linkdocs.html${pageQuery}`),
                 readyRow("M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18",
                     "Supporting websites",
@@ -787,9 +831,9 @@
             if (state.checking) {
                 vStatus.textContent = state.checkingAutomatic ? "Checking automatically…" : "Checking…";
             } else if (!state.validation) {
-                vStatus.textContent = "Not validated yet.";
+                vStatus.textContent = isSetup ? "Not checked yet." : "Not validated yet.";
             } else if (validated) {
-                vStatus.textContent = "Validation passed.";
+                vStatus.textContent = isSetup ? "Instructions match the PDF." : "Validation passed.";
             } else if (state.validation.validation_status === "unavailable" || state.validation.match === null) {
                 vStatus.textContent = "Couldn't check right now.";
             } else {
@@ -804,7 +848,7 @@
 
             // Once a result exists the button is a re-check, not the primary
             // path — the page validates on its own when the result is stale.
-            const label = state.validation ? "Re-validate" : "Validate setup";
+            const label = isSetup ? (state.validation ? "Check again" : "Check instructions") : (state.validation ? "Re-validate" : "Validate setup");
             $("bc-validate-label").textContent = label;
             $("bc-validate-mobile").textContent = label;
 
@@ -821,11 +865,16 @@
                 ? "M8 11V7a4 4 0 0 1 8 0v4"
                 : "M8 11V7a4 4 0 0 1 8 0");
             $("bc-deploy-copy").textContent = blocker
-                || "Your profile and knowledge match. Connected channels will start using them.";
+                || (isSetup ? "Your instructions and document match. Apply them so you can test this version. Existing connected channels also use applied settings." : "Your profile and knowledge match. Connected channels will start using them.");
 
             const deployDisabled = Boolean(blocker) || state.deploying;
             $("bc-deploy").disabled = deployDisabled;
             $("bc-deploy-mobile").disabled = deployDisabled;
+            if (isSetup) {
+                $("bc-setup-next").hidden = !state.setupApplied;
+                $("bc-deploy").hidden = state.setupApplied;
+                $("bc-deploy-mobile").hidden = state.setupApplied;
+            }
         }
 
         function banner(id, kind, text) {
@@ -857,8 +906,9 @@
                 // Changing the profile invalidates any earlier match check —
                 // the previous result described a different pairing.
                 state.validation = null;
+                state.setupApplied = false;
                 banner("bc-page-banner", "success",
-                    `"${state.active}" is now the active profile. Checking it against your knowledge…`);
+                    isSetup ? `"${state.active}" chosen. Checking these instructions against your PDF…` : `"${state.active}" is now the active profile. Checking it against your knowledge…`);
                 render();
                 // The server just nulled last_match_result, so re-arm and let the
                 // new pairing check itself rather than asking for another click.
@@ -877,6 +927,7 @@
             state.checking = true;
             state.checkingAutomatic = automatic;
             state.validation = null;
+            state.setupApplied = false;
             banner("bc-page-banner", "", "");
             renderGates();
 
@@ -899,7 +950,7 @@
                                 ? `Validation failed: ${body.data.reason}`
                                 : "The profile and the primary knowledge describe different things.");
                     } else if (!automatic && body.data && body.data.match === true) {
-                        banner("bc-page-banner", "success", "Validation passed. You can deploy this bot.");
+                        banner("bc-page-banner", "success", isSetup ? "Check passed. You can apply your instructions." : "Validation passed. You can deploy this bot.");
                     }
                 } else {
                     banner("bc-page-banner", "error", body.message || "Validation failed.");
@@ -931,13 +982,20 @@
                 });
 
                 if (body.status === "success") {
-                    banner("bc-page-banner", "success",
-                        body.message || "Bot deployed. Connected channels will now use this profile and primary knowledge.");
-                    setTimeout(() => { window.location.href = `testbot.html${pageQuery}`; }, 1200);
+                    if (isSetup) {
+                        state.setupApplied = true;
+                        banner("bc-page-banner", "success", "Instructions and document applied. Continue to test your bot's replies.");
+                        renderGates();
+                        $("bc-continue-test").focus();
+                    } else {
+                        banner("bc-page-banner", "success",
+                            body.message || "Bot deployed. Connected channels will now use this profile and primary knowledge.");
+                        setTimeout(() => { window.location.href = `testbot.html${pageQuery}`; }, 1200);
+                    }
                     return;
                 }
 
-                banner("bc-page-banner", "error", body.message || "Could not deploy the bot.");
+                banner("bc-page-banner", "error", body.message || (isSetup ? "Could not apply your instructions." : "Could not deploy the bot."));
             } catch (_) {
                 banner("bc-page-banner", "error", "Could not reach the server. Try again.");
             } finally {
@@ -958,7 +1016,7 @@
                 ? state.profiles.find(p => p.name === state.selected)
                 : null;
 
-            $("bc-modal-title").textContent = profile ? `Edit ${profile.name}` : "Create profile";
+            $("bc-modal-title").textContent = profile ? `Edit ${profile.name}` : (isSetup ? "Create instructions" : "Create profile");
             $("bc-f-name").value = profile?.name || "";
             $("bc-f-name").readOnly = Boolean(profile);
             $("bc-f-bot").value = profile?.bot_name || "";
@@ -966,6 +1024,7 @@
             $("bc-f-desc").value = profile?.business_description || "";
             $("bc-f-extra").value = profile?.additional_instructions || "";
             $("bc-f-prompt").value = profile?.custom_prompt || "";
+            $("bc-prompt-options").open = false;
 
             // Assigned verbatim: merge_persona_write treats a present-but-blank
             // field as a deliberate delete, so narrowing this to a known set
@@ -989,7 +1048,7 @@
 
             const name = $("bc-f-name").value.trim();
             if (!name) {
-                banner("bc-form-banner", "error", "Enter a profile name.");
+                banner("bc-form-banner", "error", isSetup ? "Enter a name for these instructions." : "Enter a profile name.");
                 $("bc-f-name").focus();
                 return;
             }
@@ -1022,18 +1081,21 @@
                 // Saving changes what the bot would answer with, so an earlier
                 // validation no longer describes the current setup.
                 state.validation = null;
+                state.setupApplied = false;
 
-                await Promise.all([loadProfiles(), loadActiveProfile()]);
+                await Promise.all([loadProfiles(), loadBot()]);
                 render();
                 closeModal();
-                banner("bc-page-banner", "success", `Profile "${name}" saved. Checking it against your knowledge…`);
+                banner("bc-page-banner", "success", isSetup
+                    ? `"${name}" saved. ${state.active === name ? "Review the instructions check below." : "Choose these instructions to check them against your PDF."}`
+                    : `Profile "${name}" saved. Checking it against your knowledge…`);
                 autoValidateAttempted = false;
                 maybeAutoValidate();
             } catch (_) {
                 banner("bc-form-banner", "error", "Could not reach the server. Try again.");
             } finally {
                 save.disabled = false;
-                save.textContent = "Save profile";
+                save.textContent = isSetup ? "Save instructions" : "Save profile";
             }
         }
 
@@ -1055,7 +1117,7 @@
                     state.validation = null;
                 }
 
-                await Promise.all([loadProfiles(), loadActiveProfile()]);
+                await Promise.all([loadProfiles(), loadBot()]);
                 render();
                 banner("bc-page-banner", "success", `Profile "${name}" deleted.`);
             } catch (_) {

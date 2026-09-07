@@ -184,6 +184,27 @@ async function open(page, world, tab = "model") {
   await expect(page.locator("#bh-bot-name")).toHaveText("Northweave Clinic");
 }
 
+test("guided testing preserves setup across the alias and settings detour without claiming a test passed", async ({ page }) => {
+  const world = makeWorld();
+  await install(page, world);
+  await page.goto(`/testbot.html?bot_id=${BOT_ID}&setup=1`);
+  await expect(page).toHaveURL(new RegExp(`/behaviour\\.html\\?tab=test&bot_id=${BOT_ID}&setup=1$`));
+  await expect(page.locator("#bh-setup-journey")).toBeVisible();
+  await expect(page.locator(".bh-title")).toHaveText("Test your bot");
+  await expect(page.locator("#bh-choose-channel")).toHaveAttribute("href", `integration.html?bot_id=${BOT_ID}&setup=1`);
+  await expect(page.locator("#bh-guided-help")).toContainText("You decide when the replies are ready");
+  expect(world.sent).toEqual([]);
+
+  await page.locator("#bh-guided-settings > summary").click();
+  await page.locator("#bh-guided-model").click();
+  await expect(page.locator("#bh-panel-model")).toBeVisible();
+  await expect(page.locator("#bh-setup-journey")).toBeHidden();
+  await page.locator("#bh-tab-test").click();
+  await expect(page.locator("#bh-setup-journey")).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("setup")).toBe("1");
+  expect(world.sent).toEqual([]);
+});
+
 /* ── Answer style: the Temperature replacement ─────────────────────── */
 
 test("a stored 0.7 reads as Balanced, with no number on screen", async ({ page }) => {

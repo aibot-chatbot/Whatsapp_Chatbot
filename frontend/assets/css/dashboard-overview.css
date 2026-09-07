@@ -120,6 +120,32 @@
     gap: 0;
 }
 
+.dashboard-page .dash-readiness { min-width: 0; }
+.dashboard-page .dash-readiness > summary { display: none; }
+.dashboard-page .dash-monitoring { margin-top: 24px; }
+.dashboard-page .dash-monitoring > summary {
+    padding: 16px 0;
+    color: var(--control-text);
+    font-size: 14px;
+    cursor: pointer;
+}
+.dashboard-page .dash-monitoring > summary span {
+    margin-left: 12px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+.dashboard-page.is-guided-setup .dash-setup { display: flex; flex-direction: column; }
+.dashboard-page.is-guided-setup .dash-nextstep { order: -1; border-left: 0; padding: 28px; }
+.dashboard-page.is-guided-setup .dash-nextstep h2 { font-size: 24px; }
+.dashboard-page.is-guided-setup .dash-nextstep p { display: block; max-width: 64ch; }
+.dashboard-page.is-guided-setup .dash-readiness { border-top: 1px solid var(--control-border); }
+.dashboard-page.is-guided-setup .dash-readiness > summary { display: list-item; margin: 0 24px; padding: 14px 0; cursor: pointer; color: var(--control-text-secondary); font-size: 13px; }
+@media (max-width: 768px) {
+    .dashboard-page.is-guided-setup .dash-nextstep { flex-direction: column; align-items: flex-start; padding: 20px; }
+    .dashboard-page.is-guided-setup .dash-nextstep h2 { font-size: 21px; }
+    .dashboard-page .dash-monitoring > summary span { display: block; margin: 6px 0 0 18px; }
+}
+
 .dashboard-page .dash-steps {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));

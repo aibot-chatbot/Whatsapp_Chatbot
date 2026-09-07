@@ -1,5 +1,28 @@
 # Feature Status
 
+## Guided first-client bot setup — 2026-09-07
+
+**Implemented; public deployment remains unverified.** New bots continue directly
+to Add knowledge → Review instructions → Test replies → Publish. Workspace and
+selected-bot navigation are distinct, with account controls at the bottom. Four
+publishing options have equal treatment and require a choice; new website records
+start disabled. Saving or reconnecting preserves the public key. Address metadata
+distinguishes configured HTTPS, temporary, local and invalid URLs without claiming
+availability. Focused mocked backend/browser checks and manual synthetic interaction
+are recorded in [the client journey review](CLIENT_JOURNEY_REVIEW.md), including
+the security result and unrelated baseline test failures. A permanent hostname,
+the correct Cloudflare account and a running application origin remain unresolved.
+
+## Approved platform staff redesign — 2026-09-07
+
+**Activated in shared Supabase; local browser logins verified.** The independent light Admin portal and dark Super Admin portal use server-assigned platform roles/modules, database-selected login destinations, audited approval decisions and existing billing/support services. Migrations 050/053 and the two requested account assignments are active. Both browser logins loaded live records through the current local Flask application. Public hosting remains pending. See [rollout and current verification](PLATFORM_STAFF_PORTALS_ROLLOUT.md); this evidence does not establish a hosted production release.
+
+Super Admin overview now includes current subscriptions by plan, subscription status,
+and payment follow-up charts using the existing authenticated aggregates. Visible
+counts, source timestamps, status filter links, missing-data states and mobile
+layouts are covered by the 13-test Super Admin browser suite. No schema or API
+changes were needed; chart security review is recorded in the rollout evidence.
+
 ## Status Definitions
 
 - **Verified complete**: implemented and supported by current test evidence or recorded successful end-to-end verification
@@ -59,7 +82,7 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 | User profile | Implemented | Profile viewing and update flow exists |
 | Authenticated tenant Support page | Implemented | `support.html` is authenticated, reachable from the shared tenant sidebar account menu, submits only category, title, and redacted description to `POST /api/support/requests`, and now includes request history/detail with tenant-visible replies from safe tenant endpoints. Migration 030 is verified only in the main shared testing Supabase with fake/team data. Phase 3 tenant communication and Migration 033 are verified only in the main shared-testing Supabase with fake/team data. Email, attachments, billing actions, impersonation, exports, charts, staging readiness, and production use remain excluded |
 | Password change | Implemented | Requires regression coverage |
-| Tenant account menu / navigation | Verified complete | The authenticated tenant account menu moved from the top-right page header into the left sidebar directly below Billing. Shared tenant pages inherit this through the shared sidebar/account component, while `bots.html` keeps its custom rail but follows the same pattern. Expanded sidebars render Profile, Support, Platform Administration when live `/api/platform-admin/me` allows it, and Logout as an in-flow submenu aligned with existing sidebar spacing; collapsed sidebars keep a compact flyout, and Bots mobile uses a drawer so account actions remain reachable. Safe text rendering, logout behavior, outside-click/Escape close, lazy Platform Administration discovery, and single-instance rendering are preserved. Shadow-DOM Lucide refresh was added so account action icons render reliably. Manual desktop verification passed; local Playwright runtime remains pending where Chromium is unavailable |
+| Tenant account menu / navigation | Implemented | The workspace and selected-bot sidebars are distinct; account controls are in the bottom footer while navigation scrolls. Existing Profile, Support, Logout and server-authorized platform discovery remain shared. Focused desktop/mobile placement and navigation tests plus manual synthetic account access passed on 2026-09-07. The wider legacy account suite still has ten classified baseline/stale-fixture failures, including an existing shadow-icon initialization issue; see [the client journey review](CLIENT_JOURNEY_REVIEW.md). |
 
 ## Company and Team
 
@@ -211,6 +234,7 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 | AI-credit usage charging and activity labels | Verified complete | Recent AI Credit Activity is transaction-ledger driven. Customer-billed generative operations now use distinct operation metadata instead of unrelated features collapsing into `knowledge_extraction`: Refine Answers records `knowledge_refinement_questions` and `knowledge_refinement_verification`, both displayed as "Refine Answers"; billing labels also distinguish Test Scenario Generation, Persona Derivation, Profile / Knowledge Validation, Website Knowledge Training, and Knowledge Graph Training, with a generic fallback for unknown future types. When AI-credit enforcement is enabled, central accounting fails closed if usage logging fails, provider cost is unknown, or subscription/balance/usage state cannot support a debit, so successful customer-billed AI should not silently complete without a `usage_debit`. Trial DeepSeek routing is aligned to the priced/catalogued `deepseek-v4-flash` model. Embeddings remain intentionally outside customer AI-credit debit activity. Verification: focused accounting/billing/pricing 97 passed, 6 skipped; broader AI access + Knowledge Workspace 288 passed; billing + knowledge route slice 151 passed; persona/menu/scenario/report slice 159 passed; AI access enforcement 151 passed; `git diff --check` passed; manual Refine Answers billing verification passed. No staging or production deployment is claimed. |
 | ToyyibPay checkout | Verified complete | Latest billing work and focused tests completed |
 | ToyyibPay callback | Verified complete | Callback parsing and processing covered by focused tests |
+| HitPay hosted subscription checkout | Implemented | Server-selected dormant rollout path supports local-order-first hosted checkout, exact-raw-body HMAC event verification, authoritative status re-fetch, exact MYR amount/reference binding, guarded duplicate/stale-event handling, missed-webhook reconciliation, canary tenant selection, and operator-visible degraded health. ToyyibPay remains the default/fallback. Automatic renewal, merchant-dashboard setup, sandbox/live payment verification, Migration 051 application, and production enablement remain blocked pending separate approval and evidence. Migration 049 is unrelated and was not changed or applied by this work. |
 | Order status endpoint | Verified complete | Focused route tests exist |
 | Duplicate callback protection | Verified complete | Idempotent callback behavior covered |
 | Atomic top-up credit grant | Verified complete | RPC-based design and focused tests exist |
@@ -697,7 +721,7 @@ remains blocked.
 | Route | Purpose and safe read-only coverage | Intentionally excluded |
 |---|---|---|
 | `/me` | Confirm current platform-admin identity and active mapping shape | Tenant-role authority, token details, mapping management |
-| `/overview` | Show company/subscription summaries and typed operational alerts | Writes, charts, exports, global activity, remediation |
+| `/overview` | Show company/subscription summaries and typed operational alerts; the Super Admin overview now visualizes plan and status counts | Writes, exports, global activity, remediation |
 | `/audit-events` | List safe audit-event summaries, filters, actor mapping IDs, and approved metadata fields | Raw payloads, secrets, exports, editing, deletion, retention controls |
 | `/companies` | Search, filter, sort, and page safe company directory fields | Customer content, mutations, bulk actions, deletion, export |
 | `/companies/<company_id>` | Inspect safe company profile and status fields | Full tenant records, impersonation, edits, customer content |
@@ -794,10 +818,10 @@ migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
 | Platform-admin Support Workspace | Implemented as tenant investigation with controlled internal case operations; Support Cases Phase 2/Migration 032 and Tenant Communication Phase 3/Migration 033 are verified only in main shared testing Supabase with fake/team data. No live chat, generic messaging, impersonation, billing actions, exports, charts, SLA automation, staging readiness, or production use |
 | Platform-admin Tenant and Company Administration | Implemented and verified for the current milestone in main shared-testing Supabase with fake/team data. Includes company directory/detail investigation, users/chatbots, subscription and AI-credit context/history, billing orders, support-history integration, company-filtered audit navigation, controlled suspend/restore, protected-company safeguard, and centralized inactive-company enforcement. Company 34 (`Autobot Company`, chatbot 52) was suspended/restored and left active; representative chatbot, knowledge, PDF upload, Telegram config, and `/api/chat/test` inactive checks returned `403 company_suspended` without side effects. Company 29 protected suspend returned `protected_company` and remained active. CRM mutation was not live-tested because no suitable CRM lead existed; local coverage exists. It does not provide tenant impersonation, true tenant application audit history, financial mutations, staging readiness, or production use |
 | Platform-admin Tenant Communication | Verified only in main shared-testing Supabase with fake/team data; Migration 033 adds tenant-visible replies, `tenant_reply_created` case events, safe reply audit metadata, and a pending in-app support notification outbox. This is not staging verification and does not establish production readiness; email and attachments remain deferred |
-| Automatic recurring billing | Deferred (ToyyibPay limitation) |
+| Automatic recurring billing | Deferred pending HitPay recurring-card event, cancellation, and correlation validation; FPX, DuitNow, and Touch 'n Go remain manual renewal methods |
 | Email/SMS delivery | Deferred (no provider) |
 | Direct tenant support contact/tickets | Implemented locally as bounded submission plus tenant-visible reply history for the signed-in requester; no live chat, email, attachments, staging readiness, or production use |
 | Platform-admin tenant support intake viewer | Implemented locally as separate read-only GET list/detail routes and Support Workspace section; no mutation, conversion, reply, export, staging verification, or production use |
 | Platform-admin tenant support intake review/conversion | Runtime code and Migration 031 verified only in main shared testing Supabase with fake/team data; case 2 conversion, safe audit metadata, service-role-only RLS/EXECUTE, and mapping baseline verified; not staging or production-ready |
 | PDF receipts | Open (HTML only) |
-| Cross-company dashboard | Bounded read-only cross-tenant operational monitoring aggregates are implemented locally through `GET /api/platform-admin/overview` in Phase 6. Generic/unrestricted cross-company analytics, arbitrary global drilldowns, charts, exports, unrestricted tenant browsing, and remediation/write controls remain deferred |
+| Cross-company dashboard | Bounded operational aggregates now feed Super Admin plan/status charts and payment follow-up bars through the existing operations/billing overview APIs. Browser tests and the local application with live Supabase records are verified; see the 7 September rollout evidence. Generic/unrestricted cross-company analytics, arbitrary global drilldowns, exports, and unrestricted tenant browsing remain deferred |

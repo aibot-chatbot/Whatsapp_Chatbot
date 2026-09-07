@@ -194,7 +194,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 _SVC + ".create_bill",
                 return_value={"billcode": "bill-1", "checkout_url": "https://pay.example/1"},
             ) as mock_bill,
-            patch(_SVC + ".update_subscription_order_status"),
+            patch(_SVC + ".attach_pending_subscription_gateway_details"),
         ):
             result = self._call_checkout("advanced")
 
@@ -241,7 +241,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 _SVC + ".create_bill",
                 return_value={"billcode": "bill-1", "checkout_url": "https://pay.example/1"},
             ),
-            patch(_SVC + ".update_subscription_order_status"),
+            patch(_SVC + ".attach_pending_subscription_gateway_details"),
         ):
             self._call_checkout("advanced")
 
@@ -284,7 +284,10 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 _SVC + ".create_bill",
                 return_value={"gateway_order_id": "bill-1", "checkout_url": "https://toyyibpay.com/bill-1"},
             ),
-            patch(_SVC + ".update_subscription_order_status", side_effect=RuntimeError("db unavailable")),
+            patch(
+                _SVC + ".attach_pending_subscription_gateway_details",
+                side_effect=RuntimeError("db unavailable"),
+            ),
         ):
             with self.assertRaises(RuntimeError) as ctx:
                 self._call_checkout("advanced")
@@ -394,7 +397,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 _SVC + ".create_bill",
                 return_value={"billcode": "bill-1", "checkout_url": "https://pay.example/1"},
             ) as mock_bill,
-            patch(_SVC + ".update_subscription_order_status"),
+            patch(_SVC + ".attach_pending_subscription_gateway_details"),
         ):
             result = self._call_checkout("advanced")
 
@@ -428,7 +431,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 _SVC + ".create_bill",
                 return_value={"billcode": "bill-1", "checkout_url": "https://pay.example/1"},
             ),
-            patch(_SVC + ".update_subscription_order_status"),
+            patch(_SVC + ".attach_pending_subscription_gateway_details"),
         ):
             result = self._call_checkout("advanced")
 

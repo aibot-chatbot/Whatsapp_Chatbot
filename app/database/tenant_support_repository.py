@@ -33,8 +33,24 @@ def _validate_page(limit, offset):
 
 
 def create_tenant_support_request(
-    *, company_id, requester_user_id, category, title, redacted_description
+    *,
+    company_id,
+    requester_user_id,
+    category,
+    title,
+    redacted_description,
+    priority,
+    source,
+    escalation_context,
 ):
+    """One RPC call, one transaction: request + event + audit row together.
+
+    priority, source and escalation_context are carried by the RPC rather than
+    written by a follow-up UPDATE, because a second statement can fail on its
+    own and leave a ticket whose urgency and trail are silently missing. This
+    requires migration 052; the pre-052 function has five parameters and will
+    reject these three.
+    """
     response = supabase.rpc(
         "create_tenant_support_request",
         {
@@ -43,6 +59,9 @@ def create_tenant_support_request(
             "p_category": category,
             "p_title": title,
             "p_redacted_description": redacted_description,
+            "p_priority": priority,
+            "p_source": source,
+            "p_escalation_context": escalation_context,
         },
     ).execute()
     request_id = response.data

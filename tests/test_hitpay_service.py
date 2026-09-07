@@ -29,6 +29,9 @@ class TestHitPayService(unittest.TestCase):
             "id": "9ef68e2e-3569-4f69-9f68-04c7e4bb007c",
             "reference_number": "00000000-0000-4000-8000-000000000001",
             "status": "pending",
+            "amount": "39.00",
+            "currency": "MYR",
+            "allow_repeated_payments": False,
             "url": "https://securecheckout.sandbox.hit-pay.com/payment-request/@merchant/id/checkout",
         }
         with patch("app.services.hitpay_service.requests.post", return_value=response) as post:
@@ -52,6 +55,31 @@ class TestHitPayService(unittest.TestCase):
         self.assertEqual(kwargs["json"]["reference_number"], "00000000-0000-4000-8000-000000000001")
         self.assertFalse(kwargs["json"]["allow_repeated_payments"])
         self.assertNotIn("payment_methods", kwargs["json"])
+
+    def test_create_response_with_mismatched_amount_is_ambiguous(self):
+        from app.services.hitpay_service import HitPayAmbiguousError, create_payment_request
+
+        response = MagicMock(status_code=200)
+        response.json.return_value = {
+            "id": "request-1",
+            "reference_number": "order-1",
+            "status": "pending",
+            "amount": "40.00",
+            "currency": "MYR",
+            "allow_repeated_payments": False,
+            "url": "https://securecheckout.sandbox.hit-pay.com/payment-request/x",
+        }
+        with patch("app.services.hitpay_service.requests.post", return_value=response):
+            with self.assertRaises(HitPayAmbiguousError):
+                create_payment_request(
+                    config=self.config,
+                    order_reference="order-1",
+                    amount_sen=3900,
+                    customer_name="Test User",
+                    customer_email="test@example.com",
+                    customer_phone=None,
+                    description="Subscription - Essential",
+                )
 
     def test_create_timeout_is_ambiguous_and_safe_to_reconcile(self):
         from app.services.hitpay_service import HitPayAmbiguousError, create_payment_request

@@ -41,6 +41,12 @@ TICK_SECONDS = 60
 STARTUP_DELAY_SECONDS = 120
 
 _scheduler_started = False
+_last_successful_run = {}
+
+
+def get_last_successful_run(job_name):
+    """Return process-local monotonic evidence for operator health."""
+    return _last_successful_run.get(job_name)
 
 
 def _run_reconcile():
@@ -105,6 +111,7 @@ def run_due_jobs(now, last_run):
                 logging.warning("Billing job %s exited with code %s", name, exit_code)
             else:
                 logging.info("Billing job %s completed", name)
+                _last_successful_run[name] = now
         except Exception as job_error:
             # One failing job must not stop the others or kill the thread.
             logging.error("Billing job %s failed: %s", name, job_error)

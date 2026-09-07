@@ -24,7 +24,7 @@ class PlatformAdminTenantSupportConversionTests(unittest.TestCase):
             }),
             patch(
                 "app.decorators.platform_admin_decorator.get_active_platform_admin_by_user_id",
-                return_value={"id": 3, "user_id": 7, "is_active": True},
+                return_value={"platform_role": "super_admin", "modules": {"billing": True, "support": True, "customers": True}, "id": 3, "user_id": 7, "is_active": True},
             ),
         ]
         for item in patches:

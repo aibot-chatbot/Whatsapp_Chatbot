@@ -151,6 +151,27 @@
             const identity = await runRequest("authorization", function (signal) {
                 return PlatformAdminApi.getMe({ signal: signal });
             });
+            const legacyPage = String(window.location.pathname || "").split("/").pop();
+            const legacySections = {
+                "platform-admin.html": ["dashboard", "overview"],
+                "platform-admin-companies.html": ["customers", "customers"],
+                "platform-admin-company.html": ["customers", "customers"],
+                "platform-admin-billing.html": ["billing", "payments"],
+                "platform-admin-support.html": ["helpdesk", "support"],
+                "platform-admin-help.html": ["helpdesk", "help"],
+                "platform-admin-users.html": ["dashboard", "team"],
+                "platform-admin-audit-events.html": ["dashboard", "activity"]
+            };
+            if (legacySections[legacyPage] && ["admin.html", "superadmin.html"].includes(identity.landing_page)) {
+                let section = legacySections[legacyPage][identity.platform_role === "super_admin" ? 1 : 0];
+                const companyId = new URLSearchParams(window.location.search || "").get("company_id");
+                if (legacyPage === "platform-admin-company.html" && /^\d+$/.test(companyId || "") &&
+                    Number.isSafeInteger(Number(companyId)) && Number(companyId) > 0) {
+                    section += identity.platform_role === "super_admin" ? "?company=" + Number(companyId) : "/" + Number(companyId);
+                }
+                window.location.replace(identity.landing_page + "#" + section);
+                return;
+            }
             lifecycle.identity = identity;
             const shell = document.querySelector("platform-admin-shell");
             if (shell && typeof shell.setIdentity === "function") shell.setIdentity(identity);
@@ -235,6 +256,8 @@
             billing.href = "platform-admin-billing.html";
             const support = element("a", "", "Support");
             support.href = "platform-admin-support.html";
+            const help = element("a", "", "Help Articles");
+            help.href = "platform-admin-help.html";
             const platformAdmins = element("a", "", "Platform Admins");
             platformAdmins.href = "platform-admin-users.html";
             const auditEvents = element("a", "", "Audit Logs");
@@ -244,9 +267,10 @@
             if (active === "companies") companies.setAttribute("aria-current", "page");
             if (active === "billing") billing.setAttribute("aria-current", "page");
             if (active === "support") support.setAttribute("aria-current", "page");
+            if (active === "help") help.setAttribute("aria-current", "page");
             if (active === "platform-admin-users") platformAdmins.setAttribute("aria-current", "page");
             if (active === "audit-events") auditEvents.setAttribute("aria-current", "page");
-            nav.append(dashboard, companies, billing, support, platformAdmins, auditEvents);
+            nav.append(dashboard, companies, billing, support, help, platformAdmins, auditEvents);
 
             const footer = element("div", "platform-shell-footer");
             this.operator = element("div", "platform-operator");

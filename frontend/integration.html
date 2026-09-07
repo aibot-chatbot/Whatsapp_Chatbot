@@ -14,6 +14,8 @@
     <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
     <link rel="stylesheet" href="assets/css/control-room-motion.css">
     <link rel="stylesheet" href="assets/css/publish.css">
+    <link rel="stylesheet" href="assets/css/bot-setup-journey.css">
+    <script src="assets/js/bot-setup-journey.js" defer></script>
 
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
@@ -28,15 +30,16 @@
     <chatbot-sidebar></chatbot-sidebar>
 
     <main class="main-container kw-page pub-page">
+        <bot-setup-journey current="publish"></bot-setup-journey>
         <header class="kw-header cr-reveal">
             <div>
                 <h1>Publish your bot</h1>
                 <p class="kw-header-sub">
-                    Give people a way to talk to your bot. Start with the link. It works today.
+                    Choose where customers can chat with your bot. Connect a channel when you are ready.
                 </p>
                 <p class="kw-help" role="status" aria-live="polite" id="pub-status">
                     <span class="cr-live-dot is-idle" id="pub-live-dot" aria-hidden="true"></span>
-                    <span id="pub-status-text">Checking where your bot is live...</span>
+                    <span id="pub-status-text">Checking your connections…</span>
                 </p>
             </div>
             <div class="kw-header-aside">
@@ -45,14 +48,14 @@
                     <div class="kw-readiness-figures">
                         <div class="kw-figure">
                             <strong class="kw-mono cr-swap" id="pub-live-count">-</strong>
-                            <span>Live</span>
+                            <span>Connected</span>
                         </div>
                         <div class="kw-figure">
                             <strong class="kw-mono" id="pub-slots">-</strong>
-                            <span>Paid slots</span>
+                            <span>Plan channels</span>
                         </div>
                     </div>
-                    <p class="kw-readiness-foot">The share link is free. It does not use a slot.</p>
+                    <p class="kw-readiness-foot">Website and share link do not use a channel slot.</p>
                 </div>
                 <button type="button" class="kw-btn cr-press" id="pub-recheck">
                     <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 4v5h-5"/></svg>
@@ -61,33 +64,29 @@
             </div>
         </header>
 
-        <!-- Section 1 leads because it answers the question the owner arrived
-             with. It is never empty: ensure_widget() creates the share link
-             record the first time this page is opened. -->
-        <section class="kw-panel cr-reveal" id="pub-live" aria-labelledby="pub-live-title">
-            <div class="kw-panel-head">
-                <h2 class="kw-panel-title" id="pub-live-title">
-                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
-                    Your bot is live here
-                </h2>
-            </div>
-            <div class="kw-panel-body" id="pub-live-body">
-                <div class="cr-skeleton pub-skeleton-lg"></div>
-            </div>
-        </section>
-
         <section class="kw-panel cr-reveal" id="pub-add" aria-labelledby="pub-add-title">
             <div class="kw-panel-head">
                 <h2 class="kw-panel-title" id="pub-add-title">
                     <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-                    Add another way to reach you
+                    Choose a channel
                 </h2>
                 <span class="kw-help" id="pub-slot-note"></span>
             </div>
             <div class="kw-panel-body">
+                <p class="kw-help pub-choice-help">Choose one to see its setup steps. You can connect more channels later.</p>
                 <div class="pub-list" id="pub-options">
                     <div class="cr-skeleton pub-skeleton-xl"></div>
                 </div>
+            </div>
+        </section>
+
+        <section class="kw-panel cr-reveal" id="pub-live" aria-labelledby="pub-live-title">
+            <div class="kw-panel-head">
+                <h2 class="kw-panel-title" id="pub-live-title">Your connections</h2>
+                <span class="kw-help">Based on saved connection status</span>
+            </div>
+            <div class="kw-panel-body" id="pub-live-body">
+                <div class="cr-skeleton pub-skeleton-lg"></div>
             </div>
         </section>
 
@@ -330,7 +329,9 @@
            square badge is a fact about the plan or about our configuration.
            Every state carries a word, so colour is never the only signal. */
         const STATES = {
-            connected: { pill: 'kw-pill-ready', dot: 'kw-dot-ready', label: 'Working' },
+            connected: { pill: 'kw-pill-ready', dot: 'kw-dot-ready', label: 'Connected' },
+            configured: { pill: 'kw-pill-ready', dot: 'kw-dot-ready', label: 'Enabled · not checked' },
+            address: { pill: 'kw-pill-review', dot: 'kw-dot-review', label: 'Address needs setup' },
             attention: { pill: 'kw-pill-review', dot: 'kw-dot-review', label: 'Needs a fix' },
             off:       { pill: 'kw-pill-off', dot: 'kw-dot-off', label: 'Turned off' },
             none:      { pill: '', dot: '', label: 'Not set up' },
@@ -354,9 +355,11 @@
         }
 
         function channelState(kind) {
+            if (state.loadErrors.has(kind)) return 'attention';
             if (kind === 'widget') {
                 if (!state.widget) return 'none';
-                return state.widget.is_enabled ? 'connected' : 'off';
+                if (!state.widget.is_enabled) return 'off';
+                return websiteDelivery().persistent_url ? 'configured' : 'address';
             }
             const record = state.channels[kind];
             if (!record) {
@@ -402,10 +405,10 @@
         async function loadWidget() {
             const result = await getJson(`/api/bots/${BOT_ID}/widget`);
             if (!result.ok) {
-                state.widget = null;
-                state.embed = null;
+                state.loadErrors.add('widget');
                 return false;
             }
+            state.loadErrors.delete('widget');
             state.widget = result.body.data.widget;
             state.embed = result.body.data.embed;
             return true;
@@ -467,6 +470,14 @@
             ]);
         }
 
+        async function loadBotName() {
+            const result = await getJson(`/api/bots/${BOT_ID}`);
+            const sidebar = document.querySelector('chatbot-sidebar');
+            if (result.ok && result.body.data && sidebar && typeof sidebar.setBotName === 'function') {
+                sidebar.setBotName(result.body.data.bot_name);
+            }
+        }
+
         /* ---- Shared pieces ---------------------------------------------- */
 
         function qrSvg(text, label) {
@@ -516,6 +527,23 @@
 
         /* ---- Section 1: where the bot is already live ------------------- */
 
+        function websiteDelivery() {
+            if (state.embed && state.embed.delivery) return state.embed.delivery;
+            // An older server cannot prove a permanent public address. Keep
+            // its links usable, but do not label them as checked or durable.
+            return { persistent_url: false, reachability: 'not_checked',
+                message: 'The public address has not been verified. Ask your workspace administrator to check it before sharing.' };
+        }
+
+        function deliveryNotice() {
+            const delivery = websiteDelivery();
+            return `<p class="kw-help pub-delivery-note${delivery.persistent_url ? '' : ' needs-attention'}">`
+                + `${icon(delivery.persistent_url ? 'link' : 'alert')}`
+                + `<span>${escapeHtml(delivery.persistent_url
+                    ? 'Your link has no expiry and stays the same when you save or reconnect. Public hosting must stay running; availability has not been checked.'
+                    : delivery.message)}</span></p>`;
+        }
+
         function shareCard() {
             const live = state.widget && state.widget.is_enabled;
             const url = state.embed ? state.embed.share_url : '';
@@ -554,11 +582,12 @@
                         ${stateChip(channelState('widget'))}
                     </div>
                     ${body}
+                    ${deliveryNotice()}
                 </div>
             </div>`;
         }
 
-        const CHANNEL_LABEL = { telegram: 'Telegram', whatsapp: 'WhatsApp', wasender: 'WhatsApp' };
+        const CHANNEL_LABEL = { telegram: 'Telegram', whatsapp: 'WhatsApp Business', wasender: 'WhatsApp via Wasender' };
         const CHANNEL_ICON = { telegram: 'send', whatsapp: 'chat', wasender: 'chat' };
 
         function liveChannelRow(kind) {
@@ -572,8 +601,9 @@
             const deepLink = kind === 'telegram' && record.bot_username
                 ? `https://t.me/${record.bot_username}` : '';
 
-            const trouble = status === 'attention'
-                ? `<p class="kw-help">${escapeHtml(CHANNEL_LABEL[kind])} stopped accepting messages
+            const trouble = state.loadErrors.has(kind)
+                ? '<p class="kw-help">This connection could not be refreshed. Check again before making changes.</p>'
+                : status === 'attention' ? `<p class="kw-help">${escapeHtml(CHANNEL_LABEL[kind])} stopped accepting messages
                      from your bot. Set it up again to fix it.</p>` : '';
 
             return `<div class="pub-option is-live" data-live="${kind}">
@@ -589,7 +619,7 @@
                     ${stateChip(status)}
                     ${deepLink ? `<a class="kw-btn cr-press" href="${escapeHtml(deepLink)}"
                         target="_blank" rel="noopener">${icon('external')}Open in Telegram</a>` : ''}
-                    ${status === 'attention' ? `<button type="button" class="kw-btn cr-press"
+                    ${status === 'attention' && !state.loadErrors.has(kind) ? `<button type="button" class="kw-btn cr-press"
                         data-reconnect="${kind}">Set it up again</button>` : ''}
                     <button type="button" class="kw-btn kw-btn-danger cr-press"
                         data-disconnect="${kind}">Disconnect</button>
@@ -600,23 +630,19 @@
         function renderLive() {
             const host = document.getElementById('pub-live-body');
 
-            if (!state.widget) {
-                host.innerHTML = `<div class="kw-empty">
-                    <span class="kw-empty-icon" aria-hidden="true">${icon('alert')}</span>
-                    <h3>We could not load your link</h3>
-                    <p>Something went wrong on our side. Try again in a minute.</p>
-                </div>`;
-                return;
-            }
-
             const liveChannels = ['telegram', 'whatsapp', 'wasender']
                 .filter(kind => state.channels[kind]
                     && ['connected', 'attention'].includes(channelState(kind)))
                 .map(liveChannelRow)
                 .join('');
 
-            host.innerHTML = shareCard()
-                + (liveChannels ? `<div class="pub-list pub-gap">${liveChannels}</div>` : '');
+            const website = state.widget && state.widget.is_enabled ? shareCard() : '';
+            const loadNotice = state.loadErrors.size
+                ? '<p class="kw-banner kw-banner-error" role="status">Some connection details could not be refreshed. Use Check again to retry.</p>' : '';
+            host.innerHTML = loadNotice + website
+                + (liveChannels ? `<div class="pub-list pub-gap">${liveChannels}</div>` : '')
+                + (!website && !liveChannels && !state.loadErrors.size
+                    ? '<div class="kw-empty"><h3>No channels connected yet</h3><p>Choose a channel above. Saving your bot settings does not publish it.</p></div>' : '');
         }
 
         /* ---- Section 2: the ranked ladder ------------------------------- */
@@ -727,13 +753,20 @@
 
         function websiteFlow() {
             const embed = state.embed || {};
+            const enabled = Boolean(state.widget && state.widget.is_enabled);
+            const unavailable = !state.widget || state.loadErrors.has('widget');
             return `<div class="pub-flow" id="pub-flow-website" hidden>
                 <div class="pub-flow-head">
-                    <h3>Put it on your website</h3>
+                    <h3>Website and share link</h3>
                     <button type="button" class="kw-btn cr-press" data-flow-close="website">Cancel</button>
                 </div>
-                <p class="pub-flow-intro">Send this to whoever looks after your website. They
-                    paste it once. Nothing else to do.</p>
+                <p class="pub-flow-intro">Share a direct chat link, or add a chat bubble to your own website. Both use the same connection.</p>
+                ${deliveryNotice()}
+                ${unavailable ? '<p class="kw-banner kw-banner-error">Website settings could not be loaded. Use Check again to retry.</p>'
+                    : !enabled ? '<p class="kw-help">This channel is off. Customers cannot chat until you turn it on.</p><button type="button" class="kw-btn kw-btn-primary" data-widget-toggle="on">Enable website and share link</button>'
+                    : `<p class="kw-help">This channel is enabled. Your share link is in Your connections below.</p>`}
+                ${enabled ? `<details class="kw-advanced pub-gap"><summary>Install on an existing website</summary><div class="kw-advanced-body">
+                <p class="pub-flow-intro">Copy this code into your website, or send it to the person who manages it.</p>
                 <p class="kw-desc">${escapeHtml(embed.script_snippet || '')}</p>
                 <div class="pub-actions">
                     <button type="button" class="kw-btn kw-btn-primary cr-press"
@@ -746,6 +779,7 @@
                     <button type="button" class="kw-btn cr-press"
                         data-copy="${escapeHtml(embed.iframe_snippet || '')}" data-label="1">Copy the code</button>
                 </div>
+                </div></details>` : ''}
             </div>`;
         }
 
@@ -792,52 +826,77 @@
             const rows = [];
 
             rows.push(optionRow({
-                key: 'website', icon: 'globe', title: 'Put it on your website',
-                note: 'Add a chat bubble to a website you already have. You paste one line, or '
-                    + 'send it to whoever built your site.',
-                cost: FREE_BADGE, action: 'Get the code', lead: true, flow: websiteFlow()
+                key: 'website', icon: 'globe', title: 'Website & share link',
+                note: 'A direct chat link or a chat bubble on your website. No customer account needed.',
+                cost: FREE_BADGE, status: channelState('widget'),
+                action: state.widget && state.widget.is_enabled ? 'Manage website' : 'Choose website',
+                flow: websiteFlow()
             }));
 
             const telegramStatus = channelState('telegram');
-            if (!['connected', 'attention'].includes(telegramStatus)) {
+            const telegramConnected = ['connected', 'attention'].includes(telegramStatus) && state.channels.telegram;
+            if (telegramConnected) rows.push(optionRow({
+                key: 'telegram', icon: 'send', title: 'Telegram',
+                note: 'Reply to customers who message your Telegram bot.', cost: SLOT_BADGE,
+                status: telegramStatus, link: { href: '#pub-live', text: 'Manage connection' }
+            }));
+            if (!telegramConnected) {
                 const full = telegramStatus === 'planfull';
                 rows.push(optionRow({
                     key: 'telegram', icon: 'send', title: 'Telegram',
                     note: 'About 2 minutes. You make the bot inside Telegram, then paste one '
                         + 'code here. We do the rest.',
-                    reason: full
+                    reason: state.loadErrors.has('telegram') ? 'Connection status could not be loaded. Use Check again before connecting.' : full
                         ? 'Your plan allows ' + state.entitlement.limit + ' paid channel'
                           + (state.entitlement.limit === 1 ? '' : 's')
                           + ' and they are already in use. Turn one off, or change your plan.'
                         : '',
                     cost: SLOT_BADGE, status: telegramStatus,
-                    action: full ? '' : 'Set up Telegram',
+                    action: full || state.loadErrors.has('telegram') ? '' : 'Choose Telegram',
                     link: full ? { href: 'pricing.html', text: 'See plans' } : null,
                     flow: telegramFlow()
                 }));
             }
 
             const whatsappStatus = channelState('whatsapp');
-            if (!['connected', 'attention'].includes(whatsappStatus)) {
+            const whatsappConnected = ['connected', 'attention'].includes(whatsappStatus) && state.channels.whatsapp;
+            if (whatsappConnected) rows.push(optionRow({
+                key: 'whatsapp', icon: 'chat', title: 'WhatsApp Business',
+                note: 'Connect through Meta using your WhatsApp Business number.', cost: SLOT_BADGE,
+                status: whatsappStatus, link: { href: '#pub-live', text: 'Manage connection' }
+            }));
+            if (!whatsappConnected) {
                 const blocked = whatsappStatus === 'blocked';
                 const full = whatsappStatus === 'planfull';
                 rows.push(optionRow({
-                    key: 'whatsapp', icon: 'chat', title: 'WhatsApp',
+                    key: 'whatsapp', icon: 'chat', title: 'WhatsApp Business',
                     note: 'Use your own WhatsApp Business number. Meta has to approve this one, '
                         + 'so it takes longer than the others.',
-                    reason: blocked
-                        ? 'We are still finishing our approval with WhatsApp. We will turn this '
-                          + 'on for you when it is ready. Use the link or Telegram for now.'
+                    reason: state.loadErrors.has('whatsapp') ? 'Connection status could not be loaded. Use Check again before connecting.' : blocked
+                        ? 'WhatsApp setup is not available in this workspace. Choose another channel or contact support.'
                         : (full ? 'Your plan has no free paid channel left. Turn one off, or '
                             + 'change your plan.' : ''),
                     cost: blocked ? '' : SLOT_BADGE, status: whatsappStatus, quiet: blocked,
-                    button: (blocked || full) ? null
+                    button: (blocked || full || state.loadErrors.has('whatsapp')) ? null
                         : { id: 'pub-meta-connect', text: 'Connect with Meta', primary: false },
                     link: full ? { href: 'pricing.html', text: 'See plans' } : null
                 }));
             }
 
-            document.getElementById('pub-options').innerHTML = rows.join('') + wasenderDisclosure();
+            const wasenderStatus = channelState('wasender');
+            const wasenderConnected = state.channels.wasender && ['connected', 'attention'].includes(wasenderStatus);
+            const wasenderFull = !wasenderConnected && planFull();
+            rows.push(optionRow({
+                key: 'wasender', icon: 'chat', title: 'WhatsApp via Wasender',
+                note: 'Connect through a separate provider. Review the account risk before continuing.',
+                cost: SLOT_BADGE, status: wasenderStatus,
+                action: wasenderConnected || wasenderFull || state.loadErrors.has('wasender') ? '' : 'Choose Wasender',
+                link: wasenderConnected ? { href: '#pub-live', text: 'Manage connection' }
+                    : wasenderFull ? { href: 'pricing.html', text: 'See plans' } : null,
+                reason: wasenderFull ? 'All plan channels are in use. Disconnect one or change your plan.' : '',
+                flow: wasenderConnected || wasenderFull ? '' : wasenderDisclosure()
+            }));
+            document.getElementById('pub-options').innerHTML = rows.join('');
         }
 
         /* Wasender is unsanctioned WhatsApp automation. It stays behind a
@@ -848,13 +907,10 @@
             const connected = ['connected', 'attention'].includes(status);
             if (connected) return '';
 
-            return `<details class="kw-advanced" id="pub-wasender">
-                <summary>
-                    ${icon('alert')}
-                    Another WhatsApp option, with a risk
-                    ${icon('chevron', 'kw-advanced-chevron')}
-                </summary>
-                <div class="kw-advanced-body">
+            return `<div class="pub-flow" id="pub-flow-wasender" hidden>
+                <div class="pub-flow-head"><h3>Set up Wasender</h3>
+                    <button type="button" class="kw-btn" data-flow-close="wasender">Cancel</button></div>
+                <div class="kw-advanced-body" id="pub-wasender">
                     <div class="kw-locked kw-wide">
                         <span class="kw-locked-icon" aria-hidden="true">${icon('alert')}</span>
                         <div>
@@ -880,16 +936,16 @@
                             id="pub-wasender-result"></span>
                     </div>
                 </div>
-            </details>`;
+            </div>`;
         }
 
         /* ---- Header summary --------------------------------------------- */
 
         function renderHeader() {
             const liveCount = ['widget', 'telegram', 'whatsapp', 'wasender']
-                .filter(kind => channelState(kind) === 'connected').length;
+                .filter(kind => ['connected', 'configured'].includes(channelState(kind))).length;
 
-            document.getElementById('pub-live-count').textContent = String(liveCount);
+            document.getElementById('pub-live-count').textContent = state.loadErrors.size ? '-' : String(liveCount);
 
             const e = state.entitlement;
             document.getElementById('pub-slots').textContent = e.loaded
@@ -899,8 +955,8 @@
             document.getElementById('pub-status-text').textContent = state.loadErrors.size
                 ? 'Some channels could not be checked - still trying'
                 : (liveCount === 0
-                    ? 'Not live anywhere yet'
-                    : (liveCount === 1 ? 'Live in 1 place' : `Live in ${liveCount} places`));
+                    ? 'Choose a channel to start reaching customers'
+                    : `${liveCount} channel${liveCount === 1 ? '' : 's'} configured · availability not checked`);
 
             document.getElementById('pub-live-dot').className =
                 'cr-live-dot' + (liveCount > 0 ? ' is-live' : ' is-idle');
@@ -917,6 +973,8 @@
             renderOptions();
             fillWidgetForm();
             applyUrlFlow();
+            document.getElementById('pub-settings').hidden = !(state.widget && state.widget.is_enabled)
+                && state.openFlow !== 'website';
         }
 
         /* ---- The widget form, spread across three disclosures ----------- */
@@ -996,6 +1054,7 @@
             });
 
             state.openFlow = key;
+            document.getElementById('pub-settings').hidden = !(state.widget && state.widget.is_enabled) && key !== 'website';
             const url = new URL(window.location.href);
             url.searchParams.set('connect', key);
             window.history.replaceState({}, '', url);
@@ -1020,6 +1079,7 @@
                 button.closest('.pub-option').classList.remove('is-open');
             });
             state.openFlow = null;
+            document.getElementById('pub-settings').hidden = !(state.widget && state.widget.is_enabled);
             const url = new URL(window.location.href);
             url.searchParams.delete('connect');
             window.history.replaceState({}, '', url);
@@ -1110,38 +1170,49 @@
         /* ---- Confirmation, for the things that cannot be undone ---------- */
 
         let confirmAction = null;
+        let confirmTrigger = null;
 
         function askConfirm(title, body, okLabel, cancelLabel, action) {
             document.getElementById('pub-confirm-title').textContent = title;
             document.getElementById('pub-confirm-body').textContent = body;
             document.getElementById('pub-confirm-ok').textContent = okLabel;
             document.getElementById('pub-confirm-cancel').textContent = cancelLabel;
+            confirmTrigger = document.activeElement;
+            document.querySelector('main').inert = true;
+            document.querySelector('chatbot-sidebar').inert = true;
             document.getElementById('pub-confirm').classList.add('is-open');
-            document.getElementById('pub-confirm-ok').focus();
+            document.getElementById('pub-confirm-cancel').focus();
             confirmAction = action;
         }
 
         function closeConfirm() {
             document.getElementById('pub-confirm').classList.remove('is-open');
+            document.querySelector('main').inert = false;
+            document.querySelector('chatbot-sidebar').inert = false;
+            if (confirmTrigger && confirmTrigger.isConnected) confirmTrigger.focus();
             confirmAction = null;
         }
 
         async function setWidgetEnabled(enabled) {
+            if (state.busy || !state.widget || state.loadErrors.has('widget')) return;
+            state.busy = true;
+            document.querySelectorAll('[data-widget-toggle]').forEach(button => { button.disabled = true; });
             const result = await getJson(`/api/bots/${BOT_ID}/widget`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ is_enabled: enabled })
             });
+            state.busy = false;
 
             if (!result.ok) {
                 announce('We could not change that. Try again.');
+                document.querySelectorAll('[data-widget-toggle]').forEach(button => { button.disabled = false; });
                 return;
             }
             state.widget = result.body.data.widget;
             state.embed = result.body.data.embed;
-            announce(enabled ? 'The link is on.' : 'The link is off.');
-            renderHeader();
-            renderLive();
+            announce(enabled ? 'Website and share link enabled. Open the link to check it before sharing.' : 'Website and share link turned off.');
+            render();
         }
 
         async function disconnectChannel(kind) {
@@ -1186,7 +1257,7 @@
             if (result.ok) {
                 state.widget = result.body.data.widget;
                 state.embed = result.body.data.embed;
-                status.textContent = 'Saved. It is live now.';
+                status.textContent = state.widget.is_enabled ? 'Saved. Your connection stays enabled.' : 'Saved. This channel is still off.';
                 renderLive();
             } else {
                 status.textContent = 'We could not save that. Try again.';
@@ -1285,7 +1356,10 @@
         let metaSignupData = null;
 
         window.addEventListener('message', event => {
-            if (!String(event.origin).endsWith('facebook.com')) return;
+            let origin;
+            try { origin = new URL(event.origin); } catch (error) { return; }
+            if (origin.protocol !== 'https:' || !(origin.hostname === 'facebook.com'
+                || origin.hostname.endsWith('.facebook.com'))) return;
             let payload;
             try { payload = JSON.parse(event.data); } catch (error) { return; }
             if (!payload || payload.type !== 'WA_EMBEDDED_SIGNUP') return;
@@ -1432,6 +1506,13 @@
         });
 
         document.addEventListener('keydown', event => {
+            if (event.key === 'Tab' && document.getElementById('pub-confirm').classList.contains('is-open')) {
+                const first = document.getElementById('pub-confirm-cancel');
+                const last = document.getElementById('pub-confirm-ok');
+                if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+                else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+                return;
+            }
             if (event.key !== 'Escape') return;
             if (document.getElementById('pub-confirm').classList.contains('is-open')) {
                 closeConfirm();
@@ -1441,7 +1522,7 @@
         });
 
         if (BOT_ID) {
-            document.addEventListener('DOMContentLoaded', () => { refresh(); });
+            document.addEventListener('DOMContentLoaded', () => { refresh(); loadBotName(); });
         }
     </script>
 </body>

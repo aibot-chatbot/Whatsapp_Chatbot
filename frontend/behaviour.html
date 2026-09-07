@@ -14,6 +14,8 @@
     <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
     <link rel="stylesheet" href="assets/css/control-room-motion.css">
     <link rel="stylesheet" href="assets/css/behaviour.css">
+    <link rel="stylesheet" href="assets/css/bot-setup-journey.css">
+    <script src="assets/js/bot-setup-journey.js" defer></script>
 
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
@@ -27,6 +29,7 @@
     <chatbot-sidebar></chatbot-sidebar>
 
     <main class="main-container bh-page">
+        <bot-setup-journey id="bh-setup-journey" current="test" hidden></bot-setup-journey>
         <header class="bh-header cr-reveal">
             <div>
                 <h1 class="bh-title">Behaviour Studio</h1>
@@ -248,6 +251,7 @@
 
         <!-- ══ 3. Test lab ═══════════════════════════════════════════ -->
         <section id="bh-panel-test" role="tabpanel" aria-labelledby="bh-tab-test" hidden>
+            <p class="kw-help bh-guided-help" id="bh-guided-help" hidden>Ask a question from your document and check the answer. You decide when the replies are ready for customers.</p>
             <!-- Answers "what am I actually testing?" before the first message.
                  An undeployed bot replies from defaults and reads as if it were
                  configured, which is the trap this strip exists to close. -->
@@ -305,6 +309,20 @@
                     </section>
                 </div>
             </div>
+            <div class="kw-nextstep bh-guided-next" id="bh-guided-next" hidden>
+                <div>
+                    <strong>Ready to choose where customers can reach you?</strong>
+                    <span>You can return here to test again at any time.</span>
+                </div>
+                <a class="kw-btn" id="bh-choose-channel" href="integration.html">Choose a channel</a>
+            </div>
+            <details class="kw-advanced bh-guided-settings" id="bh-guided-settings" hidden>
+                <summary>Adjust answer style or welcome messages</summary>
+                <div class="kw-advanced-body">
+                    <a class="kw-btn" id="bh-guided-model" href="behaviour.html?tab=model">Answer style</a>
+                    <a class="kw-btn" id="bh-guided-message" href="behaviour.html?tab=message">Welcome messages</a>
+                </div>
+            </details>
         </section>
 
         <div class="bh-footer" id="bh-footer">
