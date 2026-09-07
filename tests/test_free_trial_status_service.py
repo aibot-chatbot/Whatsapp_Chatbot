@@ -63,9 +63,13 @@ class TestFreeTrialEffectiveStatus(unittest.TestCase):
         self.assertTrue(result["trial_expired"])
         self.assertTrue(result["trial_missing"])
 
-    def test_paid_plan_preserves_raw_status(self):
+    def test_paid_active_before_period_end_preserves_active(self):
         result = resolve_effective_subscription_status(
-            {"status": "active", "trial_ends_at": (NOW - timedelta(days=1)).isoformat()},
+            {
+                "status": "active",
+                "current_period_end": (NOW + timedelta(days=1)).isoformat(),
+                "trial_ends_at": (NOW - timedelta(days=1)).isoformat(),
+            },
             {"code": "advanced"},
             now=NOW,
         )
@@ -73,6 +77,44 @@ class TestFreeTrialEffectiveStatus(unittest.TestCase):
         self.assertEqual(result["effective_status"], "active")
         self.assertFalse(result["is_free_trial"])
         self.assertFalse(result["trial_expired"])
+
+    def test_paid_active_after_period_end_is_past_due_within_grace(self):
+        result = resolve_effective_subscription_status(
+            {
+                "status": "active",
+                "current_period_end": (NOW - timedelta(days=1)).isoformat(),
+            },
+            {"code": "pro"},
+            now=NOW,
+        )
+
+        self.assertEqual(result["raw_status"], "active")
+        self.assertEqual(result["effective_status"], "past_due")
+
+    def test_paid_active_after_grace_is_expired(self):
+        result = resolve_effective_subscription_status(
+            {
+                "status": "active",
+                "current_period_end": (NOW - timedelta(days=4)).isoformat(),
+            },
+            {"code": "pro"},
+            now=NOW,
+        )
+
+        self.assertEqual(result["raw_status"], "active")
+        self.assertEqual(result["effective_status"], "expired")
+
+    def test_paid_past_due_after_grace_is_expired(self):
+        result = resolve_effective_subscription_status(
+            {
+                "status": "past_due",
+                "current_period_end": (NOW - timedelta(days=4)).isoformat(),
+            },
+            {"code": "essential"},
+            now=NOW,
+        )
+
+        self.assertEqual(result["effective_status"], "expired")
 
 
 if __name__ == "__main__":

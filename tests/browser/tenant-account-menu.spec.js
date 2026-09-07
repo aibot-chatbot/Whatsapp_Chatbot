@@ -144,6 +144,26 @@ async function accountMenuMetrics(page) {
   });
 }
 
+async function legacySidebarAccountLinks(page) {
+  return page.locator("chatbot-sidebar").evaluate(sidebar => {
+    return Array.from(sidebar.querySelectorAll("a, button"))
+      .filter(element => {
+        const text = (element.textContent || "").trim();
+        const href = element.getAttribute("href") || "";
+        return (
+          (text === "Profile" && /profile\.html/.test(href)) ||
+          text === "Logout" ||
+          element.classList.contains("logout-link")
+        );
+      })
+      .map(element => ({
+        tag: element.tagName.toLowerCase(),
+        text: (element.textContent || "").trim(),
+        href: element.getAttribute("href") || ""
+      }));
+  });
+}
+
 async function elementRect(page, selector) {
   return page.locator(selector).evaluate(element => {
     const rect = element.getBoundingClientRect();
@@ -216,8 +236,7 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.locator(".tenant-account-menu-floating")).toHaveCount(0);
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toHaveAttribute("href", /profile\.html\?bot_id=42$/);
-    await expect(page.locator("chatbot-sidebar")).not.toContainText("Profile");
-    await expect(page.locator("chatbot-sidebar")).not.toContainText("Logout");
+    expect(await legacySidebarAccountLinks(page)).toEqual([]);
   });
 
   test("representative non-dashboard sidebar page gets the shared account menu", async ({ page }) => {
@@ -229,8 +248,7 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Logout" })).toBeVisible();
-    await expect(page.locator("chatbot-sidebar")).not.toContainText("Profile");
-    await expect(page.locator("chatbot-sidebar")).not.toContainText("Logout");
+    expect(await legacySidebarAccountLinks(page)).toEqual([]);
   });
 
   test("shared-sidebar account submenu uses sidebar alignment and renders Lucide SVG icons", async ({ page }) => {
@@ -315,6 +333,22 @@ test.describe("tenant account menu shared placement", () => {
     rect = await accountMenuRect(page);
     expect(rect.left).toBeGreaterThanOrEqual(0);
     expect(rect.right).toBeLessThanOrEqual(390);
+  });
+
+  test("expanded mobile navigation scrolls without covering the account footer", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 540 });
+    await openTenantPage(page, "/index.html?bot_id=42");
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await page.locator("chatbot-sidebar details").evaluateAll(groups => {
+      groups.forEach(group => { group.open = true; });
+    });
+    const lastLink = page.locator("chatbot-sidebar .nav-list a").last();
+    await lastLink.scrollIntoViewIfNeeded();
+    const linkRect = await lastLink.boundingBox();
+    const footerRect = await elementRect(page, "chatbot-sidebar .sidebar-bottom-section");
+    expect(linkRect.y + linkRect.height).toBeLessThanOrEqual(footerRect.top + 1);
+    await openAccountMenu(page);
+    expectInsideViewport(await accountMenuRect(page), page.viewportSize());
   });
 
   test("dashboard header and account menu do not overlap across responsive widths", async ({ page }) => {
@@ -426,15 +460,18 @@ test.describe("tenant support page", () => {
     await openAccountMenu(page);
     await page.getByRole("menuitem", { name: "Support" }).click();
     await expect(page).toHaveURL(/support\.html$/);
-    await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
-    await expect(page.getByText("Common Help Topics")).toBeVisible();
-    await expect(page.getByText("Billing And AI Credits")).toBeVisible();
-    await expect(page.getByText("Submit a Support Request")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Support", exact: true })).toBeVisible();
+    await expect(page.getByRole("searchbox")).toBeVisible();
+    await expect(page.getByRole("group", { name: "Filter articles by category" })).toBeVisible();
+    await page.getByRole("button", { name: "Talk to a human", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Contact the support team" })).toBeVisible();
     await expect(page.locator("#support-request-form")).toHaveCount(1);
-    await expect(page.locator("#support-request-category option")).toHaveCount(8);
+    await expect(page.locator("#sup-category option")).toHaveText([
+      "Technical", "Account", "Chatbot", "Integration", "Billing question", "AI credits", "Other"
+    ]);
     await expect(page.locator("tenant-account-menu")).toHaveCount(1);
     await expect(page.locator("input[type=file]")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /message|email|billing|impersonat|export|chart/i })).toHaveCount(0);
+    await expect(page.locator("#support-request-form").getByRole("button", { name: /message|email|billing|impersonat|export|chart/i })).toHaveCount(0);
   });
 
   test("direct authenticated navigation works and renders safe account context", async ({ page }) => {
@@ -444,9 +481,10 @@ test.describe("tenant support page", () => {
       role: "member"
     });
 
-    await expect(page.getByRole("heading", { name: "Support" })).toBeVisible();
-    await expect(page.locator("#support-account-name")).toHaveText("Tenant Operator");
-    await expect(page.locator("#support-account-email")).toHaveText("tenant@example.test");
+    await expect(page.getByRole("heading", { name: "Support", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Talk to a human", exact: true }).click();
+    await expect(page.locator("#sup-trail-account")).toHaveText("Tenant Operator");
+    await expect(page.locator("#sup-trail-email")).toHaveText("tenant@example.test");
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
   });
@@ -503,8 +541,7 @@ test.describe("tenant support page", () => {
       };
     };
     await openTenantPage(page, "/support.html", undefined, undefined, supportHandler);
-    await expect(page.getByText("#31 - technical - converted")).toBeVisible();
-    await page.getByRole("button", { name: "#31 - technical - converted" }).click();
+    await page.getByRole("button", { name: "#31 Support request converted" }).click();
     await expect(page.getByText("<img src=x onerror=window.__tenantSupportXss=true>")).toBeVisible();
     await expect(page.getByText("<script>window.__tenantSupportXss=true</script>")).toBeVisible();
     await expect(page.getByText("Internal note must not render")).toHaveCount(0);
@@ -532,10 +569,11 @@ test.describe("tenant support page", () => {
       role: "owner"
     });
 
-    await expect(page.locator("#support-account-name")).toHaveText("<img src=x onerror=window.__supportInjected=true>");
-    await expect(page.locator("#support-account-email")).toHaveText("<script>window.__supportInjected=true</script>");
-    await expect(page.locator("#support-account-name img")).toHaveCount(0);
-    await expect(page.locator("#support-account-email script")).toHaveCount(0);
+    await page.getByRole("button", { name: "Talk to a human", exact: true }).click();
+    await expect(page.locator("#sup-trail-account")).toHaveText("<img src=x onerror=window.__supportInjected=true>");
+    await expect(page.locator("#sup-trail-email")).toHaveText("<script>window.__supportInjected=true</script>");
+    await expect(page.locator("#sup-trail-account img")).toHaveCount(0);
+    await expect(page.locator("#sup-trail-email script")).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => window.__supportInjected)).toBe(false);
   });
 
@@ -544,6 +582,8 @@ test.describe("tenant support page", () => {
     await openTenantPage(page, "/support.html");
 
     await expect(page.locator("tenant-account-menu")).toHaveCount(1);
+    await page.getByRole("button", { name: "Open menu" }).click();
+    await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
     await openAccountMenu(page);
     await expect(page.getByRole("menu")).toBeVisible();
     const rect = await accountMenuRect(page);

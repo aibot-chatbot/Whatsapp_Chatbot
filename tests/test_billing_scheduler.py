@@ -69,7 +69,7 @@ class TestRunDueJobs(unittest.TestCase):
         self.assertEqual(last_run, {"a": 1100.0})
 
     def test_jobs_run_on_independent_schedules(self):
-        """The 15-minute reconcile must not drag the daily sweeps along with it."""
+        """The 15-minute reconcile must not drag slower sweeps along with it."""
         jobs = self._jobs(("fast", 100, 0, False), ("slow", 10_000, 0, False))
         with patch.object(scheduler, "JOBS", jobs):
             last_run = scheduler.run_due_jobs(0.0, {})
@@ -139,6 +139,33 @@ class TestRealJobWiring(unittest.TestCase):
 
         for job_main in (reconcile_main, lifecycle_main, notifications_main):
             self.assertTrue(callable(job_main))
+
+    def test_default_job_cadences_are_independent(self):
+        intervals = {name: interval for name, _, interval in scheduler.JOBS}
+
+        self.assertEqual(intervals["reconcile_subscription_orders"], 15 * 60)
+        self.assertEqual(intervals["process_subscription_lifecycle"], 10 * 60)
+        self.assertEqual(intervals["generate_billing_notifications"], 24 * 60 * 60)
+
+    def test_lifecycle_interval_override_still_uses_existing_env_var(self):
+        jobs = (
+            ("process_subscription_lifecycle", lambda: 0, scheduler.LIFECYCLE_INTERVAL_SECONDS),
+        )
+        with patch.object(scheduler, "JOBS", jobs), patch.dict(
+            os.environ,
+            {"BILLING_SCHEDULER_PROCESS_SUBSCRIPTION_LIFECYCLE_SECONDS": "5"},
+        ):
+            last_run = scheduler.run_due_jobs(1000.0, {})
+            last_run = scheduler.run_due_jobs(1004.0, last_run)
+            rerun = scheduler.run_due_jobs(1005.0, last_run)
+
+        self.assertEqual(rerun["process_subscription_lifecycle"], 1005.0)
+
+    def test_render_blueprint_does_not_define_subscription_lifecycle_cron(self):
+        render_yaml = (_REPO_ROOT / "render.yaml").read_text(encoding="utf-8")
+
+        self.assertNotIn("type: cron", render_yaml)
+        self.assertNotIn("python -m app.jobs.process_subscription_lifecycle", render_yaml)
 
 
 if __name__ == "__main__":
