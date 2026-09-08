@@ -1,6 +1,8 @@
 """Focused regression tests for CRM lead assignment route behavior."""
 
 from contextlib import contextmanager
+import io
+import json
 from unittest.mock import patch
 
 import pytest
@@ -31,6 +33,32 @@ def client():
     app = create_app()
     app.config["TESTING"] = True
     return app.test_client()
+
+
+@pytest.mark.parametrize("method,path", [
+    ("PATCH", "/api/crm/leads/7"),
+    ("POST", "/api/crm/leads/upsert"),
+])
+@pytest.mark.parametrize("streaming", [False, True])
+def test_oversized_crm_body_is_rejected_before_parsing_or_writes(client, method, path, streaming):
+    body = json.dumps({"chatbot_id": 29, "conversation_id": 101,
+                       "notes": "x" * (128 * 1024)}).encode()
+    overrides = {}
+    if streaming:
+        overrides = {"wsgi.input": io.BytesIO(body), "wsgi.input_terminated": True,
+                     "CONTENT_LENGTH": ""}
+    with authenticated_user(), \
+            patch("httpx.Client.send", side_effect=AssertionError("External HTTP disabled")), \
+            patch("app.routes.crm_routes.verify_chatbot_access", return_value={"company_id": 42}) as access, \
+            patch("app.routes.crm_routes.get_conversation_by_id_and_chatbot", return_value={"id": 101}), \
+            patch("app.routes.crm_routes.update_crm_lead_status_notes", return_value=MOCK_LEAD) as update, \
+            patch("app.routes.crm_routes.upsert_crm_lead_by_conversation", return_value=MOCK_LEAD) as upsert:
+        response = client.open(path, method=method, data=body, content_type="application/json",
+                               headers=AUTH_HEADERS, environ_overrides=overrides)
+    assert response.status_code == 413
+    access.assert_not_called()
+    update.assert_not_called()
+    upsert.assert_not_called()
 
 
 @contextmanager

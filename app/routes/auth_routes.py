@@ -1,5 +1,7 @@
 ﻿from app.rate_limit import limiter
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
+from hashlib import sha256
+import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.database.user_repository import get_user_by_email, create_user
@@ -16,6 +18,7 @@ from app.services.invitation_service import InvitationValidationError, accept_pe
 from app.services.billing_guard import BillingLimitError
 from app.services.login_destination_service import LoginDestinationError, get_login_destination
 from app.utils.jwt_utils import get_jwt_secret
+from app.utils.api_errors import server_error
 import logging
 logger = logging.getLogger(__name__)
 
@@ -67,8 +70,22 @@ def validate_password_strength(password):
     return True, ""
 
 def generate_otp():
-    import random
-    return str(random.randint(100000, 999999))
+    return str(100000 + secrets.randbelow(900000))
+
+
+def _otp_account_key():
+    """Keep all spellings and client IPs in one account budget, without raw PII."""
+    data = request.get_json(silent=True)
+    email = data.get("email") if isinstance(data, dict) else None
+    normalized = email.strip().lower() if isinstance(email, str) else ""
+    return sha256(normalized.encode("utf-8")).hexdigest()
+
+
+_reset_verification_limit = limiter.shared_limit(
+    lambda: current_app.config.get("RATELIMIT_OTP", "5/hour"),
+    scope="password-reset-verification",
+    key_func=_otp_account_key,
+)
 
 
 def parse_otp_expiry(expiry_value):
@@ -338,6 +355,8 @@ def login():
 
 
 @auth_bp.route("/register", methods=["POST"])
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_OTP", "5/hour"))
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_OTP", "5/hour"), key_func=_otp_account_key)
 def register():
     try:
         from app.database.db import supabase
@@ -375,8 +394,7 @@ def register():
         otp = generate_otp()
         otp_expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
 
-        # Upsert into pending_registrations â€” does NOT touch users/companies/bots
-        supabase.table("pending_registrations").upsert({
+        payload = {
             "email": email,
             "first_name": first_name,
             "last_name": last_name,
@@ -384,13 +402,34 @@ def register():
             "password_hash": password_hash,
             "otp_code": otp,
             "otp_expiry": otp_expiry
-        }, on_conflict="email").execute()
+        }
+        # The unique email key chooses one first request. Even an expired OTP
+        # must retain its signup credentials; resending only renews the code.
+        result = supabase.table("pending_registrations").upsert(
+            payload, on_conflict="email", ignore_duplicates=True
+        ).execute()
+        if not result.data:
+            pending_result = supabase.table("pending_registrations").select(
+                "email,password_hash"
+            ).eq("email", email).limit(1).execute()
+            pending = pending_result.data[0] if pending_result.data else None
+            if pending and check_password_hash(pending.get("password_hash") or "", password):
+                return jsonify({
+                    "status": "success",
+                    "code": "registration_pending",
+                    "message": "Continue verifying your earlier registration. Use Resend Code if your code has expired.",
+                    "data": {"email": email},
+                }), 200
+            return jsonify({
+                "status": "error",
+                "message": "A registration is already pending. Use your original signup password to continue verification.",
+            }), 409
 
         email_sent = send_otp_email(email, otp, recipient_name=first_name)
         if email_sent:
-            logger.info("OTP sent to " + email)
+            logger.info("Registration OTP email sent")
         else:
-            logger.warning("Email failed for " + email)
+            logger.warning("Registration OTP email failed")
 
         return jsonify({
             "status": "success",
@@ -399,10 +438,11 @@ def register():
         }), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return server_error("register", e)
 
 @auth_bp.route("/verify-otp", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_OTP", "5/hour"), key_func=_otp_account_key)
 def verify_otp():
     from app.database.db import supabase
     data = request.get_json() or {}
@@ -460,10 +500,10 @@ def verify_otp():
         # block the user from logging in.
         try:
             ensure_default_company_subscription(company["id"])
-        except Exception:
-            logging.exception(
-                "Failed to assign Free subscription for company %s after email verification",
-                company["id"],
+        except Exception as exc:
+            logging.error(
+                "Failed to assign Free subscription after email verification (%s)",
+                type(exc).__name__,
             )
 
         # Clean up pending registration
@@ -471,7 +511,7 @@ def verify_otp():
         return jsonify({"status": "success", "message": "Email verified! Your account is ready. Please login."}), 200
 
     except Exception as e:
-        return jsonify({"status": "error", "message": f"Account creation failed: {str(e)}"}), 500
+        return server_error("verify_otp", e, "Account creation failed. Please try again.")
 
 @auth_bp.route("/resend-otp", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
@@ -499,9 +539,9 @@ def resend_otp():
 
     email_sent = send_otp_email(email, otp, recipient_name=pending.get("first_name", "User"))
     if email_sent:
-        logger.info("Resent OTP via email to " + email)
+        logger.info("Registration OTP email resent")
     else:
-        logger.warning("Resend failed for " + email)
+        logger.warning("Registration OTP email resend failed")
 
     return jsonify({"status": "success", "message": "New verification code sent to your email"}), 200
 
@@ -536,7 +576,7 @@ def forgot_password():
 
     email_sent = send_reset_email(email, otp, recipient_name=first_name)
     if not email_sent:
-        logger.info("Reset OTP for " + email)
+        logger.warning("Password reset OTP email failed")
 
     return jsonify({
         "status": "success",
@@ -545,6 +585,8 @@ def forgot_password():
 
 
 @auth_bp.route("/verify-reset-otp", methods=["POST"])
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_OTP", "5/hour"))
+@_reset_verification_limit
 def verify_reset_otp():
     data = request.get_json() or {}
     email = (data.get("email") or "").strip().lower()
@@ -575,6 +617,7 @@ def verify_reset_otp():
 
 @auth_bp.route("/reset-password", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
+@_reset_verification_limit
 def reset_password():
     from app.database.db import supabase
     data = request.get_json() or {}
@@ -620,5 +663,4 @@ def reset_password():
         }), 200
 
     except Exception as e:
-        logging.exception("Failed to reset password")
-        return jsonify({"status": "error", "message": "Unable to reset password. Please try again."}), 500
+        return server_error("reset_password", e, "Unable to reset password. Please try again.")

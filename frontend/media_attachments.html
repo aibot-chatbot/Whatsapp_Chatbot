@@ -783,7 +783,7 @@
             
             attachments.forEach(att => {
                 const keywordTags = att.keywords 
-                    ? att.keywords.map(k => `<span class="keyword-tag">${k}</span>`).join("") 
+                    ? att.keywords.map(k => `<span class="keyword-tag">${escapeHtml(k)}</span>`).join("")
                     : "";
                     
                 let iconName = "image";

@@ -1,5 +1,15 @@
 # Development Roadmap
 
+### Client-data security review and repair — 2026-09-08
+
+Local authentication, media, CRM input and error-disclosure repairs are implemented
+with synthetic regression tests and independent review. Production release remains
+pending comprehensive scan coverage, cumulative media quotas and target-environment
+checks. Sentry API access is verified but the organization has no accessible projects.
+The long source scan was skipped at user request on 2026-09-09; it is not a pass.
+See [audit scope and evidence](SECURITY_AUDIT_2026-09-08.md). Existing Langflow
+startup work is preserved; no live customer, payment or deployment mutation occurred.
+
 ### Guided client setup and channel publishing — 2026-09-07
 
 **Local implementation complete; release verification pending.** The approved
@@ -137,11 +147,16 @@ Added a guarded automation seam for two tenant workflows: successful PDF
 indexing emits an idempotent document-review follow-up event, and owner/admin
 requests can apply a compare-and-set CRM stage transition with an audit event.
 `GET /api/automation/events` exposes tenant-scoped monitoring data. This is a
-partial implementation: a durable consumer/queue and live Langflow runtime
-remain separate work. The `automation_events` table is defined in Migration
+partial implementation: knowledge events await human review; no automatic
+review-completion consumer is implemented. Langflow advice executes during the
+request. The local Windows runtime is reachable; cloud runtime deployment is
+separate work. The `automation_events` table is defined in Migration
 049 and is applied/live-verified in the active Supabase project. Langflow integration is intentionally
-opt-in and server-side; no external runtime or tenant-facing editor is enabled
-by this change.
+opt-in and server-side; no tenant-facing editor is enabled by this change.
+The 2026-09-08 reliability update adds a bounded Langflow health probe,
+request-identity validation, synchronous-response enforcement, and consultation
+metadata on accepted CRM events. Local startup and recovery details are in
+`langflow/README.md`; local checks do not establish hosted deployment health.
 
 ### HitPay hosted subscription checkout - 2026-09-04
 

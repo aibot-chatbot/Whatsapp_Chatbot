@@ -161,9 +161,25 @@ def create_app():
         from flask import send_from_directory
         from werkzeug.exceptions import NotFound
         try:
-            return send_from_directory(MEDIA_FOLDER, filename)
+            response = send_from_directory(MEDIA_FOLDER, filename)
         except NotFound:
-            return send_from_directory(LEGACY_MEDIA_FOLDER, filename)
+            response = send_from_directory(LEGACY_MEDIA_FOLDER, filename)
+
+        # Uploads are untrusted on the app's origin, including legacy files.
+        # Providers still need anonymous downloads; only passive media is inline.
+        inline_media = response.mimetype in {
+            "image/jpeg", "image/png", "image/gif", "image/webp", "image/avif",
+            "image/bmp", "image/x-icon", "image/vnd.microsoft.icon",
+        } or response.mimetype.startswith(("audio/", "video/"))
+        # Native audio/video documents fetch their source with CORS enabled.
+        response.headers["Content-Security-Policy"] = (
+            "sandbox allow-same-origin" if inline_media else "sandbox; default-src 'none'"
+        )
+        if not inline_media:
+            response.headers["Content-Disposition"] = response.headers[
+                "Content-Disposition"
+            ].replace("inline;", "attachment;", 1)
+        return response
 
     @app.errorhandler(404)
     def serve_frontend_fallback(error):

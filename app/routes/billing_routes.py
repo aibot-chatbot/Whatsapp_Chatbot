@@ -8,6 +8,7 @@ import csv
 import io
 from datetime import datetime
 from app.decorators.auth_decorator import token_required
+from app.utils.access_control import role_required
 from app.services.company_status_service import company_operational_required
 from app.services.billing_service import (
     list_active_plans,
@@ -1091,6 +1092,7 @@ def subscription_downgrade_check(target_plan_code):
 
 @billing_bp.route("/subscription/cancel", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 @company_operational_required
 def cancel_subscription():
     try:
@@ -1107,6 +1109,7 @@ def cancel_subscription():
 
 @billing_bp.route("/subscription/undo-cancel", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 @company_operational_required
 def undo_cancel_subscription():
     try:
@@ -1123,6 +1126,7 @@ def undo_cancel_subscription():
 
 @billing_bp.route("/subscription/downgrade", methods=["POST"])
 @token_required
+@role_required("admin", "owner")
 @company_operational_required
 def schedule_downgrade():
     try:
@@ -1150,6 +1154,7 @@ def schedule_downgrade():
 
 @billing_bp.route("/subscription/downgrade", methods=["DELETE"])
 @token_required
+@role_required("admin", "owner")
 @company_operational_required
 def clear_downgrade():
     try:

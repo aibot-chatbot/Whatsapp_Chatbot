@@ -4,7 +4,7 @@
   "description": "Review a successfully indexed tenant knowledge document and return a bounded follow-up decision.",
   "trigger": {
     "event_type": "knowledge_document_follow_up",
-    "source": "POST /api/v1/webhook/{FLOW_ID}",
+    "source": "POST /api/v1/run/{FLOW_ID}",
     "required": ["company_id", "chatbot_id", "file_id", "display_name", "chunk_count", "target_role"]
   },
   "input_schema": {

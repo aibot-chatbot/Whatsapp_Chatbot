@@ -1,8 +1,11 @@
 from functools import wraps
 from flask import current_app, jsonify, request
+from werkzeug.exceptions import RequestEntityTooLarge
 import logging
 import hashlib
 import hmac
+
+_MAX_WEBHOOK_BYTES = 1024 * 1024
 
 
 def validate_signature(payload, signature):
@@ -23,7 +26,7 @@ def validate_signature(payload, signature):
     # Use the App Secret to hash the payload
     expected_signature = hmac.new(
         bytes(app_secret, "latin-1"),
-        msg=payload.encode("utf-8"),
+        msg=payload.encode("utf-8") if isinstance(payload, str) else payload,
         digestmod=hashlib.sha256,
     ).hexdigest()
 
@@ -38,10 +41,19 @@ def signature_required(f):
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        limit = min(request.max_content_length or _MAX_WEBHOOK_BYTES, _MAX_WEBHOOK_BYTES)
+        # Read one extra byte to detect oversized streams instead of accepting a truncated body.
+        request.max_content_length = limit + 1
+        try:
+            payload = request.get_data(cache=True)
+            if len(payload) > limit:
+                raise RequestEntityTooLarge()
+        except RequestEntityTooLarge:
+            return jsonify({"status": "error", "message": "Webhook body is too large."}), 413
         signature = request.headers.get("X-Hub-Signature-256", "")[
             7:
         ]  # Removing 'sha256='
-        if not validate_signature(request.data.decode("utf-8"), signature):
+        if not validate_signature(payload, signature):
             logging.info("Signature verification failed!")
             return jsonify({"status": "error", "message": "Invalid signature"}), 403
         return f(*args, **kwargs)

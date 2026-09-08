@@ -121,6 +121,11 @@ def test_crm_stage_automation_allows_only_forward_or_terminal_transition():
         "from_status": "contacted",
         "to_status": "qualified",
         "reason": "Document follow-up confirmed buying intent.",
+        "automation": {
+            "consulted": False,
+            "correlation_id": ANY,
+            "skipped_because": "LANGFLOW_CRM_FLOW_ID is not configured",
+        },
     }
 
 

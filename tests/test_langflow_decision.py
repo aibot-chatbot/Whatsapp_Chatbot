@@ -41,7 +41,7 @@ def _configure(monkeypatch, flow_id="f755be84-2dd6-4412-8161-aa2e07cebf68"):
 def _call(**overrides):
     kwargs = dict(
         company_id=42, chatbot_id=7, lead_id=1234,
-        current_status="new", target_status="contacted",
+        current_status="new", target_status="contacted", correlation_id="corr-1",
     )
     kwargs.update(overrides)
     return crm_stage_decision(**kwargs)
@@ -141,6 +141,27 @@ def test_decision_about_another_target_status_cannot_block(monkeypatch):
     assert result["blocked"] is False
 
 
+@pytest.mark.parametrize("field, value", [
+    ("company_id", 99),
+    ("chatbot_id", 99),
+    ("lead_id", 9999),
+    ("target_status", "lost"),
+    ("correlation_id", "other-correlation"),
+])
+def test_crm_response_for_a_different_request_cannot_block(monkeypatch, field, value):
+    _configure(monkeypatch)
+    refusal = dict(CONFORMING, decision="block_crm_stage", reason="untrusted")
+    refusal[field] = value
+    monkeypatch.setattr(
+        langflow_decision, "run_langflow_automation", lambda *a, **k: refusal
+    )
+
+    result = _call()
+
+    assert result["consulted"] is False
+    assert result["blocked"] is False
+
+
 # --- the one case that may block -------------------------------------------
 
 def test_conforming_refusal_blocks_and_carries_its_reason(monkeypatch):
@@ -202,7 +223,7 @@ KB_CONFORMING = {
 def _kb_call(**overrides):
     kwargs = dict(company_id=42, chatbot_id=7, file_id=88,
                   display_name="Refund Policy v3", chunk_count=17,
-                  target_role="primary")
+                  target_role="primary", correlation_id="kb-corr")
     kwargs.update(overrides)
     return knowledge_document_decision(**kwargs)
 
@@ -227,6 +248,20 @@ def test_knowledge_summary_is_returned(monkeypatch):
     assert result["consulted"] is True
     assert result["requires_approval"] is True
     assert "Refund Policy v3" in result["summary"]
+
+
+def test_knowledge_response_with_a_different_correlation_fails_open(monkeypatch):
+    monkeypatch.setenv("LANGFLOW_KNOWLEDGE_FLOW_ID", "3c0a6167-01f7-4ed1-9b8c-5842ef75b3d2")
+    monkeypatch.setattr(
+        langflow_decision,
+        "run_langflow_automation",
+        lambda *a, **k: dict(KB_CONFORMING, correlation_id="other-correlation"),
+    )
+
+    result = _kb_call()
+
+    assert result["consulted"] is False
+    assert result["blocked"] is False
 
 
 def test_knowledge_never_blocks(monkeypatch):

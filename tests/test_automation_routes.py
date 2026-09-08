@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import patch
 
 import pytest
@@ -96,11 +98,101 @@ def test_automation_health_reports_degraded_when_event_table_is_unavailable(clie
     with patch(
         "app.routes.automation_routes.automation_events_table_available",
         return_value=False,
+    ), patch(
+        "app.routes.automation_routes.langflow_automation_health",
+        return_value={"status": "disabled"},
     ):
         response = client.get("/api/automation/health")
 
     assert response.status_code == 200
     assert response.get_json() == {
         "status": "degraded",
-        "checks": {"automation_events": False},
+        "checks": {
+            "automation_events": False,
+            "langflow": {"status": "disabled"},
+        },
     }
+
+
+def test_automation_health_reports_degraded_when_langflow_is_unavailable(client):
+    with patch(
+        "app.routes.automation_routes.automation_events_table_available",
+        return_value=True,
+    ), patch(
+        "app.routes.automation_routes.langflow_automation_health",
+        return_value={"status": "unavailable"},
+    ):
+        response = client.get("/api/automation/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "status": "degraded",
+        "checks": {
+            "automation_events": True,
+            "langflow": {"status": "unavailable"},
+        },
+    }
+
+
+@pytest.mark.parametrize("langflow_status", ["ok", "unavailable"])
+def test_health_caches_success_and_failure_until_expiry(client, langflow_status):
+    with patch("app.routes.automation_routes.monotonic", return_value=100) as clock, patch(
+        "app.routes.automation_routes.automation_events_table_available", return_value=True
+    ) as database, patch(
+        "app.routes.automation_routes.langflow_automation_health",
+        return_value={"status": langflow_status},
+    ) as langflow:
+        first = client.get("/api/automation/health").get_json()
+        clock.return_value = 109
+        assert client.get("/api/automation/health").get_json() == first
+        database.assert_called_once()
+        langflow.assert_called_once()
+        clock.return_value = 110
+        client.get("/api/automation/health")
+        assert database.call_count == langflow.call_count == 2
+
+
+@pytest.mark.parametrize("warm_cache", [False, True])
+def test_health_never_waits_for_probe_or_returns_stale_ok(client, warm_cache):
+    entered = Event()
+    release = Event()
+
+    def slow_probe():
+        entered.set()
+        assert release.wait(5), "test did not release the health probe"
+        return {"status": "ok"}
+
+    with patch("app.routes.automation_routes.monotonic", return_value=100) as clock, patch(
+        "app.routes.automation_routes.automation_events_table_available", return_value=True
+    ) as database, patch(
+        "app.routes.automation_routes.langflow_automation_health", return_value={"status": "ok"}
+    ) as langflow:
+        if warm_cache:
+            assert client.get("/api/automation/health").get_json()["status"] == "ok"
+        clock.return_value = 110
+        langflow.side_effect = slow_probe
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            refresh = pool.submit(client.application.test_client().get, "/api/automation/health")
+            try:
+                assert entered.wait(2)
+                for _ in range(8):
+                    response = client.get("/api/automation/health")
+                    assert response.status_code == 200
+                    assert response.get_json()["status"] == "degraded"
+                    assert response.get_json()["checks"]["langflow"]["status"] == "checking"
+                assert database.call_count == langflow.call_count == 1 + int(warm_cache)
+            finally:
+                release.set()
+            assert refresh.result(timeout=2).get_json()["status"] == "ok"
+
+
+def test_health_releases_singleflight_lock_after_unexpected_exception(client):
+    with patch(
+        "app.routes.automation_routes.automation_events_table_available",
+        side_effect=[RuntimeError("synthetic failure"), True],
+    ), patch(
+        "app.routes.automation_routes.langflow_automation_health", return_value={"status": "ok"}
+    ):
+        with pytest.raises(RuntimeError, match="synthetic failure"):
+            client.get("/api/automation/health")
+        assert client.get("/api/automation/health").get_json()["status"] == "ok"

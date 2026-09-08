@@ -81,17 +81,21 @@
             "fieldName": "input_value",
             "id": "ChatOutput-kb01",
             "inputTypes": [
+              "Data",
+              "JSON",
+              "DataFrame",
+              "Table",
               "Message"
             ],
-            "type": "str"
+            "type": "other"
           }
         },
-        "id": "reactflow__edge-ParserReview-kb01{œdataTypeœ:œParserComponentœ,œidœ:œParserReview-kb01œ,œnameœ:œparsed_textœ,œoutput_typesœ:[œMessageœ]}-ChatOutput-kb01{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-kb01œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "id": "reactflow__edge-ParserReview-kb01{œdataTypeœ:œParserComponentœ,œidœ:œParserReview-kb01œ,œnameœ:œparsed_textœ,œoutput_typesœ:[œMessageœ]}-ChatOutput-kb01{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-kb01œ,œinputTypesœ:[œDataœ,œJSONœ,œDataFrameœ,œTableœ,œMessageœ],œtypeœ:œotherœ}",
         "selected": false,
         "source": "ParserReview-kb01",
         "sourceHandle": "{œdataTypeœ:œParserComponentœ,œidœ:œParserReview-kb01œ,œnameœ:œparsed_textœ,œoutput_typesœ:[œMessageœ]}",
         "target": "ChatOutput-kb01",
-        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-kb01œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutput-kb01œ,œinputTypesœ:[œDataœ,œJSONœ,œDataFrameœ,œTableœ,œMessageœ],œtypeœ:œotherœ}"
       }
     ],
     "nodes": [

@@ -47,8 +47,7 @@ def init_limiter(app):
     """Bind the shared limiter to an application using its loaded config."""
     limiter.init_app(app)
     logger.info(
-        "Rate limiter initialized: enabled=%s, storage=%s",
+        "Rate limiter initialized: enabled=%s",
         app.config.get("RATELIMIT_ENABLED", True),
-        app.config.get("RATELIMIT_STORAGE_URI", "memory://"),
     )
     return limiter

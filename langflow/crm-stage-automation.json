@@ -4,7 +4,7 @@
   "description": "Validate a proposed CRM stage transition and return a bounded decision for Flask to apply.",
   "trigger": {
     "event_type": "crm_stage_transition",
-    "source": "POST /api/v1/webhook/{FLOW_ID}",
+    "source": "POST /api/v1/run/{FLOW_ID}",
     "required": ["company_id", "chatbot_id", "lead_id", "current_status", "target_status"]
   },
   "input_schema": {

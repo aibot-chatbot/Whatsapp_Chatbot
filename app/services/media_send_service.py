@@ -71,13 +71,13 @@ def send_wasender_media(api_key, to, attachment):
         response = requests.post(url, json=payload, headers=headers, timeout=20)
         
         if response.status_code >= 400:
-            logging.error(f"Wasender media send failed: {response.status_code} {response.text}")
+            logging.error("Wasender media send failed: %s", response.status_code)
             return False
             
         logging.info(f"Wasender media send success: {response.status_code}")
         return True
     except Exception as e:
-        logging.error(f"Failed to send Wasender media: {e}")
+        logging.error("Failed to send Wasender media (%s)", type(e).__name__)
         return False
 
 def send_telegram_media(bot_token, chat_id, attachment):
@@ -113,13 +113,13 @@ def send_telegram_media(bot_token, chat_id, attachment):
         response = requests.post(url, json=payload, timeout=20)
         
         if response.status_code >= 400:
-            logging.error(f"Telegram media send failed: {response.status_code} {response.text}")
+            logging.error("Telegram media send failed: %s", response.status_code)
             return False
             
         logging.info(f"Telegram media send success: {response.status_code}")
         return True
     except Exception as e:
-        logging.error(f"Failed to send Telegram media: {e}")
+        logging.error("Failed to send Telegram media (%s)", type(e).__name__)
         return False
 
 def send_meta_media_template(channel, attachment, to):
@@ -188,13 +188,13 @@ def send_meta_media_template(channel, attachment, to):
         response = requests.post(url, headers=headers, json=payload, timeout=20)
         
         if response.status_code >= 400:
-            logging.error(f"Meta media template send failed: {response.status_code} {response.text}")
+            logging.error("Meta media template send failed: %s", response.status_code)
             return False
             
         logging.info(f"Meta media template send success: {response.status_code}")
         return True
     except Exception as e:
-        logging.error(f"Failed to send Meta media template: {e}")
+        logging.error("Failed to send Meta media template (%s)", type(e).__name__)
         return False
 
 def dispatch_media_after_reply(message_text, chatbot_id, channel_type, channel, recipient):
