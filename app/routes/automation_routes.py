@@ -1,7 +1,11 @@
-from flask import Blueprint, g, jsonify, request
+from threading import Lock
+from time import monotonic
+
+from flask import Blueprint, current_app, g, jsonify, request
 
 from app.decorators.auth_decorator import token_required
 from app.services.company_status_service import company_operational_required
+from app.services.langflow_adapter import langflow_automation_health
 from app.services.automation_service import (
     apply_crm_stage_automation,
 )
@@ -17,11 +21,30 @@ automation_blueprint = Blueprint("automation", __name__)
 
 @automation_blueprint.route("/api/automation/health", methods=["GET"])
 def automation_health():
-    available = automation_events_table_available()
-    return jsonify({
-        "status": "ok" if available else "degraded",
-        "checks": {"automation_events": available},
-    }), 200
+    # ponytail: one probe per process; use shared readiness if workers scale out.
+    state = current_app.extensions.setdefault(
+        "automation_health", {"lock": Lock(), "expires": 0, "result": None}
+    )
+    if monotonic() < state["expires"]:
+        return jsonify(state["result"]), 200
+    if not state["lock"].acquire(blocking=False):
+        return jsonify({
+            "status": "degraded",
+            "checks": {"automation_events": False, "langflow": {"status": "checking"}},
+        }), 200
+    try:
+        if monotonic() >= state["expires"]:
+            available = automation_events_table_available()
+            langflow = langflow_automation_health()
+            healthy = available and langflow["status"] in {"ok", "disabled"}
+            state["result"] = {
+                "status": "ok" if healthy else "degraded",
+                "checks": {"automation_events": available, "langflow": langflow},
+            }
+            state["expires"] = monotonic() + 10
+        return jsonify(state["result"]), 200
+    finally:
+        state["lock"].release()
 
 
 @automation_blueprint.route("/api/automation/events", methods=["GET"])

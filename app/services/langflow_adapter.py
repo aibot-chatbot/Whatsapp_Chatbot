@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import re
 from urllib.parse import quote, urlparse, urlunparse
@@ -22,11 +23,47 @@ def _server_url():
     parsed = urlparse(raw)
     if parsed.scheme != "https":
         allow_local_http = os.getenv("LANGFLOW_ALLOW_INSECURE_LOCAL", "false").lower() == "true"
-        if not (allow_local_http and parsed.hostname in {"127.0.0.1", "localhost"}):
+        if not (parsed.scheme == "http" and allow_local_http and parsed.hostname in {"127.0.0.1", "localhost"}):
             raise ValueError("LANGFLOW_SERVER_URL must use HTTPS")
     if not parsed.netloc or parsed.username or parsed.password:
         raise ValueError("LANGFLOW_SERVER_URL must be a valid host URL")
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path.rstrip("/"), "", "", ""))
+
+
+def langflow_automation_health():
+    """Report configuration and runtime health without running flows or exposing secrets.
+
+    This probes the server only; it does not establish API-key validity or that
+    the configured flows have been imported and execute correctly.
+    """
+    if not _enabled():
+        return {"status": "disabled"}
+    try:
+        base_url = _server_url()
+        configured = os.getenv("LANGFLOW_API_KEY", "").strip() and all(
+            re.fullmatch(r"[A-Za-z0-9_-]{1,128}", os.getenv(name, "").strip())
+            for name in ("LANGFLOW_CRM_FLOW_ID", "LANGFLOW_KNOWLEDGE_FLOW_ID")
+        )
+        if not configured:
+            return {"status": "not_configured"}
+    except ValueError:
+        return {"status": "not_configured"}
+
+    try:
+        request = Request(f"{base_url}/health_check", headers={"Accept": "application/json"})
+        with build_opener(NoRedirectHandler).open(request, timeout=2) as response:
+            if response.status != 200:
+                return {"status": "unavailable"}
+            raw = response.read(1025)
+        if len(raw) > 1024:
+            return {"status": "unavailable"}
+        result = json.loads(raw.decode("utf-8"))
+        healthy = isinstance(result, dict) and all(
+            result.get(check) == "ok" for check in ("status", "chat", "db")
+        )
+        return {"status": "ok" if healthy else "unavailable"}
+    except Exception:
+        return {"status": "unavailable"}
 
 
 def run_langflow_automation(flow_id, payload):
@@ -48,9 +85,12 @@ def run_langflow_automation(flow_id, payload):
 
     timeout_raw = os.getenv("LANGFLOW_TIMEOUT_SECONDS", str(DEFAULT_TIMEOUT_SECONDS))
     try:
-        timeout = min(max(float(timeout_raw), 1), MAX_TIMEOUT_SECONDS)
+        timeout = float(timeout_raw)
+        if not math.isfinite(timeout):
+            raise ValueError("non-finite timeout")
+        timeout = min(max(timeout, 1), MAX_TIMEOUT_SECONDS)
     except ValueError as exc:
-        raise ValueError("LANGFLOW_TIMEOUT_SECONDS must be numeric") from exc
+        raise ValueError("LANGFLOW_TIMEOUT_SECONDS must be finite and numeric") from exc
 
     body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     if len(body) > MAX_REQUEST_BYTES:
@@ -69,6 +109,8 @@ def run_langflow_automation(flow_id, payload):
 
     opener = build_opener(NoRedirectHandler)
     with opener.open(request, timeout=timeout) as response:
+        if response.status != 200:
+            raise RuntimeError("Langflow did not return a completed synchronous run")
         raw = response.read(MAX_RESPONSE_BYTES + 1)
     if len(raw) > MAX_RESPONSE_BYTES:
         raise RuntimeError("Langflow response exceeded the safety limit")

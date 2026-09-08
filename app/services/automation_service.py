@@ -171,6 +171,7 @@ def apply_crm_stage_automation(
                 "from_status": current,
                 "to_status": target,
                 "reason": str(reason or "").strip()[:500],
+                "automation": automation,
             },
         )
     except Exception as exc:

@@ -60,7 +60,8 @@ def send_telegram_message(
         return None
 
     except requests.RequestException as e:
-        logging.error(f"Failed to send Telegram message: {e}")
+        # Request exceptions can include the bot token from the Telegram URL.
+        logging.error("Failed to send Telegram message (%s)", type(e).__name__)
         return None
 
 
@@ -100,7 +101,7 @@ def send_telegram_contact_request(bot_token: str, chat_id: str):
         return None
 
     except requests.RequestException as e:
-        logging.error(f"Failed to send Telegram contact request: {e}")
+        logging.error("Failed to send Telegram contact request (%s)", type(e).__name__)
         return None
 
 
@@ -166,7 +167,7 @@ def process_telegram_update(update: dict, webhook_secret: str):
     channel = get_telegram_channel_by_secret(webhook_secret)
 
     if not channel:
-        logging.error(f"No active Telegram channel found for secret: {webhook_secret}")
+        logging.error("No active Telegram channel found for webhook")
         return
 
     telegram_channel_id = channel["id"]

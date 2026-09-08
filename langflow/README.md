@@ -3,7 +3,7 @@
 These files are **contract JSON**, not raw Langflow canvas exports. They define
 the webhook payload, validation rules, monitoring fields, and side-effect
 decision that a Langflow flow must produce. Build the visual flow in a private
-Langflow instance with a Webhook/JSON input and JSON output, then keep Flask as
+Langflow instance with a Chat Input carrying JSON and Chat Output, then keep Flask as
 the tenant, billing, and side-effect boundary.
 
 Recommended flow shape:
@@ -128,14 +128,72 @@ Two things worth knowing before editing these flows:
 
 Server-generated exports are stored beside the contracts as `*.langflow.json`.
 
+### Connection repair verified on 2026-09-08
+
+The local saved CRM flow had lost four connections and the knowledge flow had
+lost one, so the server returned HTTP 200 with empty outputs. The installed
+editor removes connections to advanced input fields and handles whose metadata
+does not match the target field. The repair makes the router's two connected
+message fields non-advanced and regenerates all three Chat Output input handles
+from their actual templates. Component code and flow IDs are unchanged.
+
+The corrected exports and local saved flows retain all **8 CRM and 3 knowledge
+connections**. `tests/test_langflow_exports.py` checks field visibility, handle
+types, serialized handles and edge IDs so future edits cannot silently restore
+the invalid metadata.
+
 ## Running the local server
+
+Windows starts the local server at **Vincent's sign-in**, through the existing
+Startup-folder `start-langflow-hidden.vbs` entry and the launcher below. This
+does not provide service before sign-in, during sleep, or while the PC is off.
+The Flask application must also be running for application-triggered automation.
 
 The server runs on the canonical origin **`http://127.0.0.1:7860`**. That exact
 host and port is hard-coded in three places that must agree: `LANGFLOW_SERVER_URL`
 in `.env`, and both `langflow-*` MCP server registrations.
 
-**Always start it with `C:\Users\Vincent\bin\start-langflow.cmd`**, which pins
-`--host 127.0.0.1 --port 7860`.
+**Start it with `C:\Users\Vincent\bin\start-langflow.cmd`**. The launcher runs
+[`scripts/start-langflow-supervisor.ps1`](../scripts/start-langflow-supervisor.ps1),
+using the installed Hermes-environment Langflow executable with
+`--host 127.0.0.1 --port 7860 --backend-only`. It retains the existing storage
+and environment settings. A per-user, per-port mutex within the Windows sign-in
+session rejects duplicate supervisors. An occupied port is observed without starting another server;
+when that listener disappears, or a launched process exits, the supervisor
+retries at 30-second intervals. Server startup time is additional.
+
+The supervisor records only state and exit codes in
+`%LOCALAPPDATA%\langflow\supervisor.log`, rotating at 1 MiB. It does not restart
+a hung process that still holds the port or restart itself after being killed;
+run the launcher again in those cases. The existing Windows Startup entry runs
+it on the next sign-in. The pre-change launcher backup is
+`C:\Users\Vincent\bin\start-langflow.cmd.backup-20260908-110447`.
+
+The final session-local lock repair passed isolated testing. Restarting the
+existing supervisor was blocked by automatic approval review, so that running
+process retains the earlier Global lock until the next Windows sign-in.
+
+Run the isolated recovery regression with
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/test-langflow-supervisor.ps1`.
+It uses a temporary fake executable and an unused loopback port; it checks
+occupied-port handling, duplicate supervision, failed-start retries and child
+crash recovery without stopping the real server.
+
+Local verification on 2026-09-08: **65 focused tests passed**, both live flows
+returned valid decisions, four concurrent synthetic requests retained distinct
+client/request identities, and a refused loopback connection preserved both
+fail-open paths. A controlled real process stop was recovered by the supervisor
+on port 7860, followed by ten successful runtime health checks. Cold server
+startup took several minutes in that run. These checks establish local behavior;
+a Windows reboot, unattended operation over days and hosted deployment were not
+tested. The Flask application was not running on ports 8000/5000 at verification
+time, so application routes were tested with mocks and live flow calls used
+synthetic inputs directly.
+
+Security follow-ups remain for CRM request-size limits, hard overall HTTP
+deadlines and trust in the local HTTP service. The security scan covers the
+version before the final health-cache and session-lock repairs; those two
+repairs passed separate verification, not a fresh full scan.
 
 Do **not** run a bare `langflow run`. Langflow auto-bumps to the next free port
 when 7860 is briefly held — by a still-shutting-down previous instance, for
@@ -145,10 +203,26 @@ UI loads, but nothing that depends on the canonical origin can reach it. `.env`
 still points at 7860, so every automation silently degrades to
 `skipped_because: unreachable` (fail-open, so no user-facing error appears), and
 both `langflow-*` MCP servers fail to dial their `/api/v1/mcp/project/.../sse`
-endpoints. The pinned launcher makes the port conflict a visible startup failure
-instead of a silent drift.
+endpoints. The supervisor's mutex and occupied-port check prevent its duplicate
+launches; avoid starting a separate bare CLI while it is supervising the port.
 
 ## Local configuration
+
+`GET /api/automation/health` retains its HTTP 200 response and
+`checks.automation_events` boolean, and also returns `checks.langflow.status`:
+`disabled`, `not_configured`, `unavailable`, `checking`, or `ok`. Enabled but incomplete or
+unreachable Langflow makes the overall status `degraded`. The runtime probe
+uses `/health_check`, a two-second socket timeout and a 1 KiB response limit;
+it sends no API key and runs no flows. `ok` confirms configuration presence and
+server health, not API-key validity or successful flow execution. The complete
+health snapshot is cached per Flask process for ten seconds, including failures.
+Only one request can refresh it at a time; other requests with no fresh snapshot
+return `degraded`/`checking` immediately, never a stale `ok` or a blocking wait.
+
+The run adapter requires HTTP 200; an asynchronous HTTP 202 acknowledgement is
+not a completed decision. CRM advice must match company, chatbot, lead, target
+and correlation ID; knowledge advice must match the request's correlation ID.
+Mismatches follow the existing fail-open policy and appear in event metadata.
 
 All seven settings are also listed in the tracked `.env.txt` template.
 

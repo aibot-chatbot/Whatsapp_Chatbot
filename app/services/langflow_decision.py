@@ -202,9 +202,10 @@ def crm_stage_decision(
         )
         return _skip(f"{type(exc).__name__}: {exc}"[:300], correlation_id)
 
-    # A decision about a different lead or a different target is not a decision
-    # about this transition, so it must not be able to block it.
-    if output.get("lead_id") != lead_id or output.get("target_status") != target_status:
+    # Only advice for this tenant and this exact request may influence it.
+    if any(output.get(key) != payload[key] for key in (
+        "company_id", "chatbot_id", "lead_id", "target_status", "correlation_id"
+    )):
         return _skip("Langflow answered about a different transition", correlation_id)
 
     blocked = output.get("decision") == "block_crm_stage"
@@ -260,6 +261,9 @@ def knowledge_document_decision(
             correlation_id, type(exc).__name__,
         )
         return _skip(f"{type(exc).__name__}: {exc}"[:300], correlation_id)
+
+    if output.get("correlation_id") != correlation_id:
+        return _skip("Langflow answered about a different document request", correlation_id)
 
     return {
         "consulted": True,

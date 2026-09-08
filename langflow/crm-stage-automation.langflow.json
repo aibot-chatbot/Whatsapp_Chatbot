@@ -196,17 +196,21 @@
             "fieldName": "input_value",
             "id": "ChatOutputApply-crm01",
             "inputTypes": [
+              "Data",
+              "JSON",
+              "DataFrame",
+              "Table",
               "Message"
             ],
-            "type": "str"
+            "type": "other"
           }
         },
-        "id": "reactflow__edge-ConditionalRouter-crm01{œdataTypeœ:œConditionalRouterœ,œidœ:œConditionalRouter-crm01œ,œnameœ:œtrue_resultœ,œoutput_typesœ:[œMessageœ]}-ChatOutputApply-crm01{œfieldNameœ:œinput_valueœ,œidœ:œChatOutputApply-crm01œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "id": "reactflow__edge-ConditionalRouter-crm01{œdataTypeœ:œConditionalRouterœ,œidœ:œConditionalRouter-crm01œ,œnameœ:œtrue_resultœ,œoutput_typesœ:[œMessageœ]}-ChatOutputApply-crm01{œfieldNameœ:œinput_valueœ,œidœ:œChatOutputApply-crm01œ,œinputTypesœ:[œDataœ,œJSONœ,œDataFrameœ,œTableœ,œMessageœ],œtypeœ:œotherœ}",
         "selected": false,
         "source": "ConditionalRouter-crm01",
         "sourceHandle": "{œdataTypeœ:œConditionalRouterœ,œidœ:œConditionalRouter-crm01œ,œnameœ:œtrue_resultœ,œoutput_typesœ:[œMessageœ]}",
         "target": "ChatOutputApply-crm01",
-        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutputApply-crm01œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutputApply-crm01œ,œinputTypesœ:[œDataœ,œJSONœ,œDataFrameœ,œTableœ,œMessageœ],œtypeœ:œotherœ}"
       },
       {
         "animated": false,
@@ -224,17 +228,21 @@
             "fieldName": "input_value",
             "id": "ChatOutputBlock-crm01",
             "inputTypes": [
+              "Data",
+              "JSON",
+              "DataFrame",
+              "Table",
               "Message"
             ],
-            "type": "str"
+            "type": "other"
           }
         },
-        "id": "reactflow__edge-ConditionalRouter-crm01{œdataTypeœ:œConditionalRouterœ,œidœ:œConditionalRouter-crm01œ,œnameœ:œfalse_resultœ,œoutput_typesœ:[œMessageœ]}-ChatOutputBlock-crm01{œfieldNameœ:œinput_valueœ,œidœ:œChatOutputBlock-crm01œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}",
+        "id": "reactflow__edge-ConditionalRouter-crm01{œdataTypeœ:œConditionalRouterœ,œidœ:œConditionalRouter-crm01œ,œnameœ:œfalse_resultœ,œoutput_typesœ:[œMessageœ]}-ChatOutputBlock-crm01{œfieldNameœ:œinput_valueœ,œidœ:œChatOutputBlock-crm01œ,œinputTypesœ:[œDataœ,œJSONœ,œDataFrameœ,œTableœ,œMessageœ],œtypeœ:œotherœ}",
         "selected": false,
         "source": "ConditionalRouter-crm01",
         "sourceHandle": "{œdataTypeœ:œConditionalRouterœ,œidœ:œConditionalRouter-crm01œ,œnameœ:œfalse_resultœ,œoutput_typesœ:[œMessageœ]}",
         "target": "ChatOutputBlock-crm01",
-        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutputBlock-crm01œ,œinputTypesœ:[œMessageœ],œtypeœ:œstrœ}"
+        "targetHandle": "{œfieldNameœ:œinput_valueœ,œidœ:œChatOutputBlock-crm01œ,œinputTypesœ:[œDataœ,œJSONœ,œDataFrameœ,œTableœ,œMessageœ],œtypeœ:œotherœ}"
       }
     ],
     "nodes": [
@@ -1249,7 +1257,7 @@
               },
               "false_case_message": {
                 "_input_type": "MessageInput",
-                "advanced": true,
+                "advanced": false,
                 "api_editable": false,
                 "display_name": "Case False",
                 "dynamic": false,
@@ -1385,7 +1393,7 @@
               },
               "true_case_message": {
                 "_input_type": "MessageInput",
-                "advanced": true,
+                "advanced": false,
                 "api_editable": false,
                 "display_name": "Case True",
                 "dynamic": false,

@@ -2,6 +2,7 @@ import hmac
 import hashlib
 import logging
 import os
+import re
 import secrets
 import time
 import requests
@@ -41,6 +42,13 @@ def _counts_towards_channel_limit(channel):
     )
 
 
+def _safe_telegram_error_description(description, fallback):
+    # Preserve known diagnostics; unknown provider text can contain credentials.
+    if description == "Unauthorized":
+        return "Unauthorized"
+    return fallback
+
+
 def validate_telegram_bot_token(bot_token: str):
     """
     Validate Telegram bot token by calling getMe.
@@ -56,7 +64,9 @@ def validate_telegram_bot_token(bot_token: str):
     data = response.json()
 
     if not data.get("ok"):
-        return None, data.get("description", "Invalid Telegram bot token")
+        return None, _safe_telegram_error_description(
+            data.get("description"), "Invalid Telegram bot token"
+        )
 
     return data.get("result"), None
 
@@ -87,12 +97,14 @@ def set_telegram_webhook(bot_token: str, webhook_url: str, secret_token: str = N
     )
 
     if response.status_code != 200:
-        return False, f"Telegram setWebhook failed with status {response.status_code}: {response.text}"
+        return False, f"Telegram setWebhook failed with status {response.status_code}"
 
     data = response.json()
 
     if not data.get("ok"):
-        return False, data.get("description", "Failed to set Telegram webhook")
+        return False, _safe_telegram_error_description(
+            data.get("description"), "Failed to set Telegram webhook"
+        )
 
     return True, None
 
@@ -115,12 +127,14 @@ def delete_telegram_webhook(bot_token: str):
         )
 
         if response.status_code != 200:
-            return False, f"Telegram deleteWebhook failed with status {response.status_code}: {response.text}"
+            return False, f"Telegram deleteWebhook failed with status {response.status_code}"
 
         data = response.json()
 
         if not data.get("ok"):
-            return False, data.get("description", "Failed to delete Telegram webhook")
+            return False, _safe_telegram_error_description(
+                data.get("description"), "Failed to delete Telegram webhook"
+            )
 
         return True, None
 
@@ -132,8 +146,8 @@ def delete_telegram_webhook(bot_token: str):
         return False, "Could not reach Telegram to remove the webhook"
 
 
-# Telegram's own last_error_message is vendor jargon ("Wrong response from the
-# webhook: 404 Not Found"). It stays in the log; the user gets these instead.
+# Telegram's own last_error_message can contain credential-bearing URLs.
+# Logs and customer responses use these static descriptions instead.
 DELIVERY_UNREACHABLE_MESSAGE = (
     "Telegram cannot reach your server right now. Your bot will answer as soon "
     "as the server is reachable again."
@@ -174,7 +188,7 @@ _UNREACHABLE_ERROR_MARKERS = (
 
 def describe_telegram_delivery_error(raw_error: str) -> str:
     """Translate Telegram's raw delivery error into wording a customer can act on."""
-    text = (raw_error or "").lower()
+    text = raw_error.lower() if isinstance(raw_error, str) else ""
 
     if any(marker in text for marker in _CERTIFICATE_ERROR_MARKERS):
         return DELIVERY_CERTIFICATE_MESSAGE
@@ -183,6 +197,35 @@ def describe_telegram_delivery_error(raw_error: str) -> str:
         return DELIVERY_UNREACHABLE_MESSAGE
 
     return DELIVERY_GENERIC_MESSAGE
+
+
+def _safe_stored_telegram_error(error):
+    """Project historical errors without exposing provider bodies or changing rows."""
+    if not error:
+        return None
+    if isinstance(error, str):
+        if error in {
+            "Unauthorized",
+            "Invalid Telegram bot token",
+            "Missing Telegram bot token",
+            "Failed to set Telegram webhook",
+            "Failed to delete Telegram webhook",
+            "Failed to read Telegram webhook info",
+            "Could not reach Telegram to remove the webhook",
+            "Could not reach Telegram to read the webhook status",
+            "Telegram getWebhookInfo returned an unreadable response",
+            DELIVERY_UNREACHABLE_MESSAGE,
+            DELIVERY_CERTIFICATE_MESSAGE,
+            DELIVERY_GENERIC_MESSAGE,
+            DELIVERY_WRONG_SERVER_MESSAGE,
+            DELIVERY_OK_MESSAGE,
+            DELIVERY_UNKNOWN_MESSAGE,
+        } or re.fullmatch(
+            r"Telegram (?:getMe|setWebhook|deleteWebhook|getWebhookInfo) failed with status [1-5][0-9]{2}",
+            error,
+        ):
+            return error
+    return describe_telegram_delivery_error(error)
 
 
 def get_telegram_webhook_info(bot_token: str) -> tuple[dict | None, str | None]:
@@ -213,7 +256,9 @@ def get_telegram_webhook_info(bot_token: str) -> tuple[dict | None, str | None]:
         return None, "Telegram getWebhookInfo returned an unreadable response"
 
     if not data.get("ok"):
-        return None, data.get("description", "Failed to read Telegram webhook info")
+        return None, _safe_telegram_error_description(
+            data.get("description"), "Failed to read Telegram webhook info"
+        )
 
     return data.get("result") or {}, None
 
@@ -234,7 +279,7 @@ def check_telegram_webhook_delivery(
     if read_error:
         # Failing to read the report is our blind spot, not proof that delivery
         # is broken, so a working channel is never flipped to failed for it.
-        logging.warning("Telegram getWebhookInfo unavailable: %s", read_error)
+        logging.warning("Telegram getWebhookInfo unavailable: %s", _safe_stored_telegram_error(read_error))
         return DELIVERY_STATUS_UNKNOWN, None, {}
 
     if expected_url and (info.get("url") or "") != expected_url:
@@ -253,12 +298,13 @@ def check_telegram_webhook_delivery(
     if last_error_message and (
         registered_since is None or last_error_date >= registered_since
     ):
+        safe_reason = describe_telegram_delivery_error(last_error_message)
         logging.warning(
-            "Telegram reports a webhook delivery failure: %s", last_error_message
+            "Telegram reports a webhook delivery failure: %s", safe_reason
         )
         return (
             DELIVERY_STATUS_FAILED,
-            describe_telegram_delivery_error(last_error_message),
+            safe_reason,
             info,
         )
 
@@ -428,7 +474,6 @@ def connect_telegram():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        logging.error(f"Connect Telegram error: {e}")
         return server_error("connect_telegram", e)
 
 
@@ -460,7 +505,7 @@ def list_telegram_channels():
                 "telegram_bot_id": channel.get("telegram_bot_id"),
                 "webhook_url": channel.get("webhook_url"),
                 "connection_status": channel.get("connection_status"),
-                "last_error": channel.get("last_error"),
+                "last_error": _safe_stored_telegram_error(channel.get("last_error")),
                 "is_active": channel.get("is_active"),
                 "created_at": channel.get("created_at"),
                 "updated_at": channel.get("updated_at"),
@@ -533,7 +578,7 @@ def disconnect_telegram_channel(channel_id):
                 "telegram_bot_id": updated_channel.get("telegram_bot_id"),
                 "connection_status": updated_channel.get("connection_status"),
                 "is_active": updated_channel.get("is_active"),
-                "last_error": updated_channel.get("last_error"),
+                "last_error": _safe_stored_telegram_error(updated_channel.get("last_error")),
             }
         }), 200
 
@@ -687,7 +732,7 @@ def reconnect_telegram_channel(channel_id):
                 "webhook_url": updated_channel.get("webhook_url"),
                 "connection_status": updated_channel.get("connection_status"),
                 "is_active": updated_channel.get("is_active"),
-                "last_error": updated_channel.get("last_error"),
+                "last_error": _safe_stored_telegram_error(updated_channel.get("last_error")),
             }
         }), 200
 
@@ -699,7 +744,6 @@ def reconnect_telegram_channel(channel_id):
         }), 403
 
     except Exception as e:
-        logging.error(f"Reconnect Telegram channel error: {e}")
         return server_error("reconnect_telegram_channel", e)
 
 
@@ -749,8 +793,12 @@ def get_telegram_channel_delivery(channel_id):
         else:
             message = delivery_reason
 
+        pending_count = info.get("pending_update_count")
+        if type(pending_count) is not int or pending_count < 0:
+            pending_count = None
+
         # Never echo bot_token, webhook_secret, or webhook_url: the URL carries
-        # the webhook secret in its path. Only scalars are copied out of info.
+        # the webhook secret in its path. Only validated counts leave info.
         return jsonify({
             "status": "success",
             "data": {
@@ -762,7 +810,7 @@ def get_telegram_channel_delivery(channel_id):
                 "delivery_status": delivery_status,
                 "is_delivering": delivery_status == DELIVERY_STATUS_OK,
                 "message": message,
-                "pending_update_count": info.get("pending_update_count"),
+                "pending_update_count": pending_count,
                 "webhook_url_matches": bool(
                     info.get("url")
                     and info.get("url") == channel.get("webhook_url")
@@ -839,7 +887,7 @@ def telegram_webhook_post(webhook_secret):
         return jsonify({"status": "ok"}), 200
 
     except Exception as e:
-        logging.error(f"Telegram webhook error: {e}")
+        logging.error("Telegram webhook error (%s)", type(e).__name__)
         return jsonify({
             "status": "error",
             "message": "Internal Telegram webhook error"

@@ -1,4 +1,7 @@
+import json
+
 from flask import Blueprint, g, jsonify, request
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.database.conversation_repository import get_conversation_by_id_and_chatbot
 from app.database.crm_lead_repository import (
@@ -17,6 +20,25 @@ from app.utils.api_errors import server_error
 
 
 crm_blueprint = Blueprint("crm", __name__)
+_MAX_CRM_BODY_BYTES = 128 * 1024
+
+
+def _read_crm_json():
+    """Bound the actual stream before JSON parsing, including chunked requests."""
+    if request.content_length is not None and request.content_length > _MAX_CRM_BODY_BYTES:
+        raise RequestEntityTooLarge()
+    raw = request.stream.read(_MAX_CRM_BODY_BYTES + 1)
+    if len(raw) > _MAX_CRM_BODY_BYTES:
+        raise RequestEntityTooLarge()
+    if not request.is_json:
+        return {}
+    try:
+        data = json.loads(raw)
+    except (ValueError, UnicodeDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError("CRM request body must be a JSON object.")
+    return data
 
 
 @crm_blueprint.route("/api/crm/leads", methods=["GET"])
@@ -78,7 +100,7 @@ def get_crm_leads():
 @company_operational_required
 def update_crm_lead(lead_id):
     try:
-        data = request.get_json(silent=True) or {}
+        data = _read_crm_json()
         chatbot_id = data.get("chatbot_id")
 
         if not chatbot_id:
@@ -153,6 +175,8 @@ def update_crm_lead(lead_id):
             "message": str(e)
         }), 400
 
+    except RequestEntityTooLarge:
+        return jsonify({"status": "error", "message": "CRM request body is too large."}), 413
     except Exception as e:
         return server_error("update_crm_lead", e)
 
@@ -162,7 +186,7 @@ def update_crm_lead(lead_id):
 @company_operational_required
 def upsert_crm_lead():
     try:
-        data = request.get_json(silent=True) or {}
+        data = _read_crm_json()
         chatbot_id = data.get("chatbot_id")
         conversation_id = data.get("conversation_id")
 
@@ -251,5 +275,7 @@ def upsert_crm_lead():
             "message": str(e)
         }), 400
 
+    except RequestEntityTooLarge:
+        return jsonify({"status": "error", "message": "CRM request body is too large."}), 413
     except Exception as e:
         return server_error("upsert_crm_lead", e)
