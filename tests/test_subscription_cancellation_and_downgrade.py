@@ -776,7 +776,8 @@ class TestFullSequenceDowngradeAndRenewal(unittest.TestCase):
         """Cancelled subscription can renew (status goes to active)."""
         with patch(_LIFECYCLE + "._get_current_sub") as mock_get, \
              patch(_LIFECYCLE + "._get_latest_sub") as mock_latest, \
-             patch(_LIFECYCLE + "._update_status_conditional") as mock_update:
+             patch(_LIFECYCLE + "._update_status_conditional") as mock_update, \
+             patch(_LIFECYCLE + ".get_plan_by_id", return_value={"code": "pro"}):
             mock_get.return_value = _mk_sub({"id": 1, "company_id": 42, "status": "cancelled", "plan_id": 4, "cancelled_at": HOUR_AGO})
             mock_update.return_value = _mk_sub({"status": "active", "cancelled_at": None})
             result = transition_subscription_status(company_id=42, target_status="active", expected_current_status="cancelled", reason="Renewal after cancellation")
@@ -857,5 +858,4 @@ class TestDueQueryCoverage(unittest.TestCase):
             self.assertTrue(result["processed"])
             self.assertEqual(result["result"], "cancellation_applied")
             mock_trans.assert_called_once()
-
 

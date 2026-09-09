@@ -193,7 +193,8 @@ class TestPlanEnforcement(unittest.TestCase):
         }
         if plan_overrides:
             plan.update(plan_overrides)
-        return {"id": 1, "company_id": 42, "plan_id": 3, "status": "active", "plan": plan}
+        return {"id": 1, "company_id": 42, "plan_id": 3, "status": "active", "plan": plan,
+                "current_period_end": "2099-01-01T00:00:00+00:00"}
 
     def _mock_usage(self, overrides=None):
         usage = {

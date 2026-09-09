@@ -317,6 +317,7 @@ def subscription_for(plan_code: str) -> dict:
     """An active subscription carrying the *migrated* flags for that plan."""
     subscription = {
         "status": "active",
+        "current_period_end": "2099-01-01T00:00:00+00:00",
         "plan": {
             "code": plan_code,
             "name": plan_code.title(),
