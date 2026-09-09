@@ -1,5 +1,15 @@
 # Feature Status
 
+## Sentry server error reporting — 2026-09-09
+
+**Verified complete for local server reporting; deployment pending.** Opt-in Flask, shared handled-error,
+Python error-log and thread capture strips private payloads before transmission.
+Real-SDK tests use an in-memory transport. The Flask project
+`whastapp_chatbot_project` is connected locally and a synthetic event was confirmed
+through Sentry's API. Browser error reporting and
+automatic recurring investigation are outside scope. See [setup and repair
+workflow](SENTRY.md).
+
 ## Client-data security repairs — 2026-09-08
 
 **Implemented locally; release security verification remains incomplete.** Reset

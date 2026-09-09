@@ -12,6 +12,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
+# Never send test failures to a developer's real Sentry project. Individual
+# observability tests opt in with a fake DSN and an in-memory transport.
+os.environ["SENTRY_DSN"] = ""
+
 # ── Environment variables (safe test values) ──────────────────────────────
 os.environ.setdefault("SUPABASE_URL", "https://test-collection.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-collection-service-key")

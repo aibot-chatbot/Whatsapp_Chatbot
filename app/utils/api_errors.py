@@ -15,6 +15,7 @@ in token. Please login again."), and blanking them would be a regression.
 """
 
 from flask import current_app, jsonify
+import sentry_sdk
 
 GENERIC_MESSAGE = "Something went wrong on our end. Please try again."
 
@@ -27,10 +28,13 @@ def server_error(context, exc=None, message=None):
     :param message: optional safe override when a route can say something
                     more useful than the generic sentence
     """
+    if exc is not None:
+        sentry_sdk.capture_exception(exc)
     current_app.logger.error(
         "Unhandled error in %s (%s)",
         context,
         type(exc).__name__ if exc is not None else "unknown",
+        extra={"sentry_skip": exc is not None},
     )
     return jsonify({
         "status": "error",

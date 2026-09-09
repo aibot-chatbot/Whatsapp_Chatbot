@@ -1,5 +1,13 @@
 # Development Roadmap
 
+### Sentry error investigation — 2026-09-09
+
+Server-side reporting and the inspect/reproduce/fix/verify workflow are
+implemented locally. The intended Sentry project and private local DSN are
+configured; synthetic event delivery and API readback are verified. Deployment
+environment configuration and post-deployment observation remain pending.
+See [Sentry](SENTRY.md).
+
 ### Client-data security review and repair — 2026-09-08
 
 Local authentication, media, CRM input and error-disclosure repairs are implemented
