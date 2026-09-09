@@ -102,6 +102,13 @@ def token_required(f):
         g.company_id = refreshed_company_id
         g.role = normalized_role
 
+        from app.services.company_status_service import (
+            company_operational_required,
+            requires_company_operational_state,
+        )
+
+        if requires_company_operational_state(request.method, request.blueprint, request.endpoint):
+            return company_operational_required(f)(*args, **kwargs)
         return f(*args, **kwargs)
 
     return decorated

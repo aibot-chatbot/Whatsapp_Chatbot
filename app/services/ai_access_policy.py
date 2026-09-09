@@ -16,7 +16,11 @@ from app.database.company_subscription_repository import (
 from app.database.subscription_plan_repository import get_plan_by_id
 from app.services.free_trial_status_service import (
     parse_iso_datetime,
-    resolve_effective_subscription_status,
+    resolve_subscription_entitlement,
+)
+from app.services.company_status_service import (
+    CompanyOperationalStatusError,
+    ensure_company_operational,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,6 +88,13 @@ def resolve_ai_access(company_id, *, now=None):
         )
 
     try:
+        ensure_company_operational(company_id)
+    except CompanyOperationalStatusError:
+        return AIAccessPolicy(
+            denial_reason="Company access is unavailable. Please contact support.",
+        )
+
+    try:
         subscription = _get_company_subscription(company_id)
     except Exception:
         logger.exception("resolve_ai_access: repository error for company %s", company_id)
@@ -112,7 +123,7 @@ def resolve_ai_access(company_id, *, now=None):
     if plan:
         plan_code = (plan.get("code") or "").lower().strip()
 
-    free_entitlement = resolve_effective_subscription_status(
+    free_entitlement = resolve_subscription_entitlement(
         subscription,
         plan,
         now=now,
@@ -141,14 +152,11 @@ def resolve_ai_access(company_id, *, now=None):
         # deny access even if the lifecycle job has not yet transitioned
         # the subscription to "expired". This protects the system when
         # the scheduled expiry processor is delayed.
-        period_end_raw = subscription.get("current_period_end")
-        if period_end_raw:
-            period_end_dt = parse_iso_datetime(period_end_raw)
-            if period_end_dt is not None and period_end_dt <= now:
-                return AIAccessPolicy(
-                    allowed=False, access_state=STATE_UNKNOWN,
-                    denial_reason="Your subscription period has ended. Please renew to continue.",
-                )
+        if plan_code in (PLAN_CODE_ESSENTIAL, PLAN_CODE_ADVANCED, PLAN_CODE_PRO) and not free_entitlement["paid_entitled"]:
+            return AIAccessPolicy(
+                allowed=False, access_state=STATE_UNKNOWN,
+                denial_reason="Your subscription period has ended or could not be verified. Please renew to continue.",
+            )
 
         if plan_code == PLAN_CODE_ESSENTIAL:
             return AIAccessPolicy(

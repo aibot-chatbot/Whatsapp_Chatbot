@@ -1,4 +1,4 @@
-"""Effective entitlement status for Free trial subscriptions."""
+"""Effective subscription presentation and entitlement without database writes."""
 
 from __future__ import annotations
 
@@ -26,22 +26,26 @@ def parse_iso_datetime(raw_value: Any) -> datetime | None:
         return None
     if isinstance(raw_value, datetime):
         dt = raw_value
-    else:
+    elif isinstance(raw_value, str):
         try:
-            dt = datetime.fromisoformat(str(raw_value).replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(raw_value.replace("Z", "+00:00"))
         except (TypeError, ValueError):
             return None
+    else:
+        return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
 
 
 def _plan_code(plan: dict | None, subscription: dict | None = None) -> str:
-    plan_code = ((plan or {}).get("code") or "").strip().lower()
+    raw_code = (plan or {}).get("code")
+    plan_code = raw_code.strip().lower() if isinstance(raw_code, str) else ""
     if plan_code:
         return plan_code
     nested_plan = ((subscription or {}).get("plan") or {})
-    return (nested_plan.get("code") or "").strip().lower()
+    raw_code = nested_plan.get("code")
+    return raw_code.strip().lower() if isinstance(raw_code, str) else ""
 
 
 def resolve_effective_subscription_status(
@@ -64,7 +68,8 @@ def resolve_effective_subscription_status(
     else:
         now = now.astimezone(timezone.utc)
 
-    raw_status = ((subscription or {}).get("status") or "").strip().lower()
+    status = (subscription or {}).get("status")
+    raw_status = status.strip().lower() if isinstance(status, str) else ""
     code = _plan_code(plan, subscription)
 
     fields = {
@@ -112,3 +117,31 @@ def resolve_effective_subscription_status(
         "trial_days_remaining": max(1, int(ceil(seconds_remaining / 86400))),
     })
     return fields
+
+
+def resolve_subscription_entitlement(
+    subscription: dict | None,
+    plan: dict | None = None,
+    *,
+    now: datetime | None = None,
+) -> dict:
+    """Resolve access separately from renewal-grace presentation.
+
+    No stale paid plan is substituted for a Free plan. Callers must supply the
+    authoritative subscription and plan, never browser-derived status fields.
+    """
+    effective = resolve_effective_subscription_status(subscription, plan, now=now)
+    if effective["is_free_trial"]:
+        entitled = (
+            effective["raw_status"] in ("active", "trialing")
+            and effective["trial_active"]
+        )
+        paid_entitled = False
+    else:
+        paid_entitled = bool(
+            _plan_code(plan, subscription)
+            and effective["effective_status"] == "active"
+            and parse_iso_datetime((subscription or {}).get("current_period_end")) is not None
+        )
+        entitled = paid_entitled
+    return {**effective, "entitled": entitled, "paid_entitled": paid_entitled}

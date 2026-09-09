@@ -11,6 +11,24 @@ from app.database.company_repository import get_company_status_by_id
 logger = logging.getLogger(__name__)
 
 
+# Exact non-operational exceptions; new authenticated writes default to guarded.
+NON_OPERATIONAL_ENDPOINTS = frozenset({
+    "support.submit_support_request",
+    "help.record_help_article_feedback",
+    "billing.mark_billing_notification_read",
+    "billing.mark_all_billing_notifications_read",
+})
+
+
+def requires_company_operational_state(method, blueprint, endpoint):
+    """Keep platform authority separate; preserve tenant help while suspended."""
+    return (
+        method not in ("GET", "HEAD", "OPTIONS")
+        and blueprint != "platform_admin"
+        and endpoint not in NON_OPERATIONAL_ENDPOINTS
+    )
+
+
 class CompanyOperationalStatusError(Exception):
     def __init__(self, code, message, status_code=403):
         super().__init__(message)

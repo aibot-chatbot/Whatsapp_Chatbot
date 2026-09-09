@@ -486,6 +486,8 @@ FREE_PLAN_WITH_LIMITS = {
 }
 
 UNLIMITED_PLAN = {
+    "status": "active",
+    "current_period_end": "2099-01-01T00:00:00+00:00",
     "plan": {
         "id": 99,
         "name": "Unlimited",
@@ -663,33 +665,33 @@ class TestBillingGuard(unittest.TestCase):
 
     @patch("app.services.billing_guard.get_current_subscription")
     def test_can_use_plan_feature_enabled(self, mock_sub):
-        plan = {"plan": {"feature_flags": {"batch_website_scraping": True}}}
+        plan = {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00", "plan": {"code": "pro", "feature_flags": {"batch_website_scraping": True}}}
         mock_sub.return_value = plan
         result = can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
         self.assertTrue(result)
 
     @patch("app.services.billing_guard.get_current_subscription")
     def test_can_use_plan_feature_disabled(self, mock_sub):
-        plan = {"plan": {"feature_flags": {"batch_website_scraping": False}}}
+        plan = {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00", "plan": {"code": "pro", "feature_flags": {"batch_website_scraping": False}}}
         mock_sub.return_value = plan
         with self.assertRaises(BillingLimitError):
             can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
 
     @patch("app.services.billing_guard.get_current_subscription")
     def test_can_use_plan_feature_null_flags(self, mock_sub):
-        mock_sub.return_value = {"plan": {"feature_flags": None}}
+        mock_sub.return_value = {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00", "plan": {"code": "pro", "feature_flags": None}}
         with self.assertRaises(BillingLimitError):
             can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
 
     @patch("app.services.billing_guard.get_current_subscription")
     def test_can_use_plan_feature_empty_flags(self, mock_sub):
-        mock_sub.return_value = {"plan": {"feature_flags": {}}}
+        mock_sub.return_value = {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00", "plan": {"code": "pro", "feature_flags": {}}}
         with self.assertRaises(BillingLimitError):
             can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
 
     @patch("app.services.billing_guard.get_current_subscription")
     def test_can_use_plan_feature_missing_key(self, mock_sub):
-        plan = {"plan": {"feature_flags": {"ai_generated_reports": True}}}
+        plan = {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00", "plan": {"code": "pro", "feature_flags": {"ai_generated_reports": True}}}
         mock_sub.return_value = plan
         with self.assertRaises(BillingLimitError):
             can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
@@ -698,19 +700,19 @@ class TestBillingGuard(unittest.TestCase):
     def test_can_use_plan_feature_non_dict_flags_denied(self, mock_sub):
         for feature_flags in ("true", [], 1):
             with self.subTest(feature_flags=feature_flags):
-                mock_sub.return_value = {"plan": {"feature_flags": feature_flags}}
+                mock_sub.return_value = {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00", "plan": {"code": "pro", "feature_flags": feature_flags}}
                 with self.assertRaises(BillingLimitError):
                     can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
 
     @patch("app.services.billing_guard.get_current_subscription")
     def test_can_use_plan_feature_string_true_denied(self, mock_sub):
-        mock_sub.return_value = {"plan": {"feature_flags": {"batch_website_scraping": "true"}}}
+        mock_sub.return_value = {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00", "plan": {"code": "pro", "feature_flags": {"batch_website_scraping": "true"}}}
         with self.assertRaises(BillingLimitError):
             can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
 
     @patch("app.services.billing_guard.get_current_subscription")
     def test_can_use_plan_feature_integer_one_denied(self, mock_sub):
-        mock_sub.return_value = {"plan": {"feature_flags": {"batch_website_scraping": 1}}}
+        mock_sub.return_value = {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00", "plan": {"code": "pro", "feature_flags": {"batch_website_scraping": 1}}}
         with self.assertRaises(BillingLimitError):
             can_use_plan_feature(COMPANY_ID, "batch_website_scraping")
 
@@ -916,7 +918,10 @@ class TestMissingSubscriptionGuard(unittest.TestCase):
     # Invalid plan data — deny
     @patch("app.services.billing_guard.get_current_subscription")
     def test_invalid_plan_data_handled_safely(self, mock_sub):
-        mock_sub.return_value = {"id": 1, "plan": {"chatbot_limit": None}}
+        mock_sub.return_value = {
+            "id": 1, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00",
+            "plan": {"code": "pro", "chatbot_limit": None},
+        }
         with patch("app.services.billing_guard.get_company_usage") as mock_usage:
             mock_usage.return_value = FREE_USAGE_BELOW_LIMIT
             result = can_create_chatbot(COMPANY_ID)
@@ -1476,7 +1481,8 @@ class TestPhase2AFeatureGating(unittest.TestCase):
     COMPANY_ID = 999
 
     def _mock_sub(self, feature_flags):
-        return {"plan": {"feature_flags": feature_flags}}
+        return {"status": "active", "current_period_end": "2099-01-01T00:00:00+00:00",
+                "plan": {"code": "pro", "feature_flags": feature_flags}}
 
     @patch("app.services.billing_guard.get_current_subscription")
     @patch("app.services.billing_guard.ensure_default_company_subscription")

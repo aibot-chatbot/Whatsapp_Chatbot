@@ -32,6 +32,7 @@ from app.database.subscription_plan_repository import get_plan_by_id
 from app.services.free_trial_status_service import (
     parse_iso_datetime,
     resolve_effective_subscription_status,
+    resolve_subscription_entitlement,
 )
 
 logger = logging.getLogger(__name__)
@@ -186,7 +187,15 @@ def transition_subscription_status(
                 f"but actual status is '{current_status}'"
             )
 
-    # Idempotent: same status returns success without modification
+    # Status-only restoration must not revive an invalid historical paid period.
+    # Payment activation establishes a new validated period through its own path.
+    if target == "active":
+        plan = get_plan_by_id(subscription.get("plan_id"))
+        proposed = {**subscription, "status": "active"}
+        if not plan or not resolve_subscription_entitlement(proposed, plan)["entitled"]:
+            raise ValueError("Cannot activate a subscription without a valid entitlement period.")
+
+    # Idempotent: same valid status returns success without modification
     if current_status == target:
         logger.info(
             "Subscription for company %d already has status '%s'. "

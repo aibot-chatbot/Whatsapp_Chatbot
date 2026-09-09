@@ -225,7 +225,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_essential_active(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
@@ -251,7 +251,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_advanced_active(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 3, "status": "active"}
+        mock_sub.return_value = {"plan_id": 3, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ADVANCED_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
@@ -274,7 +274,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_pro_active(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 4, "status": "active"}
+        mock_sub.return_value = {"plan_id": 4, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = PRO_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
@@ -310,7 +310,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
-    def test_active_paid_malformed_period_does_not_name_error(self, mock_sub, mock_plan):
+    def test_active_paid_malformed_period_denies_without_exception(self, mock_sub, mock_plan):
         mock_sub.return_value = {
             "plan_id": 3,
             "status": "active",
@@ -318,8 +318,8 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
         }
         mock_plan.return_value = ADVANCED_PLAN
         policy = resolve_ai_access(1)
-        self.assertTrue(policy.allowed)
-        self.assertEqual(policy.access_state, STATE_ADVANCED)
+        self.assertFalse(policy.allowed)
+        self.assertEqual(policy.api_route, ROUTE_DENIED)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
@@ -436,7 +436,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_policy_dataclass_frozen(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         with self.assertRaises(Exception):
@@ -536,7 +536,7 @@ class TestBotEnforcement(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_bot_essential_company_allowed(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
@@ -545,7 +545,7 @@ class TestBotEnforcement(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_bot_advanced_company_allowed(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 3, "status": "active"}
+        mock_sub.return_value = {"plan_id": 3, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ADVANCED_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
@@ -553,7 +553,7 @@ class TestBotEnforcement(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_bot_pro_company_allowed(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 4, "status": "active"}
+        mock_sub.return_value = {"plan_id": 4, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = PRO_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
@@ -597,7 +597,7 @@ class TestBotEnforcement(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_essential_model_editable(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.model_editable)
@@ -618,7 +618,7 @@ class TestBotEnforcement(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_advanced_model_editable(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 3, "status": "active"}
+        mock_sub.return_value = {"plan_id": 3, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ADVANCED_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.model_editable)
@@ -676,7 +676,7 @@ class TestRuntimeEnforcement(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_runtime_essential_allows_openrouter(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
@@ -722,7 +722,7 @@ class TestTopUpRestriction(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_top_up_allowed_for_essential(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.top_up_allowed)
@@ -730,7 +730,7 @@ class TestTopUpRestriction(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_top_up_allowed_for_advanced(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 3, "status": "active"}
+        mock_sub.return_value = {"plan_id": 3, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ADVANCED_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.top_up_allowed)
@@ -738,7 +738,7 @@ class TestTopUpRestriction(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_top_up_allowed_for_pro(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 4, "status": "active"}
+        mock_sub.return_value = {"plan_id": 4, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = PRO_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.top_up_allowed)
@@ -900,7 +900,7 @@ class TestPlanTierAccess(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_essential_has_economy_tier(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertEqual(policy.max_model_tier, "economy")
@@ -908,7 +908,7 @@ class TestPlanTierAccess(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_advanced_has_standard_tier(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 3, "status": "active"}
+        mock_sub.return_value = {"plan_id": 3, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ADVANCED_PLAN
         policy = resolve_ai_access(1)
         self.assertEqual(policy.max_model_tier, "standard")
@@ -916,7 +916,7 @@ class TestPlanTierAccess(unittest.TestCase):
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
     def test_pro_has_premium_tier(self, mock_sub, mock_plan):
-        mock_sub.return_value = {"plan_id": 4, "status": "active"}
+        mock_sub.return_value = {"plan_id": 4, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = PRO_PLAN
         policy = resolve_ai_access(1)
         self.assertEqual(policy.max_model_tier, "premium")
@@ -2128,7 +2128,7 @@ class TestModelSettingsEnforcement(unittest.TestCase):
         self, mock_sub, mock_plan, mock_get_bot, mock_update
     ):
         """Paid user can change provider/model freely."""
-        mock_sub.return_value = {"plan_id": 2, "status": "active"}
+        mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         mock_get_bot.return_value = {
             "id": 1, "ai_provider": "openai", "model_name": "google/gemini-3.5-flash",

@@ -15,9 +15,13 @@ from app.services.billing_service import (
     ensure_default_company_subscription,
 )
 from app.services.free_trial_status_service import (
-    resolve_effective_subscription_status,
+    resolve_subscription_entitlement,
 )
 from app.database.invite_repository import count_valid_pending_invitations
+from app.services.company_status_service import (
+    CompanyOperationalStatusError,
+    ensure_company_operational,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +103,10 @@ def _resolve_company_subscription(company_id: int) -> dict | None:
         available, or None when no subscription can be resolved.
     """
     try:
+        ensure_company_operational(company_id)
+    except CompanyOperationalStatusError:
+        return None
+    try:
         subscription = get_current_subscription(company_id)
     except BillingLimitError:
         # Already a controlled error — re-raise
@@ -110,73 +118,18 @@ def _resolve_company_subscription(company_id: int) -> dict | None:
         )
         return None
 
-    if subscription is not None:
-        effective = resolve_effective_subscription_status(
-            subscription,
-            subscription.get("plan"),
-        )
-        if effective["is_free_trial"] and effective["trial_expired"]:
-            logger.info(
-                "Company %s: Free trial entitlement is expired or invalid; "
-                "denying guard check.",
-                company_id,
-            )
+    if subscription is None:
+        # Preserve default Free creation only for genuinely missing subscriptions.
+        try:
+            subscription = ensure_default_company_subscription(company_id)
+        except Exception:
+            logger.exception("Unable to resolve default subscription; denying access.")
             return None
 
-        # Scheduler-safe guard: if the subscription is active but
-        # current_period_end has passed, treat it as expired for
-        # limit-enforcement purposes.  This protects the billing
-        # guard from allowing new usage when the scheduled expiry
-        # processor has not yet run.
-        sub_status = (subscription.get("status") or "").lower().strip()
-        if sub_status == "active":
-            period_end_raw = subscription.get("current_period_end")
-            if period_end_raw:
-                from datetime import datetime, timezone
-                try:
-                    period_end = datetime.fromisoformat(str(period_end_raw))
-                    if period_end.tzinfo is None:
-                        period_end = period_end.replace(tzinfo=timezone.utc)
-                    if period_end <= datetime.now(timezone.utc):
-                        logger.info(
-                            "Company %s: active subscription period ended at %s; "
-                            "denying guard check (scheduler-safe guard).",
-                            company_id, period_end_raw,
-                        )
-                        return None
-                except (ValueError, TypeError):
-                    logger.warning(
-                        "Company %s: could not parse current_period_end=%r; "
-                        "failing closed for safety.",
-                        company_id, period_end_raw,
-                    )
-                    return None
-        return subscription
-
-    # No subscription — try to assign the Free plan
-    try:
-        subscription = ensure_default_company_subscription(company_id)
-    except Exception:
-        logger.exception(
-            "Failed to create default Free subscription for company %s; denying access.",
-            company_id,
-        )
+    if not subscription or not subscription.get("plan"):
         return None
-
-    if subscription is None:
-        logger.warning(
-            "ensure_default_company_subscription returned None for company %s; denying access.",
-            company_id,
-        )
-        return None
-
-    # Confirm we actually have a plan after recovery
-    plan = subscription.get("plan")
-    if not plan:
-        logger.warning(
-            "Company %s has a subscription row but no plan; denying access.",
-            company_id,
-        )
+    effective = resolve_subscription_entitlement(subscription, subscription["plan"])
+    if not effective["entitled"]:
         return None
 
     return subscription
