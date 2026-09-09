@@ -85,9 +85,12 @@ def resolve_effective_subscription_status(
 
     if code != PLAN_CODE_FREE:
         period_end = parse_iso_datetime((subscription or {}).get("current_period_end"))
-        if raw_status in ("active", "past_due") and period_end is not None and period_end <= now:
-            grace_end = period_end + timedelta(days=get_subscription_grace_period_days())
-            fields["effective_status"] = "past_due" if now < grace_end else "expired"
+        if raw_status in ("active", "past_due"):
+            if period_end is None:
+                fields["effective_status"] = "expired"
+            elif period_end <= now:
+                grace_end = period_end + timedelta(days=get_subscription_grace_period_days())
+                fields["effective_status"] = "past_due" if now < grace_end else "expired"
         return fields
 
     trial_end = parse_iso_datetime((subscription or {}).get("trial_ends_at"))

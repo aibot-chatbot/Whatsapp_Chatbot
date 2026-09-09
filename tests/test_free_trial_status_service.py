@@ -3,6 +3,7 @@ from datetime import datetime, timezone, timedelta
 
 from app.services.free_trial_status_service import (
     resolve_effective_subscription_status,
+    resolve_subscription_entitlement,
 )
 
 
@@ -115,6 +116,31 @@ class TestFreeTrialEffectiveStatus(unittest.TestCase):
         )
 
         self.assertEqual(result["effective_status"], "expired")
+
+    def test_paid_active_missing_period_end_is_effectively_expired(self):
+        row = {
+            "status": "active",
+            "current_period_end": None,
+        }
+
+        result = resolve_subscription_entitlement(row, {"code": "pro"}, now=NOW)
+
+        self.assertEqual(result["raw_status"], "active")
+        self.assertEqual(result["effective_status"], "expired")
+        self.assertFalse(result["paid_entitled"])
+        self.assertFalse(result["entitled"])
+
+    def test_paid_active_malformed_period_end_is_effectively_expired(self):
+        row = {
+            "status": "active",
+            "current_period_end": "not-a-date",
+        }
+
+        result = resolve_subscription_entitlement(row, {"code": "advanced"}, now=NOW)
+
+        self.assertEqual(result["effective_status"], "expired")
+        self.assertFalse(result["paid_entitled"])
+        self.assertFalse(result["entitled"])
 
 
 if __name__ == "__main__":
