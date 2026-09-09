@@ -4,6 +4,11 @@ Read this for code changes; use only the sections relevant to the task.
 
 ## Scope and implementation
 
+For reported bugs/errors, use the installed Sentry plugin when the relevant
+project is accessible: inspect the issue and deployed release, reproduce safely,
+fix and test, then check events after an authorized deployment. Follow
+[the Sentry workflow](SENTRY.md); unavailable access is a verification gap.
+
 Inspect `git status --short` and the affected routes, services, repositories,
 frontend callers and tests. Trace bugs to the shared source of truth before editing.
 Use the current checkout and source as evidence; historical reports are context.

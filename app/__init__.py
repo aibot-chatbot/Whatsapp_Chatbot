@@ -4,6 +4,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
 from app.rate_limit import init_limiter
 from app.config import load_configurations, configure_logging
+from app.observability import init_sentry
 from app.storage_paths import MEDIA_FOLDER, LEGACY_MEDIA_FOLDER
 from .views import webhook_blueprint
 from app.routes.chat_routes import chat_blueprint
@@ -84,6 +85,7 @@ def create_app():
     # Origin the caller sends, silently voiding CORS_ORIGINS entirely.
     load_configurations(app)
     configure_logging()
+    init_sentry()
 
     CORS(app, resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}})
     init_limiter(app)
