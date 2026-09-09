@@ -8,6 +8,7 @@ from postgrest.exceptions import APIError
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
 os.environ.setdefault("CORS_ORIGINS", "http://localhost:8000")
 os.environ.setdefault("FLASK_DEBUG", "1")
 os.environ.setdefault("RATELIMIT_ENABLED", "false")
@@ -27,10 +28,11 @@ from app.database.invite_repository import (
     get_pending_invite_by_email,
     update_invite_for_company,
 )
+from app.utils.auth_token import build_password_fingerprint
 
 
-ADMIN = {"id": 1, "company_id": 42, "email": "admin@example.com", "role": "admin", "status": "active"}
-MEMBER = {"id": 2, "company_id": 42, "email": "member@example.com", "role": "member", "status": "active"}
+ADMIN = {"id": 1, "company_id": 42, "email": "admin@example.com", "role": "admin", "status": "active", "password_hash": None}
+MEMBER = {"id": 2, "company_id": 42, "email": "member@example.com", "role": "member", "status": "active", "password_hash": None}
 WORKSPACE = {
     "company": {"name": "Acme", "contact_email": "contact@acme.test", "contact_phone": ""},
     "current_user_role": "admin",
@@ -52,7 +54,12 @@ class WorkspaceRouteTests(unittest.TestCase):
 
     def auth(self, user=ADMIN, jwt_company=999, jwt_role="member"):
         return (
-            patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": user["id"], "company_id": jwt_company, "role": jwt_role}),
+            patch("app.decorators.auth_decorator.jwt.decode", return_value={
+                "user_id": user["id"],
+                "company_id": jwt_company,
+                "role": jwt_role,
+                "pwdv": build_password_fingerprint(user),
+            }),
             patch("app.database.user_repository.get_user_by_id", return_value=user),
         )
 
@@ -225,7 +232,12 @@ class InvitationRouteTests(unittest.TestCase):
 
     def auth(self, user=ADMIN, jwt_company=999, jwt_role="member"):
         return (
-            patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": user["id"], "company_id": jwt_company, "role": jwt_role}),
+            patch("app.decorators.auth_decorator.jwt.decode", return_value={
+                "user_id": user["id"],
+                "company_id": jwt_company,
+                "role": jwt_role,
+                "pwdv": build_password_fingerprint(user),
+            }),
             patch("app.database.user_repository.get_user_by_id", return_value=user),
         )
 
@@ -807,7 +819,7 @@ class InvitationAcceptanceTests(unittest.TestCase):
              patch("app.routes.auth_routes.get_user_by_email", return_value=None), \
              patch("app.routes.auth_routes.accept_pending_invitation", return_value=invited_user) as accept, \
              patch("app.routes.auth_routes.create_company") as create_company, \
-             patch("app.routes.auth_routes.jwt.encode", return_value="jwt"):
+             patch("app.routes.auth_routes.create_auth_token", return_value="jwt"):
             response = client.post("/api/auth/google", json={"credential": "google-token", "invite_token": "invite-token"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["user"]["company_id"], 42)
@@ -831,7 +843,7 @@ class InvitationAcceptanceTests(unittest.TestCase):
              patch("app.routes.auth_routes.get_user_by_email", return_value=existing_user), \
              patch("app.routes.auth_routes.create_company") as create_company, \
              patch("app.routes.auth_routes.create_user") as create_user, \
-             patch("app.routes.auth_routes.jwt.encode", return_value="jwt"):
+             patch("app.routes.auth_routes.create_auth_token", return_value="jwt"):
             response = client.post("/api/auth/google", json={"credential": "google-token"})
 
         self.assertEqual(response.status_code, 200)
@@ -857,7 +869,7 @@ class InvitationAcceptanceTests(unittest.TestCase):
              patch("app.routes.auth_routes.get_user_by_email", return_value=existing_user), \
              patch("app.routes.auth_routes.create_company") as create_company, \
              patch("app.routes.auth_routes.create_user") as create_user, \
-             patch("app.routes.auth_routes.jwt.encode", return_value="jwt"):
+             patch("app.routes.auth_routes.create_auth_token", return_value="jwt"):
             response = client.post("/api/auth/google", json={"credential": "google-token"})
 
         self.assertEqual(response.status_code, 200)
@@ -978,7 +990,7 @@ class InvitationAcceptanceTests(unittest.TestCase):
              patch("app.routes.auth_routes.create_company", return_value=company), \
              patch("app.routes.auth_routes.create_user", return_value=user) as create_user, \
              patch("app.routes.auth_routes.ensure_default_company_subscription"), \
-             patch("app.routes.auth_routes.jwt.encode", return_value="jwt"):
+             patch("app.routes.auth_routes.create_auth_token", return_value="jwt"):
             response = client.post(
                 "/api/auth/google",
                 json={

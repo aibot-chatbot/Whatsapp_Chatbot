@@ -18,7 +18,7 @@ def login_client(monkeypatch):
         "is_verified": True, "password_hash": generate_password_hash("Synthetic-pass-42!"),
     }
     monkeypatch.setattr(auth_routes, "get_user_by_email", lambda _email: user)
-    monkeypatch.setattr(auth_routes, "get_jwt_secret", lambda: "synthetic-key-for-login-tests-123456")
+    monkeypatch.setenv("JWT_SECRET", "synthetic-key-for-login-tests-123456")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "synthetic-client")
     monkeypatch.setattr("requests.get", lambda *_a, **_kw: Mock(status_code=200, json=lambda: {
         "aud": "synthetic-client", "email": user["email"], "email_verified": True,

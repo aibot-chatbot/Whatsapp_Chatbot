@@ -4,6 +4,10 @@ import jwt
 import logging
 
 from app.utils.jwt_utils import get_jwt_secret
+from app.utils.auth_token import (
+    AuthTokenValidationError,
+    validate_password_fingerprint,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -95,6 +99,19 @@ def token_required(f):
                 "code": "authorization_context_invalid",
                 "message": "Unable to validate account authorization."
             }), 503
+
+        try:
+            validate_password_fingerprint(data, current_user)
+        except AuthTokenValidationError:
+            return jsonify({
+                "status": "error",
+                "message": "Session is no longer valid. Please log in again."
+            }), 401
+        except RuntimeError:
+            return jsonify({
+                "status": "error",
+                "message": "Authentication is not configured properly."
+            }), 500
 
         g.authenticated_user = current_user
         g.current_user = current_user
