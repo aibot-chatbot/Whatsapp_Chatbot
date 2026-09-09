@@ -304,6 +304,7 @@ class TestRateLimitNormalStartup(unittest.TestCase):
             "company_id": 42,
             "email": "invitee@example.test",
             "role": "member",
+            "password_hash": None,
         }
         payload = {"credential": "credential", "invite_token": "invite-token"}
 

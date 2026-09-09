@@ -17,12 +17,11 @@ from app.services.billing_service import ensure_default_company_subscription
 from app.services.invitation_service import InvitationValidationError, accept_pending_invitation
 from app.services.billing_guard import BillingLimitError
 from app.services.login_destination_service import LoginDestinationError, get_login_destination
-from app.utils.jwt_utils import get_jwt_secret
+from app.utils.auth_token import AuthTokenValidationError, create_auth_token
 from app.utils.api_errors import server_error
 import logging
 logger = logging.getLogger(__name__)
 
-import jwt
 import datetime
 import os
 
@@ -187,19 +186,13 @@ def google_auth():
                 password_hash=None,
                 verified_email=email,
             )
-            token = jwt.encode({
-                "user_id": user["id"],
-                "company_id": user.get("company_id"),
-                "email": user["email"],
-                "role": user["role"],
-                "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
-            }, get_jwt_secret(), algorithm="HS256")
+            token = create_auth_token(user)
             return _login_success_response(user, token, "Invitation accepted successfully!")
         except InvitationValidationError as e:
             return jsonify({"status": "error", "message": str(e)}), e.status_code
         except BillingLimitError as e:
             return jsonify({"status": "error", "code": e.code, "message": str(e)}), 403
-        except RuntimeError:
+        except (RuntimeError, AuthTokenValidationError):
             return auth_config_error_response()
         except Exception:
             logger.exception("Failed to accept Google invitation")
@@ -215,14 +208,8 @@ def google_auth():
 
         # Existing user â€” log them in
         try:
-            token = jwt.encode({
-                "user_id": existing_user["id"],
-                "company_id": existing_user.get("company_id"),
-                "email": existing_user["email"],
-                "role": existing_user["role"],
-                "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
-            }, get_jwt_secret(), algorithm="HS256")
-        except RuntimeError:
+            token = create_auth_token(existing_user)
+        except (RuntimeError, AuthTokenValidationError):
             return auth_config_error_response()
 
         return _login_success_response(existing_user, token)
@@ -275,14 +262,13 @@ def google_auth():
                 company["id"],
             )
         try:
-            token = jwt.encode({
-                "user_id": user["id"],
+            token = create_auth_token({
+                **user,
                 "company_id": company["id"],
                 "email": email,
                 "role": "admin",
-                "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
-            }, get_jwt_secret(), algorithm="HS256")
-        except RuntimeError:
+            })
+        except (RuntimeError, AuthTokenValidationError):
             return auth_config_error_response()
 
         return _login_success_response({
@@ -341,14 +327,8 @@ def login():
         }), 403
 
     try:
-        token = jwt.encode({
-            "user_id": user["id"],
-            "company_id": user.get("company_id"),
-            "email": user["email"],
-            "role": user["role"],
-            "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=24)
-        }, get_jwt_secret(), algorithm="HS256")
-    except RuntimeError:
+        token = create_auth_token(user)
+    except (RuntimeError, AuthTokenValidationError):
         return auth_config_error_response()
 
     return _login_success_response(user, token)

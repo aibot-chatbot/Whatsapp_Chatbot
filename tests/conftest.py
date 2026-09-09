@@ -57,6 +57,13 @@ _sb.rpc.return_value.execute.return_value = MagicMock(data=[])
 _db_mod.supabase = _sb
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "real_auth_token: run the production JWT password-fingerprint validator",
+    )
+
+
 @pytest.fixture(autouse=True)
 def _default_active_company_status(monkeypatch):
     """Keep legacy route tests on the verified active-company baseline."""
@@ -69,4 +76,19 @@ def _default_active_company_status(monkeypatch):
         _company_status,
         "get_company_status_by_id",
         _active_company_status,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _legacy_route_auth_fingerprint_compat(monkeypatch, request):
+    """Let legacy route tests keep mocking JWT decode without auth-token setup."""
+    if request.node.get_closest_marker("real_auth_token"):
+        return
+
+    import app.decorators.auth_decorator as _auth_decorator
+
+    monkeypatch.setattr(
+        _auth_decorator,
+        "validate_password_fingerprint",
+        lambda _claims, _current_user: None,
     )

@@ -62,6 +62,7 @@ os.environ.setdefault("JWT_SECRET", "e2e-testbot-persona-jwt-secret")
 
 from app.routes import testbot_routes  # noqa: E402
 from app.services import profile_service  # noqa: E402
+from app.utils.auth_token import build_password_fingerprint  # noqa: E402
 
 # Every persona fixture is imported, never redefined.
 from tests.test_persona_reaches_replies import (  # noqa: E402
@@ -180,18 +181,25 @@ def _scenario_stack(name):
 @contextmanager
 def _authenticated():
     """The tenant session the page assumes, doubled at the same seams as pytest."""
+    user = {
+        "id": 1,
+        "company_id": COMPANY_ID,
+        "email": "owner@example.com",
+        "role": "admin",
+        "status": "active",
+        "password_hash": None,
+    }
     with patch(
         "app.decorators.auth_decorator.jwt.decode",
-        return_value={"company_id": COMPANY_ID, "user_id": 1, "role": "admin"},
+        return_value={
+            "company_id": COMPANY_ID,
+            "user_id": 1,
+            "role": "admin",
+            "pwdv": build_password_fingerprint(user),
+        },
     ), patch(
         "app.database.user_repository.get_user_by_id",
-        return_value={
-            "id": 1,
-            "company_id": COMPANY_ID,
-            "email": "owner@example.com",
-            "role": "admin",
-            "status": "active",
-        },
+        return_value=user,
     ), patch(
         "app.routes.testbot_routes.verify_chatbot_access",
         return_value={"id": CHATBOT_ID, "company_id": COMPANY_ID},
