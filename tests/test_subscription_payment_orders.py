@@ -58,6 +58,39 @@ class _RepoTestBase(unittest.TestCase):
         self.supabase_patch.stop()
 
 
+class TestConditionalSubscriptionActivation(unittest.TestCase):
+    """Tests for company subscription activation source-state matching."""
+
+    def test_null_source_period_end_uses_explicit_null_predicate(self):
+        import app.database.company_subscription_repository as repo
+
+        mock_supabase = MagicMock()
+        mock_table = MagicMock()
+        query = MagicMock()
+        mock_supabase.table.return_value = mock_table
+        mock_table.update.return_value = query
+        query.eq.return_value = query
+        query.is_.return_value = query
+        query.execute.return_value = _resp([{"id": 10, "status": "active"}])
+
+        with patch.object(repo, "supabase", mock_supabase):
+            result = repo.conditional_activate_subscription(
+                subscription_id=10,
+                company_id=42,
+                expected_plan_id=3,
+                expected_status="active",
+                expected_period_start="2026-08-01T00:00:00+00:00",
+                expected_period_end=None,
+                expected_period_end_is_null=True,
+                target_plan_id=3,
+                period_start_iso="2026-09-01T00:00:00+00:00",
+                period_end_iso="2026-10-01T00:00:00+00:00",
+            )
+
+        self.assertEqual(result["id"], 10)
+        query.is_.assert_called_once_with("current_period_end", "null")
+
+
 class TestCreateSubscriptionOrder(_RepoTestBase):
     """Tests for create_subscription_order()."""
 

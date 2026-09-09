@@ -373,6 +373,7 @@ class TestRenewalCheckout(unittest.TestCase):
 
     @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
     @patch("app.services.subscription_checkout_service.get_subscription_order_by_activation_sequence_key")
+    @patch("app.services.subscription_checkout_service.attach_pending_subscription_gateway_details")
     @patch("app.services.subscription_checkout_service.create_bill")
     @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
     @patch("app.services.subscription_checkout_service.create_subscription_order")
@@ -381,7 +382,8 @@ class TestRenewalCheckout(unittest.TestCase):
     @patch("app.services.subscription_checkout_service.update_subscription_order_status")
     def test_expired_can_renew(
         self, mock_update_status, mock_get_sub, mock_get_plan,
-        mock_create_order, mock_config, mock_create_bill, mock_get_sequence,
+        mock_create_order, mock_config, mock_create_bill, mock_attach,
+        mock_get_sequence,
         mock_list_orders
     ):
         mock_list_orders.return_value = []
@@ -409,6 +411,7 @@ class TestRenewalCheckout(unittest.TestCase):
         self.assertIn("order_reference", result)
         self.assertIn("checkout_url", result)
         self.assertEqual(result["checkout_url"], "https://pay.example.com/checkout")
+        mock_attach.assert_called_once()
 
     @patch("app.services.subscription_checkout_service.create_bill")
     @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
@@ -422,6 +425,9 @@ class TestRenewalCheckout(unittest.TestCase):
         """Active subscription cannot purchase same plan."""
         mock_get_sub.return_value = {
             "id": 1, "company_id": 42, "plan_id": 2, "status": "active",
+            "current_period_start": NOW.isoformat(),
+            "current_period_end": (NOW + timedelta(days=30)).isoformat(),
+            "trial_ends_at": None,
             "plan": {"code": "essential", "name": "Essential"},
         }
         mock_get_plan.return_value = {"id": 2, "code": "essential", "is_active": True}
@@ -436,6 +442,7 @@ class TestRenewalCheckout(unittest.TestCase):
 
     @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
     @patch("app.services.subscription_checkout_service.get_subscription_order_by_activation_sequence_key")
+    @patch("app.services.subscription_checkout_service.attach_pending_subscription_gateway_details")
     @patch("app.services.subscription_checkout_service.create_bill")
     @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
     @patch("app.services.subscription_checkout_service.create_subscription_order")
@@ -444,8 +451,8 @@ class TestRenewalCheckout(unittest.TestCase):
     @patch("app.services.subscription_checkout_service.update_subscription_order_status")
     def test_stale_raw_active_effective_expired_can_renew_same_plan(
         self, mock_update_status, mock_get_sub, mock_get_plan,
-        mock_create_order, mock_config, mock_create_bill, mock_get_sequence,
-        mock_list_orders
+        mock_create_order, mock_config, mock_create_bill, mock_attach,
+        mock_get_sequence, mock_list_orders
     ):
         """Raw active paid subscription past grace can renew its current plan."""
         mock_list_orders.return_value = []
@@ -474,6 +481,54 @@ class TestRenewalCheckout(unittest.TestCase):
         create_kwargs = mock_create_order.call_args.kwargs
         self.assertEqual(create_kwargs["source_status"], "active")
         self.assertEqual(create_kwargs["activation_type"], "renewal")
+
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    @patch("app.services.subscription_checkout_service.get_subscription_order_by_activation_sequence_key")
+    @patch("app.services.subscription_checkout_service.attach_pending_subscription_gateway_details")
+    @patch("app.services.subscription_checkout_service.create_bill")
+    @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
+    @patch("app.services.subscription_checkout_service.create_subscription_order")
+    @patch("app.services.subscription_checkout_service.get_plan_by_code")
+    @patch("app.services.subscription_checkout_service.get_current_subscription")
+    @patch("app.services.subscription_checkout_service.update_subscription_order_status")
+    def test_stale_raw_active_null_period_can_create_same_plan_recovery_checkout(
+        self, mock_update_status, mock_get_sub, mock_get_plan,
+        mock_create_order, mock_config, mock_create_bill, mock_attach,
+        mock_get_sequence, mock_list_orders
+    ):
+        """A NULL paid period is recoverable only through hosted checkout."""
+        mock_list_orders.return_value = []
+        mock_get_sequence.return_value = None
+        mock_get_sub.return_value = {
+            "id": 1, "company_id": 42, "plan_id": 3, "status": "active",
+            "current_period_start": (NOW - timedelta(days=60)).isoformat(),
+            "current_period_end": None,
+            "trial_ends_at": None,
+            "plan": {"id": 3, "code": "pro", "name": "Pro"},
+        }
+        mock_get_plan.return_value = {
+            "id": 3, "code": "pro", "name": "Pro", "is_active": True,
+        }
+        mock_create_order.return_value = {"order_reference": "test-ref", "status": "pending"}
+        mock_create_bill.return_value = {"billcode": "bill-001", "checkout_url": "https://toyyibpay.com/bill-001"}
+        mock_config.return_value = MagicMock()
+
+        from app.services.subscription_checkout_service import create_subscription_checkout
+        result = create_subscription_checkout(
+            company_id=42, user_id=1, plan_code="pro",
+            customer_name="Test", customer_email="test@example.com",
+        )
+
+        self.assertEqual(result["checkout_url"], "https://toyyibpay.com/bill-001")
+        create_kwargs = mock_create_order.call_args.kwargs
+        self.assertIsNone(create_kwargs["source_period_end"])
+        self.assertEqual(create_kwargs["source_status"], "active")
+        self.assertEqual(create_kwargs["activation_type"], "renewal")
+        self.assertEqual(
+            create_kwargs["activation_sequence_key"],
+            "company:42:renewal-after:null-period-end",
+        )
+        mock_attach.assert_called_once()
 
 
 # =============================================================================
@@ -566,6 +621,35 @@ class TestSubscriptionAPIRenewalFields(unittest.TestCase):
             self.assertEqual(sub["status"], "active")
             self.assertEqual(sub["raw_status"], "active")
             self.assertEqual(sub["effective_status"], "expired")
+            self.assertTrue(sub["can_renew"])
+            self.assertTrue(sub["renewal_required"])
+
+    @patch("app.services.billing_service.get_plan_by_id")
+    def test_paid_active_missing_period_is_effectively_expired_and_renewable(self, mock_plan):
+        mock_plan.return_value = {
+            "id": 3, "code": "pro", "name": "Pro", "price": "169",
+            "currency": "MYR", "billing_interval": "month",
+            "chatbot_limit": 10, "team_member_limit": 5,
+            "knowledge_file_limit": 75, "knowledge_storage_limit_bytes": 1000000000,
+            "channel_limit": 10, "feature_flags": {},
+            "included_ai_credit_micro_myr": 60000000, "model_access_tier": "premium",
+        }
+        with patch(
+            "app.services.billing_service._get_company_subscription",
+            return_value={
+                "id": 1, "company_id": 42, "plan_id": 3, "status": "active",
+                "trial_ends_at": None, "cancelled_at": None, "ends_at": None,
+                "payment_gateway": None, "created_at": NOW_ISO, "updated_at": NOW_ISO,
+                "current_period_start": MONTH_AGO,
+                "current_period_end": None,
+            },
+        ):
+            from app.services.billing_service import get_current_subscription
+            sub = get_current_subscription(42)
+            self.assertEqual(sub["status"], "active")
+            self.assertEqual(sub["raw_status"], "active")
+            self.assertEqual(sub["effective_status"], "expired")
+            self.assertFalse(sub["paid_entitled"] if "paid_entitled" in sub else False)
             self.assertTrue(sub["can_renew"])
             self.assertTrue(sub["renewal_required"])
 
@@ -744,6 +828,23 @@ class TestRenewalStatusService(unittest.TestCase):
         mock_latest.return_value = self._make_sub({
             "status": "active",
             "current_period_end": (NOW - timedelta(days=7)).isoformat(),
+        })
+        mock_orders.return_value = []
+        from app.services.subscription_lifecycle_service import get_subscription_renewal_status
+        status = get_subscription_renewal_status(42)
+        self.assertEqual(status["raw_subscription_status"], "active")
+        self.assertEqual(status["subscription_status"], "expired")
+        self.assertTrue(status["renewal_required"])
+        self.assertTrue(status["renewal_allowed"])
+
+    @patch("app.services.subscription_lifecycle_service._get_latest_sub")
+    @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
+    @patch("app.services.subscription_lifecycle_service.get_plan_by_id")
+    def test_stale_raw_active_missing_period_reports_effective_expired(self, mock_plan, mock_orders, mock_latest):
+        mock_plan.return_value = {"id": 3, "code": "pro", "name": "Pro"}
+        mock_latest.return_value = self._make_sub({
+            "status": "active",
+            "current_period_end": None,
         })
         mock_orders.return_value = []
         from app.services.subscription_lifecycle_service import get_subscription_renewal_status

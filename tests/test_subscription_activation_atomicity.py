@@ -194,6 +194,97 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
     @patch(_SVC + "._ensure_company_ai_credit")
     @patch(_SVC + "._update_order_status")
     @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_null_period_recovery_requires_current_subscription_null_period(
+        self, mock_convert, mock_update_status,
+        mock_ensure_company_ai_credit, mock_cond_activate,
+        mock_get_plan, mock_get_order, mock_claim_seq,
+    ):
+        recovery_order = dict(self.order_with_key)
+        recovery_order.update({
+            "order_schema_version": 2,
+            "activation_type": "renewal",
+            "source_period_end": None,
+            "activation_sequence_key": "company:42:renewal-after:null-period-end",
+        })
+        mock_get_order.return_value = recovery_order
+        mock_get_plan.return_value = self.mock_plan
+        mock_cond_activate.return_value = {"id": 10, "status": "active"}
+        mock_update_status.return_value = {"id": 1, "status": "credited"}
+        mock_ensure_company_ai_credit.return_value = {"status": "applied", "transaction_id": 99}
+
+        result = process_subscription_payment_callback(self.valid_callback)
+
+        self.assertEqual(result["status"], "activated_and_credited")
+        _, cond_kwargs = mock_cond_activate.call_args
+        self.assertIsNone(cond_kwargs["expected_period_end"])
+        self.assertTrue(cond_kwargs["expected_period_end_is_null"])
+
+    @patch(_SVC + "._claim_activation_sequence")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".conditional_activate_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_null_period_recovery_rejects_stale_callback_after_period_changes(
+        self, mock_convert, mock_update_status,
+        mock_ensure_company_ai_credit, mock_cond_activate,
+        mock_get_plan, mock_get_order, mock_claim_seq,
+    ):
+        recovery_order = dict(self.order_with_key)
+        recovery_order.update({
+            "order_schema_version": 2,
+            "activation_type": "renewal",
+            "source_period_end": None,
+            "activation_sequence_key": "company:42:renewal-after:null-period-end",
+        })
+        mock_get_order.return_value = recovery_order
+        mock_get_plan.return_value = self.mock_plan
+        mock_cond_activate.side_effect = ValueError(
+            "Subscription source state mismatch: expected period_end=None; actual period_end=2026-08-01"
+        )
+
+        with self.assertRaises(RuntimeError) as ctx:
+            process_subscription_payment_callback(self.valid_callback)
+
+        self.assertIn("source subscription state", str(ctx.exception).lower())
+        _, cond_kwargs = mock_cond_activate.call_args
+        self.assertTrue(cond_kwargs["expected_period_end_is_null"])
+
+    @patch(_SVC + "._claim_activation_sequence")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".conditional_activate_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_version_2_null_period_renewal_without_marker_fails_closed(
+        self, mock_convert, mock_update_status,
+        mock_ensure_company_ai_credit, mock_cond_activate,
+        mock_get_plan, mock_get_order, mock_claim_seq,
+    ):
+        malformed_order = dict(self.order_with_key)
+        malformed_order.update({
+            "order_schema_version": 2,
+            "activation_type": "renewal",
+            "source_period_end": None,
+            "activation_sequence_key": "company:42:renewal-after:None",
+        })
+        mock_get_order.return_value = malformed_order
+        mock_get_plan.return_value = self.mock_plan
+
+        result = process_subscription_payment_callback(self.valid_callback)
+
+        self.assertEqual(result["status"], "malformed_atomic_order")
+        mock_cond_activate.assert_not_called()
+
+    @patch(_SVC + "._claim_activation_sequence")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".conditional_activate_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
     def test_only_one_credit_allocation(
         self, mock_convert, mock_update_status,
         mock_ensure_company_ai_credit, mock_cond_activate,

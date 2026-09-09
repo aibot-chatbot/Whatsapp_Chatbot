@@ -7,7 +7,10 @@ from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.services.billing_service import get_current_subscription
-from app.services.free_trial_status_service import resolve_effective_subscription_status
+from app.services.free_trial_status_service import (
+    parse_iso_datetime,
+    resolve_effective_subscription_status,
+)
 from app.database.subscription_plan_repository import get_plan_by_code
 from app.database.company_subscription_order_repository import (
     attach_pending_subscription_gateway_details,
@@ -51,6 +54,7 @@ _DEFAULT_CHECKOUT_EXPIRY_DAYS = 1
 _MAX_TOYYIBPAY_EXPIRY_DAYS = 100
 _TOYYIBPAY_EXPIRY_TIMEZONE_KEY = "Asia/Kuala_Lumpur"
 _TOYYIBPAY_EXPIRY_TIMEZONE = None
+NULL_SOURCE_PERIOD_END_ACTIVATION_SENTINEL = "null-period-end"
 
 
 def _clean(value: object) -> str:
@@ -348,6 +352,21 @@ def prepare_subscription_checkout_order(
     current_status = raw_current_status
     if current_code != "free":
         current_status = (effective_fields.get("effective_status") or raw_current_status).lower().strip()
+    source_period_end_raw = subscription.get("current_period_end")
+    parsed_source_period_end = parse_iso_datetime(source_period_end_raw)
+    null_period_end_recovery = (
+        current_code != "free"
+        and raw_current_status in ("active", "past_due")
+        and current_status == "expired"
+        and source_period_end_raw is None
+    )
+    malformed_period_recovery = (
+        current_code != "free"
+        and raw_current_status in ("active", "past_due")
+        and current_status == "expired"
+        and source_period_end_raw is not None
+        and parsed_source_period_end is None
+    )
 
     # --- Purchase protections ---
     _plan_rank = {"free": 0, "essential": 1, "advanced": 2, "pro": 3}
@@ -387,7 +406,7 @@ def prepare_subscription_checkout_order(
     # --- Capture subscription snapshot for atomic activation ---
     source_plan_id = subscription.get("plan_id")
     source_period_start = subscription.get("current_period_start")
-    source_period_end = subscription.get("current_period_end")
+    source_period_end = source_period_end_raw
     source_status = raw_current_status
 
     # Determine activation type for this order
@@ -405,7 +424,12 @@ def prepare_subscription_checkout_order(
     if activation_type == "initial_purchase":
         activation_sequence_key = f"company:{company_id}:initial-from:{subscription_id}:trial:{_trial_end}"
     elif activation_type == "renewal":
-        activation_sequence_key = f"company:{company_id}:renewal-after:{source_period_end}"
+        renewal_source_key = (
+            NULL_SOURCE_PERIOD_END_ACTIVATION_SENTINEL
+            if null_period_end_recovery
+            else source_period_end
+        )
+        activation_sequence_key = f"company:{company_id}:renewal-after:{renewal_source_key}"
     elif activation_type == "upgrade":
         activation_sequence_key = f"company:{company_id}:upgrade-from:{source_plan_id}:period:{source_period_start}"
     else:
@@ -429,7 +453,9 @@ def prepare_subscription_checkout_order(
     elif activation_type == "renewal":
         if not source_plan_id:
             _missing.append("source_plan_id")
-        if not source_period_end:
+        if malformed_period_recovery:
+            _missing.append("parseable_source_period_end")
+        elif not source_period_end and not null_period_end_recovery:
             _missing.append("source_period_end")
     elif activation_type == "upgrade":
         if not source_plan_id:

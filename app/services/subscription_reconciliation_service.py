@@ -37,6 +37,8 @@ from app.services.billing_period_service import (
 
 logger = logging.getLogger(__name__)
 
+NULL_SOURCE_PERIOD_END_ACTIVATION_SENTINEL = "null-period-end"
+
 
 RECONCILIATION_OUTCOMES = frozenset({
     "reconciled_and_completed",
@@ -50,6 +52,18 @@ RECONCILIATION_OUTCOMES = frozenset({
     "hitpay_pending",
     "hitpay_terminal",
 })
+
+
+def _is_null_source_period_recovery_order(order: dict) -> bool:
+    company_id = order.get("company_id")
+    activation_sequence_key = order.get("activation_sequence_key")
+    return (
+        order.get("order_schema_version") == 2
+        and (order.get("activation_type") or "").strip().lower() == "renewal"
+        and order.get("source_period_end") is None
+        and activation_sequence_key
+        == f"company:{company_id}:renewal-after:{NULL_SOURCE_PERIOD_END_ACTIVATION_SENTINEL}"
+    )
 
 
 def _reconcile_pending_hitpay_order(order: dict) -> dict:
@@ -215,6 +229,14 @@ def reconcile_subscription_order(
         source_status = order.get("source_status")
         if source_plan_id is None or source_status is None:
             return {"outcome": "malformed_order", "order_status": status, "message": "Version 2 order is missing required source-state fields."}
+        source_period_end = order.get("source_period_end")
+        activation_type = (order.get("activation_type") or "").strip().lower()
+        if (
+            activation_type in ("renewal", "upgrade")
+            and source_period_end is None
+            and not _is_null_source_period_recovery_order(order)
+        ):
+            return {"outcome": "malformed_order", "order_status": status, "message": "Version 2 order is missing required source-state fields."}
 
     # Increment attempt counter
     try:
@@ -304,6 +326,7 @@ def _retry_activation(order: dict, now_iso: str) -> dict:
                 expected_status=source_status,
                 expected_period_start=source_period_start,
                 expected_period_end=source_period_end,
+                expected_period_end_is_null=_is_null_source_period_recovery_order(order),
                 target_plan_id=new_plan_id,
                 period_start_iso=now_iso,
                 period_end_iso=period_end_iso,

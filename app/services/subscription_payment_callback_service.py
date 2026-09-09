@@ -48,6 +48,8 @@ from app.services.ai_credit_service import (
 
 logger = logging.getLogger(__name__)
 
+NULL_SOURCE_PERIOD_END_ACTIVATION_SENTINEL = "null-period-end"
+
 
 def _update_order_status(order_reference: str, status: str, **extra):
     """Keep existing callers while making the payment claim compare-and-set."""
@@ -64,6 +66,19 @@ def _update_order_status(order_reference: str, status: str, **extra):
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _is_null_source_period_recovery_order(order: dict) -> bool:
+    """Return True when a version-2 renewal order explicitly captured NULL."""
+    company_id = order.get("company_id")
+    activation_sequence_key = order.get("activation_sequence_key")
+    return (
+        order.get("order_schema_version") == 2
+        and (order.get("activation_type") or "").strip().lower() == "renewal"
+        and order.get("source_period_end") is None
+        and activation_sequence_key
+        == f"company:{company_id}:renewal-after:{NULL_SOURCE_PERIOD_END_ACTIVATION_SENTINEL}"
+    )
 
 
 
@@ -386,6 +401,29 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                     "required activation fields. Manual reconciliation required."
                 ),
             }
+        if (
+            activation_type in ("renewal", "upgrade")
+            and source_period_end is None
+            and not _is_null_source_period_recovery_order(order)
+        ):
+            logger.error(
+                "Version 2 order %s is missing required source_period_end "
+                "without an explicit NULL-period recovery marker. "
+                "Failing closed; manual reconciliation required.",
+                order_reference,
+            )
+            return {
+                "status": "malformed_atomic_order",
+                "idempotent": True,
+                "order_reference": order_reference,
+                "order_status": order.get("status"),
+                "company_id": company_id,
+                "plan_code": plan_code,
+                "message": (
+                    "This order is marked as schema version 2 but is missing "
+                    "required activation fields. Manual reconciliation required."
+                ),
+            }
     elif _schema_ver is None:
         # Historical pre-010 order: legacy fallback allowed
         pass
@@ -421,6 +459,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 expected_status=source_status,
                 expected_period_start=source_period_start,
                 expected_period_end=source_period_end,
+                expected_period_end_is_null=_is_null_source_period_recovery_order(order),
                 target_plan_id=new_plan_id,
                 period_start_iso=now_iso,
                 period_end_iso=period_end_iso,

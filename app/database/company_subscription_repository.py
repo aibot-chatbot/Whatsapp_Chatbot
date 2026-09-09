@@ -271,6 +271,7 @@ def conditional_activate_subscription(
     target_plan_id,
     period_start_iso,
     period_end_iso,
+    expected_period_end_is_null=False,
 ):
     """Activate a subscription only if it still matches the checkout snapshot.
 
@@ -288,6 +289,9 @@ def conditional_activate_subscription(
             must have (may be None for trial subscriptions).
         expected_period_end: The current_period_end the subscription
             must have (may be None for trial subscriptions).
+        expected_period_end_is_null: When True, current_period_end must still
+            be NULL. This is used for paid recovery orders created from an
+            explicitly captured NULL source period.
         target_plan_id: The new plan_id to set.
         period_start_iso: The new current_period_start value.
         period_end_iso: The new current_period_end value.
@@ -336,7 +340,9 @@ def conditional_activate_subscription(
 
     if expected_period_start is not None:
         query = query.eq("current_period_start", expected_period_start)
-    if expected_period_end is not None:
+    if expected_period_end_is_null:
+        query = query.is_("current_period_end", "null")
+    elif expected_period_end is not None:
         query = query.eq("current_period_end", expected_period_end)
 
     response = query.execute()
