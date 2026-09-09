@@ -489,6 +489,34 @@ test.describe("tenant support page", () => {
     await expect(page.getByRole("menuitem", { name: "Support" })).toBeVisible();
   });
 
+  test("submits only the legacy support fields without urgency or escalation context", async ({ page }) => {
+    const submissions = [];
+    const supportHandler = async ({ request }) => {
+      if (request.method() === "POST") {
+        const payload = request.postDataJSON();
+        submissions.push(payload);
+        return {
+          status: 200,
+          body: { status: "success", data: { request_id: 31 } }
+        };
+      }
+      return { status: 200, body: { status: "success", data: { requests: [] } } };
+    };
+    await openTenantPage(page, "/support.html", undefined, undefined, supportHandler);
+    await page.getByRole("button", { name: "Talk to a human", exact: true }).click();
+    await expect(page.locator("#sup-urgency")).toHaveCount(0);
+    await page.locator("#sup-category").selectOption("technical");
+    await page.locator("#sup-subject").fill("Cannot connect a number");
+    await page.locator("#sup-description").fill("The connect button does nothing.");
+    await page.getByRole("button", { name: "Send to support", exact: true }).click();
+    await expect(page.locator("#support-request-form")).toContainText("reference #31");
+    expect(submissions).toEqual([{
+      category: "technical",
+      title: "Cannot connect a number",
+      redacted_description: "The connect button does nothing."
+    }]);
+  });
+
   test("renders tenant support history and public replies without internal fields", async ({ page }) => {
     await page.addInitScript(() => {
       window.__tenantSupportXss = false;

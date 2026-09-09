@@ -81,7 +81,6 @@ class PlatformAdminTenantSupportIntakeTests(unittest.TestCase):
             "category": "technical", "status": "new", "priority": "normal",
             "source": "tenant", "created_at": "now", "updated_at": "now", "closed_at": None,
             "title": "redacted title", "redacted_description": "redacted description",
-            "escalation_context": {"searches": ["connect a number", "password=fake"], "viewed": ["Rotate your API token"]},
         }
         event = {"event_type": "created", "actor_type": "tenant", "created_at": "now",
                  "raw_metadata": "must not escape"}
@@ -97,9 +96,9 @@ class PlatformAdminTenantSupportIntakeTests(unittest.TestCase):
             )
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json["data"]["request"]["title"], "redacted title")
-        self.assertEqual(response.json["data"]["request"]["escalation_context"], {
-            "searches": ["connect a number"], "viewed": ["Rotate your API token"],
-        })
+        self.assertNotIn("escalation_context", response.json["data"]["request"])
+        self.assertEqual(response.json["data"]["request"]["priority"], "normal")
+        self.assertEqual(response.json["data"]["request"]["source"], "tenant")
         self.assertEqual(response.json["data"]["events"], [{
             "event_type": "created", "actor_type": "tenant", "created_at": "now",
         }])

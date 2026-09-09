@@ -140,7 +140,7 @@
         <section class="cr-reveal" id="sup-deadend" hidden aria-labelledby="sup-deadend-title">
             <div class="deadend">
                 <h3 id="sup-deadend-title" tabindex="-1">Still stuck? Hand it to a person.</h3>
-                <p id="sup-deadend-why">Nothing in the help centre matched. A member of the support team can pick this up &mdash; and they will already see what you tried.</p>
+                <p id="sup-deadend-why">Nothing in the help centre matched. A member of the support team can pick this up.</p>
                 <div class="esc-actions">
                     <button class="kw-btn kw-btn-primary cr-press" id="sup-deadend-escalate" type="button">Get help from a person</button>
                     <button class="kw-btn cr-press" id="sup-keep-looking" type="button">Keep looking</button>
@@ -153,35 +153,16 @@
             <div class="esc">
                 <div class="esc-head">
                     <h3 id="sup-escalation-title" tabindex="-1">Contact the support team</h3>
-                    <p>Everything below travels with your request, so nobody has to ask what you already tried.</p>
+                    <p>Describe the problem and what you have already tried.</p>
                 </div>
 
                 <div class="trail">
-                    <div class="trail-h">Attached automatically</div>
+                    <div class="trail-h">Your account</div>
                     <div class="trail-row"><span class="trail-k">Account</span><span class="trail-v" id="sup-trail-account">Signed in</span></div>
                     <div class="trail-row"><span class="trail-k">Email</span><span class="trail-v" id="sup-trail-email">Account details unavailable</span></div>
-                    <div class="trail-row"><span class="trail-k">Searched</span><span class="trail-v" id="sup-trail-searched">nothing yet</span></div>
-                    <div class="trail-row"><span class="trail-k">Opened</span><span class="trail-v" id="sup-trail-opened">nothing yet</span></div>
-                    <div class="trail-row"><span class="trail-k">Didn&rsquo;t help</span><span class="trail-v" id="sup-trail-unhelpful">nothing yet</span></div>
-                    <div class="trail-row"><span class="trail-k">Came from</span><span class="trail-v">support</span></div>
                 </div>
 
                 <form class="fields" id="support-request-form" novalidate>
-                    <div class="kw-field">
-                        <span class="kw-label" id="sup-urgency-label">How urgent is this?</span>
-                        <div class="urgency" role="group" aria-labelledby="sup-urgency-label" id="sup-urgency">
-                            <button class="u-opt" data-urgency="low" aria-pressed="false" type="button">
-                                <strong>Low</strong><span>A question, not a blocker</span>
-                            </button>
-                            <button class="u-opt" data-urgency="normal" aria-pressed="true" type="button">
-                                <strong>Normal</strong><span>Something is not working right</span>
-                            </button>
-                            <button class="u-opt" data-urgency="urgent" aria-pressed="false" type="button">
-                                <strong>Urgent</strong><span>Customers are affected now</span>
-                            </button>
-                        </div>
-                    </div>
-
                     <div class="kw-field">
                         <label class="kw-label" for="sup-category">Category</label>
                         <select class="kw-select" id="sup-category" name="category" required>
@@ -292,10 +273,7 @@
                 });
             }
 
-            /* ── Signed-in identity ─────────────────────────────────────
-               Shown inside the trail rather than in a card of its own:
-               the account is one of the things that travels with the
-               request, which is exactly what the trail is for. */
+            /* Signed-in identity is display-only; the server resolves ownership. */
             function parseStoredUser() {
                 try {
                     var parsed = JSON.parse(sessionStorage.getItem("user") || "null");
@@ -345,13 +323,6 @@
             var articlesReady = false;
             var activeCategory = "all";
             var currentArticle = null;
-            var trail = { searches: [], viewed: [], unhelpful: [] };
-
-            function remember(bucket, value) {
-                if (!value || bucket.indexOf(value) !== -1) return;
-                bucket.push(value);
-            }
-
             /* ── Article loading ────────────────────────────────────────
                The response is not trusted: a row missing a title or a body
                is dropped rather than rendered as an empty clickable row. */
@@ -449,8 +420,8 @@
                 if (matches.length === 0) {
                     var term = query.value.trim();
                     deadEndWhy.textContent = term
-                        ? "Nothing matched “" + term + "”. A member of the support team can pick this up — and they will already see what you tried."
-                        : "There is nothing to show in this category yet. A member of the support team can pick this up — and they will already see what you tried.";
+                        ? "Nothing matched “" + term + "”. A member of the support team can pick this up."
+                        : "There is nothing to show in this category yet. A member of the support team can pick this up.";
                     deadEnd.hidden = false;
                 } else {
                     deadEnd.hidden = true;
@@ -488,10 +459,9 @@
                         voteRow.replaceChildren(element("span", "vote-done", "Thanks — marked as helpful."));
                         return;
                     }
-                    if (currentArticle) remember(trail.unhelpful, currentArticle.title);
                     voteRow.replaceChildren(element("span", "vote-q", "Understood — handing this to a person below."));
                     deadEndWhy.textContent = "“" + (currentArticle ? currentArticle.title : "That article") +
-                        "” did not solve it. A member of the support team can pick this up — and they will already see what you tried.";
+                        "” did not solve it. A member of the support team can pick this up.";
                     deadEnd.hidden = false;
                     bringIntoView(deadEnd);
                     deadEndTitle.focus();
@@ -501,7 +471,6 @@
 
             function openArticle(article) {
                 currentArticle = article;
-                remember(trail.viewed, article.title);
 
                 readerTitle.textContent = article.title;
                 readerBody.replaceChildren();
@@ -529,77 +498,12 @@
             byId("sup-retry-articles").addEventListener("click", loadArticles);
 
             /* ── Escalation ─────────────────────────────────────────── */
-            function joined(bucket, separator) {
-                return bucket.length ? bucket.join(separator) : "nothing yet";
-            }
-
-            /* Renders the bounded values, not the raw buckets. The panel is
-               headed "Attached automatically", so it has to show what actually
-               travels - a long session collects more than the ten entries the
-               request carries, and displaying those would make the panel lie. */
-            function renderTrail() {
-                var sending = escalationContext();
-                byId("sup-trail-searched").textContent = joined(sending.searches, ", ");
-                byId("sup-trail-opened").textContent = joined(sending.viewed, "; ");
-
-                var unhelpful = byId("sup-trail-unhelpful");
-                unhelpful.replaceChildren();
-                if (!sending.unhelpful.length) {
-                    unhelpful.textContent = "nothing yet";
-                    return;
-                }
-                unhelpful.append(element("em", "", sending.unhelpful.join("; ")));
-            }
-
-            function selectedUrgency() {
-                var pressed = document.querySelector("#sup-urgency .u-opt[aria-pressed=\"true\"]");
-                return pressed ? pressed.getAttribute("data-urgency") : "normal";
-            }
-
-            /* Slice 1 folded urgency and the trail into the description text
-               because the intake accepted exactly three fields. Slice 3 gave
-               them real columns, so the description now carries only what the
-               user actually typed.
-
-               These bounds mirror the server's. The server rejects rather than
-               truncates, and a 400 caused by the user's own browsing history
-               would throw away the description they just wrote - so the
-               trimming happens here, before it can cost them anything. The
-               tail is kept rather than the head: the last thing someone
-               searched says more than the first. */
-            var TRAIL_MAX_ITEMS = 10;
-            var TRAIL_MAX_CHARS = 200;
-            var FROM_PAGE = "support";
-
-            /* How the user reached the form. Lets staff tell a considered
-               "I read the article and it did not help" apart from someone who
-               went straight for a person. The error path counts as direct: the
-               help centre never gave them a dead end, it was simply
-               unreachable. */
-            var escalationSource = "direct";
-
-            function boundedTrail(bucket) {
-                return bucket.slice(-TRAIL_MAX_ITEMS).map(function (entry) {
-                    return String(entry).slice(0, TRAIL_MAX_CHARS);
-                });
-            }
-
-            function escalationContext() {
-                return {
-                    searches: boundedTrail(trail.searches),
-                    viewed: boundedTrail(trail.viewed),
-                    unhelpful: boundedTrail(trail.unhelpful),
-                    from_page: FROM_PAGE
-                };
-            }
-
             function showEscalationStatus(message, state) {
                 escalationStatus.textContent = message;
                 escalationStatus.className = "esc-status" + (state ? " " + state : "");
             }
 
             function openEscalation() {
-                renderTrail();
                 deadEnd.hidden = true;
                 escalation.hidden = false;
                 showEscalationStatus("", "");
@@ -610,16 +514,9 @@
                 escalationTitle.focus();
             }
 
-            function openEscalationFrom(origin) {
-                return function () {
-                    escalationSource = origin;
-                    openEscalation();
-                };
-            }
-
-            byId("sup-open-escalation").addEventListener("click", openEscalationFrom("direct"));
-            byId("sup-deadend-escalate").addEventListener("click", openEscalationFrom("faq_dead_end"));
-            byId("sup-error-escalate").addEventListener("click", openEscalationFrom("direct"));
+            byId("sup-open-escalation").addEventListener("click", openEscalation);
+            byId("sup-deadend-escalate").addEventListener("click", openEscalation);
+            byId("sup-error-escalate").addEventListener("click", openEscalation);
 
             byId("sup-keep-looking").addEventListener("click", function () {
                 deadEnd.hidden = true;
@@ -631,20 +528,11 @@
                 query.focus();
             });
 
-            each("#sup-urgency .u-opt", function (option) {
-                option.addEventListener("click", function () {
-                    each("#sup-urgency .u-opt", function (other) {
-                        other.setAttribute("aria-pressed", String(other === option));
-                    });
-                });
-            });
-
             /* ── Search and category chips ──────────────────────────── */
             var searchTimer = null;
             query.addEventListener("input", function () {
                 window.clearTimeout(searchTimer);
                 searchTimer = window.setTimeout(function () {
-                    remember(trail.searches, query.value.trim());
                     renderArticleList();
                 }, SEARCH_DEBOUNCE_MS);
             });
@@ -824,13 +712,6 @@
                 if (code === "invalid_redacted_description") {
                     return "Review the description: it is empty, too long, or contains wording the intake rejects, such as passwords or payment references.";
                 }
-                if (code === "invalid_priority") return "Choose an urgency level and try again.";
-                if (code === "invalid_escalation_context" || code === "invalid_source") {
-                    /* The trail is collected by this page, not typed by the user,
-                       so a rejection here is our bug rather than theirs. Say what
-                       to do instead of showing them a field they never filled in. */
-                    return "The details this page attached could not be sent. Reload the page and describe the problem again.";
-                }
                 if (code === "unsupported_field") {
                     return "This page is out of date with the support intake. Reload the page and try again.";
                 }
@@ -844,10 +725,7 @@
                 var values = {
                     category: escCategory.value.trim(),
                     title: escSubject.value.trim(),
-                    redacted_description: escDescription.value.trim(),
-                    priority: selectedUrgency(),
-                    source: escalationSource,
-                    escalation_context: escalationContext()
+                    redacted_description: escDescription.value.trim()
                 };
 
                 var problem = validationProblem(values);
@@ -881,13 +759,6 @@
                     }
                     showEscalationStatus("Sent — reference #" + newRequestId + ". It is listed below.", "is-ok");
                     escalationForm.reset();
-                    // aria-pressed is not form state, so reset() leaves the
-                    // previous urgency selected on the next request.
-                    each("#sup-urgency .u-opt", function (option) {
-                        option.setAttribute("aria-pressed", String(option.getAttribute("data-urgency") === "normal"));
-                    });
-                    trail = { searches: [], viewed: [], unhelpful: [] };
-                    renderTrail();
                     loadSupportHistory();
                 } catch (_) {
                     showEscalationStatus("Support request could not be submitted.", "is-bad");

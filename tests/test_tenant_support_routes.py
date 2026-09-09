@@ -70,9 +70,6 @@ class TenantSupportRouteTests(unittest.TestCase):
             category="technical",
             title="Widget setup question",
             redacted_description="The test widget needs review.",
-            priority="normal",
-            source="direct",
-            escalation_context=None,
         )
 
     def test_browser_identity_and_admin_fields_are_rejected(self):

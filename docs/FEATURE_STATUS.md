@@ -1,5 +1,18 @@
 # Feature Status
 
+## Tenant support legacy-schema compatibility
+
+**Verified complete for local mocked compatibility; live verification not performed.**
+Runtime submission again uses the
+five-parameter request RPC. Admin detail/converted-case reads do not request
+`escalation_context`. Tenant urgency, origin and browsing-trail submission are
+on hold; existing row priority/source, conversion, replies and notifications remain.
+Migration 052 and its rollback are retained unchanged and are not executed.
+Targeted Python: 303 passed / 248 subtests; targeted Playwright: 132 passed.
+Full Python: 3,694 passed / 1 skipped / 2,139 subtests; full Playwright: 347 passed.
+Compilation and whitespace checks passed. Sentry and Codex Security tools were
+unavailable for this rollback; no deployment or live database check was performed.
+
 ## Sentry server error reporting — 2026-09-09
 
 **Verified complete for local server reporting; deployment pending.** Opt-in Flask, shared handled-error,

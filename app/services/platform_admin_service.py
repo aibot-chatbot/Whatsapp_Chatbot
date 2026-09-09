@@ -870,7 +870,7 @@ def get_support_case(case_id, actor_id, *, event_limit=None, event_offset=None):
             "total": total, "has_more": offset + len(events) < total,
         },
         "source_tenant_request": (
-            _safe_tenant_support_request_row(source_request, include_context=True)
+            _safe_tenant_support_request_row(source_request)
             if source_request else None
         ),
         "status_transitions": _safe_support_case_transition_options(case.get("status")),
@@ -927,7 +927,7 @@ def list_support_case_replies(case_id, actor_id, *, limit=None, offset=None):
     return {
         "case": _safe_support_case_row(case),
         "source_tenant_request": (
-            _safe_tenant_support_request_row(source_request, include_context=True)
+            _safe_tenant_support_request_row(source_request)
             if source_request else None
         ),
         "replies": [_safe_support_case_reply(reply) for reply in replies],
@@ -1191,7 +1191,7 @@ def update_support_case_priority(case_id, payload, actor_id):
     }
 
 
-def _safe_tenant_support_request_row(row, *, include_content=False, include_context=False):
+def _safe_tenant_support_request_row(row, *, include_content=False):
     safe = {
         "request_id": row.get("id"),
         "company_id": row.get("company_id"),
@@ -1207,13 +1207,6 @@ def _safe_tenant_support_request_row(row, *, include_content=False, include_cont
     if include_content:
         safe["title"] = row.get("title")
         safe["redacted_description"] = row.get("redacted_description")
-    if include_content or include_context:
-        try:
-            safe["escalation_context"] = tenant_support_service._escalation_context(
-                row.get("escalation_context")
-            )
-        except tenant_support_service.TenantSupportServiceError:
-            safe["escalation_context"] = None
     return safe
 
 
