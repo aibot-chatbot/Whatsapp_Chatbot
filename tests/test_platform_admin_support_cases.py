@@ -618,6 +618,45 @@ class PlatformAdminSupportCaseServiceTests(unittest.TestCase):
         self.assertEqual(audit.call_args.args[4]["limit"], 1)
         self.assertEqual(audit.call_args.args[4]["offset"], 2)
 
+    def test_converted_case_detail_loads_against_pre_052_request_schema(self):
+        repository = platform_admin_service.tenant_support_repository
+        query = MagicMock()
+        query.eq.return_value = query
+        query.limit.return_value = query
+
+        def select(fields):
+            if "escalation_context" in fields:
+                raise RuntimeError("column does not exist")
+            return query
+
+        query.select.side_effect = select
+        query.execute.return_value = MagicMock(data=[{
+            "id": 31, "company_id": 2, "requester_user_id": 7,
+            "status": "converted", "priority": "normal", "source": "tenant",
+            "converted_platform_support_case_id": 9,
+        }])
+        with patch.object(repository.supabase, "table", return_value=query), patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "get_support_case_for_platform_admin",
+            return_value={"id": 9, "company_id": 2, "status": "open", "priority": "normal"},
+        ), patch.object(
+            platform_admin_service.platform_support_case_repository,
+            "list_support_case_events_for_platform_admin", return_value=([], 0),
+        ), patch.object(
+            platform_admin_service.platform_company_repository,
+            "get_company_for_platform_admin", return_value={"id": 2, "status": "active"},
+        ), patch.object(platform_admin_service, "_audit"):
+            result = platform_admin_service.get_support_case(9, 3)
+        query.select.assert_called_once_with(
+            repository.REQUEST_FIELDS + ",converted_platform_support_case_id"
+        )
+        self.assertEqual(result["case"]["id"], 9)
+        source = result["source_tenant_request"]
+        self.assertEqual(source["request_id"], 31)
+        self.assertEqual(source["priority"], "normal")
+        self.assertEqual(source["source"], "tenant")
+        self.assertNotIn("escalation_context", source)
+
     def test_support_case_pagination_validation(self):
         invalid_detail = [
             {"event_limit": "0"},

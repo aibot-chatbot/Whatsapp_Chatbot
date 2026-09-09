@@ -1,6 +1,5 @@
 """Validation and orchestration for tenant support request submission."""
 
-import json
 import logging
 import os
 import threading
@@ -36,33 +35,7 @@ ALLOWED_FIELDS = frozenset({
     "category",
     "title",
     "redacted_description",
-    "priority",
-    "source",
-    "escalation_context",
 })
-
-# Urgency is guidance for staff triage only - decision 7 in 01-requirements.md
-# rules out SLAs, countdowns and breach tracking, so these are three labels and
-# nothing more.
-ALLOWED_PRIORITIES = frozenset({"low", "normal", "urgent"})
-DEFAULT_PRIORITY = "normal"
-
-# Where the escalation came from. The column's legacy value 'tenant' is
-# deliberately absent: it describes who filed the row, not what led to it, and
-# a browser may not claim it.
-ALLOWED_SOURCES = frozenset({"faq_dead_end", "direct"})
-DEFAULT_SOURCE = "direct"
-
-# The self-service trail. Four keys, nothing else.
-ESCALATION_LIST_KEYS = ("searches", "viewed", "unhelpful")
-ESCALATION_FROM_PAGE_KEY = "from_page"
-ESCALATION_CONTEXT_KEYS = frozenset(ESCALATION_LIST_KEYS + (ESCALATION_FROM_PAGE_KEY,))
-MAX_ESCALATION_ITEMS = 10
-MAX_ESCALATION_ITEM_LENGTH = 200
-MAX_ESCALATION_FROM_PAGE_LENGTH = 64
-# Per-item bounds alone permit ~6 KB, so the total is capped separately and the
-# same number is enforced again by the CHECK constraint in migration 052.
-MAX_ESCALATION_CONTEXT_BYTES = 4000
 
 FORBIDDEN_TERMS = (
     "authorization",
@@ -322,88 +295,6 @@ def _safe_text(value, *, field_name, maximum):
     return normalized
 
 
-def _enumerated(value, *, field_name, allowed, default):
-    """One of `allowed`, or `default` when the key is absent entirely."""
-    if value is None and default is not None:
-        return default
-    if not isinstance(value, str) or isinstance(value, bool) or value not in allowed:
-        _validation(f"invalid_{field_name}", f"Unsupported support {field_name}.")
-    return value
-
-
-def _escalation_string(value, *, maximum):
-    if not isinstance(value, str) or isinstance(value, bool):
-        _invalid_escalation_context("every trail value must be text.")
-    normalized = value.strip()
-    if len(normalized) > maximum:
-        # Rejected, never trimmed: a truncated search term or article title is
-        # misleading evidence, and staff would have no way to know it was cut.
-        _invalid_escalation_context(f"trail values are limited to {maximum} characters.")
-    return normalized
-
-
-def _invalid_escalation_context(detail):
-    _validation("invalid_escalation_context", f"escalation_context is invalid: {detail}")
-
-
-def _escalation_context(value):
-    """A bounded, structurally validated self-service trail, or None.
-
-    Search terms are user-authored: omit entries that the description's
-    sensitive-content policy rejects. Keep article titles intact so a help
-    article called "Rotate your API token" does not prevent escalation.
-    """
-    if value is None:
-        return None
-    if not isinstance(value, dict):
-        _invalid_escalation_context("it must be an object.")
-    unknown = set(value) - ESCALATION_CONTEXT_KEYS
-    if unknown:
-        _invalid_escalation_context("it contains unsupported keys.")
-
-    context = {}
-    for key in ESCALATION_LIST_KEYS:
-        if key not in value:
-            continue
-        items = value[key]
-        if not isinstance(items, list):
-            _invalid_escalation_context(f"{key} must be a list.")
-        if len(items) > MAX_ESCALATION_ITEMS:
-            _invalid_escalation_context(
-                f"{key} is limited to {MAX_ESCALATION_ITEMS} entries."
-            )
-        cleaned = [
-            item
-            for item in (
-                _escalation_string(entry, maximum=MAX_ESCALATION_ITEM_LENGTH)
-                for entry in items
-            )
-            if item and not (key == "searches" and any(
-                term in item.casefold() for term in FORBIDDEN_TERMS
-            ))
-        ]
-        if cleaned:
-            context[key] = cleaned
-
-    if ESCALATION_FROM_PAGE_KEY in value:
-        from_page = _escalation_string(
-            value[ESCALATION_FROM_PAGE_KEY], maximum=MAX_ESCALATION_FROM_PAGE_LENGTH
-        )
-        if from_page:
-            context[ESCALATION_FROM_PAGE_KEY] = from_page
-
-    if not context:
-        # An empty trail is no trail: store SQL NULL rather than {} so staff can
-        # tell "the page sent nothing" from "the page sent an empty object".
-        return None
-    serialized = json.dumps(context, separators=(",", ":"))
-    if len(serialized.encode("utf-8")) > MAX_ESCALATION_CONTEXT_BYTES:
-        _invalid_escalation_context(
-            f"it exceeds {MAX_ESCALATION_CONTEXT_BYTES} bytes."
-        )
-    return context
-
-
 def submit_tenant_support_request(payload, *, company_id, requester_user_id):
     company_id = _positive_context_id(company_id, "company")
     requester_user_id = _positive_context_id(requester_user_id, "requester")
@@ -424,20 +315,6 @@ def submit_tenant_support_request(payload, *, company_id, requester_user_id):
         field_name="redacted_description",
         maximum=2000,
     )
-    priority = _enumerated(
-        payload.get("priority"),
-        field_name="priority",
-        allowed=ALLOWED_PRIORITIES,
-        default=DEFAULT_PRIORITY,
-    )
-    source = _enumerated(
-        payload.get("source"),
-        field_name="source",
-        allowed=ALLOWED_SOURCES,
-        default=DEFAULT_SOURCE,
-    )
-    escalation_context = _escalation_context(payload.get("escalation_context"))
-
     try:
         request_id = tenant_support_repository.create_tenant_support_request(
             company_id=company_id,
@@ -445,9 +322,6 @@ def submit_tenant_support_request(payload, *, company_id, requester_user_id):
             category=category,
             title=title,
             redacted_description=description,
-            priority=priority,
-            source=source,
-            escalation_context=escalation_context,
         )
     except Exception:
         logger.error("Tenant support request RPC failed")

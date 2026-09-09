@@ -5,16 +5,29 @@ from app.database import tenant_support_repository
 
 
 class TenantSupportRepositoryTests(unittest.TestCase):
-    def test_staff_details_include_the_escalation_trail(self):
+    def test_staff_details_use_legacy_projections_and_keep_priority_source(self):
+        row = {"id": 31, "priority": "normal", "source": "tenant",
+               "converted_platform_support_case_id": 7}
         query = MagicMock()
-        for method in ("select", "eq", "limit"):
-            getattr(query, method).return_value = query
-        query.execute.return_value = MagicMock(data=[{"id": 31, "escalation_context": {"searches": ["connect"]}}])
+        query.eq.return_value = query
+        query.limit.return_value = query
+
+        def select(fields):
+            self.assertNotIn("escalation_context", fields)
+            return query
+
+        query.select.side_effect = select
+        query.execute.return_value = MagicMock(data=[row])
         with patch.object(tenant_support_repository.supabase, "table", return_value=query):
-            tenant_support_repository.get_tenant_support_request_for_platform_admin(31)
-            self.assertIn("escalation_context", query.select.call_args.args[0])
-            tenant_support_repository.get_tenant_support_request_by_converted_case_id_for_platform_admin(7)
-            self.assertIn("escalation_context", query.select.call_args.args[0])
+            detail = tenant_support_repository.get_tenant_support_request_for_platform_admin(31)
+            query.select.assert_called_once_with(tenant_support_repository.REQUEST_DETAIL_FIELDS)
+            self.assertEqual(detail, row)
+            query.select.reset_mock()
+            linked = tenant_support_repository.get_tenant_support_request_by_converted_case_id_for_platform_admin(7)
+            query.select.assert_called_once_with(
+                tenant_support_repository.REQUEST_FIELDS + ",converted_platform_support_case_id"
+            )
+            self.assertEqual(linked, row)
 
     def test_submission_calls_only_atomic_rpc_with_safe_parameters(self):
         response = MagicMock(data=31)
@@ -25,14 +38,8 @@ class TenantSupportRepositoryTests(unittest.TestCase):
                 category="technical",
                 title="Test",
                 redacted_description="Test description",
-                priority="normal",
-                source="direct",
-                escalation_context=None,
             )
         self.assertEqual(result, 31)
-        # Slice 3 widened this call: urgency, origin and the trail ride in the
-        # same RPC as the request, event and audit rows, so a ticket cannot be
-        # committed with half of itself missing.
         rpc.assert_called_once_with(
             "create_tenant_support_request",
             {
@@ -41,9 +48,6 @@ class TenantSupportRepositoryTests(unittest.TestCase):
                 "p_category": "technical",
                 "p_title": "Test",
                 "p_redacted_description": "Test description",
-                "p_priority": "normal",
-                "p_source": "direct",
-                "p_escalation_context": None,
             },
         )
 
@@ -65,9 +69,6 @@ class TenantSupportRepositoryTests(unittest.TestCase):
                             category="technical",
                             title="Test",
                             redacted_description="Test description",
-                            priority="normal",
-                            source="direct",
-                            escalation_context=None,
                         )
 
     def test_tenant_history_queries_are_scoped_to_company_and_requester(self):

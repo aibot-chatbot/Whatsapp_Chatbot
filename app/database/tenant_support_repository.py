@@ -39,18 +39,8 @@ def create_tenant_support_request(
     category,
     title,
     redacted_description,
-    priority,
-    source,
-    escalation_context,
 ):
-    """One RPC call, one transaction: request + event + audit row together.
-
-    priority, source and escalation_context are carried by the RPC rather than
-    written by a follow-up UPDATE, because a second statement can fail on its
-    own and leave a ticket whose urgency and trail are silently missing. This
-    requires migration 052; the pre-052 function has five parameters and will
-    reject these three.
-    """
+    """One RPC call, one transaction: request + event + audit row together."""
     response = supabase.rpc(
         "create_tenant_support_request",
         {
@@ -59,9 +49,6 @@ def create_tenant_support_request(
             "p_category": category,
             "p_title": title,
             "p_redacted_description": redacted_description,
-            "p_priority": priority,
-            "p_source": source,
-            "p_escalation_context": escalation_context,
         },
     ).execute()
     request_id = response.data
@@ -99,7 +86,7 @@ def get_tenant_support_request_for_platform_admin(request_id):
     _positive_id(request_id, "request_id")
     response = (
         supabase.table("tenant_support_requests")
-        .select(REQUEST_DETAIL_FIELDS + ",escalation_context")
+        .select(REQUEST_DETAIL_FIELDS)
         .eq("id", request_id)
         .limit(1)
         .execute()
@@ -112,7 +99,7 @@ def get_tenant_support_request_by_converted_case_id_for_platform_admin(case_id):
     _positive_id(case_id, "case_id")
     response = (
         supabase.table("tenant_support_requests")
-        .select(REQUEST_FIELDS + ",converted_platform_support_case_id,escalation_context")
+        .select(REQUEST_FIELDS + ",converted_platform_support_case_id")
         .eq("converted_platform_support_case_id", case_id)
         .limit(1)
         .execute()

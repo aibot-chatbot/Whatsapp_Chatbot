@@ -1,5 +1,12 @@
 # Development Roadmap
 
+### Tenant support 052 rollback
+
+**On hold:** escalation-context/urgency/origin submission. The runtime targets the
+pre-052 five-parameter RPC and column projections. Later support conversion,
+replies, notifications and authorization remain in place. No database rollback
+is required for the reported environment where 052 was never applied.
+
 ### Sentry error investigation — 2026-09-09
 
 Server-side reporting and the inspect/reproduce/fix/verify workflow are
