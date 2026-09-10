@@ -1,9 +1,14 @@
 """Explicit staff grants and durable approval decisions, without execution."""
 
+import logging
+
 from app.database import platform_staff_repository as repository
 from app.decorators.platform_admin_decorator import platform_access_context, PLATFORM_MODULES
 from app.services.platform_admin_service import PlatformAdminServiceError, _safe_rpc_mapping, _safe_billing_order_response_row
 from app.services.subscription_reconciliation_service import reconcile_subscription_order, RECONCILIATION_OUTCOMES
+
+
+logger = logging.getLogger(__name__)
 
 
 REQUEST_MODULES = {
@@ -71,6 +76,7 @@ def _call(operation):
             _error(403, "platform_change_denied", "This change is not permitted; retain an active Super Admin and your own access.")
         if code in {"22023", "23514"}:
             _error(400, "invalid_request", "The requested change is invalid.")
+        logger.exception("Platform staff data operation failed")
         _error(503, "platform_staff_data_unavailable", "Platform staff data is temporarily unavailable.")
 
 

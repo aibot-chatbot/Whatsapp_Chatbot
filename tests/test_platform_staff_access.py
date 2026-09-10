@@ -1,5 +1,7 @@
 """Mocked role/module regression tests; no external calls or live credentials."""
 
+import logging
+
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 
@@ -134,6 +136,52 @@ def test_duplicate_decision_conflict_and_database_error_sanitized():
             service.decide_approval_request(4, {"status": "approved", "reason": "Verified"}, mapping("super_admin"))
     assert error.value.status_code == 409
     assert "SQL" not in error.value.message
+
+
+def test_unexpected_repository_error_logs_traceback_and_preserves_503(caplog):
+    private_error = "private database response body"
+    caplog.clear()
+    with caplog.at_level(logging.ERROR, logger=service.logger.name):
+        with pytest.raises(PlatformAdminServiceError) as error:
+            service._call(lambda: (_ for _ in ()).throw(RuntimeError(private_error)))
+
+    assert error.value.status_code == 503
+    assert error.value.code == "platform_staff_data_unavailable"
+    assert error.value.message == "Platform staff data is temporarily unavailable."
+    records = [record for record in caplog.records if record.name == service.logger.name]
+    assert len(records) == 1
+    assert records[0].getMessage() == "Platform staff data operation failed"
+    assert records[0].exc_info is not None
+    assert private_error not in records[0].getMessage()
+
+
+@pytest.mark.parametrize(
+    "sqlstate,status,code,message",
+    [
+        ("P0002", 404, "platform_record_not_found", "The requested record was not found."),
+        ("23505", 409, "approval_already_decided", "This request already has a decision. Refresh to view it."),
+        ("42501", 403, "platform_change_denied", "This change is not permitted; retain an active Super Admin and your own access."),
+        ("22023", 400, "invalid_request", "The requested change is invalid."),
+        ("23514", 400, "invalid_request", "The requested change is invalid."),
+    ],
+)
+def test_recognized_repository_errors_preserve_mapping_without_unexpected_log(
+    sqlstate, status, code, message, caplog
+):
+    class RecognizedError(Exception):
+        pass
+
+    failure = RecognizedError("private database response body")
+    failure.code = sqlstate
+    caplog.clear()
+    with caplog.at_level(logging.ERROR, logger=service.logger.name):
+        with pytest.raises(PlatformAdminServiceError) as error:
+            service._call(lambda: (_ for _ in ()).throw(failure))
+
+    assert error.value.status_code == status
+    assert error.value.code == code
+    assert error.value.message == message
+    assert not [record for record in caplog.records if record.name == service.logger.name]
 
 
 def test_self_demotion_denied_before_persistence():
