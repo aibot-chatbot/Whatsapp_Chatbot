@@ -294,27 +294,33 @@ class FeedbackServiceTests(unittest.TestCase):
                 reader.assert_not_called()
 
     def test_lookup_failure_becomes_503_without_leaking_postgrest(self):
-        error, _, writer = self._record(
-            {"was_helpful": True},
-            get_published_help_article=RuntimeError(
-                "postgrest: relation help_articles does not exist"
-            ),
-        )
+        private_error = "postgrest: relation help_articles does not exist"
+        with self.assertLogs(help_article_service.logger, level="ERROR") as logs:
+            error, _, writer = self._record(
+                {"was_helpful": True},
+                get_published_help_article=RuntimeError(private_error),
+            )
         self.assertEqual(error.status_code, 503)
         self.assertEqual(error.code, "help_feedback_unavailable")
         self.assertNotIn("postgrest", error.message)
+        self.assertEqual(logs.records[0].getMessage(), "Help article feedback lookup failed")
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertNotIn(private_error, logs.records[0].getMessage())
         writer.assert_not_called()
 
     def test_write_failure_becomes_503_without_leaking_postgrest(self):
-        error, _, _ = self._record(
-            {"was_helpful": True},
-            record_help_article_feedback=RuntimeError(
-                "postgrest: duplicate key value violates help_article_feedback"
-            ),
-        )
+        private_error = "postgrest: duplicate key value violates help_article_feedback"
+        with self.assertLogs(help_article_service.logger, level="ERROR") as logs:
+            error, _, _ = self._record(
+                {"was_helpful": True},
+                record_help_article_feedback=RuntimeError(private_error),
+            )
         self.assertEqual(error.status_code, 503)
         self.assertEqual(error.code, "help_feedback_unavailable")
         self.assertNotIn("help_article_feedback", error.message)
+        self.assertEqual(logs.records[0].getMessage(), "Help article feedback write failed")
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertNotIn(private_error, logs.records[0].getMessage())
 
 
 class FeedbackRouteTests(unittest.TestCase):

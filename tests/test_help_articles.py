@@ -364,16 +364,21 @@ class HelpArticleServiceTests(unittest.TestCase):
         self.assertEqual(result["articles"][0]["id"], None)
 
     def test_repository_failure_becomes_a_500_without_leaking(self):
-        with patch.object(
-            help_article_service.help_article_repository,
-            "list_published_help_articles",
-            side_effect=RuntimeError("postgrest: relation help_articles does not exist"),
-        ):
-            with self.assertRaises(help_article_service.HelpArticleServiceError) as ctx:
-                help_article_service.list_published_articles()
+        private_error = "postgrest: relation help_articles does not exist"
+        with self.assertLogs(help_article_service.logger, level="ERROR") as logs:
+            with patch.object(
+                help_article_service.help_article_repository,
+                "list_published_help_articles",
+                side_effect=RuntimeError(private_error),
+            ):
+                with self.assertRaises(help_article_service.HelpArticleServiceError) as ctx:
+                    help_article_service.list_published_articles()
         self.assertEqual(ctx.exception.status_code, 500)
         self.assertEqual(ctx.exception.message, "Unable to load help articles.")
         self.assertNotIn("postgrest", ctx.exception.message)
+        self.assertEqual(logs.records[0].getMessage(), "Help article published-list lookup failed")
+        self.assertIsNotNone(logs.records[0].exc_info)
+        self.assertNotIn(private_error, logs.records[0].getMessage())
 
 
 class HelpArticleRouteTests(unittest.TestCase):

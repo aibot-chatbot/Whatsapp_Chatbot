@@ -45,7 +45,7 @@ def list_published_articles():
     except Exception:
         # The postgrest message can name tables and columns, so it is logged
         # server side and never returned.
-        logger.error("Help article lookup failed")
+        logger.exception("Help article published-list lookup failed")
         raise HelpArticleServiceError(500, ARTICLES_UNAVAILABLE_MESSAGE)
     return {"articles": [_safe_article(row) for row in rows]}
 
@@ -86,7 +86,7 @@ def record_article_feedback(article_id, payload, *, company_id):
     try:
         article = help_article_repository.get_published_help_article(article_id)
     except Exception:
-        logger.error("Help article lookup failed for feedback on %s", article_id)
+        logger.exception("Help article feedback lookup failed")
         _feedback_error(
             "help_feedback_unavailable", FEEDBACK_UNAVAILABLE_MESSAGE, status_code=503
         )
@@ -102,7 +102,7 @@ def record_article_feedback(article_id, payload, *, company_id):
             article_id=article_id, company_id=company_id, was_helpful=was_helpful
         )
     except Exception:
-        logger.error("Help article feedback write failed for article %s", article_id)
+        logger.exception("Help article feedback write failed")
         _feedback_error(
             "help_feedback_unavailable", FEEDBACK_UNAVAILABLE_MESSAGE, status_code=503
         )
