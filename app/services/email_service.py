@@ -6,7 +6,25 @@ from email.mime.multipart import MIMEMultipart
 import logging
 import datetime
 
-def send_otp_email(recipient_email, otp_code, recipient_name="User"):
+def send_otp_email(recipient_email, otp_code, recipient_name="User", verify_url=None):
+
+    # One-click link first, code as the fallback. If no public base URL is
+    # configured _build_verify_url returns None and the email degrades to the
+    # code-only version it has always been.
+    verify_block = ""
+    # The code label has to follow the link: "Or enter this code" reads as a
+    # non-sequitur when there is no link above it to be an alternative to.
+    code_label = "Your verification code:"
+    if verify_url:
+        code_label = "Or enter this code:"
+        verify_block = (
+            '<a href="' + verify_url + '" '
+            'style="display:inline-block;background:#22D3EE;color:#04121a;'
+            'text-decoration:none;padding:14px 28px;border-radius:10px;'
+            'font-weight:600;font-size:16px;">Verify my email</a>'
+            '<p style="margin:14px 0 0;color:#94a3b8;font-size:12px;">'
+            'This link can be used once and expires with the code below.</p>'
+        )
     """
     Sends an OTP verification code via Gmail SMTP.
     """
@@ -17,15 +35,15 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User"):
         logging.warning("SMTP credentials missing in .env. OTP email not sent.")
         return False
 
-    subject = "Verify Your Account - AI CHATBOT"
+    subject = "Verify your Volleo account"
     
     # Premium HTML email template
     html_content = f"""
     <html>
       <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
         <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-          <div style="background-color: #3b82f6; padding: 24px; text-align: center;">
-            <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT</h2>
+          <div style="background-color: #060A12; padding: 24px; text-align: center;">
+            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Volleo</h2>
           </div>
           <div style="padding: 32px;">
             <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Email Verification</h3>
@@ -34,14 +52,14 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User"):
               Thank you for registering. To complete your account setup, please use the verification code below:
             </p>
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6;">{otp_code}</span>
+              {verify_block}<p style="margin:18px 0 6px;color:#64748b;font-size:14px;">{code_label}</p><span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #0E7490;">{otp_code}</span>
             </div>
             <p style="font-size: 14px; color: #64748b;">
               This code will expire in 10 minutes. If you didn't request this, you can safely ignore this email.
             </p>
           </div>
           <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} AI CHATBOT. All rights reserved.
+            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} Volleo. All rights reserved.
           </div>
         </div>
       </body>
@@ -50,7 +68,7 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User"):
 
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
-    message["From"] = f"AI CHATBOT <{sender_email}>"
+    message["From"] = f"Volleo <{sender_email}>"
     message["To"] = recipient_email
 
     # Add HTML content
@@ -82,14 +100,14 @@ def send_reset_email(recipient_email, otp_code, recipient_name="User"):
         logging.warning("SMTP credentials missing in .env. Reset email not sent.")
         return False
 
-    subject = "Reset Your Password - AI CHATBOT"
+    subject = "Reset your Volleo password"
     
     html_content = f"""
     <html>
       <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
         <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-          <div style="background-color: #ef4444; padding: 24px; text-align: center;">
-            <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT</h2>
+          <div style="background-color: #060A12; padding: 24px; text-align: center;">
+            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Volleo</h2>
           </div>
           <div style="padding: 32px;">
             <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Password Reset Request</h3>
@@ -98,14 +116,14 @@ def send_reset_email(recipient_email, otp_code, recipient_name="User"):
               We received a request to reset your account password. Please use the verification code below to complete the reset process:
             </p>
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #ef4444;">{otp_code}</span>
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #0E7490;">{otp_code}</span>
             </div>
             <p style="font-size: 14px; color: #64748b;">
               This code will expire in 10 minutes. If you did not request a password reset, you can safely ignore this email and your password will remain unchanged.
             </p>
           </div>
           <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} AI CHATBOT. All rights reserved.
+            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} Volleo. All rights reserved.
           </div>
         </div>
       </body>
@@ -114,7 +132,7 @@ def send_reset_email(recipient_email, otp_code, recipient_name="User"):
 
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
-    message["From"] = f"AI CHATBOT <{sender_email}>"
+    message["From"] = f"Volleo <{sender_email}>"
     message["To"] = recipient_email
 
     part = MIMEText(html_content, "html")

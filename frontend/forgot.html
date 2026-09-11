@@ -3,327 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forgot Password | AI CHATBOT</title>
+    <title>Reset password | Volleo</title>
+    <meta name="description" content="Reset the password on your Volleo account.">
+    <meta name="robots" content="noindex,follow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary: #ef4444; /* Premium crimson/red style for password reset */
-            --primary-glow: rgba(239, 68, 68, 0.4);
-            --bg: #030816;
-            --card-bg: rgba(15, 23, 42, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.1);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg);
-            color: var(--text-main);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-        }
-
-        /* Ambient Background Elements */
-        .blob {
-            position: absolute;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
-            filter: blur(80px);
-            z-index: -1;
-            animation: float 20s infinite alternate cubic-bezier(0.45, 0, 0.55, 1);
-        }
-
-        .blob-1 { top: -10%; left: -10%; }
-        .blob-2 { bottom: -10%; right: -10%; background: radial-gradient(circle, rgba(59, 130, 246, 0.2) 0%, transparent 70%); }
-
-        @keyframes float {
-            0% { transform: translate(0, 0) scale(1); }
-            100% { transform: translate(100px, 50px) scale(1.1); }
-        }
-
-        .forgot-container {
-            width: 100%;
-            max-width: 440px;
-            padding: 40px;
-            background: var(--card-bg);
-            backdrop-filter: blur(30px);
-            border: 1px solid var(--glass-border);
-            border-radius: 32px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-            z-index: 10;
-            animation: fadeIn 0.8s cubic-bezier(0.22, 1, 0.36, 1);
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .logo-area {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
-        .logo-icon {
-            width: 64px;
-            height: 64px;
-            background: linear-gradient(135deg, var(--primary), #3b82f6);
-            border-radius: 18px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 16px;
-            box-shadow: 0 10px 30px var(--primary-glow);
-        }
-
-        .logo-text {
-            font-size: 1.8rem;
-            font-weight: 700;
-            letter-spacing: -1px;
-            background: linear-gradient(to bottom, #fff, #94a3b8);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .input-group {
-            margin-bottom: 24px;
-        }
-
-        .input-group label {
-            display: block;
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: var(--text-dim);
-            margin-bottom: 8px;
-            margin-left: 4px;
-        }
-
-        input {
-            width: 100%;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 14px 20px;
-            color: white;
-            font-size: 1rem;
-            outline: none;
-            transition: all 0.3s;
-        }
-
-        input:focus {
-            border-color: var(--primary);
-            background: rgba(15, 23, 42, 0.4);
-            box-shadow: 0 0 0 4px var(--primary-glow);
-        }
-
-        .password-field {
-            position: relative;
-        }
-
-        .password-field input {
-            padding-right: 76px;
-        }
-
-        .password-toggle {
-            position: absolute;
-            right: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.06);
-            color: var(--text-dim);
-            border-radius: 10px;
-            padding: 6px 10px;
-            font-family: inherit;
-            font-size: 0.78rem;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        .password-toggle:hover {
-            color: white;
-            border-color: rgba(255, 255, 255, 0.24);
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .btn-action {
-            width: 100%;
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 16px;
-            border-radius: 16px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: all 0.3s;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .btn-action:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px var(--primary-glow);
-        }
-
-        .btn-action:active { transform: translateY(0); }
-
-        .loader {
-            display: none;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            position: absolute;
-            left: 50%;
-            margin-left: -10px;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        .btn-action.loading .btn-text { visibility: hidden; }
-        .btn-action.loading .loader { display: block; }
-
-        .footer-links {
-            margin-top: 30px;
-            text-align: center;
-            font-size: 0.85rem;
-            color: var(--text-dim);
-        }
-
-        .footer-links a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 600;
-        }
-
-        .footer-links a:hover { text-decoration: underline; }
-
-        .alert {
-            padding: 14px 20px;
-            border-radius: 16px;
-            font-size: 0.9rem;
-            margin-bottom: 24px;
-            display: none;
-            line-height: 1.4;
-        }
-
-        .alert-error {
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            color: #f87171;
-        }
-
-        .alert-success {
-            background: rgba(16, 185, 129, 0.1);
-            border: 1px solid rgba(16, 185, 129, 0.2);
-            color: #34d399;
-        }
-        @media (max-width: 480px) {
-            body {
-                overflow: auto;
-            }
-            .forgot-container {
-                padding: 24px 20px;
-                border-radius: 24px;
-                max-width: calc(100% - 24px);
-                margin: 16px auto;
-            }
-            .logo-area {
-                margin-bottom: 24px;
-            }
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/auth-volleo.css">
 </head>
 <body>
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
+    <div class="auth-shell">
+        <main class="auth-main">
+            <div class="auth-card">
+                <a class="auth-back" href="login.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back to sign in</a>
+                <a class="auth-brand" href="landing.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><path d="M7.6 12h3.2M10.8 12l5.4-5M10.8 12l5.4 5M10.8 12h5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="18.6" cy="7" r="1.8" fill="currentColor"/><circle cx="18.6" cy="12" r="1.8" fill="currentColor"/><circle cx="18.6" cy="17" r="1.8" fill="currentColor"/></svg> Volleo</a>
 
-    <div class="forgot-container">
-        <div class="logo-area">
-            <div class="logo-icon">
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg>
-            </div>
-            <div class="logo-text">RESET PASSWORD</div>
-            <p style="color: var(--text-dim); margin-top: 8px; font-size: 0.9rem;">Recover your dashboard credentials</p>
-        </div>
-
-        <div id="alert-box" class="alert alert-error"></div>
-
-        <!-- STEP 1: Enter Email -->
-        <form id="step-1-form">
-            <div class="input-group">
-                <label>Email Address</label>
-                <input type="email" id="reset-email" placeholder="name@company.com" required autocomplete="off">
-            </div>
-
-            <button type="submit" class="btn-action" id="step-1-btn">
-                <span class="btn-text">Send Reset Code</span>
-                <div class="loader"></div>
-            </button>
-        </form>
-
-        <!-- STEP 2: Enter OTP & New Password (Hidden initially) -->
-        <form id="step-2-form" style="display: none;">
-            <div class="input-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                    <label style="margin-bottom: 0;">Verification Code (OTP)</label>
-                    <button type="button" id="resend-btn" onclick="resendCode()" style="background: none; border: none; color: var(--primary); font-size: 0.82rem; font-weight: 600; cursor: pointer; padding: 0; font-family: 'Outfit', sans-serif;">Resend Code</button>
+                <div class="auth-head">
+                    <h1>Reset your password</h1>
+                    <p>Enter the email on your account and we will send you a six digit code.</p>
                 </div>
-                <input type="text" id="reset-otp" placeholder="Enter 6-digit code" required autocomplete="off" maxlength="6" style="text-align: center; letter-spacing: 4px; font-weight: 700; font-size: 1.2rem;">
-            </div>
 
-            <div class="input-group">
-                <label>New Password</label>
-                <div class="password-field">
-                    <input type="password" id="reset-password-input" placeholder="••••••••" required autocomplete="new-password" oninput="checkPasswordStrength(this.value)">
-                    <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('reset-password-input', this)">Show</button>
-                </div>
-                <div id="password-strength-container" style="margin-top: 8px; display: none;">
-                    <div style="height: 4px; width: 100%; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                <div id="alert-box" class="alert alert-error" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+                <!-- STEP 1: Enter Email -->
+                <form id="step-1-form">
+                    <div class="input-group">
+                        <label for="reset-email">Work email</label>
+                        <input type="email" id="reset-email" placeholder="name@company.com" required autocomplete="email" aria-describedby="alert-box">
+                    </div>
+
+                    <button type="submit" class="btn-action" id="step-1-btn">
+                        <span class="btn-text">Send code</span>
+                        <div class="loader"></div>
+                    </button>
+                </form>
+
+                <!-- STEP 2: Enter OTP & New Password (Hidden initially) -->
+                <form id="step-2-form" style="display: none;">
+                    <div class="input-group">
+                        <div class="auth-row" style="margin-bottom:7px">
+                            <label for="reset-otp" style="margin-bottom:0">Verification code</label>
+                            <button type="button" id="resend-btn" class="btn-ghost" style="min-height:30px;padding-inline:12px;font-size:.78rem" onclick="resendCode()">Resend code</button>
+                        </div>
+                        <div class="otp-inputs" style="margin-block:0">
+                            <input type="text" id="reset-otp" placeholder="000000" required autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" aria-describedby="alert-box">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="reset-password-input">New password</label>
+                        <div class="password-field">
+                            <input type="password" id="reset-password-input" placeholder="Create a strong password" required autocomplete="new-password" aria-describedby="strength-text password-rules" oninput="checkPasswordStrength(this.value)">
+                            <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('reset-password-input', this)">Show</button>
+                        </div>
+                <div id="password-strength-container" style="display:none">
+                    <div class="strength-track">
                         <div id="strength-bar" style="height: 100%; width: 0%; transition: all 0.3s;"></div>
                     </div>
-                    <p id="strength-text" style="font-size: 0.75rem; margin-top: 4px; color: var(--text-dim);"></p>
+                    <p id="strength-text" class="field-hint" aria-live="polite" aria-atomic="true"></p>
                 </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="reset-password-confirm">Confirm new password</label>
+                        <div class="password-field">
+                            <input type="password" id="reset-password-confirm" placeholder="Re-enter your new password" required autocomplete="new-password" aria-describedby="alert-box">
+                            <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('reset-password-confirm', this)">Show</button>
+                        </div>
+                    </div>
+
+                    <ul class="auth-checklist" id="password-rules">
+                        <li>At least 12 characters</li>
+                        <li>Not a password you have used before</li>
+                        <li>Not your email address</li>
+                    </ul>
+
+                    <button type="submit" class="btn-action" id="step-2-btn">
+                        <span class="btn-text">Update password</span>
+                        <div class="loader"></div>
+                    </button>
+                </form>
+
+                <p class="auth-foot">Remembered it? <a href="login.html">Sign in</a></p>
+                <p class="auth-meta">Volleo identity vault security standards applied</p>
             </div>
-
-            <div class="input-group">
-                <label>Confirm Password</label>
-                <div class="password-field">
-                    <input type="password" id="reset-password-confirm" placeholder="••••••••" required autocomplete="new-password">
-                    <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('reset-password-confirm', this)">Show</button>
-                </div>
-            </div>
-
-            <button type="submit" class="btn-action" id="step-2-btn">
-                <span class="btn-text">Reset Password</span>
-                <div class="loader"></div>
-            </button>
-        </form>
-
-        <div class="footer-links">
-            Remembered your password? <a href="login.html" style="color: #3b82f6;">Sign In</a>
-        </div>
+        </main>
+        <aside class="auth-aside">
+            <img class="auth-visual" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/auth-reset.webp" alt="" aria-hidden="true" decoding="async" width="540" height="540">
+        </aside>
     </div>
 
+    <script src="assets/js/auth-sentry.js"></script>
     <script>
         function togglePasswordVisibility(inputId, button) {
             const input = document.getElementById(inputId);
