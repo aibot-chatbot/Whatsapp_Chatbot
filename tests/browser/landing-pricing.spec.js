@@ -255,21 +255,18 @@ function expectPlanCardMatches(card, plan, surface) {
 }
 
 test.describe("public landing pricing", () => {
-  test("renders the authoritative published plan catalogue without support promises", async ({ page }) => {
+  test("renders the four publishing plans with no unapproved price", async ({ page }) => {
+    // The landing page now sells multi-channel publishing, not the chatbot plan
+    // catalogue. Paid tiers are unsigned-off, so they must read TBC, never money.
     await openLanding(page);
-    const landingCards = await cardTextByName(page, ".price-card", "h3");
+    const names = await page.locator(".plan h3").allTextContents();
+    expect(names).toEqual(["Free", "Starter", "Growth", "Business"]);
 
-    for (const plan of plans) {
-      const text = landingCards[plan.name];
-      expect(text).toContain(plan.name);
-      expect(text).toContain(`RM ${Number(plan.price).toFixed(2)}`);
-      expect(text).toContain(expectedDescription(plan, "landing"));
-      for (const feature of Object.values(expectedFeatureMap(plan))) {
-        expect(text, `${plan.name} missing ${feature.text}`).toContain(feature.text);
-      }
-    }
+    await expect(page.locator(".plan[data-plan-code='free'] .price")).toHaveText("$0");
+    await expect(page.locator(".plan .tbc")).toHaveCount(3);
 
     const pageText = await page.locator("body").textContent();
+    expect(pageText).not.toMatch(/RM\s?\d/);
     expect(pageText).not.toContain("RM 29.00");
     expect(pageText).not.toContain("RM 79.00");
     expect(pageText).not.toContain("RM 199.00");
@@ -277,17 +274,14 @@ test.describe("public landing pricing", () => {
     expect(pageText).not.toMatch(/Temporary example|unlimited resource limits/i);
   });
 
-  test("public and authenticated pricing display the same plan values", async ({ page }) => {
-    await openLanding(page);
-    const landingCards = await planCards(page, ".price-card", "h3", ".price-val", ".price-desc");
-    expect(landingCards.map(card => card.name)).toEqual(plans.map(plan => plan.name));
-
+  test("authenticated pricing still matches the published plan catalogue", async ({ page }) => {
+    // Landing no longer mirrors this catalogue by design; the authenticated
+    // pricing screen remains the source of truth and stays pinned.
     await openAuthenticatedPricing(page);
     const pricingCards = await planCards(page, ".plan-card", ".plan-name", ".plan-price", ".plan-desc");
     expect(pricingCards.map(card => card.name)).toEqual(plans.map(plan => plan.name));
 
     for (let i = 0; i < plans.length; i += 1) {
-      expectPlanCardMatches(landingCards[i], plans[i], "landing");
       expectPlanCardMatches(pricingCards[i], plans[i], "billing");
     }
   });
@@ -366,12 +360,12 @@ test.describe("public landing pricing", () => {
   test("landing CTAs switch between logged-out registration and logged-in app destinations", async ({ page }) => {
     await openLanding(page);
     await expect(page.locator("#hero-primary-cta")).toHaveAttribute("href", "register.html");
-    await expect(page.locator("[data-plan-cta='essential']")).toHaveAttribute("href", "register.html");
+    await expect(page.locator("[data-plan-cta='growth']")).toHaveAttribute("href", "register.html");
 
     const authedPage = await page.context().newPage();
     await openLanding(authedPage, true);
     await expect(authedPage.locator("#hero-primary-cta")).toHaveAttribute("href", "bots.html");
     await expect(authedPage.locator("#bottom-cta-btn")).toHaveAttribute("href", "bots.html");
-    await expect(authedPage.locator("[data-plan-cta='essential']")).toHaveAttribute("href", "pricing.html");
+    await expect(authedPage.locator("[data-plan-cta='growth']")).toHaveAttribute("href", "pricing.html");
   });
 });

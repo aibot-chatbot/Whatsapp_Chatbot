@@ -239,7 +239,6 @@ def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
     pricing = _read(FRONTEND / "pricing.html")
     pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
 
-    assert 'src="assets/js/plan-catalog.js"' in landing
     assert 'id="landing-pricing-grid"' in landing
     assert 'src="assets/js/pricing.js"' in pricing
     assert "/api/billing/plans" in pricing_js
@@ -271,11 +270,12 @@ def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
     assert "requireLogin()" not in landing
     assert "authenticatedFetch(" not in landing
     assert "register.html" in landing
-    assert "pricing.html" in landing
 
 
 def test_customer_facing_feature_labels_are_canonical():
-    landing = _read(FRONTEND / "landing.html")
+    # The authenticated pricing screen still sells the chatbot feature set, so
+    # its canonical labels stay pinned. The public landing page was repositioned
+    # around multi-channel publishing and no longer carries these names.
     pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
     for label in [
         "AI-Assisted Menu Generation",
@@ -285,10 +285,44 @@ def test_customer_facing_feature_labels_are_canonical():
         "Batch Website Scraping",
         "AI Credit",
     ]:
-        assert label in landing
         assert label in pricing_js
 
+
+def test_landing_never_advertises_an_unapproved_price():
+    """Paid tiers are not signed off, so the page must show TBC, never a figure.
+
+    This replaces the old stale-price guard. Same intent: nothing on the public
+    page may quote money the billing system does not actually charge.
+    """
+    landing = _read(FRONTEND / "landing.html")
+
     assert " Ai " not in landing
+    assert landing.count('class="tbc"') == 3, "Starter, Growth and Business must all read TBC"
+    assert "Paid pricing is not final" in landing
+
+    # $0 is the one real figure: the free tier exists. Any other currency
+    # amount means an unapproved price reached the page.
+    amounts = re.findall(r"[$£€]\s?\d[\d,.]*|RM\s?\d[\d,.]*", landing)
+    assert set(amounts) <= {"$0"}, f"unapproved price on landing page: {amounts}"
+
+
+def test_landing_does_not_overclaim_channels_or_customers():
+    """WhatsApp/Telegram/Wasender ship; the rest must read as roadmap.
+
+    The product has no customers yet, so testimonial and social-proof shapes
+    must not appear at all.
+    """
+    landing = _read(FRONTEND / "landing.html")
+
+    for live in ["WhatsApp", "Telegram", "Wasender"]:
+        assert live in landing
+
+    assert "in development" in landing.lower()
+    for roadmap in ["Instagram", "Facebook", "LinkedIn"]:
+        assert roadmap in landing
+
+    for fabricated in ["Trusted by", "testimonial", "customers worldwide", "5-star"]:
+        assert fabricated.lower() not in landing.lower()
 
 
 def test_authenticated_pricing_uses_explicit_customer_feature_allowlist():
