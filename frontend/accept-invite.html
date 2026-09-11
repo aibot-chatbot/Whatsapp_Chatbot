@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Accept invitation | Volleo</title>
     <meta name="description" content="Accept your invitation and join a Volleo workspace.">
-    <meta name="robots" content="noindex,nofollow">
+    <meta name="robots" content="noindex,follow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Geist:wght@400;500&display=swap" rel="stylesheet">
@@ -13,27 +13,9 @@
 </head>
 <body>
     <div class="auth-shell">
-        <aside class="auth-aside">
-            <a class="auth-brand" href="landing.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><path d="M7.6 12h3.2M10.8 12l5.4-5M10.8 12l5.4 5M10.8 12h5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="18.6" cy="7" r="1.8" fill="currentColor"/><circle cx="18.6" cy="12" r="1.8" fill="currentColor"/><circle cx="18.6" cy="17" r="1.8" fill="currentColor"/></svg> Volleo</a>
-
-            <img class="auth-visual" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/uc-agencies.webp"
-                 alt="" aria-hidden="true" decoding="async" width="330" height="330">
-
-            <div class="auth-pitch">
-                <span class="auth-eyebrow">Team invitation</span>
-                <h2>Join your team's workspace.</h2>
-                <p>Your teammate already set up the channels. Choose a password and you are in.</p>
-            </div>
-
-            <ul class="auth-points">
-                <li>Your role and permissions are already assigned</li>
-                <li>Shared inbox, broadcasts and automations</li>
-                <li>Invitations expire, so accept while the link is live</li>
-            </ul>
-        </aside>
-
         <main class="auth-main">
             <div class="auth-card">
+                <a class="auth-brand" href="landing.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><path d="M7.6 12h3.2M10.8 12l5.4-5M10.8 12l5.4 5M10.8 12h5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="18.6" cy="7" r="1.8" fill="currentColor"/><circle cx="18.6" cy="12" r="1.8" fill="currentColor"/><circle cx="18.6" cy="17" r="1.8" fill="currentColor"/></svg> Volleo</a>
 
                 <!-- Loading State -->
                 <div id="loadingState" class="loading-state">
@@ -50,8 +32,8 @@
 
                 <!-- Accept Form -->
                 <div id="formSection" class="form-section">
-                    <div class="heading">
-                        <h2>Accept invitation</h2>
+                    <div class="auth-head">
+                        <h1>Accept your invitation</h1>
                         <p>You have been invited to join <span id="companyDisplay" class="email-highlight">the team</span>.</p>
                     </div>
 
@@ -68,7 +50,7 @@
                     <form id="acceptForm" onsubmit="return handleSubmit(event)">
                         <div class="input-group">
                             <label for="fullName">Full name</label>
-                            <input type="text" id="fullName" placeholder="Enter your full name" autocomplete="name" required aria-describedby="inviteMessage">
+                            <input type="text" id="fullName" placeholder="Marcus Vance" autocomplete="name" required aria-describedby="inviteMessage">
                         </div>
 
                         <div class="input-group">
@@ -95,7 +77,7 @@
                     </form>
 
                     <div id="googleInviteSection" class="google-invite-section" hidden>
-                        <div class="invite-divider">or</div>
+                        <div class="invite-divider">OR</div>
                         <div id="googleInviteButton" class="google-invite-button" aria-label="Continue with Google"></div>
                     </div>
 
@@ -108,9 +90,11 @@
                     <p>Your account is ready. Redirecting you to sign in...</p>
                     <a href="login.html" class="btn btn-primary">Go to sign in</a>
                 </div>
-
             </div>
         </main>
+        <aside class="auth-aside">
+            <img class="auth-visual" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/auth-invite.webp" alt="" aria-hidden="true" decoding="async" width="540" height="540">
+        </aside>
     </div>
 
     <script src="assets/js/auth-sentry.js"></script>
@@ -299,7 +283,7 @@
                 });
                 google.accounts.id.renderButton(
                     document.getElementById('googleInviteButton'),
-                    { theme: 'outline', size: 'large', width: 320 }
+                    { theme: 'filled_black', size: 'large', width: 320 }
                 );
                 googleInitialized = true;
                 document.getElementById('googleInviteSection').hidden = false;

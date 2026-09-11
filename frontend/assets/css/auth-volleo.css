@@ -79,6 +79,9 @@ a:hover{text-decoration:underline}
 /* ---------- shell: asymmetric split, brand left / form right ----------
    taste-skill bans centred hero layouts above DESIGN_VARIANCE 4; we are at 6. */
 
+/* Form pane LEFT, artwork pane RIGHT - this is the order the approved Stitch
+   artboards use, and <main> comes first in the DOM so the form is also first
+   for keyboard and screen-reader users. */
 .auth-shell{
   display:grid;
   grid-template-columns:minmax(0,46fr) minmax(0,54fr);
@@ -89,15 +92,13 @@ a:hover{text-decoration:underline}
   position:relative;
   overflow:hidden;
   display:flex;
-  flex-direction:column;
-  justify-content:space-between;
-  gap:40px;
-  padding-inline:clamp(28px,4vw,64px);
-  padding-block:clamp(32px,4vw,56px);
-  border-right:1px solid var(--line);
+  align-items:center;
+  justify-content:center;
+  padding:clamp(24px,3vw,48px);
+  border-left:1px solid var(--line);
   background:
-    radial-gradient(120% 90% at 12% 8%,rgba(34,211,238,.16),transparent 58%),
-    radial-gradient(90% 80% at 88% 92%,rgba(56,189,248,.12),transparent 60%),
+    radial-gradient(120% 90% at 50% 20%,rgba(34,211,238,.14),transparent 60%),
+    radial-gradient(90% 80% at 80% 88%,rgba(56,189,248,.10),transparent 62%),
     var(--sunken);
 }
 
@@ -123,8 +124,22 @@ a:hover{text-decoration:underline}
 
 .auth-card{
   width:100%;
-  max-width:460px;
+  max-width:400px;
 }
+
+/* Back link above the brand on the recovery screens. */
+/* display:flex (not inline-flex) so it forms its own line above the brand,
+   rather than sitting beside it. */
+.auth-back{
+  display:flex;
+  width:fit-content;
+  align-items:center;
+  gap:8px;
+  margin-bottom:20px;
+  color:var(--steel);
+  font-size:.84rem;
+}
+.auth-back:hover{color:var(--ice);text-decoration:none}
 
 /* ---------- brand block ---------- */
 
@@ -133,14 +148,15 @@ a:hover{text-decoration:underline}
   z-index:1;
   display:inline-flex;
   align-items:center;
-  gap:.6rem;
+  gap:.55rem;
+  margin-bottom:26px;
   font-family:"Space Grotesk",system-ui,sans-serif;
   font-weight:700;
-  font-size:1.15rem;
+  font-size:1.12rem;
   color:var(--ice);
 }
 .auth-brand:hover{text-decoration:none}
-.auth-brand svg,.auth-brand img{width:28px;height:28px;flex:0 0 auto}
+.auth-brand svg,.auth-brand img{width:26px;height:26px;flex:0 0 auto;color:var(--cyan)}
 
 /* Decorative panel artwork, served from the public Supabase `landing` bucket.
    Hosted rather than committed: the container contract in
@@ -154,13 +170,12 @@ a:hover{text-decoration:underline}
   position:relative;
   z-index:1;
   display:block;
-  width:min(100%,330px);
+  width:min(100%,540px);
   aspect-ratio:1;
-  margin-inline:auto;
   object-fit:cover;
-  -webkit-mask-image:radial-gradient(circle at 50% 48%,#000 50%,transparent 73%);
-  mask-image:radial-gradient(circle at 50% 48%,#000 50%,transparent 73%);
-  opacity:.96;
+  border-radius:22px;
+  border:1px solid var(--line);
+  box-shadow:0 30px 90px rgba(2,6,14,.55);
   pointer-events:none;
 }
 
@@ -263,25 +278,36 @@ a:hover{text-decoration:underline}
 .auth-input[aria-invalid="true"]{border-color:var(--danger)}
 
 .password-field{position:relative;display:flex;align-items:center}
-.password-field input{padding-right:74px}
+.password-field input{padding-right:48px}
 
+/* Stitch uses an eye glyph here, not the words Show/Hide. The frozen
+   togglePasswordVisibility() does `button.textContent = 'Hide' | 'Show'`, so an
+   inline <svg> inside the button would be wiped on the first click. It also
+   maintains aria-label, so the icon is drawn as a background and swapped off
+   that attribute instead - the accessible name stays correct and no JS changes. */
 .password-toggle{
   position:absolute;
-  right:6px;
-  min-height:36px;
-  min-width:44px;
-  padding-inline:12px;
-  background:var(--raised);
-  border:1px solid var(--line);
+  right:8px;
+  width:32px;
+  height:32px;
+  min-height:32px;
+  padding:0;
+  background-color:transparent;
+  border:0;
   border-radius:var(--r-sm);
-  color:var(--steel);
-  font-family:inherit;
-  font-size:.78rem;
-  font-weight:500;
   cursor:pointer;
-  transition:color .18s ease,border-color .18s ease;
+  font-size:0;                 /* hides the Show/Hide text node */
+  color:transparent;
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:20px 20px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+  transition:background-color .18s ease;
 }
-.password-toggle:hover{color:var(--ice);border-color:var(--hair)}
+.password-toggle[aria-label="Hide password"]{
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322D3EE' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3Cpath d='M3 3l18 18'/%3E%3C/svg%3E");
+}
+.password-toggle:hover{background-color:rgba(148,163,184,.12)}
 
 /* ---------- helper + error text ---------- */
 
@@ -296,17 +322,26 @@ a:hover{text-decoration:underline}
 
 /* The scripts flip display between none and block; keep those the only
    states this rule cares about so nothing fights the inline style. */
+/* Stitch styles this as an inline notice with a leading info glyph, left
+   aligned, rather than centred red text. The glyph is a background on the box
+   so it survives `errEl.textContent = message`, which replaces the text node. */
 .login-error{
   display:none;
-  padding-inline:13px;
-  padding-block:10px;
+  padding-block:11px;
+  padding-left:38px;
+  padding-right:13px;
   margin-block:4px 18px;
-  background:rgba(248,113,113,.08);
+  background-color:rgba(248,113,113,.08);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23F87171' stroke-width='1.8' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 8h.01M11 12h1v4h1'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:13px 11px;
+  background-size:16px 16px;
   border:1px solid rgba(248,113,113,.28);
   border-radius:var(--r-sm);
   color:var(--danger);
-  font-size:.84rem;
-  text-align:center;
+  font-size:.82rem;
+  line-height:1.45;
+  text-align:left;
 }
 
 /* #alert-box (forgot.html). className is REASSIGNED by showAlert(), so these
@@ -457,6 +492,46 @@ a:hover{text-decoration:underline}
   color:var(--steel);
   font-size:.88rem;
 }
+
+/* Password requirements list on the reset screen. Static guidance, not live
+   validation - ticking these as the user types would need the frozen script. */
+.auth-checklist{
+  list-style:none;
+  margin:0 0 20px;
+  padding:14px 16px;
+  display:grid;
+  gap:9px;
+  background:var(--sunken);
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  font-size:.82rem;
+  color:var(--steel);
+}
+.auth-checklist li{display:flex;gap:9px;align-items:flex-start}
+.auth-checklist li::before{
+  content:"";
+  flex:0 0 auto;
+  width:14px;height:14px;
+  margin-top:.15em;
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:14px 14px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2322D3EE' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+}
+
+/* Trust strip at the foot of the recovery screens. */
+.auth-meta{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-top:18px;
+  padding-top:14px;
+  border-top:1px solid var(--line);
+  color:var(--steel);
+  font-size:.72rem;
+  letter-spacing:.02em;
+}
+.auth-meta-ok{color:var(--cyan)}
 
 .google-slot{display:flex;justify-content:center;min-height:44px}
 
@@ -679,18 +754,14 @@ a:hover{text-decoration:underline}
    The aside becomes a compact header strip rather than disappearing, so the
    brand is still present on mobile. Nothing overflows horizontally. */
 
+/* Below 900px the artwork pane is dropped entirely rather than stacked. On a
+   phone the form is the whole point, and a 540px decorative square above it
+   would push the first field below the fold. */
 @media (max-width:900px){
   .auth-shell{grid-template-columns:1fr;min-height:100dvh}
-  .auth-aside{
-    border-right:0;
-    border-bottom:1px solid var(--line);
-    gap:18px;
-    padding-block:26px;
-  }
-  .auth-aside::after{inset:auto -40% -70% -40%}
-  .auth-pitch h2{font-size:1.35rem}
-  .auth-pitch p,.auth-points,.auth-visual{display:none}
-  .auth-main{padding-block:34px}
+  .auth-aside{display:none}
+  .auth-main{padding-block:40px;align-items:flex-start}
+  .auth-card{max-width:440px}
 }
 
 @media (max-width:420px){

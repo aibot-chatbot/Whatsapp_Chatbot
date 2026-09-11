@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in | Volleo</title>
-    <meta name="description" content="Sign in to Volleo to manage WhatsApp and Telegram conversations from one workspace.">
+    <meta name="description" content="Sign in to Volleo and publish to WhatsApp and Telegram from one composer.">
     <meta name="robots" content="noindex,follow">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,42 +13,25 @@
 </head>
 <body>
     <div class="auth-shell">
-        <aside class="auth-aside">
-            <a class="auth-brand" href="landing.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><path d="M7.6 12h3.2M10.8 12l5.4-5M10.8 12l5.4 5M10.8 12h5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="18.6" cy="7" r="1.8" fill="currentColor"/><circle cx="18.6" cy="12" r="1.8" fill="currentColor"/><circle cx="18.6" cy="17" r="1.8" fill="currentColor"/></svg> Volleo</a>
-
-            <img class="auth-visual" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/robot-reference.webp"
-                 alt="" aria-hidden="true" decoding="async" width="330" height="330">
-
-            <div class="auth-pitch">
-                <span class="auth-eyebrow">Publishing workspace</span>
-                <h2>Every channel, one workspace.</h2>
-                <p>Pick up your conversations, broadcasts and automations exactly where you left them.</p>
-            </div>
-
-            <ul class="auth-points">
-                <li>WhatsApp and Telegram side by side</li>
-                <li>Scheduled broadcasts with delivery tracking</li>
-                <li>Team roles, audit trail and per-company isolation</li>
-            </ul>
-        </aside>
-
         <main class="auth-main">
             <div class="auth-card">
+                <a class="auth-brand" href="landing.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><path d="M7.6 12h3.2M10.8 12l5.4-5M10.8 12l5.4 5M10.8 12h5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="18.6" cy="7" r="1.8" fill="currentColor"/><circle cx="18.6" cy="12" r="1.8" fill="currentColor"/><circle cx="18.6" cy="17" r="1.8" fill="currentColor"/></svg> Volleo</a>
+
                 <div class="auth-head">
-                    <h1>Sign in</h1>
-                    <p>Welcome back. Enter your details to continue.</p>
+                    <h1>Sign in to Volleo</h1>
+                    <p>Publish to WhatsApp and Telegram from one composer.</p>
                 </div>
 
                 <form id="login-form">
                     <div class="input-group">
-                        <label for="login-email">Email address</label>
+                        <label for="login-email">Work email</label>
                         <input type="email" id="login-email" name="email" placeholder="name@company.com" required autocomplete="username" aria-describedby="login-error">
                     </div>
 
                     <div class="input-group">
                         <label for="login-password">Password</label>
                         <div class="password-field">
-                            <input type="password" id="login-password" placeholder="Your password" required autocomplete="current-password" aria-describedby="login-error">
+                            <input type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password" aria-describedby="login-error">
                             <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('login-password', this)">Show</button>
                         </div>
                     </div>
@@ -68,32 +51,36 @@
                     </button>
                 </form>
 
-                <div class="auth-divider">or continue with</div>
+                <div class="auth-divider">OR</div>
 
                 <div class="google-slot">
                     <div id="googleLoginButton"></div>
                 </div>
 
-                <p class="auth-foot">Don&#39;t have an account? <a href="register.html">Create one free</a></p>
+                <p class="auth-foot">New to Volleo? <a href="register.html">Create an account</a></p>
             </div>
         </main>
+        <aside class="auth-aside">
+            <img class="auth-visual" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/auth-signin.webp" alt="" aria-hidden="true" decoding="async" width="540" height="540">
+        </aside>
     </div>
 
     <!-- Company Name Modal for new Google users -->
     <div class="modal-overlay" id="company-modal" role="dialog" aria-modal="true" aria-labelledby="company-modal-title" aria-describedby="company-modal-desc">
         <div class="modal-box" id="company-modal-box" tabindex="-1">
-            <h3 id="company-modal-title">One last step</h3>
-            <p id="company-modal-desc">Tell us your company name and choose a password, and your workspace is ready.</p>
+            <span class="auth-eyebrow">Volleo account setup</span>
+            <h3 id="company-modal-title">One more step</h3>
+            <p id="company-modal-desc">Set a password for your Volleo account so you can also sign in without Google.</p>
 
             <div class="input-group">
-                <label for="modal-company-name">Company name</label>
+                <label for="modal-company-name">Company</label>
                 <input type="text" id="modal-company-name" placeholder="Your Company Sdn Bhd" autocomplete="organization" aria-describedby="google-company-error">
             </div>
 
             <div class="input-group">
                 <label>Password</label>
                 <div class="password-field">
-                    <input type="password" id="google-company-password" placeholder="Create a strong password" autocomplete="new-password" aria-label="Password" aria-describedby="google-company-error">
+                    <input type="password" id="google-company-password" placeholder="Create a password" autocomplete="new-password" aria-label="Password" aria-describedby="google-company-error">
                     <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('google-company-password', this)">Show</button>
                 </div>
             </div>
@@ -101,7 +88,7 @@
             <div class="input-group">
                 <label>Confirm Password</label>
                 <div class="password-field">
-                    <input type="password" id="google-company-confirm-password" placeholder="Confirm your password" autocomplete="new-password" aria-label="Confirm password" aria-describedby="google-company-error">
+                    <input type="password" id="google-company-confirm-password" placeholder="Re-enter your password" autocomplete="new-password" aria-label="Confirm password" aria-describedby="google-company-error">
                     <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('google-company-confirm-password', this)">Show</button>
                 </div>
             </div>
@@ -109,7 +96,7 @@
             <p id="google-company-error" class="modal-validation-error" role="alert" aria-live="assertive"></p>
 
             <button class="btn-confirm" id="btn-confirm-company" onclick="submitGoogleWithCompany()">
-                <span class="btn-confirm-text">Complete sign up</span>
+                <span class="btn-confirm-text">Create account</span>
                 <div class="loader" id="confirm-loader"></div>
             </button>
             <button type="button" class="btn-ghost" style="width:100%;margin-top:10px" onclick="closeCompanyModal()">Cancel</button>
@@ -267,7 +254,7 @@
                 });
                 google.accounts.id.renderButton(
                     document.getElementById('googleLoginButton'),
-                    { type: 'standard', shape: 'rectangular', theme: 'outline', text: 'continue_with', size: 'large', width: getGoogleLoginButtonWidth() }
+                    { type: 'standard', shape: 'rectangular', theme: 'filled_black', text: 'continue_with', size: 'large', width: getGoogleLoginButtonWidth() }
                 );
                 googleInitialized = true;
             } catch (err) {
