@@ -13,7 +13,7 @@ from app.decorators import security
 def test_signed_body_limit(monkeypatch, streaming, oversized):
     monkeypatch.setattr(security, "_MAX_WEBHOOK_BYTES", 64)
     app = Flask(__name__)
-    app.config.update(TESTING=True, APP_SECRET="")
+    app.config.update(TESTING=True, APP_SECRET="synthetic-secret")
 
     @app.post("/webhook")
     @security.signature_required
@@ -34,6 +34,6 @@ def test_signed_body_limit(monkeypatch, streaming, oversized):
 
 def test_unsigned_invalid_utf8_is_rejected_without_decode_error():
     app = Flask(__name__)
-    app.config.update(TESTING=True, APP_SECRET="")
+    app.config.update(TESTING=True, APP_SECRET="synthetic-secret")
     app.add_url_rule("/webhook", view_func=security.signature_required(lambda: "unexpected"), methods=["POST"])
     assert app.test_client().post("/webhook", data=b"\xff", content_type="application/json").status_code == 403
