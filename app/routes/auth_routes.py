@@ -124,6 +124,35 @@ def google_config():
     })
 
 
+@auth_bp.route("/sentry-config", methods=["GET"])
+def sentry_config():
+    """Return the browser Sentry DSN so the auth pages can report crashes.
+
+    A DSN is a public ingest identifier, not a secret - it ships inside every
+    frontend that uses Sentry and only permits writing events. The environment
+    and release are echoed so browser events land in the same buckets as the
+    server events configured in app/observability.py.
+
+    Returns 503 when SENTRY_DSN is unset, which is the normal local and
+    self-hosted case; the frontend reads that as "reporting off" and carries on.
+    """
+    dsn = os.getenv("SENTRY_DSN", "").strip()
+    if not dsn:
+        return jsonify({
+            "status": "error",
+            "message": "Error reporting is not configured."
+        }), 503
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "dsn": dsn,
+            "environment": os.getenv("SENTRY_ENVIRONMENT", "development"),
+            "release": os.getenv("SENTRY_RELEASE") or os.getenv("RENDER_GIT_COMMIT") or None,
+        }
+    })
+
+
 @auth_bp.route("/google", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_GOOGLE_AUTH", "10/minute"))
 def google_auth():
@@ -523,13 +552,21 @@ def resend_otp():
 
     otp = generate_otp()
     otp_expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
+    # The link is rotated alongside the code. Reusing the old token would leave
+    # the link in the superseded email working, so the two would not expire
+    # together - which is the single invariant this feature is built on.
+    verification_token = secrets.token_urlsafe(32)
 
     supabase.table("pending_registrations").update({
         "otp_code": otp,
-        "otp_expiry": otp_expiry
+        "otp_expiry": otp_expiry,
+        "verification_token": verification_token,
     }).eq("email", email).execute()
 
-    email_sent = send_otp_email(email, otp, recipient_name=pending.get("first_name", "User"))
+    email_sent = send_otp_email(
+        email, otp, recipient_name=pending.get("first_name", "User"),
+        verify_url=_build_verify_url(verification_token),
+    )
     if email_sent:
         logger.info("Registration OTP email resent")
     else:

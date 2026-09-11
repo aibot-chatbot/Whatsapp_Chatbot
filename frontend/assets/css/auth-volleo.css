@@ -1,0 +1,698 @@
+/* ============================================================================
+   auth-volleo.css - shared design system for the four auth surfaces:
+   login.html, register.html, forgot.html, verify-email.html
+
+   Tokens are lifted verbatim from frontend/landing.html :root so the auth
+   pages read as the same product as the marketing page. Do not introduce a
+   second palette here - if a value is wrong, fix it on the landing page and
+   copy it back.
+
+   Dark only. The light theme was removed from this product on purpose;
+   there is no toggle and no prefers-color-scheme branch.
+
+   LOAD-BEARING NAMES - these are added, removed or read by the page scripts,
+   which are frozen by source-pinning tests. Renaming any of them breaks the
+   page at runtime, silently:
+     .loading      submit buttons (login, register, forgot)
+     .open         #company-modal (login, register)
+     .disabled     #resend-link (verify-email)
+     .otp-inputs   querySelectorAll target (verify-email)
+     .alert / .alert-error / .alert-success
+                   #alert-box (forgot) - assigned with className =, which
+                   WIPES every other class, so never rely on an extra hook here
+   ========================================================================= */
+
+:root{
+  --void:#060A12;
+  --panel:rgba(18,26,38,.62);
+  --raised:rgba(28,38,52,.72);
+  --sunken:#070C15;
+  --cyan:#22D3EE;
+  --sky:#38BDF8;
+  --ice:#F1F5F9;
+  --steel:#94A3B8;
+  --hair:rgba(34,211,238,.15);
+  --line:rgba(148,163,184,.14);
+  --danger:#F87171;
+  --success:#34D399;
+  --on-cyan:#04121a;
+  --r-sm:10px;
+  --r-md:14px;
+  --r-lg:18px;
+  --r-pill:999px;
+}
+
+/* ---------- reset + page ground ---------- */
+
+*,*::before,*::after{box-sizing:border-box}
+
+html,body{height:100%}
+
+body{
+  margin:0;
+  background:var(--void);
+  color:var(--ice);
+  font-family:Geist,system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:16px;
+  line-height:1.55;
+  -webkit-font-smoothing:antialiased;
+}
+
+h1,h2,h3,.display{
+  font-family:"Space Grotesk",system-ui,sans-serif;
+  letter-spacing:-.03em;
+  margin:0;
+  line-height:1.1;
+}
+
+a{color:var(--cyan);text-decoration:none}
+a:hover{text-decoration:underline}
+
+/* Focus is never removed, only restyled. 3px solid cyan on the dark ground
+   clears the 3:1 contrast bar for WCAG 2.2 SC 2.4.11 / 2.4.13. */
+:focus-visible{
+  outline:3px solid var(--cyan);
+  outline-offset:2px;
+  border-radius:var(--r-sm);
+}
+
+/* ---------- shell: asymmetric split, brand left / form right ----------
+   taste-skill bans centred hero layouts above DESIGN_VARIANCE 4; we are at 6. */
+
+.auth-shell{
+  display:grid;
+  grid-template-columns:minmax(0,46fr) minmax(0,54fr);
+  min-height:100dvh;          /* never 100vh - iOS Safari address bar jump */
+}
+
+.auth-aside{
+  position:relative;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  justify-content:space-between;
+  gap:40px;
+  padding-inline:clamp(28px,4vw,64px);
+  padding-block:clamp(32px,4vw,56px);
+  border-right:1px solid var(--line);
+  background:
+    radial-gradient(120% 90% at 12% 8%,rgba(34,211,238,.16),transparent 58%),
+    radial-gradient(90% 80% at 88% 92%,rgba(56,189,248,.12),transparent 60%),
+    var(--sunken);
+}
+
+/* Soft ambient glow. Decorative only - flattened under reduced motion below,
+   where its static form is the intended look, not a broken animation. */
+.auth-aside::after{
+  content:"";
+  position:absolute;
+  inset:auto -18% -34% -18%;
+  aspect-ratio:1;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(34,211,238,.13),transparent 66%);
+  pointer-events:none;
+}
+
+.auth-main{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding-inline:clamp(20px,4vw,56px);
+  padding-block:clamp(36px,6vw,72px);
+}
+
+.auth-card{
+  width:100%;
+  max-width:460px;
+}
+
+/* ---------- brand block ---------- */
+
+.auth-brand{
+  position:relative;
+  z-index:1;
+  display:inline-flex;
+  align-items:center;
+  gap:.6rem;
+  font-family:"Space Grotesk",system-ui,sans-serif;
+  font-weight:700;
+  font-size:1.15rem;
+  color:var(--ice);
+}
+.auth-brand:hover{text-decoration:none}
+.auth-brand svg,.auth-brand img{width:28px;height:28px;flex:0 0 auto}
+
+.auth-pitch{position:relative;z-index:1;max-width:34ch}
+.auth-pitch h2{font-size:clamp(1.6rem,2.6vw,2.3rem);margin-bottom:14px}
+.auth-pitch p{color:var(--steel);margin:0;font-size:.98rem}
+
+.auth-points{
+  position:relative;
+  z-index:1;
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:grid;
+  gap:12px;
+}
+.auth-points li{
+  display:flex;
+  gap:10px;
+  align-items:flex-start;
+  color:var(--steel);
+  font-size:.9rem;
+}
+.auth-points li::before{
+  content:"";
+  flex:0 0 auto;
+  width:6px;height:6px;
+  margin-top:.55em;
+  border-radius:50%;
+  background:var(--cyan);
+  box-shadow:0 0 8px var(--cyan);
+}
+
+.auth-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
+  font-size:.72rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--cyan);
+  border:1px solid var(--hair);
+  border-radius:var(--r-pill);
+  padding-inline:12px;
+  padding-block:5px;
+}
+
+/* ---------- card header ---------- */
+
+.auth-head{margin-bottom:28px}
+.auth-head h1{font-size:clamp(1.5rem,2.4vw,1.95rem);margin-bottom:8px}
+.auth-head p{color:var(--steel);margin:0;font-size:.94rem}
+
+/* ---------- form primitives ---------- */
+
+.input-group{margin-bottom:18px}
+
+.input-group label,
+.auth-label{
+  display:block;
+  margin-bottom:7px;
+  font-size:.82rem;
+  font-weight:500;
+  color:var(--ice);
+  letter-spacing:.01em;
+}
+
+.input-group input[type="text"],
+.input-group input[type="email"],
+.input-group input[type="password"],
+.input-group input[type="tel"],
+.auth-input{
+  width:100%;
+  min-height:48px;                 /* >= 44px touch target */
+  padding-inline:15px;
+  padding-block:12px;
+  background:var(--sunken);
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  color:var(--ice);
+  font-family:inherit;
+  font-size:.98rem;
+  transition:border-color .18s ease,background-color .18s ease;
+}
+
+.input-group input::placeholder,.auth-input::placeholder{color:#5B6779}
+
+.input-group input:hover,.auth-input:hover{border-color:rgba(148,163,184,.3)}
+
+.input-group input:focus,.auth-input:focus{
+  outline:3px solid var(--cyan);
+  outline-offset:2px;
+  border-color:var(--cyan);
+  background:#08121d;
+}
+
+/* Set by scripts via aria-invalid; colour is never the only cue - the error
+   text below the field carries the message. */
+.input-group input[aria-invalid="true"],
+.auth-input[aria-invalid="true"]{border-color:var(--danger)}
+
+.password-field{position:relative;display:flex;align-items:center}
+.password-field input{padding-right:74px}
+
+.password-toggle{
+  position:absolute;
+  right:6px;
+  min-height:36px;
+  min-width:44px;
+  padding-inline:12px;
+  background:var(--raised);
+  border:1px solid var(--line);
+  border-radius:var(--r-sm);
+  color:var(--steel);
+  font-family:inherit;
+  font-size:.78rem;
+  font-weight:500;
+  cursor:pointer;
+  transition:color .18s ease,border-color .18s ease;
+}
+.password-toggle:hover{color:var(--ice);border-color:var(--hair)}
+
+/* ---------- helper + error text ---------- */
+
+.field-hint{margin:6px 0 0;font-size:.78rem;color:var(--steel)}
+
+.field-error,
+.modal-validation-error{
+  margin:7px 0 0;
+  font-size:.82rem;
+  color:var(--danger);
+}
+
+/* The scripts flip display between none and block; keep those the only
+   states this rule cares about so nothing fights the inline style. */
+.login-error{
+  display:none;
+  padding-inline:13px;
+  padding-block:10px;
+  margin-block:4px 18px;
+  background:rgba(248,113,113,.08);
+  border:1px solid rgba(248,113,113,.28);
+  border-radius:var(--r-sm);
+  color:var(--danger);
+  font-size:.84rem;
+  text-align:center;
+}
+
+/* #alert-box (forgot.html). className is REASSIGNED by showAlert(), so these
+   must live on .alert / .alert-error / .alert-success and nothing else. */
+.alert{
+  display:none;
+  padding-inline:14px;
+  padding-block:11px;
+  margin-bottom:18px;
+  border-radius:var(--r-md);
+  font-size:.86rem;
+  border:1px solid transparent;
+}
+.alert-error{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.28);color:var(--danger)}
+.alert-success{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.28);color:var(--success)}
+
+/* ---------- password strength ----------
+   width + background are written as INLINE styles by the page scripts, so we
+   only own the track and the typography here. */
+.strength-track{
+  height:5px;
+  border-radius:var(--r-pill);
+  background:rgba(148,163,184,.16);
+  overflow:hidden;
+  margin-top:9px;
+}
+
+/* ---------- buttons ---------- */
+
+.btn-auth,
+.btn-login,
+.btn-action,
+.btn-confirm{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  min-height:50px;
+  padding-inline:20px;
+  padding-block:13px;
+  background:var(--cyan);
+  color:var(--on-cyan);
+  border:0;
+  border-radius:var(--r-md);
+  font-family:"Space Grotesk",system-ui,sans-serif;
+  font-size:.98rem;
+  font-weight:700;
+  letter-spacing:.01em;
+  cursor:pointer;
+  transition:background-color .18s ease,transform .08s ease;
+}
+
+.btn-auth:hover,.btn-login:hover,.btn-action:hover,.btn-confirm:hover{background:#3EDDF5}
+.btn-auth:active,.btn-login:active,.btn-action:active,.btn-confirm:active{transform:scale(.985)}
+
+.btn-auth:disabled,.btn-login:disabled,.btn-action:disabled,.btn-confirm:disabled{
+  opacity:.55;
+  cursor:not-allowed;
+  transform:none;
+}
+
+.btn-ghost{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:44px;
+  padding-inline:16px;
+  background:transparent;
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  color:var(--ice);
+  font-family:inherit;
+  font-size:.9rem;
+  cursor:pointer;
+}
+.btn-ghost:hover{border-color:var(--hair)}
+
+/* .loading is toggled by the page scripts. The label goes transparent and the
+   spinner shows; the button keeps its box so the layout never jumps. */
+.btn-auth.loading,.btn-login.loading,.btn-action.loading,.btn-confirm.loading{
+  color:transparent;
+  pointer-events:none;
+}
+.btn-auth.loading .loader,
+.btn-login.loading .loader,
+.btn-action.loading .loader,
+.btn-confirm.loading .loader{display:block}
+
+.loader{
+  display:none;
+  position:absolute;
+  top:50%;
+  left:50%;
+  width:20px;height:20px;
+  margin:-10px 0 0 -10px;
+  border:2px solid rgba(4,18,26,.28);
+  border-top-color:var(--on-cyan);
+  border-radius:50%;
+  animation:auth-spin .7s linear infinite;
+}
+@keyframes auth-spin{to{transform:rotate(360deg)}}
+
+/* ---------- row utilities ---------- */
+
+.auth-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:20px;
+  font-size:.86rem;
+}
+
+.auth-check{
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  color:var(--steel);
+  cursor:pointer;
+  min-height:24px;              /* SC 2.5.8 target size minimum */
+}
+.auth-check input[type="checkbox"]{
+  width:20px;height:20px;
+  margin:0;
+  accent-color:var(--cyan);
+  cursor:pointer;
+}
+
+.auth-divider{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-block:24px;
+  color:var(--steel);
+  font-size:.78rem;
+}
+.auth-divider::before,.auth-divider::after{
+  content:"";
+  flex:1;
+  height:1px;
+  background:var(--line);
+}
+
+.auth-foot{
+  margin-top:26px;
+  text-align:center;
+  color:var(--steel);
+  font-size:.88rem;
+}
+
+.google-slot{display:flex;justify-content:center;min-height:44px}
+
+/* ---------- OTP ----------
+   .otp-inputs is a querySelectorAll target in verify-email.html. It is styled
+   to look correct with EITHER the legacy six single-char boxes or one merged
+   maxlength=6 field, so the markup can be consolidated without touching JS. */
+
+.otp-inputs{
+  display:flex;
+  gap:10px;
+  justify-content:center;
+  margin-block:8px 18px;
+}
+
+.otp-inputs input{
+  flex:1 1 auto;
+  min-width:0;
+  min-height:58px;
+  padding-inline:12px;
+  background:var(--sunken);
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  color:var(--ice);
+  font-family:"Space Grotesk",ui-monospace,monospace;
+  font-size:1.5rem;
+  font-weight:700;
+  text-align:center;
+  letter-spacing:.42em;
+  text-indent:.42em;            /* re-centres text that letter-spacing pushes left */
+  transition:border-color .18s ease;
+}
+.otp-inputs input:focus{
+  outline:3px solid var(--cyan);
+  outline-offset:2px;
+  border-color:var(--cyan);
+}
+
+.resend-box{
+  margin-top:18px;
+  text-align:center;
+  color:var(--steel);
+  font-size:.86rem;
+}
+
+/* #resend-link gets .disabled toggled by startTimer(). It is a real button
+   element so it stays keyboard reachable; the disabled state is not signalled
+   by colour alone - the adjacent countdown says why it is unavailable. */
+.resend-box button,
+.resend-box a{
+  background:none;
+  border:0;
+  padding:6px 4px;
+  min-height:24px;
+  color:var(--cyan);
+  font:inherit;
+  cursor:pointer;
+  text-decoration:underline;
+}
+.resend-box button.disabled,
+.resend-box a.disabled{
+  color:var(--steel);
+  opacity:.6;
+  cursor:not-allowed;
+  pointer-events:none;
+  text-decoration:none;
+}
+
+/* ---------- modal (Google confirm-company dialog) ----------
+   .open is toggled by the page scripts. */
+
+.modal-overlay{
+  display:none;
+  position:fixed;
+  inset:0;
+  z-index:80;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  background:rgba(6,10,18,.78);
+  backdrop-filter:blur(6px);
+}
+.modal-overlay.open{display:flex}
+
+.modal-box{
+  width:100%;
+  max-width:430px;
+  padding-inline:clamp(22px,4vw,32px);
+  padding-block:clamp(24px,4vw,32px);
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:var(--r-lg);
+  backdrop-filter:blur(12px);
+  box-shadow:0 24px 70px rgba(2,6,14,.6);
+}
+.modal-box h3{font-size:1.22rem;margin-bottom:8px}
+.modal-box > p{color:var(--steel);font-size:.9rem;margin:0 0 20px}
+
+/* ---------- accept-invite ----------
+   This page swaps between four states by writing `style.display = 'block'`
+   directly, so each state must render correctly as a block. Initial visibility
+   below must match what the script expects on first paint: loading visible,
+   the other three hidden. */
+
+.loading-state{text-align:center;padding-block:36px;color:var(--steel)}
+.invalid-state{text-align:center;padding-block:18px;display:none}
+.form-section{display:none}
+
+.spinner{
+  width:32px;height:32px;
+  margin:0 auto 16px;
+  border:2px solid rgba(148,163,184,.2);
+  border-top-color:var(--cyan);
+  border-radius:50%;
+  animation:auth-spin .7s linear infinite;
+}
+
+.heading{margin-bottom:22px}
+.heading h2{font-size:1.5rem;margin-bottom:8px}
+.heading p{color:var(--steel);margin:0;font-size:.94rem}
+
+.email-highlight{color:var(--cyan)}
+
+.info-card{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding-inline:14px;
+  padding-block:12px;
+  margin-bottom:20px;
+  background:var(--sunken);
+  border:1px solid var(--line);
+  border-radius:var(--r-md);
+  font-size:.88rem;
+  color:var(--steel);
+}
+.info-card .info-icon{color:var(--cyan);font-size:1.1rem;line-height:1}
+.info-card strong{color:var(--ice);font-weight:600}
+
+/* #inviteMessage. showMessage() does `el.className = 'message-box ' + type` -
+   an assignment that WIPES every other class, exactly like #alert-box on
+   forgot.html. Never hang an extra styling hook on this element. */
+.message-box{
+  display:none;
+  padding-inline:14px;
+  padding-block:11px;
+  margin-bottom:18px;
+  border-radius:var(--r-md);
+  border:1px solid transparent;
+  font-size:.86rem;
+}
+.message-box.error{background:rgba(248,113,113,.08);border-color:rgba(248,113,113,.28);color:var(--danger)}
+.message-box.success{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.28);color:var(--success)}
+.message-box.info{background:rgba(34,211,238,.08);border-color:var(--hair);color:var(--steel)}
+
+.password-hint{margin:7px 0 0;font-size:.78rem;color:var(--steel)}
+
+/* .btn carries both the submit <button> and the "Go to Login" <a>. */
+.btn{
+  position:relative;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  min-height:50px;
+  padding-inline:20px;
+  padding-block:13px;
+  border:0;
+  border-radius:var(--r-md);
+  font-family:"Space Grotesk",system-ui,sans-serif;
+  font-size:.98rem;
+  font-weight:700;
+  cursor:pointer;
+  text-decoration:none;
+  transition:background-color .18s ease,transform .08s ease;
+}
+.btn-primary{background:var(--cyan);color:var(--on-cyan)}
+.btn-primary:hover{background:#3EDDF5;text-decoration:none}
+.btn:active{transform:scale(.985)}
+.btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+
+.btn-loader{
+  display:none;
+  position:absolute;
+  left:50%;top:50%;
+  width:20px;height:20px;
+  margin:-10px 0 0 -10px;
+  border:2px solid rgba(4,18,26,.28);
+  border-top-color:var(--on-cyan);
+  border-radius:50%;
+  animation:auth-spin .7s linear infinite;
+}
+.btn.loading .btn-text{visibility:hidden}
+.btn.loading .btn-loader{display:block}
+
+.invite-divider{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin-block:22px;
+  color:var(--steel);
+  font-size:.78rem;
+}
+.invite-divider::before,.invite-divider::after{content:"";flex:1;height:1px;background:var(--line)}
+
+.google-invite-button{display:flex;justify-content:center;min-height:44px}
+
+/* The script toggles the `hidden` PROPERTY on this element, so an unguarded
+   display rule here would defeat it and leave the Google option visible. */
+.google-invite-section[hidden]{display:none}
+
+.footer-text{
+  margin-top:24px;
+  text-align:center;
+  color:var(--steel);
+  font-size:.88rem;
+}
+
+/* ---------- responsive: single column below 900px ----------
+   The aside becomes a compact header strip rather than disappearing, so the
+   brand is still present on mobile. Nothing overflows horizontally. */
+
+@media (max-width:900px){
+  .auth-shell{grid-template-columns:1fr;min-height:100dvh}
+  .auth-aside{
+    border-right:0;
+    border-bottom:1px solid var(--line);
+    gap:18px;
+    padding-block:26px;
+  }
+  .auth-aside::after{inset:auto -40% -70% -40%}
+  .auth-pitch h2{font-size:1.35rem}
+  .auth-pitch p,.auth-points{display:none}
+  .auth-main{padding-block:34px}
+}
+
+@media (max-width:420px){
+  .otp-inputs input{min-height:52px;font-size:1.25rem}
+  .auth-row{flex-wrap:wrap}
+}
+
+/* ---------- reduced motion ----------
+   The primary user of this product runs Windows with reduced motion ON, so
+   this is the path actually seen day to day. Every decorative transition is
+   removed and the static result must read as finished, not as an animation
+   that failed to start. The button spinner is kept - it is a genuine progress
+   indicator (SC 2.2.2 essential exception) - but slowed down. */
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:.001ms !important;
+    scroll-behavior:auto !important;
+  }
+  .loader,.btn-loader,.spinner{
+    animation:auth-spin 1.6s linear infinite !important;
+    animation-iteration-count:infinite !important;
+  }
+  .btn-auth:active,.btn-login:active,.btn-action:active,.btn-confirm:active{transform:none}
+}
