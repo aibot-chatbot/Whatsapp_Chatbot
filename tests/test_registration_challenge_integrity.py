@@ -87,7 +87,16 @@ def registration(monkeypatch):
 def test_fresh_registration_saves_and_sends_one_challenge(registration):
     assert registration.submit().status_code == 200
     assert registration.state.row["password_hash"] == "test-hash:OriginalPass1!"
-    registration.send.assert_called_once_with("audit@example.test", "654321", recipient_name="Original")
+    # Registration now also passes a one-click verification link. The link is
+    # None when no public base URL is configured, in which case the email
+    # degrades to the code-only form. Assert the stable parts explicitly and
+    # allow either shape for the link.
+    registration.send.assert_called_once()
+    args, kwargs = registration.send.call_args
+    assert args == ("audit@example.test", "654321")
+    assert kwargs["recipient_name"] == "Original"
+    assert "verify_url" in kwargs, "registration must offer a verification link"
+    assert kwargs["verify_url"] is None or kwargs["verify_url"].startswith("http")
 
 
 def test_verified_account_cannot_be_registered_again(registration, monkeypatch):
