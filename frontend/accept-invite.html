@@ -362,6 +362,48 @@
 
         loadGoogleConfiguration();
 
+        // Google renders this button optimistically. If the page origin is not
+        // listed in the OAuth client's Authorized JavaScript origins, Google
+        // answers 403 a few seconds later and collapses the button iframe to
+        // 0x0 rather than telling the page anything - so the user sees an empty
+        // gap, or clicks a button that only fails at Google's consent screen.
+        // Poll briefly, then fall back to the same message a failed library
+        // load already shows. Never throws: a health check must not be able to
+        // break sign-in.
+        function verifyGoogleButtonRendered(attempt) {
+            try {
+                attempt = attempt || 0;
+                const slot = document.getElementById('googleInviteButton');
+                if (!slot) {
+                    return;
+                }
+                let healthy = false;
+                if (googleInitialized) {
+                    const frame = slot.querySelector('iframe');
+                    const box = (frame || slot).getBoundingClientRect();
+                    healthy = box.width > 0 && box.height > 0;
+                }
+                if (healthy) {
+                    return;
+                }
+                if (attempt < 4) {
+                    setTimeout(function () { verifyGoogleButtonRendered(attempt + 1); }, 2500);
+                    return;
+                }
+                if (!googleInitialized) {
+                    // Never initialised: a missing client id or a failed library
+                    // load, both of which their own handlers already cover.
+                    return;
+                }
+                hideGoogleInviteOption();
+            } catch (err) {
+                /* health check must stay silent */
+            }
+        }
+
+        setTimeout(function () { verifyGoogleButtonRendered(0); }, 3000);
+
+
         // ── On page load: validate invite ──
         (async function() {
             var token = getTokenFromUrl();
