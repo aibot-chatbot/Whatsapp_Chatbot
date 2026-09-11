@@ -142,6 +142,28 @@ a:hover{text-decoration:underline}
 .auth-brand:hover{text-decoration:none}
 .auth-brand svg,.auth-brand img{width:28px;height:28px;flex:0 0 auto}
 
+/* Decorative panel artwork, served from the public Supabase `landing` bucket.
+   Hosted rather than committed: the container contract in
+   tests/test_container_release.py only allows .html/.css/.js under frontend/,
+   so an absolute URL needs no .dockerignore entry and no test change.
+
+   The radial mask is not decoration for its own sake - these renders have their
+   own dark background, and dropping one in unmasked leaves a visible square
+   edge against the panel. */
+.auth-visual{
+  position:relative;
+  z-index:1;
+  display:block;
+  width:min(100%,330px);
+  aspect-ratio:1;
+  margin-inline:auto;
+  object-fit:cover;
+  -webkit-mask-image:radial-gradient(circle at 50% 48%,#000 50%,transparent 73%);
+  mask-image:radial-gradient(circle at 50% 48%,#000 50%,transparent 73%);
+  opacity:.96;
+  pointer-events:none;
+}
+
 .auth-pitch{position:relative;z-index:1;max-width:34ch}
 .auth-pitch h2{font-size:clamp(1.6rem,2.6vw,2.3rem);margin-bottom:14px}
 .auth-pitch p{color:var(--steel);margin:0;font-size:.98rem}
@@ -667,7 +689,7 @@ a:hover{text-decoration:underline}
   }
   .auth-aside::after{inset:auto -40% -70% -40%}
   .auth-pitch h2{font-size:1.35rem}
-  .auth-pitch p,.auth-points{display:none}
+  .auth-pitch p,.auth-points,.auth-visual{display:none}
   .auth-main{padding-block:34px}
 }
 
