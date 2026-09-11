@@ -1,1810 +1,564 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="en" data-theme="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Omnichannel AI Chatbot Management Platform</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        :root {
-            --primary: #3b82f6;
-            --primary-glow: rgba(59, 130, 246, 0.4);
-            --bg: #030816;
-            --card-bg: rgba(15, 23, 42, 0.6);
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --accent: #10b981;
-            --accent-glow: rgba(16, 185, 129, 0.3);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: 'Outfit', sans-serif;
-            scroll-behavior: smooth;
-        }
-
-        body {
-            background-color: var(--bg);
-            color: var(--text-main);
-            min-height: 100vh;
-            overflow-x: hidden;
-            position: relative;
-            line-height: 1.6;
-        }
-
-        /* Ambient Background Elements */
-        .blob {
-            position: absolute;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, var(--primary-glow) 0%, transparent 70%);
-            filter: blur(120px);
-            z-index: -1;
-            opacity: 0.6;
-            animation: float 25s infinite alternate cubic-bezier(0.45, 0, 0.55, 1);
-        }
-
-        .blob-1 {
-            top: -10%;
-            left: -10%;
-        }
-
-        .blob-2 {
-            top: 40%;
-            right: -10%;
-            background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
-        }
-
-        .blob-3 {
-            bottom: -10%;
-            left: 20%;
-            background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
-        }
-
-        /* Dynamic Grid Mesh Overlay */
-        .grid-mesh {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image:
-                radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(rgba(255, 255, 255, 0.01) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.01) 1px, transparent 1px);
-            background-size: 40px 40px, 120px 120px, 120px 120px;
-            z-index: -2;
-            opacity: 0.8;
-            pointer-events: none;
-        }
-
-        /* Frosted Glass Background Panes */
-        .glass-pane {
-            position: absolute;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 30px;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
-            z-index: -1;
-            pointer-events: none;
-            animation: drift 20s infinite alternate ease-in-out;
-        }
-
-        .glass-pane-1 {
-            width: 250px;
-            height: 350px;
-            top: 12%;
-            left: 3%;
-            --rot-start: -15deg;
-            --rot-end: -5deg;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.005) 100%);
-            animation-delay: 0s;
-        }
-
-        .glass-pane-2 {
-            width: 300px;
-            height: 200px;
-            top: 40%;
-            right: 5%;
-            --rot-start: 20deg;
-            --rot-end: 30deg;
-            background: linear-gradient(135deg, rgba(59, 130, 246, 0.04) 0%, rgba(255, 255, 255, 0.005) 100%);
-            animation-delay: -5s;
-        }
-
-        .glass-pane-3 {
-            width: 180px;
-            height: 260px;
-            bottom: 15%;
-            left: 8%;
-            --rot-start: 8deg;
-            --rot-end: -2deg;
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.03) 0%, rgba(255, 255, 255, 0.005) 100%);
-            animation-delay: -10s;
-        }
-
-        @keyframes float {
-            0% {
-                transform: translate(0, 0) scale(1);
-            }
-
-            100% {
-                transform: translate(120px, 80px) scale(1.15);
-            }
-        }
-
-        @keyframes drift {
-            0% {
-                transform: translate(0, 0) rotate(var(--rot-start));
-            }
-
-            100% {
-                transform: translate(30px, -20px) rotate(var(--rot-end));
-            }
-        }
-
-        /* Morphing Interactive Cursor Follower */
-        .cursor-follower {
-            position: fixed;
-            width: 300px;
-            height: 300px;
-            background: radial-gradient(circle, rgba(59, 130, 246, 0.32) 0%, rgba(16, 185, 129, 0.16) 45%, transparent 70%);
-            filter: blur(40px);
-            z-index: -1;
-            pointer-events: none;
-            will-change: transform;
-            animation: morph 10s linear infinite alternate;
-            opacity: 0;
-            transition: opacity 1s ease;
-        }
-
-        .cursor-follower.active {
-            opacity: 1;
-        }
-
-        @keyframes morph {
-            0% {
-                border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
-            }
-
-            25% {
-                border-radius: 70% 30% 52% 48% / 60% 40% 60% 40%;
-            }
-
-            50% {
-                border-radius: 50% 50% 30% 70% / 40% 60% 30% 70%;
-            }
-
-            75% {
-                border-radius: 30% 70% 70% 30% / 50% 30% 70% 50%;
-            }
-
-            100% {
-                border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
-            }
-        }
-
-        /* Floating Doodle Art Background */
-        .doodles-container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            overflow: hidden;
-            z-index: -1;
-        }
-
-        .doodle {
-            position: absolute;
-            pointer-events: none;
-            opacity: 0.5;
-            transition: all 0.3s;
-            animation: float-doodle 25s infinite ease-in-out alternate;
-        }
-
-        .doodle:hover {
-            opacity: 0.8;
-            stroke: var(--primary);
-        }
-
-        @keyframes float-doodle {
-            0% { transform: translateY(0) rotate(0deg); }
-            50% { transform: translateY(-30px) rotate(15deg) scale(1.08); }
-            100% { transform: translateY(20px) rotate(-15deg) scale(0.92); }
-        }
-
-        /* Specific positions for doodles */
-        .doodle-1 { top: 8%; left: 8%; animation-duration: 22s; animation-delay: 0s; }
-        .doodle-2 { top: 22%; right: 10%; animation-duration: 28s; animation-delay: -5s; }
-        .doodle-3 { top: 38%; left: 4%; animation-duration: 24s; animation-delay: -10s; }
-        .doodle-4 { top: 52%; right: 12%; animation-duration: 32s; animation-delay: -15s; }
-        .doodle-5 { top: 70%; left: 6%; animation-duration: 26s; animation-delay: -20s; }
-        .doodle-6 { top: 85%; right: 8%; animation-duration: 30s; animation-delay: -8s; }
-
-        /* Water Drops Follow Trail */
-        .drop-trail {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 99;
-        }
-
-        .trail-drop {
-            position: fixed;
-            top: 0;
-            left: 0;
-            border-radius: 50%;
-            pointer-events: none;
-            background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.45) 0%, rgba(59, 130, 246, 0.2) 50%, rgba(16, 185, 129, 0.05) 80%, transparent 100%);
-            box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.6), 0 4px 12px rgba(59, 130, 246, 0.2);
-            backdrop-filter: blur(2px);
-            -webkit-backdrop-filter: blur(2px);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            will-change: transform;
-            opacity: 0;
-            transition: opacity 1.2s ease;
-        }
-
-        .drop-trail.active .trail-drop {
-            opacity: 1;
-        }
-
-        /* Container styling */
-        .container {
-            width: 100%;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-
-        /* Navigation Header */
-        header {
-            border-bottom: 1px solid var(--glass-border);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            background: rgba(3, 8, 22, 0.7);
-            transition: all 0.3s;
-        }
-
-        header.scrolled {
-            background: rgba(3, 8, 22, 0.9);
-            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
-            border-color: rgba(255, 255, 255, 0.12);
-        }
-
-        .nav-wrapper {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            height: 80px;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            text-decoration: none;
-            color: white;
-        }
-
-        .logo-icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, var(--primary), var(--accent));
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 8px 20px var(--primary-glow);
-        }
-
-        .logo-text {
-            font-size: 1.4rem;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            background: linear-gradient(to bottom, #fff, #94a3b8);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        nav {
-            display: flex;
-            align-items: center;
-            gap: 32px;
-        }
-
-        nav a {
-            color: var(--text-dim);
-            text-decoration: none;
-            font-size: 0.95rem;
-            font-weight: 500;
-            transition: color 0.3s;
-        }
-
-        nav a:hover {
-            color: white;
-        }
-
-        .nav-actions {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 10px 22px;
-            border-radius: 12px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s;
-            cursor: pointer;
-        }
-
-        .btn-outline {
-            border: 1px solid var(--glass-border);
-            background: rgba(255, 255, 255, 0.03);
-            color: var(--text-main);
-        }
-
-        .btn-outline:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(255, 255, 255, 0.2);
-            transform: translateY(-2px);
-        }
-
-        .btn-primary {
-            background: var(--primary);
-            color: white;
-            border: none;
-            box-shadow: 0 8px 20px var(--primary-glow);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 24px var(--primary-glow);
-            background: #2563eb;
-        }
-
-        /* Hero Section */
-        .hero {
-            padding: 100px 0 60px 0;
-            text-align: center;
-            position: relative;
-        }
-
-        .hero-badge {
-            background: rgba(59, 130, 246, 0.1);
-            border: 1px solid rgba(59, 130, 246, 0.2);
-            color: #60a5fa;
-            padding: 6px 16px;
-            border-radius: 99px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 24px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .hero h1 {
-            font-size: 3.5rem;
-            font-weight: 700;
-            line-height: 1.15;
-            letter-spacing: -1.5px;
-            margin-bottom: 24px;
-            background: linear-gradient(to right, #ffffff 40%, #94a3b8 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .hero p {
-            font-size: 1.25rem;
-            color: var(--text-dim);
-            max-width: 780px;
-            margin: 0 auto 40px auto;
-            line-height: 1.6;
-        }
-
-        .hero-ctas {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-bottom: 60px;
-        }
-
-        .hero-ctas .btn {
-            padding: 14px 32px;
-            font-size: 1rem;
-        }
-
-        /* Interactive Dashboard Preview */
-        .dashboard-preview {
-            max-width: 960px;
-            margin: 0 auto;
-            border-radius: 24px;
-            border: 1px solid var(--glass-border);
-            background: rgba(15, 23, 42, 0.4);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.7);
-            overflow: hidden;
-            animation: slideUp 1s cubic-bezier(0.22, 1, 0.36, 1);
-            position: relative;
-        }
-
-        @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(40px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        .window-bar {
-            height: 48px;
-            background: rgba(15, 23, 42, 0.8);
-            border-bottom: 1px solid var(--glass-border);
-            display: flex;
-            align-items: center;
-            padding: 0 20px;
-            justify-content: space-between;
-        }
-
-        .dots {
-            display: flex;
-            gap: 8px;
-        }
-
-        .dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-        }
-
-        .dot-red {
-            background: #ef4444;
-        }
-
-        .dot-yellow {
-            background: #f59e0b;
-        }
-
-        .dot-green {
-            background: #10b981;
-        }
-
-        .window-title {
-            color: var(--text-dim);
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-
-        .mock-workspace {
-            padding: 24px;
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            min-height: 380px;
-            text-align: left;
-        }
-
-        .mock-panel {
-            background: rgba(15, 23, 42, 0.5);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .mock-panel-title {
-            font-weight: 600;
-            font-size: 0.95rem;
-            margin-bottom: 16px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        /* Mock Chat UI */
-        .mock-chat-area {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            font-size: 0.85rem;
-            flex-grow: 1;
-            overflow-y: auto;
-            margin-bottom: 16px;
-            padding-right: 6px;
-        }
-
-        .mock-msg {
-            max-width: 85%;
-            padding: 10px 14px;
-            border-radius: 12px;
-            line-height: 1.4;
-        }
-
-        .mock-msg.incoming {
-            background: rgba(30, 41, 59, 0.8);
-            border: 1px solid var(--glass-border);
-            align-self: flex-start;
-            border-bottom-left-radius: 2px;
-        }
-
-        .mock-msg.outgoing {
-            background: var(--primary);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 2px;
-            box-shadow: 0 4px 12px var(--primary-glow);
-        }
-
-        .mock-workflow {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            font-size: 0.88rem;
-        }
-
-        .mock-step {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            padding: 12px 16px;
-            background: rgba(15, 23, 42, 0.4);
-            border: 1px solid var(--glass-border);
-            border-radius: 12px;
-            transition: all 0.3s;
-        }
-
-        .mock-step.active {
-            border-color: var(--primary);
-            background: rgba(59, 130, 246, 0.08);
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);
-        }
-
-        .mock-step.completed {
-            border-color: var(--accent);
-            background: rgba(16, 185, 129, 0.06);
-        }
-
-        .mock-step-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.95rem;
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid var(--glass-border);
-        }
-
-        .mock-step.active .mock-step-icon {
-            background: var(--primary);
-            color: white;
-            border-color: #60a5fa;
-            animation: pulse 1.5s infinite;
-        }
-
-        .mock-step.completed .mock-step-icon {
-            background: rgba(16, 185, 129, 0.2);
-            color: var(--accent);
-            border-color: var(--accent);
-        }
-
-        .mock-step-text h4 {
-            font-size: 0.9rem;
-            font-weight: 600;
-        }
-
-        .mock-step-text p {
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            margin: 2px 0 0 0;
-        }
-
-        @keyframes pulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6);
-            }
-
-            70% {
-                box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
-            }
-
-            100% {
-                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
-            }
-        }
-
-        /* Features Section */
-        .features {
-            padding: 100px 0;
-            position: relative;
-        }
-
-        .section-header {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-
-        .section-header h2 {
-            font-size: 2.2rem;
-            font-weight: 700;
-            letter-spacing: -0.8px;
-            margin-bottom: 16px;
-        }
-
-        .section-header p {
-            font-size: 1.1rem;
-            color: var(--text-dim);
-            max-width: 600px;
-            margin: 0 auto;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 24px;
-        }
-
-        .feature-card {
-            background: var(--card-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 36px;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            gap: 20px;
-        }
-
-        .feature-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(255, 255, 255, 0.16);
-            box-shadow: 0 16px 40px -10px rgba(59, 130, 246, 0.15);
-        }
-
-        .feature-icon-wrapper {
-            width: 54px;
-            height: 54px;
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid var(--glass-border);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--primary);
-            flex-shrink: 0;
-        }
-
-        .feature-card:hover .feature-icon-wrapper {
-            background: var(--primary);
-            color: white;
-            box-shadow: 0 8px 20px var(--primary-glow);
-        }
-
-        .feature-info h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-
-        .feature-info p {
-            color: var(--text-dim);
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
-
-        /* Integrations section */
-        .integrations {
-            padding: 80px 0;
-            background: radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.06) 0%, transparent 60%);
-            border-top: 1px solid var(--glass-border);
-            border-bottom: 1px solid var(--glass-border);
-        }
-
-        .channels-row {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 40px;
-            flex-wrap: wrap;
-            margin-top: 40px;
-        }
-
-        .channel-card {
-            background: rgba(15, 23, 42, 0.4);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            padding: 24px 36px;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            backdrop-filter: blur(10px);
-            transition: all 0.3s;
-        }
-
-        .channel-card:hover {
-            transform: translateY(-2px);
-            border-color: rgba(255, 255, 255, 0.15);
-            background: rgba(15, 23, 42, 0.6);
-        }
-
-        .channel-logo {
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.3rem;
-            color: white;
-        }
-
-        .channel-logo.whatsapp {
-            background: #25d366;
-            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
-        }
-
-        .channel-logo.telegram {
-            background: #229ed9;
-            box-shadow: 0 4px 15px rgba(34, 158, 217, 0.3);
-        }
-
-        .channel-info h4 {
-            font-size: 1.05rem;
-            font-weight: 600;
-        }
-
-        .channel-info p {
-            font-size: 0.8rem;
-            color: var(--text-dim);
-        }
-
-        /* Pricing Showcase */
-        .pricing {
-            padding: 100px 0;
-        }
-
-        .pricing-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin-top: 50px;
-        }
-
-        .price-card {
-            background: var(--card-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 24px;
-            padding: 32px 24px;
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            transition: all 0.3s;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-        }
-
-        .price-card:hover {
-            transform: translateY(-4px);
-            border-color: rgba(255, 255, 255, 0.16);
-            box-shadow: 0 16px 36px -12px rgba(59, 130, 246, 0.2);
-        }
-
-        .price-card.popular {
-            border-color: var(--primary);
-            box-shadow: 0 4px 24px rgba(59, 130, 246, 0.15);
-        }
-
-        .price-card.popular::before {
-            content: "POPULAR";
-            position: absolute;
-            top: -12px;
-            right: 24px;
-            background: var(--primary);
-            color: white;
-            font-size: 0.7rem;
-            font-weight: 700;
-            padding: 4px 12px;
-            border-radius: 20px;
-            letter-spacing: 0.5px;
-        }
-
-        .price-header h3 {
-            font-size: 1.15rem;
-            font-weight: 600;
-            color: var(--text-dim);
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .price-val {
-            font-size: 2.1rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: baseline;
-        }
-
-        .price-val span {
-            font-size: 0.9rem;
-            font-weight: 400;
-            color: var(--text-dim);
-            margin-left: 4px;
-        }
-
-        .price-desc {
-            font-size: 0.85rem;
-            color: var(--text-dim);
-            margin-bottom: 24px;
-            min-height: 40px;
-        }
-
-        .price-features {
-            list-style: none;
-            margin-bottom: 30px;
-            flex-grow: 1;
-        }
-
-        .price-features li {
-            font-size: 0.85rem;
-            padding: 8px 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: var(--text-main);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-        }
-
-        .price-features li:last-child {
-            border-bottom: none;
-        }
-
-        .price-features li i {
-            color: var(--accent);
-            flex-shrink: 0;
-        }
-
-        .price-features li.disabled {
-            color: rgba(148, 163, 184, 0.4);
-        }
-
-        .price-features li.disabled i {
-            color: rgba(148, 163, 184, 0.3);
-        }
-
-        .price-btn {
-            width: 100%;
-            padding: 12px;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            text-decoration: none;
-            text-align: center;
-            transition: all 0.3s;
-        }
-
-        /* FAQ Section */
-        .faq {
-            padding: 100px 0;
-            border-top: 1px solid var(--glass-border);
-        }
-
-        .faq-list {
-            max-width: 800px;
-            margin: 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .faq-item {
-            background: var(--card-bg);
-            border: 1px solid var(--glass-border);
-            border-radius: 16px;
-            overflow: hidden;
-            transition: all 0.3s;
-        }
-
-        .faq-item:hover {
-            border-color: rgba(255, 255, 255, 0.14);
-        }
-
-        .faq-question {
-            padding: 20px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 1.05rem;
-            user-select: none;
-        }
-
-        .faq-answer {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
-            padding: 0 24px;
-            color: var(--text-dim);
-            font-size: 0.92rem;
-            line-height: 1.6;
-        }
-
-        .faq-item.open .faq-answer {
-            max-height: 200px;
-            padding-bottom: 20px;
-        }
-
-        .faq-icon {
-            transition: transform 0.3s;
-        }
-
-        .faq-item.open .faq-icon {
-            transform: rotate(180deg);
-        }
-
-        /* Call To Action Banner */
-        .cta-banner {
-            padding: 100px 0;
-            text-align: center;
-            position: relative;
-        }
-
-        .cta-card {
-            background: radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 60%),
-                radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 60%),
-                var(--card-bg);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 32px;
-            padding: 60px 40px;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
-        }
-
-        .cta-card h2 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            letter-spacing: -1px;
-            margin-bottom: 16px;
-        }
-
-        .cta-card p {
-            font-size: 1.15rem;
-            color: var(--text-dim);
-            max-width: 600px;
-            margin: 0 auto 36px auto;
-        }
-
-        .cta-card .btn-primary {
-            padding: 14px 40px;
-            font-size: 1.05rem;
-        }
-
-        /* Footer */
-        footer {
-            border-top: 1px solid var(--glass-border);
-            padding: 40px 0;
-            background: rgba(3, 8, 22, 0.95);
-            font-size: 0.9rem;
-            color: var(--text-dim);
-        }
-
-        .footer-wrapper {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .footer-logo {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: white;
-            font-weight: 700;
-            font-size: 1.1rem;
-        }
-
-        .footer-logo-dot {
-            width: 8px;
-            height: 8px;
-            background: var(--primary);
-            border-radius: 50%;
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 24px;
-        }
-
-        .footer-links a {
-            color: var(--text-dim);
-            text-decoration: none;
-            transition: color 0.3s;
-        }
-
-        .footer-links a:hover {
-            color: white;
-        }
-
-        /* Responsive Design */
-        @media (max-width: 1024px) {
-            .pricing-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        @media (max-width: 768px) {
-            .nav-wrapper {
-                height: 70px;
-            }
-
-            nav {
-                display: none;
-                /* simple hidden nav on mobile to keep header clean */
-            }
-
-            .hero h1 {
-                font-size: 2.4rem;
-                letter-spacing: -1px;
-            }
-
-            .hero p {
-                font-size: 1.05rem;
-            }
-
-            .mock-workspace {
-                grid-template-columns: 1fr;
-                min-height: auto;
-            }
-
-            .features-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .pricing-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .channels-row {
-                gap: 20px;
-            }
-
-            .cta-card {
-                padding: 40px 20px;
-            }
-
-            .cta-card h2 {
-                font-size: 1.8rem;
-            }
-
-            .footer-wrapper {
-                flex-direction: column;
-                text-align: center;
-            }
-        }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Volleo — Publish once, reach every channel</title>
+<meta name="description" content="Volleo sends broadcast messages to WhatsApp and Telegram audiences from one composer, with AI replies grounded in your own documents. Instagram, Facebook, X and LinkedIn are in development.">
+<link rel="canonical" href="https://aibot-chatbot-my.fly.dev/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Volleo — Publish once, reach every channel">
+<meta property="og:description" content="Broadcast to WhatsApp and Telegram from one composer, with AI replies grounded in your own documents.">
+<meta property="og:url" content="https://aibot-chatbot-my.fly.dev/">
+<meta property="og:image" content="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/sys-endtoend.webp">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://parjsxypengvubziwwjp.supabase.co" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preload" as="image" fetchpriority="high"
+  href="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/robot-reference.webp">
+<style>
+:root{
+  --void:#060A12; --panel:rgba(18,26,38,.62); --cyan:#22D3EE; --sky:#38BDF8;
+  --ice:#F1F5F9; --steel:#94A3B8; --hair:rgba(34,211,238,.15); --line:rgba(148,163,184,.14);
+}
+:root[data-theme="light"]{
+  --void:#F6F8FB; --panel:rgba(255,255,255,.78); --cyan:#0E7490; --sky:#0369A1;
+  --ice:#0B1220; --steel:#475569; --hair:rgba(14,116,144,.18); --line:rgba(15,23,42,.10);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--void);color:var(--ice);font-family:Geist,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;line-height:1.6;overflow-x:hidden}
+h1,h2,h3,.display{font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:-.03em;margin:0;line-height:1.08}
+a{color:inherit}
+.wrap{max-width:1400px;margin:0 auto;padding:0 clamp(20px,5vw,64px)}
+section{padding:clamp(64px,9vw,132px) 0}
+.eyebrow{display:inline-flex;align-items:center;gap:.5rem;font-size:.75rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--cyan);border:1px solid var(--hair);border-radius:999px;
+  padding:.4rem .85rem;background:color-mix(in srgb,var(--cyan) 6%,transparent)}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--cyan);box-shadow:0 0 8px var(--cyan);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+h2{font-size:clamp(1.9rem,3.6vw,2.9rem);margin:1rem 0 .6rem}
+.lede{color:var(--steel);max-width:62ch}
+.btn{display:inline-block;background:var(--cyan);color:#04121a;border:0;border-radius:12px;
+  padding:.95rem 1.7rem;font:500 1rem Geist,sans-serif;cursor:pointer;text-decoration:none;
+  transition:transform .12s ease}
+:root[data-theme="light"] .btn{color:#fff}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.muted{color:var(--steel);font-size:.9rem}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(10px)}
+img{max-width:100%;height:auto;display:block}
+
+header{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
+  background:color-mix(in srgb,var(--void) 82%,transparent);border-bottom:1px solid var(--hair)}
+.nav{display:flex;align-items:center;gap:1.6rem;padding:.9rem 0}
+.brand{display:flex;align-items:center;gap:.6rem;font-family:'Space Grotesk';font-weight:700;font-size:1.15rem;text-decoration:none}
+.mark{width:22px;height:22px;flex:none}
+.nav ul{display:flex;gap:1.4rem;list-style:none;margin:0;padding:0;font-size:.94rem}
+.nav ul a{text-decoration:none;color:var(--steel)}
+.nav ul a:hover{color:var(--ice)}
+.spacer{margin-left:auto}
+.icon-btn{background:none;border:1px solid var(--line);border-radius:10px;color:var(--steel);
+  width:38px;height:38px;cursor:pointer;font-size:1rem}
+
+.hero{display:grid;grid-template-columns:55fr 45fr;gap:clamp(24px,4vw,56px);align-items:center;
+  min-height:calc(100dvh - 64px);padding-top:0}
+h1{font-size:clamp(2.4rem,5.4vw,4.3rem);margin:1.1rem 0 1.1rem}
+.chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:2.2rem}
+.chip{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);border-radius:999px;
+  padding:.35rem .8rem;font-size:.82rem;color:var(--steel)}
+.chip.soon{opacity:.45}
+.chip.soon b{font-weight:500;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan)}
+.stage{position:relative;height:min(74vh,640px);perspective:1100px}
+.depth{position:absolute;inset:0;display:grid;place-items:center;transform-style:preserve-3d;will-change:transform}
+.bloom{position:absolute;width:64%;aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--cyan) 28%,transparent),transparent 68%);filter:blur(18px)}
+#robot{width:min(88%,520px);will-change:transform;filter:drop-shadow(0 30px 60px rgba(0,0,0,.6));
+  -webkit-mask-image:radial-gradient(circle at 50% 48%,#000 52%,rgba(0,0,0,.35) 68%,transparent 80%);
+  mask-image:radial-gradient(circle at 50% 48%,#000 52%,rgba(0,0,0,.35) 68%,transparent 80%)}
+.spec{position:absolute;width:190px;height:190px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,rgba(190,245,255,.22),transparent 62%);mix-blend-mode:screen;will-change:transform}
+
+.seq{display:grid;grid-template-columns:38fr 62fr;gap:34px;align-items:center;min-height:100dvh}
+#seqCanvas{width:100%;aspect-ratio:16/9;max-height:74vh}
+.rail{display:flex;gap:12px;margin-top:1.6rem}
+.rail span{width:44px;height:2px;background:var(--hair);border-radius:2px;transition:background .25s}
+.rail span.on{background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+
+.steps{display:grid;gap:20px;margin-top:2.4rem}
+.step{padding:22px 24px;border-left:2px solid var(--hair)}
+.step:nth-child(2){margin-left:clamp(0px,6vw,110px)}
+.step:nth-child(3){margin-left:clamp(0px,3vw,54px)}
+.step .n{font-family:'Space Grotesk';color:var(--cyan);font-size:.82rem;letter-spacing:.1em}
+.zig{display:grid;grid-template-columns:1fr 1fr;gap:clamp(24px,4vw,60px);align-items:center;margin-top:3rem}
+.zig:nth-of-type(even) .zig-art{order:-1}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:22px;margin-top:2.6rem}
+.uc{padding:0 0 22px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--panel)}
+.uc img{width:100%;aspect-ratio:4/3;object-fit:cover}
+.uc .body{padding:18px 22px 0}
+.uc h3{font-size:1.15rem;margin-bottom:.5rem}
+.cap{font-size:.78rem;color:var(--steel);margin-top:.6rem}
+
+.chan{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:20px;margin-top:2.4rem}
+.chan .c{padding:20px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+.chan .c img{aspect-ratio:4/3;object-fit:cover;border-radius:10px;margin-bottom:14px}
+.roadmap{margin-top:26px;padding:20px;border:1px dashed var(--line);border-radius:16px;opacity:.72}
+
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:0;margin-top:2.4rem;
+  border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--panel)}
+.facts div{padding:24px;border-right:1px solid var(--hair)}
+.facts div:last-child{border-right:0}
+.facts b{display:block;font-family:'Space Grotesk';font-size:1.5rem;margin-bottom:.3rem}
+
+.founder{display:flex;gap:18px;margin-top:26px;padding:24px;align-items:flex-start}
+.mono{width:52px;height:52px;flex:none;border-radius:12px;display:grid;place-items:center;
+  background:color-mix(in srgb,var(--cyan) 16%,transparent);color:var(--cyan);
+  font-family:'Space Grotesk';font-weight:700}
+
+.plans{display:grid;grid-template-columns:repeat(auto-fit,minmax(235px,1fr));gap:20px;margin-top:2rem;align-items:start}
+.plan{padding:26px 24px;border:1px solid var(--line);border-radius:18px;background:var(--panel)}
+.plan.rec{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan),0 20px 50px rgba(0,0,0,.35);padding-top:34px;padding-bottom:34px}
+.price{font-family:'Space Grotesk';font-size:2.1rem;margin:.4rem 0}
+.tbc{display:inline-block;font-family:'Space Grotesk';font-size:1rem;border:1px dashed var(--cyan);
+  color:var(--cyan);border-radius:10px;padding:.3rem .8rem;margin:.5rem 0}
+.plan ul{list-style:none;padding:0;margin:1rem 0 1.4rem;font-size:.9rem;color:var(--steel)}
+.plan li{padding:.32rem 0;border-bottom:1px solid var(--hair)}
+.notice{margin-top:1rem;padding:12px 16px;border-left:2px solid var(--cyan);color:var(--steel);font-size:.9rem}
+
+details{border-bottom:1px solid var(--line);padding:18px 0}
+summary{cursor:pointer;font-family:'Space Grotesk';font-size:1.06rem;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:'+';float:right;color:var(--cyan)}
+details[open] summary::after{content:'\2212'}
+details p{color:var(--steel);margin:.8rem 0 0;max-width:80ch}
+
+.closing{position:relative;border-radius:22px;overflow:hidden;padding:clamp(38px,6vw,76px);margin-top:1rem}
+.closing img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.closing .veil{position:absolute;inset:0;z-index:1;
+  background:linear-gradient(90deg,var(--void) 6%,color-mix(in srgb,var(--void) 72%,transparent) 42%,transparent 74%)}
+.closing .inner{position:relative;z-index:2;max-width:46ch}
+footer{border-top:1px solid var(--hair);padding:52px 0 34px}
+.fcols{display:grid;grid-template-columns:1.6fr repeat(4,1fr);gap:26px}
+.fcols h4{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--steel);margin:0 0 .7rem}
+.fcols ul{list-style:none;margin:0;padding:0;font-size:.92rem}
+.fcols li{padding:.25rem 0}
+.fcols a{color:var(--steel);text-decoration:none}
+.fcols a:hover{color:var(--ice)}
+.fbar{display:flex;gap:14px;align-items:center;margin-top:34px;padding-top:20px;border-top:1px solid var(--hair);color:var(--steel);font-size:.86rem}
+
+@media (max-width:900px){
+  .hero,.seq,.zig{grid-template-columns:1fr}
+  .zig:nth-of-type(even) .zig-art{order:0}
+  .stage{height:50vh;order:-1}
+  .nav ul{display:none}
+  .fcols{grid-template-columns:1fr 1fr}
+  .facts div{border-right:0;border-bottom:1px solid var(--hair)}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .dot{animation:none}
+  .spec{display:none}
+}
+</style>
 </head>
-
 <body>
-    <div id="cursor-follower" class="cursor-follower"></div>
-    
-    <!-- Water Drops Follower Trail -->
-    <div id="drop-trail" class="drop-trail">
-        <div class="trail-drop"></div>
+
+<header>
+  <nav class="nav wrap" aria-label="Primary">
+    <a class="brand" href="#top">
+      <svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="5" cy="12" r="2.6" fill="currentColor"/>
+        <path d="M7.6 12h3.2M10.8 12l5.4-5M10.8 12l5.4 5M10.8 12h5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <circle cx="18.6" cy="7" r="1.8" fill="currentColor"/><circle cx="18.6" cy="12" r="1.8" fill="currentColor"/><circle cx="18.6" cy="17" r="1.8" fill="currentColor"/>
+      </svg>
+      Volleo
+    </a>
+    <ul>
+      <li><a href="#features">Features</a></li>
+      <li><a href="#integrations">Integrations</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#faq">FAQ</a></li>
+    </ul>
+    <span class="spacer"></span>
+    <button class="icon-btn" id="themeBtn" aria-label="Switch colour theme" title="Switch theme">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+        <circle cx="12" cy="12" r="4.2"/>
+        <path d="M12 2.6v2.2M12 19.2v2.2M4.2 12H2M22 12h-2.2M6.3 6.3 4.8 4.8M19.2 19.2l-1.5-1.5M17.7 6.3l1.5-1.5M4.8 19.2l1.5-1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <a href="login.html" class="muted" style="text-decoration:none">Sign in</a>
+    <a href="register.html" class="btn" id="hero-primary-cta">Start free trial</a>
+  </nav>
+</header>
+
+<main id="top">
+
+<section class="hero wrap">
+  <div>
+    <span class="eyebrow"><span class="dot"></span>WhatsApp and Telegram, live today</span>
+    <h1>Publish once,<br>reach every channel</h1>
+    <p class="lede">Volleo sends broadcast messages to WhatsApp and Telegram audiences from one
+      composer, with AI replies grounded in your own documents. Instagram, Facebook, X and
+      LinkedIn are in development.</p>
+    <p style="margin-top:1.8rem">
+      <a href="register.html" class="btn">Start free trial</a>
+      <span class="muted" style="margin-left:.9rem">No card required</span>
+    </p>
+    <div class="chips">
+      <span class="chip">WhatsApp Cloud API</span>
+      <span class="chip">Telegram</span>
+      <span class="chip">Wasender</span>
+      <span class="chip soon">Instagram <b>Soon</b></span>
+      <span class="chip soon">Facebook <b>Soon</b></span>
+      <span class="chip soon">X <b>Soon</b></span>
+      <span class="chip soon">LinkedIn <b>Soon</b></span>
     </div>
-
-    <!-- Background Doodles -->
-    <div class="doodles-container">
-        <!-- Chatbot / Robot Head (Doodle 1) -->
-        <svg class="doodle doodle-1" width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.035)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="3" y="11" width="18" height="10" rx="2"></rect>
-            <path d="M12 2v4M8 5h8M8 15h.01M16 15h.01M9 18h6"></path>
-        </svg>
-        <!-- Telegram Paper Plane (Doodle 2) -->
-        <svg class="doodle doodle-2" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.035)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-        </svg>
-        <!-- WhatsApp Chat Bubble (Doodle 3) -->
-        <svg class="doodle doodle-3" width="65" height="65" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.035)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-        </svg>
-        <!-- Business Growth Chart (Doodle 4) -->
-        <svg class="doodle doodle-4" width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.035)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10"></line>
-            <line x1="12" y1="20" x2="12" y2="4"></line>
-            <line x1="6" y1="20" x2="6" y2="14"></line>
-            <path d="M3 20h18"></path>
-        </svg>
-        <!-- Communication Connection Network (Doodle 5) -->
-        <svg class="doodle doodle-5" width="70" height="70" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.035)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="18" cy="5" r="3"></circle>
-            <circle cx="6" cy="12" r="3"></circle>
-            <circle cx="18" cy="19" r="3"></circle>
-            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
-            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
-        </svg>
-        <!-- AI sparkles (Doodle 6) -->
-        <svg class="doodle doodle-6" width="55" height="55" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.035)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.3-6.3l-.7.7M6.7 17.3l-.7.7m12.6 0l-.7-.7M6.7 6.7l-.7-.7M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4z"></path>
-        </svg>
+  </div>
+  <div class="stage" id="stage">
+    <div class="depth" id="depth">
+      <div class="bloom"></div>
+      <img id="robot" fetchpriority="high" width="520" height="520"
+        src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/robot-reference.webp"
+        alt="The Volleo robot, a rounded charcoal figure with glowing cyan seams, floating in dark space">
+      <div class="spec" id="spec"></div>
     </div>
-
-    <div class="grid-mesh"></div>
-    <div class="glass-pane glass-pane-1"></div>
-    <div class="glass-pane glass-pane-2"></div>
-    <div class="glass-pane glass-pane-3"></div>
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
-
-    <!-- Navigation Header -->
-    <header id="header">
-        <div class="container nav-wrapper">
-            <a href="/" class="logo">
-                <div class="logo-icon">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"
-                        stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"></path>
-                        <path d="M12 6v6l4 2"></path>
-                    </svg>
-                </div>
-                <div class="logo-text">AI CHATBOT</div>
-            </a>
-            <nav>
-                <a href="#features">Features</a>
-                <a href="#integrations">Integrations</a>
-                <a href="#pricing">Pricing</a>
-                <a href="#faq">FAQ</a>
-            </nav>
-            <div class="nav-actions" id="auth-buttons">
-                <a href="login.html" class="btn btn-outline" id="nav-login">Sign In</a>
-                <a href="register.html" class="btn btn-primary" id="nav-register">Get Started</a>
-            </div>
-        </div>
-    </header>
-
-    <main class="container">
-        <!-- Hero Section -->
-        <section class="hero">
-            <div class="hero-badge">
-                <i data-lucide="sparkles" style="width:14px;height:14px;"></i> Powered by Advanced RAG &amp; LLMs
-            </div>
-            <h1>Automate Customer Relationship<br>Across WhatsApp &amp; Telegram</h1>
-            <p>Empower your company with intelligent AI agents. Upload your documentation, set custom system prompts,
-                and seamlessly deploy to Telegram, Wasender, and Meta WhatsApp Cloud API in minutes.</p>
-            <div class="hero-ctas" id="hero-ctas">
-                <a href="register.html" class="btn btn-primary" id="hero-primary-cta">Start Free Trial</a>
-                <a href="#features" class="btn btn-outline">Explore Features</a>
-            </div>
-
-            <!-- Simulated Dashboard Mockup -->
-            <div class="dashboard-preview">
-                <div class="window-bar">
-                    <div class="dots">
-                        <div class="dot dot-red"></div>
-                        <div class="dot dot-yellow"></div>
-                        <div class="dot dot-green"></div>
-                    </div>
-                    <div class="window-title">AI Chatbot Management Workspace</div>
-                    <div style="width: 52px;"></div>
-                </div>
-                <div class="mock-workspace">
-                    <!-- Left: Interactive Chat Simulation -->
-                    <div class="mock-panel">
-                        <div>
-                            <div class="mock-panel-title">
-                                <i data-lucide="message-square"
-                                    style="width:16px;height:16px;color:var(--primary);"></i>
-                                Deployed Bot Stream
-                            </div>
-                            <div class="mock-chat-area" id="mock-chat-area">
-                                <div class="mock-msg incoming">Hi there! Do you support credit top-ups using ToyyibPay?
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display:flex; gap:10px;">
-                            <input type="text" placeholder="Type a simulation message..."
-                                style="flex-grow:1; background:rgba(3,8,22,0.6); border:1px solid var(--glass-border); border-radius:10px; padding:10px; color:white; font-size:0.8rem; outline:none;"
-                                disabled>
-                            <button class="btn btn-primary" style="padding:10px; width:36px; border-radius:10px;"
-                                disabled><i data-lucide="send" style="width:14px;height:14px;"></i></button>
-                        </div>
-                    </div>
-                    <!-- Right: Live AI Workflow Nodes -->
-                    <div class="mock-panel">
-                        <div>
-                            <div class="mock-panel-title">
-                                <i data-lucide="activity" style="width:16px;height:16px;color:var(--accent);"></i>
-                                Live AI Workflow Status
-                            </div>
-                            <div class="mock-workflow">
-                                <div class="mock-step" id="step-receiving">
-                                    <div class="mock-step-icon">📱</div>
-                                    <div class="mock-step-text">
-                                        <h4>Receiving Message</h4>
-                                        <p id="sub-receiving">Webhook triggered successfully</p>
-                                    </div>
-                                </div>
-                                <div class="mock-step" id="step-rag">
-                                    <div class="mock-step-icon">🔍</div>
-                                    <div class="mock-step-text">
-                                        <h4>Knowledge Base RAG Search</h4>
-                                        <p id="sub-rag">Waiting...</p>
-                                    </div>
-                                </div>
-                                <div class="mock-step" id="step-generating">
-                                    <div class="mock-step-icon">🧠</div>
-                                    <div class="mock-step-text">
-                                        <h4>AI Response Generation</h4>
-                                        <p id="sub-generating">Waiting...</p>
-                                    </div>
-                                </div>
-                                <div class="mock-step" id="step-sending">
-                                    <div class="mock-step-icon">📤</div>
-                                    <div class="mock-step-text">
-                                        <h4>Sending Response</h4>
-                                        <p id="sub-sending">Waiting...</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Product Features Section -->
-        <section class="features" id="features">
-            <div class="section-header">
-                <h2>Built for Teams. Scaled by AI.</h2>
-                <p>Everything you need to deploy, configure, and monitor automated chatbots that sound authentic and
-                    stay updated on your business documentation.</p>
-            </div>
-            <div class="features-grid">
-                <!-- Feature 1: RAG -->
-                <div class="feature-card">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="file-text"></i>
-                    </div>
-                    <div class="feature-info">
-                        <h3>Knowledge Base &amp; RAG</h3>
-                        <p>Upload files (PDFs) or crawl website pages. The platform processes and segments your
-                            knowledge base. When a user writes a message, the chatbot retrieves the exact matching
-                            details as prompt context.</p>
-                    </div>
-                </div>
-                <!-- Feature 2: Channels -->
-                <div class="feature-card">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="git-branch"></i>
-                    </div>
-                    <div class="feature-info">
-                        <h3>Omnichannel Connections</h3>
-                        <p>Receive webhooks and reply immediately across Telegram, Wasender (for legacy WhatsApp
-                            routing), and the official Meta WhatsApp Cloud API. Manage all platform connections inside a
-                            centralized control screen.</p>
-                    </div>
-                </div>
-                <!-- Feature 3: Dynamic routing -->
-                <div class="feature-card">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="cpu"></i>
-                    </div>
-                    <div class="feature-info">
-                        <h3>Flexible AI Model Settings</h3>
-                        <p>Choose the customer-facing model tier that fits each workspace. Tune temperature, top-p, and
-                            system instructions without exposing internal provider routing to customers.</p>
-                    </div>
-                </div>
-                <!-- Feature 4: CRM & Team Inbox -->
-                <div class="feature-card">
-                    <div class="feature-icon-wrapper">
-                        <i data-lucide="users"></i>
-                    </div>
-                    <div class="feature-info">
-                        <h3>Integrated CRM &amp; History</h3>
-                        <p>Track conversation transcripts, view client lists, search historical logs, and download chat
-                            exports. Upgrade leads dynamically with assignments, follow-up parameters, custom tags, and
-                            priority labels.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Integrations Banner -->
-        <section class="integrations" id="integrations">
-            <div class="section-header" style="margin-bottom: 24px;">
-                <h2>Supported Channels</h2>
-                <p>Plug into the most popular channels where your customers are already active.</p>
-            </div>
-            <div class="channels-row">
-                <div class="channel-card">
-                    <div class="channel-logo whatsapp">📱</div>
-                    <div class="channel-info">
-                        <h4>Meta WhatsApp Cloud</h4>
-                        <p>Official Cloud API</p>
-                    </div>
-                </div>
-                <div class="channel-card">
-                    <div class="channel-logo telegram">✈️</div>
-                    <div class="channel-info">
-                        <h4>Telegram Messenger</h4>
-                        <p>Fast &amp; Secure Bot API</p>
-                    </div>
-                </div>
-                <div class="channel-card" style="border-color: rgba(16, 185, 129, 0.3);">
-                    <div class="channel-logo whatsapp">💬</div>
-                    <div class="channel-info">
-                        <h4>Wasender API</h4>
-                        <p>Integrated WhatsApp</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Pricing Section -->
-        <section class="pricing" id="pricing">
-            <div class="section-header">
-                <h2>Simple, Transparent Plans</h2>
-                <p>Choose the workspace sizing that fits your client volume and requirements. Upgrade or downgrade
-                    anytime.</p>
-            </div>
-            <div class="pricing-grid" id="landing-pricing-grid"></div>
-        </section>
-
-        <!-- FAQ Section -->
-        <section class="faq" id="faq">
-            <div class="section-header">
-                <h2>Frequently Asked Questions</h2>
-                <p>Have questions about billing, knowledge setup, or integrations? Read on.</p>
-            </div>
-            <div class="faq-list">
-                <div class="faq-item">
-                    <div class="faq-question">
-                        <span>How does the chatbot know how to answer my customers?</span>
-                        <i data-lucide="chevron-down" class="faq-icon"></i>
-                    </div>
-                    <div class="faq-answer">
-                        We use Retrieval-Augmented Generation (RAG). By uploading a PDF knowledge file inside your bot
-                        settings, the system automatically segments and indexes the content. When messages are received,
-                        relevant excerpts are matched from your PDF and sent as background context to the AI model so it
-                        responds with high factual accuracy.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <div class="faq-question">
-                        <span>Which messaging channels do you support?</span>
-                        <i data-lucide="chevron-down" class="faq-icon"></i>
-                    </div>
-                    <div class="faq-answer">
-                        We support official Meta WhatsApp Cloud API, Telegram bots, and Wasender API. You can connect
-                        multiple accounts and configure different bots for different channels.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <div class="faq-question">
-                        <span>What are AI Credits and how are they charged?</span>
-                        <i data-lucide="chevron-down" class="faq-icon"></i>
-                    </div>
-                    <div class="faq-answer">
-                        Each monthly subscription comes with included AI credits (in micro-MYR calculations). When your
-                        AI chatbot processes incoming queries, it consumes credits based on token size and model choice.
-                        If you run out of credits, you can easily top up your balance using ToyyibPay.
-                    </div>
-                </div>
-
-                <div class="faq-item">
-                    <div class="faq-question">
-                        <span>Can I invite my team to collaborate?</span>
-                        <i data-lucide="chevron-down" class="faq-icon"></i>
-                    </div>
-                    <div class="faq-answer">
-                        Yes! As a workspace owner or administrator, you can go to the Team section, enter your members'
-                        email addresses, and set their access level (member, admin). They will receive an email
-                        invitation to register and join your tenant workspace.
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Call To Action Bottom -->
-        <section class="cta-banner">
-            <div class="cta-card">
-                <h2>Ready to elevate your customer conversations?</h2>
-                <p>Create your tenant workspace, upload your first knowledge PDF, and connect Telegram or WhatsApp in
-                    less than 5 minutes.</p>
-                <a href="register.html" class="btn btn-primary" id="bottom-cta-btn">Start Free Trial Today</a>
-            </div>
-        </section>
-    </main>
-
-    <!-- Footer -->
-    <footer>
-        <div class="container footer-wrapper">
-            <div class="footer-logo">
-                <div class="footer-logo-dot"></div>
-                AI CHATBOT PLATFORM
-            </div>
-            <div style="font-size:0.85rem; color:var(--text-dim);">
-                &copy; 2026 AI Chatbot SaaS. All rights reserved.
-            </div>
-            <div class="footer-links">
-                <a href="#features">Features</a>
-                <a href="#pricing">Pricing</a>
-                <a href="login.html">Login</a>
-                <a href="register.html">Sign Up</a>
-            </div>
-        </div>
-    </footer>
-
-    <script src="assets/js/plan-catalog.js"></script>
-    <script>
-        function pluralize(count, singular, plural) {
-            return count === 1 ? singular : plural;
-        }
-
-        function formatPlanPrice(plan) {
-            const price = Number(plan.price);
-            if (!Number.isFinite(price) || price <= 0) return "RM 0.00";
-            return "RM " + price.toFixed(2);
-        }
-
-        function formatStorage(bytes) {
-            if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(0) + " GB";
-            return (bytes / 1048576).toFixed(0) + " MB";
-        }
-
-        function formatAiCredit(microMyr) {
-            const myr = Number(microMyr || 0) / 1000000;
-            return "AI Credit: RM " + myr.toFixed(2);
-        }
-
-        function appendFeature(list, enabled, text, key) {
-            const item = document.createElement("li");
-            if (!enabled) item.className = "disabled";
-            if (key) {
-                item.dataset.featureKey = key;
-                item.dataset.enabled = enabled ? "true" : "false";
-            }
-            const icon = document.createElement("i");
-            icon.setAttribute("data-lucide", enabled ? "check" : "x");
-            item.append(icon, document.createTextNode(" " + text));
-            list.appendChild(item);
-        }
-
-        function renderLandingPricing() {
-            const grid = document.getElementById("landing-pricing-grid");
-            const catalogue = window.SubscriptionPlanCatalog;
-            if (!grid || !catalogue || !Array.isArray(catalogue.plans)) return;
-
-            catalogue.plans.forEach(plan => {
-                const card = document.createElement("div");
-                card.className = "price-card" + (plan.featured ? " popular" : "");
-                card.dataset.planCode = plan.code;
-
-                const header = document.createElement("div");
-                header.className = "price-header";
-
-                const title = document.createElement("h3");
-                title.textContent = plan.name;
-
-                const price = document.createElement("div");
-                price.className = "price-val";
-                price.textContent = formatPlanPrice(plan);
-                const interval = document.createElement("span");
-                interval.textContent = "/ mo";
-                price.appendChild(interval);
-
-                const desc = document.createElement("div");
-                desc.className = "price-desc";
-                desc.textContent = plan.description;
-                header.append(title, price, desc);
-
-                const features = document.createElement("ul");
-                features.className = "price-features";
-                appendFeature(features, true, plan.chatbot_limit + " " + pluralize(plan.chatbot_limit, "Chatbot", "Chatbots"), "chatbot_limit");
-                appendFeature(features, true, plan.team_member_limit + " " + pluralize(plan.team_member_limit, "Team Member", "Team Members"), "team_member_limit");
-                appendFeature(features, true, plan.channel_limit + " " + pluralize(plan.channel_limit, "Channel", "Channels"), "channel_limit");
-                appendFeature(features, true, plan.knowledge_file_limit + " " + pluralize(plan.knowledge_file_limit, "Knowledge File", "Knowledge Files"), "knowledge_file_limit");
-                appendFeature(features, true, formatStorage(plan.knowledge_storage_limit_bytes) + " Storage", "knowledge_storage_limit_bytes");
-                appendFeature(features, true, plan.model_access_label, "model_access_tier");
-                appendFeature(features, true, formatAiCredit(plan.included_ai_credit_micro_myr), "included_ai_credit_micro_myr");
-                appendFeature(features, plan.feature_flags.ai_assisted_menu_generation, "AI-Assisted Menu Generation", "ai_assisted_menu_generation");
-                appendFeature(features, plan.feature_flags.ai_generated_reports, "AI-Generated Reports", "ai_generated_reports");
-                appendFeature(features, plan.feature_flags.crm_lead_assignment, "CRM Lead Assignment", "crm_lead_assignment");
-                appendFeature(features, plan.feature_flags.single_website_scraping, "Single Website Scraping", "single_website_scraping");
-                appendFeature(features, plan.feature_flags.batch_website_scraping, "Batch Website Scraping", "batch_website_scraping");
-                appendFeature(features, plan.feature_flags.knowledge_refinement, "Knowledge Refinement Q&A", "knowledge_refinement");
-
-                const cta = document.createElement("a");
-                cta.href = "register.html";
-                cta.className = "btn " + (plan.featured ? "btn-primary" : "btn-outline") + " price-btn";
-                cta.dataset.planCta = plan.code;
-                cta.textContent = plan.trial_only ? "Start Free Trial" : "Get Started";
-
-                card.append(header, features, cta);
-                grid.appendChild(card);
-            });
-        }
-
-        renderLandingPricing();
-
-        function isAuthenticatedVisitor() {
-            return Boolean(sessionStorage.getItem("token") || localStorage.getItem("token"));
-        }
-
-        function updateLandingCtas() {
-            if (!isAuthenticatedVisitor()) return;
-
-            const navLogin = document.getElementById("nav-login");
-            const navRegister = document.getElementById("nav-register");
-            const heroPrimary = document.getElementById("hero-primary-cta");
-            const bottomCta = document.getElementById("bottom-cta-btn");
-
-            if (navLogin) {
-                navLogin.href = "bots.html";
-                navLogin.textContent = "Dashboard";
-            }
-            if (navRegister) {
-                navRegister.href = "pricing.html";
-                navRegister.textContent = "Billing";
-            }
-            if (heroPrimary) {
-                heroPrimary.href = "bots.html";
-                heroPrimary.textContent = "Go to Dashboard";
-            }
-            if (bottomCta) {
-                bottomCta.href = "bots.html";
-                bottomCta.textContent = "Go to Dashboard";
-            }
-            document.querySelectorAll("[data-plan-cta]").forEach(link => {
-                link.href = "pricing.html";
-                link.textContent = "View Billing Plans";
-            });
-        }
-
-        updateLandingCtas();
-        // Initialize Lucide Icons
-        lucide.createIcons();
-
-        // Header background transition on scroll
-        const header = document.getElementById('header');
-        window.addEventListener('scroll', () => {
-            if (window.scrollY > 50) {
-                header.classList.add('scrolled');
-            } else {
-                header.classList.remove('scrolled');
-            }
-        });
-
-        // Toggle FAQ Answers
-        const faqItems = document.querySelectorAll('.faq-item');
-        faqItems.forEach(item => {
-            const question = item.querySelector('.faq-question');
-            question.addEventListener('click', () => {
-                const isOpen = item.classList.contains('open');
-                faqItems.forEach(otherItem => {
-                    otherItem.classList.remove('open');
-                });
-                if (!isOpen) {
-                    item.classList.add('open');
-                }
-            });
-        });
-
-
-
-        // Mock Chat & Workflow Live Animation
-        let currentStep = 0;
-        const mockChatArea = document.getElementById("mock-chat-area");
-
-        function runMockAnimation() {
-            setTimeout(() => {
-                // Step 1: Receiving Message
-                const stepRecv = document.getElementById("step-receiving");
-                stepRecv.classList.add("active");
-                document.getElementById("sub-receiving").innerText = "Incoming WhatsApp message detected...";
-
-                setTimeout(() => {
-                    stepRecv.classList.remove("active");
-                    stepRecv.classList.add("completed");
-                    document.getElementById("sub-receiving").innerText = "Parsed: \"Hi there! Do you support credit...\"";
-
-                    // Step 2: RAG
-                    const stepRag = document.getElementById("step-rag");
-                    stepRag.classList.add("active");
-                    document.getElementById("sub-rag").innerText = "Searching PDF documentation index...";
-
-                    setTimeout(() => {
-                        stepRag.classList.remove("active");
-                        stepRag.classList.add("completed");
-                        document.getElementById("sub-rag").innerText = "Found 2 matching excerpts in billing_guide.pdf";
-
-                        // Step 3: Generating Response
-                        const stepGen = document.getElementById("step-generating");
-                        stepGen.classList.add("active");
-                        document.getElementById("sub-generating").innerText = "Calling the selected AI model tier...";
-
-                        setTimeout(() => {
-                            stepGen.classList.remove("active");
-                            stepGen.classList.add("completed");
-                            document.getElementById("sub-generating").innerText = "Response text prepared (142 tokens)";
-
-                            // Step 4: Sending
-                            const stepSend = document.getElementById("step-sending");
-                            stepSend.classList.add("active");
-                            document.getElementById("sub-sending").innerText = "Sending reply callback via Wasender webhook...";
-
-                            setTimeout(() => {
-                                stepSend.classList.remove("active");
-                                stepSend.classList.add("completed");
-                                document.getElementById("sub-sending").innerText = "Message sent successfully! (ID: msg_982481)";
-
-                                // Add outgoing message to Chat Area
-                                const outMsg = document.createElement("div");
-                                outMsg.className = "mock-msg outgoing";
-                                outMsg.innerText = "Yes! We support topping up your credit balance using ToyyibPay. You can complete payments inside the billing dashboard.";
-                                mockChatArea.appendChild(outMsg);
-                                mockChatArea.scrollTop = mockChatArea.scrollHeight;
-
-                                // Reset Loop after 8 seconds
-                                setTimeout(() => {
-                                    mockChatArea.innerHTML = '<div class="mock-msg incoming">Hi there! Do you support credit top-ups using ToyyibPay?</div>';
-
-                                    const steps = ['receiving', 'rag', 'generating', 'sending'];
-                                    steps.forEach(s => {
-                                        const step = document.getElementById(`step-${s}`);
-                                        step.className = "mock-step";
-                                    });
-                                    document.getElementById("sub-receiving").innerText = "Waiting...";
-                                    document.getElementById("sub-rag").innerText = "Waiting...";
-                                    document.getElementById("sub-generating").innerText = "Waiting...";
-                                    document.getElementById("sub-sending").innerText = "Waiting...";
-
-                                    // Rerun
-                                    runMockAnimation();
-                                }, 8000);
-
-                            }, 2000);
-                        }, 2200);
-                    }, 1800);
-                }, 1500);
-            }, 1000);
-        }
-
-        // Start animation loop
-        runMockAnimation();
-
-        // Interactive Morphing Cursor Follower Logic
-        let mouseX = -500, mouseY = -500;
-        let posX = -500, posY = -500;
-        const follower = document.getElementById("cursor-follower");
-
-        // Water Drops Follow Trail Logic
-        const drops = Array.from(document.querySelectorAll('.trail-drop'));
-        const N = drops.length;
-        const dropCoords = Array.from({ length: N }, () => ({ x: -500, y: -500 }));
-        let mouseActive = false;
-        const trailContainer = document.getElementById("drop-trail");
-
-        // Initialize drop sizes: closest is biggest, furthest is smallest
-        const maxDropSize = 20; // max size in px
-        drops.forEach((drop, i) => {
-            const size = maxDropSize * (1 - (i / N) * 0.8); // down to 20% size
-            drop.style.width = `${size}px`;
-            drop.style.height = `${size}px`;
-            drop.style.marginLeft = `${-size / 2}px`;
-            drop.style.marginTop = `${-size / 2}px`;
-        });
-
-        window.addEventListener("mousemove", (e) => {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-
-            // Activate the glow and drops on first movement inside window
-            if (!mouseActive) {
-                mouseActive = true;
-                if (follower) follower.classList.add("active");
-                if (trailContainer) trailContainer.classList.add("active");
-                // snap coords directly to mouse on start to avoid sweep-in
-                posX = mouseX;
-                posY = mouseY;
-                dropCoords.forEach(coord => {
-                    coord.x = mouseX;
-                    coord.y = mouseY;
-                });
-            }
-        });
-
-        // Hide follower if mouse leaves page bounds
-        document.addEventListener("mouseleave", () => {
-            mouseActive = false;
-            if (follower) follower.classList.remove("active");
-            if (trailContainer) trailContainer.classList.remove("active");
-        });
-
-        // Re-appear on enter
-        document.addEventListener("mouseenter", () => {
-            mouseActive = true;
-            if (follower) follower.classList.add("active");
-            if (trailContainer) trailContainer.classList.add("active");
-        });
-
-        function updatePositions() {
-            // Update morphing spotlight
-            const easeSpotlight = 0.08;
-            posX += (mouseX - posX) * easeSpotlight;
-            posY += (mouseY - posY) * easeSpotlight;
-
-            if (follower) {
-                follower.style.transform = `translate(${posX - 150}px, ${posY - 150}px)`;
-            }
-
-            // Update water drops tail coordinates
-            let targetX = mouseX;
-            let targetY = mouseY;
-
-            for (let i = 0; i < N; i++) {
-                const coord = dropCoords[i];
-                const easeDrop = 0.12 - (i / N) * 0.04; // slower follow speed for fluid lag
-                coord.x += (targetX - coord.x) * easeDrop;
-                coord.y += (targetY - coord.y) * easeDrop;
-
-                if (drops[i]) {
-                    drops[i].style.transform = `translate(${coord.x}px, ${coord.y}px)`;
-                }
-
-                // Next drop follows this drop
-                targetX = coord.x;
-                targetY = coord.y;
-            }
-
-            requestAnimationFrame(updatePositions);
-        }
-        requestAnimationFrame(updatePositions);
-    </script>
+  </div>
+</section>
+
+<section class="seq wrap" id="seq">
+  <div>
+    <span class="eyebrow">How it comes together</span>
+    <h2>Four parts, one system</h2>
+    <p class="lede">Knowledge, contacts, automation and analytics assemble into one publishing pipeline.</p>
+    <div class="rail" id="rail"><span class="on"></span><span></span><span></span><span></span></div>
+  </div>
+  <canvas id="seqCanvas" width="1280" height="720" role="img"
+    aria-label="The Volleo robot assembling itself as you scroll"></canvas>
+</section>
+
+<section class="wrap" id="how">
+  <span class="eyebrow">How it works</span>
+  <h2>Three steps to your first broadcast</h2>
+  <div class="steps">
+    <div class="step"><div class="n">01 &mdash; COMPOSE</div><h3>Write once</h3>
+      <p class="lede">Draft your message with AI assistance drawing on your knowledge base.</p></div>
+    <div class="step"><div class="n">02 &mdash; TARGET</div><h3>Pick your channels</h3>
+      <p class="lede">Select WhatsApp and Telegram audiences, segmented by CRM tag.</p></div>
+    <div class="step"><div class="n">03 &mdash; SEND</div><h3>Publish and track</h3>
+      <p class="lede">Schedule or send now, then watch delivery and replies land in one inbox.</p></div>
+  </div>
+</section>
+
+<section class="wrap" id="features">
+  <span class="eyebrow">Features</span>
+  <h2>Built for continuous multi-channel output</h2>
+
+  <div class="zig">
+    <div><h3 style="font-size:1.5rem">One composer, every channel</h3>
+      <p class="lede">One message, many destinations, with no copy-paste between apps.</p></div>
+    <div class="zig-art"><img loading="lazy" width="1200" height="670"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/feat-prism.webp"
+      alt="A single message splitting through a prism into separate channel streams">
+      <p class="cap">Illustration. Product screenshots coming.</p></div>
+  </div>
+
+  <div class="zig">
+    <div><h3 style="font-size:1.5rem">Answers from your own documents</h3>
+      <p class="lede">Upload PDFs and scrape your site so replies draw on your real content.</p></div>
+    <div class="zig-art"><img loading="lazy" width="1200" height="670"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/feat-docs.webp"
+      alt="Document pages folding into a reply bubble, linked by glowing filaments">
+      <p class="cap">Illustration. Product screenshots coming.</p></div>
+  </div>
+
+  <div class="zig">
+    <div><h3 style="font-size:1.5rem">Contacts that remember</h3>
+      <p class="lede">Every conversation writes back to a CRM record with tags, status and assignment.</p></div>
+    <div class="zig-art"><img loading="lazy" width="1200" height="670"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/feat-crm.webp"
+      alt="A contact card orbited by tags and status rings">
+      <p class="cap">Illustration. Product screenshots coming.</p></div>
+  </div>
+</section>
+
+<section class="wrap" id="usecases">
+  <span class="eyebrow">Built for</span>
+  <h2>Teams that send at volume</h2>
+  <div class="grid2">
+    <article class="uc"><img loading="lazy" width="1200" height="900"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/uc-agencies.webp"
+      alt="The robot routing messages into three client workspaces">
+      <div class="body"><h3>Agencies</h3><p class="lede">Run broadcasts for several client brands from separate workspaces, each with its own channels, contacts and knowledge base.</p></div></article>
+    <article class="uc"><img loading="lazy" width="1200" height="900"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/uc-stores.webp"
+      alt="The robot handing a parcel toward an order-update message">
+      <div class="body"><h3>Online stores</h3><p class="lede">Send order updates and restock alerts to WhatsApp, then let the bot answer follow-up questions from your product documentation.</p></div></article>
+    <article class="uc"><img loading="lazy" width="1200" height="900"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/uc-service.webp"
+      alt="The robot placing a checkmark on a calendar slot">
+      <div class="body"><h3>Service businesses</h3><p class="lede">Confirm bookings on Telegram and keep every conversation attached to the customer record it belongs to.</p></div></article>
+    <article class="uc"><img loading="lazy" width="1200" height="900"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/uc-support.webp"
+      alt="The robot lifting a document sheet into a reply bubble">
+      <div class="body"><h3>Support teams</h3><p class="lede">Deflect repeat questions with answers drawn from your own help articles, and escalate the rest to a human with full context.</p></div></article>
+  </div>
+</section>
+
+<section class="wrap" id="integrations">
+  <span class="eyebrow">Integrations</span>
+  <h2>Your channels</h2>
+  <div class="chan">
+    <div class="c"><img loading="lazy" width="1200" height="900"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/ch-whatsapp.webp"
+      alt="The robot holding a glowing chat bubble">
+      <h3>WhatsApp Cloud API</h3><p class="lede">Connect your own number through Meta embedded signup.</p></div>
+    <div class="c"><img loading="lazy" width="1200" height="900"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/ch-telegram.webp"
+      alt="The robot releasing a paper-plane of light">
+      <h3>Telegram</h3><p class="lede">Add a bot token and start publishing to channels and groups.</p></div>
+    <div class="c"><img loading="lazy" width="1200" height="900"
+      src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/ch-wasender.webp"
+      alt="The robot beside a relay tower emitting signal rings">
+      <h3>Wasender</h3><p class="lede">Route WhatsApp traffic through a Wasender session.</p></div>
+  </div>
+  <div class="roadmap">
+    <strong>In development</strong>
+    <p class="lede" style="margin:.4rem 0 0">Instagram, Facebook, X and LinkedIn are not available yet. They are on the roadmap and are not included in any plan today.</p>
+  </div>
+</section>
+
+<section class="wrap" id="system">
+  <span class="eyebrow">Under the hood</span>
+  <h2>What runs underneath</h2>
+  <div class="grid2">
+    <article class="uc"><img loading="lazy" width="1200" height="900" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/sys-knowledge.webp" alt="A lattice of document shards forming an index sphere"><div class="body"><h3>Knowledge base</h3><p class="lede">Upload documents and scrape pages; replies cite what you gave it.</p></div></article>
+    <article class="uc"><img loading="lazy" width="1200" height="900" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/sys-automation.webp" alt="A node graph with one path lit brighter"><div class="body"><h3>Automation</h3><p class="lede">Route conversations through decision flows instead of manual triage.</p></div></article>
+    <article class="uc"><img loading="lazy" width="1200" height="900" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/sys-broadcast.webp" alt="A core pulsing outward into many points of light"><div class="body"><h3>Broadcast</h3><p class="lede">One message fans out to a segmented audience.</p></div></article>
+    <article class="uc"><img loading="lazy" width="1200" height="900" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/sys-inbox.webp" alt="Separate streams converging into one channel"><div class="body"><h3>Unified inbox</h3><p class="lede">Every channel lands in the same conversation view.</p></div></article>
+  </div>
+</section>
+
+<section class="wrap" id="proof">
+  <span class="eyebrow">Where things stand</span>
+  <h2>What Volleo does today</h2>
+  <div class="facts">
+    <div><b>3</b><span class="muted">Channels live &mdash; WhatsApp Cloud API, Telegram, Wasender</span></div>
+    <div><b>4</b><span class="muted">In development &mdash; Instagram, Facebook, X, LinkedIn</span></div>
+    <div><b>Grounded</b><span class="muted">Replies cite documents you upload</span></div>
+    <div><b>One inbox</b><span class="muted">Every channel in the same conversation view</span></div>
+  </div>
+  <div class="founder panel">
+    <div class="mono">VO</div>
+    <div><p class="lede" style="margin:0">We built Volleo because running broadcasts across WhatsApp and
+      Telegram meant three tools and a spreadsheet. It should be one composer. If something is
+      missing for your team, tell us and we will build it.</p>
+      <p class="muted" style="margin:.6rem 0 0">&mdash; Founder, Volleo</p></div>
+  </div>
+</section>
+
+<section class="wrap" id="pricing">
+  <span class="eyebrow">Pricing</span>
+  <h2>Start free, grow by channel</h2>
+  <div class="notice"><strong>Paid pricing is not final.</strong> Figures shown as TBC are placeholders and are not yet charged.</div>
+  <div class="plans" id="landing-pricing-grid">
+    <div class="plan" data-plan-code="free"><h3>Free</h3><div class="price">$0</div>
+      <ul><li>2 channels</li><li>1 bot</li><li>50 AI replies per month</li><li>20 scheduled posts per month</li><li>1 seat</li></ul>
+      <a class="btn" data-plan-cta="free" href="register.html">Start free trial</a></div>
+    <div class="plan" data-plan-code="starter"><h3>Starter</h3><div class="tbc">TBC</div>
+      <ul><li>3 channels</li><li>500 contacts</li><li>1 seat</li><li>Unlimited scheduled posts</li></ul>
+      <a class="btn" data-plan-cta="starter" href="register.html">Start free trial</a></div>
+    <div class="plan rec" data-plan-code="growth"><h3>Growth</h3><div class="tbc">TBC</div>
+      <ul><li>10 channels</li><li>2,500 contacts</li><li>3 seats</li><li>Team inbox and approvals</li></ul>
+      <a class="btn" data-plan-cta="growth" href="register.html">Start free trial</a></div>
+    <div class="plan" data-plan-code="business"><h3>Business</h3><div class="tbc">TBC</div>
+      <ul><li>30 channels</li><li>10,000 contacts</li><li>10 seats</li><li>Roles and white-label</li></ul>
+      <a class="btn" data-plan-cta="business" href="contact.html">Contact sales</a></div>
+  </div>
+</section>
+
+<section class="wrap" id="faq">
+  <span class="eyebrow">Questions</span>
+  <h2>Frequently asked</h2>
+  <div style="margin-top:1.6rem">
+    <details open><summary>Which channels can Volleo publish to?</summary>
+      <p>Volleo publishes to WhatsApp Cloud API, Telegram and Wasender today. Instagram, Facebook, X and LinkedIn are in development.</p></details>
+    <details><summary>Does Volleo write replies automatically?</summary>
+      <p>Yes. Volleo answers incoming messages using a retrieval model grounded in documents you upload and pages you scrape, so replies draw on your own content rather than general knowledge.</p></details>
+    <details><summary>Can I schedule broadcasts?</summary>
+      <p>Yes. Messages can be sent immediately or scheduled for later, and audiences can be segmented by CRM tag.</p></details>
+    <details><summary>Is there a free plan?</summary>
+      <p>Yes. The free plan includes two channels, one bot and a monthly allowance of AI replies. No payment card is required to start.</p></details>
+    <details><summary>How is this different from a shared inbox?</summary>
+      <p>A shared inbox routes messages that a person still has to answer. Volleo answers them from your knowledge base, writes the outcome back to a CRM record, and sends outbound broadcasts from the same composer.</p></details>
+    <details><summary>Do I need a Meta Business account?</summary>
+      <p>Yes, for WhatsApp Cloud API. Telegram requires only a bot token, which takes about a minute to create.</p></details>
+  </div>
+</section>
+
+<section class="wrap">
+  <div class="closing">
+    <img loading="lazy" src="https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing/img/closing-band.webp" alt="">
+    <div class="veil"></div>
+    <div class="inner">
+      <h2>One composer. Every channel.</h2>
+      <p class="lede">Connect WhatsApp and Telegram, upload your documents, and send your first broadcast today.</p>
+      <p style="margin-top:1.6rem"><a href="register.html" class="btn" id="bottom-cta-btn">Start free trial</a>
+        <span class="muted" style="margin-left:.9rem">No card required</span></p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <div class="fcols">
+    <div>
+      <a class="brand" href="#top" style="margin-bottom:.6rem">
+        <svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="5" cy="12" r="2.6" fill="currentColor"/><path d="M7.6 12h3.2M10.8 12l5.4-5M10.8 12l5.4 5M10.8 12h5.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="18.6" cy="7" r="1.8" fill="currentColor"/><circle cx="18.6" cy="12" r="1.8" fill="currentColor"/><circle cx="18.6" cy="17" r="1.8" fill="currentColor"/></svg>
+        Volleo
+      </a>
+      <p class="muted">Multi-channel publishing for WhatsApp and Telegram.</p>
+    </div>
+    <div><h4>Product</h4><ul><li><a href="#features">Features</a></li><li><a href="#integrations">Integrations</a></li><li><a href="#pricing">Pricing</a></li></ul></div>
+    <div><h4>Company</h4><ul><li><a href="#proof">About</a></li><li><a href="contact.html">Contact</a></li></ul></div>
+    <div><h4>Resources</h4><ul><li><a href="#faq">FAQ</a></li><li><a href="help.html">Help</a></li></ul></div>
+    <div><h4>Legal</h4><ul><li><a href="privacy.html">Privacy</a></li><li><a href="terms.html">Terms</a></li></ul></div>
+  </div>
+  <div class="fbar"><span>&copy; <span id="yr"></span> Volleo</span></div>
+</footer>
+
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+ {"@type":"Organization","@id":"https://aibot-chatbot-my.fly.dev/#org","name":"Volleo",
+  "url":"https://aibot-chatbot-my.fly.dev/",
+  "description":"Multi-channel publishing platform for WhatsApp and Telegram."},
+ {"@type":"SoftwareApplication","name":"Volleo","applicationCategory":"BusinessApplication",
+  "operatingSystem":"Web","url":"https://aibot-chatbot-my.fly.dev/",
+  "publisher":{"@id":"https://aibot-chatbot-my.fly.dev/#org"},
+  "description":"Volleo sends broadcast messages to WhatsApp and Telegram audiences from one composer, with AI replies grounded in your own documents.",
+  "offers":{"@type":"AggregateOffer","priceCurrency":"USD","lowPrice":"0","offerCount":"4"}},
+ {"@type":"FAQPage","mainEntity":[
+  {"@type":"Question","name":"Which channels can Volleo publish to?","acceptedAnswer":{"@type":"Answer","text":"Volleo publishes to WhatsApp Cloud API, Telegram and Wasender today. Instagram, Facebook, X and LinkedIn are in development."}},
+  {"@type":"Question","name":"Does Volleo write replies automatically?","acceptedAnswer":{"@type":"Answer","text":"Yes. Volleo answers incoming messages using a retrieval model grounded in documents you upload and pages you scrape, so replies draw on your own content rather than general knowledge."}},
+  {"@type":"Question","name":"Can I schedule broadcasts?","acceptedAnswer":{"@type":"Answer","text":"Yes. Messages can be sent immediately or scheduled for later, and audiences can be segmented by CRM tag."}},
+  {"@type":"Question","name":"Is there a free plan?","acceptedAnswer":{"@type":"Answer","text":"Yes. The free plan includes two channels, one bot and a monthly allowance of AI replies. No payment card is required to start."}},
+  {"@type":"Question","name":"How is this different from a shared inbox?","acceptedAnswer":{"@type":"Answer","text":"A shared inbox routes messages that a person still has to answer. Volleo answers them from your knowledge base, writes the outcome back to a CRM record, and sends outbound broadcasts from the same composer."}},
+  {"@type":"Question","name":"Do I need a Meta Business account?","acceptedAnswer":{"@type":"Answer","text":"Yes, for WhatsApp Cloud API. Telegram requires only a bot token, which takes about a minute to create."}}]}
+]}
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.15.0/gsap.min.js"
+  integrity="sha512-oJ8QbaQThQoJZ7oEv+29jfPM6CcP+zUxh3PKJs1vyOhx0UraUrE7PQgeItu3dOuCJyrzWpoYMsVjkkPEBzbUqw=="
+  crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.15.0/ScrollTrigger.min.js"
+  integrity="sha512-OaIE7ud4P04EhnBuhEcm0wQSceIxbi2pV03oBLS/+F6ampfxsnxcIxOp7H2eF9G7N0kEht0VAzOLG+dTLSo17Q=="
+  crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+<script>
+document.getElementById('yr').textContent = new Date().getFullYear();
+
+/* Returning signed-in visitors should land in the app, not on registration.
+   This only reads an existing session marker. The public page performs no
+   authentication and issues no authenticated network calls of any kind -
+   a raw-source test asserts those helper names never appear here. */
+(function(){
+  let signedIn=false;
+  try{ signedIn = sessionStorage.getItem('isLoggedIn')==='true' || !!sessionStorage.getItem('token'); }
+  catch(e){ signedIn=false; }
+  if(!signedIn) return;
+  ['hero-primary-cta','bottom-cta-btn'].forEach(function(id){
+    const el=document.getElementById(id);
+    if(el){ el.setAttribute('href','bots.html'); el.textContent='Go to your bots'; }
+  });
+  document.querySelectorAll('[data-plan-cta]').forEach(function(el){
+    if(el.getAttribute('data-plan-cta')==='business') return;   /* sales contact stays */
+    el.setAttribute('href','pricing.html');
+    el.textContent='View plans';
+  });
+})();
+
+/* theme toggle - remembers choice, defaults dark */
+(function(){
+  const root=document.documentElement, btn=document.getElementById('themeBtn');
+  let saved=null; try{ saved=localStorage.getItem('volleo-theme'); }catch(e){}
+  if(saved) root.setAttribute('data-theme',saved);
+  btn.addEventListener('click',function(){
+    const next = root.getAttribute('data-theme')==='light' ? 'dark' : 'light';
+    root.setAttribute('data-theme',next);
+    try{ localStorage.setItem('volleo-theme',next); }catch(e){}
+  });
+})();
+
+const BASE='https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing';
+const FRAMES=19;
+
+window.addEventListener('load', function(){
+  if(typeof gsap==='undefined') return;           /* CDN blocked: page still works, just static */
+  gsap.registerPlugin(ScrollTrigger);
+  const mm=gsap.matchMedia();
+
+  mm.add({motionOK:"(prefers-reduced-motion: no-preference)",
+          reduce:"(prefers-reduced-motion: reduce)"}, function(ctx){
+    const reduce=ctx.conditions.reduce;
+
+    /* ---- hero: robot tracks the cursor ---- */
+    const stage=document.getElementById('stage'), depth=document.getElementById('depth'),
+          robot=document.getElementById('robot'), spec=document.getElementById('spec');
+    if(!reduce && stage){
+      const rotY=gsap.quickTo(depth,"rotationY",{duration:.7,ease:"power3"});
+      const rotX=gsap.quickTo(depth,"rotationX",{duration:.7,ease:"power3"});
+      const rX=gsap.quickTo(robot,"x",{duration:.8,ease:"power3"});
+      const rY=gsap.quickTo(robot,"y",{duration:.8,ease:"power3"});
+      const sX=gsap.quickTo(spec,"x",{duration:.45,ease:"power2"});
+      const sY=gsap.quickTo(spec,"y",{duration:.45,ease:"power2"});
+      addEventListener('mousemove',function(e){
+        const nx=(e.clientX/innerWidth)*2-1, ny=(e.clientY/innerHeight)*2-1;
+        rotY(nx*14); rotX(-ny*10); rX(nx*26); rY(ny*18);
+        const r=stage.getBoundingClientRect();
+        sX((e.clientX-(r.left+r.width/2))*.28);
+        sY((e.clientY-(r.top+r.height/2))*.28-60);
+      },{passive:true});
+      gsap.to(robot,{y:"+=14",duration:3.2,ease:"sine.inOut",yoyo:true,repeat:-1});
+    }
+
+    /* ---- scroll-scrubbed assembly sequence ---- */
+    const cv=document.getElementById('seqCanvas'); if(!cv) return;
+    const cx=cv.getContext('2d'), ticks=[].slice.call(document.querySelectorAll('#rail span'));
+    const imgs=new Array(FRAMES);
+    function src(i){ return BASE+'/frames/f_'+String(i+1).padStart(2,'0')+'.webp'; }
+    function load(i,pri){ if(imgs[i])return; const im=new Image();
+      /* Supabase serves Access-Control-Allow-Origin:*, so requesting CORS keeps the
+         canvas untainted — without this, drawImage poisons it and any future
+         getImageData/toDataURL throws a SecurityError. */
+      im.crossOrigin='anonymous';
+      if('fetchPriority' in im) im.fetchPriority=pri;
+      im.onload=function(){ if(i===0) draw(0); }; im.src=src(i); imgs[i]=im; }
+    function nearest(i){ if(imgs[i]&&imgs[i].complete)return imgs[i];
+      for(let d=1;d<FRAMES;d++){ const a=imgs[i-d],b=imgs[i+d];
+        if(a&&a.complete)return a; if(b&&b.complete)return b; } return null; }
+    function draw(idx){ const im=nearest(Math.max(0,Math.min(FRAMES-1,Math.round(idx)))); if(!im)return;
+      const dpr=Math.min(devicePixelRatio,2), r=cv.getBoundingClientRect();
+      const w=Math.round(r.width*dpr), h=Math.round(r.width/(16/9)*dpr);
+      if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+      cx.clearRect(0,0,w,h); cx.drawImage(im,0,0,w,h); }
+
+    if(reduce){ load(0,'high'); return; }          /* static first frame, no pin, no sequence fetch */
+
+    for(let i=0;i<FRAMES;i+=4) load(i,'high');     /* stride preload */
+    const rest=function(){ for(let i=0;i<FRAMES;i++) load(i,'low'); };
+    'requestIdleCallback' in window ? requestIdleCallback(rest) : setTimeout(rest,300);
+
+    const play={frame:0}; let last=-1;
+    gsap.to(play,{frame:FRAMES-1,snap:{frame:1},ease:"none",
+      scrollTrigger:{trigger:"#seq",start:"top top",end:function(){return "+="+(FRAMES*170);},
+        scrub:.5,pin:true,invalidateOnRefresh:true,
+        onUpdate:function(self){const t=Math.min(3,Math.floor(self.progress*4));
+          ticks.forEach(function(s,i){s.classList.toggle('on',i<=t);});}},
+      onUpdate:function(){const f=Math.round(play.frame); if(f!==last){last=f; draw(f);}}});
+  });
+});
+</script>
 </body>
-
 </html>
