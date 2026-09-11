@@ -6,7 +6,21 @@ from email.mime.multipart import MIMEMultipart
 import logging
 import datetime
 
-def send_otp_email(recipient_email, otp_code, recipient_name="User"):
+def send_otp_email(recipient_email, otp_code, recipient_name="User", verify_url=None):
+
+    # One-click link first, code as the fallback. If no public base URL is
+    # configured _build_verify_url returns None and the email degrades to the
+    # code-only version it has always been.
+    verify_block = ""
+    if verify_url:
+        verify_block = (
+            '<a href="' + verify_url + '" '
+            'style="display:inline-block;background:#3b82f6;color:#ffffff;'
+            'text-decoration:none;padding:14px 28px;border-radius:10px;'
+            'font-weight:600;font-size:16px;">Verify my email</a>'
+            '<p style="margin:14px 0 0;color:#94a3b8;font-size:12px;">'
+            'This link can be used once and expires with the code below.</p>'
+        )
     """
     Sends an OTP verification code via Gmail SMTP.
     """
@@ -34,7 +48,7 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User"):
               Thank you for registering. To complete your account setup, please use the verification code below:
             </p>
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
-              <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6;">{otp_code}</span>
+              {verify_block}<p style="margin:18px 0 6px;color:#64748b;font-size:14px;">Or enter this code:</p><span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #3b82f6;">{otp_code}</span>
             </div>
             <p style="font-size: 14px; color: #64748b;">
               This code will expire in 10 minutes. If you didn't request this, you can safely ignore this email.

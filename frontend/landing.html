@@ -23,18 +23,21 @@
   --void:#060A12; --panel:rgba(18,26,38,.62); --cyan:#22D3EE; --sky:#38BDF8;
   --ice:#F1F5F9; --steel:#94A3B8; --hair:rgba(34,211,238,.15); --line:rgba(148,163,184,.14);
 }
-:root[data-theme="light"]{
-  --void:#F6F8FB; --panel:rgba(255,255,255,.78); --cyan:#0E7490; --sky:#0369A1;
-  --ice:#0B1220; --steel:#475569; --hair:rgba(14,116,144,.18); --line:rgba(15,23,42,.10);
-}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:var(--void);color:var(--ice);font-family:Geist,system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;line-height:1.6;overflow-x:hidden}
 h1,h2,h3,.display{font-family:'Space Grotesk',system-ui,sans-serif;letter-spacing:-.03em;margin:0;line-height:1.08}
 a{color:inherit}
-.wrap{max-width:1400px;margin:0 auto;padding:0 clamp(20px,5vw,64px)}
-section{padding:clamp(64px,9vw,132px) 0}
+/* Use padding-inline / padding-block, NOT the `padding` shorthand.
+   Every section also carries .wrap, and .wrap (0,1,0) outranks section (0,0,1) -
+   with both writing `padding`, the class silently zeroed every section's
+   vertical padding and the sections stacked flush against each other. */
+.wrap{max-width:1400px;margin:0 auto;padding-inline:clamp(20px,5vw,64px)}
+section{padding-block:clamp(76px,9vw,140px)}
+/* a hairline keeps the rhythm readable where two text sections meet */
+section + section{border-top:1px solid var(--line)}
+.hero,.seq,.hero + .seq{border-top:0}
 .eyebrow{display:inline-flex;align-items:center;gap:.5rem;font-size:.75rem;letter-spacing:.14em;
   text-transform:uppercase;color:var(--cyan);border:1px solid var(--hair);border-radius:999px;
   padding:.4rem .85rem;background:color-mix(in srgb,var(--cyan) 6%,transparent)}
@@ -45,7 +48,6 @@ h2{font-size:clamp(1.9rem,3.6vw,2.9rem);margin:1rem 0 .6rem}
 .btn{display:inline-block;background:var(--cyan);color:#04121a;border:0;border-radius:12px;
   padding:.95rem 1.7rem;font:500 1rem Geist,sans-serif;cursor:pointer;text-decoration:none;
   transition:transform .12s ease}
-:root[data-theme="light"] .btn{color:#fff}
 .btn:active{transform:translateY(1px)}
 .btn:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 .muted{color:var(--steel);font-size:.9rem}
@@ -183,12 +185,6 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
       <li><a href="#faq">FAQ</a></li>
     </ul>
     <span class="spacer"></span>
-    <button class="icon-btn" id="themeBtn" aria-label="Switch colour theme" title="Switch theme">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
-        <circle cx="12" cy="12" r="4.2"/>
-        <path d="M12 2.6v2.2M12 19.2v2.2M4.2 12H2M22 12h-2.2M6.3 6.3 4.8 4.8M19.2 19.2l-1.5-1.5M17.7 6.3l1.5-1.5M4.8 19.2l1.5-1.5" stroke-linecap="round"/>
-      </svg>
-    </button>
     <a href="login.html" class="muted" style="text-decoration:none">Sign in</a>
     <a href="register.html" class="btn" id="hero-primary-cta">Start free trial</a>
   </nav>
@@ -479,17 +475,6 @@ document.getElementById('yr').textContent = new Date().getFullYear();
   });
 })();
 
-/* theme toggle - remembers choice, defaults dark */
-(function(){
-  const root=document.documentElement, btn=document.getElementById('themeBtn');
-  let saved=null; try{ saved=localStorage.getItem('volleo-theme'); }catch(e){}
-  if(saved) root.setAttribute('data-theme',saved);
-  btn.addEventListener('click',function(){
-    const next = root.getAttribute('data-theme')==='light' ? 'dark' : 'light';
-    root.setAttribute('data-theme',next);
-    try{ localStorage.setItem('volleo-theme',next); }catch(e){}
-  });
-})();
 
 const BASE='https://parjsxypengvubziwwjp.supabase.co/storage/v1/object/public/landing';
 const FRAMES=19;
@@ -521,6 +506,36 @@ window.addEventListener('load', function(){
         sY((e.clientY-(r.top+r.height/2))*.28-60);
       },{passive:true});
       gsap.to(robot,{y:"+=14",duration:3.2,ease:"sine.inOut",yoyo:true,repeat:-1});
+
+      /* hero entrance - staggered cascade, runs once on load */
+      gsap.from(".hero > div:first-child > *",
+        {opacity:0,y:24,duration:.8,ease:"power3.out",stagger:.09,delay:.1});
+    }
+
+    /* ---- scroll reveal ----
+       Elements are hidden here with gsap.set(), NOT in CSS, so if the GSAP CDN
+       is blocked the page simply renders fully visible instead of blank.
+       ScrollTrigger.batch groups entries into one tween per batch rather than
+       one trigger per element, and no scroll listener is involved. */
+    if(!reduce){
+      const reveal = gsap.utils.toArray([
+        "section:not(.hero) > .eyebrow",
+        "section:not(.hero) > h2",
+        "section:not(.hero) > .lede",
+        ".step", ".zig > div", ".uc", ".chan .c", ".roadmap",
+        ".facts", ".founder", ".notice", ".plan",
+        "#faq details", ".closing .inner > *"
+      ].join(","));
+
+      gsap.set(reveal,{opacity:0,y:26});
+      ScrollTrigger.batch(reveal,{
+        start:"top 88%",
+        once:true,                         /* reveal once; no re-hide scrolling back */
+        onEnter:(batch)=>gsap.to(batch,{
+          opacity:1, y:0, duration:.7, ease:"power3.out",
+          stagger:.08, overwrite:true
+        })
+      });
     }
 
     /* ---- scroll-scrubbed assembly sequence ---- */

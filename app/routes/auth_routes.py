@@ -1,5 +1,5 @@
 ﻿from app.rate_limit import limiter
-from flask import Blueprint, current_app, request, jsonify
+from flask import Blueprint, current_app, redirect, request, jsonify
 from hashlib import sha256
 import secrets
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -374,6 +374,9 @@ def register():
         otp = generate_otp()
         otp_expiry = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)).isoformat()
 
+        # Single-use link token. Shares otp_expiry so link and code die together.
+        verification_token = secrets.token_urlsafe(32)
+
         payload = {
             "email": email,
             "first_name": first_name,
@@ -381,7 +384,8 @@ def register():
             "company_name": company_name,
             "password_hash": password_hash,
             "otp_code": otp,
-            "otp_expiry": otp_expiry
+            "otp_expiry": otp_expiry,
+            "verification_token": verification_token
         }
         # The unique email key chooses one first request. Even an expired OTP
         # must retain its signup credentials; resending only renews the code.
@@ -405,7 +409,10 @@ def register():
                 "message": "A registration is already pending. Use your original signup password to continue verification.",
             }), 409
 
-        email_sent = send_otp_email(email, otp, recipient_name=first_name)
+        email_sent = send_otp_email(
+            email, otp, recipient_name=first_name,
+            verify_url=_build_verify_url(verification_token),
+        )
         if email_sent:
             logger.info("Registration OTP email sent")
         else:
@@ -419,6 +426,46 @@ def register():
 
     except Exception as e:
         return server_error("register", e)
+
+def _complete_pending_registration(pending, email):
+    """Create the real account from an already-validated pending registration.
+
+    Shared by the OTP route and the email-link route so the two cannot drift.
+    The CALLER is responsible for proving the request is legitimate; this
+    function assumes that check already passed.
+    """
+    from app.database.db import supabase
+
+    company = create_company(
+        company_name=pending["company_name"],
+        business_type="",
+        contact_email=email,
+        contact_phone=""
+    )
+    full_name = f"{pending['first_name']} {pending['last_name']}".strip()
+    user = create_user(
+        company_id=company["id"],
+        full_name=full_name,
+        email=email,
+        password_hash=pending["password_hash"],
+        role="admin",
+        status="active"
+    )
+    supabase.table("users").update({"is_verified": True}).eq("id", user["id"]).execute()
+
+    # Billing failure must not block a verified user from logging in.
+    try:
+        ensure_default_company_subscription(company["id"])
+    except Exception as exc:
+        logging.error(
+            "Failed to assign Free subscription after email verification (%s)",
+            type(exc).__name__,
+        )
+
+    # Single use: the pending row (and with it the token) disappears.
+    supabase.table("pending_registrations").delete().eq("email", email).execute()
+    return user
+
 
 @auth_bp.route("/verify-otp", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
@@ -450,44 +497,9 @@ def verify_otp():
         if datetime.datetime.now(datetime.timezone.utc) > expiry:
             return jsonify({"status": "error", "message": "Verification code expired. Please request a new one."}), 400
 
-    # OTP is valid â€” now create the real account
+    # OTP is valid, create the real account via the shared path.
     try:
-        company = create_company(
-            company_name=pending["company_name"],
-            business_type="",
-            contact_email=email,
-            contact_phone=""
-        )
-
-        full_name = f"{pending['first_name']} {pending['last_name']}".strip()
-
-        user = create_user(
-            company_id=company["id"],
-            full_name=full_name,
-            email=email,
-            password_hash=pending["password_hash"],
-            role="admin",
-            status="active"
-        )
-
-        # Mark user as verified immediately
-        supabase.table("users").update({"is_verified": True}).eq("id", user["id"]).execute()
-
-        # Assign the Free subscription plan to the new company.
-        # This runs after the company and verified user exist but before the
-        # pending registration is cleaned up. If subscription assignment fails,
-        # the account is still created successfully -- billing failure should not
-        # block the user from logging in.
-        try:
-            ensure_default_company_subscription(company["id"])
-        except Exception as exc:
-            logging.error(
-                "Failed to assign Free subscription after email verification (%s)",
-                type(exc).__name__,
-            )
-
-        # Clean up pending registration
-        supabase.table("pending_registrations").delete().eq("email", email).execute()
+        _complete_pending_registration(pending, email)
         return jsonify({"status": "success", "message": "Email verified! Your account is ready. Please login."}), 200
 
     except Exception as e:
@@ -644,3 +656,61 @@ def reset_password():
 
     except Exception as e:
         return server_error("reset_password", e, "Unable to reset password. Please try again.")
+
+
+def _build_verify_url(token):
+    """Absolute URL for the one-click verification link, or None if unroutable."""
+    base = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_BASE_URL") or "").rstrip("/")
+    if not base:
+        # No public base configured: the OTP code in the same email still works.
+        return None
+    return f"{base}/api/auth/verify-email?token={token}"
+
+
+@auth_bp.route("/verify-email", methods=["GET"])
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_OTP", "5/hour"))
+def verify_email_link():
+    """One-click email verification.
+
+    Every failure path redirects to the same login page with a coarse status.
+    Distinguishing "no such token" from "expired" would let an attacker probe
+    which tokens exist, so the outcomes are deliberately blurred.
+    """
+    from app.database.db import supabase
+
+    base = (os.getenv("FRONTEND_URL") or os.getenv("PUBLIC_BASE_URL") or "").rstrip("/")
+    def _back(state):
+        return redirect(f"{base}/login.html?verify={state}", code=302)
+
+    token = (request.args.get("token") or "").strip()
+    # token_urlsafe(32) is 43 chars; anything shorter is not one of ours.
+    if len(token) < 20:
+        return _back("invalid")
+
+    try:
+        res = supabase.table("pending_registrations").select("*").eq(
+            "verification_token", token
+        ).limit(1).execute()
+    except Exception as exc:
+        logging.error("verify_email_link lookup failed (%s)", type(exc).__name__)
+        return _back("error")
+
+    pending = res.data[0] if res.data else None
+    if not pending:
+        return _back("invalid")
+
+    expiry_str = pending.get("otp_expiry")
+    if expiry_str:
+        try:
+            if datetime.datetime.now(datetime.timezone.utc) > datetime.datetime.fromisoformat(expiry_str):
+                return _back("expired")
+        except ValueError:
+            return _back("invalid")
+
+    try:
+        _complete_pending_registration(pending, pending["email"])
+    except Exception as exc:
+        logging.error("verify_email_link completion failed (%s)", type(exc).__name__)
+        return _back("error")
+
+    return _back("success")
