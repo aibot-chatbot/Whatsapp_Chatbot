@@ -1,5 +1,43 @@
 # Feature Status
 
+## All-channel replacement and customer-service handoff — 2026-09-14
+
+**Implemented; final release verification in progress.** The user approved the
+cross-channel prototype and deployment to the existing Fly site. Telegram token
+replacement and Meta/WASender phone-number replacement retain the previous
+connection until verification succeeds. Failed/pending attempts remain visible.
+Original conversation identities are preserved; staff sends require provider
+acceptance, and AI resumes only after the final blocking Resolve. Test Lab Clear
+resets only its test session. Migration 058 supplies shared atomic activation,
+quota and resolution guards. Current checks and deployment evidence are recorded
+in the [customer-service guide](BOT_CUSTOMER_SERVICE_LOOP.md).
+
+## Fly deployment and channel publishing — 2026-09-10
+
+**Verified complete for public hosting and staff password login; channel rollout
+partially implemented.** [Live login](https://aibot-chatbot-my.fly.dev/login.html)
+runs in the user's paid **aibot EMAIL** organization (`personal`). Admin and
+Superadmin reach their separate portals; live API authorization and dashboard
+charts were checked in Chrome. Three enabled website bots (35, 50, 53) are
+publicly reachable. The single Singapore Machine retains 41 restored runtime
+files on its writable volume, verified by hashes after deployment.
+
+The user selected bot 53 as sole owner of a Telegram identity shared by several
+company records. Exclusive ownership guards and the database index are deployed;
+the bot callback is connected, with zero pending updates and no provider error.
+Wasender has only an orphaned row and its provider session is logged out; Meta
+has no channel records. The user selected Travel Bot 50 for Wasender, then deferred
+setup until registration is ready. Its expired application subscription and
+pending renewal status must also be resolved before connecting.
+The user confirmed bot 53 replies to a short Telegram test; other channels
+have not been message-tested. Google OAuth still needs the live origin configured;
+background billing/retry/Langflow jobs remain disabled pending runtime handover.
+The configuration-only security scan passed with zero findings; the earlier
+source scan remains incomplete and is not superseded. The eight-path Telegram
+scan completed with one low-severity legacy-data finding whose prerequisite is
+absent from the verified live channel inventory. See
+[current release evidence](FLY_CHANNEL_READINESS.md) for exact checks and gaps.
+
 ## Tenant support legacy-schema compatibility
 
 **Verified complete for local mocked compatibility; live verification not performed.**
@@ -43,12 +81,12 @@ start disabled. Saving or reconnecting preserves the public key. Address metadat
 distinguishes configured HTTPS, temporary, local and invalid URLs without claiming
 availability. Focused mocked backend/browser checks and manual synthetic interaction
 are recorded in [the client journey review](CLIENT_JOURNEY_REVIEW.md), including
-the security result and unrelated baseline test failures. A permanent hostname,
-the correct Cloudflare account and a running application origin remain unresolved.
+the security result and unrelated baseline test failures. The Fly hostname and running origin were verified on 10 September; a custom
+Cloudflare domain remains optional. See [live release evidence](FLY_CHANNEL_READINESS.md).
 
 ## Approved platform staff redesign — 2026-09-07
 
-**Activated in shared Supabase; local browser logins verified.** The independent light Admin portal and dark Super Admin portal use server-assigned platform roles/modules, database-selected login destinations, audited approval decisions and existing billing/support services. Migrations 050/053 and the two requested account assignments are active. Both browser logins loaded live records through the current local Flask application. Public hosting remains pending. See [rollout and current verification](PLATFORM_STAFF_PORTALS_ROLLOUT.md); this evidence does not establish a hosted production release.
+**Activated in shared Supabase; public staff logins verified on 10 September.** The independent light Admin portal and dark Super Admin portal use server-assigned platform roles/modules, database-selected login destinations, audited approval decisions and existing billing/support services. Migrations 050/053 and the two requested account assignments are active. Both browser logins now load live records through [the public Fly application](https://aibot-chatbot-my.fly.dev/login.html), with the correct role-specific destinations and permission checks. See [original rollout](PLATFORM_STAFF_PORTALS_ROLLOUT.md) and [current deployment evidence](FLY_CHANNEL_READINESS.md).
 
 Super Admin overview now includes current subscriptions by plan, subscription status,
 and payment follow-up charts using the existing authenticated aggregates. Visible

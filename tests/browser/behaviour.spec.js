@@ -2,9 +2,11 @@ const { expect, test } = require("@playwright/test");
 const { startServer } = require("./platform-admin-static-server");
 
 let staticServer;
+let staticOrigin;
 
 test.beforeAll(async () => {
-  staticServer = await startServer();
+  staticServer = await startServer(0);
+  staticOrigin = `http://127.0.0.1:${staticServer.address().port}`;
 });
 
 test.afterAll(async () => {
@@ -139,8 +141,21 @@ async function install(page, world) {
         return route.fulfill(json({ status: "success", data: world.scenarios }));
       }
       if (url.includes("/api/testbot/chat")) {
-        world.sent.push(JSON.parse(req.postData() || "{}").message);
-        return route.fulfill(json({ status: "success", data: { reply: world.reply } }));
+        const message = JSON.parse(req.postData() || "{}").message;
+        world.sent.push(message);
+        if (world.simulateHandoff && message.includes("real person")) world.handoff = true;
+        if (world.chatDelayMs) await new Promise(resolve => setTimeout(resolve, world.chatDelayMs));
+        return route.fulfill(json({ status: "success", data: {
+          reply: world.handoff ? "This conversation is currently assigned to human staff." : world.reply
+        } }));
+      }
+      if (url.includes("/api/testbot/reset")) {
+        if (world.resetFails) return route.fulfill({
+          status: 500, contentType: "application/json",
+          body: JSON.stringify({ status: "error", message: "Could not clear the test conversation. Try again." })
+        });
+        world.handoff = false;
+        return route.fulfill(json({ status: "success" }));
       }
     }
     if (url.includes("/api/bots/")) {
@@ -180,14 +195,14 @@ async function settle(page) {
 
 async function open(page, world, tab = "model") {
   await install(page, world);
-  await page.goto(`/behaviour.html?bot_id=${BOT_ID}&tab=${tab}`);
+  await page.goto(`${staticOrigin}/behaviour.html?bot_id=${BOT_ID}&tab=${tab}`);
   await expect(page.locator("#bh-bot-name")).toHaveText("Northweave Clinic");
 }
 
 test("guided testing preserves setup across the alias and settings detour without claiming a test passed", async ({ page }) => {
   const world = makeWorld();
   await install(page, world);
-  await page.goto(`/testbot.html?bot_id=${BOT_ID}&setup=1`);
+  await page.goto(`${staticOrigin}/testbot.html?bot_id=${BOT_ID}&setup=1`);
   await expect(page).toHaveURL(new RegExp(`/behaviour\\.html\\?tab=test&bot_id=${BOT_ID}&setup=1$`));
   await expect(page.locator("#bh-setup-journey")).toBeVisible();
   await expect(page.locator(".bh-title")).toHaveText("Test your bot");
@@ -203,6 +218,47 @@ test("guided testing preserves setup across the alias and settings detour withou
   await expect(page.locator("#bh-setup-journey")).toBeVisible();
   expect(new URL(page.url()).searchParams.get("setup")).toBe("1");
   expect(world.sent).toEqual([]);
+});
+
+test("Clear resets the Test Lab handoff before the next AI reply", async ({ page }) => {
+  const world = makeWorld({ simulateHandoff: true, reply: "Hello from AI" });
+  await open(page, world, "test");
+  await page.locator("#bh-input").fill("I want a real person");
+  await page.locator("#bh-send").click();
+  await expect(page.locator("#bh-chat")).toContainText("assigned to human staff");
+  await page.locator("#bh-chat-clear").click();
+  await expect(page.locator("#bh-chat .bh-bubble")).toHaveCount(0);
+  expect(world.calls).toContain(`POST /api/testbot/reset?chatbot_id=${BOT_ID}`);
+  await page.locator("#bh-input").fill("Hello");
+  await page.locator("#bh-send").click();
+  await expect(page.locator("#bh-chat")).toContainText("Hello from AI");
+  await expect(page.locator("#bh-chat")).not.toContainText("assigned to human staff");
+  await page.screenshot({ path: test.info().outputPath("test-lab-clear-resumes-ai.png"), fullPage: true });
+});
+
+test("Clear failure preserves the Test Lab transcript and permits retry", async ({ page }) => {
+  const world = makeWorld({ resetFails: true });
+  await open(page, world, "test");
+  await page.locator("#bh-input").fill("Keep this message");
+  await page.locator("#bh-send").click();
+  await expect(page.locator("#bh-chat")).toContainText(world.reply);
+  await page.locator("#bh-chat-clear").click();
+  await expect(page.locator("#bh-chat")).toContainText("Could not clear the test conversation");
+  await expect(page.locator("#bh-chat")).toContainText("Keep this message");
+  await expect(page.locator("#bh-send")).toBeEnabled();
+  world.resetFails = false;
+  await page.locator("#bh-chat-clear").click();
+  await expect(page.locator("#bh-chat .bh-bubble")).toHaveCount(0);
+});
+
+test("Clear waits for an in-flight Test Lab reply", async ({ page }) => {
+  const world = makeWorld({ chatDelayMs: 700 });
+  await open(page, world, "test");
+  await page.locator("#bh-input").fill("Hello");
+  await page.locator("#bh-send").click();
+  await expect(page.locator("#bh-chat-clear")).toBeDisabled();
+  await expect(page.locator("#bh-chat")).toContainText(world.reply);
+  await expect(page.locator("#bh-chat-clear")).toBeEnabled();
 });
 
 /* ── Answer style: the Temperature replacement ─────────────────────── */
@@ -416,7 +472,7 @@ test("cached scenario source uses the readable active primary name", async ({ pa
       ]
     }));
   });
-  await page.goto(`/behaviour.html?bot_id=${BOT_ID}&tab=test`);
+  await page.goto(`${staticOrigin}/behaviour.html?bot_id=${BOT_ID}&tab=test`);
   await expect(page.locator("#bh-bot-name")).toHaveText("Northweave Clinic");
   await page.waitForTimeout(50);
   await expect(page.locator("#bh-scenarios-note")).not.toContainText("bot_42_a88bed7fee6f4c2f8a1f055318c6a5d0");
@@ -598,7 +654,7 @@ test("a setup lookup that fails does not claim the bot is undeployed", async ({ 
     status: 500, contentType: "application/json",
     body: JSON.stringify({ status: "error", message: "boom" })
   }));
-  await page.goto(`/behaviour.html?bot_id=${BOT_ID}&tab=test`);
+  await page.goto(`${staticOrigin}/behaviour.html?bot_id=${BOT_ID}&tab=test`);
 
   await expect(page.locator("#bh-test-warning")).toContainText("Could not read what this bot has deployed");
   await expect(page.locator("#bh-test-warning")).not.toContainText("Nothing is deployed");
@@ -613,7 +669,7 @@ test("a bot you may not open explains itself instead of bouncing you", async ({ 
     status: 403, contentType: "application/json",
     body: JSON.stringify({ status: "error", message: "forbidden" })
   }));
-  await page.goto(`/behaviour.html?bot_id=${BOT_ID}&tab=model`);
+  await page.goto(`${staticOrigin}/behaviour.html?bot_id=${BOT_ID}&tab=model`);
 
   // A stale link used to land on bots.html with no explanation. The tabs are
   // hidden rather than disabled: there is nothing behind them to read.
@@ -627,7 +683,7 @@ test("the old page URLs still land in the right tab", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1200 });
   await install(page, makeWorld());
 
-  await page.goto(`/message_style.html?bot_id=${BOT_ID}`);
+  await page.goto(`${staticOrigin}/message_style.html?bot_id=${BOT_ID}`);
   await expect(page).toHaveURL(/behaviour\.html\?tab=message/);
   await expect(page.locator("#bh-panel-message")).toBeVisible();
 });

@@ -12,16 +12,18 @@
 #     /media/ URLs survive.
 #  3. Region is a privacy decision, not a latency one. See primary_region.
 
-# "whatsapp-chatbot" was taken - Fly app names are unique across all of Fly.io,
-# not just this org. The name IS the hostname, and that hostname gets written
+# Owned by "aibot EMAIL" (organization slug: personal).
+# "wa-chatbot-my" was taken - Fly app names are unique across all of Fly.io.
+# The name IS the hostname, and that hostname gets written
 # into PUBLIC_BASE_URL, every Telegram setWebhook call and every widget embed
 # snippet. Renaming later means re-pointing every channel by hand.
-app = "wa-chatbot-my"
+app = "aibot-chatbot-my"
 
-# Singapore: nearest region to the Malaysian tenant base, and it keeps our
-# tenants' customers' message content in-region. Changing this moves personal
+# Singapore application compute. Supabase and other providers retain their own
+# configured regions; this setting does not determine their data residency.
+# It DOES decide where message content is processed: changing it moves personal
 # data into another jurisdiction and may need a transfer basis under PDPA/GDPR.
-# Do not change it for performance without checking that first.
+# Do not change it for latency without checking that first.
 primary_region = "sin"
 
 [build]
@@ -30,7 +32,18 @@ primary_region = "sin"
 [env]
   PORT = "8000"
   FLASK_DEBUG = "false"
+  # The gunicorn process is the ONLY runner for these jobs - there is no
+  # [processes] block, no cron and no worker machine. Setting either to "false"
+  # here does not defer the work, it deletes it: Wasender replies that fail once
+  # are never retried, and the billing scheduler stops doing subscription
+  # transitions, order reconciliation and the owner notifications added in
+  # b01dd75. To pause them for a handover, do it on one machine
+  # (`fly deploy --env BILLING_SCHEDULER_ENABLED=false`) - never as the
+  # committed default that every later deploy silently inherits.
   WASENDER_RETRY_WORKER_ENABLED = "true"
+  PUBLIC_BASE_URL = "https://aibot-chatbot-my.fly.dev"
+  FRONTEND_URL = "https://aibot-chatbot-my.fly.dev"
+  CORS_ORIGINS = "https://aibot-chatbot-my.fly.dev"
   # Fly's proxy is exactly one hop. Raising this trusts a forged
   # X-Forwarded-For and hands out an unauthenticated rate-limit bypass.
   TRUSTED_PROXY_HOPS = "1"

@@ -35,9 +35,9 @@ class TestSetWebhookSecretToken(unittest.TestCase):
         payload = self.call(secret_token="s3cret")
         self.assertEqual(payload["secret_token"], "s3cret")
 
-    def test_payload_still_drops_pending_updates(self):
+    def test_payload_preserves_pending_updates(self):
         payload = self.call(secret_token="s3cret")
-        self.assertIs(payload["drop_pending_updates"], True)
+        self.assertIs(payload["drop_pending_updates"], False)
         self.assertEqual(payload["url"], "https://example.test/telegram/webhook/abc")
 
     def test_no_secret_token_key_when_none_is_supplied(self):

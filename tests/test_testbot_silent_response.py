@@ -52,6 +52,9 @@ class TestTestBotSilentResponse(unittest.TestCase):
         self.jwt_patch.start()
         self.user_patch.start()
         self.access_patch.start()
+        conversation_patch = patch("app.routes.testbot_routes.get_or_create_conversation", return_value={"id": 100})
+        conversation_patch.start()
+        self.addCleanup(conversation_patch.stop)
 
     def tearDown(self):
         self.access_patch.stop()
@@ -89,6 +92,38 @@ class TestTestBotSilentResponse(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload["status"], "success")
         self.assertEqual(payload["data"]["reply"], "Normal reply")
+
+    def test_clear_resets_server_session_before_the_next_reply(self):
+        """Clear must reach the server, not merely remove the visible bubbles."""
+        with patch("app.routes.testbot_routes.reset_testbot_conversation", create=True) as reset:
+            response = self.client.post(
+                "/api/testbot/reset?chatbot_id=7", headers=self.headers,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        reset.assert_called_once_with(7, 42, "web_testbot_session")
+
+    def test_clear_reports_persistence_failure(self):
+        with patch(
+            "app.routes.testbot_routes.reset_testbot_conversation",
+            create=True, side_effect=RuntimeError("reset unavailable"),
+        ):
+            response = self.client.post(
+                "/api/testbot/reset?chatbot_id=7", headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 500)
+
+    def test_clear_requires_auth_and_chatbot_ownership(self):
+        self.assertEqual(self.client.post("/api/testbot/reset?chatbot_id=7").status_code, 401)
+        with patch(
+            "app.routes.testbot_routes.verify_chatbot_access",
+            side_effect=PermissionError("Access denied"),
+        ), patch("app.routes.testbot_routes.reset_testbot_conversation", create=True) as reset:
+            response = self.client.post(
+                "/api/testbot/reset?chatbot_id=7", headers=self.headers,
+            )
+        self.assertEqual(response.status_code, 403)
+        reset.assert_not_called()
 
 
 if __name__ == "__main__":

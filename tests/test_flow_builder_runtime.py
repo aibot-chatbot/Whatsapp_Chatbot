@@ -381,6 +381,9 @@ class TestBotFlowIntegrationTests(unittest.TestCase):
         self.jwt_patch.start()
         self.user_patch.start()
         self.access_patch.start()
+        conversation_patch = patch("app.routes.testbot_routes.get_or_create_conversation", return_value={"id": 100})
+        conversation_patch.start()
+        self.addCleanup(conversation_patch.stop)
 
     def tearDown(self):
         self.access_patch.stop()
@@ -405,6 +408,7 @@ class TestBotFlowIntegrationTests(unittest.TestCase):
             7,
             source_channel="web",
             operation_type="test_bot",
+            conversation_id=100,
         )
 
 

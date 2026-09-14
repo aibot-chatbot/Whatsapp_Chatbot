@@ -27,7 +27,7 @@ CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
 )
 
 
-def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temperature=0.7, source_channel="whatsapp"):
+def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temperature=0.7, source_channel="whatsapp", conversation=None):
     """Raw DeepSeek API request returning (success, response_object_or_error_text).
 
     This is the internal provider-calling layer used by ai_router.call_provider().
@@ -44,6 +44,7 @@ def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temper
             customer_id=customer_id,
             chatbot_id=chatbot_id,
             source_channel=source_channel,
+            **({"conversation": conversation} if conversation is not None else {}),
         )
 
         if pipeline.get("direct_reply"):

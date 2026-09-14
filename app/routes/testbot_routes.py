@@ -4,6 +4,7 @@ from app.services.ai_router import generate_response, OPERATION_TEST_BOT
 from app.services.settings_service import get_deployed_runtime
 from app.services.profile_service import get_profile_by_name
 from app.services.test_scenario_service import build_test_scenarios
+from app.database.conversation_repository import reset_testbot_conversation, get_or_create_conversation
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import BillingLimitError
@@ -87,6 +88,24 @@ def get_testbot_scenarios():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@testbot_blueprint.route("/api/testbot/reset", methods=["POST"])
+@token_required
+@role_required("admin", "owner")
+def reset_testbot():
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        if not chatbot_id:
+            return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
+
+        access = verify_chatbot_access(chatbot_id)
+        reset_testbot_conversation(chatbot_id, access["company_id"], TESTBOT_SESSION_ID)
+        return jsonify({"status": "success"}), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
+    except Exception as e:
+        return server_error("reset_testbot", e)
+
+
 @testbot_blueprint.route("/api/testbot/chat", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
@@ -109,12 +128,14 @@ def chat_with_testbot():
             }), 400
 
         verify_chatbot_access(chatbot_id)
+        conversation = get_or_create_conversation(chatbot_id, TESTBOT_SESSION_ID, source_channel="web")
         reply = generate_response(
             user_message,
             TESTBOT_SESSION_ID,
             chatbot_id,
             source_channel="web",
             operation_type=OPERATION_TEST_BOT,
+            conversation_id=conversation["id"],
         )
         if reply == "<SILENT_BOT_RESPONSE>":
             reply = "This conversation is currently assigned to human staff."

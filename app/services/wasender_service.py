@@ -9,10 +9,13 @@ from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
 from app.database.wasender_channel_repository import get_wasender_channel_by_secret
 from app.database.processed_wasender_message_repository import (
-    is_wasender_message_processed,
-    save_processed_wasender_message,
+    claim_wasender_message,
+    release_wasender_message_claim,
 )
 from app.services.media_send_service import dispatch_media_after_reply
+from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed
+from app.database.agent_action_repository import is_conversation_escalated
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 
 
 WASENDER_BASE_URL = os.getenv("WASENDER_BASE_URL", "https://wasenderapi.com")
@@ -160,7 +163,8 @@ def send_wasender_text_message(api_key: str, to: str, text: str):
             response_data = None
 
         if response.status_code >= 400:
-            error = f"Wasender send message failed: {response.status_code} {response.text}"
+            # This error is also persisted and logged by retry callers.
+            error = f"Wasender send message failed: {response.status_code}"
             logging.error(error)
             return {
                 "success": False,
@@ -168,6 +172,8 @@ def send_wasender_text_message(api_key: str, to: str, text: str):
                 "error": error,
             }
 
+        if not isinstance(response_data, dict) or response_data.get("success") is not True:
+            return {"success": False, "data": response_data, "error": "Wasender did not confirm acceptance"}
         logging.info(f"Wasender send message success: {response.status_code}")
 
         return {
@@ -182,7 +188,7 @@ def send_wasender_text_message(api_key: str, to: str, text: str):
         return {"success": False, "data": None, "error": error}
 
     except requests.RequestException as e:
-        error = f"Failed to send Wasender message: {e}"
+        error = f"Failed to send Wasender message ({type(e).__name__})"
         logging.error(error)
         return {"success": False, "data": None, "error": error}
 
@@ -223,7 +229,7 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
     channel = get_wasender_channel_by_secret(webhook_secret)
 
     if not channel:
-        logging.error(f"No active Wasender channel found for secret: {webhook_secret}")
+        logging.error("No active Wasender channel found for webhook.")
         return
 
     wasender_channel_id = channel["id"]
@@ -245,12 +251,11 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
     message_text = parsed.get("message_text")
     customer_name = parsed.get("customer_name")
 
-    logging.info(f"Wasender webhook event: {event}")
-    logging.info(f"Wasender parsed message: {parsed}")
+    logging.info("Wasender webhook parsed.")
 
     # Only handle incoming message event
     if event and event != "messages.received":
-        logging.info(f"Wasender event ignored: {event}")
+        logging.info("Wasender non-message event ignored.")
         return
 
     # Avoid replying to own outgoing messages
@@ -262,13 +267,27 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
         logging.warning("Wasender message missing message_id. Ignored.")
         return
 
-    if is_wasender_message_processed(wasender_channel_id, message_id):
-        logging.info(f"Duplicate Wasender message ignored: {message_id}")
+    validate_channel(channel, "wasender", chatbot_id)
+    if not claim_wasender_message(wasender_channel_id, message_id):
+        logging.info("Duplicate Wasender message ignored.")
         return
+    progress = {"started": False}
+    try:
+        return _process_claimed_wasender_message(parsed, channel, progress)
+    except Exception:
+        if not progress["started"]:
+            release_wasender_message_claim(wasender_channel_id, message_id)
+        raise
 
+
+def _process_claimed_wasender_message(parsed, channel, progress):
+    chatbot_id = channel["chatbot_id"]
+    message_id = parsed["message_id"]
+    customer_phone = parsed.get("customer_phone")
+    message_text = parsed.get("message_text")
+    customer_name = parsed.get("customer_name")
     if not customer_phone:
         logging.warning("Wasender message missing sender phone. Ignored.")
-        save_processed_wasender_message(wasender_channel_id, message_id)
         return
 
     conversation = get_or_create_conversation(
@@ -276,7 +295,16 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
         customer_phone=customer_phone,
         customer_name=customer_name,
         source_channel="wasender",
+        **channel_identity(channel, "wasender"),
     )
+
+    paused = is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation)
+    progress["started"] = True
+    if paused:
+        save_message(conversation_id=conversation["id"], sender_type="customer",
+                     message_text=message_text or "[Customer attachment]", message_type="text",
+                     platform_message_id=message_id, delivery_status="received", ai_generated=False)
+        return
 
     # Handle non-text messages safely
     if not message_text:
@@ -295,8 +323,12 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
             "Please type your question and I’ll help you."
         )
 
-        send_result = send_wasender_text_message(api_key, customer_phone, reply)
-        send_ok = send_result and send_result.get("success")
+        with conversation_delivery_lock(conversation["id"]):
+            channel = get_bound_channel(conversation)
+            if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+                return
+            send_result = send_wasender_text_message(channel["api_key"], customer_phone, reply)
+        send_ok = delivery_accepted("wasender", send_result)
 
         first_failed_at = None
         next_retry_at = None
@@ -319,7 +351,6 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
             last_error=last_error,
         )
 
-        save_processed_wasender_message(wasender_channel_id, message_id)
         return
 
     save_message(
@@ -337,24 +368,32 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
         customer_phone,
         chatbot_id,
         source_channel="wasender",
+        conversation_id=conversation["id"],
     )
 
     if reply == "<SILENT_BOT_RESPONSE>":
         logging.info("AI is silenced (conversation escalated to human).")
-        save_processed_wasender_message(wasender_channel_id, message_id)
         return
 
     send_success = True
     send_errors = []
 
-    for reply_part in split_wasender_reply(reply):
-        send_result = send_wasender_text_message(api_key, customer_phone, reply_part)
+    for i, reply_part in enumerate(split_wasender_reply(reply)):
+        with conversation_delivery_lock(conversation["id"]):
+            channel = get_bound_channel(conversation)
+            if not automatic_reply_allowed(conversation, reply, paused=is_conversation_escalated(
+                    conversation["id"], chatbot_id, conversation=conversation)):
+                if i == 0:
+                    return
+                send_success = False
+                send_errors.append("Automatic reply stopped because human handoff is active.")
+                break
+            send_result = send_wasender_text_message(channel["api_key"], customer_phone, reply_part)
 
-        if not send_result or not send_result.get("success"):
+        if not delivery_accepted("wasender", send_result):
             send_success = False
-            send_errors.append(
-                send_result.get("error") if send_result else "WasenderAPI send failed"
-            )
+            send_errors.append("Provider did not confirm delivery; review before retrying.")
+            break
 
     first_failed_at = None
     next_retry_at = None
@@ -377,9 +416,9 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
         last_error=last_error,
     )
 
-    save_processed_wasender_message(wasender_channel_id, message_id)
     
     # Try sending any configured media attachments that match the user's message
-    if send_success:
+    if send_success and not is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
         # Re-fetch channel to pass to dispatch so it has api_key
-        dispatch_media_after_reply(message_text, chatbot_id, "wasender", channel, customer_phone)
+        dispatch_media_after_reply(message_text, chatbot_id, "wasender", get_bound_channel(conversation), customer_phone,
+                                   conversation=conversation)

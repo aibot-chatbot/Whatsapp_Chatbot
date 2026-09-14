@@ -229,6 +229,19 @@ class TestGetWebhookInfoHelper(unittest.TestCase):
 
 class _RouteTestCase(unittest.TestCase):
     def setUp(self):
+        ownership = patch.object(tr, "get_telegram_channel_by_bot_id", return_value=None)
+        claim = patch.object(tr, "claim_telegram_channel_operation", return_value=_stored_channel(connection_status="pending"))
+        activate = patch.object(tr, "activate_telegram_channel", side_effect=lambda channel_id, chatbot_id, company_id, **kwargs:
+                                tr.update_telegram_channel(channel_id, {"connection_status": "connected", "last_error": None, "is_active": True}))
+        channels = patch.object(tr, "get_telegram_channels_by_chatbot", return_value=[])
+        ownership.start()
+        claim.start()
+        activate.start()
+        channels.start()
+        self.addCleanup(ownership.stop)
+        self.addCleanup(claim.stop)
+        self.addCleanup(activate.stop)
+        self.addCleanup(channels.stop)
         app = create_app()
         app.config["TESTING"] = True
         self.client = app.test_client()
@@ -237,13 +250,17 @@ class _RouteTestCase(unittest.TestCase):
 class TestConnectVerifiesDelivery(_RouteTestCase):
     @contextmanager
     def _connect_stack(self, telegram, updates):
-        def record_update(channel_id, payload):
+        def record_update(channel_id, payload, **kwargs):
             updates.append((channel_id, payload))
             merged = _stored_channel()
             merged.update(payload)
             return merged
 
-        with authenticated_admin(), \
+        # The webhook destination comes from the server's PUBLIC_BASE_URL and is
+        # deliberately not accepted from the request body, so a caller cannot
+        # point a tenant's Telegram deliveries at a host they control.
+        with patch.dict(tr.os.environ, {"PUBLIC_BASE_URL": "https://example.test"}), \
+                authenticated_admin(), \
                 patch.object(tr, "verify_chatbot_access",
                              return_value={"id": CHATBOT_ID, "company_id": COMPANY_ID}), \
                 patch.object(tr, "get_bot_by_id",
@@ -264,8 +281,7 @@ class TestConnectVerifiesDelivery(_RouteTestCase):
             return self.client.post(
                 "/api/telegram/connect?chatbot_id=" + str(CHATBOT_ID),
                 headers=AUTH_HEADERS,
-                json={"bot_token": BOT_TOKEN,
-                      "webhook_base_url": "https://example.test"},
+                json={"bot_token": BOT_TOKEN},
             )
 
     def test_a_reported_delivery_error_is_not_reported_as_connected(self):
@@ -308,8 +324,7 @@ class TestConnectVerifiesDelivery(_RouteTestCase):
             response = self.client.post(
                 "/api/telegram/connect?chatbot_id=" + str(CHATBOT_ID),
                 headers=AUTH_HEADERS,
-                json={"bot_token": BOT_TOKEN,
-                      "webhook_base_url": "https://example.test"},
+                json={"bot_token": BOT_TOKEN},
             )
 
         payload = updates[-1][1]
@@ -337,7 +352,7 @@ class TestConnectVerifiesDelivery(_RouteTestCase):
 class TestReconnectVerifiesDelivery(_RouteTestCase):
     @contextmanager
     def _reconnect_stack(self, telegram, updates, channel, billing_error=None):
-        def record_update(channel_id, payload):
+        def record_update(channel_id, payload, **kwargs):
             updates.append((channel_id, payload))
             merged = dict(channel)
             merged.update(payload)

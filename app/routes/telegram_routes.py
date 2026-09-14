@@ -6,6 +6,7 @@ import re
 import secrets
 import time
 import requests
+from datetime import datetime, timezone
 
 from flask import Blueprint, request, jsonify
 
@@ -14,17 +15,84 @@ from app.services.billing_guard import can_connect_channel, BillingLimitError
 from app.services.company_status_service import company_operational_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.database.bot_repository import get_bot_by_id
+from app.database.db_errors import is_unique_violation
+from app.database.channel_lifecycle_repository import ChannelActivationError
 from app.database.telegram_channel_repository import (
     create_telegram_channel,
+    activate_telegram_channel,
+    claim_telegram_channel_operation,
     update_telegram_channel,
     get_telegram_channel_by_id,
+    get_telegram_channel_by_bot_id,
     get_telegram_channels_by_chatbot,
 )
-from app.utils.telegram_utils import process_telegram_update
+from app.utils.telegram_utils import process_telegram_update, TelegramChannelNotReadyError
 from app.utils.api_errors import server_error
 
 
 telegram_blueprint = Blueprint("telegram", __name__)
+TELEGRAM_OWNERSHIP_CONFLICT_MESSAGE = (
+    "This Telegram bot is already connected to another channel. "
+    "Disconnect that channel before connecting it here."
+)
+
+
+def _telegram_ownership_conflict():
+    return jsonify({
+        "status": "error",
+        "code": "telegram_bot_already_connected",
+        "message": TELEGRAM_OWNERSHIP_CONFLICT_MESSAGE,
+    }), 409
+
+
+def _telegram_channel_busy():
+    return jsonify({
+        "status": "error",
+        "code": "telegram_channel_busy",
+        "message": "This Telegram channel has a connection change in progress.",
+    }), 409
+
+
+ACTIVATION_UNAVAILABLE_MESSAGE = "Could not finish the Telegram connection. Please retry."
+
+
+def _activate_verified_channel(channel_id, chatbot_id, company_id, expected_attempt_at=None):
+    try:
+        verified = update_telegram_channel(channel_id, {"verified_at": datetime.now(timezone.utc).isoformat()},
+                                          expected_status="pending", expected_attempt_at=expected_attempt_at)
+        channel = (activate_telegram_channel(channel_id, chatbot_id, company_id, expected_attempt_at=expected_attempt_at)
+                   if verified else None)
+    except ChannelActivationError as exc:
+        update_telegram_channel(channel_id, {
+            "connection_status": "failed", "last_error": str(exc),
+        }, expected_status="pending", expected_attempt_at=expected_attempt_at)
+        return None, (jsonify({"status": "error", "code": exc.code, "message": str(exc)}),
+                      403 if exc.code in {"channel_limit", "no_subscription"} else 503)
+    except Exception:
+        logging.warning("Telegram atomic activation unavailable", exc_info=False)
+        update_telegram_channel(channel_id, {
+            "connection_status": "failed", "last_error": ACTIVATION_UNAVAILABLE_MESSAGE,
+        }, expected_status="pending", expected_attempt_at=expected_attempt_at)
+        return None, (jsonify({
+            "status": "error", "code": "telegram_activation_unavailable",
+            "message": ACTIVATION_UNAVAILABLE_MESSAGE,
+        }), 503)
+    if not channel:
+        return None, (jsonify({
+            "status": "error", "code": "telegram_connection_superseded",
+            "message": "A newer Telegram connection replaced this attempt. Refresh to see it.",
+        }), 409)
+    return channel, None
+
+
+def _check_channel_slot(company_id, chatbot_id, current_channel=None):
+    # Replacement consumes the same plan slot. Atomic activation retires the
+    # incumbent, so a company at its limit can still change its Telegram bot.
+    if _counts_towards_channel_limit(current_channel or {}):
+        return
+    if get_telegram_channels_by_chatbot(chatbot_id, active_only=True):
+        return
+    can_connect_channel(company_id)
 
 
 def clean_public_base_url(url: str):
@@ -56,19 +124,28 @@ def validate_telegram_bot_token(bot_token: str):
     """
     url = f"https://api.telegram.org/bot{bot_token}/getMe"
 
-    response = requests.get(url, timeout=10)
+    try:
+        response = requests.get(url, timeout=10)
+    except requests.RequestException:
+        return None, "Could not reach Telegram to validate the bot token"
 
     if response.status_code != 200:
         return None, f"Telegram getMe failed with status {response.status_code}"
 
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        return None, "Telegram returned an unreadable bot identity"
 
-    if not data.get("ok"):
+    if not isinstance(data, dict) or not data.get("ok"):
         return None, _safe_telegram_error_description(
-            data.get("description"), "Invalid Telegram bot token"
+            data.get("description") if isinstance(data, dict) else None, "Invalid Telegram bot token"
         )
 
-    return data.get("result"), None
+    bot_info = data.get("result")
+    if not isinstance(bot_info, dict) or not bot_info.get("id"):
+        return None, "Invalid Telegram bot token"
+    return bot_info, None
 
 
 def set_telegram_webhook(bot_token: str, webhook_url: str, secret_token: str = None):
@@ -84,26 +161,28 @@ def set_telegram_webhook(bot_token: str, webhook_url: str, secret_token: str = N
 
     payload = {
         "url": webhook_url,
-        "drop_pending_updates": True,
+        "drop_pending_updates": False,
     }
 
     if secret_token:
         payload["secret_token"] = secret_token
 
-    response = requests.post(
-        url,
-        json=payload,
-        timeout=10,
-    )
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+    except requests.RequestException:
+        return False, "Could not reach Telegram to register the webhook"
 
     if response.status_code != 200:
         return False, f"Telegram setWebhook failed with status {response.status_code}"
 
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError:
+        return False, "Failed to set Telegram webhook"
 
-    if not data.get("ok"):
+    if not isinstance(data, dict) or not data.get("ok"):
         return False, _safe_telegram_error_description(
-            data.get("description"), "Failed to set Telegram webhook"
+            data.get("description") if isinstance(data, dict) else None, "Failed to set Telegram webhook"
         )
 
     return True, None
@@ -122,9 +201,18 @@ def delete_telegram_webhook(bot_token: str):
     try:
         response = requests.post(
             url,
-            json={"drop_pending_updates": True},
+            json={"drop_pending_updates": False},
             timeout=10,
         )
+
+        if response.status_code in (401, 404):
+            # The token is revoked or the bot is gone, so it cannot be
+            # delivering anything and there is nothing left to detach. Treating
+            # this as a failure is what strands the row: is_active stays true,
+            # it holds telegram_channels_active_provider_identity_uidx for that
+            # bot id forever, and the tenant can never connect a replacement -
+            # which is exactly what happens after BotFather /revoke.
+            return True, None
 
         if response.status_code != 200:
             return False, f"Telegram deleteWebhook failed with status {response.status_code}"
@@ -161,7 +249,7 @@ DELIVERY_WRONG_SERVER_MESSAGE = (
     "This Telegram bot delivers messages to a different server, so it cannot "
     "answer here. Disconnect it there, then connect it again."
 )
-DELIVERY_OK_MESSAGE = "Telegram is delivering messages to your server."
+DELIVERY_OK_MESSAGE = "Telegram is configured for this server with no current delivery error reported."
 DELIVERY_UNKNOWN_MESSAGE = (
     "We could not check with Telegram just now. Try again in a moment."
 )
@@ -220,6 +308,10 @@ def _safe_stored_telegram_error(error):
             DELIVERY_WRONG_SERVER_MESSAGE,
             DELIVERY_OK_MESSAGE,
             DELIVERY_UNKNOWN_MESSAGE,
+            ACTIVATION_UNAVAILABLE_MESSAGE,
+            "Could not reach Telegram to register the webhook",
+            "Could not reach Telegram to validate the bot token",
+            "Telegram returned an unreadable bot identity",
         } or re.fullmatch(
             r"Telegram (?:getMe|setWebhook|deleteWebhook|getWebhookInfo) failed with status [1-5][0-9]{2}",
             error,
@@ -255,12 +347,17 @@ def get_telegram_webhook_info(bot_token: str) -> tuple[dict | None, str | None]:
     except ValueError:
         return None, "Telegram getWebhookInfo returned an unreadable response"
 
+    if not isinstance(data, dict):
+        return None, "Telegram getWebhookInfo returned an unreadable response"
     if not data.get("ok"):
         return None, _safe_telegram_error_description(
             data.get("description"), "Failed to read Telegram webhook info"
         )
 
-    return data.get("result") or {}, None
+    result = data.get("result")
+    if not isinstance(result, dict):
+        return None, "Telegram getWebhookInfo returned an unreadable response"
+    return result, None
 
 
 def check_telegram_webhook_delivery(
@@ -282,20 +379,28 @@ def check_telegram_webhook_delivery(
         logging.warning("Telegram getWebhookInfo unavailable: %s", _safe_stored_telegram_error(read_error))
         return DELIVERY_STATUS_UNKNOWN, None, {}
 
-    if expected_url and (info.get("url") or "") != expected_url:
+    if not expected_url or (info.get("url") or "") != expected_url:
         # The bot is pointed somewhere else, so nothing will ever reach us.
         # The URL itself is never logged: it carries the webhook secret.
         logging.warning("Telegram webhook for this bot is registered to another URL")
         return DELIVERY_STATUS_FAILED, DELIVERY_WRONG_SERVER_MESSAGE, info
 
     last_error_message = info.get("last_error_message")
+    # Our pending-channel response asks Telegram to retry without consuming the
+    # update. Its matching URL and 409 confirm reachability during activation.
+    activation_retry = last_error_message == "Wrong response from the webhook: 409 Conflict"
 
     try:
         last_error_date = int(info.get("last_error_date") or 0)
     except (TypeError, ValueError):
         last_error_date = 0
 
-    if last_error_message and (
+    pending_count = info.get("pending_update_count")
+    historical_error = (
+        registered_since is None and type(pending_count) is int
+        and pending_count == 0 and last_error_date < int(time.time()) - 300
+    )
+    if last_error_message and not activation_retry and not historical_error and (
         registered_since is None or last_error_date >= registered_since
     ):
         safe_reason = describe_telegram_delivery_error(last_error_message)
@@ -324,10 +429,8 @@ def connect_telegram():
         "bot_token": "TOKEN_FROM_BOTFATHER"
     }
 
-    Optional:
-    {
-        "webhook_base_url": "https://api.example.com"
-    }
+    The webhook destination is taken from PUBLIC_BASE_URL on the server and is
+    deliberately not accepted from the request.
     """
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -368,13 +471,16 @@ def connect_telegram():
             }), 400
 
         telegram_bot_id = str(bot_info.get("id"))
+        if get_telegram_channel_by_bot_id(telegram_bot_id):
+            return _telegram_ownership_conflict()
         bot_username = bot_info.get("username")
 
-        # Use the request value first, then the configured public deployment URL.
-        public_base_url = clean_public_base_url(
-            data.get("webhook_base_url")
-            or os.getenv("PUBLIC_BASE_URL")
-        )
+        # The server decides where Telegram delivers, never the caller. The
+        # verification below compares Telegram's reported webhook against this
+        # same string, so a caller-supplied base URL would verify itself: the
+        # tenant's inbound messages (and the webhook secret) would go to the
+        # caller's host while the dashboard still showed "connected".
+        public_base_url = clean_public_base_url(os.getenv("PUBLIC_BASE_URL"))
 
         if not public_base_url:
             return jsonify({
@@ -386,7 +492,7 @@ def connect_telegram():
         webhook_url = f"{public_base_url}/telegram/webhook/{webhook_secret}"
 
         # Check subscription limit before creating channel
-        can_connect_channel(company_id)
+        _check_channel_slot(company_id, chatbot_id)
 
         # Save channel first as pending
         channel = create_telegram_channel(
@@ -430,6 +536,13 @@ def connect_telegram():
             bot_token, webhook_url, registered_since=registered_at
         )
 
+        if delivery_status == DELIVERY_STATUS_UNKNOWN:
+            update_telegram_channel(channel["id"], {
+                "connection_status": "failed", "last_error": DELIVERY_UNKNOWN_MESSAGE,
+            })
+            return jsonify({"status": "error", "code": "telegram_verification_unavailable",
+                            "message": DELIVERY_UNKNOWN_MESSAGE}), 503
+
         if delivery_status == DELIVERY_STATUS_FAILED:
             # The row and the saved token stay exactly as they are: the server
             # can come back, and the user must be able to retry without pasting
@@ -445,10 +558,10 @@ def connect_telegram():
                 "message": delivery_reason
             }), 502
 
-        updated_channel = update_telegram_channel(channel["id"], {
-            "connection_status": "connected",
-            "last_error": None,
-        })
+        updated_channel, activation_error = _activate_verified_channel(
+            channel["id"], chatbot_id, company_id, channel.get("connection_attempted_at"))
+        if activation_error:
+            return activation_error
 
         return jsonify({
             "status": "success",
@@ -460,6 +573,7 @@ def connect_telegram():
                 "telegram_bot_id": updated_channel.get("telegram_bot_id"),
                 "webhook_url": updated_channel.get("webhook_url"),
                 "connection_status": updated_channel.get("connection_status"),
+                "verified_at": updated_channel.get("verified_at"),
                 "is_active": updated_channel.get("is_active"),
             }
         }), 200
@@ -474,6 +588,8 @@ def connect_telegram():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
+        if is_unique_violation(e):
+            return _telegram_ownership_conflict()
         return server_error("connect_telegram", e)
 
 
@@ -505,6 +621,8 @@ def list_telegram_channels():
                 "telegram_bot_id": channel.get("telegram_bot_id"),
                 "webhook_url": channel.get("webhook_url"),
                 "connection_status": channel.get("connection_status"),
+                "verified_at": channel.get("verified_at"),
+                "connection_attempted_at": channel.get("connection_attempted_at"),
                 "last_error": _safe_stored_telegram_error(channel.get("last_error")),
                 "is_active": channel.get("is_active"),
                 "created_at": channel.get("created_at"),
@@ -552,12 +670,40 @@ def disconnect_telegram_channel(channel_id):
                 "message": "This Telegram channel does not belong to this chatbot"
             }), 403
 
+        if not channel.get("is_active"):
+            return jsonify({
+                "status": "error",
+                "code": "telegram_channel_inactive",
+                "message": "This Telegram channel is already inactive.",
+            }), 409
+        if channel.get("connection_status") == "pending":
+            return _telegram_channel_busy()
+        if not channel.get("telegram_bot_id"):
+            return jsonify({
+                "status": "error",
+                "code": "telegram_identity_unverified",
+                "message": "Reconnect this channel to verify its Telegram identity first.",
+            }), 409
+        if get_telegram_channel_by_bot_id(
+            channel.get("telegram_bot_id"), exclude_channel_id=channel_id
+        ):
+            return _telegram_ownership_conflict()
+        if not claim_telegram_channel_operation(channel, {}):
+            return _telegram_channel_busy()
         webhook_ok, webhook_error = delete_telegram_webhook(channel.get("bot_token"))
+
+        if not webhook_ok:
+            # A failed/uncertain deletion must not release provider ownership.
+            update_telegram_channel(channel_id, {
+                "connection_status": "failed",
+                "last_error": webhook_error,
+            })
+            return jsonify({"status": "error", "message": webhook_error}), 502
 
         update_data = {
             "is_active": False,
             "connection_status": "disconnected",
-            "last_error": None if webhook_ok else webhook_error,
+            "last_error": None,
         }
 
         updated_channel = update_telegram_channel(channel_id, update_data)
@@ -577,13 +723,13 @@ def disconnect_telegram_channel(channel_id):
                 "bot_username": updated_channel.get("bot_username"),
                 "telegram_bot_id": updated_channel.get("telegram_bot_id"),
                 "connection_status": updated_channel.get("connection_status"),
+                "verified_at": updated_channel.get("verified_at"),
                 "is_active": updated_channel.get("is_active"),
                 "last_error": _safe_stored_telegram_error(updated_channel.get("last_error")),
             }
         }), 200
 
     except Exception as e:
-        logging.error(f"Disconnect Telegram channel error: {e}")
         return server_error("disconnect_telegram_channel", e)
 
 
@@ -618,6 +764,9 @@ def reconnect_telegram_channel(channel_id):
 
         bot_token = channel.get("bot_token")
 
+        if channel.get("connection_status") == "pending":
+            return _telegram_channel_busy()
+
         if not bot_token:
             return jsonify({
                 "status": "error",
@@ -630,22 +779,24 @@ def reconnect_telegram_channel(channel_id):
         # pass the same limit check that connect does. A channel that is already
         # live is not re-checked, otherwise a company at its limit could never
         # repair a channel it already owns.
-        if not _counts_towards_channel_limit(channel):
-            can_connect_channel(channel.get("company_id"))
+        _check_channel_slot(channel.get("company_id"), chatbot_id, channel)
 
         bot_info, token_error = validate_telegram_bot_token(bot_token)
 
         if token_error:
-            update_telegram_channel(channel_id, {
-                "connection_status": "failed",
-                "last_error": token_error,
-                "is_active": False,
-            })
-
             return jsonify({
                 "status": "error",
                 "message": token_error
             }), 400
+
+        telegram_bot_id = str(bot_info.get("id"))
+        if get_telegram_channel_by_bot_id(
+            telegram_bot_id, exclude_channel_id=channel_id
+        ):
+            return _telegram_ownership_conflict()
+        if channel.get("telegram_bot_id") and str(channel["telegram_bot_id"]) != telegram_bot_id:
+            return jsonify({"status": "error", "code": "CHANNEL_REPLACED",
+                            "message": "The saved credentials no longer match this bot. Use Change bot to set up a new connection."}), 409
 
         public_base_url = clean_public_base_url(
             os.getenv("PUBLIC_BASE_URL")
@@ -657,8 +808,28 @@ def reconnect_telegram_channel(channel_id):
                 "message": "PUBLIC_BASE_URL is missing. Configure a deployed public HTTPS server URL."
             }), 400
 
+        # Always mint a new one. This value is both the webhook path segment and
+        # the Telegram secret_token, so anyone who has ever held the bot token
+        # can read it back out of getWebhookInfo. Reusing it on reconnect would
+        # leave a tenant with no way to rotate a leaked channel secret. Safe to
+        # rotate here because claim_telegram_channel_operation persists the new
+        # secret below before setWebhook is called.
         webhook_secret = secrets.token_urlsafe(32)
         webhook_url = f"{public_base_url}/telegram/webhook/{webhook_secret}"
+
+        # Claim the provider identity before changing its webhook. The unique
+        # active-provider index arbitrates concurrent claims from other rows.
+        claimed_channel = claim_telegram_channel_operation(channel, {
+            "telegram_bot_id": telegram_bot_id,
+            "bot_username": bot_info.get("username"),
+            "webhook_secret": webhook_secret,
+            "webhook_url": webhook_url,
+            "connection_status": "pending",
+            "is_active": True,
+            "connection_attempted_at": datetime.now(timezone.utc).isoformat(),
+        })
+        if not claimed_channel:
+            return _telegram_channel_busy()
 
         registered_at = int(time.time())
 
@@ -670,7 +841,6 @@ def reconnect_telegram_channel(channel_id):
             update_telegram_channel(channel_id, {
                 "connection_status": "failed",
                 "last_error": webhook_error,
-                "is_active": False,
             })
 
             return jsonify({
@@ -681,6 +851,13 @@ def reconnect_telegram_channel(channel_id):
         delivery_status, delivery_reason, _ = check_telegram_webhook_delivery(
             bot_token, webhook_url, registered_since=registered_at
         )
+
+        if delivery_status == DELIVERY_STATUS_UNKNOWN:
+            update_telegram_channel(channel_id, {
+                "connection_status": "failed", "last_error": DELIVERY_UNKNOWN_MESSAGE,
+            })
+            return jsonify({"status": "error", "code": "telegram_verification_unavailable",
+                            "message": DELIVERY_UNKNOWN_MESSAGE}), 503
 
         if delivery_status == DELIVERY_STATUS_FAILED:
             # Telegram now holds this secret, so the row has to hold it too. If
@@ -705,21 +882,10 @@ def reconnect_telegram_channel(channel_id):
                 "message": delivery_reason
             }), 502
 
-        updated_channel = update_telegram_channel(channel_id, {
-            "telegram_bot_id": str(bot_info.get("id")),
-            "bot_username": bot_info.get("username"),
-            "webhook_secret": webhook_secret,
-            "webhook_url": webhook_url,
-            "connection_status": "connected",
-            "last_error": None,
-            "is_active": True,
-        })
-
-        if not updated_channel:
-            return jsonify({
-                "status": "error",
-                "message": "Failed to update Telegram channel"
-            }), 500
+        updated_channel, activation_error = _activate_verified_channel(
+            channel_id, chatbot_id, channel.get("company_id"), claimed_channel.get("connection_attempted_at"))
+        if activation_error:
+            return activation_error
 
         return jsonify({
             "status": "success",
@@ -731,6 +897,7 @@ def reconnect_telegram_channel(channel_id):
                 "telegram_bot_id": updated_channel.get("telegram_bot_id"),
                 "webhook_url": updated_channel.get("webhook_url"),
                 "connection_status": updated_channel.get("connection_status"),
+                "verified_at": updated_channel.get("verified_at"),
                 "is_active": updated_channel.get("is_active"),
                 "last_error": _safe_stored_telegram_error(updated_channel.get("last_error")),
             }
@@ -744,6 +911,8 @@ def reconnect_telegram_channel(channel_id):
         }), 403
 
     except Exception as e:
+        if is_unique_violation(e):
+            return _telegram_ownership_conflict()
         return server_error("reconnect_telegram_channel", e)
 
 
@@ -781,10 +950,12 @@ def get_telegram_channel_delivery(channel_id):
                 "message": "This Telegram channel does not belong to this chatbot"
             }), 403
 
-        delivery_status, delivery_reason, info = check_telegram_webhook_delivery(
-            channel.get("bot_token"),
-            channel.get("webhook_url"),
-        )
+        if not _counts_towards_channel_limit(channel):
+            delivery_status, delivery_reason, info = (
+                DELIVERY_STATUS_UNKNOWN, None, {})
+        else:
+            delivery_status, delivery_reason, info = check_telegram_webhook_delivery(
+                channel.get("bot_token"), channel.get("webhook_url"))
 
         if delivery_status == DELIVERY_STATUS_OK:
             message = DELIVERY_OK_MESSAGE
@@ -806,8 +977,10 @@ def get_telegram_channel_delivery(channel_id):
                 "chatbot_id": channel.get("chatbot_id"),
                 "bot_username": channel.get("bot_username"),
                 "connection_status": channel.get("connection_status"),
+                "verified_at": channel.get("verified_at"),
                 "is_active": channel.get("is_active"),
                 "delivery_status": delivery_status,
+                "checked_at": datetime.now(timezone.utc).isoformat(),
                 "is_delivering": delivery_status == DELIVERY_STATUS_OK,
                 "message": message,
                 "pending_update_count": pending_count,
@@ -821,7 +994,7 @@ def get_telegram_channel_delivery(channel_id):
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        logging.error(f"Telegram channel delivery check error: {e}")
+        logging.error("Telegram channel delivery check error (%s)", type(e).__name__)
         return server_error("get_telegram_channel_delivery", e)
 
 
@@ -886,6 +1059,8 @@ def telegram_webhook_post(webhook_secret):
 
         return jsonify({"status": "ok"}), 200
 
+    except TelegramChannelNotReadyError:
+        return jsonify({"status": "error", "message": "Telegram connection is not ready"}), 409
     except Exception as e:
         logging.error("Telegram webhook error (%s)", type(e).__name__)
         return jsonify({

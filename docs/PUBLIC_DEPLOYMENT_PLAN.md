@@ -1,11 +1,22 @@
 # Public deployment: Fly.io application, Cloudflare domain
 
-Date: 2026-09-07. Status: **researched plan; not deployed**.
-Scope: document the first public release and its verification before changing hosting.
+Date: 2026-09-07; updated 2026-09-10. Status: **public application live; channel rollout partial**.
+
+[Live login](https://aibot-chatbot-my.fly.dev/login.html) runs in the paid
+**aibot EMAIL** organization (`personal`), following the user's correction from
+IOMaths. One Singapore Machine and an encrypted 1 GB volume are running; public
+DNS/TLS, both staff password logins, authorization, dashboard charts and three
+enabled website bots were verified. Forty-one available runtime files were
+restored and hash-checked on the volume. The remaining operational and channel
+gaps are recorded in [current release evidence](FLY_CHANNEL_READINESS.md).
+The configuration-only security scan passed; it does not supersede the earlier
+incomplete source scan.
+The eight-path Telegram scan completed with one low-severity legacy-data finding;
+the required malformed active record is absent from the live channel inventory.
 
 ## Decision
 
-**Use the existing Fly.io deployment for the Flask application.** Keep Cloudflare
+**Use the existing Fly.io configuration for the Flask application.** Keep Cloudflare
 for DNS and, optionally, the HTTPS proxy/cache. Keep Supabase for the database.
 This follows the existing Docker deployment and avoids a hosting rewrite.
 
@@ -13,10 +24,10 @@ This follows the existing Docker deployment and avoids a hosting rewrite.
 Customer / website visitor / channel provider
                     |
           Permanent HTTPS hostname
-          Cloudflare DNS / optional proxy
+          Fly hostname (Cloudflare optional later)
                     |
-          Fly.io: wa-chatbot-my, Singapore
-          Flask + Gunicorn + background jobs
+          Fly.io: aibot-chatbot-my, Singapore
+          Flask + Gunicorn (background jobs off)
              |                     |
          Supabase            /app/data volume
       tenant records       PDFs and uploaded media
@@ -34,10 +45,10 @@ configuration in the repository; this plan does not use it as the primary host.
 
 | Area | Repository evidence / current limitation |
 | --- | --- |
-| App host | [fly.toml](../fly.toml): `wa-chatbot-my`, region `sin`, port 8000, 1 GB VM configuration. This does not prove a running deployment or adequate capacity. |
+| App host | [fly.toml](../fly.toml): `aibot-chatbot-my`, region `sin`, port 8000, 1 GB VM. Live single-Machine deployment verified; adequate capacity is not load-tested. |
 | Server | [Dockerfile](../Dockerfile): Gunicorn, one worker, eight threads, 120-second worker timeout, non-root user. |
-| Persistent files | Fly mount `chatbot_data` at `/app/data`; knowledge files use that directory and media defaults to its `media_uploads` subdirectory. Verify the actual volume and any environment override before release. |
-| Background jobs | [wsgi.py](../wsgi.py) starts Wasender retries and billing scheduling by default. These must have one owner. |
+| Persistent files | Fly mount `chatbot_data` at `/app/data`; knowledge files use that directory and media defaults to its `media_uploads` subdirectory. The live mount, UID 1000 write access and 41 restored file hashes were verified after deployment; missing source PDFs remain a recovery gap. |
+| Background jobs | [wsgi.py](../wsgi.py) defaults are overridden in `fly.toml`: Wasender retries, billing scheduling and Langflow automation remain disabled until runtime ownership is handed over. |
 | Availability | Automatic stop and start are disabled. `min_machines_running = 1` does **not** enforce a maximum of one Machine. Inspect actual Machine count. |
 | Health | Fly and Docker checks request `/`. HTTP 200 there does not prove database access, upload processing, AI replies, channel delivery, or background-job success. |
 
@@ -50,11 +61,9 @@ See [client journey evidence](CLIENT_JOURNEY_REVIEW.md).
 
 ## Keep the public link stable
 
-Choose one canonical hostname before distributing links, preferably
-`https://app.<your-owned-domain>`. The existing
-`https://wa-chatbot-my.fly.dev` is an alternative if a custom domain is not ready;
-its availability must first be verified. Changing hostname later requires
-updating distributed links and provider callback registrations.
+The verified canonical origin is `https://aibot-chatbot-my.fly.dev`.
+A future custom domain requires updating distributed links, allowed origins and
+provider callback registrations; it is not needed for the current live release.
 
 Use that canonical origin for `PUBLIC_BASE_URL`, `FRONTEND_URL`, and the explicit
 `CORS_ORIGINS` allowlist. Keep existing widget keys when disabling/re-enabling a
@@ -69,43 +78,48 @@ as development/testing infrastructure without an uptime guarantee.
 ## Release gates
 
 1. **Confirm the release target and billing.** Verify the Fly organization owns
-   `wa-chatbot-my`, billing allows it to run, and the domain belongs to the intended
+   `aibot-chatbot-my`, billing allows it to run, and the domain belongs to the intended
    Cloudflare account. Inspect existing Machines, IPs, volume attachment and backups.
-2. **Prepare one reviewed release artifact.** This workspace contains unrelated
-   dirty changes. Do not deploy its entire working directory. Use an isolated
+2. **Prepare one reviewed release artifact.** Recheck the working tree for unrelated
+   changes. Do not deploy its entire working directory. Use an isolated
    release checkout containing the approved application changes and dependencies.
-3. **Protect tenant files.** The current [.dockerignore](../.dockerignore) explicitly
-   retains legacy `media_uploads/`, so `COPY . .` can include customer media in an
-   image. Inventory privately, migrate required files to durable storage, verify
-   old URLs, and exclude tenant files from the release build context. Do not simply
-   delete legacy files or exclude them before preserving referenced content.
+3. **Protect tenant files.** The [.dockerignore](../.dockerignore) now allowlists
+   runtime inputs; neither `data/` nor legacy `media_uploads/` is sent to the builder.
+   Local tenant files remain preserved. Restore required knowledge files under
+   `/app/data` and legacy media under `/app/data/media_uploads` on the volume,
+   verify owner write access and old URLs, and only then enable application traffic.
+   Do not treat the image as a tenant-file backup.
 4. **Verify schema and configuration.** Audit the selected release against the
    actual applied migrations/RPCs, including relevant changes through 053. Older
    instructions ending at migration 019 or declaring only 050/052 pending are not
    a current migration ledger. Prepare required changes and backups for approval;
    do not blindly replay SQL or rollback files.
-5. **Complete release validation.** The UI journey has mocked/local evidence, not
-   production proof. Its latest Codex Security scan failed without a completed
-   report following an automated prompt-policy rejection. Resolve that verification
-   gap through the supported workflow before declaring the release ready.
+5. **Complete release validation.** Staff password login and dashboards have live
+   browser/API proof; real channel conversations still require verification. Read
+   the dated tests and scoped Codex Security result in
+   [current release evidence](FLY_CHANNEL_READINESS.md). An incomplete scan or
+   a scoped result does not certify the entire application or a live deployment.
 
 ## Operator sequence: prepare, deploy, verify
 
-Commands below are a runbook, **not commands executed by this document task**.
-Production changes need authorization for the concrete release and target.
+Commands below are a reusable runbook. The actual authorized first deployment
+and its verification are recorded in [release evidence](FLY_CHANNEL_READINESS.md).
+Future production changes need authorization for their concrete scope and target.
 
-### 1. Inspect the existing Fly application
+### 1. Inspect Fly application inventory
 
 ```powershell
-fly status -a wa-chatbot-my
-fly machine list -a wa-chatbot-my
-fly volumes list -a wa-chatbot-my
-fly ips list -a wa-chatbot-my
-fly checks list -a wa-chatbot-my
+fly status -a aibot-chatbot-my
+fly machine list -a aibot-chatbot-my
+fly volumes list -a aibot-chatbot-my
+fly ips list -a aibot-chatbot-my
+fly checks list -a aibot-chatbot-my
 ```
 
 Resolve billing/access failures before interpreting missing results as missing
-resources. Do not run `fly launch` to replace the existing app. Verify exactly one
+resources. Current inventory confirms no app; create the configured app in
+`iomaths` once billing permits. Do not replace resources from historical assumptions.
+Verify exactly one
 application Machine and the intended volume in `sin`; do not reuse a historical
 Machine ID without checking it. Record the current image and configuration for rollback.
 
@@ -113,11 +127,17 @@ Machine ID without checking it. Record the current image and configuration for r
 
 | Item | Required verification |
 | --- | --- |
-| Volume | Existing `chatbot_data` is mounted at `/app/data`, has enough free space, and is writable by the container's actual `appuser` UID/GID. Mount permissions can differ from image-directory permissions. |
+| Volume | The target `chatbot_data` volume is mounted at `/app/data`, has enough free space, and is writable by the container's actual `appuser` UID/GID. Mount permissions can differ from image-directory permissions. |
 | Recovery | Take a suitable backup and prove restoration of files and matching database references. A single attached volume is not replicated application storage. |
 | Secrets | Validate required names against the selected release's configuration and provider paths. Include Supabase service credentials, signing secrets, AI infrastructure, email and only the channels/payment gateway in use. Never put values in this document, frontend, image, logs or shell history. |
 | Production flags | Keep debug off, rate limiting on, and `ENABLE_DEV_BILLING_ROUTES` absent; the string `false` still fails production startup. Memory rate limits reset on restart; do not configure Redis without its supported dependency and service. |
 | Jobs | Keep one Gunicorn worker and one owner of retry/billing loops. Do not also schedule the same billing jobs externally. Monitor successful work, not just thread startup. |
+
+Preserve the currently selected customer payment-gateway environment during this
+hosting release. Keep retry and billing workers disabled during initial storage
+restoration; enable them only after their existing runtime owner and queued work
+have been checked. Local-only Langflow URLs require a reachable hosted runtime
+before enabling automation on Fly.
 
 Use Fly's secret facility through an approved secure input process. Setting secrets
 normally updates/restarts Machines; staged secrets can be applied with a coordinated
@@ -161,7 +181,7 @@ claim high availability while storage and job ownership remain process-local.
 From the reviewed release checkout, the intended command is:
 
 ```powershell
-fly deploy --app wa-chatbot-my --config fly.toml --ha=false --strategy rolling
+fly deploy --app aibot-chatbot-my --config fly.toml --ha=false --strategy rolling
 ```
 
 Before executing, verify the installed CLI supports these options and the actual
@@ -237,10 +257,13 @@ steps are not verified release instructions. The
 but its migration range and external scheduling instructions need reconciliation
 against the chosen release and current `wsgi.py`.
 
-This task changed documentation only. No hosting, DNS, secrets, billing, database,
-Machine state or production deployment was changed.
+The original 7 September review changed documentation only. The authorized
+10 September continuation created the live Fly application, restored its volume,
+imported selected secrets securely and verified public staff access. Current
+channel changes and security scope are recorded in the release evidence.
 
 Agents Orchestrator independently researched the official Fly documentation and
 reviewed the deployment sequence. Local source inspection established the app,
 storage and scheduler constraints; platform documentation established the hosting
-behavior. Neither establishes a healthy live release.
+behavior. Later live checks establish only the dated outcomes explicitly recorded
+in the release evidence; they do not establish real provider delivery.

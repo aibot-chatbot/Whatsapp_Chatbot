@@ -1,6 +1,7 @@
 """Shared-pipeline tests for handoff CRM behavior and non-blocking failures."""
 
 from unittest.mock import patch
+import pytest
 
 from app.services import chat_pipeline_service
 
@@ -18,6 +19,11 @@ CONVERSATION = {
     "customer_phone": "+60123456789",
     "source_channel": "whatsapp",
 }
+
+
+@pytest.fixture(autouse=True)
+def _isolate_memory_storage(monkeypatch):
+    monkeypatch.setattr("app.services.conversation_memory_service.conversation_memory_denial", lambda _: "not_under_test")
 
 
 def _handoff_pipeline_patches(
@@ -98,6 +104,10 @@ def test_handoff_attempts_staff_attention_lead_and_still_pauses_ai():
     assert result["intent"] == "handoff_request"
     assert result["prompt"] is None
     assert "transferring" in result["direct_reply"]
+    assert isinstance(result["direct_reply"], chat_pipeline_service.HandoffAcknowledgement)
+    assert result["direct_reply"].action_id == 501
+    assert result["direct_reply"].conversation_id == 101
+    assert result["direct_reply"].company_id == 42
 
 
 def test_handoff_crm_failure_is_logged_and_does_not_block_pause_response(caplog):
@@ -130,6 +140,18 @@ def test_handoff_missing_authoritative_ownership_never_uses_conversation_company
             source_channel="whatsapp",
         )
 
-    assert result["intent"] == "handoff_request"
+    assert result["intent"] == "handoff_failed"
+    assert "could not notify" in result["direct_reply"]
     send_email.assert_not_called()
     assert "Authoritative chatbot ownership could not be resolved" in caplog.text
+
+
+@pytest.mark.parametrize("saved_action", [None, {}, {"id": None}, {"id": True}])
+def test_handoff_save_failure_never_creates_acknowledgement(saved_action):
+    patches = _handoff_pipeline_patches()
+    with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5], patches[6] as save, patches[7], patches[8] as send_email:
+        save.return_value = saved_action
+        result = chat_pipeline_service.prepare_chat_prompt("Please transfer me", "customer-1", 29)
+    assert result["intent"] == "handoff_failed"
+    assert not isinstance(result["direct_reply"], chat_pipeline_service.HandoffAcknowledgement)
+    send_email.assert_not_called()

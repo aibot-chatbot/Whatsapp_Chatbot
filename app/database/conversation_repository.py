@@ -3,11 +3,23 @@ from app.database.db import supabase
 from app.database.billing_usage_repository import get_company_chatbot_ids
 
 
+def _scope_origin(query, channel_id, provider_id):
+    if (channel_id is None) != (provider_id is None):
+        raise ValueError("Both channel and provider identity are required")
+    if channel_id is None:
+        return query.is_("source_channel_id", "null")
+    if isinstance(channel_id, bool) or not isinstance(channel_id, int) or channel_id <= 0 or not str(provider_id).strip():
+        raise ValueError("A valid channel and provider identity are required")
+    return query.eq("source_channel_id", channel_id).eq("source_provider_id", str(provider_id))
+
+
 def get_or_create_conversation(
     chatbot_id: int,
     customer_phone: str,
     customer_name: str = None,
     source_channel: str = "whatsapp",
+    source_channel_id: int = None,
+    source_provider_id: str = None,
 ):
     now = datetime.now(timezone.utc).isoformat()
 
@@ -18,19 +30,20 @@ def get_or_create_conversation(
             customer_name=customer_name,
             source_channel=source_channel,
             customer_phone=None,
+            source_channel_id=source_channel_id,
+            source_provider_id=source_provider_id,
         )
 
     def fetch_existing_open_conversation():
-        existing_result = (
+        query = (
             supabase.table("conversations")
             .select("*")
             .eq("chatbot_id", chatbot_id)
             .eq("customer_phone", customer_phone)
             .eq("source_channel", source_channel)
             .eq("conversation_status", "open")
-            .limit(1)
-            .execute()
         )
+        existing_result = _scope_origin(query, source_channel_id, source_provider_id).limit(1).execute()
 
         rows = existing_result.data or []
         return rows[0] if rows else None
@@ -63,6 +76,9 @@ def get_or_create_conversation(
         "updated_at": now,
     }
 
+    if source_channel_id is not None:
+        new_conversation.update(source_channel_id=source_channel_id, source_provider_id=str(source_provider_id))
+
     try:
         result = supabase.table("conversations").insert(new_conversation).execute()
         return result.data[0]
@@ -85,27 +101,28 @@ def get_or_create_platform_conversation(
     customer_name: str = None,
     source_channel: str = "telegram",
     customer_phone: str = None,
+    source_channel_id: int = None,
+    source_provider_id: str = None,
 ):
     """
-    Get or create conversation using platform user ID.
+    Get or create conversation using the platform conversation/destination ID.
 
     For Telegram:
-    - platform_user_id = Telegram chat/user ID
-    - customer_phone = real phone number only after user shares contact
+    - platform_user_id = Telegram chat ID, independent of the message author
+    - customer_phone = real phone number shared in a private chat only
     """
     now = datetime.now(timezone.utc).isoformat()
 
     def fetch_existing_by_platform_id():
-        existing_result = (
+        query = (
             supabase.table("conversations")
             .select("*")
             .eq("chatbot_id", chatbot_id)
             .eq("platform_user_id", platform_user_id)
             .eq("source_channel", source_channel)
             .eq("conversation_status", "open")
-            .limit(1)
-            .execute()
         )
+        existing_result = _scope_origin(query, source_channel_id, source_provider_id).limit(1).execute()
 
         rows = existing_result.data or []
         return rows[0] if rows else None
@@ -115,21 +132,24 @@ def get_or_create_platform_conversation(
         Old Telegram records saved Telegram ID inside customer_phone.
         This prevents duplicate conversations after we add platform_user_id.
         """
-        legacy_result = (
+        query = (
             supabase.table("conversations")
             .select("*")
             .eq("chatbot_id", chatbot_id)
             .eq("customer_phone", platform_user_id)
             .eq("source_channel", source_channel)
             .eq("conversation_status", "open")
-            .limit(1)
-            .execute()
         )
+        existing_result = _scope_origin(query, source_channel_id, source_provider_id).limit(1).execute()
 
-        rows = legacy_result.data or []
+        rows = existing_result.data or []
         return rows[0] if rows else None
 
-    existing = fetch_existing_by_platform_id() or fetch_legacy_telegram_conversation()
+    existing = fetch_existing_by_platform_id()
+    # New bound conversations have an exact destination. A profile phone or
+    # legacy sender ID must never be adopted as that destination's history.
+    if not existing and source_channel_id is None:
+        existing = fetch_legacy_telegram_conversation()
 
     if existing:
         update_data = {
@@ -165,8 +185,16 @@ def get_or_create_platform_conversation(
         "updated_at": now,
     }
 
-    result = supabase.table("conversations").insert(new_conversation).execute()
-    return result.data[0]
+    if source_channel_id is not None:
+        new_conversation.update(source_channel_id=source_channel_id, source_provider_id=str(source_provider_id))
+    try:
+        result = supabase.table("conversations").insert(new_conversation).execute()
+        return result.data[0]
+    except Exception:
+        existing = fetch_existing_by_platform_id()
+        if existing:
+            return existing
+        raise
 
 
 def update_conversation_phone_by_platform(
@@ -175,6 +203,8 @@ def update_conversation_phone_by_platform(
     customer_phone: str,
     customer_name: str = None,
     source_channel: str = "telegram",
+    source_channel_id: int = None,
+    source_provider_id: str = None,
 ):
     """
     Save real phone number after Telegram user clicks Share Phone Number.
@@ -190,15 +220,16 @@ def update_conversation_phone_by_platform(
     if customer_name:
         update_data["customer_name"] = customer_name
 
-    result = (
+    query = (
         supabase.table("conversations")
         .update(update_data)
         .eq("chatbot_id", chatbot_id)
         .eq("platform_user_id", platform_user_id)
         .eq("source_channel", source_channel)
         .eq("conversation_status", "open")
-        .execute()
     )
+
+    result = _scope_origin(query, source_channel_id, source_provider_id).execute()
 
     rows = result.data or []
 
@@ -211,6 +242,8 @@ def update_conversation_phone_by_platform(
         customer_name=customer_name,
         source_channel=source_channel,
         customer_phone=customer_phone,
+        source_channel_id=source_channel_id,
+        source_provider_id=source_provider_id,
     )
 
 
@@ -307,3 +340,46 @@ def get_conversation_by_id_and_chatbot(conversation_id: int, chatbot_id: int):
 
     rows = result.data or []
     return rows[0] if rows else None
+
+
+def reset_testbot_conversation(chatbot_id: int, company_id: int, session_id: str):
+    """Finish only the Test Lab session; retain its transcript for review."""
+    from app.database.agent_action_repository import ESCALATION_INTENTS
+    from app.services.conversation_delivery_lock import conversation_delivery_lock
+
+    result = (
+        supabase.table("conversations")
+        .select("id")
+        .eq("chatbot_id", chatbot_id)
+        .eq("customer_phone", session_id)
+        .eq("source_channel", "web")
+        .eq("conversation_status", "open")
+        .execute()
+    )
+    for conversation in result.data or []:
+        conversation_id = conversation["id"]
+        with conversation_delivery_lock(conversation_id):
+            (
+                supabase.table("agent_actions")
+                .update({"status": "resolved"})
+                .eq("conversation_id", conversation_id)
+                .eq("chatbot_id", chatbot_id)
+                .eq("company_id", company_id)
+                .eq("status", "detected")
+                .in_("intent", ESCALATION_INTENTS)
+                .execute()
+            )
+            closed = (
+                supabase.table("conversations")
+                .update({
+                    "conversation_status": "closed",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
+                .eq("id", conversation_id)
+                .eq("chatbot_id", chatbot_id)
+                .eq("customer_phone", session_id)
+                .eq("source_channel", "web")
+                .execute()
+            )
+            if not closed.data:
+                raise RuntimeError("Test conversation reset was not saved")

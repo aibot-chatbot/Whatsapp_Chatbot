@@ -1242,23 +1242,46 @@
             if (!escalation) return;
             const btn = document.getElementById('conv-resolve-btn');
             btn.disabled = true;
-
+            try {
             const result = await getJson(`/api/agent/escalations/${escalation.id}/resolve`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ chatbot_id: conv.chatbot_id })
             });
 
-            btn.disabled = false;
             if (result.ok) {
-                state.escalationsByConv.delete(conv.id);
-                announce('workspace', 'Marked resolved. This does not change the CRM stage.');
+                const pending = await getJson(`/api/agent/escalations?chatbot_id=${conv.chatbot_id}&conversation_id=${conv.id}`);
+                if (!pending.ok) {
+                    const notice = 'Request resolved, but remaining handoffs could not be checked. Try again to refresh.';
+                    announce('workspace', notice);
+                    flashStatus(document.getElementById('conv-compose-status'), notice, 8000);
+                    return;
+                }
+                const remaining = (pending.body.data || []).find(action => action.conversation_id === conv.id);
+                if (remaining) state.escalationsByConv.set(conv.id, remaining);
+                else state.escalationsByConv.delete(conv.id);
+                let notice = remaining || result.body.data && result.body.data.ai_resumed === false
+                    ? 'Request resolved. Another handoff still needs attention; AI replies remain paused.'
+                    : 'Marked resolved. AI replies resume with the next customer message. This does not change the CRM stage.';
+                if (result.body.data && result.body.data.notification_status === 'failed') {
+                    const channelName = { telegram: 'Telegram', whatsapp: 'WhatsApp Business', wasender: 'WASender' }[conv.source_channel] || 'the original channel';
+                    notice += ` The end-of-service message could not be delivered to ${channelName}.`;
+                }
+                announce('workspace', notice);
                 renderWorkspaceHeader();
                 syncComposebarVisibility();
                 renderPipeline();
                 renderMiniRail();
+                flashStatus(document.getElementById('conv-compose-status'), notice, 8000);
             } else {
                 announce('workspace', 'Could not resolve. Try again.');
+            }
+            } catch (_) {
+                const notice = 'Could not confirm the handoff status. Try again to refresh.';
+                announce('workspace', notice);
+                flashStatus(document.getElementById('conv-compose-status'), notice, 8000);
+            } finally {
+                btn.disabled = false;
             }
         }
 

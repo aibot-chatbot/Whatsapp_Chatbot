@@ -15,10 +15,8 @@ from app.database.message_repository import save_message
 from app.utils.whatsapp_utils import send_message as send_whatsapp_message
 from app.utils.telegram_utils import send_telegram_message
 from app.services.wasender_service import send_wasender_text_message
-from app.database.bot_repository import get_bot_by_id
-from app.database.telegram_channel_repository import get_telegram_channels_by_chatbot
-from app.database.wasender_channel_repository import get_wasender_channels_by_chatbot
-from app.database.whatsapp_channel_repository import get_whatsapp_channels_by_chatbot
+from app.services.channel_delivery_service import ChannelDeliveryError, get_bound_channel, delivery_accepted
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 
 agent_blueprint = Blueprint("agent", __name__)
 
@@ -32,9 +30,14 @@ def get_escalations():
 
         access = verify_chatbot_access(chatbot_id)
 
+        filters = {}
+        conversation_id = request.args.get("conversation_id", type=int)
+        if conversation_id:
+            filters["conversation_id"] = conversation_id
         escalations = get_pending_escalations(
             chatbot_id,
             access["company_id"],
+            **filters,
         )
         return jsonify({"status": "success", "data": escalations}), 200
 
@@ -65,68 +68,38 @@ def resolve_esc(action_id):
         if not resolved:
             return jsonify({"status": "error", "message": "Escalation not found."}), 404
 
-        if not changed:
-            return jsonify({
-                "status": "success",
-                "message": "Escalation was already resolved.",
-                "data": {
-                    "already_resolved": True,
-                },
-            }), 200
-
-        # Let the user know the session has ended
-        try:
-            conversation_id = resolved.get("conversation_id")
-            if (
-                conversation_id
-                and not is_conversation_escalated(conversation_id, chatbot_id)
-            ):
-                # The exact-action transition is idempotent, but this separate
-                # remaining-action check and notification are not one atomic
-                # conversation-level operation. Two different final actions
-                # resolved concurrently can both observe no remaining action
-                # and notify. Atomic deduplication is deferred to the lifecycle
-                # transaction/RPC phase.
-                conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
-                if conversation:
-                    source_channel = conversation.get("source_channel")
-                    customer_phone = conversation.get("customer_phone")
-                    platform_user_id = conversation.get("platform_user_id")
-                    end_msg = "The customer service session has ended. You are now chatting with the AI assistant again. Let me know if you need anything else!"
-                    
-                    # Save bot message to DB
-                    save_message(
-                        conversation_id=conversation_id,
-                        sender_type="bot",
-                        message_text=end_msg,
-                        message_type="text",
-                        delivery_status="sent",
-                        ai_generated=False,
-                    )
-                    
-                    if source_channel == "whatsapp":
-                        channels = get_whatsapp_channels_by_chatbot(chatbot_id)
-                        if channels:
-                            from app.utils.whatsapp_utils import get_text_message_input
-                            msg_data = get_text_message_input(customer_phone, end_msg)
-                            send_whatsapp_message(msg_data, channels[0])
-                    elif source_channel == "telegram":
-                        channels = get_telegram_channels_by_chatbot(chatbot_id)
-                        if channels:
-                            send_telegram_message(channels[0]["bot_token"], platform_user_id, end_msg)
-                    elif source_channel == "wasender":
-                        channels = get_wasender_channels_by_chatbot(chatbot_id)
-                        if channels:
-                            send_wasender_text_message(channels[0]["api_key"], platform_user_id or customer_phone, end_msg)
-        except Exception as e:
-            logging.error(f"Failed to send end of service message: {e}")
+        conversation_id = resolved.get("conversation_id")
+        ai_resumed = resolved.get("_ai_resumed")
+        if ai_resumed is None:
+            ai_resumed = bool(conversation_id) and not is_conversation_escalated(conversation_id, chatbot_id)
+        notification_status = "not_sent"
+        notification_code = None
+        if changed and ai_resumed:
+            conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
+            if conversation and conversation.get("source_channel") in {"telegram", "whatsapp", "wasender"}:
+                end_msg = "The customer service session has ended. You are now chatting with the AI assistant again."
+                try:
+                    with conversation_delivery_lock(conversation_id):
+                        if is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
+                            ai_resumed = False
+                        else:
+                            _dispatch_conversation_reply(conversation, end_msg)
+                            save_message(conversation_id=conversation_id, sender_type="bot", message_text=end_msg,
+                                         message_type="text", delivery_status="sent", ai_generated=False)
+                            notification_status = "sent"
+                except ChannelDeliveryError as error:
+                    notification_status = "failed"
+                    notification_code = error.code
+                except Exception as error:
+                    logging.error("Closing notification failed (%s)", type(error).__name__)
+                    notification_status = "failed"
+                    notification_code = "DELIVERY_FAILED"
 
         return jsonify({
-            "status": "success",
-            "message": "Escalation resolved.",
-            "data": {
-                "already_resolved": False,
-            },
+            "status": "success", "message": "Escalation resolved." if changed else "Escalation was already resolved.",
+            "data": {"already_resolved": not changed, "ai_resumed": ai_resumed,
+                     "handoff_state": "ai" if ai_resumed else "human",
+                     "notification_status": notification_status, "notification_code": notification_code},
         }), 200
 
     except PermissionError as e:
@@ -142,7 +115,6 @@ def agent_reply(conversation_id):
         data = request.get_json() or {}
         chatbot_id = data.get("chatbot_id")
         text = data.get("text")
-        action_id = data.get("action_id") # Optional: resolve the action if provided
 
         if not chatbot_id or not text:
             return jsonify({"status": "error", "message": "chatbot_id and text are required"}), 400
@@ -153,38 +125,15 @@ def agent_reply(conversation_id):
         if not conversation:
             return jsonify({"status": "error", "message": "Conversation not found"}), 404
 
-        source_channel = conversation.get("source_channel")
-        customer_phone = conversation.get("customer_phone")
-        platform_user_id = conversation.get("platform_user_id")
-
-        # Dispatch
         try:
-            if source_channel == "whatsapp":
-                channels = get_whatsapp_channels_by_chatbot(chatbot_id)
-                if not channels:
-                    raise ValueError("No active WhatsApp channel found.")
-                # We simply use the global send_message which uses WABA from db
-                phone = customer_phone or platform_user_id
-                send_whatsapp_message({"messaging_product": "whatsapp", "to": phone, "type": "text", "text": {"body": text}}, channel=channels[0])
-                
-            elif source_channel == "telegram":
-                channels = get_telegram_channels_by_chatbot(chatbot_id)
-                if not channels:
-                    raise ValueError("No active Telegram channel found.")
-                send_telegram_message(channels[0]["bot_token"], platform_user_id, text)
-
-            elif source_channel == "wasender":
-                channels = get_wasender_channels_by_chatbot(chatbot_id)
-                if not channels:
-                    raise ValueError("No active WASender channel found.")
-                send_wasender_text_message(channels[0]["api_key"], platform_user_id or customer_phone, text)
-
-            else:
-                raise ValueError(f"Unsupported channel: {source_channel}")
-
-        except Exception as dispatch_e:
-            logging.error(f"Failed to dispatch agent message: {dispatch_e}")
-            return jsonify({"status": "error", "message": f"Failed to send message: {str(dispatch_e)}"}), 500
+            _dispatch_conversation_reply(conversation, text)
+        except ChannelDeliveryError as error:
+            return jsonify({"status": "error", "code": error.code, "message": str(error)}), (
+                502 if error.code == "DELIVERY_FAILED" else 409
+            )
+        except Exception as error:
+            logging.error("Agent delivery failed (%s)", type(error).__name__)
+            return jsonify({"status": "error", "code": "DELIVERY_FAILED", "message": "The provider did not confirm delivery. Check the conversation before retrying."}), 502
 
         # Persist only after the external channel accepted the message. This
         # prevents an unsupported or unavailable channel from creating a
@@ -198,10 +147,28 @@ def agent_reply(conversation_id):
             ai_generated=False,
         )
 
-        return jsonify({"status": "success", "message": "Reply sent successfully."}), 200
+        return jsonify({"status": "success", "message": "Reply sent successfully.", "data": {"delivery_status": "sent"}}), 200
 
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error(f"Agent reply error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+def _dispatch_conversation_reply(conversation, text):
+    channel = get_bound_channel(conversation)
+    source = conversation["source_channel"]
+    recipient = conversation.get("platform_user_id") or conversation.get("customer_phone")
+    if not recipient:
+        raise ChannelDeliveryError("DELIVERY_FAILED", "The conversation recipient is missing.")
+    if source == "telegram":
+        result = send_telegram_message(channel["bot_token"], recipient, text)
+    elif source == "wasender":
+        result = send_wasender_text_message(channel["api_key"], recipient, text)
+    else:
+        from app.utils.whatsapp_utils import get_text_message_input
+        result = send_whatsapp_message(get_text_message_input(recipient, text), channel=channel)
+    if not delivery_accepted(source, result):
+        raise ChannelDeliveryError("DELIVERY_FAILED", "The provider did not confirm delivery. Check the conversation before retrying.")
+    return result
