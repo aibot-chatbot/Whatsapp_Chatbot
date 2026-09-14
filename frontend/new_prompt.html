@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bot Configuration | AI CHATBOT</title>
+    <title>Bot Configuration | Omnexa</title>
     <meta name="theme-color" content="#0e0f11">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -212,7 +212,7 @@
                         <div class="kw-field">
                             <label class="kw-label" for="bc-f-bot">Bot name</label>
                             <input class="kw-input" id="bc-f-bot" name="bot_name" required autocomplete="off"
-                                placeholder="Aveon Assistant&hellip;">
+                                placeholder="Omnexa Assistant&hellip;">
                         </div>
                     </div>
 
@@ -220,7 +220,7 @@
                         <div class="kw-field">
                             <label class="kw-label" for="bc-f-company">Company name</label>
                             <input class="kw-input" id="bc-f-company" name="company_name" required autocomplete="organization"
-                                placeholder="Aveon&hellip;">
+                                placeholder="Omnexa&hellip;">
                         </div>
                         <div class="kw-field">
                             <label class="kw-label" for="bc-f-tone">Tone</label>
@@ -365,7 +365,7 @@
                 $("bc-setup-details").open = false;
                 $("bc-setup-details").querySelector("summary").hidden = false;
                 $("bc-testbot").hidden = true;
-                document.title = "Bot instructions | Aveon";
+                document.title = "Bot instructions | Omnexa";
             }
 
             wireEvents();
@@ -446,7 +446,7 @@
                 if (!state.selected && state.active) state.selected = state.active;
                 $("bc-bot-name").textContent = name;
                 document.querySelector("chatbot-sidebar")?.setBotName?.(name);
-                document.title = `${name} - ${isSetup ? "Bot instructions" : "Bot Configuration"} | Aveon`;
+                document.title = `${name} - ${isSetup ? "Bot instructions" : "Bot Configuration"} | Omnexa`;
             } catch (_) {
                 window.location.href = "bots.html";
             }

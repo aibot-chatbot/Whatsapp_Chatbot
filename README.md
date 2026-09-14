@@ -1,4 +1,4 @@
-# AI Chatbot SaaS Platform
+# Omnexa SaaS Platform
 
 Multi-tenant AI chatbot management platform built with Python Flask and Supabase PostgreSQL.
 Organizations can create chatbots, configure AI models, connect knowledge sources, integrate

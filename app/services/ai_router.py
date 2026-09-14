@@ -1167,7 +1167,7 @@ def _call_openrouter_direct(prompt, model, temperature):
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "HTTP-Referer": "http://localhost:8000",
-        "X-OpenRouter-Title": "AI Chatbot System",
+        "X-OpenRouter-Title": "Omnexa System",
     }
     payload = {
         "model": model,
