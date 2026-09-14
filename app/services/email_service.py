@@ -35,7 +35,7 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User", verify_url=
         logging.warning("SMTP credentials missing in .env. OTP email not sent.")
         return False
 
-    subject = "Verify your Volleo account"
+    subject = "Verify your Omnexa account"
     
     # Premium HTML email template
     html_content = f"""
@@ -43,7 +43,7 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User", verify_url=
       <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
         <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
           <div style="background-color: #060A12; padding: 24px; text-align: center;">
-            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Volleo</h2>
+            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Omnexa</h2>
           </div>
           <div style="padding: 32px;">
             <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Email Verification</h3>
@@ -59,7 +59,7 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User", verify_url=
             </p>
           </div>
           <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} Volleo. All rights reserved.
+            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} Omnexa. All rights reserved.
           </div>
         </div>
       </body>
@@ -68,7 +68,7 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User", verify_url=
 
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
-    message["From"] = f"Volleo <{sender_email}>"
+    message["From"] = f"Omnexa <{sender_email}>"
     message["To"] = recipient_email
 
     # Add HTML content
@@ -100,14 +100,14 @@ def send_reset_email(recipient_email, otp_code, recipient_name="User"):
         logging.warning("SMTP credentials missing in .env. Reset email not sent.")
         return False
 
-    subject = "Reset your Volleo password"
+    subject = "Reset your Omnexa password"
     
     html_content = f"""
     <html>
       <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
         <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
           <div style="background-color: #060A12; padding: 24px; text-align: center;">
-            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Volleo</h2>
+            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Omnexa</h2>
           </div>
           <div style="padding: 32px;">
             <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Password Reset Request</h3>
@@ -123,7 +123,7 @@ def send_reset_email(recipient_email, otp_code, recipient_name="User"):
             </p>
           </div>
           <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} Volleo. All rights reserved.
+            &copy; {datetime.datetime.now().year if 'datetime' in globals() else 2026} Omnexa. All rights reserved.
           </div>
         </div>
       </body>
@@ -132,7 +132,7 @@ def send_reset_email(recipient_email, otp_code, recipient_name="User"):
 
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
-    message["From"] = f"Volleo <{sender_email}>"
+    message["From"] = f"Omnexa <{sender_email}>"
     message["To"] = recipient_email
 
     part = MIMEText(html_content, "html")
@@ -171,7 +171,7 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
               <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
                 <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
                   <div style="background-color: #3b82f6; padding: 24px; text-align: center;">
-                    <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT</h2>
+                    <h2 style="color: white; margin: 0; font-size: 24px;">Omnexa</h2>
                   </div>
                   <div style="padding: 32px;">
                     <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">You're Invited!</h3>
@@ -191,7 +191,7 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
                     </p>
                   </div>
                   <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-                    &copy; AI CHATBOT. All rights reserved.
+                    &copy; Omnexa. All rights reserved.
                   </div>
                 </div>
               </body>
@@ -233,7 +233,7 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
           <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
             <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
               <div style="background-color: #3b82f6; padding: 24px; text-align: center;">
-                <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT</h2>
+                <h2 style="color: white; margin: 0; font-size: 24px;">Omnexa</h2>
               </div>
               <div style="padding: 32px;">
                 <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">You're Invited!</h3>
@@ -253,7 +253,7 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
                 </p>
               </div>
               <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-                &copy; AI CHATBOT. All rights reserved.
+                &copy; Omnexa. All rights reserved.
               </div>
             </div>
           </body>
@@ -262,7 +262,7 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
 
         message = MIMEMultipart("alternative")
         message["Subject"] = "You're invited to join our platform"
-        message["From"] = f"AI CHATBOT <{sender_email}>"
+        message["From"] = f"Omnexa <{sender_email}>"
         message["To"] = recipient_email
 
         part = MIMEText(html_content, "html")
@@ -315,7 +315,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
           <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
             <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
               <div style="background-color: #f59e0b; padding: 24px; text-align: center;">
-                <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT - Action Required</h2>
+                <h2 style="color: white; margin: 0; font-size: 24px;">Omnexa - Action Required</h2>
               </div>
               <div style="padding: 32px;">
                 <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Customer Handoff Request</h3>
@@ -331,7 +331,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
                 </p>
               </div>
               <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-                &copy; AI CHATBOT. All rights reserved.
+                &copy; Omnexa. All rights reserved.
               </div>
             </div>
           </body>
@@ -345,7 +345,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
         for email in staff_emails:
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
-            message["From"] = f"AI CHATBOT <{sender_email}>"
+            message["From"] = f"Omnexa <{sender_email}>"
             message["To"] = email
             part = MIMEText(html_content, "html")
             message.attach(part)
@@ -402,7 +402,7 @@ def send_tenant_support_request_notification_email(
       <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
         <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
           <div style="background-color: #f59e0b; padding: 24px; text-align: center;">
-            <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT - Support Escalation</h2>
+            <h2 style="color: white; margin: 0; font-size: 24px;">Omnexa - Support Escalation</h2>
           </div>
           <div style="padding: 32px;">
             <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">A tenant submitted a support request</h3>
@@ -420,7 +420,7 @@ def send_tenant_support_request_notification_email(
             </p>
           </div>
           <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            &copy; AI CHATBOT. All rights reserved.
+            &copy; Omnexa. All rights reserved.
           </div>
         </div>
       </body>
@@ -430,7 +430,7 @@ def send_tenant_support_request_notification_email(
     try:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = f"AI CHATBOT <{sender_email}>"
+        message["From"] = f"Omnexa <{sender_email}>"
         message["To"] = recipient_email
         message.attach(MIMEText(html_content, "html"))
 
@@ -493,7 +493,7 @@ def send_tenant_support_reply_notification_email(recipient_email, *, request_id)
       <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
         <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
           <div style="background-color: #3e9c89; padding: 24px; text-align: center;">
-            <h2 style="color: white; margin: 0; font-size: 24px;">AI CHATBOT - Support</h2>
+            <h2 style="color: white; margin: 0; font-size: 24px;">Omnexa - Support</h2>
           </div>
           <div style="padding: 32px;">
             <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">A reply is waiting</h3>
@@ -508,7 +508,7 @@ def send_tenant_support_reply_notification_email(recipient_email, *, request_id)
             </p>
           </div>
           <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            &copy; AI CHATBOT. All rights reserved.
+            &copy; Omnexa. All rights reserved.
           </div>
         </div>
       </body>
@@ -518,7 +518,7 @@ def send_tenant_support_reply_notification_email(recipient_email, *, request_id)
     try:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = f"AI CHATBOT <{sender_email}>"
+        message["From"] = f"Omnexa <{sender_email}>"
         message["To"] = recipient_email
         message.attach(MIMEText(html_content, "html"))
 

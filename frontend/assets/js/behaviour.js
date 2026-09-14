@@ -1099,7 +1099,7 @@
             var bot = body.data;
             $("bh-bot-name").textContent = bot.bot_name || "your bot";
             document.querySelector("chatbot-sidebar")?.setBotName?.(bot.bot_name);
-            document.title = (bot.bot_name || "Bot") + (isSetup && readTab() === "test" ? " - Test your bot | Aveon" : " - Behaviour Studio | AI CHATBOT");
+            document.title = (bot.bot_name || "Bot") + (isSetup && readTab() === "test" ? " - Test your bot | Omnexa" : " - Behaviour Studio | Omnexa");
 
             draft = fromBot(bot);
             saved = clone(draft);

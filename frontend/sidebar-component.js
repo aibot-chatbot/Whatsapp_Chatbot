@@ -446,7 +446,7 @@ class ChatbotSidebar extends HTMLElement {
             <div class="sidebar-top">
                 <div class="logo">
                     <i data-lucide="bot" style="color: var(--accent, #3e9c89); width: 28px; height: 28px;"></i>
-                    <span>${botId ? 'This bot' : 'Aveon'}</span>
+                    <span>${botId ? 'This bot' : 'Omnexa'}</span>
                 </div>
                 <button class="sidebar-toggle" type="button" aria-controls="bot-sidebar-navigation" aria-label="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}" title="${isCollapsed ? "Expand sidebar" : "Collapse sidebar"}">
                     <span class="sidebar-toggle-icon">${initialIcon}</span>

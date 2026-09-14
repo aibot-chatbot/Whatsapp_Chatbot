@@ -10,7 +10,7 @@ next action appears. Instructions use the bot's `draft_profile_name`; deployed
 settings remain a separate runtime state. Applying instructions does not publish
 a channel.
 
-Keep the established Aveon palette and typography. The signature is a quiet
+Keep the established Omnexa palette and typography. The signature is a quiet
 four-step navigation strip, one dominant next action, and optional advanced tools.
 `dashboard-control-room.css` remains the token owner; the shared strip lives in
 `assets/css/bot-setup-journey.css` and `assets/js/bot-setup-journey.js`.

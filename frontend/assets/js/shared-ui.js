@@ -1,6 +1,6 @@
 /**
  * shared-ui.js
- * Reusable UI helpers for the AI Chatbot frontend.
+ * Reusable UI helpers for the Omnexa frontend.
  */
 
 /* ===== Bot ID Selector ===== */
