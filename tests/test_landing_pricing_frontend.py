@@ -288,22 +288,41 @@ def test_customer_facing_feature_labels_are_canonical():
         assert label in pricing_js
 
 
-def test_landing_never_advertises_an_unapproved_price():
-    """Paid tiers are not signed off, so the page must show TBC, never a figure.
+def test_landing_pricing_matches_the_billed_plan_catalogue():
+    """The landing page may only quote money the billing system actually charges.
 
-    This replaces the old stale-price guard. Same intent: nothing on the public
-    page may quote money the billing system does not actually charge.
+    Same intent as the old TBC guard, now that the tiers are signed off. The
+    four rows below mirror `subscription_plans` in Supabase, which is what
+    /api/billing/plans serves to the dashboard and the pricing page. If a price
+    changes there, this test fails until the landing page is updated to match -
+    which is the point. Marketing copy drifting away from what is billed is the
+    exact failure this guards against.
     """
     landing = _read(FRONTEND / "landing.html")
 
     assert " Ai " not in landing
-    assert landing.count('class="tbc"') == 3, "Starter, Growth and Business must all read TBC"
-    assert "Paid pricing is not final" in landing
 
-    # $0 is the one real figure: the free tier exists. Any other currency
-    # amount means an unapproved price reached the page.
-    amounts = re.findall(r"[$£€]\s?\d[\d,.]*|RM\s?\d[\d,.]*", landing)
-    assert set(amounts) <= {"$0"}, f"unapproved price on landing page: {amounts}"
+    catalogue = {"free": "RM 0", "essential": "RM 39",
+                 "advanced": "RM 89", "pro": "RM 169"}
+    for code, price in catalogue.items():
+        assert f'data-plan-code="{code}"' in landing, f"{code} plan missing from landing"
+        assert price in landing, f"{code} must advertise {price}"
+
+    # The retired placeholder tiers must not reappear.
+    for gone in ("starter", "growth", "business"):
+        assert f'data-plan-code="{gone}"' not in landing
+    assert "TBC" not in landing
+    assert "Paid pricing is not final" not in landing
+
+    # Every Ringgit figure on the page must be either a plan price or one of
+    # the included AI credit allowances. Anything else is an invented number.
+    allowed = {"RM 0", "RM 39", "RM 89", "RM 169",
+               "RM 1", "RM 5", "RM 20", "RM 60"}
+    amounts = set(re.findall(r"RM\s?\d[\d,.]*", landing))
+    assert amounts <= allowed, f"unapproved amount on landing page: {amounts - allowed}"
+
+    # Prices are billed in MYR; a foreign symbol means a stale figure returned.
+    assert not re.findall(r"[$£€]\s?\d", landing), "non-MYR price on landing page"
 
 
 def test_landing_does_not_overclaim_channels_or_customers():

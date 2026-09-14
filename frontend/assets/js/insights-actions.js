@@ -648,7 +648,7 @@
                     document.head.appendChild(script);
                 });
             }
-            const title = escapeHtml(state.bot && state.bot.bot_name || "AI Chatbot");
+            const title = escapeHtml(state.bot && state.bot.bot_name || "Chatbot");
             const wrapper = document.createElement("div");
             wrapper.style.cssText = "width:710px;padding:24px;background:#fff;color:#1e293b;font-family:Arial,sans-serif;line-height:1.6";
             wrapper.innerHTML = `<h1>Chatbot performance report</h1><p>${title}</p><hr>${state.reportHtml}`;

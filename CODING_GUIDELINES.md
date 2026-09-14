@@ -233,7 +233,7 @@ After editing database logic, verify:
 
 ---
 
-## 8. AI Chatbot and RAG Review Behavior
+## 8. Omnexa and RAG Review Behavior
 
 *Changes to AI logic can affect every model provider.*
 

@@ -1393,7 +1393,7 @@ def printable_subscription_receipt(order_reference):
 <div class="receipt-container">
   <div class="receipt-header">
     <h1>Payment Receipt</h1>
-    <p>AI Chatbot Platform</p>
+    <p>Omnexa Platform</p>
   </div>
   <div class="receipt-body">
     <div class="receipt-notice">{_safe(notice)}</div>

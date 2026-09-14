@@ -32,7 +32,7 @@ def _request(prompt, model="google/gemini-3.5-flash", temperature=0.7, max_token
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
             "HTTP-Referer": "http://localhost:8000",
-            "X-OpenRouter-Title": "AI Chatbot System",
+            "X-OpenRouter-Title": "Omnexa System",
         }
         payload = {
             "model": model,
@@ -70,7 +70,7 @@ def generate_response(
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
             "Content-Type": "application/json",
             "HTTP-Referer": "http://localhost:8000",
-            "X-OpenRouter-Title": "AI Chatbot System",
+            "X-OpenRouter-Title": "Omnexa System",
         }
 
         payload = {
