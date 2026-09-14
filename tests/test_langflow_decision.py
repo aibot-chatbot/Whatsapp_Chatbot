@@ -13,6 +13,7 @@ import pytest
 from app.services import langflow_decision
 from app.services.langflow_decision import (
     ContractViolation,
+    _local_knowledge_summary,
     crm_stage_decision,
     extract_flow_output,
     knowledge_document_decision,
@@ -278,11 +279,33 @@ def test_knowledge_never_blocks(monkeypatch):
     assert "RuntimeError" in result["detail"]
 
 
-def test_knowledge_missing_flow_id_skips(monkeypatch):
+def test_knowledge_without_a_flow_id_summarises_locally(monkeypatch):
+    # The contract fixes decision and requires_approval, so an external call
+    # only ever supplied the summary string. With no flow configured we build
+    # that string from the payload instead of queueing a review with none.
     monkeypatch.delenv("LANGFLOW_KNOWLEDGE_FLOW_ID", raising=False)
     result = _kb_call()
-    assert result["consulted"] is False
+    assert result["consulted"] is True
     assert result["blocked"] is False
+    assert result["requires_approval"] is True
+    assert result["source"] == "local"
+    assert result["summary"]
+    assert len(result["summary"]) <= 500
+
+
+@pytest.mark.parametrize("chunk_count,expected", [(1, "1 chunk"), (12, "12 chunks"), (0, "0 chunks")])
+def test_local_summary_states_only_what_the_payload_contains(chunk_count, expected):
+    # The payload carries no document text, so the summary must not imply any.
+    summary = _local_knowledge_summary("policy.pdf", chunk_count, "supporting")
+    assert "policy.pdf" in summary
+    assert expected in summary
+    assert "supporting" in summary
+
+
+def test_local_summary_survives_a_missing_display_name():
+    summary = _local_knowledge_summary("   ", 3, "primary")
+    assert summary.startswith("The knowledge document")
+    assert "primary" in summary
 
 
 def test_knowledge_payload_carries_the_document_identity(monkeypatch):

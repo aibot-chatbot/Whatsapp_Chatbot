@@ -56,12 +56,14 @@ def test_knowledge_document_follow_up_is_idempotent_and_tenant_scoped():
             "chunk_count": 12,
             "target_role": "supporting",
             "requires_review": True,
-            # Advisory enrichment: the review is queued either way, and the
-            # event records why Langflow did not contribute a summary.
+            # Advisory enrichment: the review is queued either way. With no
+            # Langflow flow configured the summary is built locally, and the
+            # event records which side produced it.
             "automation": {
-                "consulted": False,
+                "consulted": True,
                 "correlation_id": ANY,
-                "skipped_because": "LANGFLOW_KNOWLEDGE_FLOW_ID is not configured",
+                "summary": ANY,
+                "summary_source": "local",
             },
         },
     )

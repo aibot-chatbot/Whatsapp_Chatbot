@@ -47,9 +47,11 @@ def schedule_knowledge_document_follow_up(
 
     safe_name = str(display_name or "knowledge document").strip()[:200]
 
-    # Enrichment only. The contract fixes this flow's decision to
-    # "review_document", so it cannot change whether a review is queued - it
-    # just adds a reviewer-facing summary when Langflow is available.
+    # Enrichment only. The contract fixes this decision to "review_document",
+    # so it cannot change whether a review is queued - it just adds a
+    # reviewer-facing summary. That summary is now produced locally unless a
+    # Langflow flow is explicitly configured, so the review is never recorded
+    # without one.
     decision = knowledge_document_decision(
         company_id=company_id,
         chatbot_id=chatbot_id,
@@ -65,6 +67,7 @@ def schedule_knowledge_document_follow_up(
     }
     if decision["consulted"]:
         automation["summary"] = decision.get("summary", "")
+        automation["summary_source"] = decision.get("source", "langflow")
     elif decision["detail"]:
         automation["skipped_because"] = decision["detail"]
 
