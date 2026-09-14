@@ -256,17 +256,19 @@ function expectPlanCardMatches(card, plan, surface) {
 
 test.describe("public landing pricing", () => {
   test("renders the four publishing plans with no unapproved price", async ({ page }) => {
-    // The landing page now sells multi-channel publishing, not the chatbot plan
-    // catalogue. Paid tiers are unsigned-off, so they must read TBC, never money.
+    // The landing page must advertise exactly the catalogue the billing system
+    // charges: subscription_plans, which /api/billing/plans serves elsewhere.
     await openLanding(page);
     const names = await page.locator(".plan h3").allTextContents();
-    expect(names).toEqual(["Free", "Starter", "Growth", "Business"]);
+    expect(names).toEqual(["Free", "Essential", "Advanced", "Pro"]);
 
-    await expect(page.locator(".plan[data-plan-code='free'] .price")).toHaveText("$0");
-    await expect(page.locator(".plan .tbc")).toHaveCount(3);
+    await expect(page.locator(".plan[data-plan-code='free'] .price")).toHaveText("RM 0");
+    await expect(page.locator(".plan[data-plan-code='essential'] .price")).toHaveText("RM 39");
+    await expect(page.locator(".plan[data-plan-code='advanced'] .price")).toHaveText("RM 89");
+    await expect(page.locator(".plan[data-plan-code='pro'] .price")).toHaveText("RM 169");
+    await expect(page.locator(".plan .tbc")).toHaveCount(0);
 
     const pageText = await page.locator("body").textContent();
-    expect(pageText).not.toMatch(/RM\s?\d/);
     expect(pageText).not.toContain("RM 29.00");
     expect(pageText).not.toContain("RM 79.00");
     expect(pageText).not.toContain("RM 199.00");
@@ -360,12 +362,12 @@ test.describe("public landing pricing", () => {
   test("landing CTAs switch between logged-out registration and logged-in app destinations", async ({ page }) => {
     await openLanding(page);
     await expect(page.locator("#hero-primary-cta")).toHaveAttribute("href", "register.html");
-    await expect(page.locator("[data-plan-cta='growth']")).toHaveAttribute("href", "register.html");
+    await expect(page.locator("[data-plan-cta='advanced']")).toHaveAttribute("href", "register.html");
 
     const authedPage = await page.context().newPage();
     await openLanding(authedPage, true);
     await expect(authedPage.locator("#hero-primary-cta")).toHaveAttribute("href", "bots.html");
     await expect(authedPage.locator("#bottom-cta-btn")).toHaveAttribute("href", "bots.html");
-    await expect(authedPage.locator("[data-plan-cta='growth']")).toHaveAttribute("href", "pricing.html");
+    await expect(authedPage.locator("[data-plan-cta='advanced']")).toHaveAttribute("href", "pricing.html");
   });
 });
