@@ -1,17 +1,22 @@
 :root {
-    --control-canvas: #0e0f11;
-    --control-panel: #16181b;
-    --control-raised: #1e2125;
-    --control-sunken: #0a0b0d;
-    --control-text: #f2f3f4;
-    --control-text-secondary: #8a9096;
-    --control-text-tertiary: #a1a6ab;
-    --control-accent: #3e9c89;
-    --control-accent-hover: #4ab09b;
-    --control-accent-press: #337f70;
+    --control-canvas: #060A12;
+    --control-panel: #0C1421;
+    --control-raised: #152032;
+    --control-sunken: #04070C;
+    --control-text: #F1F5F9;
+    --control-text-secondary: #94A3B8;
+    --control-text-tertiary: #A8B5C6;
+    --control-accent: #22D3EE;
+    --control-accent-hover: #38BDF8;
+    --control-accent-press: #0891B2;
+    /* The teal this palette retired. It was already the de-facto
+       connected/healthy colour in the UI, so it keeps that job under a name
+       that says so, instead of doubling as the brand accent. Value matches
+       the --success auth-volleo.css already defines. */
+    --control-success: #34D399;
     --control-accent-subtle: rgba(62, 156, 137, 0.12);
-    --control-warning: #c4795a;
-    --control-danger: #a65648;
+    --control-warning: #FBBF24;
+    --control-danger: #F87171;
     --control-border: rgba(255, 255, 255, 0.08);
     --font-heading: 'Space Grotesk', sans-serif;
     --font-body: 'Geist', sans-serif;
@@ -126,7 +131,7 @@ body.dashboard-page {
     font-size: 24px;
     font-weight: 700;
     line-height: 1.2;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
 }
 
 .dashboard-page .header p {
@@ -534,7 +539,7 @@ body.dashboard-page {
 .dashboard-page chatbot-sidebar .logo span {
     font-family: var(--font-heading);
     font-size: 17px;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
 }
 
 .dashboard-page chatbot-sidebar .nav-group-header {
@@ -728,13 +733,13 @@ body.dashboard-page {
     font-size: 11px;
     line-height: 1;
     text-align: center;
-    color: var(--control-text-dim, #8a9096);
+    color: var(--control-text-dim, #94A3B8);
     font-variant-numeric: tabular-nums;
 }
 
 .dashboard-page .chart-col:hover .chart-value,
 .dashboard-page .chart-col:focus-within .chart-value {
-    color: var(--control-text, #f2f3f4);
+    color: var(--control-text, #F1F5F9);
 }
 
 .dashboard-page .chart-bar {
@@ -754,7 +759,7 @@ body.dashboard-page {
 }
 
 .dashboard-page .chart-col.is-peak .chart-value {
-    color: var(--control-accent, #3e9c89);
+    color: var(--control-accent, #22D3EE);
     font-weight: 600;
 }
 

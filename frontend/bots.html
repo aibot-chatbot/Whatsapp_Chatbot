@@ -16,21 +16,26 @@
 
     <style>
         :root {
-            --canvas: #0e0f11;
-            --panel: #16181b;
-            --raised: #1e2125;
-            --sunken: #0a0b0d;
-            --hairline: #2b2f34;
-            --text-main: #f2f3f4;
-            --text-dim: #8a9096;
-            --text-tertiary: #5c6167;
-            --primary: #3e9c89;
-            --primary-hover: #4ab09b;
-            --accent: #3e9c89;
-            --danger: #a65648;
-            --warning: #c4795a;
-            --card-bg: #16181b;
-            --glass-border: #2b2f34;
+            --canvas: #060A12;
+            --panel: #0C1421;
+            --raised: #152032;
+            --sunken: #04070C;
+            --hairline: #1E2A3D;
+            --text-main: #F1F5F9;
+            --text-dim: #94A3B8;
+            --text-tertiary: #75849A;
+            --primary: #22D3EE;
+            --primary-hover: #38BDF8;
+            --accent: #22D3EE;
+            /* The teal this palette retired. It was already the de-facto
+               connected/healthy colour in the UI, so it keeps that job under a name
+               that says so, instead of doubling as the brand accent. Value matches
+               the --success auth-volleo.css already defines. */
+            --success: #34D399;
+            --danger: #F87171;
+            --warning: #FBBF24;
+            --card-bg: #0C1421;
+            --glass-border: #1E2A3D;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: "Geist", sans-serif; }
@@ -45,7 +50,7 @@
         body.bots-nav-open { overflow: hidden; }
         .app-shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
         .side-rail { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; padding: 20px 12px; background: var(--panel); border-right: 1px solid var(--hairline); }
-        .rail-brand { padding: 0 12px 22px; font-family: "Space Grotesk", sans-serif; font-size: 18px; font-weight: 700; letter-spacing: -.02em; }
+        .rail-brand { padding: 0 12px 22px; font-family: "Space Grotesk", sans-serif; font-size: 18px; font-weight: 700; letter-spacing: -.03em; }
         .rail-label { padding: 8px 12px; color: var(--text-dim); font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
         .rail-link { min-height: 40px; display: flex; align-items: center; gap: 11px; padding: 8px 12px; color: var(--text-dim); text-decoration: none; border: 1px solid transparent; border-radius: 8px; font-size: 13px; font-weight: 500; }
         .rail-link:hover { color: var(--text-main); background: var(--raised); }
@@ -78,7 +83,7 @@
             font-family: "Space Grotesk", sans-serif;
             font-size: 24px;
             line-height: 1.25;
-            letter-spacing: -0.02em;
+            letter-spacing: -0.03em;
             background: none;
             -webkit-text-fill-color: currentColor;
         }

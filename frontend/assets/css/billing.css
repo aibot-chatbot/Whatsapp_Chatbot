@@ -7,8 +7,8 @@
    way rather than reaching for !important.
 
    No new colour is introduced. Everything here is expressed in the control
-   tokens (--control-accent is the teal #3e9c89); the old profile page's
-   blue #3b82f6 and the Outfit font are deliberately absent.
+   tokens (--control-accent is the teal #22D3EE); the old profile page's
+   blue #22D3EE and the Outfit font are deliberately absent.
 
    Money and counts use --font-mono with tabular-nums so a column of figures
    lines up and cannot jitter as digits change.
@@ -127,7 +127,7 @@
     font-family: var(--font-heading);
     font-size: 24px;
     font-weight: 600;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.03em;
 }
 
 .dashboard-page .bl-plan-facts {
@@ -310,9 +310,9 @@
 /* Series colours for the stacked model chart. Five steps that stay inside
    the control palette rather than introducing a rainbow. */
 .dashboard-page .bl-series-0 { fill: var(--control-accent); }
-.dashboard-page .bl-series-1 { fill: #4ab09b; }
+.dashboard-page .bl-series-1 { fill: #38BDF8; }
 .dashboard-page .bl-series-2 { fill: var(--control-warning); }
-.dashboard-page .bl-series-3 { fill: #8a9096; }
+.dashboard-page .bl-series-3 { fill: #94A3B8; }
 .dashboard-page .bl-series-4 { fill: var(--control-danger); }
 
 .dashboard-page .bl-chart-note {
@@ -348,9 +348,9 @@
 }
 
 .dashboard-page .bl-key-0 { background: var(--control-accent); }
-.dashboard-page .bl-key-1 { background: #4ab09b; }
+.dashboard-page .bl-key-1 { background: #38BDF8; }
 .dashboard-page .bl-key-2 { background: var(--control-warning); }
-.dashboard-page .bl-key-3 { background: #8a9096; }
+.dashboard-page .bl-key-3 { background: #94A3B8; }
 .dashboard-page .bl-key-4 { background: var(--control-danger); }
 
 /* Horizontal ranked bars, used for feature and provider breakdowns. */

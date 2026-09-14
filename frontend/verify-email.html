@@ -59,7 +59,7 @@
         function showMessage(msg, isError = true) {
             const el = document.getElementById('general-message');
             el.innerHTML = (isError ? '⚠️ ' : '✅ ') + msg;
-            el.style.color = isError ? '#ef4444' : '#10b981';
+            el.style.color = isError ? '#F87171' : '#34D399';
             el.style.background = isError ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)';
             el.style.borderColor = isError ? 'rgba(239, 68, 68, 0.3)' : 'rgba(16, 185, 129, 0.3)';
             el.style.display = 'block';

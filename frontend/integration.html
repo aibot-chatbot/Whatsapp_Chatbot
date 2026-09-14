@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Publish your bot | Omnexa</title>
-    <meta name="theme-color" content="#0e0f11">
+    <meta name="theme-color" content="#060A12">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -510,7 +510,7 @@
         function qrSvg(text, label) {
             if (typeof QRCodeGen === 'undefined') return '';
             try {
-                return QRCodeGen.toSvg(text, { label: label, dark: '#0a0b0d', light: '#ffffff' });
+                return QRCodeGen.toSvg(text, { label: label, dark: '#04070C', light: '#ffffff' });
             } catch (error) {
                 console.error('QR render failed:', error);
                 return '';

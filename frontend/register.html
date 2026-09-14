@@ -162,16 +162,16 @@
             bar.style.width = strength + "%";
             
             if (strength <= 25) {
-                bar.style.background = "#ef4444";
+                bar.style.background = "#F87171";
                 feedback = "Weak (Need 8+ chars, caps, nums, symbols)";
             } else if (strength <= 50) {
                 bar.style.background = "#f59e0b";
                 feedback = "Moderate";
             } else if (strength <= 75) {
-                bar.style.background = "#3b82f6";
+                bar.style.background = "#22D3EE";
                 feedback = "Good";
             } else {
-                bar.style.background = "#10b981";
+                bar.style.background = "#34D399";
                 feedback = "Strong Password ✨";
             }
             
@@ -240,7 +240,7 @@
                 
                 const generalMsg = document.getElementById('general-error');
                 generalMsg.innerHTML = '✅ ' + result.message;
-                generalMsg.style.color = '#10b981';
+                generalMsg.style.color = '#34D399';
                 generalMsg.style.background = 'rgba(16, 185, 129, 0.1)';
                 generalMsg.style.borderColor = 'rgba(16, 185, 129, 0.3)';
                 generalMsg.style.display = 'block';
@@ -269,7 +269,7 @@
             const generalError = document.getElementById('general-error');
             if (generalError) {
                 generalError.textContent = message || 'Google Sign-In is currently unavailable.';
-                generalError.style.color = '#ef4444';
+                generalError.style.color = '#F87171';
                 generalError.style.background = 'rgba(239, 68, 68, 0.1)';
                 generalError.style.borderColor = 'rgba(239, 68, 68, 0.3)';
                 generalError.style.display = 'block';

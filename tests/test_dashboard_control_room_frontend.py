@@ -36,10 +36,14 @@ def test_dashboard_uses_stitch_control_room_design_contract():
     assert "📉" not in html
     assert "📜" not in html
 
+    # The palette is the landing page palette. These stay pinned by exact value so
+    # a re-skin has to be a deliberate act rather than silent drift, which is the
+    # whole reason they were written down.
     for token in (
-        "--control-canvas: #0e0f11",
-        "--control-panel: #16181b",
-        "--control-accent: #3e9c89",
+        "--control-canvas: #060A12",
+        "--control-panel: #0C1421",
+        "--control-accent: #22D3EE",
+        "--control-success: #34D399",
         "--font-heading: 'Space Grotesk'",
         "--font-body: 'Geist'",
         "--font-mono: 'JetBrains Mono'",
