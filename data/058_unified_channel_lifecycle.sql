@@ -60,7 +60,12 @@ DROP INDEX IF EXISTS public.whatsapp_channels_phone_number_id_key;
 -- below. The row is created pending+active before verification runs, so keying
 -- on is_active alone would let any tenant hold another tenant's number for the
 -- length of the Graph round-trips - or permanently, if the attempt died.
-CREATE UNIQUE INDEX IF NOT EXISTS whatsapp_channels_phone_number_id_active_unique
+-- Dropped, not IF NOT EXISTS: this index already exists in production with the
+-- older, broader predicate (is_active AND phone_number_id IS NOT NULL). A
+-- CREATE ... IF NOT EXISTS would silently skip and leave the wrong predicate in
+-- place, so the narrowing above would never take effect.
+DROP INDEX IF EXISTS public.whatsapp_channels_phone_number_id_active_unique;
+CREATE UNIQUE INDEX whatsapp_channels_phone_number_id_active_unique
   ON public.whatsapp_channels(phone_number_id)
   WHERE is_active = true AND connection_status = 'connected' AND phone_number_id IS NOT NULL;
 CREATE UNIQUE INDEX IF NOT EXISTS wasender_channels_active_provider_identity_uidx
