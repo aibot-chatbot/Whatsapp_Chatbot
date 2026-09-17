@@ -19,6 +19,7 @@ from app.services.model_catalog import (
     validate_provider_model_pair,
 )
 from app.services.response_formatter import clean_ai_reply
+from app.services.channel_delivery_service import HandoffAcknowledgement, automatic_reply_allowed
 from app.database.bot_repository import get_bot_by_id
 from app.services.ai_access_policy import (
     resolve_ai_access,
@@ -60,7 +61,7 @@ def _flow_runtime_failed_result():
     return SimpleNamespace(status="failed", reply=None, handled=False, should_handoff_to_ai=False)
 
 
-def _try_process_flow_message(company_id, chatbot_id, message, customer_id, source_channel):
+def _try_process_flow_message(company_id, chatbot_id, message, customer_id, source_channel, conversation=None):
     try:
         from app.services.flow_executor_service import process_flow_message
     except ImportError as exc:
@@ -68,7 +69,7 @@ def _try_process_flow_message(company_id, chatbot_id, message, customer_id, sour
         return _flow_runtime_failed_result()
 
     try:
-        return process_flow_message(company_id, chatbot_id, message, str(customer_id), source_channel=source_channel)
+        return process_flow_message(company_id, chatbot_id, message, str(customer_id), source_channel=source_channel, **({"conversation": conversation} if conversation is not None else {}))
     except Exception as exc:
         logging.exception("Flow executor runtime failed for chatbot %s: %s", chatbot_id, exc)
         return _flow_runtime_failed_result()
@@ -919,6 +920,7 @@ def call_provider(
     temperature=0.7,
     source_channel="whatsapp",
     company_id=None,
+    conversation=None,
 ):
     """Call an AI provider and return a _ProviderResult with usage metadata.
 
@@ -944,6 +946,7 @@ def call_provider(
             customer_id=customer_id,
             chatbot_id=chatbot_id,
             source_channel=source_channel,
+            **({"conversation": conversation} if conversation is not None else {}),
         )
 
         if pipeline.get("direct_reply"):
@@ -986,13 +989,15 @@ def call_provider(
             model=model,
             temperature=temperature,
             source_channel=source_channel,
+            **({"conversation": conversation} if conversation is not None else {}),
         )
 
         if not success:
             return _make_result_from_text(raw, provider, model, success=False)
 
         if isinstance(raw, dict) and "choices" in raw:
-            text = raw["choices"][0]["message"]["content"].strip()
+            content = raw["choices"][0]["message"]["content"]
+            text = content if isinstance(content, HandoffAcknowledgement) else content.strip()
             return _make_result_from_text(text, provider, model)
 
         if hasattr(raw, "choices"):
@@ -1007,12 +1012,26 @@ def call_provider(
     raise ValueError(f"Unsupported AI provider: {provider}")
 
 
-def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY):
+def _reply_for_current_handoff(reply, conversation, chatbot_id):
+    if conversation is not None:
+        from app.database.agent_action_repository import is_conversation_escalated
+        try:
+            paused = is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation)
+            if not automatic_reply_allowed(conversation, reply, paused=paused):
+                return "<SILENT_BOT_RESPONSE>"
+        except Exception as error:
+            logging.warning("Could not verify reply handoff state (%s)", type(error).__name__)
+            return "<SILENT_BOT_RESPONSE>"
+    return reply
+
+
+def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY, conversation_id=None):
     """Generate a response using the appropriate AI provider..."""
 
     # Enforce billing usage logging...
     from app.services.ai_credit_service import is_ai_credit_enforcement_enabled
     from app.services.company_status_service import ensure_company_operational
+    conversation = None
     try:
 
         bot = get_bot_by_id(chatbot_id)
@@ -1030,17 +1049,29 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         company_id = bot.get("company_id")
         ensure_company_operational(company_id)
 
-        flow_result = _try_process_flow_message(company_id, chatbot_id, message, customer_id, source_channel)
+        if conversation_id is not None:
+            from app.database.conversation_repository import get_conversation_by_id_and_chatbot
+            from app.database.agent_action_repository import is_conversation_escalated
+            conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
+            if not conversation or conversation.get("source_channel") != source_channel:
+                raise ValueError("Conversation ownership could not be verified")
+            if is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
+                return "<SILENT_BOT_RESPONSE>"
+
+        flow_result = _try_process_flow_message(
+            company_id, chatbot_id, message, customer_id, source_channel,
+            **({"conversation": conversation} if conversation is not None else {}),
+        )
         if flow_result.handled:
             logging.info("Flow Builder handled message for bot %s.", chatbot_id)
-            return flow_result.reply
+            return _reply_for_current_handoff(flow_result.reply, conversation, chatbot_id)
         if not flow_result.should_handoff_to_ai:
             logging.error(
                 "Flow Builder runtime failed for company %s chatbot %s; returning safe fallback.",
                 company_id,
                 chatbot_id,
             )
-            return FLOW_RUNTIME_FAILURE_REPLY
+            return _reply_for_current_handoff(FLOW_RUNTIME_FAILURE_REPLY, conversation, chatbot_id)
 
         selected_provider, model_name = normalize_model_selection(
             selected_provider,
@@ -1063,13 +1094,15 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 temperature=temperature,
                 source_channel=source_channel,
                 company_id=company_id,
+                **({"conversation": conversation} if conversation is not None else {}),
             )
 
             if _should_log_provider_usage(result) and company_id:
                 _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
 
             if not is_error_reply(result.text):
-                return clean_ai_reply(result.text)
+                reply = result.text if isinstance(result.text, HandoffAcknowledgement) else clean_ai_reply(result.text)
+                return _reply_for_current_handoff(reply, conversation, chatbot_id)
 
             logging.warning(
                 "Provider %s returned an error reply. Cross-provider fallback is disabled.",
@@ -1085,13 +1118,13 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 provider_error,
             )
 
-        return "Sorry, I'm having trouble replying right now. Please try again later."
+        return _reply_for_current_handoff("Sorry, I'm having trouble replying right now. Please try again later.", conversation, chatbot_id)
 
     except BillingLimitError:
         raise
     except Exception as e:
         logging.error(f"AI Router Error: {e}")
-        return "Sorry, I'm having trouble replying right now. Please try again later."
+        return _reply_for_current_handoff("Sorry, I'm having trouble replying right now. Please try again later.", conversation, chatbot_id)
 
 
 def _call_deepseek_direct(prompt, model, temperature, json_response=False, stream=False):

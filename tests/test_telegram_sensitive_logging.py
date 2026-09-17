@@ -138,12 +138,12 @@ def test_callback_network_error_does_not_escape_to_webhook_logs(
             raise requests.ConnectionError(f"Failed request to {url}")
         return MagicMock()
 
-    channel = {"id": 1, "chatbot_id": 2, "company_id": 3, "bot_token": BOT_TOKEN}
+    channel = {"id": 1, "chatbot_id": 2, "company_id": 3, "bot_token": BOT_TOKEN, "telegram_bot_id": "123", "is_active": True, "connection_status": "connected", "verified_at": "2026-09-14"}
     update = {
         "update_id": 4,
         "callback_query": {
             "id": "callback-5",
-            "message": {"message_id": 6, "chat": {"id": CHAT_ID}},
+            "message": {"message_id": 6, "chat": {"id": 7, "type": "private"}},
             "from": {"id": 7},
             "data": CUSTOMER_TEXT,
         },
@@ -151,8 +151,8 @@ def test_callback_network_error_does_not_escape_to_webhook_logs(
     with patch.object(
         telegram_utils, "get_telegram_channel_by_secret", return_value=channel
     ), patch.object(
-        telegram_utils, "is_telegram_update_processed", return_value=False
-    ), patch.object(telegram_utils.requests, "post", side_effect=reply) as post:
+        telegram_utils, "claim_telegram_update", return_value=True
+    ), patch.object(telegram_utils, "release_telegram_update_claim"), patch.object(telegram_utils.requests, "post", side_effect=reply) as post:
         with caplog.at_level(logging.INFO):
             response = telegram_client.post(
                 f"/telegram/webhook/{WEBHOOK_SECRET}",
@@ -301,8 +301,11 @@ def test_telegram_connection_failure_retains_status_without_exposing_credentials
         stack.enter_context(patch.object(telegram_routes, "verify_chatbot_access", return_value=channel))
         stack.enter_context(patch.object(telegram_routes, "get_bot_by_id", return_value=channel))
         stack.enter_context(patch.object(telegram_routes, "get_telegram_channel_by_id", return_value=channel))
+        stack.enter_context(patch.object(telegram_routes, "get_telegram_channel_by_bot_id", return_value=None))
+        stack.enter_context(patch.object(telegram_routes, "claim_telegram_channel_operation", return_value=channel))
         stack.enter_context(patch.object(telegram_routes, "create_telegram_channel", return_value=channel))
         stack.enter_context(patch.object(telegram_routes, "can_connect_channel"))
+        stack.enter_context(patch.object(telegram_routes, "get_telegram_channels_by_chatbot", return_value=[]))
         update = stack.enter_context(patch.object(telegram_routes, "update_telegram_channel"))
         stack.enter_context(patch.object(telegram_routes.requests, "get", side_effect=telegram_response))
         stack.enter_context(patch.object(telegram_routes.requests, "post", side_effect=telegram_response))
@@ -310,7 +313,7 @@ def test_telegram_connection_failure_retains_status_without_exposing_credentials
         if operation == "connect":
             response = telegram_client.post(
                 "/api/telegram/connect?chatbot_id=2",
-                json={"bot_token": BOT_TOKEN},
+                json={"bot_token": BOT_TOKEN, "telegram_bot_id": "123", "is_active": True, "connection_status": "connected", "verified_at": "2026-09-14"},
                 headers={"Authorization": "Bearer synthetic-auth-token"},
             )
         else:
@@ -323,18 +326,21 @@ def test_telegram_connection_failure_retains_status_without_exposing_credentials
     assert BOT_TOKEN not in response.get_data(as_text=True)
     assert WEBHOOK_SECRET not in response.get_data(as_text=True)
     if failure_kind == "transport":
-        assert response.status_code == 500
-        assert response.json == {"status": "error", "message": GENERIC_MESSAGE}
-        assert "ConnectionError" in caplog.text
+        assert response.status_code == 400
+        assert "Could not reach Telegram" in response.json["message"]
+        if failed_endpoint == "setWebhook":
+            assert update.call_args.args[1]["connection_status"] == "failed"
     else:
         assert response.status_code == 400
         if failure_kind == "provider_response":
             assert "400" in response.json["message"]
         else:
             assert response.json["message"]
-        if failed_endpoint == "setWebhook" or operation == "reconnect":
+        if failed_endpoint == "setWebhook":
             update.assert_called_once()
             assert update.call_args.args[1]["last_error"] == response.json["message"]
+        else:
+            update.assert_not_called()
 
 
 def test_delete_webhook_failure_does_not_return_provider_body(caplog):
@@ -406,7 +412,8 @@ def test_delivery_report_logs_only_safe_failure_description(
             "pending_update_count": 3,
         },
     }
-    channel = {"id": 1, "chatbot_id": 2, "bot_token": BOT_TOKEN, "webhook_url": webhook_url}
+    channel = {"id": 1, "chatbot_id": 2, "bot_token": BOT_TOKEN, "webhook_url": webhook_url,
+               "is_active": True, "connection_status": "connected"}
     with patch.object(
         telegram_routes, "get_telegram_channel_by_id", return_value=channel
     ), patch.object(telegram_routes.requests, "get", return_value=provider_response):
@@ -470,7 +477,8 @@ def test_delivery_report_rejects_sensitive_values_in_numeric_field(
     authenticated_telegram_client, pending_count, caplog
 ):
     webhook_url = f"https://example.test/telegram/webhook/{WEBHOOK_SECRET}"
-    channel = {"id": 1, "chatbot_id": 2, "bot_token": BOT_TOKEN, "webhook_url": webhook_url}
+    channel = {"id": 1, "chatbot_id": 2, "bot_token": BOT_TOKEN, "webhook_url": webhook_url,
+               "is_active": True, "connection_status": "connected"}
     info = {"url": webhook_url, "pending_update_count": pending_count}
     with patch.object(
         telegram_routes, "get_telegram_channel_by_id", return_value=channel

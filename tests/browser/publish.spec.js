@@ -2,8 +2,12 @@ const { expect, test } = require("@playwright/test");
 const { startServer } = require("./platform-admin-static-server");
 
 let staticServer;
+let staticOrigin;
 
-test.beforeAll(async () => { staticServer = await startServer(); });
+test.beforeAll(async () => {
+  staticServer = await startServer(0);
+  staticOrigin = `http://127.0.0.1:${staticServer.address().port}`;
+});
 test.afterAll(async () => {
   if (!staticServer) return;
   await new Promise(resolve => staticServer.close(resolve));
@@ -48,18 +52,32 @@ function makeWorld(overrides = {}) {
     // default. The route answers 500 in that state, not 404.
     metaConfigured: false,
     telegramConnect: null,
+    telegramDelivery: { delivery_status: "connected", message: "The connection is ready." },
+    whatsappDelivery: { delivery_status: "connected" },
+    wasenderDelivery: { delivery_status: "connected" },
+    providerResults: {}, providerRequests: [],
+    telegramTokens: [],
     calls: [],
     puts: []
   }, overrides);
 }
 
 async function install(page, world) {
+  for (const kind of ['telegram', 'whatsapp', 'wasender']) {
+    world[kind] = world[kind].map(row => row.connection_status === 'connected' && row.verified_at === undefined
+      ? { ...row, verified_at: '2026-09-14T04:00:00Z' } : row);
+  }
   await page.addInitScript(() => {
     sessionStorage.setItem("token", "fake-tenant-token");
     sessionStorage.setItem("isLoggedIn", "true");
     sessionStorage.setItem("user", JSON.stringify({
       id: 1, email: "owner@northweave.test", full_name: "Owner", role: "owner"
     }));
+  });
+
+  await page.route('**/*', route => {
+    const target = new URL(route.request().url());
+    return target.hostname === '127.0.0.1' ? route.continue() : route.abort();
   });
 
   await page.route("https://fonts.googleapis.com/**", route => route.abort());
@@ -111,6 +129,7 @@ async function install(page, world) {
     }
 
     if (path.includes("/api/telegram/connect")) {
+      world.telegramTokens.push(JSON.parse(req.postData() || "{}").bot_token);
       const outcome = world.telegramConnect;
       if (outcome && outcome.error) {
         return route.fulfill({
@@ -121,12 +140,39 @@ async function install(page, world) {
       }
       world.telegram = [{
         id: 3, chatbot_id: 42, bot_username: "northweave_bot", telegram_bot_id: "8123",
-        connection_status: "connected", is_active: true, last_error: null
+        connection_status: "connected", is_active: true, last_error: null,
+        verified_at: '2026-09-14T04:00:00Z'
       }];
       return route.fulfill(json({
         status: "success",
         data: { id: 3, bot_username: "northweave_bot", connection_status: "connected" }
       }));
+    }
+
+    const delivery = path.match(/\/api\/(telegram|whatsapp|wasender)\/channels\/[^/]+\/delivery/);
+    if (delivery) {
+      return route.fulfill(json({ status: "success", data: world[delivery[1] + 'Delivery'] }));
+    }
+
+    const setup = path.match(/\/api\/(whatsapp|wasender)\/(connect|embedded-signup\/complete|channels\/[^/]+\/reconnect)/);
+    if (setup && ['POST', 'PUT'].includes(req.method())) {
+      const kind = setup[1];
+      const body = JSON.parse(req.postData() || '{}');
+      world.providerRequests.push({ kind, body, method: req.method(), path });
+      const outcome = world.providerResults[kind] || {};
+      if (outcome.error) return route.fulfill({ status: outcome.status || 400,
+        contentType: 'application/json', body: JSON.stringify({ status: 'error', message: outcome.error }) });
+      const current = world[kind][0] || {};
+      const record = { id: 40, chatbot_id: 42, is_active: !outcome.pending,
+        connection_status: outcome.pending ? 'pending' : 'connected', session_id: body.session_id || '456',
+        verified_at: outcome.pending ? null : '2026-09-14T04:00:00Z',
+        phone_number: body.phone_number || current.phone_number,
+        display_phone_number: body.phone_number || current.display_phone_number,
+        webhook_url: 'https://bot.example.test/wasender/webhook/test-callback' };
+      world[kind] = [record, ...world[kind].filter(row => row.id !== record.id).map(row => outcome.pending ? row : { ...row, is_active: false, connection_status: 'disconnected' })];
+      return route.fulfill({ status: outcome.pending ? 202 : 200, contentType: 'application/json',
+        body: JSON.stringify({ status: outcome.pending ? 'pending' : 'success', data: record,
+          next_action: outcome.pending ? 'configure_webhook' : undefined }) });
     }
 
     for (const kind of ["telegram", "whatsapp", "wasender"]) {
@@ -145,8 +191,8 @@ async function install(page, world) {
 
 async function open(page, world) {
   await install(page, world);
-  await page.goto(`/integration.html?bot_id=${BOT_ID}`);
-  await expect(page.locator("#pub-options > .pub-option")).toHaveCount(4);
+  await page.goto(`${staticOrigin}/integration.html?bot_id=${BOT_ID}`);
+  await expect(page.locator("#pub-options > .pub-option")).toHaveCount(4, { timeout: 15000 });
 }
 
 test("equal channel choices come before existing connections", async ({ page }) => {
@@ -227,15 +273,16 @@ test("turning the link off asks first, because printed links break", async ({ pa
   expect(world.puts).toHaveLength(0);
 });
 
-test("WhatsApp reads as a real state when the operator has not enabled it", async ({ page }) => {
+test("Meta sign-in unavailable still allows explicit verified Cloud API setup", async ({ page }) => {
   await open(page, makeWorld());
 
   const row = page.locator('[data-option="whatsapp"]');
-  await expect(row).toHaveClass(/is-quiet/);
-  await expect(row.locator(".kw-badge-support")).toHaveText("Not available yet");
-  // Never a live-looking button that cannot work.
+  await row.getByRole('button', { name: 'Choose WhatsApp' }).click();
   await expect(row.locator("#pub-meta-connect")).toHaveCount(0);
-  await expect(row).toContainText("not available in this workspace");
+  await expect(row).toContainText("Meta sign-in is unavailable");
+  await row.getByText('Use existing Meta Cloud API credentials', { exact: true }).click();
+  await expect(row.locator('#pub-meta-token')).toHaveAttribute('type', 'password');
+  await expect(row.locator('#pub-meta-manual-connect')).toBeVisible();
 });
 
 test("a full plan explains itself instead of failing after the click", async ({ page }) => {
@@ -267,8 +314,8 @@ test("the Telegram guide is inline, addressable, and an accordion of one", async
   await expect(page.locator("#pub-flow-telegram .kw-idrow code").first()).toHaveText("@BotFather");
   await expect(page.locator("#pub-flow-telegram .pub-shot svg")).toHaveCount(3);
 
-  // A beginner has to be able to see that their paste worked.
-  await expect(page.locator("#pub-telegram-code")).toHaveAttribute("type", "text");
+  // Provider credentials stay masked while the verified identity confirms setup.
+  await expect(page.locator("#pub-telegram-code")).toHaveAttribute("type", "password");
   await expect(page.locator("#pub-flow-telegram label[for='pub-telegram-code']"))
     .toHaveText("Paste the code here");
 
@@ -296,6 +343,103 @@ test("a valid code shows the bot's real name and moves it to the live list", asy
 
   await expect(page.locator("#pub-live-count")).toHaveText("2");
   await expect(page.locator('[data-option="telegram"]')).toContainText('Manage connection');
+});
+
+test("Telegram regression: latest failed attempt stays visible above the previous bot", async ({ page }) => {
+  const world = makeWorld({ telegram: [
+    { id: 8, bot_username: "new_bot", connection_status: "failed", is_active: false },
+    { id: 3, bot_username: "old_bot", connection_status: "connected", is_active: true }
+  ] });
+  await open(page, world);
+  const row = page.locator('#pub-live-body [data-live="telegram"]');
+  await expect(row).toContainText("@new_bot");
+  await expect(row).toContainText("Needs a fix");
+  await expect(row).toContainText("Previous bot @old_bot is still enabled");
+  await expect(row.locator('.kw-pill-ready')).toHaveCount(0);
+  await page.locator('#pub-live').scrollIntoViewIfNeeded();
+  await expect(page.locator('#pub-live')).toHaveCSS('opacity', '1');
+  await row.screenshot({ path: test.info().outputPath('telegram-failure-state.png') });
+  await page.screenshot({ path: test.info().outputPath('telegram-latest-attempt-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 850 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth))
+    .toBeLessThanOrEqual(0);
+  await row.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: test.info().outputPath('telegram-latest-attempt-mobile.png'), fullPage: true });
+});
+
+for (const deliveryStatus of ['failed', 'unknown']) {
+  test(`Telegram regression: ${deliveryStatus} delivery cannot display Connected`, async ({ page }) => {
+    const world = makeWorld({
+      telegram: [{ id: 3, bot_username: 'old_bot', connection_status: 'connected', is_active: true }],
+      telegramDelivery: { delivery_status: deliveryStatus, message: 'Connection needs checking.' }
+    });
+    await open(page, world);
+    const row = page.locator('#pub-live-body [data-live="telegram"]');
+    await expect(row.locator('.kw-pill-ready')).toHaveCount(0);
+    await expect(row).toContainText(deliveryStatus === 'failed' ? 'Needs a fix' : 'Check needed');
+    expect(world.calls.some(call => call.includes('/channels/3/delivery'))).toBe(true);
+  });
+}
+
+test('Telegram regression: changing bot submits the new code and preserves a failed attempt on refresh', async ({ page }) => {
+  const world = makeWorld({
+    telegram: [{ id: 3, bot_username: 'old_bot', connection_status: 'connected', is_active: true }],
+    telegramConnect: { status: 400, error: 'Unauthorized' }
+  });
+  await open(page, world);
+  await page.getByRole('button', { name: 'Change bot', exact: true }).click();
+  const newCode = '9999999999:NEWxxxxxxxxxxxxxxxxxxxxx';
+  await page.locator('#pub-telegram-code').fill(newCode);
+  await page.locator('#pub-telegram-connect').click();
+  await expect(page.locator('#pub-telegram-result')).toContainText('Copy the whole line');
+  expect(world.telegramTokens).toEqual([newCode]);
+  expect(world.calls.some(call => call.includes('/reconnect'))).toBe(false);
+  await page.locator('#pub-recheck').click();
+  await expect(page.locator('#pub-live-body')).toContainText('New Telegram connection failed');
+  await expect(page.locator('#pub-live-body')).toContainText('@old_bot');
+  await page.reload();
+  await expect(page.locator('#pub-live-body')).toContainText('New Telegram connection failed');
+  expect(await page.evaluate(() => Object.values(sessionStorage).join(' '))).not.toContain(newCode);
+});
+
+test('Telegram regression: disconnect then connect uses the replacement identity', async ({ page }) => {
+  const world = makeWorld({ telegram: [
+    { id: 3, bot_username: 'old_bot', connection_status: 'connected', is_active: true }
+  ] });
+  await open(page, world);
+  await page.locator('[data-disconnect="telegram"]').click();
+  await page.locator('#pub-confirm-ok').click();
+  await page.locator('[data-flow-open="telegram"]').click();
+  await page.locator('#pub-telegram-code').fill('9999999999:NEWxxxxxxxxxxxxxxxxxxxxx');
+  await page.locator('#pub-telegram-connect').click();
+  await expect(page.locator('#pub-live-body [data-live="telegram"]')).toContainText('@northweave_bot');
+  await expect(page.locator('#pub-live-body')).not.toContainText('@old_bot');
+  expect(world.telegramTokens).toEqual(['9999999999:NEWxxxxxxxxxxxxxxxxxxxxx']);
+  expect(world.calls.some(call => call.includes('/reconnect'))).toBe(false);
+});
+
+test('Telegram regression: an incomplete health response stays unverified', async ({ page }) => {
+  await open(page, makeWorld({
+    telegram: [{ id: 3, bot_username: 'old_bot', connection_status: 'connected', is_active: true }],
+    telegramDelivery: {}
+  }));
+  await expect(page.locator('#pub-live-body [data-live="telegram"]')).toContainText('Check needed');
+  await expect(page.locator('#pub-live-body [data-live="telegram"] .kw-pill-ready')).toHaveCount(0);
+});
+
+test('Telegram regression: successful replacement shows only the new identity', async ({ page }) => {
+  const world = makeWorld({ telegram: [
+    { id: 3, bot_username: 'old_bot', connection_status: 'connected', is_active: true }
+  ] });
+  await open(page, world);
+  await page.getByRole('button', { name: 'Change bot', exact: true }).click();
+  await page.locator('#pub-telegram-code').fill('9999999999:NEWxxxxxxxxxxxxxxxxxxxxx');
+  await page.locator('#pub-telegram-connect').click();
+  const row = page.locator('#pub-live-body [data-live="telegram"]');
+  await expect(row).toContainText('@northweave_bot');
+  await expect(row.locator('.kw-pill-ready')).toContainText('Connected');
+  await expect(page.locator('#pub-live-body')).not.toContainText('@old_bot');
+  await expect(page.locator('#pub-flow-telegram')).toBeHidden();
 });
 
 test("a malformed code is caught before a request is sent", async ({ page }) => {
@@ -335,9 +479,10 @@ test("a broken channel offers a repair, not a shrug", async ({ page }) => {
 
   const row = page.locator('#pub-live-body [data-live="telegram"]');
   await expect(row.locator(".kw-pill-review")).toContainText("Needs a fix");
-  await expect(row).toContainText("stopped accepting messages");
+  await expect(row).toContainText("This Telegram connection needs a fix");
   await expect(row).not.toContainText("getMe");
-  await expect(row.getByRole("button", { name: "Set it up again" })).toBeVisible();
+  await expect(row.getByRole("button", { name: "Reconnect same bot" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Change bot", exact: true })).toBeVisible();
 });
 
 test("making a new link warns that printed copies stop working", async ({ page }) => {
@@ -448,7 +593,7 @@ test('a website read failure cannot hide a connected Telegram channel', async ({
   await install(page, world);
   await page.route('**/api/bots/42/widget', route => route.fulfill({ status: 400,
     contentType: 'application/json', body: JSON.stringify({ status: 'error' }) }));
-  await page.goto('/integration.html?bot_id=42');
+  await page.goto(`${staticOrigin}/integration.html?bot_id=42`);
   await expect(page.locator('#pub-live-body [data-live="telegram"]')).toBeVisible();
   await expect(page.locator('#pub-live-body')).toContainText('could not be refreshed');
 });
@@ -457,8 +602,129 @@ test('an unknown connection state is never presented as an empty account', async
   await install(page, makeWorld());
   await page.route('**/api/bots/42/widget', route => route.fulfill({ status: 400,
     contentType: 'application/json', body: JSON.stringify({ status: 'error' }) }));
-  await page.goto('/integration.html?bot_id=42');
+  await page.goto(`${staticOrigin}/integration.html?bot_id=42`);
   await expect(page.locator('#pub-live-body')).toContainText('could not be refreshed');
   await expect(page.getByRole('heading', { name: 'No channels connected yet' })).toHaveCount(0);
   await expect(page.locator('#pub-live-count')).toHaveText('-');
+});
+
+async function fillMeta(page, phone = '+60123456789') {
+  await page.locator('[data-flow-open="whatsapp"]').click();
+  await page.locator('#pub-meta-phone').fill(phone);
+  await page.locator('#pub-flow-whatsapp summary').click();
+  await page.locator('#pub-meta-waba').fill('1234');
+  await page.locator('#pub-meta-number-id').fill('5678');
+  await page.locator('#pub-meta-token').fill('new-meta-test-token');
+}
+
+test('Meta replacement accepts new number and credentials even when the plan is full', async ({ page }) => {
+  const world = makeWorld({ usage: { channels: { used: 2, limit: 2 } }, whatsapp: [
+    { id: 3, display_phone_number: '+60110000000', connection_status: 'connected', is_active: true }
+  ] });
+  await open(page, world);
+  await fillMeta(page);
+  await expect(page.locator('#pub-flow-whatsapp')).toContainText('stays enabled until the new number is verified');
+  await page.locator('#pub-meta-manual-connect').click();
+  await expect(page.locator('[data-live="whatsapp"]')).toContainText('+60123456789');
+  await expect(page.locator('#pub-flow-whatsapp')).toBeHidden();
+  expect(world.providerRequests).toEqual([expect.objectContaining({ kind: 'whatsapp', method: 'POST', body: {
+    phone_number: '+60123456789', access_token: 'new-meta-test-token', waba_id: '1234', phone_number_id: '5678'
+  } })]);
+  expect(world.whatsapp.filter(row => row.is_active)).toHaveLength(1);
+  expect(await page.evaluate(() => Object.values(sessionStorage).join(' '))).not.toContain('new-meta-test-token');
+});
+
+test('phone validation prevents a provider request with a local-only number', async ({ page }) => {
+  const world = makeWorld();
+  await open(page, world);
+  await fillMeta(page, '0123456789');
+  await page.locator('#pub-meta-manual-connect').click();
+  expect(world.providerRequests).toHaveLength(0);
+  expect(await page.locator('#pub-meta-phone').evaluate(input => input.validity.valid)).toBe(false);
+});
+
+test('failed Meta replacement stays visible after reload and retains the old number', async ({ page }) => {
+  const world = makeWorld({ whatsapp: [
+    { id: 3, display_phone_number: '+60110000000', connection_status: 'connected', is_active: true }
+  ], providerResults: { whatsapp: { error: 'The verified number does not match.', status: 400 } } });
+  await open(page, world);
+  await fillMeta(page);
+  await page.locator('#pub-meta-manual-connect').click();
+  await expect(page.locator('#pub-live-body')).toContainText('New WhatsApp Business connection failed');
+  await page.reload();
+  await expect(page.locator('#pub-live-body')).toContainText('New WhatsApp Business connection failed');
+  await expect(page.locator('[data-live="whatsapp"]')).toContainText('+60110000000');
+  expect(world.whatsapp[0].is_active).toBe(true);
+});
+
+test('WASender pending replacement keeps old number until saved-session verification', async ({ page }) => {
+  const world = makeWorld({ wasender: [
+    { id: 3, phone_number: '+60110000000', connection_status: 'connected', is_active: true }
+  ], providerResults: { wasender: { pending: true } },
+  wasenderDelivery: { delivery_status: 'unknown', session_status: 'connected' } });
+  await open(page, world);
+  await page.locator('[data-flow-open="wasender"]').click();
+  await page.locator('#pub-wa-phone').fill('+60123456789');
+  await page.locator('#pub-wa-key').fill('new-session-test-key');
+  await page.locator('#pub-wasender-connect').click();
+  await expect(page.locator('[data-live="wasender"]')).toContainText('Previous number +60110000000 is still enabled');
+  await expect(page.locator('#pub-wasender-setup-result')).toContainText('Finish pairing');
+  await expect(page.locator('#pub-wasender-setup-result')).toContainText('https://bot.example.test/wasender/webhook/test-callback');
+  expect(world.wasender.find(row => row.id === 3).is_active).toBe(true);
+  world.providerResults.wasender = {};
+  await page.locator('#pub-flow-wasender summary').click();
+  await page.locator('#pub-wa-account-token').fill('temporary-account-test-token');
+  await page.locator('#pub-wasender-verify').click();
+  await expect(page.locator('#pub-flow-wasender')).toBeHidden();
+  const row = page.locator('[data-live="wasender"]');
+  await expect(row).toContainText('+60123456789');
+  await expect(row).toContainText('Enabled · not checked');
+  await expect(row).not.toContainText('Previous number');
+  expect(world.providerRequests.at(-1)).toMatchObject({ method: 'PUT',
+    path: '/api/wasender/channels/40/reconnect?chatbot_id=42',
+    body: { session_id: '456', personal_access_token: 'temporary-account-test-token' } });
+  expect(world.wasender.filter(row => row.is_active)).toHaveLength(1);
+  expect(await page.evaluate(() => Object.values(sessionStorage).join(' '))).not.toContain('temporary-account-test-token');
+});
+
+test('Meta failed webhook and WASender unverified legacy state never show Connected', async ({ page }) => {
+  const world = makeWorld({
+    whatsapp: [{ id: 2, display_phone_number: '+60110000000', is_active: true, connection_status: 'connected' }],
+    wasender: [{ id: 3, phone_number: '+60120000000', is_active: true, connection_status: 'connected', verified_at: null }],
+    whatsappDelivery: { delivery_status: 'failed' },
+    wasenderDelivery: { delivery_status: 'unknown', session_status: 'connected' }
+  });
+  await open(page, world);
+  await expect(page.locator('[data-live="whatsapp"]')).toContainText('Needs a fix');
+  await expect(page.locator('[data-live="wasender"]')).toContainText('Check needed');
+  await expect(page.locator('[data-live="whatsapp"] .kw-pill-ready')).toHaveCount(0);
+  await expect(page.locator('[data-live="wasender"] .kw-pill-ready')).toHaveCount(0);
+});
+
+test('replacement forms fit a phone viewport', async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 850 });
+  await open(page, makeWorld());
+  await fillMeta(page);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  for (const width of await page.locator('#pub-flow-whatsapp input:visible').evaluateAll(inputs => inputs.map(input => input.getBoundingClientRect().width))) expect(width).toBeGreaterThan(180);
+  await page.locator('#pub-flow-whatsapp').screenshot({ path: testInfo.outputPath('meta-replacement-mobile.png') });
+  await page.locator('[data-flow-close="whatsapp"]').click();
+  await page.locator('[data-flow-open="wasender"]').click();
+  await page.locator('#pub-flow-wasender summary').click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+  for (const width of await page.locator('#pub-flow-wasender input:visible').evaluateAll(inputs => inputs.map(input => input.getBoundingClientRect().width))) expect(width).toBeGreaterThan(180);
+  await page.locator('#pub-flow-wasender').screenshot({ path: testInfo.outputPath('wasender-replacement-mobile.png') });
+});
+
+test('healthy provider readback cannot enable an unverified legacy connection', async ({ page }) => {
+  const world = makeWorld();
+  for (const kind of ['telegram', 'whatsapp', 'wasender']) {
+    world[kind] = [{ id: 3, phone_number: '+60120000000', bot_username: 'old_bot',
+      is_active: true, connection_status: 'connected', verified_at: null }];
+  }
+  await open(page, world);
+  for (const kind of ['telegram', 'whatsapp', 'wasender']) {
+    await expect(page.locator(`[data-live="${kind}"]`)).toContainText('Check needed');
+    await expect(page.locator(`[data-live="${kind}"] .kw-pill-ready`)).toHaveCount(0);
+  }
 });

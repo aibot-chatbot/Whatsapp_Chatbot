@@ -21,9 +21,7 @@ def claim_telegram_update(telegram_channel_id, update_id):
     claim, so Postgres picks the winner and the loser gets a 23505.
     """
     if not telegram_channel_id or update_id is None:
-        # Nothing to key on. The previous behaviour was to process anyway, and
-        # dropping a real customer message is worse than risking a duplicate.
-        return True
+        raise ValueError("Telegram update identity is required")
 
     try:
         supabase.table(TABLE_NAME).insert({
@@ -61,7 +59,6 @@ def release_telegram_update_claim(telegram_channel_id, update_id):
         logging.warning(
             "Could not release Telegram update claim; a retry of this update "
             "will be ignored as a duplicate.",
-            exc_info=True,
         )
 
 

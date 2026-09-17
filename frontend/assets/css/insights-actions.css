@@ -84,7 +84,7 @@
 
 .ia-panel--quiet { background: transparent; }
 .ia-panel h2, .ia-panel h3 { font-family: var(--font-heading); font-weight: 600; }
-.ia-panel h2 { font-size: 19px; letter-spacing: -.02em; }
+.ia-panel h2 { font-size: 19px; letter-spacing: -.03em; }
 .ia-panel h3 { font-size: 15px; }
 .ia-panel p { color: var(--control-text-secondary); font-size: 13px; line-height: 1.5; }
 

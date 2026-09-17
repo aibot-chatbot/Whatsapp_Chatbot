@@ -52,6 +52,7 @@ def update_message_delivery_status(
     last_retry_at: str = None,
     first_failed_at: str = None,
     last_error: str = None,
+    expected_status: str = None,
 ):
     update_data = {
         "delivery_status": delivery_status,
@@ -71,24 +72,25 @@ def update_message_delivery_status(
     if last_error is not None:
         update_data["last_error"] = last_error
 
-    result = (
+    query = (
         supabase
         .table("messages")
         .update(update_data)
         .eq("id", message_id)
-        .execute()
     )
+    if expected_status is not None:
+        query = query.eq("delivery_status", expected_status)
+    result = query.execute()
 
     return result.data[0] if result.data else None
 
 
 def mark_message_retrying(message_id: int):
-    return update_message_delivery_status(
-        message_id=message_id,
-        delivery_status="retrying",
-        next_retry_at=None,
-        last_retry_at=_now_iso(),
-    )
+    # Claim before the provider call; simultaneous workers cannot send twice.
+    result = (supabase.table("messages").update({"delivery_status": "retrying", "next_retry_at": None,
+                                                "last_retry_at": _now_iso()})
+              .eq("id", message_id).eq("delivery_status", "failed").execute())
+    return result.data[0] if result.data else None
 
 
 def mark_message_sent_after_retry(message_id: int, retry_count: int):
@@ -99,6 +101,7 @@ def mark_message_sent_after_retry(message_id: int, retry_count: int):
         next_retry_at=None,
         last_retry_at=_now_iso(),
         last_error=None,
+        expected_status="retrying",
     )
 
 
@@ -117,6 +120,7 @@ def mark_message_retry_failed(
             next_retry_at=None,
             last_retry_at=_now_iso(),
             last_error=error_message,
+            expected_status="retrying",
         )
 
     return update_message_delivery_status(
@@ -126,6 +130,7 @@ def mark_message_retry_failed(
         next_retry_at=_next_retry_iso(delay_seconds),
         last_retry_at=_now_iso(),
         last_error=error_message,
+        expected_status="retrying",
     )
 
 

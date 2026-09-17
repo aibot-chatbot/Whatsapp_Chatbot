@@ -51,7 +51,7 @@ def _result(status: str, reply: str | None = None):
     return FlowExecutionResult(status=status, reply=reply)
 
 
-def process_flow_message(company_id: int, chatbot_id: int, user_message: str, customer_id: str, source_channel: str | None = None):
+def process_flow_message(company_id: int, chatbot_id: int, user_message: str, customer_id: str, source_channel: str | None = None, conversation: dict | None = None):
     """Return structured Flow Builder execution status for one inbound message.
 
     Status values:
@@ -72,7 +72,7 @@ def process_flow_message(company_id: int, chatbot_id: int, user_message: str, cu
             logging.warning("Active flow %s for chatbot %s has no executable nodes.", flow.get("id"), chatbot_id)
             return _result("handoff")
 
-        conversation = get_open_conversation_for_flow(chatbot_id, str(customer_id), source_channel)
+        conversation = conversation if conversation is not None else get_open_conversation_for_flow(chatbot_id, str(customer_id), source_channel)
         ctx = _ExecutionContext(company_id, chatbot_id, str(customer_id), source_channel, flow, conversation)
 
         current_node_id = (conversation or {}).get("current_node_id")

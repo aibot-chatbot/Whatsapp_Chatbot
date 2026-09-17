@@ -42,7 +42,7 @@ try {
         $waitingForPort = $false
         try {
             Write-State "Starting Langflow on 127.0.0.1:$Port."
-            $process = Start-Process -FilePath $Executable -ArgumentList 'run', '--host', '127.0.0.1', '--port', $Port, '--backend-only' -WindowStyle Hidden -PassThru
+            $process = Start-Process -FilePath $Executable -ArgumentList 'run', '--host', '127.0.0.1', '--port', $Port, '--no-open-browser' -WindowStyle Hidden -PassThru
             $process.WaitForExit()
             Write-State "Langflow exited with code $($process.ExitCode); retrying in $RetrySeconds seconds."
         } catch {

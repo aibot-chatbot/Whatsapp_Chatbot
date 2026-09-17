@@ -537,3 +537,108 @@ def send_tenant_support_reply_notification_email(recipient_email, *, request_id)
             f"Failed to send tenant reply notice for request {request_id}: {e}"
         )
         return False
+
+
+# Accent per severity. Kept dark enough to stay legible on white and in
+# greyscale print - these land in a customer's inbox, not in our dark UI.
+_BILLING_SEVERITY_ACCENT = {
+    "critical": "#B42318",
+    "warning": "#B54708",
+    "info": "#0E7490",
+}
+
+
+def send_billing_notification_email(
+    recipient_email,
+    *,
+    title,
+    message,
+    severity="info",
+    recipient_name="there",
+    action_label=None,
+    action_url=None,
+):
+    """Email the account owner about a billing event.
+
+    Used for AI credit running low or depleted, and for a subscription nearing
+    its end, entering grace, or expiring - the cases where the customer has to
+    act and an in-app notification alone would be missed.
+
+    Returns True when the message is handed to the SMTP server, False otherwise.
+    Callers must treat False as "not delivered" and carry on: the event is
+    recorded in billing_notifications whether or not the email leaves, and a
+    mail failure must never roll back or block the billing operation itself.
+
+    Title and message are escaped before reaching the template. They are built
+    from plan names and credit balances rather than free user input, but
+    escaping costs nothing and removes the question entirely.
+    """
+    sender_email = os.getenv("SMTP_SENDER_EMAIL")
+    sender_password = os.getenv("SMTP_APP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        logging.warning("SMTP credentials missing in .env. Billing email not sent.")
+        return False
+
+    if not recipient_email:
+        logging.warning("Billing email skipped: no recipient address.")
+        return False
+
+    accent = _BILLING_SEVERITY_ACCENT.get(severity, _BILLING_SEVERITY_ACCENT["info"])
+    safe_title = html.escape(str(title or "Billing update"))
+    safe_message = html.escape(str(message or ""))
+    safe_name = html.escape(str(recipient_name or "there"))
+
+    action_block = ""
+    if action_label and action_url:
+        action_block = (
+            '<p style="margin:26px 0 0;"><a href="' + html.escape(str(action_url)) + '" '
+            'style="display:inline-block;background:#22D3EE;color:#04121a;'
+            'text-decoration:none;padding:13px 26px;border-radius:10px;'
+            'font-weight:600;font-size:15px;">' + html.escape(str(action_label)) + "</a></p>"
+        )
+
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
+        <div style="max-width: 520px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <div style="background-color: #060A12; padding: 24px; text-align: center;">
+            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Omnexa</h2>
+          </div>
+          <div style="padding: 32px;">
+            <p style="margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:{accent};font-weight:700;">Billing</p>
+            <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">{safe_title}</h3>
+            <p style="font-size: 16px; line-height: 1.55; color: #475569;">
+              Hi {safe_name},<br><br>{safe_message}
+            </p>
+            {action_block}
+            <p style="font-size: 13px; color: #64748b; margin-top:28px;">
+              You are receiving this because you are the account owner. Billing
+              notices also appear in your Omnexa dashboard.
+            </p>
+          </div>
+          <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            &copy; {datetime.datetime.now().year} Omnexa. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+
+    message_obj = MIMEMultipart("alternative")
+    message_obj["Subject"] = f"Omnexa: {safe_title}"
+    message_obj["From"] = f"Omnexa <{sender_email}>"
+    message_obj["To"] = recipient_email
+    message_obj.attach(MIMEText(html_content, "html"))
+
+    try:
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient_email, message_obj.as_string())
+        server.quit()
+        logging.info("Billing notification email sent (severity=%s)", severity)
+        return True
+    except Exception as e:
+        logging.error(f"Failed to send billing notification email: {e}")
+        return False

@@ -32,6 +32,7 @@ def create_wasender_channel(
         "last_error": None,
         "is_active": True,
         "updated_at": _now_iso(),
+        "connection_attempted_at": _now_iso(),
     }
 
     result = supabase.table(TABLE_NAME).insert(data).execute()
@@ -48,12 +49,13 @@ def get_wasender_channel_by_secret(webhook_secret: str):
         .select("*")
         .eq("webhook_secret", webhook_secret)
         .eq("is_active", True)
-        .limit(1)
+        .eq("connection_status", "connected")
+        .limit(2)
         .execute()
     )
 
     rows = result.data or []
-    return rows[0] if rows else None
+    return rows[0] if len(rows) == 1 else None
 
 
 def get_wasender_channel_by_id(channel_id: int):
@@ -83,19 +85,24 @@ def get_wasender_channels_by_chatbot(chatbot_id: int):
         .execute()
     )
 
-    return result.data or []
+    return sorted(result.data or [], key=lambda row: str(
+        row.get("connection_attempted_at") or row.get("created_at") or ""), reverse=True)
 
 
-def update_wasender_channel(channel_id: int, update_data: dict):
-    update_data["updated_at"] = _now_iso()
+def update_wasender_channel(channel_id: int, update_data: dict, expected_attempt_at=None, expected_status=None):
+    update_data = {**update_data, "updated_at": _now_iso()}
 
-    result = (
+    query = (
         supabase
         .table(TABLE_NAME)
         .update(update_data)
         .eq("id", channel_id)
-        .execute()
     )
+    if expected_attempt_at:
+        query = query.eq("connection_attempted_at", expected_attempt_at)
+    if expected_status:
+        query = query.eq("connection_status", expected_status)
+    result = query.execute()
 
     return result.data[0] if result.data else None
 
@@ -104,4 +111,4 @@ def disconnect_wasender_channel(channel_id: int):
     return update_wasender_channel(channel_id, {
         "is_active": False,
         "connection_status": "disconnected",
-    })  
+    })

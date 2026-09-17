@@ -281,8 +281,19 @@ def test_service_role_table_grants_match_repository_operations():
     operations = _direct_table_operations(repository_paths)
     migration = _read(MIGRATION_PATH)
 
+    # agent_actions is no longer updated by a direct .update() call: resolving an
+    # escalation goes through the resolve_conversation_escalation RPC added in
+    # data/058_unified_channel_lifecycle.sql, so the read and the write settle in
+    # one transaction. That RPC is SECURITY INVOKER, so service_role still needs
+    # the table-level UPDATE this migration grants - it is exercised through the
+    # function rather than by a direct call from the repository.
+    direct_operations = {
+        "agent_actions": {"select", "insert"},
+        "crm_leads": {"select", "insert", "update"},
+    }
+
     for table_name in ("agent_actions", "crm_leads"):
-        assert operations[table_name] == {"select", "insert", "update"}
+        assert operations[table_name] == direct_operations[table_name]
         grant_match = re.search(
             rf"GRANT\s+([A-Z,\s]+)\s+ON TABLE public\.{table_name}\s+TO service_role",
             migration,
@@ -292,7 +303,8 @@ def test_service_role_table_grants_match_repository_operations():
             privilege.strip().lower()
             for privilege in grant_match.group(1).split(",")
         }
-        assert granted == operations[table_name]
+        assert operations[table_name] <= granted
+        assert granted == {"select", "insert", "update"}
 
 
 def test_rollback_never_changes_or_deletes_row_data():

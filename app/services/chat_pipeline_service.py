@@ -17,6 +17,7 @@ from app.services.agent_decision_service import (
     build_safe_agent_action_payload,
 )
 from app.services.crm_lead_service import create_crm_lead_from_agent_signal
+from app.services.channel_delivery_service import HandoffAcknowledgement
 
 
 def _resolve_chatbot_company_id(chatbot_id):
@@ -36,8 +37,9 @@ def prepare_chat_prompt(
     customer_id,
     chatbot_id,
     source_channel="whatsapp",
+    conversation=None,
 ):
-    conversation = get_or_create_conversation(
+    conversation = conversation if conversation is not None else get_or_create_conversation(
         chatbot_id=chatbot_id,
         customer_phone=customer_id,
         customer_name=None,
@@ -50,7 +52,7 @@ def prepare_chat_prompt(
     )
 
     from app.database.agent_action_repository import is_conversation_escalated
-    if is_conversation_escalated(conversation["id"], chatbot_id):
+    if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
         logging.info(f"[ChatPipeline] Conversation {conversation['id']} is currently escalated to human staff. Skipping AI response.")
         return {
             "direct_reply": "<SILENT_BOT_RESPONSE>",
@@ -59,6 +61,7 @@ def prepare_chat_prompt(
         }
 
     authoritative_company_id = None
+    action_saved = False
 
     try:
         agent_decision = analyze_agent_intent(
@@ -75,7 +78,7 @@ def prepare_chat_prompt(
 
         try:
             authoritative_company_id = _resolve_chatbot_company_id(chatbot_id)
-            save_agent_action(
+            saved_action = save_agent_action(
                 company_id=authoritative_company_id,
                 chatbot_id=chatbot_id,
                 conversation_id=conversation.get("id"),
@@ -85,12 +88,18 @@ def prepare_chat_prompt(
                 reason=agent_decision.get("reason", ""),
                 payload=build_safe_agent_action_payload(agent_decision),
             )
+            saved_action_id = saved_action.get("id") if isinstance(saved_action, dict) else None
+            action_saved = isinstance(saved_action_id, int) and not isinstance(saved_action_id, bool) and saved_action_id > 0
         except Exception as e:
             logging.warning(
                 "[AgentDecision] save failed for chatbot_id=%s: %s",
                 chatbot_id,
                 e,
             )
+
+        if agent_decision.get("intent") == "handoff_request" and not action_saved:
+            return {"direct_reply": "I could not notify our customer service team. Please try requesting a human again.",
+                    "prompt": None, "intent": "handoff_failed"}
 
         try:
             create_crm_lead_from_agent_signal(
@@ -163,7 +172,11 @@ def prepare_chat_prompt(
                 logging.warning(f"[AgentDecision] failed to send handoff email: {e}")
 
             return {
-                "direct_reply": "I'm transferring you to our Customer Service team now. Please hold on while I connect you. They will be with you shortly! \U0001f60a",
+                "direct_reply": HandoffAcknowledgement(
+                    "I'm transferring you to our Customer Service team now. Please hold on while I connect you. They will be with you shortly! \U0001f60a",
+                    action_id=saved_action_id, conversation_id=conversation["id"],
+                    chatbot_id=chatbot_id, company_id=authoritative_company_id,
+                ),
                 "prompt": None,
                 "intent": "handoff_request",
             }

@@ -525,6 +525,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
         auth, user, status = self._active_auth()
         with auth, user, status, \
              patch("app.routes.chat_routes.verify_chatbot_access", return_value={"id": 9, "company_id": 42}) as verify_access, \
+             patch("app.routes.chat_routes.get_or_create_conversation", return_value={"id": 100}), \
              patch("app.routes.chat_routes.generate_response", return_value="Hello back") as generate_response:
             response = self.client.post(
                 "/api/chat/test?chatbot_id=9",
@@ -540,6 +541,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
             chatbot_id=9,
             source_channel="web",
             operation_type=chat_routes.OPERATION_TEST_CHAT,
+            conversation_id=100,
         )
 
     def test_refinement_questions_are_blocked_before_sse_or_ai_generation(self):
@@ -634,7 +636,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
             telegram_connect = self.client.post(
                 "/api/telegram/connect?chatbot_id=9",
                 headers=self.headers,
-                json={"bot_token": "123:abc", "webhook_base_url": "https://example.test"},
+                json={"bot_token": "123:abc"},
             )
             telegram_disconnect = self.client.put(
                 "/api/telegram/channels/4/disconnect?chatbot_id=9",
@@ -643,7 +645,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
             wasender_connect = self.client.post(
                 "/api/wasender/connect?chatbot_id=9",
                 headers=self.headers,
-                json={"api_key": "secret", "phone_number": "+60123456789", "webhook_base_url": "https://example.test"},
+                json={"api_key": "secret", "phone_number": "+60123456789"},
             )
             wasender_disconnect = self.client.put(
                 "/api/wasender/channels/4/disconnect?chatbot_id=9",
@@ -1000,8 +1002,8 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertIn("ensure_company_operational", source)
         self.assertIn("send_wasender_text_message", inspect.getsource(broadcast_routes.process_broadcast_dispatch))
-        self.assertIn("send_telegram_message", inspect.getsource(telegram_utils.process_telegram_update))
-        self.assertIn("send_message", inspect.getsource(whatsapp_utils.process_whatsapp_message))
+        self.assertIn("send_telegram_message", inspect.getsource(telegram_utils._process_claimed_telegram_update))
+        self.assertIn("send_message", inspect.getsource(whatsapp_utils._process_claimed_whatsapp_message))
 
     def test_suspended_company_tests_explicitly_override_autouse_active_baseline(self):
         source = inspect.getsource(TenantOperationalRouteGuardTests._auth)

@@ -23,7 +23,11 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir "gunicorn>=21.2,<24.0"
 
-COPY . .
+# Copy runtime inputs only; tenant files must be restored onto the volume.
+COPY app/ app/
+COPY frontend/ frontend/
+COPY langflow/crm-stage-automation.json langflow/knowledge-document-follow-up.json langflow/
+COPY wsgi.py .
 
 # Never run as root. The app writes uploads, so the directory is created and
 # handed over before the user drops privileges.
@@ -46,4 +50,5 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
 # One worker by design. The app starts a background retry thread and would run
 # that loop once per worker, so every extra worker means duplicate sends. Scale
 # with threads until the background work moves to a queue or a separate process.
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 1 --threads 8 --timeout 120 --access-logfile - --error-logfile - wsgi:app"]
+# Callback paths and query strings contain credentials; log fixed metadata only.
+CMD ["sh", "-c", "exec gunicorn --bind 0.0.0.0:${PORT:-8000} --workers 1 --threads 8 --timeout 120 --access-logfile - --access-logformat 'method=%(m)s status=%(s)s duration=%(L)s' --error-logfile - wsgi:app"]

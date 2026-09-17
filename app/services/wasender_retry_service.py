@@ -8,8 +8,10 @@ from app.database.message_repository import (
     mark_message_sent_after_retry,
     mark_message_retry_failed,
 )
-from app.database.wasender_channel_repository import get_wasender_channels_by_chatbot
 from app.services.wasender_service import send_wasender_text_message
+from app.services.channel_delivery_service import get_bound_channel, ChannelDeliveryError, delivery_accepted
+from app.database.agent_action_repository import is_conversation_escalated
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 
 
 MAX_RETRIES = 3
@@ -17,16 +19,6 @@ RETRY_DELAY_SECONDS = 60
 CHECK_INTERVAL_SECONDS = 60
 
 _worker_started = False
-
-
-def get_active_wasender_channel(chatbot_id: int):
-    channels = get_wasender_channels_by_chatbot(chatbot_id)
-
-    for channel in channels:
-        if channel.get("is_active") and channel.get("connection_status") == "connected":
-            return channel
-
-    return None
 
 
 def retry_failed_wasender_messages_once():
@@ -73,7 +65,17 @@ def retry_failed_wasender_messages_once():
             )
             continue
 
-        channel = get_active_wasender_channel(chatbot_id)
+        if is_conversation_escalated(conversation.get("id"), chatbot_id, conversation=conversation):
+            continue
+        if not mark_message_retrying(message_id):
+            continue
+
+        # The scan can be stale. Only the worker holding the claim may change
+        # delivery state, and it must check the original channel after claiming.
+        try:
+            channel = get_bound_channel(conversation)
+        except ChannelDeliveryError:
+            channel = None
 
         if not channel:
             mark_message_retry_failed(
@@ -88,19 +90,29 @@ def retry_failed_wasender_messages_once():
         api_key = channel.get("api_key")
 
         logging.info(
-            f"Retrying Wasender message_id={message_id}, "
-            f"retry_count={retry_count}, customer={customer_phone}"
+            "Retrying Wasender message_id=%s, retry_count=%s",
+            message_id,
+            retry_count,
         )
 
-        mark_message_retrying(message_id)
+        with conversation_delivery_lock(conversation["id"]):
+            if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+                mark_message_retry_failed(
+                    message_id=message_id,
+                    retry_count=retry_count - 1,
+                    error_message="Human handoff is active; automatic reply remains paused.",
+                    max_retries=MAX_RETRIES,
+                    delay_seconds=RETRY_DELAY_SECONDS,
+                )
+                continue
 
-        send_result = send_wasender_text_message(
-            api_key=api_key,
-            to=customer_phone,
-            text=message_text,
-        )
+            send_result = send_wasender_text_message(
+                api_key=api_key,
+                to=customer_phone,
+                text=message_text,
+            )
 
-        if send_result and send_result.get("success"):
+        if delivery_accepted("wasender", send_result):
             mark_message_sent_after_retry(
                 message_id=message_id,
                 retry_count=retry_count,
@@ -109,22 +121,19 @@ def retry_failed_wasender_messages_once():
             logging.info(f"Wasender retry success for message_id={message_id}")
 
         else:
-            error_message = (
-                send_result.get("error")
-                if send_result
-                else "Wasender retry failed."
-            )
-
+            # Pass the attempt we just made, not the cap. Passing MAX_RETRIES
+            # makes mark_message_retry_failed take its permanent_failed branch on
+            # the first miss, so MAX_RETRIES/RETRY_DELAY_SECONDS never apply.
             mark_message_retry_failed(
                 message_id=message_id,
                 retry_count=retry_count,
-                error_message=error_message,
+                error_message="Provider did not confirm delivery; review before retrying.",
                 max_retries=MAX_RETRIES,
                 delay_seconds=RETRY_DELAY_SECONDS,
             )
 
             logging.warning(
-                f"Wasender retry failed for message_id={message_id}: {error_message}"
+                "Wasender retry failed for message_id=%s", message_id
             )
 
         retried_count += 1
@@ -140,7 +149,7 @@ def wasender_retry_loop():
             retry_failed_wasender_messages_once()
 
         except Exception as e:
-            logging.error(f"Wasender retry worker error: {e}")
+            logging.error("Wasender retry worker error (%s)", type(e).__name__)
 
         time.sleep(CHECK_INTERVAL_SECONDS)
 

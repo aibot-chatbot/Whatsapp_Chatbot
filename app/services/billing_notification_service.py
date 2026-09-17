@@ -9,6 +9,7 @@ to create a notification does not break the caller's core operation.
 """
 
 import logging
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Any
 
@@ -27,6 +28,74 @@ def _now_utc() -> datetime:
 
 def _iso(dt: datetime | None) -> str | None:
     return dt.isoformat() if dt else None
+
+
+# Notification types that also email the account owner.
+#
+# The test is whether the customer must DO something and would miss an in-app
+# notice: credit running out stops their bots replying, and a lapsing
+# subscription ends the service. Everything else stays in-app only.
+#
+# reconciliation_completed and activation_completed are deliberately absent.
+# The first is internal housekeeping the customer never asked about; the second
+# duplicates payment_confirmed for the same event, and emailing both would send
+# two messages for one payment.
+_EMAIL_NOTIFICATION_TYPES = frozenset({
+    "ai_credit_low",
+    "ai_credit_critical",
+    "ai_credit_depleted",
+    "subscription_expiry_reminder",
+    "subscription_expired",
+    "grace_period",
+    "payment_confirmed",
+    "activation_failed",
+})
+
+
+def _email_billing_contact(
+    company_id: int, notification_type: str, severity: str, title: str, message: str
+) -> None:
+    """Email the account owner, when this notification type warrants one.
+
+    The owner is the earliest active admin - the person who registered the
+    company - rather than every admin, so a five-seat team gets one email and
+    not five.
+
+    Deliberately swallows every failure. The notification row is already written
+    by the time this runs and the dashboard reads that row, so a bounced email,
+    a company with no active owner, or an SMTP outage must never propagate back
+    into a billing operation and roll it back. Delivery is best effort; the
+    in-app notice is the system of record.
+    """
+    if notification_type not in _EMAIL_NOTIFICATION_TYPES:
+        return
+    try:
+        from app.database.user_repository import get_company_billing_contact
+        from app.services.email_service import send_billing_notification_email
+
+        contact = get_company_billing_contact(company_id)
+        if not contact:
+            logger.info(
+                "No active account owner for company %d; billing email skipped (type=%s)",
+                company_id, notification_type,
+            )
+            return
+
+        base = (os.getenv("FRONTEND_URL") or "").rstrip("/")
+        send_billing_notification_email(
+            contact["email"],
+            title=title,
+            message=message,
+            severity=severity,
+            recipient_name=contact["full_name"],
+            action_label="Open billing" if base else None,
+            action_url=(base + "/billing.html") if base else None,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Billing email failed (type=%s, company=%d): %s",
+            notification_type, company_id, exc,
+        )
 
 
 def _safe_notify(
@@ -60,6 +129,11 @@ def _safe_notify(
             "Failed to create billing notification (type=%s, company=%d): %s",
             notification_type, company_id, exc,
         )
+        # The row is the system of record. If it did not land, do not email
+        # about an event that is recorded nowhere.
+        return
+
+    _email_billing_contact(company_id, notification_type, severity, title, message)
 
 
 # ---------------------------------------------------------------------------

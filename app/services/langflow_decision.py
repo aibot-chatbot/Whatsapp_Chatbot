@@ -218,6 +218,25 @@ def crm_stage_decision(
     }
 
 
+def _local_knowledge_summary(display_name, chunk_count, target_role):
+    """Build the reviewer-facing summary without a decision service.
+
+    This is deliberately deterministic rather than a model call. The knowledge
+    payload carries only a filename, a chunk count and a role - it does not
+    carry a single word of the document text - so a model asked to "summarise"
+    from it could only invent content it has never seen. A reviewer is better
+    served by the three facts we actually know, stated plainly.
+    """
+    name = str(display_name or "").strip()[:200] or "The knowledge document"
+    role = "primary" if target_role == "primary" else "supporting"
+    count = chunk_count if isinstance(chunk_count, int) and not isinstance(chunk_count, bool) else 0
+    chunks = "1 chunk" if count == 1 else f"{count} chunks"
+    return (
+        f"{name} finished indexing as the {role} source with {chunks}. "
+        "Check the extracted text before the bot answers from it."
+    )[:500]
+
+
 def knowledge_document_decision(
     *, company_id, chatbot_id, file_id, display_name, chunk_count,
     target_role, correlation_id=None
@@ -234,7 +253,21 @@ def knowledge_document_decision(
 
     flow_id = _flow_id("LANGFLOW_KNOWLEDGE_FLOW_ID")
     if not flow_id:
-        return _skip("LANGFLOW_KNOWLEDGE_FLOW_ID is not configured", correlation_id)
+        # No decision service configured, and none is needed. The contract fixes
+        # decision to "review_document" and requires_approval to true, so the
+        # only thing an external call ever added here was the summary string -
+        # and that is derivable from the payload we already hold. Produce it
+        # locally instead of recording the review with no summary at all.
+        return {
+            "consulted": True,
+            "blocked": False,
+            "reason": "",
+            "detail": "",
+            "summary": _local_knowledge_summary(display_name, chunk_count, target_role),
+            "requires_approval": True,
+            "correlation_id": correlation_id,
+            "source": "local",
+        }
 
     payload = {
         "company_id": company_id,
@@ -273,4 +306,5 @@ def knowledge_document_decision(
         "summary": str(output.get("summary") or "")[:500],
         "requires_approval": output.get("requires_approval") is True,
         "correlation_id": output.get("correlation_id") or correlation_id,
+        "source": "langflow",
     }

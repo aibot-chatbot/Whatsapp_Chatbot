@@ -66,14 +66,14 @@ select option {
 }
 
 .message-row.agent .message-bubble {
-    background: var(--bubble-agent, #10b981);
+    background: var(--bubble-agent, #34D399);
     color: #ffffff;
     border-bottom-right-radius: 4px;
 }
 
 .message-row.bot .message-bubble {
     background: var(--bubble-bot, rgba(30, 41, 59, 0.9));
-    color: var(--bubble-bot-text, var(--text-main, #f8fafc));
+    color: var(--bubble-bot-text, var(--text-main, #F1F5F9));
     border: 1px solid var(--glass-border);
     border-bottom-left-radius: 4px;
 }
@@ -99,7 +99,7 @@ select option {
     gap: 6px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.04);
-    color: var(--text-main, #f8fafc);
+    color: var(--text-main, #F1F5F9);
     cursor: pointer;
     border-radius: 8px;
     padding: 6px 10px;
@@ -118,7 +118,7 @@ select option {
 }
 
 .action-btn.primary {
-    background: var(--primary, #3b82f6);
+    background: var(--primary, #22D3EE);
     border-color: rgba(59, 130, 246, 0.3);
     color: #ffffff;
 }
@@ -131,7 +131,7 @@ select option {
 .action-btn.danger {
     background: rgba(239, 68, 68, 0.1);
     border-color: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
+    color: #F87171;
 }
 
 .action-btn.danger:hover {
@@ -139,7 +139,7 @@ select option {
 }
 
 .action-btn.success {
-    background: var(--accent, #10b981);
+    background: var(--accent, #34D399);
     border-color: rgba(16, 185, 129, 0.3);
     color: #ffffff;
 }
@@ -151,12 +151,12 @@ select option {
 .action-btn.ghost {
     border: 1px solid rgba(255, 255, 255, 0.06);
     background: rgba(255, 255, 255, 0.02);
-    color: var(--text-dim, #94a3b8);
+    color: var(--text-dim, #94A3B8);
 }
 
 .action-btn.ghost:hover {
     background: rgba(255, 255, 255, 0.06);
-    color: var(--text-main, #f8fafc);
+    color: var(--text-main, #F1F5F9);
     border-color: rgba(255, 255, 255, 0.14);
 }
 

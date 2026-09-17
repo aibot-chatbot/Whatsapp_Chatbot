@@ -1,6 +1,6 @@
 # Platform staff portal rollout — 7 September 2026
 
-Status: **Activated in shared Supabase; both browser logins verified through the running local application. Public hosting remains pending.** The user approved the prototype and explicitly authorized live Supabase activation on 7 September 2026. This update replaces the platform staff interface with an independent light Admin portal and dark Super Admin portal. Tenant workspace pages retain their existing role model.
+Status: **Activated in shared Supabase; public Admin and Superadmin logins verified on 10 September 2026.** See [the live Fly release evidence](FLY_CHANNEL_READINESS.md) and [public login](https://aibot-chatbot-my.fly.dev/login.html). The dated rollout checks below describe the original local activation. The user approved the prototype and explicitly authorized live Supabase activation on 7 September 2026. This update replaces the platform staff interface with an independent light Admin portal and dark Super Admin portal. Tenant workspace pages retain their existing role model.
 
 ## Approved behavior
 

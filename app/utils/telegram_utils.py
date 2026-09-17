@@ -12,16 +12,23 @@ from app.database.conversation_repository import (
 from app.database.message_repository import save_message
 from app.database.telegram_channel_repository import get_telegram_channel_by_secret
 from app.database.processed_telegram_update_repository import (
-    is_telegram_update_processed,
-    save_processed_telegram_update,
+    claim_telegram_update,
+    release_telegram_update_claim,
 )
 from app.services.media_send_service import dispatch_media_after_reply
+from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed
+from app.database.agent_action_repository import is_conversation_escalated
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.utils.message_style_utils import parse_buttons_tag, format_for_telegram_markdown
 
 
 BILLING_LIMIT_CUSTOMER_REPLY = (
     "This chatbot is temporarily unavailable. Please try again later."
 )
+
+
+class TelegramChannelNotReadyError(RuntimeError):
+    """Tell Telegram to retain an update until channel activation completes."""
 
 
 def send_telegram_message(
@@ -62,6 +69,13 @@ def send_telegram_message(
     except requests.RequestException as e:
         # Request exceptions can include the bot token from the Telegram URL.
         logging.error("Failed to send Telegram message (%s)", type(e).__name__)
+        if e.response is not None and e.response.status_code == 400:
+            try:
+                description = str(e.response.json().get("description", "")).lower()
+                if "parse entities" in description or "parse entity" in description:
+                    return {"ok": False, "format_rejected": True}
+            except (ValueError, TypeError):
+                pass
         return None
 
 
@@ -170,6 +184,11 @@ def process_telegram_update(update: dict, webhook_secret: str):
         logging.error("No active Telegram channel found for webhook")
         return
 
+    if channel.get("connection_status") in {"pending", "failed", "disconnected"}:
+        # Retain Telegram's update for retry while the provider is reserved but
+        # not activated. A failed new setup must not answer alongside the old bot.
+        raise TelegramChannelNotReadyError("Telegram channel is not ready to receive updates")
+
     telegram_channel_id = channel["id"]
     chatbot_id = channel["chatbot_id"]
     bot_token = channel["bot_token"]
@@ -193,10 +212,26 @@ def process_telegram_update(update: dict, webhook_secret: str):
 
     update_id = update.get("update_id")
 
-    if is_telegram_update_processed(telegram_channel_id, update_id):
-        logging.info(f"Duplicate Telegram update ignored: {update_id}")
+    validate_channel(channel, "telegram", chatbot_id)
+    if update_id is None:
+        raise ValueError("Telegram update_id is required")
+    if not claim_telegram_update(telegram_channel_id, update_id):
+        logging.info("Duplicate Telegram update ignored")
         return
+    progress = {"started": False}
+    try:
+        return _process_claimed_telegram_update(update, channel, progress)
+    except Exception:
+        # Retry is safe only before transcript, AI billing or provider delivery.
+        # A timeout after these effects needs reconciliation, not another charge.
+        if not progress["started"]:
+            release_telegram_update_claim(telegram_channel_id, update_id)
+        raise
 
+
+def _process_claimed_telegram_update(update, channel, progress):
+    chatbot_id = channel["chatbot_id"]
+    bot_token = channel["bot_token"]
     message = update.get("message")
     callback_query = update.get("callback_query")
 
@@ -208,21 +243,6 @@ def process_telegram_update(update: dict, webhook_secret: str):
         message_id = message.get("message_id") if message else None
         message_text = callback_query.get("data")
         contact = None
-        customer_name = get_telegram_customer_name(from_user)
-
-        # Answer callback query to stop the loading indicator on the button
-        requests.post(
-            f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery",
-            json={"callback_query_id": callback_query.get("id")},
-            timeout=5
-        ).json()
-
-        # Show typing indicator so the user knows the bot is processing their click
-        requests.post(
-            f"https://api.telegram.org/bot{bot_token}/sendChatAction",
-            json={"chat_id": chat_id, "action": "typing"},
-            timeout=5
-        )
 
     elif message:
         chat = message.get("chat", {})
@@ -231,65 +251,86 @@ def process_telegram_update(update: dict, webhook_secret: str):
         message_id = message.get("message_id")
         message_text = message.get("text")
         contact = message.get("contact")
-        customer_name = get_telegram_customer_name(from_user)
     else:
         logging.info("Telegram update has no message or callback_query. Ignored.")
-        save_processed_telegram_update(telegram_channel_id, update_id)
         return
 
-    if not chat_id:
-        logging.warning("Telegram message missing chat_id. Ignored.")
-        save_processed_telegram_update(telegram_channel_id, update_id)
+    chat_type = chat.get("type")
+    if (isinstance(chat_id, bool) or not isinstance(chat_id, int) or chat_id == 0
+            or chat_type not in {"private", "group", "supergroup"}):
+        logging.warning("Telegram message has no supported chat context. Ignored.")
         return
 
+    is_private = chat_type == "private"
+    sender_id = from_user.get("id")
+    if is_private and (isinstance(sender_id, bool) or not isinstance(sender_id, int)
+                       or sender_id <= 0 or sender_id != chat_id):
+        logging.warning("Telegram private message has an invalid sender context. Ignored.")
+        return
+
+    # A user's private chat and every group are separate conversations. The
+    # sender identifies the author, never the history or delivery destination.
     customer_key = str(chat_id)
-    platform_user_id = str(from_user.get("id") or chat_id)
+    platform_user_id = customer_key
+    customer_name = (get_telegram_customer_name(from_user) if is_private
+                     else chat.get("title") or "Telegram group")
+
+    if callback_query:
+        requests.post(
+            f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery",
+            json={"callback_query_id": callback_query.get("id")},
+            timeout=5
+        ).json()
+        requests.post(
+            f"https://api.telegram.org/bot{bot_token}/sendChatAction",
+            json={"chat_id": chat_id, "action": "typing"},
+            timeout=5
+        )
 
     conversation = get_or_create_platform_conversation(
         chatbot_id=chatbot_id,
         platform_user_id=platform_user_id,
         customer_name=customer_name,
         source_channel="telegram",
+        **channel_identity(channel, "telegram"),
         customer_phone=None,
     )
 
-    # Handle phone number shared from Telegram contact button
+    paused = is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation)
+    progress["started"] = True
+
+    # Human service pauses every automatic response, including contact prompts.
+    if paused:
+        save_message(conversation_id=conversation["id"], sender_type="customer",
+                     message_text=message_text or "[Customer attachment]", message_type="text",
+                     platform_message_id=str(message_id), delivery_status="received", ai_generated=False)
+        return
+
+    # A participant's contact card is not the group's customer profile.
+    if contact and not is_private:
+        save_message(conversation_id=conversation["id"], sender_type="customer",
+                     message_text="[Contact shared in group]", message_type="contact",
+                     platform_message_id=str(message_id), delivery_status="received", ai_generated=False)
+        return
+
+    # Telegram's contact request button is a private-chat workflow.
     if contact:
         phone_number = contact.get("phone_number")
         contact_user_id = contact.get("user_id")
 
-        if contact_user_id and str(contact_user_id) != platform_user_id:
+        if (isinstance(contact_user_id, bool) or not isinstance(contact_user_id, int)
+                or contact_user_id != sender_id):
             reply = "Please share your own phone number using the button."
 
-            save_message(
-                conversation_id=conversation["id"],
-                sender_type="bot",
-                message_text=reply,
-                message_type="text",
-                delivery_status="sent",
-                ai_generated=False,
-            )
-
-            send_telegram_message(bot_token, customer_key, reply)
-            send_telegram_contact_request(bot_token, customer_key)
-            save_processed_telegram_update(telegram_channel_id, update_id)
+            _send_recorded_telegram_reply(conversation, channel, customer_key, reply, ai_generated=False)
+            _send_recorded_telegram_reply(conversation, channel, customer_key, "Please share your phone number using the button.", contact_request=True)
             return
 
         if not phone_number:
             reply = "I could not read your phone number. Please tap Share Phone Number again."
 
-            save_message(
-                conversation_id=conversation["id"],
-                sender_type="bot",
-                message_text=reply,
-                message_type="text",
-                delivery_status="sent",
-                ai_generated=False,
-            )
-
-            send_telegram_message(bot_token, customer_key, reply)
-            send_telegram_contact_request(bot_token, customer_key)
-            save_processed_telegram_update(telegram_channel_id, update_id)
+            _send_recorded_telegram_reply(conversation, channel, customer_key, reply, ai_generated=False)
+            _send_recorded_telegram_reply(conversation, channel, customer_key, "Please share your phone number using the button.", contact_request=True)
             return
 
         save_message(
@@ -308,21 +349,12 @@ def process_telegram_update(update: dict, webhook_secret: str):
             customer_phone=phone_number,
             customer_name=customer_name,
             source_channel="telegram",
+            **channel_identity(channel, "telegram"),
         )
 
         reply = "Thanks, your phone number has been saved. How can I help you today?"
 
-        save_message(
-            conversation_id=conversation["id"],
-            sender_type="bot",
-            message_text=reply,
-            message_type="text",
-            delivery_status="sent",
-            ai_generated=False,
-        )
-
-        send_telegram_message(bot_token, customer_key, reply)
-        save_processed_telegram_update(telegram_channel_id, update_id)
+        _send_recorded_telegram_reply(conversation, channel, customer_key, reply, ai_generated=False)
         return
 
     # Handle non-text Telegram messages safely
@@ -344,17 +376,7 @@ def process_telegram_update(update: dict, webhook_secret: str):
             "Please type your question and I’ll help you."
         )
 
-        save_message(
-            conversation_id=conversation["id"],
-            sender_type="bot",
-            message_text=reply,
-            message_type="text",
-            delivery_status="sent",
-            ai_generated=True,
-        )
-
-        send_telegram_message(bot_token, customer_key, reply)
-        save_processed_telegram_update(telegram_channel_id, update_id)
+        _send_recorded_telegram_reply(conversation, channel, customer_key, reply, ai_generated=True)
         return
 
     save_message(
@@ -367,8 +389,8 @@ def process_telegram_update(update: dict, webhook_secret: str):
         ai_generated=False,
     )
 
-    # Stop normal AI reply until Telegram user shares phone number
-    if not conversation.get("customer_phone"):
+    # Private customers can share a profile phone; groups have no single phone.
+    if is_private and not conversation.get("customer_phone"):
         # Check if they manually typed a phone number instead of using the button
         cleaned_text = re.sub(r'[\D]', '', message_text)
         if 8 <= len(cleaned_text) <= 15:
@@ -382,36 +404,18 @@ def process_telegram_update(update: dict, webhook_secret: str):
                 customer_phone=phone_number,
                 customer_name=customer_name,
                 source_channel="telegram",
+                **channel_identity(channel, "telegram"),
             )
             
             reply = "Thanks, your phone number has been saved. How can I help you today?"
-            save_message(
-                conversation_id=conversation["id"],
-                sender_type="bot",
-                message_text=reply,
-                message_type="text",
-                delivery_status="sent",
-                ai_generated=False,
-            )
-            send_telegram_message(bot_token, customer_key, reply)
-            save_processed_telegram_update(telegram_channel_id, update_id)
+            _send_recorded_telegram_reply(conversation, channel, customer_key, reply, ai_generated=False)
             return
 
         reply = (
             "Please tap the 'Share Phone Number' button below, or type your phone number manually to continue."
         )
 
-        save_message(
-            conversation_id=conversation["id"],
-            sender_type="bot",
-            message_text=reply,
-            message_type="text",
-            delivery_status="sent",
-            ai_generated=False,
-        )
-
-        send_telegram_contact_request(bot_token, customer_key)
-        save_processed_telegram_update(telegram_channel_id, update_id)
+        _send_recorded_telegram_reply(conversation, channel, customer_key, reply, contact_request=True)
         return
 
     try:
@@ -420,6 +424,7 @@ def process_telegram_update(update: dict, webhook_secret: str):
             customer_key,
             chatbot_id,
             source_channel="telegram",
+            conversation_id=conversation["id"],
         )
     except BillingLimitError as billing_error:
         # generate_response re-raises this deliberately. Unguarded it reaches the
@@ -433,22 +438,11 @@ def process_telegram_update(update: dict, webhook_secret: str):
         )
 
         # Never leak the company's billing state to a Telegram customer.
-        save_message(
-            conversation_id=conversation["id"],
-            sender_type="bot",
-            message_text=BILLING_LIMIT_CUSTOMER_REPLY,
-            message_type="text",
-            delivery_status="sent",
-            ai_generated=False,
-        )
-
-        send_telegram_message(bot_token, customer_key, BILLING_LIMIT_CUSTOMER_REPLY)
-        save_processed_telegram_update(telegram_channel_id, update_id)
+        _send_recorded_telegram_reply(conversation, channel, customer_key, BILLING_LIMIT_CUSTOMER_REPLY, ai_generated=False)
         return
 
     if reply == "<SILENT_BOT_RESPONSE>":
         logging.info("AI is silenced (conversation escalated to human).")
-        save_processed_telegram_update(telegram_channel_id, update_id)
         return
 
     # Read message style settings from the bot record (safe default: enabled)
@@ -484,38 +478,50 @@ def process_telegram_update(update: dict, webhook_secret: str):
             parse_mode = None
 
     parts = split_telegram_reply(clean_reply)
+    send_ok = True
     for i, reply_part in enumerate(parts):
-        # Send inline keyboard only with the last part
-        markup = inline_markup if (i == len(parts) - 1) else None
-        result = send_telegram_message(
-            bot_token,
-            customer_key,
-            reply_part,
-            reply_markup=markup,
-            parse_mode=parse_mode,
-        )
-        # If formatted send fails, retry as plain text (Telegram rejects bad MarkdownV2)
-        if result is None and parse_mode:
-            logging.warning("Telegram MarkdownV2 send failed, retrying as plain text")
-            send_telegram_message(
-                bot_token,
-                customer_key,
-                reply_part,
-                reply_markup=markup,
-                parse_mode=None,
-            )
+        with conversation_delivery_lock(conversation["id"]):
+            current_channel = get_bound_channel(conversation)
+            if not automatic_reply_allowed(conversation, reply, paused=is_conversation_escalated(
+                    conversation["id"], chatbot_id, conversation=conversation)):
+                if i == 0:
+                    return
+                send_ok = False
+                break
+            markup = inline_markup if (i == len(parts) - 1) else None
+            result = send_telegram_message(current_channel["bot_token"], customer_key, reply_part,
+                                           reply_markup=markup, parse_mode=parse_mode)
+        # A timeout is ambiguous; only a confirmed formatting rejection is safe
+        # to resend. Never retry an accepted or uncertain delivery.
+        if isinstance(result, dict) and result.get("format_rejected") and parse_mode:
+            with conversation_delivery_lock(conversation["id"]):
+                current_channel = get_bound_channel(conversation)
+                if not automatic_reply_allowed(conversation, reply, paused=is_conversation_escalated(
+                        conversation["id"], chatbot_id, conversation=conversation)):
+                    send_ok = False
+                    break
+                result = send_telegram_message(current_channel["bot_token"], customer_key, reply_part,
+                                               reply_markup=markup, parse_mode=None)
+        if not delivery_accepted("telegram", result):
+            send_ok = False
+            break
+    save_message(conversation_id=conversation["id"], sender_type="bot", message_text=reply,
+                 message_type="text", delivery_status="sent" if send_ok else "failed",
+                 ai_generated=True, last_error=None if send_ok else "Provider did not confirm delivery; review before retrying.")
+    if send_ok and not is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+        dispatch_media_after_reply(message_text, chatbot_id, "telegram", get_bound_channel(conversation), customer_key,
+                                   conversation=conversation)
 
 
-    save_message(
-        conversation_id=conversation["id"],
-        sender_type="bot",
-        message_text=reply,
-        message_type="text",
-        delivery_status="sent",
-        ai_generated=True,
-    )
-
-    save_processed_telegram_update(telegram_channel_id, update_id)
-
-    # Try sending any configured media attachments that match the user's message
-    dispatch_media_after_reply(message_text, chatbot_id, "telegram", channel, customer_key)
+def _send_recorded_telegram_reply(conversation, channel, recipient, text, ai_generated=False, contact_request=False):
+    with conversation_delivery_lock(conversation["id"]):
+        channel = get_bound_channel(conversation)
+        if is_conversation_escalated(conversation["id"], channel["chatbot_id"], conversation=conversation):
+            return False
+        result = (send_telegram_contact_request(channel["bot_token"], recipient) if contact_request
+                  else send_telegram_message(channel["bot_token"], recipient, text))
+    accepted = delivery_accepted("telegram", result)
+    save_message(conversation_id=conversation["id"], sender_type="bot", message_text=text,
+                 message_type="text", delivery_status="sent" if accepted else "failed", ai_generated=ai_generated,
+                 last_error=None if accepted else "Provider did not confirm delivery; review before retrying.")
+    return accepted

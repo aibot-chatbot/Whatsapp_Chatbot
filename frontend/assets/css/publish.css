@@ -210,6 +210,17 @@
     display: none;
 }
 
+/* Provider forms nest disclosures; keep those forms readable at phone width. */
+.dashboard-page .pub-flow .kw-advanced-body {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.dashboard-page .pub-flow .kw-btn {
+    max-width: 100%;
+    white-space: normal;
+    text-align: center;
+}
+
 .dashboard-page .pub-flow-head {
     display: flex;
     align-items: baseline;

@@ -104,74 +104,61 @@ def test_pending_escalation_never_attaches_cross_chatbot_conversation():
     assert ("eq", "chatbot_id", 29) in conversation_query.filters
 
 
-def test_first_resolution_updates_only_the_exact_detected_action():
-    supabase = _Supabase([[DETECTED_ACTION], [RESOLVED_ACTION]])
-
-    with patch("app.database.agent_action_repository.supabase", supabase):
-        action, changed = resolve_escalation(10, 29, 42)
-
-    assert action == RESOLVED_ACTION
-    assert changed is True
-    assert len(supabase.queries) == 2
-
-    update = supabase.queries[1]
-    assert update.operation == "update"
-    assert update.update_payload == {"status": "resolved"}
-    assert ("eq", "id", 10) in update.filters
-    assert ("eq", "chatbot_id", 29) in update.filters
-    assert ("eq", "company_id", 42) in update.filters
-    assert ("eq", "status", "detected") in update.filters
-    assert not any(
-        item[:2] == ("eq", "conversation_id")
-        for item in update.filters
-    )
 
 
-def test_already_resolved_action_is_idempotent_without_an_update():
-    supabase = _Supabase([[RESOLVED_ACTION]])
-
-    with patch("app.database.agent_action_repository.supabase", supabase):
-        action, changed = resolve_escalation(10, 29, 42)
-
-    assert action == RESOLVED_ACTION
-    assert changed is False
-    assert [query.operation for query in supabase.queries] == ["select"]
-
-
-def test_concurrent_resolution_reloads_the_winning_resolved_row():
-    supabase = _Supabase([[DETECTED_ACTION], [], [RESOLVED_ACTION]])
-
-    with patch("app.database.agent_action_repository.supabase", supabase):
-        action, changed = resolve_escalation(10, 29, 42)
-
-    assert action == RESOLVED_ACTION
-    assert changed is False
-    assert [query.operation for query in supabase.queries] == [
-        "select",
-        "update",
-        "select",
-    ]
-
-
-@pytest.mark.parametrize(
-    ("chatbot_id", "company_id"),
-    [
-        (29, 42),  # missing action
-        (30, 42),  # wrong chatbot
-        (29, 99),  # wrong tenant
-    ],
-)
-def test_missing_wrong_chatbot_and_cross_tenant_actions_do_not_update(
-    chatbot_id,
-    company_id,
-):
+def test_pending_lookup_filters_conversation_before_limit():
     supabase = _Supabase([[]])
-
     with patch("app.database.agent_action_repository.supabase", supabase):
-        action, changed = resolve_escalation(10, chatbot_id, company_id)
+        assert get_pending_escalations(29, 42, conversation_id=101) == []
+    filters = supabase.queries[0].filters
+    assert ("eq", "chatbot_id", 29) in filters
+    assert ("eq", "company_id", 42) in filters
+    assert filters.index(("eq", "conversation_id", 101)) < filters.index(("limit", 50))
 
-    assert action is None
-    assert changed is False
-    assert [query.operation for query in supabase.queries] == ["select"]
-    assert ("eq", "chatbot_id", chatbot_id) in supabase.queries[0].filters
-    assert ("eq", "company_id", company_id) in supabase.queries[0].filters
+
+
+
+
+
+
+
+@pytest.mark.parametrize("changed,resumed", [(True, True), (True, False), (False, True), (False, False)])
+def test_resolution_reads_lock_identity_then_uses_atomic_result(changed, resumed):
+    from unittest.mock import Mock
+    client = Mock()
+    client.rpc.return_value.execute.return_value = SimpleNamespace(data={
+        "resolved_action": RESOLVED_ACTION, "changed": changed, "ai_resumed": resumed,
+    })
+    with patch("app.database.agent_action_repository.supabase", client), patch(
+        "app.database.agent_action_repository._get_escalation_by_id", return_value=DETECTED_ACTION,
+    ) as lookup:
+        action, did_change = resolve_escalation(10, 29, 42)
+    assert action == {**RESOLVED_ACTION, "_ai_resumed": resumed}
+    assert did_change is changed
+    client.rpc.assert_called_once_with("resolve_conversation_escalation", {
+        "p_action_id": 10, "p_chatbot_id": 29, "p_company_id": 42,
+    })
+    client.table.assert_not_called()
+    lookup.assert_called_once_with(10, 29, 42)
+
+
+@pytest.mark.parametrize("chatbot_id,company_id", [(29, 42), (30, 42), (29, 99)])
+def test_missing_and_cross_tenant_rpc_results_do_not_resolve(chatbot_id, company_id):
+    from unittest.mock import Mock
+    client = Mock()
+    client.rpc.return_value.execute.return_value = SimpleNamespace(data=None)
+    with patch("app.database.agent_action_repository.supabase", client), patch(
+        "app.database.agent_action_repository._get_escalation_by_id", return_value=DETECTED_ACTION,
+    ):
+        assert resolve_escalation(10, chatbot_id, company_id) == (None, False)
+    assert client.rpc.call_args.args[1] == {"p_action_id": 10, "p_chatbot_id": chatbot_id, "p_company_id": company_id}
+
+
+def test_missing_scoped_action_never_enters_resolution_rpc():
+    from unittest.mock import Mock
+    client = Mock()
+    with patch("app.database.agent_action_repository.supabase", client), patch(
+        "app.database.agent_action_repository._get_escalation_by_id", return_value=None,
+    ):
+        assert resolve_escalation(10, 29, 42) == (None, False)
+    client.rpc.assert_not_called()

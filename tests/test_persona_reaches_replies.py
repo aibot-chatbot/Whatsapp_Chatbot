@@ -587,6 +587,11 @@ class TestbotChatRouteTests(unittest.TestCase):
         ), patch(
             "app.routes.testbot_routes.verify_chatbot_access",
             return_value={"id": CHATBOT_ID, "company_id": COMPANY_ID},
+        ), patch(
+            "app.routes.testbot_routes.get_or_create_conversation", return_value={"id": 100},
+        ), patch(
+            "app.database.conversation_repository.get_conversation_by_id_and_chatbot",
+            return_value={"id": 100, "chatbot_id": CHATBOT_ID, "source_channel": "web"},
         ):
             yield
 

@@ -263,6 +263,7 @@ def widget_send_message(public_key):
             widget["chatbot_id"],
             source_channel="web",
             operation_type=OPERATION_CHAT_REPLY,
+            conversation_id=conversation["id"],
         )
 
         if reply == SILENT_REPLY_MARKER:

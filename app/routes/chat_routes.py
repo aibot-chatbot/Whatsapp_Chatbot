@@ -7,6 +7,7 @@ from app.services.ai_router import generate_response, OPERATION_TEST_CHAT
 from app.services.billing_guard import BillingLimitError
 from app.services.company_status_service import company_operational_required
 from app.utils.api_errors import server_error
+from app.database.conversation_repository import get_or_create_conversation
 
 # create blueprint
 chat_blueprint = Blueprint("chat", __name__)
@@ -38,12 +39,14 @@ def test_chat():
         verify_chatbot_access(chatbot_id)
 
         # use a dummy user id for testing
+        conversation = get_or_create_conversation(chatbot_id, "test_user", source_channel="web")
         reply = generate_response(
             user_message,
             "test_user",
             chatbot_id=chatbot_id,
             source_channel="web",
             operation_type=OPERATION_TEST_CHAT,
+            conversation_id=conversation["id"],
         )
 
         return jsonify({

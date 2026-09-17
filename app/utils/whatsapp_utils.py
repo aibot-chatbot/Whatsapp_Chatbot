@@ -8,17 +8,20 @@ from app.services.ai_router import generate_response
 from app.database.bot_repository import get_bot_by_id
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
-from app.database.processed_message_repository import is_processed, save_processed
+from app.database.processed_message_repository import claim_processed_message, release_processed_message_claim
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_phone_number_id
 from app.services.workflow_tracker import update_workflow_state
 from app.services.media_send_service import dispatch_media_after_reply
+from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed, ChannelDeliveryError
+from app.database.agent_action_repository import is_conversation_escalated
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.utils.message_style_utils import parse_buttons_tag, format_for_whatsapp_markdown
 
 
 def log_http_response(response):
     logging.info(f"Status: {response.status_code}")
     logging.info(f"Content-type: {response.headers.get('content-type')}")
-    logging.info(f"Body: {response.text}")
+
 
 def get_text_message_input(recipient, text):
     return json.dumps(
@@ -84,12 +87,9 @@ def send_message(data, channel=None):
     phone_number_id = channel.get("phone_number_id") if channel else None
 
     if not access_token or not phone_number_id:
-        logging.warning(
-            "Using global WhatsApp credentials as development fallback. "
-            "Connected SaaS channels should provide access_token and phone_number_id."
-        )
-        access_token = current_app.config["ACCESS_TOKEN"]
-        phone_number_id = current_app.config["PHONE_NUMBER_ID"]
+        return jsonify({"status": "error", "message": "Verified channel credentials are required"}), 409
+    if isinstance(data, dict):
+        data = json.dumps(data)
 
     headers = {
         "Content-type": "application/json",
@@ -105,15 +105,8 @@ def send_message(data, channel=None):
         logging.error("Timeout occurred while sending message")
         return jsonify({"status": "error", "message": "Request timed out"}), 408
     except requests.RequestException as e:
-        logging.error(f"Request failed due to: {e}")
-        error_detail = "Failed to send message"
-        try:
-            if e.response is not None:
-                err_json = e.response.json()
-                error_detail = err_json.get("error", {}).get("message", e.response.text)
-        except Exception:
-            error_detail = str(e)
-        return jsonify({"status": "error", "message": error_detail}), 500
+        logging.error("WhatsApp send failed (%s)", type(e).__name__)
+        return jsonify({"status": "error", "message": "Provider did not confirm delivery"}), 502
     else:
         log_http_response(response)
         return response
@@ -157,10 +150,25 @@ def process_whatsapp_message(body):
     message = value["messages"][0]
     message_id = message["id"]
 
-    if is_processed(chatbot_id, message_id):
-        logging.info(f"Duplicate message ignored: {message_id}")
+    validate_channel(channel, "whatsapp", chatbot_id)
+    if not claim_processed_message(chatbot_id, message_id):
+        logging.info("Duplicate WhatsApp message ignored")
         return
+    progress = {"started": False}
+    try:
+        return _process_claimed_whatsapp_message(value, channel, progress)
+    except Exception:
+        if not progress["started"]:
+            release_processed_message_claim(chatbot_id, message_id)
+        raise
 
+
+def _process_claimed_whatsapp_message(value, channel, progress):
+    chatbot_id = channel["chatbot_id"]
+    wa_id = value["contacts"][0]["wa_id"]
+    customer_name = value["contacts"][0].get("profile", {}).get("name")
+    message = value["messages"][0]
+    message_id = message["id"]
     # Handle non-text messages safely
     message_type = message.get("type", "unknown")
 
@@ -173,8 +181,10 @@ def process_whatsapp_message(body):
             customer_phone=wa_id,
             customer_name=customer_name,
             source_channel="whatsapp",
+            **channel_identity(channel, "whatsapp"),
         )
 
+        progress["started"] = True
         save_message(
             conversation_id=conversation["id"],
             sender_type="customer",
@@ -196,19 +206,15 @@ def process_whatsapp_message(body):
                 "Please type your question and I’ll help you."
             )
 
-        save_message(
-            conversation_id=conversation["id"],
-            sender_type="bot",
-            message_text=reply,
-            message_type="text",
-            delivery_status="sent",
-            ai_generated=True,
-        )
-
-        data = get_text_message_input(wa_id, reply)
-        send_message(data, channel)
-
-        save_processed(chatbot_id, message_id)
+        with conversation_delivery_lock(conversation["id"]):
+            channel = get_bound_channel(conversation)
+            if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+                return
+            result = send_message(get_text_message_input(wa_id, reply), channel)
+        accepted = delivery_accepted("whatsapp", result)
+        save_message(conversation_id=conversation["id"], sender_type="bot", message_text=reply,
+                     message_type="text", delivery_status="sent" if accepted else "failed", ai_generated=False,
+                     last_error=None if accepted else "Provider did not confirm delivery; review before retrying.")
         return
 
     if message_type == "interactive":
@@ -227,8 +233,10 @@ def process_whatsapp_message(body):
         customer_phone=wa_id,
         customer_name=customer_name,
         source_channel="whatsapp",
+        **channel_identity(channel, "whatsapp"),
     )
 
+    progress["started"] = True
     save_message(
         conversation_id=conversation["id"],
         sender_type="customer",
@@ -239,6 +247,9 @@ def process_whatsapp_message(body):
         ai_generated=False,
     )
 
+    if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+        return
+
     update_workflow_state(chatbot_id, "RECEIVING", message_body, wa_id)
     update_workflow_state(chatbot_id, "AI_GENERATING", message_body, wa_id)
 
@@ -247,11 +258,11 @@ def process_whatsapp_message(body):
         wa_id,
         chatbot_id,
         source_channel="whatsapp",
+        conversation_id=conversation["id"],
     )
 
     if response == "<SILENT_BOT_RESPONSE>":
         logging.info("AI is silenced (conversation escalated to human).")
-        save_processed(chatbot_id, message_id)
         update_workflow_state(chatbot_id, "COMPLETED", "<SILENT_BOT_RESPONSE>", wa_id)
         return
 
@@ -271,40 +282,39 @@ def process_whatsapp_message(body):
         clean_response = process_text_for_whatsapp(clean_response)
 
 
-    save_message(
-        conversation_id=conversation["id"],
-        sender_type="bot",
-        message_text=response,
-        message_type="text",
-        delivery_status="sent",
-        ai_generated=True,
-    )
-
     update_workflow_state(chatbot_id, "SENDING", clean_response, wa_id)
-
-    # Send as interactive button message if buttons are present and enabled;
-    # otherwise fall back to plain text.
-    sent_interactive = False
     if buttons_enabled and button_labels:
-        try:
-            interactive_data = get_interactive_button_message(wa_id, clean_response, button_labels)
-            send_message(interactive_data, channel)
-            sent_interactive = True
-        except Exception as btn_err:
-            logging.warning(
-                "WhatsApp interactive button send failed, falling back to plain text: %s", btn_err
-            )
-
-    if not sent_interactive:
+        data = get_interactive_button_message(wa_id, clean_response, button_labels)
+    else:
         data = get_text_message_input(wa_id, clean_response)
-        send_message(data, channel)
-
-    save_processed(chatbot_id, message_id)
-    update_workflow_state(chatbot_id, "COMPLETED", clean_response, wa_id)
-
-    # Try sending any configured media attachments that match the user's message
-    # using the original message_body
-    dispatch_media_after_reply(message_body, chatbot_id, "meta", channel, wa_id)
+    try:
+        with conversation_delivery_lock(conversation["id"]):
+            channel = get_bound_channel(conversation)
+            if not automatic_reply_allowed(conversation, response, paused=is_conversation_escalated(
+                    conversation["id"], chatbot_id, conversation=conversation)):
+                update_workflow_state(chatbot_id, "COMPLETED", "<SILENT_BOT_RESPONSE>", wa_id)
+                return
+            result = send_message(data, channel)
+    except ChannelDeliveryError as error:
+        # The number was replaced or disconnected between this customer's message
+        # arriving and the reply going out. The inbound dedup claim is already
+        # held, so letting this propagate would answer 500, Meta would redeliver,
+        # claim_processed_message would drop it as a duplicate, and the customer's
+        # message would disappear with no bot row and no error anywhere. Record
+        # the failed reply instead, so staff see a broken thread they can resend.
+        save_message(conversation_id=conversation["id"], sender_type="bot", message_text=response,
+                     message_type="text", delivery_status="failed", ai_generated=True,
+                     last_error=error.code)
+        update_workflow_state(chatbot_id, "FAILED", clean_response, wa_id)
+        return
+    accepted = delivery_accepted("whatsapp", result)
+    save_message(conversation_id=conversation["id"], sender_type="bot", message_text=response,
+                 message_type="text", delivery_status="sent" if accepted else "failed", ai_generated=True,
+                 last_error=None if accepted else "Provider did not confirm delivery; review before retrying.")
+    update_workflow_state(chatbot_id, "COMPLETED" if accepted else "FAILED", clean_response, wa_id)
+    if accepted and not is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+        dispatch_media_after_reply(message_body, chatbot_id, "meta", get_bound_channel(conversation), wa_id,
+                                   conversation=conversation)
 
 
 def is_valid_whatsapp_message(body):

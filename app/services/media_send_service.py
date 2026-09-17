@@ -2,7 +2,11 @@ import logging
 import re
 import requests
 import os
+from contextlib import nullcontext
 from app.database.bot_media_attachment_repository import get_active_attachments
+from app.database.agent_action_repository import is_conversation_escalated
+from app.services.channel_delivery_service import get_bound_channel
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 
 def find_matching_attachment(message_text, attachments):
     """
@@ -197,7 +201,7 @@ def send_meta_media_template(channel, attachment, to):
         logging.error("Failed to send Meta media template (%s)", type(e).__name__)
         return False
 
-def dispatch_media_after_reply(message_text, chatbot_id, channel_type, channel, recipient):
+def dispatch_media_after_reply(message_text, chatbot_id, channel_type, channel, recipient, *, conversation=None):
     """
     Main entry point to be called after a standard text reply is sent.
     Evaluates if the user's message matches any media attachment triggers,
@@ -214,23 +218,29 @@ def dispatch_media_after_reply(message_text, chatbot_id, channel_type, channel, 
         matched = find_matching_attachment(message_text, attachments)
         if not matched:
             return False
-            
-        logging.info(f"Found matching media attachment '{matched.get('label')}' for chatbot_id={chatbot_id}")
-        
-        if channel_type == "wasender":
-            api_key = channel.get("api_key")
-            return send_wasender_media(api_key, recipient, matched)
-            
-        elif channel_type == "telegram":
-            bot_token = channel.get("bot_token")
-            return send_telegram_media(bot_token, recipient, matched)
-            
-        elif channel_type == "meta":
-            return send_meta_media_template(channel, matched, recipient)
-            
-        else:
-            logging.warning(f"Unsupported channel type for media dispatch: {channel_type}")
-            return False
+
+        with conversation_delivery_lock(conversation["id"]) if conversation is not None else nullcontext():
+            if conversation is not None:
+                channel = get_bound_channel(conversation)
+                if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+                    return False
+
+            logging.info(f"Found matching media attachment '{matched.get('label')}' for chatbot_id={chatbot_id}")
+
+            if channel_type == "wasender":
+                api_key = channel.get("api_key")
+                return send_wasender_media(api_key, recipient, matched)
+
+            elif channel_type == "telegram":
+                bot_token = channel.get("bot_token")
+                return send_telegram_media(bot_token, recipient, matched)
+
+            elif channel_type == "meta":
+                return send_meta_media_template(channel, matched, recipient)
+
+            else:
+                logging.warning(f"Unsupported channel type for media dispatch: {channel_type}")
+                return False
             
     except Exception as e:
         logging.error(f"Media dispatch failed: {e}")

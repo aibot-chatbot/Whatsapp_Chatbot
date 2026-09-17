@@ -499,3 +499,144 @@ and the User-scope override warning. **No real key was written to any file.**
 
 Leaving the whole block unset remains supported: the app boots and behaves as it
 did before the automation existed.
+
+## Cross-channel closed loop and credential replacement — reviewed and corrected
+
+WhatsApp Cloud API and WASender now have the same closed customer-service loop
+Telegram had: inbound webhook, conversation resolution, AI reply, outbound send,
+delivery record. A tenant binds a number, and can later replace it — a new
+Telegram bot token, or a new WhatsApp/WASender number — while the old connection
+keeps working until the replacement verifies.
+
+A four-agent review team (security, database, backend correctness, frontend and
+deploy config) read the change before it shipped. What they found, and what was
+done about it:
+
+### Corrected before shipping
+
+**The deploy config switched off two live features.** `fly.toml` set
+`BILLING_SCHEDULER_ENABLED = "false"` and `WASENDER_RETRY_WORKER_ENABLED =
+"false"`. Both default to true in code, and the gunicorn process is their only
+runner — there is no `[processes]` block, no cron, no worker machine. That would
+have silently stopped subscription transitions, HitPay order reconciliation and
+the owner notifications added in `b01dd75`, and stopped every WASender retry.
+Both removed; the block now explains why a handover pause belongs on one machine
+(`fly deploy --env ...`) and never in the committed default.
+
+**Migration number 056 was already taken.**
+`056_pending_registration_verification_token.sql` shipped in `75b9f3b` and is
+applied live. The new file was renumbered to **058**, and `docs/` and
+`tests/test_channel_lifecycle_postgres.py` repointed. This repo already carries
+three number collisions (029, 030, 045) and renumbered 031-034 once; a fourth
+was not worth it. `055_telegram_active_provider_owner.sql` is genuinely free, is
+already applied live, and is now tracked.
+`data/telegram_connection_lifecycle.proposed.sql` was a superseded draft and is
+deleted.
+
+**The migration would have taken every existing tenant offline.**
+`validate_channel` refuses to deliver for a channel with no `verified_at`, and
+`get_bound_channel` refuses a conversation with no `source_channel_id`. Both
+columns were created empty. On apply, every already-connected channel would have
+started raising on inbound webhooks, the routes would answer 500, Meta and
+Telegram would back off, and nothing in the product would have reported it.
+Migration 058 now grandfathers rows that were connected before it: they were
+trusted by the code that connected them, so they stay trusted, and only new
+connections go through the new verification. Open conversations are bound to
+their channel wherever that channel is unambiguous — without that, every
+returning customer would silently have got a second, empty thread.
+
+**Telegram let the caller choose where its own bot delivers.**
+`POST /api/telegram/connect` accepted `webhook_base_url` from the request body,
+pushed it to `setWebhook`, and then verified it against itself — so it always
+passed. A caller could point a tenant's inbound messages, and the webhook
+secret, at a host they control, and the dashboard would still read "connected".
+The destination now comes from `PUBLIC_BASE_URL` only, matching what WASender
+and WhatsApp already did.
+
+**Reconnect stopped rotating the webhook secret.** That value is both the URL
+path segment and Telegram's `secret_token`, and anyone who has held the bot
+token can read it back out of `getWebhookInfo`. Reusing it left a tenant with no
+way to rotate a leaked channel secret. Reconnect mints a fresh one again.
+
+**A revoked token made a channel unreleasable.** `deleteWebhook` returning 401
+was treated as a failed disconnect, so `is_active` stayed true and the row held
+the active-provider index for that bot id forever — nobody could connect a
+replacement. That is exactly what happens after BotFather `/revoke`. A 401 or
+404 now counts as released; a dead token cannot be delivering anything.
+
+**An unverified WhatsApp attempt reserved a number globally.** The row is
+created pending and active before verification runs, and the unique index keyed
+on `is_active` alone — so any tenant could hold another tenant's number for the
+length of the Graph round-trips, or permanently if the attempt died. The index
+now requires `connection_status = 'connected'`, matching the WASender predicate.
+
+**A transient Meta 5xx was read as a permanent credential verdict.** A
+two-second Graph outage marked a brand-new connection failed and told the tenant
+to redo Embedded Signup. 5xx and 429 now raise the retryable error that already
+maps to "unable to verify, previous connection unchanged".
+
+**WASender retries had been disabled in code.** A first-attempt failure was
+written `permanent_failed` with no `next_retry_at`, and the retry worker passed
+`retry_count=MAX_RETRIES`, forcing the permanent branch on the first miss.
+`MAX_RETRIES` and `RETRY_DELAY_SECONDS` were decorative. Restored.
+
+**A channel replaced mid-turn ate the customer's message.** `get_bound_channel`
+raising inside the delivery lock propagated past a held dedup claim: 500, Meta
+redelivers, the claim drops it as a duplicate, and the message disappears with
+no bot row and no error anywhere. The failed reply is now recorded so staff see
+a broken thread they can resend.
+
+Also: Graph pagination is bounded (each page costs up to 15s inside a handler
+gunicorn kills at 120s), `DROP INDEX` is attempted alongside `DROP CONSTRAINT`
+for the WhatsApp uniqueness whose live form is unknown, the `conversations`
+CHECK is added `NOT VALID` to shorten the lock, submitted phone numbers are
+normalised to the E.164 string that was actually validated, and a successful
+disconnect clears the stale "connection failed" banner.
+
+### Known gaps — deliberately not closed here
+
+These are pre-existing and were not introduced by this change. Shipping was the
+explicit call; they are recorded so the next session does not rediscover them.
+
+1. **WhatsApp has no outbound retry.** `get_retryable_failed_wasender_messages`
+   (`app/database/message_repository.py:165`) filters
+   `source_channel == "wasender"`, and there is no Meta retry worker. A failed
+   Graph send is written `failed` and nothing ever picks it up, so the customer
+   gets silence. Fix: drop the channel filter and dispatch on
+   `conversation["source_channel"]` — `get_bound_channel` already abstracts the
+   lookup for all three providers.
+2. **WASender can finish Connect half-done.** `verify_wasender_connection`
+   (`app/services/provider_connection_verification.py`) short-circuits to
+   `next_action: configure_webhook` when `session_id` or the personal access
+   token is missing, the row stays `pending`, and `get_wasender_channel_by_secret`
+   requires `connected` — so every inbound message is swallowed with a 200 that
+   WASender never retries. The UI (`connectWasender`) lets the operator walk
+   away from that state. Fix: make `next_action` a blocking UI state and return
+   4xx rather than 202 when those fields are absent.
+3. **Stuck `pending` rows are permanent.** `claim_telegram_channel_operation`
+   has no timeout and no release path, and several exits leave the row pending
+   while `is_active` stays true — holding the provider identity globally and, if
+   `connection_slot_reserved` was set, a plan slot. Fix: bound the reservation
+   by `connection_attempted_at > now() - interval '15 minutes'` in both the
+   quota predicate and the claim.
+4. **`is_conversation_escalated` fans out on the webhook hot path.** One inbound
+   WhatsApp text now calls it around seven times, each a Supabase round trip,
+   and bound conversations add up to three more queries per call — on eight
+   threads total. Fix: resolve pause state once per turn and pass it down, as
+   the code already does for `conversation`.
+
+Two smaller ones: `resolve_conversation_escalation` returns the whole
+`agent_actions` row rather than `SAFE_AGENT_ACTION_FIELDS` (not exposed today,
+but a future route change would leak `payload` and `reason`), and migration 058
+has no paired `_rollback.sql` — note that two of its statements are one-way once
+the feature runs, so a rollback must happen before the first released number or
+bound conversation exists.
+
+### Applying it
+
+`data/058_unified_channel_lifecycle.sql` must be applied at the same time as the
+deploy; the code reads columns it creates. It is a single transaction over
+`conversations`, so inbound writes block until it commits — apply it in a short
+window. After it commits, run the commented `VALIDATE CONSTRAINT` at the end of
+the file; `VALIDATE` takes only `SHARE UPDATE EXCLUSIVE`, so messages keep
+flowing while it scans.

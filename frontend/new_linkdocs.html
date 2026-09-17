@@ -354,10 +354,10 @@ const ROLE_LABELS = {
 
                 // Define colors
                 const groupColors = {
-                    "Company": "#3b82f6",
+                    "Company": "#22D3EE",
                     "Brand": "#60a5fa",
                     "Category": "#93c5fd",
-                    "Product": "#10b981",
+                    "Product": "#34D399",
                     "Service": "#8b5cf6",
                     "Package": "#f59e0b",
                     "Accessory": "#34d399",
@@ -367,7 +367,7 @@ const ROLE_LABELS = {
                     "Branch": "#ec4899",
                     "Supplier": "#a855f7",
                     "Customer Segment": "#c084fc",
-                    "Policy": "#ef4444",
+                    "Policy": "#F87171",
                     "FAQ": "#f97316",
                     "Staff": "#fbbf24",
                     "Schedule": "#a7f3d0",
@@ -377,7 +377,7 @@ const ROLE_LABELS = {
                 };
 
                 const nodesWithColors = filteredNodes.map(node => {
-                    const color = groupColors[node.group] || "#94a3b8";
+                    const color = groupColors[node.group] || "#94A3B8";
                     return {
                         ...node,
                         size: 22,
@@ -398,7 +398,7 @@ const ROLE_LABELS = {
                             face: "Geist",
                             size: 13,
                             strokeWidth: 4,
-                            strokeColor: "#0a0b0d" // Outlines label text for extreme readability on dark background
+                            strokeColor: "#04070C" // Outlines label text for extreme readability on dark background
                         },
                         borderWidth: 3,
                         borderWidthSelected: 5
@@ -421,11 +421,11 @@ const ROLE_LABELS = {
                             align: "top",
                             color: "#cbd5e1", // Light gray for relationship text
                             strokeWidth: 3,
-                            strokeColor: "#0a0b0d", // Outline for relationship text
+                            strokeColor: "#04070C", // Outline for relationship text
                             face: "Geist"
                         },
                         arrows: { to: { enabled: true, scaleFactor: 0.6 } },
-                        color: { color: "rgba(255, 255, 255, 0.35)", highlight: "#3e9c89", hover: "rgba(255, 255, 255, 0.6)" },
+                        color: { color: "rgba(255, 255, 255, 0.35)", highlight: "#22D3EE", hover: "rgba(255, 255, 255, 0.6)" },
                         smooth: { enabled: true, type: "dynamic", roundness: 0.5 }
                     },
                     interaction: {
@@ -481,7 +481,7 @@ const ROLE_LABELS = {
 
                         const updatedNodes = nodesWithColors.map(node => {
                             const isNeighbor = neighbors.has(node.id);
-                            const baseColor = groupColors[node.group] || "#94a3b8";
+                            const baseColor = groupColors[node.group] || "#94A3B8";
                             return {
                                 id: node.id,
                                 color: {
@@ -501,7 +501,7 @@ const ROLE_LABELS = {
                                     face: "Geist",
                                     size: 13,
                                     strokeWidth: 4,
-                                    strokeColor: isNeighbor ? "#0a0b0d" : "rgba(10, 11, 13, 0.15)"
+                                    strokeColor: isNeighbor ? "#04070C" : "rgba(10, 11, 13, 0.15)"
                                 }
                             };
                         });
@@ -514,7 +514,7 @@ const ROLE_LABELS = {
                                 id: edge.id,
                                 color: {
                                     color: isConnected ? "rgba(62, 156, 137, 0.95)" : "rgba(255, 255, 255, 0.05)",
-                                    highlight: "#3e9c89"
+                                    highlight: "#22D3EE"
                                 },
                                 width: isConnected ? 3 : 1
                             };
@@ -528,7 +528,7 @@ const ROLE_LABELS = {
                     } else {
                         // Reset all nodes
                         const resetNodes = nodesWithColors.map(node => {
-                            const baseColor = groupColors[node.group] || "#94a3b8";
+                            const baseColor = groupColors[node.group] || "#94A3B8";
                             return {
                                 id: node.id,
                                 color: {
@@ -540,7 +540,7 @@ const ROLE_LABELS = {
                                     face: "Geist",
                                     size: 13,
                                     strokeWidth: 4,
-                                    strokeColor: "#0a0b0d"
+                                    strokeColor: "#04070C"
                                 }
                             };
                         });
@@ -870,10 +870,10 @@ const ROLE_LABELS = {
             const categories = Object.keys(nodeCounts).sort();
 
             const groupColors = {
-                "Company": "#3b82f6",
+                "Company": "#22D3EE",
                 "Brand": "#60a5fa",
                 "Category": "#93c5fd",
-                "Product": "#10b981",
+                "Product": "#34D399",
                 "Service": "#8b5cf6",
                 "Package": "#f59e0b",
                 "Accessory": "#34d399",
@@ -883,7 +883,7 @@ const ROLE_LABELS = {
                 "Branch": "#ec4899",
                 "Supplier": "#a855f7",
                 "Customer Segment": "#c084fc",
-                "Policy": "#ef4444",
+                "Policy": "#F87171",
                 "FAQ": "#f97316",
                 "Staff": "#fbbf24",
                 "Schedule": "#a7f3d0",
@@ -909,7 +909,7 @@ const ROLE_LABELS = {
                 const row = {
                     key: cat,
                     count: count,
-                    color: groupColors[cat] || "#94a3b8",
+                    color: groupColors[cat] || "#94A3B8",
                     percent: Math.round(share * 100),
                     dash: `${length} ${DONUT_LENGTH - length}`,
                     offset: -donutCursor
@@ -961,7 +961,7 @@ const ROLE_LABELS = {
                                     aria-pressed={activeFilters.has(cat)}
                                     onClick={() => handleToggleFilter(cat)}
                                 >
-                                    <span className="kw-chip-marker" style={{ background: groupColors[cat] || "#94a3b8" }} />
+                                    <span className="kw-chip-marker" style={{ background: groupColors[cat] || "#94A3B8" }} />
                                     {cat}
                                     <span className="kw-chip-count">{nodeCounts[cat]}</span>
                                 </button>
@@ -1027,7 +1027,7 @@ const ROLE_LABELS = {
                                 )}
 
                                 {hoveredNode && (
-                                    <div className="kw-hovercard" style={{ borderLeftColor: groupColors[hoveredNode.group] || "#94a3b8" }}>
+                                    <div className="kw-hovercard" style={{ borderLeftColor: groupColors[hoveredNode.group] || "#94A3B8" }}>
                                         <div className="kw-hovercard-type">{hoveredNode.group}</div>
                                         <div className="kw-hovercard-name">{hoveredNode.label}</div>
                                         {hoveredNode.title && (
@@ -1042,7 +1042,7 @@ const ROLE_LABELS = {
                                         <div className="kw-legend-keys">
                                             {categories.slice(0, 6).map(cat => (
                                                 <span key={cat} className="kw-legend-key">
-                                                    <span className="kw-swatch" style={{ background: groupColors[cat] || "#94a3b8" }} />
+                                                    <span className="kw-swatch" style={{ background: groupColors[cat] || "#94A3B8" }} />
                                                     {cat}
                                                 </span>
                                             ))}
@@ -1074,7 +1074,7 @@ const ROLE_LABELS = {
                                                 </div>
                                                 {selectedNode && !isAddingNode && !isEditingNode && (
                                                     <div className="kw-rail-badges">
-                                                        <span className="kw-badge" style={{ color: groupColors[selectedNode.group] || "#94a3b8", borderColor: "var(--control-border)" }}>
+                                                        <span className="kw-badge" style={{ color: groupColors[selectedNode.group] || "#94A3B8", borderColor: "var(--control-border)" }}>
                                                             {selectedNode.group}
                                                         </span>
                                                     </div>

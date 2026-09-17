@@ -808,6 +808,7 @@
 
         var send = $("bh-send");
         send.disabled = true;
+        $("bh-chat-clear").disabled = true;
         var pending = appendChat("Typing…", "bot");
 
         try {
@@ -829,6 +830,37 @@
             pending.remove();
             appendChat("Could not reach the server. Try again.", "bot");
         } finally {
+            send.disabled = false;
+            $("bh-chat-clear").disabled = false;
+            setRepliesDisabled(false);
+            $("bh-input").focus();
+        }
+    }
+
+    async function clearTestChat() {
+        var clear = $("bh-chat-clear");
+        var send = $("bh-send");
+        if (clear.disabled || send.disabled) return;
+        clear.disabled = true;
+        send.disabled = true;
+        setRepliesDisabled(true);
+        try {
+            var response = await authenticatedFetch(
+                "/api/testbot/reset?chatbot_id=" + encodeURIComponent(botId), {
+                    method: "POST"
+                });
+            var body = await response.json();
+            if (!response.ok || body.status !== "success") {
+                appendChat(body.message || "Could not clear the test conversation. Try again.", "bot");
+                return;
+            }
+            $("bh-chat").replaceChildren();
+            $("bh-input").value = "";
+            renderChatEmpty();
+        } catch (_) {
+            appendChat("Could not clear the test conversation. Try again.", "bot");
+        } finally {
+            clear.disabled = false;
             send.disabled = false;
             setRepliesDisabled(false);
             $("bh-input").focus();
@@ -1055,10 +1087,7 @@
         $("bh-save").addEventListener("click", save);
         $("bh-reset").addEventListener("click", resetChanges);
         $("bh-composer").addEventListener("submit", sendTestMessage);
-        $("bh-chat-clear").addEventListener("click", function () {
-            $("bh-chat").replaceChildren();
-            renderChatEmpty();
-        });
+        $("bh-chat-clear").addEventListener("click", clearTestChat);
 
         $("bh-scenarios-refresh").addEventListener("click", function () {
             loadScenarios(true);

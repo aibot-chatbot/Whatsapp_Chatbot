@@ -1,5 +1,38 @@
 # Development Roadmap
 
+### All-channel replacement and Resolve-only handoff — 2026-09-14
+
+The approved prototype is implemented for Telegram, Meta WhatsApp and WASender.
+It covers new credentials/phone input, verified replacement, visible failures,
+original conversation binding, truthful provider acceptance, Test Lab reset and
+final-request Resolve. Migration 058 supersedes the Telegram-only SQL proposal.
+Final security and deployment verification are in progress; deployment is already
+authorized. Exclusive agent assignment/transfer and SLA scheduling remain separate
+features. See [the customer-service guide](BOT_CUSTOMER_SERVICE_LOOP.md).
+
+### Fly release and channel publishing — 2026-09-10
+
+Public hosting, staff password login, dashboard rendering and three enabled
+website bot pages are verified at `aibot-chatbot-my.fly.dev`, using paid
+organization `personal` (aibot EMAIL). One Machine runs in Singapore with 41
+hash-verified runtime files restored on its volume. The initial release passed
+205 mocked tests plus 4 subtests and isolated Docker build/boot checks.
+
+Exclusive Telegram ownership guards and migration 055 are deployed for bot 53.
+Its callback is connected, the preserved queued update cleared, and the provider
+reports no delivery error. The user confirmed a short Telegram test receives a
+reply. Wasender setup is deferred until registration at the user's request;
+Travel Bot 50 remains selected. Its expired application subscription and pending
+renewal status also need resolution before connection. Other
+companies require unique Telegram bots; Wasender/Meta require valid configured
+sessions/phones. Google OAuth origin setup, background-job handover, original
+PDF recovery and a reachable hosted Langflow runtime remain separate gaps.
+The configuration-only security scan passed; the earlier seven-path source scan
+remains incomplete despite its locally verified packaging fix.
+The eight-path Telegram scan completed; its one low-severity legacy-data finding
+does not match the verified live channel inventory.
+See [release evidence and remaining checks](FLY_CHANNEL_READINESS.md).
+
 ### Tenant support 052 rollback
 
 **On hold:** escalation-context/urgency/origin submission. The runtime targets the
@@ -34,13 +67,16 @@ the workspace from the selected bot. Website links preserve their key through
 disconnect/reconnect and explain when the hosting address needs attention.
 
 Focused synthetic tests and the first-client review are in
-[CLIENT_JOURNEY_REVIEW.md](CLIENT_JOURNEY_REVIEW.md). Public rollout needs the
-permanent hostname/account, restored origin availability and final security evidence.
-No production configuration, schema, payment or customer-message mutation was made.
+[CLIENT_JOURNEY_REVIEW.md](CLIENT_JOURNEY_REVIEW.md). The 10 September continuation established the permanent Fly origin and restored
+volume availability; its scoped security evidence and remaining channel gaps are
+in [the release record](FLY_CHANNEL_READINESS.md). The original journey review
+made no production changes.
 
 ### Approved Admin and Super Admin replacement — 2026-09-07
 
-**Shared Supabase activation completed.** Independent portals, role-based login destinations, individually assigned staff modules, approval records and existing billing/support operations are active for the requested accounts. Local mocked tests, PostgreSQL checks, completed security scan/remediation, live permission checks and both actual browser logins are recorded in [the rollout plan](PLATFORM_STAFF_PORTALS_ROLLOUT.md). The local application is verified; public hosting remains pending.
+**Shared Supabase activation completed.** Independent portals, role-based login destinations, individually assigned staff modules, approval records and existing billing/support operations are active for the requested accounts. Local mocked tests, PostgreSQL checks, completed security scan/remediation, live permission checks and both actual browser logins are recorded in [the rollout plan](PLATFORM_STAFF_PORTALS_ROLLOUT.md). Public hosting and both staff password logins were verified on 10 September at
+[the Fly login page](https://aibot-chatbot-my.fly.dev/login.html); see
+[current deployment evidence](FLY_CHANNEL_READINESS.md).
 
 The Super Admin overview chart enhancement uses the existing plan/status aggregates
 and separate payment queues. Status links open existing filtered subscriptions;

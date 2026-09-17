@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from app.database.db import supabase
 
 
@@ -55,6 +57,7 @@ def create_whatsapp_channel(
         "connection_status": connection_status,
         "is_active": is_active,
         "last_error": last_error,
+        "connection_attempted_at": datetime.now(timezone.utc).isoformat(),
     })
 
     result = supabase.table(TABLE_NAME).insert(data).execute()
@@ -71,6 +74,9 @@ def upsert_whatsapp_channel_by_phone_number_id(phone_number_id: str, channel_dat
     existing_channel = get_whatsapp_channel_by_phone_number_id(phone_number_id)
 
     if existing_channel:
+        if (str(existing_channel.get("company_id")) != str(data.get("company_id"))
+                or str(existing_channel.get("chatbot_id")) != str(data.get("chatbot_id"))):
+            raise PermissionError("This WhatsApp number is already assigned to another chatbot.")
         return update_whatsapp_channel(existing_channel["id"], data)
 
     result = supabase.table(TABLE_NAME).insert(data).execute()
@@ -91,13 +97,14 @@ def get_whatsapp_channel_by_phone_number_id(phone_number_id: str):
         .select("*")
         .eq("phone_number_id", phone_number_id)
         .eq("is_active", True)
-        .limit(1)
+        .eq("connection_status", "connected")
+        .limit(2)
         .execute()
     )
 
     rows = response.data or []
 
-    if not rows:
+    if len(rows) != 1:
         return None
 
     return rows[0]
@@ -117,7 +124,8 @@ def get_whatsapp_channels_by_chatbot(chatbot_id: int):
         .execute()
     )
 
-    return result.data or []
+    return sorted(result.data or [], key=lambda row: str(
+        row.get("connection_attempted_at") or row.get("created_at") or ""), reverse=True)
 
 
 def get_whatsapp_channel_by_id(channel_id: int):
@@ -137,16 +145,20 @@ def get_whatsapp_channel_by_id(channel_id: int):
     return rows[0] if rows else None
 
 
-def update_whatsapp_channel(channel_id: int, update_data: dict):
+def update_whatsapp_channel(channel_id: int, update_data: dict, expected_attempt_at=None, expected_status=None):
     update_data = _normalize_waba_fields(update_data)
 
-    result = (
+    query = (
         supabase
         .table(TABLE_NAME)
         .update(update_data)
         .eq("id", channel_id)
-        .execute()
     )
+    if expected_attempt_at:
+        query = query.eq("connection_attempted_at", expected_attempt_at)
+    if expected_status:
+        query = query.eq("connection_status", expected_status)
+    result = query.execute()
 
     return result.data[0] if result.data else None
 
@@ -186,4 +198,6 @@ def sanitize_whatsapp_channel_for_frontend(channel: dict):
         "updated_at": channel.get("updated_at"),
         "connected_at": channel.get("connected_at"),
         "disconnected_at": channel.get("disconnected_at"),
+        "connection_attempted_at": channel.get("connection_attempted_at"),
+        "verified_at": channel.get("verified_at"),
     }

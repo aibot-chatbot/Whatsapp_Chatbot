@@ -28,6 +28,16 @@ class TestSilentBotResponse(unittest.TestCase):
     def setUp(self):
         app = create_app()
         app.config["TESTING"] = True
+        # These tests isolate sentinel handling; origin/acceptance is exercised
+        # through real guards in test_channel_delivery_loop.py.
+        for module in ("app.utils.telegram_utils", "app.utils.whatsapp_utils", "app.services.wasender_service"):
+            for name, value in (("validate_channel", None), ("channel_identity", {}),
+                                ("get_bound_channel", {"bot_token": "tok", "api_key": "test-api-key"}),
+                                ("is_conversation_escalated", False)):
+                guard = patch(f"{module}.{name}", return_value=value)
+                guard.start()
+                self.addCleanup(guard.stop)
+
 
     # ------------------------------------------------------------------ #
     #  chat_pipeline_service - prepare_chat_prompt escalation check
@@ -119,7 +129,7 @@ class TestSilentBotResponse(unittest.TestCase):
     @patch("app.utils.whatsapp_utils.update_workflow_state")
     @patch("app.utils.whatsapp_utils.save_message")
     @patch("app.utils.whatsapp_utils.get_or_create_conversation")
-    @patch("app.utils.whatsapp_utils.is_processed")
+    @patch("app.utils.whatsapp_utils.claim_processed_message")
     @patch("app.utils.whatsapp_utils.get_whatsapp_channel_by_phone_number_id")
     @patch("app.utils.whatsapp_utils.generate_response")
     def test_whatsapp_silent_response_does_not_send(
@@ -133,7 +143,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_processed_supa,
     ):
         mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42}
-        mock_is_processed.return_value = False
+        mock_is_processed.return_value = True
         mock_get_conv.return_value = {"id": 100}
         mock_generate.return_value = "<SILENT_BOT_RESPONSE>"
 
@@ -163,7 +173,7 @@ class TestSilentBotResponse(unittest.TestCase):
     @patch("app.utils.whatsapp_utils.update_workflow_state")
     @patch("app.utils.whatsapp_utils.save_message")
     @patch("app.utils.whatsapp_utils.get_or_create_conversation")
-    @patch("app.utils.whatsapp_utils.is_processed")
+    @patch("app.utils.whatsapp_utils.claim_processed_message")
     @patch("app.utils.whatsapp_utils.get_whatsapp_channel_by_phone_number_id")
     # The send path reads the bot record for style settings
     # (whatsapp_utils.get_bot_by_id); the silent path returns before reaching it.
@@ -182,9 +192,10 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_processed_supa,
     ):
         mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "phone_number_id": "12345", "access_token": "tok"}
-        mock_is_processed.return_value = False
+        mock_is_processed.return_value = True
         mock_get_conv.return_value = {"id": 100}
         mock_generate.return_value = "Hello! How can I help you?"
+        mock_send.return_value = MagicMock(status_code=200, json=MagicMock(return_value={"messages": [{"id": "sent"}]}))
 
         from app.utils.whatsapp_utils import process_whatsapp_message
 
@@ -216,12 +227,12 @@ class TestSilentBotResponse(unittest.TestCase):
     @patch("app.database.processed_telegram_update_repository.supabase")
     @patch("app.database.conversation_repository.supabase")
     @patch("app.database.message_repository.supabase")
-    @patch("app.utils.telegram_utils.save_processed_telegram_update")
+    @patch("app.utils.telegram_utils.release_telegram_update_claim")
     @patch("app.utils.telegram_utils.send_telegram_contact_request")
     @patch("app.utils.telegram_utils.send_telegram_message")
     @patch("app.utils.telegram_utils.save_message")
     @patch("app.utils.telegram_utils.get_or_create_platform_conversation")
-    @patch("app.utils.telegram_utils.is_telegram_update_processed")
+    @patch("app.utils.telegram_utils.claim_telegram_update")
     @patch("app.utils.telegram_utils.get_telegram_channel_by_secret")
     @patch("app.utils.telegram_utils.generate_response")
     def test_telegram_silent_response_does_not_send(
@@ -239,7 +250,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_processed_supa,
     ):
         mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "bot_token": "tok"}
-        mock_is_processed.return_value = False
+        mock_is_processed.return_value = True
         mock_get_conv.return_value = {"id": 100, "customer_phone": "+60123456789"}
         mock_generate.return_value = "<SILENT_BOT_RESPONSE>"
 
@@ -249,8 +260,8 @@ class TestSilentBotResponse(unittest.TestCase):
             "update_id": 1001,
             "message": {
                 "message_id": 2001,
-                "chat": {"id": 12345},
-                "from": {"id": 67890, "first_name": "Test"},
+                "chat": {"id": 12345, "type": "private"},
+                "from": {"id": 12345, "first_name": "Test"},
                 "text": "Hello",
             }
         }
@@ -259,18 +270,19 @@ class TestSilentBotResponse(unittest.TestCase):
 
         # Should mark as processed, but never send via Telegram
         mock_generate.assert_called_once()
-        mock_save_processed_tg.assert_called_once_with(1, 1001)
+        mock_is_processed.assert_called_once_with(1, 1001)
+        mock_save_processed_tg.assert_not_called()
         mock_send_tg.assert_not_called()
 
     @patch("app.database.processed_telegram_update_repository.supabase")
     @patch("app.database.conversation_repository.supabase")
     @patch("app.database.message_repository.supabase")
-    @patch("app.utils.telegram_utils.save_processed_telegram_update")
+    @patch("app.utils.telegram_utils.release_telegram_update_claim")
     @patch("app.utils.telegram_utils.send_telegram_contact_request")
     @patch("app.utils.telegram_utils.send_telegram_message")
     @patch("app.utils.telegram_utils.save_message")
     @patch("app.utils.telegram_utils.get_or_create_platform_conversation")
-    @patch("app.utils.telegram_utils.is_telegram_update_processed")
+    @patch("app.utils.telegram_utils.claim_telegram_update")
     @patch("app.utils.telegram_utils.get_telegram_channel_by_secret")
     # The send path reads the bot record for style settings
     # (telegram_utils.get_bot_by_id); the silent path returns before reaching it.
@@ -292,7 +304,7 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_processed_supa,
     ):
         mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "bot_token": "tok"}
-        mock_is_processed.return_value = False
+        mock_is_processed.return_value = True
         mock_get_conv.return_value = {"id": 100, "customer_phone": "+60123456789"}
         mock_generate.return_value = "Hi there! How can I help?"
 
@@ -302,8 +314,8 @@ class TestSilentBotResponse(unittest.TestCase):
             "update_id": 1002,
             "message": {
                 "message_id": 2002,
-                "chat": {"id": 12346},
-                "from": {"id": 67891, "first_name": "Test2"},
+                "chat": {"id": 12346, "type": "private"},
+                "from": {"id": 12346, "first_name": "Test2"},
                 "text": "Hi",
             }
         }
@@ -323,11 +335,11 @@ class TestSilentBotResponse(unittest.TestCase):
     @patch("app.database.processed_wasender_message_repository.supabase")
     @patch("app.database.conversation_repository.supabase")
     @patch("app.database.message_repository.supabase")
-    @patch("app.services.wasender_service.save_processed_wasender_message")
+    @patch("app.services.wasender_service.release_wasender_message_claim")
     @patch("app.services.wasender_service.send_wasender_text_message")
     @patch("app.services.wasender_service.save_message")
     @patch("app.services.wasender_service.get_or_create_conversation")
-    @patch("app.services.wasender_service.is_wasender_message_processed")
+    @patch("app.services.wasender_service.claim_wasender_message")
     @patch("app.services.wasender_service.extract_wasender_message")
     @patch("app.services.wasender_service.get_wasender_channel_by_secret")
     @patch("app.services.wasender_service.generate_response")
@@ -354,7 +366,7 @@ class TestSilentBotResponse(unittest.TestCase):
             "customer_name": "Test",
             "message_text": "Hello",
         }
-        mock_is_processed.return_value = False
+        mock_is_processed.return_value = True
         mock_get_conv.return_value = {"id": 100}
         mock_generate.return_value = "<SILENT_BOT_RESPONSE>"
 
@@ -364,18 +376,19 @@ class TestSilentBotResponse(unittest.TestCase):
 
         # Should mark as processed, but never send
         mock_generate.assert_called_once()
-        mock_save_processed_ws.assert_called_once_with(1, "wsg-1")
+        mock_is_processed.assert_called_once_with(1, "wsg-1")
+        mock_save_processed_ws.assert_not_called()
         mock_send_text.assert_not_called()
         # No interactive message function exists
 
     @patch("app.database.processed_wasender_message_repository.supabase")
     @patch("app.database.conversation_repository.supabase")
     @patch("app.database.message_repository.supabase")
-    @patch("app.services.wasender_service.save_processed_wasender_message")
+    @patch("app.services.wasender_service.release_wasender_message_claim")
     @patch("app.services.wasender_service.send_wasender_text_message")
     @patch("app.services.wasender_service.save_message")
     @patch("app.services.wasender_service.get_or_create_conversation")
-    @patch("app.services.wasender_service.is_wasender_message_processed")
+    @patch("app.services.wasender_service.claim_wasender_message")
     @patch("app.services.wasender_service.extract_wasender_message")
     @patch("app.services.wasender_service.get_wasender_channel_by_secret")
     @patch("app.services.wasender_service.generate_response")
@@ -402,7 +415,7 @@ class TestSilentBotResponse(unittest.TestCase):
             "customer_name": "Test",
             "message_text": "Hi",
         }
-        mock_is_processed.return_value = False
+        mock_is_processed.return_value = True
         mock_get_conv.return_value = {"id": 100}
         mock_generate.return_value = "Hello! How can I help?"
 

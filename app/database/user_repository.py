@@ -179,3 +179,42 @@ def count_active_admins_by_company(company_id):
         .execute()
     )
     return response.count or 0
+
+
+def get_company_billing_contact(company_id):
+    """Return the person billing email should reach for a company.
+
+    That is the account owner: the earliest-created active admin, which is the
+    user who registered the company. There is currently no "owner" role in the
+    data - every account holder is stored as "admin" - but the role filter
+    tolerates both so this keeps working if one is introduced later.
+
+    Ordering by created_at rather than id is deliberate: it survives a future
+    change to non-sequential identifiers.
+
+    Returns {"email": str, "full_name": str} or None when the company has no
+    active admin. Callers must treat None as "no one to email" rather than an
+    error, because a company with every seat deactivated is a real state and
+    must not break billing.
+
+    Only email and full_name are selected. This row also carries password_hash,
+    otp_code and otp_expiry, and none of them should travel with a notification.
+    """
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("email, full_name")
+        .eq("company_id", company_id)
+        .in_("role", ["admin", "owner"])
+        .eq("status", "active")
+        .order("created_at", desc=False)
+        .limit(1)
+        .execute()
+    )
+    rows = getattr(response, "data", None) or []
+    if not rows:
+        return None
+    contact = rows[0]
+    email = (contact.get("email") or "").strip()
+    if not email:
+        return None
+    return {"email": email, "full_name": (contact.get("full_name") or "").strip() or "there"}

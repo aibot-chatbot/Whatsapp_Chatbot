@@ -235,9 +235,11 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
         self.assertIn('renderBotCard(bot, currentBotView === "archived")', render_filtered_fn)
 
     def test_stitch_design_tokens_and_dense_controls_are_present(self):
-        self.assertIn("--canvas: #0e0f11;", self.html)
-        self.assertIn("--panel: #16181b;", self.html)
-        self.assertIn("--primary: #3e9c89;", self.html)
+        # Landing page palette. Pinned by exact value on purpose - see the same
+        # block in test_dashboard_control_room_frontend.py.
+        self.assertIn("--canvas: #060A12;", self.html)
+        self.assertIn("--panel: #0C1421;", self.html)
+        self.assertIn("--primary: #22D3EE;", self.html)
         self.assertIn('font-family: "Space Grotesk"', self.html)
         self.assertIn('font-family: "JetBrains Mono"', self.html)
         self.assertIn('id="bot-search"', self.html)
