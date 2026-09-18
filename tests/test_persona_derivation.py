@@ -28,6 +28,7 @@ from app.services.billing_guard import BillingLimitError
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
 VIEWS_PY = ROOT / "app" / "views.py"
+JOB_SERVICE_PY = ROOT / "app" / "services" / "knowledge_ingest_job_service.py"
 MIGRATION = DATA_DIR / "040_bot_config_persona_provenance.sql"
 ROLLBACK = DATA_DIR / "040_bot_config_persona_provenance_rollback.sql"
 
@@ -1025,19 +1026,31 @@ class PersonaSourceTextTests(unittest.TestCase):
 # =====================================================================
 
 class UploadHookTests(unittest.TestCase):
-    """/upload-pdf is the in-scope ingestion path (app/views.py:98)."""
+    """/upload-pdf is the in-scope ingestion path (app/views.py:98).
+
+    The route now accepts the upload and runs the ingest off the request
+    thread, so the derivation call lives in the job runner that ingest starts
+    (``knowledge_ingest_job_service``) rather than in the route body. The
+    requirement is unchanged: uploading a document derives the persona, and
+    the outcome is reported rather than swallowed.
+    """
 
     @classmethod
     def setUpClass(cls):
         cls.source = VIEWS_PY.read_text(encoding="utf-8")
+        cls.job_source = JOB_SERVICE_PY.read_text(encoding="utf-8")
 
     def test_upload_pdf_triggers_persona_derivation(self):
-        self.assertIn("derive_persona_for_upload(chatbot_id)", self.source)
+        self.assertIn("defer_processing=True", self.source)
+        self.assertIn("derive_persona_for_upload(chatbot_id)", self.job_source)
 
     def test_upload_pdf_reports_the_derivation_outcome(self):
-        # A derivation that failed must be visible in the response, not
-        # swallowed into a log line nobody reads.
+        # A derivation that failed must be visible to the client, not
+        # swallowed into a log line nobody reads. The response carries the key
+        # while the ingest runs; the job record carries the terminal outcome.
         self.assertIn("persona_derivation", self.source)
+        self.assertIn("persona_derivation", self.job_source)
+        self.assertIn("derivation.error_code", self.job_source)
 
     def test_derivation_failure_cannot_fail_a_successful_upload(self):
         from app.services import persona_derivation_service as svc
@@ -1231,6 +1244,63 @@ class ProvenanceMigrationTests(unittest.TestCase):
         siblings = sorted(p.name for p in DATA_DIR.glob("040_*.sql"))
 
         self.assertEqual(siblings, sorted([MIGRATION.name, ROLLBACK.name]))
+
+
+# =====================================================================
+# 6. The derived persona has to reach the form the client fills in
+# =====================================================================
+
+class DerivedPersonaReachesTheFormTests(unittest.TestCase):
+    """Deriving the values is useless if the client still types them.
+
+    The guided flow is: create the bot, upload a document, then open
+    "Create instructions" on new_prompt.html. That form used to open empty --
+    the derived values were stored on the bot's config row, and the create
+    modal simply never read them, so the client retyped what their own
+    document had just been read for.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.form = (ROOT / "frontend" / "new_prompt.html").read_text(encoding="utf-8")
+
+    def test_the_profiles_payload_carries_the_derived_markers(self):
+        from app.services.bot_config_fields import PROVENANCE_COLUMN, PROVENANCE_DERIVED
+        from app.services.profile_service import _row_to_profile
+
+        profile = _row_to_profile({
+            "id": 1,
+            "profile_name": "Default Profile",
+            "company_name": "RopeWorks",
+            "business_description": "Hand-braided climbing rope.",
+            "tone": "Friendly",
+            PROVENANCE_COLUMN: {
+                "company_name": PROVENANCE_DERIVED,
+                "business_description": PROVENANCE_DERIVED,
+                "tone": PROVENANCE_DERIVED,
+            },
+        })
+
+        # The form cannot prefer derived values over typed ones without this.
+        self.assertEqual(profile[PROVENANCE_COLUMN], {
+            "company_name": PROVENANCE_DERIVED,
+            "business_description": PROVENANCE_DERIVED,
+            "tone": PROVENANCE_DERIVED,
+        })
+        self.assertEqual(profile["tone"], "Friendly")
+
+    def test_a_new_profile_starts_from_the_derived_values(self):
+        for field in DERIVED_FIELDS:
+            self.assertIn(f"derived.{field} || \"\"", self.form)
+
+        self.assertIn("const derived = profile ? {} : derivedPersona();", self.form)
+
+    def test_only_derived_values_are_prefilled(self):
+        # A value another profile's owner typed is not the document speaking.
+        self.assertIn('provenance[field] === "derived"', self.form)
+
+    def test_prefilled_text_is_labelled_as_coming_from_the_document(self):
+        self.assertIn("Filled in from your uploaded document.", self.form)
 
 
 if __name__ == "__main__":

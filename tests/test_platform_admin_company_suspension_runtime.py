@@ -491,7 +491,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
              patch("app.views.can_upload_knowledge_file") as file_limit, \
              patch("app.views.can_upload_knowledge_storage") as storage_limit, \
              patch("app.views.save_uploaded_pdf") as save_pdf, \
-             patch("app.views.derive_persona_for_upload") as derive_persona:
+             patch("app.services.knowledge_ingest_job_service.start_pdf_ingest") as start_ingest:
             response = self.client.post(
                 "/upload-pdf?chatbot_id=9",
                 headers=self.headers,
@@ -504,7 +504,10 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
         file_limit.assert_not_called()
         storage_limit.assert_not_called()
         save_pdf.assert_not_called()
-        derive_persona.assert_not_called()
+        # The ingest that reads the document and derives the persona is started
+        # from inside save_uploaded_pdf now; a suspended company must not reach
+        # either of them.
+        start_ingest.assert_not_called()
 
     def test_test_chat_is_blocked_before_ai_router_for_inactive_company(self):
         auth, user, status = self._auth()
@@ -571,6 +574,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
                  patch.object(knowledge_service, "DATA_FOLDER", tmpdir), \
                  patch("app.routes.knowledge_routes.verify_chatbot_access", return_value={"company_id": 42}), \
                  patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file", return_value={"id": 5, "file_name": "guide.pdf"}), \
+                 patch.object(knowledge_service, "get_knowledge_file_by_name_or_id", return_value={"id": 5, "chatbot_id": 9}), \
                  patch("app.services.knowledge_service.generate_and_save_knowledge_readme") as generate_readme:
                 response = self.client.get(
                     "/api/knowledge/readme?chatbot_id=9&file_id=5",
@@ -587,6 +591,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
                  patch.object(knowledge_service, "DATA_FOLDER", tmpdir), \
                  patch("app.routes.knowledge_routes.verify_chatbot_access", return_value={"company_id": 42}), \
                  patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file", return_value={"id": 5, "file_name": "guide.pdf"}), \
+                 patch.object(knowledge_service, "get_knowledge_file_by_name_or_id", return_value={"id": 5, "chatbot_id": 9}), \
                  patch("app.services.knowledge_service.generate_and_save_knowledge_readme") as generate_readme:
                 response = self.client.get(
                     "/api/knowledge/readme?chatbot_id=9&file_id=5",
@@ -918,7 +923,7 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
 
     def test_billing_mutation_routes_require_company_operational_guard(self):
         guarded_routes = [
-            billing_routes.toyyibpay_checkout,
+            billing_routes.chip_checkout,
             billing_routes.subscription_checkout,
             billing_routes.retry_subscription_order,
             billing_routes.cancel_subscription,
@@ -951,7 +956,7 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
             widget_routes.post_regenerate_widget_key,
             broadcast_routes.save_campaign,
             broadcast_routes.start_campaign,
-            billing_routes.toyyibpay_checkout,
+            billing_routes.chip_checkout,
             billing_routes.subscription_checkout,
             billing_routes.retry_subscription_order,
             billing_routes.cancel_subscription,

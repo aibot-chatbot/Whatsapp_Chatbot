@@ -1008,6 +1008,35 @@
 
         let lastFocused = null;
 
+        // Fields the backend can fill from an uploaded document, in the order
+        // they appear in the form (bot_config_fields.DERIVED_PERSONA_FIELDS).
+        const DERIVED_FIELDS = ["company_name", "business_description", "tone"];
+
+        function derivedPersona() {
+            // Uploading a document derives the company name, the business
+            // description and the tone from it and stores each one marked
+            // "derived" on the bot's own config row. A brand-new profile starts
+            // from those values so the client is not asked to retype what their
+            // document already says - which is the whole point of deriving them.
+            //
+            // Only "derived" values are copied. A value the client typed on
+            // another profile is theirs to reuse or not, and silently copying it
+            // into a new one would look like the form remembering things it was
+            // never told to remember.
+            for (const profile of state.profiles) {
+                const provenance = profile?.persona_provenance || {};
+                const derived = {};
+
+                DERIVED_FIELDS.forEach(field => {
+                    if (provenance[field] === "derived" && profile[field]) derived[field] = profile[field];
+                });
+
+                if (Object.keys(derived).length) return derived;
+            }
+
+            return {};
+        }
+
         function openModal(mode) {
             state.mode = mode;
             lastFocused = document.activeElement;
@@ -1015,24 +1044,30 @@
             const profile = mode === "edit"
                 ? state.profiles.find(p => p.name === state.selected)
                 : null;
+            const derived = profile ? {} : derivedPersona();
 
             $("bc-modal-title").textContent = profile ? `Edit ${profile.name}` : (isSetup ? "Create instructions" : "Create profile");
             $("bc-f-name").value = profile?.name || "";
             $("bc-f-name").readOnly = Boolean(profile);
             $("bc-f-bot").value = profile?.bot_name || "";
-            $("bc-f-company").value = profile?.company_name || "";
-            $("bc-f-desc").value = profile?.business_description || "";
+            $("bc-f-company").value = profile?.company_name || derived.company_name || "";
+            $("bc-f-desc").value = profile?.business_description || derived.business_description || "";
             $("bc-f-extra").value = profile?.additional_instructions || "";
             $("bc-f-prompt").value = profile?.custom_prompt || "";
             $("bc-prompt-options").open = false;
 
             // Assigned verbatim: merge_persona_write treats a present-but-blank
             // field as a deliberate delete, so narrowing this to a known set
-            // would destroy any tone the backend actually stored.
-            $("bc-f-tone").value = profile?.tone || "";
+            // would destroy any tone the backend actually stored. The derived
+            // fallback only ever applies to a profile that does not exist yet.
+            $("bc-f-tone").value = profile?.tone || derived.tone || "";
 
             $("bc-delete").hidden = !profile;
-            banner("bc-form-banner", "", "");
+            // Say where the prefilled text came from. Text the client did not
+            // type must never look like text the client typed.
+            banner("bc-form-banner", "", Object.keys(derived).length
+                ? "Filled in from your uploaded document. Change anything that is not right."
+                : "");
 
             $("bc-modal").classList.add("is-open");
             $("bc-f-name").focus();

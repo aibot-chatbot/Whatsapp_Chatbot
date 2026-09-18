@@ -4,6 +4,8 @@ import uuid
 from werkzeug.utils import secure_filename
 
 from app.services.settings_service import update_chatbot_runtime
+from app.services.upload_validation_service import validate_saved_pdf
+from app.services import document_storage_service as document_storage
 from app.database.knowledge_file_repository import save_knowledge_file
 from app.database.knowledge_file_repository import update_knowledge_file_status
 from app.database.knowledge_file_repository import delete_knowledge_file_by_id
@@ -20,11 +22,41 @@ DATA_FOLDER = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "data")
 )
 
+#: Concurrent embedding calls per document. Latency-bound network calls, not
+#: CPU work, so this exceeds the single shared vCPU the app runs on
+#: deliberately -- see :func:`_embed_chunks`. Raising it further mostly buys
+#: provider rate-limit errors.
+EMBEDDING_WORKERS = int(os.getenv("KNOWLEDGE_EMBEDDING_WORKERS", "8"))
+
 
 from app.services.document_ocr_service import OCR_PAGE_LIMIT
 
 
-def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candidate_id=None):
+def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candidate_id=None, defer_processing=False):
+    """Accept an uploaded PDF and turn it into searchable knowledge.
+
+    Two phases, and the split is the whole point of ``defer_processing``:
+
+    1. **Accept** -- validate the file, write it to storage and record the
+       ``knowledge_files`` row as ``processing``. Bounded work: no OCR, no
+       embedding, no LLM call. This is the part a client must wait for.
+    2. **Process** -- read the document (OCR when there is no text layer),
+       embed every section, promote the source and derive the persona from it.
+       Minutes for a scanned document, because it is one network round trip
+       per page and per section.
+
+    ``defer_processing=True`` runs phase 2 off the request thread and returns
+    as soon as phase 1 is durable, so ``POST /upload-pdf`` answers in seconds
+    instead of holding the browser open for the whole ingest. The caller gets
+    ``processing_status="processing"`` and polls
+    ``GET /api/knowledge/upload-status`` for the outcome.
+
+    It stays ``False`` by default because the supporting-document candidate
+    flow (``pdf_relevance_validation_service.confirm_pdf_candidate``) branches
+    on the terminal ``status`` of this call to decide whether the candidate was
+    ingested -- deferring it there would report success before the ingest had
+    happened.
+    """
     if not file:
         raise ValueError("No file provided")
 
@@ -43,32 +75,122 @@ def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candid
     safe_name = f"bot_{chatbot_id}_{uuid.uuid4().hex}_{original_name}"
 
     filepath = os.path.join(DATA_FOLDER, safe_name)
-    file.save(filepath)
+    persistence_attempted = False
+    try:
+        file.save(filepath)
+        file_size = validate_saved_pdf(filepath)
+        persistence_attempted = True
+        document_storage.persist_file(filepath, root=DATA_FOLDER, namespace="knowledge")
+    except Exception:
+        # A failed PUT response may still have created this exact new object.
+        try:
+            if persistence_attempted:
+                document_storage.delete_file(filepath, root=DATA_FOLDER, namespace="knowledge")
+        finally:
+            try:
+                os.remove(filepath)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                raise document_storage.DocumentStorageError("The failed upload local copy could not be removed.") from None
+        raise
 
     relative_pdf_path = os.path.join("data", safe_name)
-    file_size = os.path.getsize(filepath)
 
-    file_record = save_knowledge_file(
-        chatbot_id=chatbot_id,
-        file_name=safe_name,
-        file_type="pdf",
-        file_size=file_size,
-        file_path=relative_pdf_path,
-        upload_status="uploaded",
-        # Deliberately not "completed": nothing has been parsed yet. Claiming
-        # completion up front is what let an image-only or corrupt PDF report
-        # "Ready" while holding zero searchable chunks.
-        processing_status="processing",
-        match_status="unchecked",
-        is_enabled=True,
-        is_active=False if target_role == "supporting" else None,
-        source_pdf_candidate_id=source_pdf_candidate_id,
-        original_file_name=original_name,
+    try:
+        file_record = save_knowledge_file(
+            chatbot_id=chatbot_id,
+            file_name=safe_name,
+            file_type="pdf",
+            file_size=file_size,
+            file_path=relative_pdf_path,
+            upload_status="uploaded",
+            # Parsing must finish before this source can be marked completed.
+            processing_status="processing",
+            match_status="unchecked",
+            is_enabled=True,
+            is_active=False if target_role == "supporting" else None,
+            source_pdf_candidate_id=source_pdf_candidate_id,
+            original_file_name=original_name,
+        )
+    except Exception:
+        # Only this new UUID upload is eligible for compensation.
+        try:
+            document_storage.delete_file(filepath, root=DATA_FOLDER, namespace="knowledge")
+        finally:
+            try:
+                os.remove(filepath)
+            except FileNotFoundError:
+                pass
+            except OSError:
+                raise document_storage.DocumentStorageError("The failed upload local copy could not be removed.") from None
+        raise
+
+    accepted = {
+        "chatbot_id": chatbot_id,
+        "file_id": file_record["id"],
+        "filepath": filepath,
+        "file_name": safe_name,
+        "original_file_name": original_name,
+        "relative_pdf_path": relative_pdf_path,
+        "target_role": target_role,
+    }
+
+    if defer_processing:
+        # Everything durable has happened: the file is in storage and the row
+        # exists as `processing`. Reading and embedding it is what takes the
+        # minutes, and the client does not have to watch that happen.
+        from app.services.knowledge_ingest_job_service import start_pdf_ingest
+
+        start_pdf_ingest(accepted)
+        return accepted_report(accepted)
+
+    return process_uploaded_pdf(accepted)
+
+
+def accepted_report(accepted):
+    """The upload response for a document whose processing has not run yet.
+
+    Same keys as the terminal report from :func:`process_uploaded_pdf`, so one
+    caller shape covers both. ``status`` is what tells them apart.
+    """
+    return {
+        "status": "processing",
+        "processing_status": "processing",
+        "chunk_count": 0,
+        "file_id": accepted["file_id"],
+        "file_name": accepted["file_name"],
+        "original_file_name": accepted["original_file_name"],
+        "file_path": accepted["filepath"],
+        "extraction": {},
+        "message": (
+            "Document received. We are reading it now - this takes a moment for "
+            "a scanned document. You can keep working; the page will update when "
+            "it is ready."
+        ),
+    }
+
+
+def process_uploaded_pdf(accepted, build_graph=True):
+    """Read, embed and promote an accepted upload. Returns the terminal report.
+
+    ``build_graph=False`` leaves the knowledge graph for the caller to build
+    afterwards. The graph costs one billed LLM call *per chunk* and is pure
+    enrichment -- retrieval answers from the embedded chunks without it -- so
+    the background runner defers it until the document is answerable and the
+    persona has been derived. See ``knowledge_ingest_job_service``.
+    """
+    chatbot_id = accepted["chatbot_id"]
+    file_id = accepted["file_id"]
+    filepath = accepted["filepath"]
+    safe_name = accepted["file_name"]
+    original_name = accepted["original_file_name"]
+    relative_pdf_path = accepted["relative_pdf_path"]
+    target_role = accepted["target_role"]
+
+    chunk_count, extraction_error, extraction = _index_pdf_chunks(
+        filepath, chatbot_id, file_id, build_graph=build_graph
     )
-
-    file_id = file_record["id"]
-
-    chunk_count, extraction_error, extraction = _index_pdf_chunks(filepath, chatbot_id, file_id)
 
     if not chunk_count:
         # A document with no chunks can answer nothing. Promoting it would
@@ -97,6 +219,8 @@ def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candid
                 file_id,
                 "Document uploaded but no readable text was extracted. Primary knowledge unchanged.",
             )
+        except document_storage.DocumentStorageError:
+            raise
         except Exception as log_err:
             logging.error(f"Failed to log history for failed PDF upload: {log_err}")
 
@@ -150,6 +274,8 @@ def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candid
 
     try:
         generate_and_save_knowledge_readme(chatbot_id, file_id)
+    except document_storage.DocumentStorageError:
+        raise
     except Exception as readme_err:
         logging.error(f"Failed to generate README for PDF: {readme_err}")
     try:
@@ -158,6 +284,8 @@ def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candid
         else:
             history_message = "Supporting document uploaded and chunks indexed."
         log_knowledge_modification(chatbot_id, file_id, history_message)
+    except document_storage.DocumentStorageError:
+        raise
     except Exception as log_err:
         logging.error(f"Failed to log history for PDF upload: {log_err}")
 
@@ -229,7 +357,35 @@ def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candid
     }
 
 
-def _index_pdf_chunks(filepath: str, chatbot_id: int, file_id: int):
+def _embed_chunks(chunks):
+    """Embed every chunk, returning ``[(index, chunk, embedding), ...]`` in order.
+
+    One embedding is one HTTPS round trip to Gemini
+    (``rag_service.generate_embedding``), so a 60-section document spent a
+    minute of wall clock waiting on a socket with the CPU idle. The calls are
+    independent, the GIL is released for the duration of each, and order is
+    restored from the index -- so they are issued concurrently.
+
+    The pool is small on purpose: the embedding provider rate-limits, the
+    machine is a single shared vCPU (fly.toml), and the win is almost all in
+    the first few workers. A chunk whose call failed keeps its empty embedding
+    and is skipped by the caller exactly as before.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    from app.services.rag_service import generate_embedding
+
+    if not chunks:
+        return []
+
+    workers = max(1, min(EMBEDDING_WORKERS, len(chunks)))
+
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="knowledge-embed") as pool:
+        embeddings = list(pool.map(generate_embedding, chunks))
+
+    return list(zip(range(len(chunks)), chunks, embeddings))
+
+
+def _index_pdf_chunks(filepath: str, chatbot_id: int, file_id: int, build_graph: bool = True):
     """Parse a PDF and store one embedded knowledge chunk per section.
 
     Returns ``(saved_chunk_count, error_message, extraction)``. The count is of
@@ -246,13 +402,14 @@ def _index_pdf_chunks(filepath: str, chatbot_id: int, file_id: int):
     from app.services.document_ocr_service import extract_pdf_markdown
 
     saved_chunks = 0
+    filepath = document_storage.materialize_file(filepath, root=DATA_FOLDER, namespace="knowledge")
     extraction = extract_pdf_markdown(filepath)
 
     if extraction.error:
         return saved_chunks, extraction.error, extraction
 
     try:
-        from app.services.rag_service import split_text_into_sections, generate_embedding
+        from app.services.rag_service import split_text_into_sections
         from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
         logging.info(
@@ -268,8 +425,7 @@ def _index_pdf_chunks(filepath: str, chatbot_id: int, file_id: int):
 
         logging.info(f"Processing {len(chunks)} chunks for database insertion...")
 
-        for idx, chunk in enumerate(chunks):
-            embedding = generate_embedding(chunk)
+        for idx, chunk, embedding in _embed_chunks(chunks):
             if embedding:
                 save_knowledge_chunk(
                     chatbot_id=chatbot_id,
@@ -281,10 +437,11 @@ def _index_pdf_chunks(filepath: str, chatbot_id: int, file_id: int):
                 saved_chunks += 1
         logging.info(f"Successfully saved {saved_chunks} chunks to Supabase.")
 
-        try:
-            extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
-        except Exception as graph_err:
-            logging.error(f"Failed to generate and store knowledge graph for PDF: {graph_err}")
+        if build_graph:
+            try:
+                extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
+            except Exception as graph_err:
+                logging.error(f"Failed to generate and store knowledge graph for PDF: {graph_err}")
     except Exception as e:
         logging.error(f"Failed to process PDF chunks: {e}")
         return saved_chunks, str(e), extraction
@@ -396,7 +553,14 @@ def set_active_pdf(file_name, chatbot_id):
     if not target_path or not os.path.isabs(target_path):
         target_path = os.path.join(DATA_FOLDER, secure_filename(selected_name))
 
-    if not os.path.exists(target_path):
+    if document_storage.r2_enabled():
+        try:
+            target_path = document_storage.materialize_file(
+                target_path, root=DATA_FOLDER, namespace="knowledge"
+            )
+        except FileNotFoundError:
+            raise ValueError("The stored PDF is unavailable. Upload it again before making it active.") from None
+    elif not os.path.exists(target_path):
         logging.warning(
             "Local knowledge file missing while setting active: chatbot_id=%s, file_id=%s",
             chatbot_id,
@@ -410,10 +574,14 @@ def set_active_pdf(file_name, chatbot_id):
 
     try:
         generate_and_save_knowledge_readme(chatbot_id, file_id)
+    except document_storage.DocumentStorageError:
+        raise
     except Exception as readme_err:
         logging.error(f"Failed to generate README when setting active PDF: {readme_err}")
     try:
         log_knowledge_modification(chatbot_id, file_id, "Document set as the active primary knowledge source.")
+    except document_storage.DocumentStorageError:
+        raise
     except Exception as log_err:
         logging.error(f"Failed to log history when setting active PDF: {log_err}")
 
@@ -497,18 +665,17 @@ def delete_pdf_file(file_name, chatbot_id):
     if not file_id:
         raise ValueError("Knowledge file id is missing")
 
-    delete_chunks_by_file_for_chatbot(chatbot_id, file_id)
-    try:
-        from app.database.knowledge_graph_repository import delete_graph_by_file_id
-        delete_graph_by_file_id(chatbot_id, file_id)
-    except Exception as e:
-        logging.error(f"Failed to delete graph data for file_id {file_id}: {e}")
-    delete_knowledge_file_by_id(chatbot_id, file_id)
-
     target_paths = []
     if stored_path and not stored_path.startswith("http://") and not stored_path.startswith("https://"):
         target_paths.append(stored_path)
     target_paths.append(os.path.join(DATA_FOLDER, secure_filename(stored_name)))
+    target_paths.extend(
+        os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_{suffix}")
+        for suffix in ("readme.md", "history.json")
+    )
+    if is_active_file:
+        target_paths.append(os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_readme.md"))
+    data_root = os.path.realpath(DATA_FOLDER)
 
     for target_path in dict.fromkeys(target_paths):
         if not target_path:
@@ -518,21 +685,27 @@ def delete_pdf_file(file_name, chatbot_id):
             target_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", target_path))
 
         try:
-            if os.path.exists(target_path):
-                os.remove(target_path)
-            else:
-                logging.info(
-                    "Local knowledge file already missing for chatbot_id=%s, file_id=%s",
+            if os.path.commonpath([data_root, os.path.realpath(target_path)]) != data_root:
+                logging.warning(
+                    "Skipped knowledge cleanup path outside data folder for chatbot_id=%s, file_id=%s",
                     chatbot_id,
                     file_id,
                 )
-        except Exception as e:
-            logging.error(
-                "Failed to remove local knowledge file for chatbot_id=%s, file_id=%s: %s",
-                chatbot_id,
-                file_id,
-                e,
-            )
+                continue
+            document_storage.delete_file(target_path, root=DATA_FOLDER, namespace="knowledge")
+        except document_storage.DocumentStorageError:
+            raise
+        except OSError:
+            raise document_storage.DocumentStorageError("Document deletion could not be completed.") from None
+
+    # Keep metadata available for a retry if any remote deletion fails.
+    delete_chunks_by_file_for_chatbot(chatbot_id, file_id)
+    try:
+        from app.database.knowledge_graph_repository import delete_graph_by_file_id
+        delete_graph_by_file_id(chatbot_id, file_id)
+    except Exception as e:
+        logging.error(f"Failed to delete graph data for file_id {file_id}: {e}")
+    delete_knowledge_file_by_id(chatbot_id, file_id)
 
     if is_active_file:
         update_chatbot_runtime({
@@ -1046,11 +1219,7 @@ def generate_and_save_knowledge_readme(chatbot_id: int, file_id: int = None):
         active_file = get_active_pdf_knowledge_file(chatbot_id)
         if not active_file:
             readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_readme.md")
-            if os.path.exists(readme_path):
-                try:
-                    os.remove(readme_path)
-                except Exception:
-                    pass
+            document_storage.delete_file(readme_path, root=DATA_FOLDER, namespace="knowledge")
             return
         file_id = active_file["id"]
         file_name = active_file.get("file_name", "Primary Document")
@@ -1176,21 +1345,20 @@ def generate_and_save_knowledge_readme(chatbot_id: int, file_id: int = None):
 
     # Save to disk
     readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_readme.md")
-    os.makedirs(DATA_FOLDER, exist_ok=True)
     try:
-        with open(readme_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(md))
-        logging.info(f"Successfully generated and saved knowledge README for chatbot_id={chatbot_id}, file_id={file_id} to {readme_path}")
+        readme_bytes = "\n".join(md).encode("utf-8")
+        document_storage.write_file(readme_path, readme_bytes, root=DATA_FOLDER, namespace="knowledge")
 
         # Also copy/save to bot_{chatbot_id}_readme.md if this is the active file
         from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
         active = get_active_pdf_knowledge_file(chatbot_id)
         if active and active["id"] == file_id:
             active_readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_readme.md")
-            with open(active_readme_path, "w", encoding="utf-8") as f:
-                f.write("\n".join(md))
-    except Exception as e:
-        logging.error(f"Failed to save knowledge README to {readme_path}: {e}")
+            document_storage.write_file(active_readme_path, readme_bytes, root=DATA_FOLDER, namespace="knowledge")
+    except document_storage.DocumentStorageError:
+        raise
+    except OSError:
+        raise document_storage.DocumentStorageError("The document summary could not be saved.") from None
 
 
 def get_or_generate_readme(chatbot_id: int, file_id: int = None, company_id: int = None) -> str:
@@ -1202,21 +1370,29 @@ def get_or_generate_readme(chatbot_id: int, file_id: int = None, company_id: int
             return "No active primary PDF or knowledge sources available to generate README."
         file_id = active_file["id"]
 
+    knowledge_file = get_knowledge_file_by_name_or_id(chatbot_id, file_id)
+    if not knowledge_file:
+        return "No active primary PDF or knowledge sources available to generate README."
+    file_id = knowledge_file["id"]
+
     readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_readme.md")
-    if not os.path.exists(readme_path):
+    try:
+        readme_path = document_storage.materialize_file(readme_path, root=DATA_FOLDER, namespace="knowledge")
+    except FileNotFoundError:
         if company_id is not None:
             from app.services.company_status_service import ensure_company_operational
             ensure_company_operational(company_id)
         generate_and_save_knowledge_readme(chatbot_id, file_id)
-
-    if os.path.exists(readme_path):
         try:
-            with open(readme_path, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception as e:
-            return f"Error reading README file: {e}"
-    else:
-        return "No active primary PDF or knowledge sources available to generate README."
+            readme_path = document_storage.materialize_file(readme_path, root=DATA_FOLDER, namespace="knowledge")
+        except FileNotFoundError:
+            return "No active primary PDF or knowledge sources available to generate README."
+
+    try:
+        with open(readme_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except OSError:
+        raise document_storage.DocumentStorageError("The document summary could not be read.") from None
 
 
 def log_knowledge_modification(chatbot_id: int, file_id: int, action: str, category: str = "Admin State Changes", details=None):
@@ -1231,12 +1407,18 @@ def log_knowledge_modification(chatbot_id: int, file_id: int, action: str, categ
     os.makedirs(DATA_FOLDER, exist_ok=True)
 
     logs = []
-    if os.path.exists(log_path):
+    try:
+        log_path = document_storage.materialize_file(log_path, root=DATA_FOLDER, namespace="knowledge")
+    except FileNotFoundError:
+        pass
+    else:
         try:
             with open(log_path, "r", encoding="utf-8") as f:
                 logs = json.load(f)
-        except Exception:
-            logs = []
+            if not isinstance(logs, list):
+                raise ValueError("Invalid history")
+        except (OSError, ValueError):
+            raise document_storage.DocumentStorageError("Document history could not be read.") from None
 
     entry = {
         "timestamp": datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC'),
@@ -1248,18 +1430,28 @@ def log_knowledge_modification(chatbot_id: int, file_id: int, action: str, categ
     logs.append(entry)
 
     try:
-        with open(log_path, "w", encoding="utf-8") as f:
-            json.dump(logs, f, indent=2)
-    except Exception as e:
-        import logging
-        logging.error(f"Failed to write history log to {log_path}: {e}")
+        document_storage.write_file(
+            log_path, json.dumps(logs, indent=2).encode("utf-8"), root=DATA_FOLDER, namespace="knowledge"
+        )
+    except document_storage.DocumentStorageError:
+        raise
+    except OSError:
+        raise document_storage.DocumentStorageError("Document history could not be saved.") from None
 
 
 def get_knowledge_history_logs(chatbot_id: int, file_id: int) -> list:
     import os
     import json
+    knowledge_file = get_knowledge_file_by_name_or_id(chatbot_id, file_id)
+    if not knowledge_file:
+        return []
+    file_id = knowledge_file["id"]
     log_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_history.json")
-    if os.path.exists(log_path):
+    try:
+        log_path = document_storage.materialize_file(log_path, root=DATA_FOLDER, namespace="knowledge")
+    except FileNotFoundError:
+        return []
+    else:
         try:
             with open(log_path, "r", encoding="utf-8") as f:
                 logs = json.load(f)

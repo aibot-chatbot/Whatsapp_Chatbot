@@ -13,6 +13,7 @@ from app.services.company_status_service import (
     ensure_company_operational,
 )
 import logging
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
@@ -31,6 +32,7 @@ from app.services.knowledge_ingestion_service import (
     ingest_website_sources,
     summarize_report,
 )
+from app.services.knowledge_ingest_job_service import get_ingest_status
 from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.services.pdf_relevance_validation_service import (
     CandidateStateError,
@@ -39,8 +41,17 @@ from app.services.pdf_relevance_validation_service import (
     validate_supporting_pdf_candidate,
 )
 from app.utils.api_errors import server_error
+from app.services.document_storage_service import DocumentStorageError, materialize_file, r2_enabled
 
 knowledge_blueprint = Blueprint("knowledge", __name__)
+
+
+@knowledge_blueprint.errorhandler(DocumentStorageError)
+def handle_document_storage_error(_error):
+    return jsonify({
+        "status": "error",
+        "message": "Document storage is temporarily unavailable. Please try again.",
+    }), 503
 
 
 def _incoming_upload_size(file):
@@ -117,6 +128,46 @@ def get_uploaded_pdfs():
     except Exception as e:
         return server_error("get_uploaded_pdfs", e)
 
+@knowledge_blueprint.route("/api/knowledge/upload-status", methods=["GET"])
+@token_required
+@role_required("admin", "owner")
+def get_upload_status():
+    """How far the deferred ingest of one uploaded document has got.
+
+    ``POST /upload-pdf`` returns as soon as the file is safe, so this is where
+    the page learns that the document is readable, that nothing could be read
+    out of it, or that its persona was filled in. Cheap enough to poll: it
+    answers from process memory, and only falls back to one row read.
+    """
+    try:
+        chatbot_id = request.args.get("chatbot_id", type=int)
+        file_id = request.args.get("file_id", type=int)
+
+        if not chatbot_id or not file_id:
+            return jsonify({
+                "status": "error",
+                "message": "chatbot_id and file_id are required"
+            }), 400
+
+        verify_chatbot_access(chatbot_id)
+        job = get_ingest_status(chatbot_id, file_id)
+
+        if not job:
+            return jsonify({
+                "status": "error",
+                "message": "That document was not found."
+            }), 404
+
+        return jsonify({
+            "status": "success",
+            "data": job
+        }), 200
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
+    except Exception as e:
+        return server_error("get_upload_status", e)
+
+
 @knowledge_blueprint.route("/api/knowledge/active", methods=["GET"])
 @token_required
 @role_required("admin", "owner")
@@ -154,7 +205,10 @@ def validate_pdf_candidate():
                 "message": "chatbot_id is required"
             }), 400
 
-        verify_chatbot_access(chatbot_id)
+        try:
+            verify_chatbot_access(chatbot_id)
+        except PermissionError:
+            return jsonify({"status": "error", "message": "Access denied."}), 403
         primary_file = get_active_knowledge_file(chatbot_id)
         if not primary_file:
             return jsonify({
@@ -204,6 +258,8 @@ def validate_pdf_candidate():
             "data": result,
         }), 200
 
+    except RequestEntityTooLarge:
+        return jsonify({"status": "error", "message": "Upload exceeds the request size limit (maximum 32 MiB)."}), 413
     except BillingLimitError as e:
         response = {
             "status": "error",
@@ -218,11 +274,6 @@ def validate_pdf_candidate():
             "status": "error",
             "message": str(e)
         }), 400
-    except PermissionError as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 403
     except Exception:
         logging.exception("Supporting PDF candidate validation failed")
         return jsonify({
@@ -365,6 +416,8 @@ def set_current_active_pdf():
             "status": "error",
             "message": str(e)
         }), 403
+    except DocumentStorageError:
+        raise
     except Exception as e:
         return server_error("set_current_active_pdf", e)
 
@@ -453,6 +506,8 @@ def delete_uploaded_pdf(file_name):
             "status": "error",
             "message": str(e)
         }), 400
+    except DocumentStorageError:
+        raise
     except Exception as e:
         return server_error("delete_uploaded_pdf", e)
 
@@ -912,7 +967,7 @@ def get_knowledge_graph_data():
                 from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
                 file_name = active_file.get("file_name", "")
-                stored_path = active_file.get("file_path", "")
+                stored_path = (active_file.get("file_path") or "").replace("\\", "/")
                 from werkzeug.utils import secure_filename
 
                 # Robust path candidates lookup
@@ -929,14 +984,20 @@ def get_knowledge_graph_data():
                     os.path.join(DATA_FOLDER, secure_filename(file_name)),
                     os.path.join(DATA_FOLDER, secure_filename(f"bot_{chatbot_id}_{file_name}")),
                 ])
+                if r2_enabled():
+                    candidates = candidates[:1] if stored_path else [
+                        os.path.join(DATA_FOLDER, secure_filename(file_name))
+                    ]
 
                 target_path = None
                 for path in candidates:
-                    if path and os.path.exists(path):
-                        target_path = path
+                    try:
+                        target_path = materialize_file(path, root=DATA_FOLDER, namespace="knowledge")
                         break
+                    except FileNotFoundError:
+                        continue
 
-                logging.info(f"[GraphRAG] Resolved path candidates: {candidates} -> Chosen: {target_path}")
+                logging.info("[GraphRAG] Original document available for file_id=%s: %s", file_id, bool(target_path))
 
                 if target_path:
                     try:
@@ -967,9 +1028,9 @@ def get_knowledge_graph_data():
                                     metadata={"chunk_index": idx}
                                 )
                     except Exception as parse_err:
-                        logging.error(f"[GraphRAG] Failed to parse local PDF file {target_path}: {parse_err}")
+                        logging.error("[GraphRAG] Original document parsing failed for file_id=%s (%s)", file_id, type(parse_err).__name__)
                 else:
-                    logging.error(f"[GraphRAG] Local PDF file does not exist for candidates: {candidates}")
+                    logging.error("[GraphRAG] Original document is missing for file_id=%s", file_id)
 
             if chunks:
                 try:
@@ -1032,6 +1093,8 @@ def get_knowledge_graph_data():
             "code": e.code,
             "message": e.message
         }), e.status_code
+    except DocumentStorageError:
+        raise
     except Exception as e:
         return server_error("get_knowledge_graph_data", e)
 
@@ -1309,6 +1372,8 @@ def submit_refinement_answers():
             from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
             try:
                 generate_and_save_knowledge_readme(chatbot_id, file_id)
+            except DocumentStorageError:
+                raise
             except Exception as readme_err:
                 logging.error(f"Failed to generate README inside submit_refinement_answers: {readme_err}")
             try:
@@ -1318,6 +1383,8 @@ def submit_refinement_answers():
                     "Q&A Submissions",
                     details=saved_qa_pairs
                 )
+            except DocumentStorageError:
+                raise
             except Exception as log_err:
                 logging.error(f"Failed to log history inside submit_refinement_answers: {log_err}")
 
@@ -1332,6 +1399,8 @@ def submit_refinement_answers():
             "code": e.code,
             "message": str(e)
         }), 403
+    except DocumentStorageError:
+        raise
     except Exception as e:
         logging.error(f"[Refinement] Failed to submit answers: {e}")
         return server_error("submit_refinement_answers", e)
@@ -1385,6 +1454,8 @@ def save_graph_node():
         from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
         try:
             generate_and_save_knowledge_readme(chatbot_id, file_id)
+        except DocumentStorageError:
+            raise
         except Exception as readme_err:
             logging.error(f"Failed to generate README inside save_graph_node: {readme_err}")
         try:
@@ -1392,6 +1463,8 @@ def save_graph_node():
                 log_knowledge_modification(chatbot_id, file_id, f"Updated entity from '{old_name}' to '{name}' (Category: '{label}').", "Graph Modifications")
             else:
                 log_knowledge_modification(chatbot_id, file_id, f"Saved entity '{name}' (Category: '{label}').", "Graph Modifications")
+        except DocumentStorageError:
+            raise
         except Exception as log_err:
             logging.error(f"Failed to log history inside save_graph_node: {log_err}")
 
@@ -1401,6 +1474,8 @@ def save_graph_node():
         }), 200
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
+    except DocumentStorageError:
+        raise
     except Exception as e:
         logging.error(f"Error saving graph node: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1442,10 +1517,14 @@ def delete_graph_node_route():
         from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
         try:
             generate_and_save_knowledge_readme(chatbot_id, file_id)
+        except DocumentStorageError:
+            raise
         except Exception as readme_err:
             logging.error(f"Failed to generate README inside delete_graph_node_route: {readme_err}")
         try:
             log_knowledge_modification(chatbot_id, file_id, f"Deleted entity '{name}' and all its adjacent connections.", "Graph Modifications")
+        except DocumentStorageError:
+            raise
         except Exception as log_err:
             logging.error(f"Failed to log history inside delete_graph_node_route: {log_err}")
 
@@ -1455,6 +1534,8 @@ def delete_graph_node_route():
         }), 200
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
+    except DocumentStorageError:
+        raise
     except Exception as e:
         logging.error(f"Error deleting graph node: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1511,10 +1592,14 @@ def save_graph_edge():
         from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
         try:
             generate_and_save_knowledge_readme(chatbot_id, file_id)
+        except DocumentStorageError:
+            raise
         except Exception as readme_err:
             logging.error(f"Failed to generate README inside save_graph_edge: {readme_err}")
         try:
             log_knowledge_modification(chatbot_id, file_id, f"Created connection: '{source_name}' [{rel_type}] -> '{target_name}'.", "Graph Modifications")
+        except DocumentStorageError:
+            raise
         except Exception as log_err:
             logging.error(f"Failed to log history inside save_graph_edge: {log_err}")
 
@@ -1524,6 +1609,8 @@ def save_graph_edge():
         }), 200
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
+    except DocumentStorageError:
+        raise
     except Exception as e:
         logging.error(f"Error saving graph edge: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1565,10 +1652,14 @@ def delete_graph_edge_route():
         from app.services.knowledge_service import generate_and_save_knowledge_readme, log_knowledge_modification
         try:
             generate_and_save_knowledge_readme(chatbot_id, file_id)
+        except DocumentStorageError:
+            raise
         except Exception as readme_err:
             logging.error(f"Failed to generate README inside delete_graph_edge_route: {readme_err}")
         try:
             log_knowledge_modification(chatbot_id, file_id, f"Deleted connection: '{source_name}' [{rel_type}] -> '{target_name}'.", "Graph Modifications")
+        except DocumentStorageError:
+            raise
         except Exception as log_err:
             logging.error(f"Failed to log history inside delete_graph_edge_route: {log_err}")
 
@@ -1578,6 +1669,8 @@ def delete_graph_edge_route():
         }), 200
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
+    except DocumentStorageError:
+        raise
     except Exception as e:
         logging.error(f"Error deleting graph edge: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1615,6 +1708,8 @@ def get_knowledge_readme():
         }), e.status_code
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
+    except DocumentStorageError:
+        raise
     except Exception as e:
         logging.error(f"Error fetching knowledge readme: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
@@ -1647,6 +1742,8 @@ def get_knowledge_history():
         }), 200
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
+    except DocumentStorageError:
+        raise
     except Exception as e:
         logging.error(f"Error fetching knowledge history: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
