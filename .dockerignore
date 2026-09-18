@@ -104,6 +104,7 @@
 !app/services/ai_credit_topup_callback_service.py
 !app/services/ai_credit_topup_checkout_service.py
 !app/services/ai_credit_topup_order_service.py
+!app/services/ai_gateway.py
 !app/services/ai_router.py
 !app/services/automation_service.py
 !app/services/billing_guard.py

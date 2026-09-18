@@ -3,14 +3,18 @@ import logging
 import requests
 from dotenv import load_dotenv
 
+from app.services import ai_gateway
+
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 logging.info(f"OpenRouter key loaded: {bool(OPENROUTER_API_KEY and OPENROUTER_API_KEY.strip())}")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 #: Credit remaining on the platform key. This balance funds EVERY tenant on the
 #: pooled plans, so when it empties every bot stops at once -- nothing in the
 #: per-tenant MYR wallet protects against it. Polled by the scheduler.
+#: Deliberately always direct, never through the AI Gateway: this is an account
+#: fact, not an inference call, and a gateway that cached or rewrote it would
+#: misreport the one balance every pooled tenant depends on.
 OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key"
 
 CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
@@ -45,7 +49,12 @@ def _request(prompt, model="google/gemini-3.5-flash", temperature=0.7, max_token
             "max_tokens": max_tokens,
         }
         logging.info(f"[OpenRouter] _request using model: {model}")
-        response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
+        response = requests.post(
+            ai_gateway.openrouter_chat_completions_url(),
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
         response.raise_for_status()
         data = response.json()
         return True, data
@@ -97,7 +106,7 @@ def generate_response(
         logging.info(f"[OpenRouter] API key loaded: {bool(OPENROUTER_API_KEY and OPENROUTER_API_KEY.strip())}")
 
         response = requests.post(
-            OPENROUTER_URL,
+            ai_gateway.openrouter_chat_completions_url(),
             headers=headers,
             json=payload,
             timeout=60,

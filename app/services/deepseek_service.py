@@ -1,21 +1,56 @@
 import logging
 import os
+from functools import lru_cache
+
 from openai import OpenAI
 from dotenv import load_dotenv
 
+from app.services import ai_gateway
 from app.services.chat_pipeline_service import prepare_chat_prompt
 
 load_dotenv()
 
+# The SDK default is 600s. A stalled reply held one of the eight gunicorn
+# threads for ten minutes per attempt while the customer waited. 60s
+# matches the bound openrouter_service already uses, and a measured
+# completion on this path takes 2.0-2.8s.
+REQUEST_TIMEOUT_SECONDS = 60
+
+#: The direct-to-provider client, built at import exactly as before the AI
+#: Gateway existed. With the gateway off this is still the object every request
+#: uses, so the disabled path keeps its connection pool and its behaviour.
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com",
-    # The SDK default is 600s. A stalled reply held one of the eight gunicorn
-    # threads for ten minutes per attempt while the customer waited. 60s
-    # matches the bound openrouter_service already uses, and a measured
-    # completion on this path takes 2.0-2.8s.
-    timeout=60,
+    base_url=ai_gateway.DEEPSEEK_DIRECT_BASE_URL,
+    timeout=REQUEST_TIMEOUT_SECONDS,
 )
+
+
+@lru_cache(maxsize=4)
+def _client_for(base_url):
+    """One reusable client per gateway base URL, built on first use.
+
+    Cached because a fresh OpenAI client means a fresh connection pool, and
+    this is the hot chat path.
+    """
+    return OpenAI(
+        api_key=os.getenv("DEEPSEEK_API_KEY"),
+        base_url=base_url,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+    )
+
+
+def _active_client():
+    """The client for this request: the gateway's when it is on, else direct.
+
+    Resolved per call so AI_GATEWAY_ENABLED can be switched off without a
+    deploy and takes effect on the very next message.
+    """
+    base_url = ai_gateway.deepseek_base_url()
+    if base_url == ai_gateway.DEEPSEEK_DIRECT_BASE_URL:
+        return client
+    return _client_for(base_url)
+
 
 CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
     "You are a professional business customer-service assistant. "
@@ -62,7 +97,7 @@ def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temper
 
         logging.info(f"[DeepSeek] _request using model: {model}")
 
-        response = client.chat.completions.create(
+        response = _active_client().chat.completions.create(
             model=model,
             messages=[
                 {
@@ -112,7 +147,7 @@ def generate_response(
 
         logging.info(f"[DeepSeek] Using model: {model}")
 
-        response = client.chat.completions.create(
+        response = _active_client().chat.completions.create(
             model=model,
             messages=[
                 {

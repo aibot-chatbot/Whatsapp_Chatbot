@@ -1140,7 +1140,9 @@ def _call_deepseek_direct(prompt, model, temperature, json_response=False, strea
     if not api_key:
         raise RuntimeError("DEEPSEEK_API_KEY environment variable is missing.")
 
-    client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
+    from app.services import ai_gateway
+
+    client = OpenAI(api_key=api_key, base_url=ai_gateway.deepseek_base_url())
 
     kwargs = {
         "model": model or "deepseek-chat",
@@ -1192,6 +1194,8 @@ def _call_openrouter_direct(prompt, model, temperature):
     import os
     import requests
 
+    from app.services import ai_gateway
+
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY environment variable is missing.")
@@ -1208,7 +1212,7 @@ def _call_openrouter_direct(prompt, model, temperature):
         "temperature": temperature,
     }
     response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions",
+        ai_gateway.openrouter_chat_completions_url(),
         headers=headers,
         json=payload,
         timeout=90,
