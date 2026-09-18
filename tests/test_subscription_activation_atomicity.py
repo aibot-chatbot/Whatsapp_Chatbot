@@ -538,3 +538,189 @@ class TestSubscriptionActivationAtomicity(unittest.TestCase):
         result = process_subscription_payment_callback(cred_callback)
         self.assertEqual(result["status"], "already_activated")
         self.assertTrue(result["idempotent"])
+
+
+class TestPaidOrderNeverStallsSilentlyAtClaimed(unittest.TestCase):
+    """Regression: a paid order must never sit at activation_status='claimed'
+    with no reason recorded.
+
+    Live incident 2026-09-18, order 33 (company 1, CHIP live, RM1.00): the
+    renewal snapshot captured source_status='active' at checkout, the lifecycle
+    job expired the subscription 6 minutes before the customer paid, and
+    conditional_activate_subscription then matched zero rows. The activation
+    sequence had already been claimed, so the row was left status='paid',
+    activation_status='claimed', activation_error_code=NULL,
+    reconciliation_required=false - money taken, nothing delivered, and nothing
+    anywhere flagging it.
+    """
+
+    def setUp(self):
+        self.callback = {
+            "payment_gateway": "chip",
+            "gateway_order_id": "chip-purchase-1",
+            "order_reference": "94a0eb99-6a4b-4dc5-a3ec-145edca80eaa",
+            "paid": True,
+            "payment_reference": "chip-txn-1",
+            "amount_sen": 100,
+            "paid_at": "2026-09-18T05:06:39Z",
+        }
+        self.order = {
+            "id": 33,
+            "order_reference": "94a0eb99-6a4b-4dc5-a3ec-145edca80eaa",
+            "company_id": 1,
+            "subscription_id": 1,
+            "new_plan_id": 4,
+            "amount_sen": 100,
+            "status": "paid",
+            "payment_gateway": "chip",
+            "gateway_environment": "live",
+            "gateway_order_id": "chip-purchase-1",
+            "payment_reference": "chip-txn-1",
+            "order_schema_version": 2,
+            "activation_type": "renewal",
+            "source_plan_id": 4,
+            "source_status": "active",
+            "source_period_start": "2026-07-28T16:38:37.437543Z",
+            "source_period_end": "2026-08-28T16:38:37.437543Z",
+            "activation_sequence_key": (
+                "company:1:renewal-after:2026-08-28T16:38:37.437543+00:00"
+            ),
+        }
+        self.plan = {
+            "id": 4,
+            "code": "essential",
+            "billing_interval": "monthly",
+            "included_ai_credit_micro_myr": 5000000,
+            "name": "Essential",
+        }
+
+    @patch(_SVC + "._update_activation_state")
+    @patch(_SVC + "._claim_activation_sequence")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".conditional_activate_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_source_state_mismatch_flags_the_order_for_reconciliation(
+        self, mock_convert, mock_update_status,
+        mock_ensure_credit, mock_cond_activate,
+        mock_get_plan, mock_get_order, mock_claim_seq,
+        mock_update_activation_state,
+    ):
+        mock_get_order.return_value = self.order
+        mock_get_plan.return_value = self.plan
+        # The subscription expired between checkout and payment, so the
+        # conditional update matches zero rows.
+        mock_cond_activate.side_effect = ValueError(
+            "Subscription source state mismatch: expected plan=4, status=active"
+        )
+
+        with self.assertRaises(RuntimeError):
+            process_subscription_payment_callback(self.callback)
+
+        flagged = [
+            call.kwargs for call in mock_update_activation_state.call_args_list
+            if call.kwargs.get("activation_error_code")
+        ]
+        self.assertTrue(
+            flagged,
+            "paid order stalled after the activation claim without recording "
+            "any activation_error_code - this is the silent stall",
+        )
+        self.assertEqual(flagged[-1]["activation_error_code"], "source_subscription_changed")
+        self.assertTrue(
+            flagged[-1]["reconciliation_required"],
+            "a stalled paid order must be flagged for reconciliation",
+        )
+
+    @patch(_SVC + "._update_activation_state")
+    @patch(_SVC + "._claim_activation_sequence")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".conditional_activate_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_stall_flag_never_moves_activation_status_off_claimed(
+        self, mock_convert, mock_update_status,
+        mock_ensure_credit, mock_cond_activate,
+        mock_get_plan, mock_get_order, mock_claim_seq,
+        mock_update_activation_state,
+    ):
+        """The reconciler reads activation_status to pick which stage to retry,
+        and conflict/failed are terminal. Flagging must not spend that retry."""
+        mock_get_order.return_value = self.order
+        mock_get_plan.return_value = self.plan
+        mock_cond_activate.side_effect = ValueError("source state mismatch")
+
+        with self.assertRaises(RuntimeError):
+            process_subscription_payment_callback(self.callback)
+
+        written_statuses = [
+            call.kwargs.get("activation_status")
+            for call in mock_update_activation_state.call_args_list
+        ]
+        self.assertNotIn("conflict", written_statuses)
+        self.assertNotIn("failed", written_statuses)
+        self.assertIsNone(written_statuses[-1])
+
+    @patch(_SVC + "._update_activation_state")
+    @patch(_SVC + "._claim_activation_sequence")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".conditional_activate_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_malformed_v2_order_is_flagged_after_the_claim(
+        self, mock_convert, mock_update_status,
+        mock_ensure_credit, mock_cond_activate,
+        mock_get_plan, mock_get_order, mock_claim_seq,
+        mock_update_activation_state,
+    ):
+        """The claim happens before the schema check, so this exit stalls too."""
+        malformed = dict(self.order)
+        malformed["source_status"] = None
+        mock_get_order.return_value = malformed
+        mock_get_plan.return_value = self.plan
+
+        result = process_subscription_payment_callback(self.callback)
+
+        self.assertEqual(result["status"], "malformed_atomic_order")
+        flagged = [
+            call.kwargs for call in mock_update_activation_state.call_args_list
+            if call.kwargs.get("activation_error_code")
+        ]
+        self.assertTrue(flagged, "malformed v2 order stalled at claimed unflagged")
+        self.assertEqual(flagged[-1]["activation_error_code"], "malformed_atomic_order")
+        self.assertTrue(flagged[-1]["reconciliation_required"])
+
+    @patch(_SVC + "._update_activation_state")
+    @patch(_SVC + "._claim_activation_sequence")
+    @patch(_SVC + "._get_order_by_gateway")
+    @patch(_SVC + ".get_plan_by_id")
+    @patch(_SVC + ".conditional_activate_subscription")
+    @patch(_SVC + "._ensure_company_ai_credit")
+    @patch(_SVC + "._update_order_status")
+    @patch(_SVC + ".convert_trial_ai_configuration")
+    def test_already_credited_order_is_a_no_op_and_never_regrants_credit(
+        self, mock_convert, mock_update_status,
+        mock_ensure_credit, mock_cond_activate,
+        mock_get_plan, mock_get_order, mock_claim_seq,
+        mock_update_activation_state,
+    ):
+        """Re-driving a credited order must not activate, credit, or flag it."""
+        credited = dict(self.order)
+        credited["status"] = "credited"
+        mock_get_order.return_value = credited
+        mock_get_plan.return_value = self.plan
+
+        result = process_subscription_payment_callback(self.callback)
+
+        self.assertEqual(result["status"], "already_activated")
+        self.assertTrue(result["idempotent"])
+        mock_cond_activate.assert_not_called()
+        mock_ensure_credit.assert_not_called()
+        mock_claim_seq.assert_not_called()
+        self.assertEqual(mock_update_activation_state.call_args_list, [])

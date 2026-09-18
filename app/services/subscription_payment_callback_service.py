@@ -152,13 +152,11 @@ def process_subscription_payment_callback(normalized_callback: dict) -> dict:
             f"Subscription order for {payment_gateway} ID {gateway_order_id!r} is missing required fields"
         )
 
-    # The order was looked up by billcode alone, but billcode is NOT covered by
-    # the ToyyibPay hash - only status, order_id and refno are. So the signed
-    # order_id must be compared against the order we actually found, or a
-    # genuine callback can be paired with a different order's billcode and
-    # activate the wrong subscription. Checked before any status branching, so
-    # a mismatched callback cannot even report on an order it does not name.
-    # This mirrors the same check in ai_credit_topup_callback_service.
+    if payment_gateway == "chip" and order.get("gateway_environment") != "live":
+        raise ValueError("CHIP test orders cannot grant subscription entitlements")
+
+    # Match the provider-verified reference to the order found by gateway ID.
+    # Check before all status branches so replays cannot name another order.
     callback_order_reference = normalized_callback.get("order_reference")
     if not callback_order_reference:
         raise ValueError("Callback is missing required field 'order_reference'")
@@ -251,6 +249,39 @@ def _mark_order_credited(order_reference, credited_at=None):
     logger.info("Subscription order %s marked as credited", order_reference)
 
 
+def _flag_activation_stall(order_reference, error_code, error_message):
+    """Record why activation stopped, for every exit that does not complete it.
+
+    The activation sequence is claimed before the source-state and schema
+    checks run, so a paid order that fails one of them keeps
+    ``activation_status='claimed'`` - the same value an activation still in
+    flight carries. Without a reason written alongside it the row is
+    indistinguishable from work in progress: ``activation_error_code`` stays
+    NULL and ``reconciliation_required`` stays false, so no operator view and
+    no reconciliation sweep ever surfaces the customer who has paid and
+    received nothing.
+
+    ``activation_status`` is deliberately left untouched. It is the reconciler's
+    cursor for which stage to retry (``claimed`` retries activation), and
+    ``conflict``/``failed`` are terminal in VALID_ACTIVATION_TRANSITIONS - moving
+    the order there here would cost the retry that the reconciler is entitled to
+    make. This writes the reason only; it never grants credit, never marks the
+    order credited, and is safe to repeat.
+    """
+    try:
+        _update_activation_state(
+            order_reference=order_reference,
+            activation_error_code=error_code,
+            activation_error_message=error_message,
+            reconciliation_required=True,
+        )
+    except Exception:
+        logger.warning(
+            "Could not flag activation stall %r on order %s",
+            error_code, order_reference,
+        )
+
+
 def _handle_credited_replay(order, callback_gateway_id, callback_txn_id):
     order_reference = order.get("order_reference")
     stored_gateway_order_id = order.get("gateway_order_id")
@@ -275,7 +306,7 @@ def _handle_credited_replay(order, callback_gateway_id, callback_txn_id):
     return {"status": "already_activated", "idempotent": True, "order_reference": order_reference, "order_status": "credited", "company_id": order.get("company_id")}
 
 
-def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, payment_gateway="toyyibpay"):
+def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, payment_gateway="chip"):
     order_reference = order.get("order_reference")
     company_id = order.get("company_id")
     new_plan_id = order.get("new_plan_id")
@@ -389,6 +420,11 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 "Failing closed; manual reconciliation required.",
                 order_reference, source_plan_id, source_status,
             )
+            _flag_activation_stall(
+                order_reference,
+                "malformed_atomic_order",
+                "Version 2 order is missing required source-state fields.",
+            )
             return {
                 "status": "malformed_atomic_order",
                 "idempotent": True,
@@ -412,6 +448,11 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 "Failing closed; manual reconciliation required.",
                 order_reference,
             )
+            _flag_activation_stall(
+                order_reference,
+                "malformed_atomic_order",
+                "Version 2 order is missing required source_period_end.",
+            )
             return {
                 "status": "malformed_atomic_order",
                 "idempotent": True,
@@ -432,6 +473,11 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
         logger.error(
             "Unsupported order_schema_version %s for order %s. Failing closed.",
             _schema_ver, order_reference,
+        )
+        _flag_activation_stall(
+            order_reference,
+            "unsupported_order_schema_version",
+            f"Order schema version {_schema_ver} is not supported.",
         )
         return {
             "status": "unsupported_order_schema_version",
@@ -469,6 +515,14 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 "Source subscription state mismatch for company %d (order %s): %s",
                 company_id, order_reference, exc,
             )
+            # Same error code the reconciler writes when its own retry hits this
+            # wall, so a stall found here and a stall found there read alike.
+            _flag_activation_stall(
+                order_reference,
+                "source_subscription_changed",
+                "Source subscription state changed since checkout. "
+                "Activation requires operator review.",
+            )
             raise RuntimeError(
                 f"Source subscription state has changed since checkout for order "
                 f"{order_reference!r}. Manual reconciliation required."
@@ -502,6 +556,11 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 updates=subscription_updates,
             )
         except Exception as exc:
+            _flag_activation_stall(
+                order_reference,
+                "legacy_activation_failed",
+                "Legacy subscription activation failed. Retry will complete.",
+            )
             raise RuntimeError(f"Failed to activate subscription for order {order_reference!r}: {exc}")
 
     logger.info(
