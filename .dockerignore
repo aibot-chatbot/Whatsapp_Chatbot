@@ -60,6 +60,7 @@
 !app/decorators/platform_admin_decorator.py
 !app/decorators/security.py
 !app/jobs/__init__.py
+!app/jobs/check_ai_provider_balance.py
 !app/jobs/generate_billing_notifications.py
 !app/jobs/process_subscription_lifecycle.py
 !app/jobs/reconcile_subscription_orders.py
