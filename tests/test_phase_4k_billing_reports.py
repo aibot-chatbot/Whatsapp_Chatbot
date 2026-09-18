@@ -1006,3 +1006,54 @@ class TestMonthlyTrendEndpointApi(BaseReportTest):
         for entry in data.get("data", []):
             self.assertEqual(entry["AI_requests"], 0)
             self.assertEqual(entry["subscription_payments_myr"], 0.0)
+
+
+# --- Report query must only ask PostgREST for real columns ---------------------
+class TestBillingReportOrderColumns(unittest.TestCase):
+    """A select list is only checked by PostgREST, never by a MagicMock.
+
+    `payment_status` is a response key the routes derive from `status`; it is not
+    a column on company_subscription_orders. Selecting it made PostgREST reject
+    every report query, and the repository swallowed that into an empty list, so
+    each report silently showed zero subscription orders.
+    """
+
+    EXPECTED_COLUMNS = {
+        "order_reference", "status", "amount_sen", "plan_code",
+        "payment_reference", "created_at", "paid_at", "activation_status",
+    }
+
+    def _selected_columns(self):
+        import httpx
+        from urllib.parse import parse_qs
+        from postgrest import SyncPostgrestClient
+        import postgrest._sync.request_builder as request_builder
+        from app.database import company_subscription_order_repository as repo
+
+        captured = []
+
+        def _fake_send(request):
+            captured.append(str(request.params))
+            return httpx.Response(
+                200, json=[],
+                request=httpx.Request(request.http_method.value, str(request.path)),
+            )
+
+        client = SyncPostgrestClient("http://test.invalid", schema="public", headers={})
+        with patch.object(request_builder, "send_with_retry", _fake_send), \
+                patch.object(repo, "supabase", client):
+            repo.list_billing_report_orders(42, "2026-01-01", "2026-02-01")
+
+        # The repository swallows every exception into an empty list, so a query
+        # that never left the process looks identical to one that returned no rows.
+        self.assertTrue(captured, "list_billing_report_orders issued no query at all")
+        return set(parse_qs(captured[0])["select"][0].split(","))
+
+    def test_select_asks_only_for_existing_columns(self):
+        self.assertEqual(self._selected_columns(), self.EXPECTED_COLUMNS)
+
+    def test_payment_status_is_never_selected(self):
+        self.assertNotIn("payment_status", self._selected_columns())
+
+    def test_status_is_selected_because_the_report_aggregates_on_it(self):
+        self.assertIn("status", self._selected_columns())
