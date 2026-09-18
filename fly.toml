@@ -30,6 +30,17 @@ primary_region = "sin"
   dockerfile = "Dockerfile"
 
 [env]
+  DOCUMENT_STORAGE_BACKEND = "r2"
+  # The one-time cutover to R2 is DONE (43 files, 8,622,343 bytes, verified by
+  # SHA-256 readback). It stays at "0" because wsgi.py runs the migration at
+  # import on EVERY boot, and its only guard is the marker file living on the
+  # volume. Replace or restore that volume and a "1" here re-arms two failure
+  # modes: the app refuses to boot when the inventory is under the minimum
+  # below, and -- worse -- a re-run re-uploads stale local cache copies over
+  # current R2 objects, which can resurrect a document the tenant deleted.
+  # Set it to "1" only for a deliberate, supervised re-migration.
+  R2_INITIAL_MIGRATION = "0"
+  R2_MIGRATION_MIN_FILES = "43"
   PORT = "8000"
   FLASK_DEBUG = "false"
   # The gunicorn process is the ONLY runner for these jobs - there is no
@@ -73,7 +84,7 @@ primary_region = "sin"
   [[http_service.checks]]
     interval = "30s"
     timeout = "5s"
-    grace_period = "20s"
+    grace_period = "60s"
     method = "GET"
     path = "/"
 

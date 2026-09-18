@@ -1,8 +1,8 @@
-from flask import Flask, request
+from flask import Flask, request, current_app
 import os
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
-from app.rate_limit import init_limiter
+from app.rate_limit import init_limiter, limiter
 from app.config import load_configurations, configure_logging
 from app.observability import init_sentry
 from app.storage_paths import MEDIA_FOLDER, LEGACY_MEDIA_FOLDER
@@ -178,7 +178,16 @@ def create_app():
     # miss falls back to the legacy directory rather than 404ing a live bot.
     os.makedirs(MEDIA_FOLDER, exist_ok=True)
 
+    # Rate-limited because this route is anonymous by design (messaging
+    # providers fetch attachments without a session) and, since documents
+    # moved to R2, a miss is no longer a local stat -- it is a blocking
+    # GetObject with a retry budget measured in tens of seconds. On
+    # --workers 1 --threads 8 a handful of concurrent misses can hold every
+    # thread, taking the webhooks, the Wasender retry loop and the billing
+    # scheduler down with it. Generous by default so a real provider burst
+    # is never dropped.
     @app.route('/media/<path:filename>')
+    @limiter.limit(lambda: current_app.config.get("RATELIMIT_MEDIA", "240/minute"))
     def serve_media(filename):
         from flask import abort, send_from_directory
         from werkzeug.exceptions import NotFound
