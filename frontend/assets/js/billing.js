@@ -1522,14 +1522,23 @@
         }
 
         try {
-            var res = await authenticatedFetch("/api/billing/toyyibpay/checkout", {
+            var attemptKey = sessionStorage.getItem("chip_topup_attempt_key");
+            if (!attemptKey) {
+                attemptKey = crypto.randomUUID();
+                sessionStorage.setItem("chip_topup_attempt_key", attemptKey);
+            }
+            var res = await authenticatedFetch("/api/billing/chip/checkout", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { "Content-Type": "application/json", "Idempotency-Key": attemptKey },
                 body: JSON.stringify({ amount_micro_myr: amount })
             });
 
             var body = {};
             try { body = await res.json(); } catch (_) { body = {}; }
+
+            if (body.code === "checkout_restart_required") {
+                sessionStorage.removeItem("chip_topup_attempt_key");
+            }
 
             if (res.status === 401 || res.status === 403) {
                 showError(body.message || "AI credit top-up is not available on your current plan.");
@@ -1552,7 +1561,7 @@
 
             /* Stored before navigating away: the gateway's return URL is not
                guaranteed to carry the reference back. */
-            sessionStorage.setItem("toyyibpay_pending_order_reference", ref);
+            sessionStorage.setItem("chip_pending_order_reference", ref);
 
             var url = body.data.checkout_url;
             if (url.indexOf("http://") === 0 || url.indexOf("https://") === 0) {
@@ -1642,7 +1651,7 @@
     }
 
     function resolveTopupRef() {
-        var storedNorm = normalizeUuid(sessionStorage.getItem("toyyibpay_pending_order_reference"));
+        var storedNorm = normalizeUuid(sessionStorage.getItem("chip_pending_order_reference"));
         var urlNorm = normalizeUuid(new URLSearchParams(window.location.search).get("order_id"));
         if (storedNorm && urlNorm && storedNorm !== urlNorm) {
             console.warn("Payment return: stored reference differs from URL reference; using stored.");
@@ -1653,7 +1662,7 @@
     async function fetchTopupOrder(ref) {
         try {
             var res = await authenticatedFetch(
-                "/api/billing/toyyibpay/orders/" + encodeURIComponent(ref));
+                "/api/billing/chip/orders/" + encodeURIComponent(ref));
             if (!res.ok) {
                 if (res.status === 401 || res.status === 403) return { authError: true };
                 return null;
@@ -1675,7 +1684,8 @@
     }
 
     function clearTopupPending() {
-        sessionStorage.removeItem("toyyibpay_pending_order_reference");
+        sessionStorage.removeItem("chip_pending_order_reference");
+        sessionStorage.removeItem("chip_topup_attempt_key");
         state.pollRef = null;
     }
 
@@ -1688,6 +1698,12 @@
         }
 
         var status = data.status || "";
+        if (data.is_test === true && data.test_paid === true) {
+            showReturn("success", "CHIP test payment completed.", "Test mode: no paid credit was added.");
+            clearTopupPending();
+            return { terminal: true, showRetry: false };
+        }
+
 
         if (status === "credited" && data.credited === true) {
             showReturn("success", "Payment completed.", "Your AI credit has been added.");
@@ -1765,6 +1781,11 @@
             return { terminal: false, showRetry: true };
         }
 
+        if (data.is_test === true && data.test_paid === true) {
+            showReturn("success", "CHIP test payment completed.", "Test mode: your paid plan was not changed.");
+            sessionStorage.removeItem("pending_subscription_order_reference");
+            return { terminal: true, showRetry: false };
+        }
         var status = data.status || "";
         var activation = data.activation_status || "";
         var retryAllowed = data.retry_allowed === true;
@@ -1803,6 +1824,22 @@
             return { terminal: true, showRetry: true };
         }
 
+        /* Flagged for reconciliation but not retryable from here - the order is
+           stuck between us and the gateway. Saying "still processing" would be
+           a lie by omission: nothing on this page will move it, the 15-minute
+           reconcile job is what resolves it. Never assert the payment failed -
+           an order reaches this state with the money already taken. */
+        if (data.reconciliation_required === true) {
+            showReturn("processing", "We are confirming this payment.",
+                "We are checking this payment with the payment provider and will "
+                + "apply it automatically once confirmed. If money left your account "
+                + "it is not lost. Quote your order reference to support if this is "
+                + "still unresolved after 24 hours.");
+            showReturnRef(ref);
+            showRetryActivation(false);
+            return { terminal: true, showRetry: true };
+        }
+
         if (activation === "conflict"
             || data.activation_error_code === "activation_already_claimed"
             || data.activation_error_code === "source_subscription_changed") {
@@ -1816,7 +1853,9 @@
 
         if (status === "failed") {
             showReturn("failed", "Payment not completed.",
-                "The payment was not completed. No changes were made to your subscription.");
+                "The payment was not completed and you have not been charged. No changes "
+                + "were made to your subscription. You can start the upgrade again from "
+                + "the Plans page.");
             sessionStorage.removeItem("pending_subscription_order_reference");
             state.pollRef = null;
             showRetryActivation(false);
@@ -1935,13 +1974,9 @@
             }
 
             if (body.status === "success") {
-                showReturn("success", "Activation completed!", "Your subscription is now active.");
                 showRetryActivation(false);
-                sessionStorage.removeItem("pending_subscription_order_reference");
-                state.pollRef = null;
-                loadPlan();
-                loadCredit();
-                loadAnalytics();
+                state.pollRef = ref;
+                startPolling("subscription");
             } else {
                 showReturn("error", "Retry had an issue.",
                     body.message || "Please try again or contact support.");
@@ -1965,9 +2000,19 @@
         window.history.replaceState(null, "", url);
     }
 
-    function handleToyyibpayReturn() {
+    function handleChipReturn() {
+        /* A pending subscription return owns this page load. Neither an
+           order_id query parameter nor a leftover top-up reference says which
+           flow the customer came back from, and the top-up status endpoint
+           answers 404 for a subscription order - handleTopupResult() then tells
+           a customer whose money was taken that the payment is unverified. */
+        if (sessionStorage.getItem("pending_subscription_order_reference")) {
+            cleanupReturnParams();
+            return;
+        }
+
         var params = new URLSearchParams(window.location.search);
-        if (!params.has("status_id") && !params.has("billcode") && !params.has("order_id")) return;
+        if (!params.has("order_id") && !sessionStorage.getItem("chip_pending_order_reference")) return;
 
         var ref = resolveTopupRef();
         if (!ref) {
@@ -2218,14 +2263,13 @@
 
             if (body.status === "success") {
                 window.kwDialog.close($("bl-order-modal"));
-                announce("Activation retried.");
+                announce("Payment rechecked.");
                 clearError();
                 state.orderOffset = 0;
                 state.orderHasMore = true;
                 loadOrders(false);
-                loadPlan();
-                loadCredit();
-                loadAnalytics();
+                state.pollRef = ref;
+                startPolling("subscription");
             } else {
                 restore();
                 showError(body.message || "Retry had an issue.");
@@ -2912,7 +2956,7 @@
         loadAll();
         /* Both return paths are checked: a top-up comes back with query
            params, a subscription upgrade with a stored reference. */
-        handleToyyibpayReturn();
+        handleChipReturn();
         handleSubscriptionReturn();
     }
 
