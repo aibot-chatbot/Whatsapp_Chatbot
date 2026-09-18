@@ -6,6 +6,7 @@ import os
 from app.services.settings_service import get_draft_runtime
 from app.services.profile_service import get_profile_by_name
 from app.services.knowledge_service import get_active_pdf
+from app.services import document_storage_service as document_storage
 from app.services.ai_router import (
     OPERATION_PROFILE_KNOWLEDGE_MATCH,
     generate_system_response,
@@ -16,17 +17,24 @@ from app.database.knowledge_chunk_repository import get_chunks_by_file
 
 
 def extract_pdf_preview(pdf_path, max_chars=4000):
-    if not pdf_path:
+    if not pdf_path or pdf_path.lower().startswith(("http://", "https://")):
         return ""
 
     try:
-        doc = fitz.open(pdf_path)
+        from app.services.knowledge_service import DATA_FOLDER
+        pdf_path = pdf_path.replace("\\", "/")
+        if not os.path.isabs(pdf_path):
+            pdf_path = os.path.join(DATA_FOLDER, os.path.basename(pdf_path))
+        pdf_path = document_storage.materialize_file(pdf_path, root=DATA_FOLDER, namespace="knowledge")
         text_parts = []
 
-        for page in doc:
-            text_parts.append(page.get_text())
+        with fitz.open(pdf_path) as doc:
+            for page in doc:
+                text_parts.append(page.get_text())
 
         return "\n".join(text_parts)[:max_chars]
+    except document_storage.DocumentStorageError:
+        raise
     except Exception:
         return ""
 
@@ -90,9 +98,13 @@ Custom Instructions: {additional_instructions}
         if chunks:
             pdf_preview = "\n\n".join([c.get("content", "") for c in chunks])[:4000]
 
-    # Fallback to local PDF reading if database chunks were not found
-    if not pdf_preview:
-        pdf_preview = extract_pdf_preview(active_pdf_path)
+    # Only an existing chatbot-owned source can authorize original-file reads.
+    if not pdf_preview and active_file:
+        active_pdf_path = active_file.get("file_path") or active_file.get("file_name") or ""
+        try:
+            pdf_preview = extract_pdf_preview(active_pdf_path)
+        except document_storage.DocumentStorageError:
+            return _validation_unavailable(profile_name, active_pdf_path)
 
     if not pdf_preview:
         return {

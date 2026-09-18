@@ -16,7 +16,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app import create_app
+from app.services.document_storage_migration import migrate_before_startup
 
+migrate_before_startup()
 app = create_app()
 
 

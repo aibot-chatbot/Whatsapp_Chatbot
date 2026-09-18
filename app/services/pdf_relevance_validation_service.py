@@ -39,7 +39,10 @@ from app.database.knowledge_pdf_candidate_repository import (
     recover_candidate_ingested,
 )
 from app.services.document_ocr_service import extract_pdf_markdown
+from app.services import document_storage_service as document_storage
 from app.services.knowledge_service import DATA_FOLDER, save_uploaded_pdf
+from app.services.upload_validation_service import MAX_UPLOAD_BYTES, validate_saved_pdf
+from werkzeug.exceptions import RequestEntityTooLarge
 from app.services.billing_guard import can_upload_knowledge_file, can_upload_knowledge_storage
 from app.services.rag_service import EMBEDDING_DIMENSION, EMBEDDING_MODEL
 
@@ -817,6 +820,8 @@ def _save_candidate_file(file, destination: str) -> tuple[str, int]:
                 break
             digest.update(chunk)
             total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                raise RequestEntityTooLarge()
             handle.write(chunk)
     try:
         file.seek(0)
@@ -830,16 +835,25 @@ def cleanup_candidate_file(candidate: dict) -> bool:
     if not path:
         return True
     try:
-        abs_path = os.path.abspath(path)
-        root = os.path.abspath(CANDIDATE_DATA_FOLDER)
+        abs_path = os.path.realpath(os.path.abspath(path))
+        root = os.path.realpath(os.path.abspath(CANDIDATE_DATA_FOLDER))
         if not abs_path.startswith(root + os.sep):
-            logger.warning("Refusing to delete candidate file outside candidate storage: %s", path)
+            if document_storage.r2_enabled():
+                raise document_storage.DocumentStorageError("Invalid candidate storage path.")
+            logger.warning("Refusing to delete candidate file outside candidate storage")
             return False
-        if os.path.exists(abs_path):
+        if document_storage.r2_enabled():
+            document_storage.delete_file(abs_path, root=DATA_FOLDER, namespace="knowledge")
+        elif os.path.exists(abs_path):
             os.remove(abs_path)
         return True
+    except document_storage.DocumentStorageError:
+        # All lifecycle callers must report failure until authoritative deletion succeeds.
+        raise
     except Exception as exc:
-        logger.warning("Failed to delete candidate file %s: %s", path, exc)
+        logger.warning("Failed to delete candidate file (%s)", type(exc).__name__)
+        if document_storage.r2_enabled():
+            raise document_storage.DocumentStorageError("Unable to delete candidate file.") from None
         return False
 
 
@@ -882,12 +896,17 @@ def validate_supporting_pdf_candidate(
     candidate = None
     try:
         file_hash, size = _save_candidate_file(file, temp_path)
+        validate_saved_pdf(temp_path)
     except Exception:
-        cleanup_candidate_file({"temp_file_path": temp_path})
+        # This fresh file has not reached remote storage or metadata yet.
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
         raise
     expires_at = utc_now() + timedelta(hours=CANDIDATE_EXPIRY_HOURS)
 
     try:
+        if document_storage.r2_enabled():
+            document_storage.persist_file(temp_path, root=DATA_FOLDER, namespace="knowledge")
         candidate = create_candidate({
             "id": candidate_id,
             "company_id": company_id,
@@ -907,7 +926,13 @@ def validate_supporting_pdf_candidate(
             "expires_at": isoformat(expires_at),
         })
     except Exception:
-        cleanup_candidate_file({"temp_file_path": temp_path})
+        try:
+            cleanup_candidate_file({"temp_file_path": temp_path})
+        finally:
+            # No metadata was saved; remove the newly-created local copy even if
+            # compensation cannot establish that the remote object was deleted.
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
         raise
 
     try:
@@ -985,6 +1010,8 @@ def confirm_supporting_pdf_candidate(candidate_id: str, chatbot_id: int, company
     if not existing:
         raise CandidateStateError("candidate_not_found", "Candidate was not found.")
     if existing.get("validation_status") == "ingested_supporting":
+        if document_storage.r2_enabled():
+            cleanup_candidate_file(existing)
         return {
             "candidate_id": candidate_id,
             "validation_status": "ingested_supporting",
@@ -1006,6 +1033,8 @@ def confirm_supporting_pdf_candidate(candidate_id: str, chatbot_id: int, company
     if not claimed:
         current = get_candidate(candidate_id, chatbot_id, company_id)
         if current and current.get("validation_status") == "ingested_supporting":
+            if document_storage.r2_enabled():
+                cleanup_candidate_file(current)
             return {
                 "candidate_id": candidate_id,
                 "validation_status": "ingested_supporting",
@@ -1018,10 +1047,23 @@ def confirm_supporting_pdf_candidate(candidate_id: str, chatbot_id: int, company
         raise CandidateStateError("candidate_not_confirmable", "Candidate is not in a confirmable passed state.")
 
     temp_path = claimed.get("temp_file_path")
+    if temp_path and document_storage.r2_enabled():
+        try:
+            temp_path = document_storage.materialize_file(temp_path, root=DATA_FOLDER, namespace="knowledge")
+        except FileNotFoundError:
+            mark_candidate_ingest_failed(candidate_id, chatbot_id, company_id, "candidate_file_missing", "Candidate file is missing.")
+            raise CandidateStateError("candidate_file_missing", "Candidate file is missing.") from None
+        except document_storage.DocumentStorageError:
+            mark_candidate_ingest_failed(
+                candidate_id, chatbot_id, company_id,
+                "candidate_storage_unavailable", "Candidate storage is temporarily unavailable.",
+            )
+            raise
     if not temp_path or not os.path.exists(temp_path):
         mark_candidate_ingest_failed(candidate_id, chatbot_id, company_id, "candidate_file_missing", "Candidate file is missing.")
         raise CandidateStateError("candidate_file_missing", "Candidate file is missing.")
 
+    ingestion_recorded = False
     try:
         upload = _StoredCandidateUpload(temp_path, claimed.get("safe_file_name") or claimed.get("original_file_name") or "candidate.pdf")
         ingest_result = save_uploaded_pdf(
@@ -1038,6 +1080,7 @@ def confirm_supporting_pdf_candidate(candidate_id: str, chatbot_id: int, company
         updated = mark_candidate_ingested(candidate_id, chatbot_id, company_id, ingested_file_id)
         if not updated:
             raise RuntimeError("Candidate was not in confirming state when marking ingestion complete.")
+        ingestion_recorded = True
         cleanup_candidate_file(claimed)
         return {
             "candidate_id": candidate_id,
@@ -1054,8 +1097,9 @@ def confirm_supporting_pdf_candidate(candidate_id: str, chatbot_id: int, company
             "candidate": updated or claimed,
         }
     except Exception as exc:
-        logger.exception("Supporting candidate ingestion failed for candidate_id=%s", candidate_id)
-        mark_candidate_ingest_failed(candidate_id, chatbot_id, company_id, "ingest_failed", str(exc))
+        logger.error("Supporting candidate ingestion failed for candidate_id=%s (%s)", candidate_id, type(exc).__name__)
+        if not ingestion_recorded:
+            mark_candidate_ingest_failed(candidate_id, chatbot_id, company_id, "ingest_failed", "Supporting PDF ingestion failed.")
         raise
 
 
@@ -1064,6 +1108,8 @@ def cancel_pdf_candidate(candidate_id: str, chatbot_id: int, company_id: int) ->
     if not candidate:
         raise CandidateStateError("candidate_not_found", "Candidate was not found.")
     if candidate.get("validation_status") == "ingested_supporting":
+        if document_storage.r2_enabled():
+            cleanup_candidate_file(candidate)
         return {"candidate_id": candidate_id, "validation_status": "ingested_supporting", "cancelled": False}
     if candidate.get("validation_status") == "confirming":
         raise CandidateStateError("candidate_confirmation_in_progress", "Candidate is currently being ingested and cannot be cancelled.")

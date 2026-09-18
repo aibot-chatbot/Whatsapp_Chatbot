@@ -13,6 +13,11 @@ def _is_production():
 def load_configurations(app):
     load_dotenv()
 
+    from app.services.document_storage_service import r2_enabled, validate_storage_configuration
+
+    validate_storage_configuration()
+    app.config["DOCUMENT_STORAGE_BACKEND"] = "r2" if r2_enabled() else "local"
+
     # ── CORS ───────────────────────────────────────────────────────────
     cors_raw = os.getenv("CORS_ORIGINS", "").strip()
     if cors_raw:
