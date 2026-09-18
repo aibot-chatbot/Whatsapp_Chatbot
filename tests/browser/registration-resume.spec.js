@@ -23,6 +23,12 @@ for (const matches of [true, false]) {
       if (url.pathname === '/api/auth/google-config') {
         return route.fulfill({ status: 200, json: { enabled: false } });
       }
+      // Turnstile off, the way an unconfigured deployment answers: no widget is
+      // rendered and turnstile-guard.js leaves window.fetch alone, so the
+      // payload asserted below is exactly what the page sends today.
+      if (url.pathname === '/api/auth/turnstile-config') {
+        return route.fulfill({ status: 503, json: { status: 'error' } });
+      }
       if (url.pathname === '/api/auth/register' && request.method() === 'POST') {
         const payload = request.postDataJSON();
         submissions.push(payload);

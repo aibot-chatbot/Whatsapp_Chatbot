@@ -167,6 +167,7 @@
 !app/services/tenant_support_service.py
 !app/services/test_scenario_service.py
 !app/services/turn_cache.py
+!app/services/turnstile_service.py
 !app/services/upload_validation_service.py
 !app/services/wasender_retry_service.py
 !app/services/wasender_service.py
@@ -241,6 +242,7 @@
 !frontend/assets/js/shared-ui.js
 !frontend/assets/js/superadmin-portal.js
 !frontend/assets/js/team.js
+!frontend/assets/js/turnstile-guard.js
 !frontend/behaviour.html
 !frontend/billing.html
 !frontend/bots.html

@@ -17,6 +17,11 @@ from app.services.billing_service import ensure_default_company_subscription
 from app.services.invitation_service import InvitationValidationError, accept_pending_invitation
 from app.services.billing_guard import BillingLimitError
 from app.services.login_destination_service import LoginDestinationError, get_login_destination
+from app.services.turnstile_service import (
+    is_enabled as turnstile_is_enabled,
+    require_turnstile,
+    site_key as turnstile_site_key,
+)
 from app.utils.auth_token import AuthTokenValidationError, create_auth_token
 from app.utils.api_errors import server_error
 import logging
@@ -149,6 +154,32 @@ def sentry_config():
             "dsn": dsn,
             "environment": os.getenv("SENTRY_ENVIRONMENT", "development"),
             "release": os.getenv("SENTRY_RELEASE") or os.getenv("RENDER_GIT_COMMIT") or None,
+        }
+    })
+
+
+@auth_bp.route("/turnstile-config", methods=["GET"])
+def turnstile_config():
+    """Return the public Turnstile site key so the auth pages can show a widget.
+
+    A site key is a public identifier, not a secret - it is visible in the DOM of
+    every page that renders a Turnstile widget. The server-side secret key is
+    never part of this response.
+
+    Returns 503 whenever Turnstile is off or only half configured, which is the
+    normal state today; the frontend reads that as "no challenge to render" and
+    leaves the forms exactly as they are.
+    """
+    if not turnstile_is_enabled():
+        return jsonify({
+            "status": "error",
+            "message": "Bot protection is not configured."
+        }), 503
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "site_key": turnstile_site_key()
         }
     })
 
@@ -323,6 +354,7 @@ def is_password_valid(stored_password, input_password):
 
 @auth_bp.route("/login", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_LOGIN", "10/minute"))
+@require_turnstile
 def login():
     data = request.get_json() or {}
 
@@ -366,6 +398,7 @@ def login():
 @auth_bp.route("/register", methods=["POST"])
 @limiter.limit(lambda: current_app.config.get("RATELIMIT_OTP", "5/hour"))
 @limiter.limit(lambda: current_app.config.get("RATELIMIT_OTP", "5/hour"), key_func=_otp_account_key)
+@require_turnstile
 def register():
     try:
         from app.database.db import supabase
@@ -577,6 +610,7 @@ def resend_otp():
 
 @auth_bp.route("/forgot-password", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_OTP", "5/hour"))
+@require_turnstile
 def forgot_password():
     from app.services.email_service import send_reset_email
     data = request.get_json() or {}
