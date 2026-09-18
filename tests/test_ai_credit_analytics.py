@@ -6,6 +6,7 @@ import types
 import re
 import unittest
 from unittest.mock import MagicMock, patch
+from datetime import datetime, timedelta, timezone
 
 
 # --- Billing moved out of profile.html (2026-09) -------------------------------
@@ -117,6 +118,14 @@ class TestAiCreditAnalyticsService(unittest.TestCase):
     def test_aggregates_spend_tokens_models_and_legacy_usage(self):
         from app.services import ai_credit_service
 
+        # The service asks for a rolling ``days=30`` window ending today, so
+        # fixture rows pinned to fixed calendar dates silently age out of it --
+        # this test started failing on 2026-09-18 for that reason alone, with
+        # nothing in the code having changed. Anchoring to today keeps the two
+        # days inside any window of three days or more.
+        active_day = (datetime.now(timezone.utc) - timedelta(days=2)).date().isoformat()
+        prior_day = (datetime.now(timezone.utc) - timedelta(days=3)).date().isoformat()
+
         usage_rows = [
             {
                 "id": 10,
@@ -127,7 +136,7 @@ class TestAiCreditAnalyticsService(unittest.TestCase):
                 "prompt_tokens": 100,
                 "completion_tokens": 40,
                 "total_tokens": 140,
-                "created_at": "2026-08-19T10:00:00+00:00",
+                "created_at": f"{active_day}T10:00:00+00:00",
             },
             {
                 "id": 11,
@@ -138,7 +147,7 @@ class TestAiCreditAnalyticsService(unittest.TestCase):
                 "prompt_tokens": 25,
                 "completion_tokens": 15,
                 "total_tokens": 40,
-                "created_at": "2026-08-19T11:00:00+00:00",
+                "created_at": f"{active_day}T11:00:00+00:00",
             },
         ]
         credit_rows = [
@@ -146,14 +155,14 @@ class TestAiCreditAnalyticsService(unittest.TestCase):
                 "transaction_type": "usage_debit",
                 "customer_charge_micro_myr": 30000,
                 "ai_usage_log_id": 10,
-                "created_at": "2026-08-19T10:00:02+00:00",
+                "created_at": f"{active_day}T10:00:02+00:00",
             },
             {
                 "transaction_type": "usage_debit",
                 "included_delta_micro_myr": -7000,
                 "topup_delta_micro_myr": -3000,
                 "ai_usage_log_id": None,
-                "created_at": "2026-08-18T10:00:02+00:00",
+                "created_at": f"{prior_day}T10:00:02+00:00",
             },
         ]
 
@@ -181,7 +190,7 @@ class TestAiCreditAnalyticsService(unittest.TestCase):
         self.assertEqual(result["summary"]["ai_credit_balance_micro_myr"], 1250000)
         active_request_days = [
             row for row in result["request_trend"]
-            if row["date"] == "2026-08-19"
+            if row["date"] == active_day
         ]
         self.assertEqual(active_request_days[0]["request_count"], 2)
         self.assertEqual(result["legacy"]["legacy_spend_micro_myr"], 10000)
@@ -189,7 +198,7 @@ class TestAiCreditAnalyticsService(unittest.TestCase):
         self.assertEqual(result["model_daily_usage"][0]["model"], "openai/gpt-4.1")
         active_model_days = [
             row for row in result["model_daily_usage"][0]["days"]
-            if row["date"] == "2026-08-19"
+            if row["date"] == active_day
         ]
         self.assertEqual(active_model_days[0]["total_tokens"], 140)
         self.assertEqual(result["operations"][0]["operation_type"], "chat_reply")
