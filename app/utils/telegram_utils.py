@@ -18,6 +18,7 @@ from app.database.processed_telegram_update_repository import (
 from app.services.media_send_service import dispatch_media_after_reply
 from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed
 from app.database.agent_action_repository import is_conversation_escalated
+from app.services.turn_cache import turn_cache
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.utils.message_style_utils import parse_buttons_tag, format_for_telegram_markdown
 
@@ -174,6 +175,28 @@ def split_telegram_reply(text: str, max_length: int = 3900):
     return parts
 
 
+def assert_telegram_channel_ready(webhook_secret: str) -> None:
+    """Raise if the channel is reserved but not yet activated.
+
+    Split out of :func:`process_telegram_update` so the route can resolve this
+    on the request thread. The resulting 409 is load-bearing: it makes Telegram
+    RETAIN the update and redeliver it while a new setup is still pending, so a
+    failed setup does not answer alongside the old bot. Acknowledging with 200
+    first would discard that update permanently.
+
+    An unknown secret is NOT a readiness failure -- process_telegram_update
+    logs and drops it, and asking Telegram to retry forever on a retired
+    webhook is the behaviour this check exists to avoid.
+    """
+    channel = get_telegram_channel_by_secret(webhook_secret)
+
+    if not channel:
+        return
+
+    if channel.get("connection_status") in {"pending", "failed", "disconnected"}:
+        raise TelegramChannelNotReadyError("Telegram channel is not ready to receive updates")
+
+
 def process_telegram_update(update: dict, webhook_secret: str):
     """
     Process incoming Telegram webhook update.
@@ -220,7 +243,8 @@ def process_telegram_update(update: dict, webhook_secret: str):
         return
     progress = {"started": False}
     try:
-        return _process_claimed_telegram_update(update, channel, progress)
+        with turn_cache():
+            return _process_claimed_telegram_update(update, channel, progress)
     except Exception:
         # Retry is safe only before transcript, AI billing or provider delivery.
         # A timeout after these effects needs reconciliation, not another charge.

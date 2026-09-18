@@ -21,6 +21,7 @@ from app.database.wasender_channel_repository import (
     disconnect_wasender_channel,
 )
 from app.services.wasender_service import process_wasender_webhook
+from app.services.webhook_worker import submit
 from app.database.channel_lifecycle_repository import (
     activate_channel, ensure_channel_slot, ChannelActivationError,
 )
@@ -424,13 +425,32 @@ def wasender_webhook_post(webhook_secret):
             "Wasender webhook received for channel %s",
             hashlib.sha256(webhook_secret.encode()).hexdigest()[:12],
         )
-        process_wasender_webhook(payload, webhook_secret)
+        # Answer WasenderAPI before generating the reply. A reply takes ~7 s, and
+        # the provider redelivered the message when its own timeout expired --
+        # harmless in content (claim_wasender_message de-duplicates by
+        # message_id) but each redelivery held one of eight gunicorn threads for
+        # another seven seconds. Unlike Telegram there is no retain-and-retry
+        # semantic to preserve here: an unknown secret is logged and dropped
+        # (wasender_service:243), not retried.
+        if not submit(
+            "Wasender webhook",
+            lambda: process_wasender_webhook(payload, webhook_secret),
+        ):
+            logging.warning("Wasender webhook queue is full; asking the provider to redeliver.")
+            return jsonify({
+                "status": "busy",
+                "message": "Busy"
+            }), 503
 
         return jsonify({
             "status": "ok"
         }), 200
 
     except Exception as e:
+        # Deliberately no exc_info: a traceback carries the exception's own
+        # message, and these exceptions quote customer text and credentials.
+        # tests/test_wasender_logging.py pins that. The type name is all that
+        # may be logged; read the failing frame from the Sentry stacktrace.
         logging.error("Wasender webhook error (%s)", type(e).__name__)
         return jsonify({
             "status": "error",

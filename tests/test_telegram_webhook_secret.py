@@ -11,6 +11,8 @@ Two defects this pins down:
 """
 
 import unittest
+
+from app.services.webhook_worker import drain
 from unittest.mock import MagicMock, patch
 
 from app.routes import telegram_routes as tr
@@ -61,8 +63,14 @@ class TestWebhookHeaderVerification(unittest.TestCase):
                                 json={"update_id": 1}, headers=headers)
 
     def test_matching_header_is_processed(self):
-        with patch.object(tr, "process_telegram_update") as process:
+        with patch.object(tr, "process_telegram_update") as process,              patch.object(tr, "assert_telegram_channel_ready"):
             response = self.post("abc123", header="abc123")
+            # Drained inside the patch context. The route acknowledges Telegram
+            # before processing, so the update runs on a worker thread; letting
+            # these patches unwind first sends the worker at the real client.
+            # Header verification still happens on the request thread -- see the
+            # rejection test below, which passes with no drain at all.
+            self.assertTrue(drain(), "webhook worker did not finish")
 
         self.assertEqual(response.status_code, 200)
         process.assert_called_once()
@@ -74,11 +82,26 @@ class TestWebhookHeaderVerification(unittest.TestCase):
         self.assertEqual(response.status_code, 403)
         process.assert_not_called()
 
+    def test_a_channel_that_is_not_ready_is_retained_for_retry(self):
+        # Readiness is resolved on the request thread precisely so this 409
+        # survives: it is what makes Telegram hold the update and redeliver it
+        # while a new channel is reserved but not yet active. Acknowledging
+        # first would drop it, and the old bot would keep answering alone.
+        from app.utils.telegram_utils import TelegramChannelNotReadyError
+
+        with patch.object(tr, "process_telegram_update") as process,              patch.object(tr, "assert_telegram_channel_ready",
+                          side_effect=TelegramChannelNotReadyError("not ready")):
+            response = self.post("abc123", header="abc123")
+
+        self.assertEqual(response.status_code, 409)
+        process.assert_not_called()
+
     def test_missing_header_still_works_for_channels_connected_before_this(self):
         # Rejecting these would break every bot that is live right now. The
         # 256-bit path secret remains the primary gate.
-        with patch.object(tr, "process_telegram_update") as process:
+        with patch.object(tr, "process_telegram_update") as process,              patch.object(tr, "assert_telegram_channel_ready"):
             response = self.post("abc123", header=None)
+            self.assertTrue(drain(), "webhook worker did not finish")
 
         self.assertEqual(response.status_code, 200)
         process.assert_called_once()
