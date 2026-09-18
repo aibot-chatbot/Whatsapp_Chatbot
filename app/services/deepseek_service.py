@@ -9,7 +9,12 @@ load_dotenv()
 
 client = OpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
-    base_url="https://api.deepseek.com"
+    base_url="https://api.deepseek.com",
+    # The SDK default is 600s. A stalled reply held one of the eight gunicorn
+    # threads for ten minutes per attempt while the customer waited. 60s
+    # matches the bound openrouter_service already uses, and a measured
+    # completion on this path takes 2.0-2.8s.
+    timeout=60,
 )
 
 CUSTOMER_SERVICE_SYSTEM_MESSAGE = (

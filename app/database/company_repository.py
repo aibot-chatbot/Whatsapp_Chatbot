@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from app.database.db import supabase
+from app.services.turn_cache import cached
 
 
 TABLE_NAME = "companies"
@@ -52,6 +53,12 @@ def get_company_status_by_id(company_id):
     if not company_id:
         raise ValueError("Company ID is required")
 
+    # Checked five times while a single reply is generated. A suspension that
+    # lands mid-reply is honoured on the next message either way.
+    return cached(("company_status", company_id), lambda: _select_company_status(company_id))
+
+
+def _select_company_status(company_id):
     response = (
         supabase.table(TABLE_NAME)
         .select("id,status")

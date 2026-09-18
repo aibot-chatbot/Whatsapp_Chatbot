@@ -458,7 +458,9 @@ def find_chunks_for_exact_code(chatbot_id, file_id, code, limit=3, chunks=None):
     if not code or not file_id or limit <= 0:
         return []
 
-    file_chunks = chunks if chunks is not None else get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+    file_chunks = chunks if chunks is not None else get_chunks_by_file_for_chatbot(
+        chatbot_id, file_id, include_embedding=False,
+    )
     matches = []
 
     for chunk in file_chunks or []:
@@ -529,7 +531,9 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
         if active_pdf:
             active_pdf_id = active_pdf.get("id")
             logging.info("[RAG] Active primary PDF file_id=%s", active_pdf_id)
-            pdf_chunks = get_chunks_by_file_for_chatbot(chatbot_id, active_pdf_id)
+            pdf_chunks = get_chunks_by_file_for_chatbot(
+                chatbot_id, active_pdf_id, include_embedding=False,
+            )
             logging.info("[RAG] PDF chunks loaded=%s", len(pdf_chunks))
 
             exact_code_matches = []
@@ -599,7 +603,9 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
                     else "Supporting document knowledge"
                 )
 
-                support_chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+                support_chunks = get_chunks_by_file_for_chatbot(
+                    chatbot_id, file_id, include_embedding=False,
+                )
                 logging.info(
                     "[RAG] Supporting %s file_id=%s chunks loaded=%s",
                     source_key,

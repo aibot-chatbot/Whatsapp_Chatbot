@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from app.database.db import supabase
+from app.services.turn_cache import cached
 
 
 TABLE_NAME = "subscription_plans"
@@ -28,6 +29,12 @@ def get_plan_by_id(plan_id):
     if not plan_id:
         return None
 
+    # Resolved three times per reply, through resolve_ai_access. The catalogue
+    # is read-only to this role, so it cannot change inside a turn.
+    return cached(("plan", plan_id), lambda: _select_plan(plan_id))
+
+
+def _select_plan(plan_id):
     response = (
         supabase
         .table(TABLE_NAME)

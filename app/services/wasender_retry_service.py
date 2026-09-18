@@ -132,9 +132,20 @@ def retry_failed_wasender_messages_once():
                 delay_seconds=RETRY_DELAY_SECONDS,
             )
 
-            logging.warning(
-                "Wasender retry failed for message_id=%s", message_id
-            )
+            if retry_count >= MAX_RETRIES:
+                # The one send failure that needs a human: the retry budget is
+                # spent and this reply will never reach the customer. Every
+                # attempt before this one is a warning, so the report is raised
+                # once per lost message instead of once per attempt.
+                logging.error(
+                    "Wasender reply permanently undelivered for message_id=%s after %s attempts",
+                    message_id,
+                    retry_count,
+                )
+            else:
+                logging.warning(
+                    "Wasender retry failed for message_id=%s", message_id
+                )
 
         retried_count += 1
 
@@ -149,6 +160,7 @@ def wasender_retry_loop():
             retry_failed_wasender_messages_once()
 
         except Exception as e:
+            # No exc_info here either: see wasender_routes.wasender_webhook_post.
             logging.error("Wasender retry worker error (%s)", type(e).__name__)
 
         time.sleep(CHECK_INTERVAL_SECONDS)

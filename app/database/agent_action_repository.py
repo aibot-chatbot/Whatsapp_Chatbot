@@ -2,6 +2,7 @@ from contextlib import nullcontext
 
 from app.database.db import supabase
 from app.services.conversation_delivery_lock import conversation_delivery_lock
+from app.services.turn_cache import cached
 
 
 ESCALATION_INTENTS = ["handoff_request", "complaint", "knowledge_gap"]
@@ -254,10 +255,17 @@ def is_conversation_escalated(conversation_id, chatbot_id=None, conversation=Non
     if conversation.get("customer_phone"):
         customers.append(("customer_phone", conversation["customer_phone"]))
     for field, value in customers:
-        legacy = (supabase.table("conversations").select("id").eq("chatbot_id", chatbot_id)
-                  .eq("source_channel", conversation["source_channel"]).eq("conversation_status", "open")
-                  .is_("source_channel_id", "null").eq(field, value).execute())
-        ids = [row["id"] for row in (legacy.data or [])]
+        # Which conversations are legacy is fixed for the turn - current code
+        # always stamps source_channel_id - so only the id list is memoised.
+        # Whether one of them has an unresolved handoff is re-read every time,
+        # because a human can take over while the model is still generating.
+        ids = cached(
+            ("legacy_conversation_ids", chatbot_id, conversation["source_channel"], field, value),
+            lambda: [row["id"] for row in (
+                supabase.table("conversations").select("id").eq("chatbot_id", chatbot_id)
+                .eq("source_channel", conversation["source_channel"]).eq("conversation_status", "open")
+                .is_("source_channel_id", "null").eq(field, value).execute().data or [])],
+        )
         if ids:
             pending = (supabase.table("agent_actions").select("id").eq("chatbot_id", chatbot_id)
                        .in_("conversation_id", ids).eq("status", "detected")

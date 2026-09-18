@@ -165,7 +165,7 @@ def get_primary_pdf_greeting_menu(chatbot_id):
         if not file_id:
             return ""
 
-        chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
+        chunks = get_chunks_by_file_for_chatbot(chatbot_id, file_id, include_embedding=False)
         for chunk in chunks or []:
             menu = _extract_menu_from_chunk(chunk.get("content", ""))
             if menu:

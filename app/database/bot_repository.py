@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from app.database.db import supabase
+from app.services.turn_cache import cached
 
 TABLE_NAME = "chatbots"
 ACTIVE_STATUS = "active"
@@ -41,6 +42,16 @@ def get_archived_bots(company_id):
 
 
 def get_bot_by_id(bot_id, company_id=None, include_archived=False):
+    # The reply path asks for the same unfiltered bot row six times per
+    # inbound message. Inside a turn that is one round trip; everywhere else
+    # this is a straight read.
+    if company_id is None and not include_archived:
+        return cached(("bot", bot_id), lambda: _select_bot(bot_id, None, False))
+
+    return _select_bot(bot_id, company_id, include_archived)
+
+
+def _select_bot(bot_id, company_id, include_archived):
     query = (
         supabase
         .table(TABLE_NAME)
