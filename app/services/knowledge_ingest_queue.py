@@ -428,3 +428,19 @@ def _ensure_started() -> None:
             daemon=True,
         ).start()
         _started = True
+
+
+def start_consumer() -> None:
+    """Start the consumer at boot, so a stranded message drains on its own.
+
+    ``publish`` starts it too, but that alone leaves the queue unattended after
+    a deploy: a message whose consumer died mid-ingest waits for the next upload
+    before anyone pulls it again, which on a quiet day is hours.
+
+    Safe to call while the feature is off. :func:`_loop` re-reads :func:`enabled`
+    on every iteration, so with ``INGEST_QUEUE_ENABLED`` unset this is one
+    sleeping thread that costs nothing, and turning the flag on becomes a secret
+    change rather than a deploy. Idempotent -- ``_ensure_started`` starts the
+    thread exactly once per process.
+    """
+    _ensure_started()

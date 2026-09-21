@@ -385,3 +385,28 @@ def test_status_reports_a_claimed_ingest_as_processing(monkeypatch):
     # The page renders one vocabulary; "ingesting" is an internal claim marker.
     assert job["status"] == jobs.STATUS_PROCESSING
     assert job["phase"] == jobs.PHASE_UNKNOWN
+
+
+# ── 7. The consumer comes up at boot, not only on the first upload ────────
+
+
+def test_start_consumer_is_idempotent_and_independent_of_the_flag(monkeypatch):
+    monkeypatch.delenv("INGEST_QUEUE_ENABLED", raising=False)
+    names = []
+
+    class _Recorded:
+        def __init__(self, **kwargs):
+            names.append(kwargs.get("name"))
+
+        def start(self):
+            pass
+
+    monkeypatch.setattr(ingest_queue.threading, "Thread", _Recorded)
+
+    # wsgi.py calls this at boot with the feature off -- it must still start,
+    # because _loop re-reads the flag and an operator turning it on should not
+    # need a deploy. publish() then calls it again on the first upload.
+    ingest_queue.start_consumer()
+    ingest_queue.start_consumer()
+
+    assert names == ["knowledge-ingest-consumer"]
