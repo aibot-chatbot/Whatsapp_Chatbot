@@ -428,6 +428,12 @@ def _ensure_started() -> None:
             daemon=True,
         ).start()
         _started = True
+        # Says it exactly once per process, whether boot or the first publish
+        # got here. Without it there is no way to tell from the logs that the
+        # consumer is running, which is the one thing an operator needs to know
+        # after a deploy -- the other two workers in wsgi.py both announce
+        # themselves for the same reason.
+        logger.info("Knowledge ingest consumer started.")
 
 
 def start_consumer() -> None:
