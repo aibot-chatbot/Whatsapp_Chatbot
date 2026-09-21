@@ -705,6 +705,18 @@ def delete_pdf_file(file_name, chatbot_id):
         delete_graph_by_file_id(chatbot_id, file_id)
     except Exception as e:
         logging.error(f"Failed to delete graph data for file_id {file_id}: {e}")
+    # Deleting this row -- not merely flagging it -- is what makes the delete
+    # take effect now rather than eventually. Cloudflare AI Search re-indexes
+    # the R2 bucket on a timer, so this document's vectors outlive the object
+    # removed above by up to that interval (six hours as configured) and stay
+    # reachable through ai_search_service.search_chunks. That module attributes
+    # every chunk it gets back to a live knowledge_files row for this chatbot
+    # and discards what it cannot attribute, so the row disappearing here, in
+    # the same request, is the thing that stops the stale copy answering. A
+    # soft delete, a status flag or a retained row would silently re-open that
+    # window. The ordering carries the same weight: the object goes first and
+    # raises on failure, so the row outlives the object only in the case where
+    # the tenant was already told the deletion did not complete.
     delete_knowledge_file_by_id(chatbot_id, file_id)
 
     if is_active_file:

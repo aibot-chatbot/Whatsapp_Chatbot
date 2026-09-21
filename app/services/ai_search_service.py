@@ -37,6 +37,20 @@ only function that builds a URL or a body, it takes an already-validated tenant
 value as its first argument, and it always writes that value into the filter.
 There is no code path that can post without one.
 
+THE SAME RE-CHECK IS ALSO THE WITHDRAWAL CONTROL. Cloudflare re-indexes the
+bucket on a timer (``sync_interval``, six hours as configured), so a document's
+vectors outlive its R2 object by up to that interval. Nothing in this
+application can make Cloudflare forget sooner, and a metadata tombstone would
+not help either: AI Search fingerprints content, so rewriting an object's
+metadata without changing its body skips re-extraction entirely. What closes
+that window is the re-check above. ``knowledge_service.delete_pdf_file``
+hard-deletes the ``knowledge_files`` row in the same request that deletes the
+object, so from that moment the stale chunk has no row to attribute it to and
+is discarded here rather than returned. The set is therefore built from what
+retrieval may *currently* use, not from what merely exists: a supporting source
+the operator disabled is withdrawn here too, because the local path already
+ignores it and this path must not be the one door it still answers through.
+
 THE SWITCH IS OFF AND IS RE-READ PER CALL. Same reasoning as
 ``ai_gateway.py`` and ``cf_queue.py``: an operator must be able to stop
 querying by changing a Fly secret, not by shipping a deploy. ``enabled()``
@@ -293,12 +307,33 @@ def _tenant_filter_value(chatbot_id) -> str | None:
     return value if _TENANT_ID_PATTERN.fullmatch(value) else None
 
 
+def _retrievable(row) -> bool:
+    """Whether local retrieval would still search this ``knowledge_files`` row.
+
+    Remote attribution has to mirror local eligibility, or this path becomes
+    the one door a withdrawn document still answers through. Local retrieval
+    loads the active primary on its own path -- ``is_active``, which
+    ``toggle_supporting_knowledge`` refuses to disable -- plus the supporting
+    sources the operator left enabled.
+
+    Only an explicit ``False`` withdraws a row. A missing or null flag predates
+    the column rather than meaning "switched off", which is the same reading
+    ``resolve_knowledge_role`` and the knowledge routes already use.
+    """
+    return bool(row.get("is_active")) or row.get("is_enabled") is not False
+
+
 def _owned_file_names(chatbot_id) -> set[str] | None:
-    """Names of every knowledge document this tenant owns, or None if unknown.
+    """Names this tenant can currently be answered from, or None if unknown.
 
     The rows come from ``knowledge_files`` scoped to this chatbot id, which is
     the same scoping the rest of retrieval uses. None means the check could not
     run -- and a chunk that cannot be checked is discarded, never returned.
+
+    A document the tenant deleted has no row at all, and a supporting source
+    they disabled is filtered out by ``_retrievable``; either way its chunks
+    stop being attributable the moment the tenant acts, rather than whenever
+    Cloudflare next syncs the bucket.
     """
     try:
         rows = get_knowledge_files(chatbot_id)
@@ -311,7 +346,7 @@ def _owned_file_names(chatbot_id) -> set[str] | None:
     return {
         str(row.get("file_name")).strip()
         for row in rows or []
-        if isinstance(row, dict) and row.get("file_name")
+        if isinstance(row, dict) and row.get("file_name") and _retrievable(row)
     }
 
 

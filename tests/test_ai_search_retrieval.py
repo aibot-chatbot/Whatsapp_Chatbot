@@ -16,8 +16,11 @@ No test here performs real network I/O: an autouse fixture replaces
 without saying so first.
 """
 
+from unittest.mock import MagicMock
+
 import pytest
 
+from app.database import knowledge_file_repository
 from app.services import ai_search_service
 from app.services import rag_service
 
@@ -756,3 +759,121 @@ def test_search_chunks_is_the_only_public_way_to_query(monkeypatch):
         if name.startswith("search") or name.startswith("query")
     ]
     assert posting_helpers == ["search_chunks"]
+
+
+# --------------------------------------------------------------------------
+# Withdrawal: a stale index must not outlive the tenant's decision
+#
+# Cloudflare re-indexes the bucket on a timer (six hours as configured), so a
+# document's vectors survive the R2 object by up to that interval and no call
+# from this application can make Cloudflare forget sooner. What closes the
+# window instead is that attribution reads a *live* knowledge_files row: the
+# delete removes that row in the same request, and a disabled supporting
+# source is filtered out of the same set. These tests pin both halves -- the
+# hinge (the row really is deleted, not flagged) and the effect (the stale
+# chunk is discarded). Every one of them has Cloudflare still returning the
+# withdrawn document, because that is the real situation being defended
+# against.
+# --------------------------------------------------------------------------
+
+WITHDRAWN_FILE_NAME = "bot_7_def456_price_list.pdf"
+
+KEPT_TEXT = "the source this tenant still retrieves from"
+WITHDRAWN_TEXT = "the source this tenant withdrew"
+
+
+def _rows(monkeypatch, *rows):
+    """Back the ownership check with an explicit set of knowledge_files rows."""
+    monkeypatch.setattr(ai_search_service, "get_knowledge_files", lambda chatbot_id: list(rows))
+
+
+def _both_documents_returned(monkeypatch):
+    """Cloudflare answering with both documents, withdrawn one included."""
+    return _respond(
+        monkeypatch,
+        response=_Response(
+            payload=_chunks_payload(
+                _chunk(TENANT_FILE_NAME, KEPT_TEXT),
+                _chunk(WITHDRAWN_FILE_NAME, WITHDRAWN_TEXT),
+            )
+        ),
+    )
+
+
+def _kept_chunk_only(chunks):
+    return chunks == [f"{ai_search_service.SOURCE_LABEL}:\n{KEPT_TEXT}"]
+
+
+def test_deleting_a_document_removes_its_row_rather_than_flagging_it(monkeypatch):
+    """The hinge the whole window depends on.
+
+    A soft delete -- a status column, a deleted_at stamp, any retained row --
+    would leave the deleted document attributable for the entire sync interval
+    while every test above still passed.
+    """
+    table = MagicMock()
+    client = MagicMock()
+    client.table.return_value = table
+    monkeypatch.setattr(knowledge_file_repository, "supabase", client)
+
+    knowledge_file_repository.delete_knowledge_file_by_id(TENANT_ID, 55)
+
+    client.table.assert_called_once_with("knowledge_files")
+    table.delete.assert_called_once_with()
+    table.update.assert_not_called()
+    by_chatbot = table.delete.return_value.eq
+    by_chatbot.assert_called_once_with("chatbot_id", TENANT_ID)
+    by_chatbot.return_value.eq.assert_called_once_with("id", 55)
+
+
+def test_a_deleted_documents_stale_chunk_never_reaches_the_caller(monkeypatch):
+    """The effect: losing the row is what stops the stale copy answering.
+
+    The same Cloudflare response is used before and after, because that is the
+    point -- the index has not changed and will not for hours. Only the row
+    set changed, and that alone must be enough.
+    """
+    _configure(monkeypatch)
+
+    _rows(
+        monkeypatch,
+        {"id": 1, "file_name": TENANT_FILE_NAME},
+        {"id": 2, "file_name": WITHDRAWN_FILE_NAME},
+    )
+    _both_documents_returned(monkeypatch)
+    assert len(ai_search_service.search_chunks("price", TENANT_ID, top_k=5)) == 2
+
+    _rows(monkeypatch, {"id": 1, "file_name": TENANT_FILE_NAME})
+    _both_documents_returned(monkeypatch)
+    assert _kept_chunk_only(ai_search_service.search_chunks("price", TENANT_ID, top_k=5))
+
+
+def test_a_disabled_supporting_source_is_withdrawn_from_this_path_too(monkeypatch):
+    """Local retrieval only searches enabled supporting sources.
+
+    If this path did not, disabling a source would silently leave it as the
+    one door the bot still answers from -- permanently, not for six hours.
+    """
+    _configure(monkeypatch)
+    _rows(
+        monkeypatch,
+        {"id": 1, "file_name": TENANT_FILE_NAME, "is_active": True, "is_enabled": True},
+        {"id": 2, "file_name": WITHDRAWN_FILE_NAME, "is_active": False, "is_enabled": False},
+    )
+    _both_documents_returned(monkeypatch)
+
+    assert _kept_chunk_only(ai_search_service.search_chunks("price", TENANT_ID, top_k=5))
+
+
+def test_the_active_primary_is_never_withdrawn_by_a_stale_enabled_flag(monkeypatch):
+    """Recall must not be lost to the disabled filter.
+
+    A source can be disabled and then promoted to primary: set_active_knowledge_file
+    flips is_active and leaves is_enabled alone. Local retrieval loads the
+    primary without consulting is_enabled, so this path must not drop it.
+    """
+    _configure(monkeypatch)
+    _rows(monkeypatch, {"id": 1, "file_name": TENANT_FILE_NAME, "is_active": True, "is_enabled": False})
+    _respond(monkeypatch, response=_Response(payload=_chunks_payload(_chunk(TENANT_FILE_NAME, KEPT_TEXT))))
+
+    assert _kept_chunk_only(ai_search_service.search_chunks("price", TENANT_ID, top_k=5))
