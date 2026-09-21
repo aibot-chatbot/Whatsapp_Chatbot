@@ -106,6 +106,14 @@ def probe_tenant(service, chatbot_id: int, query: str, top_k: int) -> dict:
         if tenant_value is not None
         else None
     )
+    # `_post_search` answers None for a transport failure exactly as it does for
+    # an unbuildable filter, and conflating the two reports a leak that is not
+    # one: on a ReadTimeout the real search keeps its chunks while the
+    # diagnostic call returns nothing to compare them against, so the
+    # kept-vs-remote arithmetic accuses the application of leaking its own
+    # tenant's data. Observed live 2026-09-21 against chatbot 11.
+    diagnostic_ran = envelope is not None
+
     entries = service._documents(envelope) if envelope is not None else []
     keys = [service._document_file_name(entry) for entry in entries]
     foreign = [key for key in keys if key is None or key not in owned_names]
@@ -113,6 +121,7 @@ def probe_tenant(service, chatbot_id: int, query: str, top_k: int) -> dict:
     return {
         "chatbot_id": chatbot_id,
         "ownership_check_ran": owned is not None,
+        "diagnostic_ran": diagnostic_ran,
         "owned_files": len(owned_names),
         "remote_chunks": len(entries),
         "kept_chunks": len(kept),
@@ -131,6 +140,13 @@ def leak_reason(result: dict) -> str | None:
     ever bites, is for ``search_chunks`` to return attribution instead of bare
     text so one call can answer both questions.
     """
+    if not result.get("diagnostic_ran", True):
+        # No second opinion to compare against, so there is nothing to conclude.
+        # anomaly_reasons reports this instead, which exits 2 -- "could not
+        # verify" -- rather than 1. A boundary harness that calls a timeout a
+        # leak is a harness people stop believing.
+        return None
+
     owned_chunks = result["remote_chunks"] - result["discarded"]
     if result["kept_chunks"] > owned_chunks:
         return (
@@ -143,6 +159,12 @@ def leak_reason(result: dict) -> str | None:
 def anomaly_reasons(result: dict, expect_owner: bool) -> list[str]:
     """Findings the application contained, plus the ways a pass proves nothing."""
     notes = []
+    if not result.get("diagnostic_ran", True):
+        notes.append(
+            "the diagnostic search failed (see the warning above), so the chunks "
+            "this tenant kept could not be compared against what Cloudflare "
+            "returned; re-run before drawing any conclusion"
+        )
     if not result["ownership_check_ran"]:
         notes.append(
             "the ownership check could not run, so every chunk would be discarded "

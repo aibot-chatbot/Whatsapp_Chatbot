@@ -164,6 +164,27 @@ class SmokeTestAiSearchTests(unittest.TestCase):
 
     # -- the ways a pass would prove nothing ------------------------------
 
+    def test_a_failed_diagnostic_search_is_not_reported_as_a_leak(self):
+        """A ReadTimeout on the second call must not accuse the application.
+
+        The script searches twice: once through ``search_chunks`` and once
+        through ``_post_search`` to name the keys. When the second call fails,
+        ``_post_search`` answers None exactly as it does for an unbuildable
+        filter, so the comparison sees zero remote chunks against a healthy set
+        of kept ones and the arithmetic reads as a leak. It is not one -- it is
+        the absence of a second opinion. Observed live 2026-09-21 on chatbot 11.
+        """
+        responses, owned, kept = self.healthy()
+        victim = self.mod.OWNING_CHATBOT_IDS[0]
+        responses[victim] = None  # transport failure, not an empty result
+
+        code, lines = self.run_with(responses, owned, kept)
+        text = "\n".join(lines)
+
+        self.assertEqual(code, 2, "a failed diagnostic is 'could not verify', not a leak")
+        self.assertNotIn("LEAK", text)
+        self.assertIn("could not be compared", text)
+
     def test_a_contained_remote_leak_is_still_a_failure(self):
         """The remote filter leaks, the application discards it: not a pass."""
         responses, owned, kept = self.healthy()
