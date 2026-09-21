@@ -129,6 +129,51 @@ def test_persist_uses_contained_stable_private_key(r2, tmp_path):
     assert "ACL" not in observed
 
 
+def test_persist_marks_the_object_with_the_caller_supplied_tenant(r2, tmp_path):
+    path = tmp_path / "bot_7_abc_report.pdf"
+    path.write_bytes(b"%PDF-synthetic")
+    storage.persist_file(path, root=tmp_path, namespace="knowledge", chatbot_id=7, company_id=3)
+    assert r2.put_object.call_args.kwargs["Metadata"] == {"chatbot_id": "7", "company_id": "3"}
+
+
+def test_generated_write_marks_the_object_with_the_caller_supplied_tenant(r2, tmp_path):
+    storage.write_file(tmp_path / "bot_7_42_readme.md", b"summary",
+                       root=tmp_path, namespace="knowledge", chatbot_id=7)
+    assert r2.put_object.call_args.kwargs["Metadata"] == {"chatbot_id": "7"}
+
+
+@pytest.mark.parametrize("tenant", [
+    None,                       # a call site with no chatbot id at all
+    "7 OR 1=1",                 # not a safe header token
+    "x" * 65,                   # beyond the 64-byte filter match window
+    "",
+])
+def test_upload_without_a_usable_tenant_still_succeeds_and_marks_nothing(r2, tmp_path, tenant):
+    path = tmp_path / "document.pdf"
+    path.write_bytes(b"%PDF-synthetic")
+    storage.persist_file(path, root=tmp_path, namespace="knowledge", chatbot_id=tenant)
+    storage.write_file(tmp_path / "summary.md", b"x", root=tmp_path, namespace="knowledge", chatbot_id=tenant)
+    assert r2.put_object.call_count == 2
+    for call in r2.put_object.call_args_list:
+        # No marker is the closed direction: the object matches no tenant filter.
+        assert "Metadata" not in call.kwargs
+
+
+def test_marked_upload_failure_still_compensates_the_exact_key_and_reraises(r2, tmp_path):
+    path = tmp_path / "bot_7_abc_report.pdf"
+    path.write_bytes(b"%PDF-synthetic")
+    r2.put_object.side_effect = S3Error("AccessDenied")
+
+    with pytest.raises(storage.DocumentStorageError, match="could not be stored") as caught:
+        storage.persist_file(path, root=tmp_path, namespace="knowledge", chatbot_id=7)
+    assert "private provider" not in str(caught.value)
+
+    storage.delete_file(path, root=tmp_path, namespace="knowledge")
+    r2.delete_object.assert_called_once_with(
+        Bucket="private-test-documents", Key="knowledge/bot_7_abc_report.pdf")
+    assert not path.exists()
+
+
 def test_failed_upload_does_not_report_success(r2, tmp_path):
     path = tmp_path / "document.pdf"
     path.write_bytes(b"%PDF-synthetic")

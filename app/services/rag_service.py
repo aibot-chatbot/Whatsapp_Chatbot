@@ -10,6 +10,7 @@ from app.services.settings_service import (
     get_deployed_runtime,
 )
 from app.services.profile_service import get_profile_by_name
+from app.services import ai_search_service
 from app.database.knowledge_chunk_repository import search_similar_chunks, get_chunks_by_file_for_chatbot
 from app.database.knowledge_file_repository import get_active_knowledge_file, get_supporting_knowledge_files
 
@@ -734,14 +735,29 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
 
         graph_facts = memory_facts + graph_facts
 
+        # --- OPTIONAL REMOTE RETRIEVAL (Cloudflare AI Search), OFF BY DEFAULT ---
+        # Additive and last: consulted only once every local path above found
+        # nothing, so a tenant whose documents are chunked in the database
+        # cannot have their behaviour changed by it. In particular the exact
+        # menu-code match fills context_chunks before this line is reached, so
+        # a customer typing a menu code still gets that exact item. Returns []
+        # for every failure and never raises.
+        ai_search_count = 0
+        if not context_chunks:
+            context_chunks = ai_search_service.search_chunks(
+                query, chatbot_id, top_k=top_k,
+            )
+            ai_search_count = len(context_chunks)
+
         if not context_chunks and not graph_facts:
             logging.info("No relevant primary, supporting source chunks, or graph connections found.")
 
         logging.info(
-            "[RAG] Final context source mix: pdf=%s website=%s document=%s graph=%s total=%s",
+            "[RAG] Final context source mix: pdf=%s website=%s document=%s ai_search=%s graph=%s total=%s",
             source_counts["pdf"],
             source_counts["website"],
             source_counts["document"],
+            ai_search_count,
             len(graph_facts),
             len(context_chunks[:top_k]) + len(graph_facts),
         )

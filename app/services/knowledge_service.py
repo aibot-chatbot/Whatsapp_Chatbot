@@ -80,7 +80,7 @@ def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candid
         file.save(filepath)
         file_size = validate_saved_pdf(filepath)
         persistence_attempted = True
-        document_storage.persist_file(filepath, root=DATA_FOLDER, namespace="knowledge")
+        document_storage.persist_file(filepath, root=DATA_FOLDER, namespace="knowledge", chatbot_id=chatbot_id)
     except Exception:
         # A failed PUT response may still have created this exact new object.
         try:
@@ -1347,14 +1347,14 @@ def generate_and_save_knowledge_readme(chatbot_id: int, file_id: int = None):
     readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_{file_id}_readme.md")
     try:
         readme_bytes = "\n".join(md).encode("utf-8")
-        document_storage.write_file(readme_path, readme_bytes, root=DATA_FOLDER, namespace="knowledge")
+        document_storage.write_file(readme_path, readme_bytes, root=DATA_FOLDER, namespace="knowledge", chatbot_id=chatbot_id)
 
         # Also copy/save to bot_{chatbot_id}_readme.md if this is the active file
         from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
         active = get_active_pdf_knowledge_file(chatbot_id)
         if active and active["id"] == file_id:
             active_readme_path = os.path.join(DATA_FOLDER, f"bot_{chatbot_id}_readme.md")
-            document_storage.write_file(active_readme_path, readme_bytes, root=DATA_FOLDER, namespace="knowledge")
+            document_storage.write_file(active_readme_path, readme_bytes, root=DATA_FOLDER, namespace="knowledge", chatbot_id=chatbot_id)
     except document_storage.DocumentStorageError:
         raise
     except OSError:
@@ -1431,7 +1431,8 @@ def log_knowledge_modification(chatbot_id: int, file_id: int, action: str, categ
 
     try:
         document_storage.write_file(
-            log_path, json.dumps(logs, indent=2).encode("utf-8"), root=DATA_FOLDER, namespace="knowledge"
+            log_path, json.dumps(logs, indent=2).encode("utf-8"), root=DATA_FOLDER, namespace="knowledge",
+            chatbot_id=chatbot_id
         )
     except document_storage.DocumentStorageError:
         raise

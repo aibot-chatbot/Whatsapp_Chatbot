@@ -95,5 +95,6 @@ def test_remote_storage_failure_removes_new_upload_without_returning_share_url(
     assert response.status_code == 500
     assert "public_url" not in response.get_data(as_text=True)
     assert not list(upload_folder.iterdir())
-    assert persist.call_args.kwargs == {"root": str(upload_folder), "namespace": "media"}
+    assert persist.call_args.kwargs == {
+        "root": str(upload_folder), "namespace": "media", "chatbot_id": 42}
     assert private_detail not in response.get_data(as_text=True) + caplog.text

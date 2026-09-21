@@ -106,6 +106,7 @@
 !app/services/ai_credit_topup_order_service.py
 !app/services/ai_gateway.py
 !app/services/ai_router.py
+!app/services/ai_search_service.py
 !app/services/automation_service.py
 !app/services/billing_guard.py
 !app/services/billing_notification_service.py
@@ -116,6 +117,7 @@
 !app/services/billing_service.py
 !app/services/bot_config_fields.py
 !app/services/bot_service.py
+!app/services/cf_queue.py
 !app/services/channel_delivery_service.py
 !app/services/chat_logic_service.py
 !app/services/chat_pipeline_service.py
@@ -138,6 +140,7 @@
 !app/services/help_article_service.py
 !app/services/invitation_service.py
 !app/services/knowledge_ingest_job_service.py
+!app/services/knowledge_ingest_queue.py
 !app/services/knowledge_ingestion_service.py
 !app/services/knowledge_service.py
 !app/services/langflow_adapter.py
@@ -147,6 +150,7 @@
 !app/services/media_send_service.py
 !app/services/meta_template_service.py
 !app/services/model_catalog.py
+!app/services/n8n_adapter.py
 !app/services/openrouter_service.py
 !app/services/pdf_relevance_validation_service.py
 !app/services/persona_derivation_service.py

@@ -906,7 +906,7 @@ def validate_supporting_pdf_candidate(
 
     try:
         if document_storage.r2_enabled():
-            document_storage.persist_file(temp_path, root=DATA_FOLDER, namespace="knowledge")
+            document_storage.persist_file(temp_path, root=DATA_FOLDER, namespace="knowledge", chatbot_id=chatbot_id, company_id=company_id)
         candidate = create_candidate({
             "id": candidate_id,
             "company_id": company_id,

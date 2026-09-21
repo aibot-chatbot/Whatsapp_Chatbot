@@ -81,7 +81,7 @@ def upload_attachment_file():
         try:
             file.save(filepath)
             persistence_attempted = True
-            persist_file(filepath, root=MEDIA_FOLDER, namespace="media")
+            persist_file(filepath, root=MEDIA_FOLDER, namespace="media", chatbot_id=chatbot_id)
         except Exception:
             try:
                 if persistence_attempted:

@@ -23,7 +23,7 @@ def storage(monkeypatch, tmp_path):
     candidates.mkdir(parents=True)
     objects = {}
 
-    def key(path, *, root, namespace):
+    def key(path, *, root, namespace, **_tenant):
         return namespace + "/" + Path(path).relative_to(root).as_posix()
 
     def persist(path, **kwargs):

@@ -19,12 +19,20 @@ client actually needs it:
    per chunk, and by far the longest phase. Last, so nothing the client is
    waiting for sits behind it.
 
-**Why a thread and not a queue.** The repo already runs background work this
-way -- ``wasender_retry_service``, ``billing_scheduler_service`` and
-``tenant_support_service`` all spawn daemon threads -- and the deployment is
-deliberately a single machine running a single gunicorn worker with eight
-threads (Dockerfile, fly.toml invariant 1). Adding a broker for this would be
-a new moving part for a problem the process already solves.
+**Why a thread and not a queue, and what changed.** The repo already runs
+background work this way -- ``wasender_retry_service``,
+``billing_scheduler_service`` and ``tenant_support_service`` all spawn daemon
+threads -- and the deployment is deliberately a single machine running a single
+gunicorn worker with eight threads (Dockerfile, fly.toml invariant 1). That is
+still the default and still the reasoning.
+
+The one thing a thread cannot do is outlive its process, and a deploy landing
+in the middle of an eight-minute pipeline drops the work. So the thread is now
+the *fallback* rather than the only option: when ``INGEST_QUEUE_ENABLED`` is
+on, :func:`start_pdf_ingest` publishes the job to a Cloudflare Queue instead
+(``knowledge_ingest_queue``), and falls straight back to this thread if the
+publish fails. With the flag off -- which is the default -- nothing below
+behaves differently, and the broker is not a moving part anyone has to run.
 
 **What is NOT deferred.** Access control (``verify_chatbot_access``) and the
 billing gates (``can_upload_knowledge_file`` / ``can_upload_knowledge_storage``)
@@ -67,6 +75,14 @@ PHASE_UNKNOWN: Final[str] = "unknown"
 STATUS_PROCESSING: Final[str] = "processing"
 STATUS_COMPLETED: Final[str] = "completed"
 STATUS_FAILED: Final[str] = "failed"
+
+#: A fourth word, written only by the optional queue consumer in
+#: ``knowledge_ingest_queue`` and only while its flag is on. It marks the row as
+#: claimed, which is what stops an at-least-once redelivery from paying for the
+#: same document twice -- a claim has to be distinguishable from the unclaimed
+#: state or it claims nothing. It is deliberately not part of the page's
+#: vocabulary: :func:`get_ingest_status` reports it as ``processing``.
+STATUS_INGESTING: Final[str] = "ingesting"
 
 #: Records kept before the oldest is dropped. One per upload, and only the
 #: most recent matter -- the page polls within seconds of uploading.
@@ -259,6 +275,15 @@ def start_pdf_ingest(accepted: dict) -> None:
         original_file_name=accepted.get("original_file_name", ""),
     )
 
+    # Optional and off by default. `publish` returns False the moment the flag
+    # is unset, so with the queue off this is the same thread it always was.
+    # It also returns False on any transport failure, because a Cloudflare
+    # outage must cost this upload nothing more than its durability.
+    from app.services.knowledge_ingest_queue import publish
+
+    if publish(accepted):
+        return
+
     threading.Thread(
         target=_run,
         args=(accepted,),
@@ -290,10 +315,15 @@ def get_ingest_status(chatbot_id: int, file_id: int) -> dict | None:
     if not row:
         return None
 
+    stored = row.get("processing_status") or STATUS_PROCESSING
+
     return {
         "chatbot_id": int(chatbot_id),
         "file_id": int(file_id),
-        "status": row.get("processing_status") or STATUS_PROCESSING,
+        # `ingesting` is the queue consumer's claim marker, not a status the
+        # page has a word for. It means the same thing to a client as
+        # `processing` does, so it is reported as that.
+        "status": STATUS_PROCESSING if stored == STATUS_INGESTING else stored,
         "phase": PHASE_UNKNOWN,
         "chunk_count": 0,
         "extraction": {},

@@ -154,6 +154,23 @@ def test_original_is_persisted_before_metadata_and_success(r2, tmp_path, monkeyp
     assert (tmp_path / result["file_name"]).exists()
 
 
+def test_uploaded_original_is_marked_with_the_owning_chatbot(r2, tmp_path, monkeypatch):
+    """An unmarked object matches no tenant's retrieval filter, so scoping stays inert."""
+    _mock_upload_processing(monkeypatch)
+    monkeypatch.setattr(knowledge_service, "save_knowledge_file", Mock(return_value={"id": 55}))
+    original_put = r2.put_object
+    markers = []
+
+    def capture(**kwargs):
+        markers.append(kwargs.get("Metadata"))
+        return original_put(**kwargs)
+
+    monkeypatch.setattr(r2, "put_object", capture)
+    knowledge_service.save_uploaded_pdf(Upload(), 7)
+
+    assert markers == [{"chatbot_id": "7"}]
+
+
 def test_original_remote_write_failure_leaves_no_metadata_or_local_upload(r2, tmp_path, monkeypatch):
     metadata = Mock()
     monkeypatch.setattr(knowledge_service, "save_knowledge_file", metadata)
