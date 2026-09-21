@@ -12,8 +12,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from app.observability import capture_payment_failure
 from app.database.company_subscription_order_repository import (
-    RECONCILABLE_ACTIVATION_STATUSES,
     increment_reconciliation_attempt as _increment_attempt,
     get_subscription_order_by_reference as _get_order,
     update_subscription_order_activation_state as _update_state,
@@ -49,8 +49,9 @@ RECONCILIATION_OUTCOMES = frozenset({
     "unpaid_order_not_reconcilable",
     "malformed_order",
     "manual_review_required",
-    "hitpay_pending",
-    "hitpay_terminal",
+    "chip_pending",
+    "chip_terminal",
+    "chip_test_paid",
 })
 
 
@@ -66,94 +67,55 @@ def _is_null_source_period_recovery_order(order: dict) -> bool:
     )
 
 
-def _reconcile_pending_hitpay_order(order: dict) -> dict:
-    """Recover missed or ambiguous HitPay checkout events authoritatively."""
-    from app.database.company_subscription_order_repository import (
-        attach_pending_subscription_gateway_details,
-    )
-    from app.services.hitpay_payment_service import process_hitpay_payment_request
-    from app.services.hitpay_service import (
-        HitPayConfig,
-        find_payment_request_by_reference,
-        get_payment_request,
-        normalize_payment_request,
-        validate_checkout_url,
-    )
+def _reconcile_pending_chip_order(order: dict) -> dict:
+    """Recover CHIP purchases by their persisted identity, never by a guess."""
+    from app.services.chip_payment_service import process_chip_purchase, validate_chip_purchase_order
+    from app.services.chip_service import ChipConfig, get_purchase, normalize_purchase
 
-    config = HitPayConfig.from_env()
-    gateway_order_id = str(order.get("gateway_order_id") or "").strip()
+    config = ChipConfig.from_env()
+    config.validate_for_api()
     order_reference = str(order.get("order_reference") or "").strip()
-    # Rotate polled orders in the oldest-first batch, including still-unpaid
-    # checkouts. Only polling timestamps change; expires_at remains fixed.
+    gateway_order_id = str(order.get("gateway_order_id") or "").strip()
     _update_fields(
         order_reference,
         last_reconciliation_at=datetime.now(timezone.utc).isoformat(),
     )
-    payment_request = (
-        get_payment_request(config, gateway_order_id)
-        if gateway_order_id
-        else find_payment_request_by_reference(config, order_reference)
-    )
-    if payment_request is None:
+    if not gateway_order_id:
         _update_state(
             order_reference,
-            activation_error_code="hitpay_request_not_found",
-            activation_error_message="HitPay payment request was not found yet.",
+            activation_error_code="chip_purchase_id_missing",
+            activation_error_message="CHIP purchase creation requires operator verification before retry.",
             reconciliation_required=True,
         )
         return {
-            "outcome": "hitpay_pending",
+            "outcome": "manual_review_required",
             "order_status": "pending",
-            "message": "HitPay payment request is not available yet.",
+            "message": "CHIP purchase identity is missing; contact support before retrying.",
         }
-
-    normalized = normalize_payment_request(payment_request)
-    if normalized["order_reference"] != order_reference:
-        raise ValueError("HitPay reconciliation reference mismatch")
-    if normalized["amount_sen"] != order.get("amount_sen"):
-        raise ValueError("HitPay reconciliation amount mismatch")
-    if not gateway_order_id:
-        checkout_url = validate_checkout_url(
-            payment_request.get("url"), config.environment
-        )
-        attach_pending_subscription_gateway_details(
-            order_reference=order_reference,
-            payment_gateway="hitpay",
-            gateway_order_id=normalized["gateway_order_id"],
-            checkout_url=checkout_url,
-        )
-
-    result = process_hitpay_payment_request(payment_request)
+    if order.get("gateway_environment") != config.environment or order.get("gateway_brand_id") != config.brand_id:
+        raise ValueError("CHIP order mode or brand does not match the current configuration")
+    purchase = get_purchase(config, gateway_order_id)
+    validate_chip_purchase_order(order, normalize_purchase(purchase), config)
+    result = process_chip_purchase(purchase, config=config)
     result_status = result.get("status")
-    if result_status in {
-        "activated",
-        "activated_and_credited",
-        "already_activated",
-        "legacy_order_activated",
-        "subscription_activated",
-    }:
+    if result_status == "test_paid":
+        return {
+            "outcome": "chip_test_paid",
+            "order_status": "cancelled",
+            "message": "CHIP test payment verified; no subscription or credit was granted.",
+        }
+    if result_status in {"activated", "activated_and_credited", "already_activated", "legacy_order_activated", "subscription_activated"}:
         return {
             "outcome": "reconciled_and_completed",
             "order_status": "credited",
-            "message": "HitPay payment was reconciled and fulfilled.",
+            "message": "CHIP payment was reconciled and fulfilled.",
         }
     if result_status == "pending":
-        return {
-            "outcome": "hitpay_pending",
-            "order_status": "pending",
-            "message": "HitPay payment remains pending.",
-        }
+        return {"outcome": "chip_pending", "order_status": "pending", "message": "CHIP payment remains pending."}
     if result_status in {"failed", "expired", "cancelled"}:
-        return {
-            "outcome": "hitpay_terminal",
-            "order_status": result_status,
-            "message": "HitPay payment reached a terminal unpaid state.",
-        }
-    return {
-        "outcome": "manual_review_required",
-        "order_status": order.get("status"),
-        "message": "HitPay reconciliation requires operator review.",
-    }
+        return {"outcome": "chip_terminal", "order_status": result_status, "message": "CHIP purchase reached a terminal unpaid state."}
+    return {"outcome": "manual_review_required", "order_status": order.get("status"), "message": "CHIP reconciliation requires operator review."}
+
 
 def reconcile_subscription_order(
     order_reference: str,
@@ -186,42 +148,58 @@ def reconcile_subscription_order(
     activation_seq_key = order.get("activation_sequence_key")
     order_schema_ver = order.get("order_schema_version")
 
-    if status == "pending" and order.get("payment_gateway") == "hitpay":
+    if status == "pending" and order.get("payment_gateway") == "chip":
         try:
-            return _reconcile_pending_hitpay_order(order)
+            return _reconcile_pending_chip_order(order)
         except Exception as exc:
-            logger.warning("HitPay reconciliation failed for %s: %s", order_reference, exc)
+            capture_payment_failure("reconciliation", reason="provider_unavailable", mode=order.get("gateway_environment", "unknown"), exc=exc)
             try:
                 _update_state(
                     order_reference,
-                    activation_error_code="hitpay_reconciliation_failed",
-                    activation_error_message="HitPay reconciliation requires retry.",
+                    activation_error_code="chip_reconciliation_failed",
+                    activation_error_message="CHIP reconciliation requires retry.",
                     reconciliation_required=True,
                 )
-            except Exception:
-                logger.exception(
-                    "Could not mark HitPay order %s for reconciliation", order_reference
-                )
+            except Exception as persistence_error:
+                capture_payment_failure("reconciliation", reason="persistence", mode=order.get("gateway_environment", "unknown"), exc=persistence_error)
             return {
                 "outcome": "manual_review_required",
                 "order_status": status,
-                "message": "HitPay reconciliation is temporarily unavailable.",
+                "message": "CHIP reconciliation is temporarily unavailable.",
             }
 
-    # Already completed
-    if status == "credited" and act_status == "completed":
-        return {"outcome": "already_completed", "order_status": "credited", "message": "Order is already completed."}
+    if order.get("payment_gateway") == "chip" and status not in {"paid", "credited"}:
+        if status == "cancelled" and order.get("activation_error_code") == "chip_test_paid":
+            return {"outcome": "chip_test_paid", "order_status": status, "message": "CHIP test payment already verified; no entitlements were granted."}
+        return {"outcome": "unpaid_order_not_reconcilable", "order_status": status, "message": "CHIP payment has not been confirmed."}
 
-    # Unpaid / failed payment
-    if status in ("pending", "failed", "expired"):
-        if act_status in RECONCILABLE_ACTIVATION_STATUSES:
-            pass
-        else:
-            return {"outcome": "unpaid_order_not_reconcilable", "order_status": status, "message": "Order payment has not been confirmed."}
+    if order.get("payment_gateway") == "chip" and status in {"paid", "credited"}:
+        from app.services.chip_service import ChipConfig, get_purchase, normalize_purchase
+        from app.services.chip_payment_service import validate_chip_purchase_order
+        try:
+            config = ChipConfig.from_env()
+            config.validate_for_api()
+            if config.is_test or order.get("gateway_environment") != "live":
+                raise ValueError("Test CHIP orders cannot receive subscription entitlements")
+            purchase = normalize_purchase(get_purchase(config, order.get("gateway_order_id")))
+            validate_chip_purchase_order(order, purchase, config)
+            if not purchase["paid"]:
+                raise ValueError("CHIP payment is not confirmed")
+        except Exception as exc:
+            capture_payment_failure("reconciliation", reason="mismatch", mode=order.get("gateway_environment", "unknown"), exc=exc)
+            return {"outcome": "manual_review_required", "order_status": status, "message": "CHIP payment verification is required before fulfilment."}
 
-    if status != "paid" and status != "credited":
-        if act_status not in RECONCILABLE_ACTIVATION_STATUSES:
-            return {"outcome": "unpaid_order_not_reconcilable", "order_status": status, "message": "Order is not in a reconcilable state."}
+    # Credited payments cannot restart activation, including legacy rows with
+    # no activation metadata. Only an explicit credit stage may be recovered.
+    if status == "credited":
+        if act_status in {"", "completed"}:
+            return {"outcome": "already_completed", "order_status": "credited", "message": "Order is already completed."}
+        if act_status not in {"activated", "credit_pending"}:
+            return {"outcome": "manual_review_required", "order_status": "credited", "message": "Credited order activation metadata requires support review."}
+
+    # Activation flags cannot substitute for a durable payment confirmation.
+    if status not in {"paid", "credited"}:
+        return {"outcome": "unpaid_order_not_reconcilable", "order_status": status, "message": "Order payment has not been confirmed."}
 
     # Malformed version 2 order
     if order_schema_ver == 2:

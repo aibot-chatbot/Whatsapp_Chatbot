@@ -1,5 +1,9 @@
 # Architecture
 
+Payment status (2026-09-15): CHIP replaces ToyyibPay and HitPay in the current code.
+Local tests and a provider sandbox payment are verified; deployment is pending.
+Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, configuration, and rollout.
+
 ## Overview
 
 The system uses a layered Flask architecture with a static vanilla frontend and Supabase-backed persistence.
@@ -72,7 +76,7 @@ Examples include:
 - RAG
 - Billing enforcement
 - AI-credit charging
-- ToyyibPay checkout and callback processing
+- CHIP checkout and verified callback processing
 - Messaging-channel handling
 - CRM lead automation
 - Analytics and reports
@@ -228,7 +232,7 @@ The flow includes:
 - Calculating customer charge
 - Deducting included or top-up balance
 - Recording transactions
-- Purchasing top-up credit through ToyyibPay
+- Purchasing top-up credit through CHIP
 
 Payment and credit mutations use repository functions and PostgreSQL RPCs to reduce duplicate or partial processing.
 

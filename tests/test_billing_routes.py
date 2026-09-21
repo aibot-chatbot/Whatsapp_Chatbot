@@ -54,8 +54,8 @@ MALFORMED_AUTHORITATIVE_USER = {
 }
 
 
-class TestToyyibPayCheckoutRoute(unittest.TestCase):
-    """Tests for POST /api/billing/toyyibpay/checkout."""
+class TestChipCheckoutRoute(unittest.TestCase):
+    """Tests for POST /api/billing/chip/checkout."""
 
     def setUp(self):
         app = create_app()
@@ -106,7 +106,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
         if return_value is None:
             return_value = self.service_result
         return patch(
-            "app.routes.billing_routes.create_toyyibpay_topup_checkout",
+            "app.routes.billing_routes.create_chip_topup_checkout",
             return_value=return_value,
             side_effect=side_effect,
         )
@@ -135,33 +135,33 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
     # ----- Route registration -----
     def test_route_registered(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertNotEqual(resp.status_code, 404)
 
     def test_route_registered_once_as_post_only_billing_endpoint(self):
         rules = [
             rule for rule in self.app.url_map.iter_rules()
-            if rule.rule == "/api/billing/toyyibpay/checkout"
+            if rule.rule == "/api/billing/chip/checkout"
         ]
 
         self.assertEqual(len(rules), 1)
-        self.assertEqual(rules[0].endpoint, "billing.toyyibpay_checkout")
+        self.assertEqual(rules[0].endpoint, "billing.chip_checkout")
         self.assertIn("POST", rules[0].methods)
         self.assertNotIn("GET", rules[0].methods)
 
     def test_get_returns_405(self):
-        resp = self.client.get("/api/billing/toyyibpay/checkout")
+        resp = self.client.get("/api/billing/chip/checkout")
         self.assertEqual(resp.status_code, 405)
 
     # ----- Authentication -----
     def test_unauthenticated_request_rejected(self):
-        resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body)
+        resp = self.client.post("/api/billing/chip/checkout", json=self.valid_body)
         self.assertEqual(resp.status_code, 401)
 
     # ----- Successful checkout -----
     def test_valid_checkout_returns_201(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 201)
 
     def test_suspended_company_cannot_create_topup_checkout(self):
@@ -170,9 +170,9 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
             return_value={"id": 42, "status": "inactive"},
         ), self._patch_jwt_decode(), self._patch_user_repo(), self._patch_checkout_service() as service:
             resp = self.client.post(
-                "/api/billing/toyyibpay/checkout",
+                "/api/billing/chip/checkout",
                 json=self.valid_body,
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
         self.assertEqual(resp.status_code, 403)
         self.assertEqual(resp.get_json()["code"], "company_suspended")
@@ -180,7 +180,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
 
     def test_valid_response_contains_safe_fields(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             data = resp.get_json()
             self.assertIn("data", data)
             result = data["data"]
@@ -192,7 +192,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
 
     def test_service_receives_correct_params(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service() as mock_service:
-            self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             mock_service.assert_called_once()
             _, kwargs = mock_service.call_args
             self.assertEqual(kwargs["company_id"], 42)
@@ -207,7 +207,7 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
     def test_company_id_in_body_ignored(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service() as mock_service:
             body = {**self.valid_body, "company_id": 999}
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json=body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 201)
             _, kwargs = mock_service.call_args
             self.assertEqual(kwargs["company_id"], 42)
@@ -215,69 +215,69 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
     # ----- Malformed/missing JSON -----
     def test_missing_json_body_returns_400(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", data="not-json", content_type="application/json", headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", data="not-json", content_type="application/json", headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_empty_json_body_returns_400(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_missing_amount_key_returns_400(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={"other": "value"}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={"other": "value"}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     # ----- Amount validation -----
     def test_boolean_amount_rejected(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={"amount_micro_myr": True}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={"amount_micro_myr": True}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_string_amount_rejected(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={"amount_micro_myr": "2000000"}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={"amount_micro_myr": "2000000"}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_zero_amount_rejected(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={"amount_micro_myr": 0}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={"amount_micro_myr": 0}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_negative_amount_rejected(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={"amount_micro_myr": -100}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={"amount_micro_myr": -100}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_non_divisible_amount_rejected(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={"amount_micro_myr": 12345}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={"amount_micro_myr": 12345}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_below_minimum_amount_rejected(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={"amount_micro_myr": 1000000}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={"amount_micro_myr": 1000000}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_minimum_valid_amount_accepted(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json={"amount_micro_myr": 1010000}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json={"amount_micro_myr": 1010000}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 201)
 
     # ----- Error handling -----
     def test_service_value_error_returns_400(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=ValueError("Invalid amount")):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_unexpected_exception_returns_500(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=RuntimeError("DB crash")):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 500)
 
     def test_unexpected_exception_does_not_leak_details(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service(side_effect=RuntimeError("DB crash")):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             data = resp.get_json()
             self.assertNotIn("DB crash", str(data))
 
@@ -285,13 +285,13 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
     def test_checkout_does_not_apply_credit(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
             with patch("app.services.ai_credit_topup_callback_service.process_topup_payment_callback") as mock_credit:
-                self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+                self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
                 mock_credit.assert_not_called()
 
     # ----- No network calls -----
     def test_no_live_http_requests(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 201)
 
 
@@ -306,67 +306,37 @@ class TestToyyibPayCheckoutRoute(unittest.TestCase):
 
     def test_valid_phone_passed_to_service(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription():
-            with patch("app.routes.billing_routes.create_toyyibpay_topup_checkout") as mock_svc:
+            with patch("app.routes.billing_routes.create_chip_topup_checkout") as mock_svc:
                 mock_svc.return_value = self.service_result
-                self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+                self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
                 _, kwargs = mock_svc.call_args
                 self.assertEqual(kwargs["customer_phone"], "+60123456789")
 
-    def test_missing_phone_returns_400(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone(None):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-            self.assertEqual(resp.status_code, 400)
-            data = resp.get_json()
-            self.assertIn("phone number", str(data).lower())
 
-    def test_null_phone_returns_400(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone(None):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-            self.assertEqual(resp.status_code, 400)
 
-    def test_empty_phone_returns_400(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone(""):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-            self.assertEqual(resp.status_code, 400)
 
-    def test_whitespace_phone_returns_400(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("   "):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-            self.assertEqual(resp.status_code, 400)
 
-    def test_invalid_phone_returns_400(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("abc"):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-            self.assertEqual(resp.status_code, 400)
 
-    def test_short_phone_returns_400(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("12345"):
-            resp = self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-            self.assertEqual(resp.status_code, 400)
 
     def test_request_phone_ignored(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_ai_access(), self._patch_get_subscription():
-            with patch("app.routes.billing_routes.create_toyyibpay_topup_checkout") as mock_svc:
+            with patch("app.routes.billing_routes.create_chip_topup_checkout") as mock_svc:
                 mock_svc.return_value = self.service_result
                 body = dict(self.valid_body)
                 body["customer_phone"] = "ignored"
-                self.client.post("/api/billing/toyyibpay/checkout", json=body, headers={"Authorization": "Bearer test-token"})
+                self.client.post("/api/billing/chip/checkout", json=body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
                 _, kwargs = mock_svc.call_args
                 self.assertEqual(kwargs["customer_phone"], "+60123456789")
 
-    def test_no_order_created_for_missing_phone(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone(None):
-            with patch("app.services.ai_credit_topup_checkout_service.create_toyyibpay_topup_checkout") as mock_svc:
-                self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-                mock_svc.assert_not_called()
-
-    def test_toyyibpay_not_called_for_invalid_phone(self):
-        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("abc"):
-            with patch("app.services.toyyibpay_service.create_bill") as mock_toyyibpay:
-                self.client.post("/api/billing/toyyibpay/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
-                mock_toyyibpay.assert_not_called()
 
 
+
+
+    def test_phone_is_optional_for_chip(self):
+        for phone in (None, "", " ", "abc", "12"):
+            with self.subTest(phone=phone), self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone(phone), self._patch_ai_access(), self._patch_get_subscription(), self._patch_checkout_service():
+                response = self.client.post("/api/billing/chip/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
+                self.assertEqual(response.status_code, 201)
 
 class TestSubscriptionCheckoutRoute(unittest.TestCase):
     """Tests for POST /api/billing/subscription/checkout."""
@@ -429,7 +399,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
 
     def test_route_registered(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertNotEqual(resp.status_code, 404)
 
     def test_route_registered_once_as_post_only_billing_endpoint(self):
@@ -455,7 +425,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
 
     def test_malformed_authoritative_user_without_company_id_returns_503(self):
         with patch("app.decorators.auth_decorator.jwt.decode", return_value={"user_id": 1, "role": "admin"}), patch("app.database.user_repository.get_user_by_id", return_value=MALFORMED_AUTHORITATIVE_USER):
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 503)
             self.assertEqual(resp.get_json()["code"], "authentication_backend_unavailable")
 
@@ -463,47 +433,52 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
 
     def test_missing_plan_code_returns_400(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/subscription/checkout", json={}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json={}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_invalid_plan_code_returns_400(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user():
-            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "nonexistent"}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "nonexistent"}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_missing_json_body_returns_400(self):
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post("/api/billing/subscription/checkout", data="not-json", content_type="application/json", headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", data="not-json", content_type="application/json", headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
-    def test_missing_phone_returns_400_before_subscription_order_creation(self):
+    def test_missing_phone_is_optional_for_chip(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone(None), self._patch_checkout_service() as service:
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
 
-        self.assertEqual(resp.status_code, 400)
-        self.assertIn("valid phone number", resp.get_json()["message"])
-        service.assert_not_called()
+        self.assertEqual(resp.status_code, 200)
+        service.assert_called_once()
 
-    def test_whitespace_phone_returns_400_before_subscription_order_creation(self):
+
+
+    def test_whitespace_phone_is_optional_for_chip(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("   "), self._patch_checkout_service() as service:
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
 
-        self.assertEqual(resp.status_code, 400)
-        service.assert_not_called()
+        self.assertEqual(resp.status_code, 200)
+        service.assert_called_once()
 
-    def test_invalid_phone_returns_400_and_checkout_service_not_called(self):
+
+
+    def test_invalid_phone_is_omitted_for_chip(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("abc-123"), self._patch_checkout_service() as service:
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
 
-        self.assertEqual(resp.status_code, 400)
-        service.assert_not_called()
+        self.assertEqual(resp.status_code, 200)
+        service.assert_called_once()
+
+
 
     def test_request_body_phone_is_ignored(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user_with_phone("+60 12-345 6789"), self._patch_checkout_service() as service:
             resp = self.client.post(
                 "/api/billing/subscription/checkout",
                 json={"plan_code": "essential", "customer_phone": "abc"},
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
 
         self.assertEqual(resp.status_code, 200)
@@ -529,7 +504,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             resp = self.client.post(
                 "/api/billing/subscription/checkout",
                 json={"plan_code": "essential", "payment_gateway": "toyyibpay"},
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
 
         self.assertEqual(resp.status_code, 200)
@@ -542,7 +517,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
 
     def test_valid_checkout_returns_200(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 200)
 
     def test_suspended_company_cannot_create_subscription_checkout(self):
@@ -553,7 +528,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             resp = self.client.post(
                 "/api/billing/subscription/checkout",
                 json=self.valid_body,
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
         self.assertEqual(resp.status_code, 403)
         self.assertEqual(resp.get_json()["code"], "company_suspended")
@@ -561,7 +536,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
 
     def test_valid_response_contains_required_fields(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             data = resp.get_json()
             self.assertIn("data", data)
             result = data["data"]
@@ -573,7 +548,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
 
     def test_service_receives_correct_params(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service() as mock_service:
-            self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             mock_service.assert_called_once()
             _, kwargs = mock_service.call_args
             self.assertEqual(kwargs["company_id"], 42)
@@ -584,7 +559,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
 
     def test_service_value_error_returns_400(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=ValueError("Invalid plan")):
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 400)
 
     def test_checkout_conflict_returns_business_message_without_raw_database_details(self):
@@ -594,7 +569,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         )
 
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=ValueError(conflict_message)):
-            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "advanced"}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "advanced"}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
 
         self.assertEqual(resp.status_code, 400)
         data = resp.get_json()
@@ -609,20 +584,20 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         )
 
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=ValueError(conflict_message)):
-            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "advanced"}, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json={"plan_code": "advanced"}, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
 
         self.assertEqual(resp.status_code, 400)
         self.assertEqual(resp.get_json()["message"], conflict_message)
 
     def test_service_runtime_error_returns_502(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=RuntimeError("Gateway error")):
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 502)
             self.assertEqual(resp.get_json()["message"], "Unable to create checkout. Please try again later.")
 
     def test_service_runtime_error_does_not_expose_internal_details(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(side_effect=RuntimeError("idx_cso_activation_sequence_key payment secret")):
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
 
         body = resp.get_json()
         self.assertEqual(resp.status_code, 502)
@@ -634,7 +609,7 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
     def test_checkout_does_not_activate_subscription(self):
         """Verify checkout does not change subscription status."""
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service():
-            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token"})
+            resp = self.client.post("/api/billing/subscription/checkout", json=self.valid_body, headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"})
             self.assertEqual(resp.status_code, 200)
             # This test passes by not raising an error - the service mock replaces
             # the real implementation which does not modify subscriptions.
@@ -706,7 +681,7 @@ class TestSubscriptionOrderStatusRoute(unittest.TestCase):
              patch("app.database.user_repository.get_user_by_id", return_value=MALFORMED_AUTHORITATIVE_USER):
             resp = self.client.get(
                 f"/api/billing/subscription/orders/{self.valid_ref}",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 503)
             self.assertEqual(resp.get_json()["code"], "authentication_backend_unavailable")
@@ -717,7 +692,7 @@ class TestSubscriptionOrderStatusRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.get(
                 "/api/billing/subscription/orders/not-a-uuid",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 400)
 
@@ -729,7 +704,7 @@ class TestSubscriptionOrderStatusRoute(unittest.TestCase):
               self._patch_plan_repo({"id": 20, "code": "pro", "name": "Pro"})):
             resp = self.client.get(
                 f"/api/billing/subscription/orders/{self.valid_ref}",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 200)
             data = resp.get_json()
@@ -743,7 +718,7 @@ class TestSubscriptionOrderStatusRoute(unittest.TestCase):
               self._patch_plan_repo({"id": 21, "code": "advanced", "name": "Advanced"})):
             resp = self.client.get(
                 f"/api/billing/subscription/orders/{self.valid_ref}",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 200)
             data = resp.get_json()
@@ -758,7 +733,7 @@ class TestSubscriptionOrderStatusRoute(unittest.TestCase):
               self._patch_plan_repo({"id": 20, "code": "pro", "name": "Pro"})):
             resp = self.client.get(
                 f"/api/billing/subscription/orders/{self.valid_ref}",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertNotEqual(resp.status_code, 404)
 
@@ -769,7 +744,7 @@ class TestSubscriptionOrderStatusRoute(unittest.TestCase):
              self._patch_subscription_order_repo(None):
             resp = self.client.get(
                 f"/api/billing/subscription/orders/{self.valid_ref}",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 404)
 
@@ -832,7 +807,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
              patch("app.database.user_repository.get_user_by_id", return_value=MALFORMED_AUTHORITATIVE_USER):
             resp = self.client.get(
                 "/api/billing/subscription/orders",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 503)
             self.assertEqual(resp.get_json()["code"], "authentication_backend_unavailable")
@@ -841,7 +816,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.get(
                 "/api/billing/subscription/orders?limit=abc",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 400)
 
@@ -849,7 +824,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.get(
                 "/api/billing/subscription/orders?limit=0",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 400)
 
@@ -857,7 +832,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.get(
                 "/api/billing/subscription/orders?offset=-1",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 400)
 
@@ -865,7 +840,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.get(
                 "/api/billing/subscription/orders?status=invalid_status",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 400)
 
@@ -874,7 +849,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
              self._patch_list_repo([]):
             resp = self.client.get(
                 "/api/billing/subscription/orders",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 200)
             data = resp.get_json()
@@ -888,7 +863,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
              self._patch_plan_repo(mock_plan):
             resp = self.client.get(
                 "/api/billing/subscription/orders",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 200)
             data = resp.get_json()
@@ -915,7 +890,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
                 mock_list.return_value = []
                 resp = self.client.get(
                     "/api/billing/subscription/orders?status=paid",
-                    headers={"Authorization": "Bearer test-token"},
+                    headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
                 )
                 self.assertEqual(resp.status_code, 200)
                 mock_list.assert_called_with(company_id=42, limit=20, offset=0, status="paid")
@@ -928,7 +903,7 @@ class TestSubscriptionOrderListRoute(unittest.TestCase):
             ):
                 resp = self.client.get(
                     "/api/billing/subscription/orders",
-                    headers={"Authorization": "Bearer test-token"},
+                    headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
                 )
                 self.assertEqual(resp.status_code, 500)
                 body = resp.get_json()
@@ -994,7 +969,7 @@ class TestSubscriptionOrderReceiptRoute(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.get(
                 "/api/billing/subscription/orders/not-a-uuid/receipt",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 400)
 
@@ -1005,7 +980,7 @@ class TestSubscriptionOrderReceiptRoute(unittest.TestCase):
              self._patch_plan_repo(mock_plan):
             resp = self.client.get(
                 f"/api/billing/subscription/orders/{self.valid_ref}/receipt",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 200)
             data = resp.get_json()
@@ -1028,7 +1003,7 @@ class TestSubscriptionOrderReceiptRoute(unittest.TestCase):
              self._patch_order_repo(None):
             resp = self.client.get(
                 f"/api/billing/subscription/orders/{self.valid_ref}/receipt",
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 404)
 
@@ -1040,7 +1015,7 @@ class TestSubscriptionOrderReceiptRoute(unittest.TestCase):
             ):
                 resp = self.client.get(
                     f"/api/billing/subscription/orders/{self.valid_ref}/receipt",
-                    headers={"Authorization": "Bearer test-token"},
+                    headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
                 )
                 self.assertEqual(resp.status_code, 500)
                 body = resp.get_json()

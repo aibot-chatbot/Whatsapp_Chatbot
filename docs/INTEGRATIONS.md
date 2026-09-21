@@ -1,8 +1,12 @@
 # Integrations
 
+Payment status (2026-09-15): CHIP replaces ToyyibPay and HitPay in the current code.
+Local tests and a provider sandbox payment are verified; deployment is pending.
+Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, configuration, and rollout.
+
 ## Overview
 
-The platform integrates with AI providers, messaging channels, Supabase, email services, and ToyyibPay.
+The platform integrates with AI providers, messaging channels, Supabase, email services, and CHIP Collect.
 
 All credentials must remain server-side.
 
@@ -223,15 +227,18 @@ Expected behavior:
 - Signature validation
 - Disconnect behavior
 
-## ToyyibPay
+## CHIP Collect
 
-ToyyibPay is the active payment gateway for AI-credit top-ups.
+CHIP is the current backend gateway for subscriptions and AI-credit top-ups.
+See the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for the payment flow and deployment status.
 
-See `BILLING_AND_AI_CREDIT.md` for the full payment flow.
+Active routes: `POST /api/billing/subscription/checkout`,
+`POST /api/billing/chip/checkout`, and `POST /api/billing/chip/callback`.
+The optional event webhook uses `POST /api/billing/chip/webhook` with its own public key.
 
 ### Verification
 
-- Production configuration
+- Test/live configuration and mode isolation
 - Checkout creation
 - Callback authenticity
 - Return URL

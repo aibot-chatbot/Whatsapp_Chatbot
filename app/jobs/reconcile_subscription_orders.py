@@ -17,14 +17,14 @@ Exit codes:
 import argparse
 import logging
 import sys
-from datetime import datetime, timezone
 
+from app.observability import capture_payment_failure
 from app.services.subscription_reconciliation_service import reconcile_subscription_order
 from app.database.company_subscription_order_repository import (
-    get_pending_hitpay_orders,
+    get_pending_chip_orders,
     get_reconcilable_subscription_orders,
 )
-from app.services.hitpay_service import HitPayConfig
+from app.services.chip_service import ChipConfig
 
 logger = logging.getLogger(__name__)
 
@@ -56,21 +56,26 @@ def main(argv=None):
     else:
         try:
             raw_orders = get_reconcilable_subscription_orders(limit=args.batch_size)
-            if HitPayConfig.from_env().enabled:
-                raw_orders.extend(get_pending_hitpay_orders(limit=args.batch_size))
-                by_reference = {
-                    order.get("order_reference"): order
-                    for order in raw_orders
-                    if isinstance(order, dict) and order.get("order_reference")
-                }
-                raw_orders = sorted(
-                    by_reference.values(),
-                    key=lambda order: order.get("updated_at") or order.get("created_at") or "",
-                )[:args.batch_size]
         except Exception as exc:
             logger.error("Failed to fetch reconcilable orders: %s", exc)
             return 1
-        orders_to_process = raw_orders
+        try:
+            config = ChipConfig.from_env()
+            if config.enabled:
+                raw_orders.extend(get_pending_chip_orders(
+                    limit=args.batch_size, environment=config.environment, brand_id=config.brand_id,
+                ))
+        except Exception as exc:
+            capture_payment_failure("reconciliation", reason="configuration", exc=exc)
+        by_reference = {
+            order.get("order_reference"): order
+            for order in raw_orders
+            if isinstance(order, dict) and order.get("order_reference")
+        }
+        orders_to_process = sorted(
+            by_reference.values(),
+            key=lambda order: order.get("updated_at") or order.get("created_at") or "",
+        )[:args.batch_size]
 
     if not orders_to_process:
         logger.info("No orders require reconciliation.")
@@ -103,7 +108,7 @@ def main(argv=None):
                        ref, outcome, result.get("order_status"), result.get("message"))
             if outcome == "already_completed":
                 already_completed += 1
-            elif outcome in ("reconciled_and_completed", "credit_retry_completed"):
+            elif outcome in ("reconciled_and_completed", "credit_retry_completed", "chip_test_paid"):
                 completed += 1
             elif outcome in ("activation_already_claimed", "source_subscription_changed"):
                 conflicts += 1

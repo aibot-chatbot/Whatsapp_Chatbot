@@ -9,10 +9,6 @@ import os
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
-os.environ.setdefault("TOYYIBPAY_ENV", "production")
-os.environ.setdefault("TOYYIBPAY_USER_SECRET_KEY", "test-secret-key")
-os.environ.setdefault("TOYYIBPAY_CATEGORY_CODE", "test-category")
-os.environ.setdefault("TOYYIBPAY_REDIRECT_URL", "https://test.example/profile")
 
 import sys
 import pathlib
@@ -372,6 +368,15 @@ class TestHealthCheck(unittest.TestCase):
     """Tests for the billing health check endpoint."""
 
     def setUp(self):
+        payment_environment = patch.dict(os.environ, {
+            "CHIP_ENABLED": "true", "CHIP_ENV": "test",
+            "CHIP_TEST_API_KEY": "health-private-chip-key",
+            "CHIP_TEST_BRAND_ID": "00000000-0000-4000-8000-000000000001",
+            "CHIP_REDIRECT_URL": "https://example.test/billing.html",
+            "CHIP_WEBHOOK_URL": "https://example.test/api/billing/chip/callback",
+        }, clear=False)
+        payment_environment.start()
+        self.addCleanup(payment_environment.stop)
         app = create_app()
         app.config["TESTING"] = True
         self.client = app.test_client()
@@ -391,7 +396,8 @@ class TestHealthCheck(unittest.TestCase):
         checks = data.get("checks", {})
         self.assertIn("secret_key", checks)
         self.assertIn("supabase_url", checks)
-        self.assertIn("toyyibpay_secret_key", checks)
+        self.assertIn("chip_checkout_config_valid", checks)
+        self.assertEqual(data["selected_subscription_gateway"], "chip")
 
     def test_health_does_not_expose_secret_values(self):
         """Health check must not expose secret keys."""
@@ -400,35 +406,26 @@ class TestHealthCheck(unittest.TestCase):
         # Secret values should not be in the response
         self.assertNotIn("test-secret-key", body)
         self.assertNotIn("service-role-key", body)
+        self.assertNotIn("health-private-chip-key", body)
 
-    def test_enabled_hitpay_without_credentials_is_operator_visible_degraded(self):
+    def test_enabled_chip_without_credentials_is_operator_visible_degraded(self):
         with patch.dict(os.environ, {
-            "SUBSCRIPTION_PAYMENT_GATEWAY": "hitpay",
-            "HITPAY_ENABLED": "true",
-            "HITPAY_ENV": "sandbox",
-            "HITPAY_API_KEY": "",
-            "HITPAY_WEBHOOK_SALT": "",
-            "HITPAY_REDIRECT_URL": "",
-            "HITPAY_WEBHOOK_URL": "",
+            "CHIP_TEST_API_KEY": "",
+            "CHIP_TEST_BRAND_ID": "",
+            "CHIP_BRAND_ID": "",
+            "CHIP_REDIRECT_URL": "",
+            "CHIP_WEBHOOK_URL": "",
         }, clear=False):
             resp = self.client.get("/api/billing/health")
 
         data = resp.get_json()
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(data["status"], "degraded")
-        self.assertEqual(data["selected_subscription_gateway"], "hitpay")
-        self.assertFalse(data["checks"]["hitpay_api_key"])
-        self.assertFalse(data["checks"]["hitpay_webhook_salt"])
+        self.assertEqual(data["selected_subscription_gateway"], "chip")
+        self.assertFalse(data["checks"]["chip_checkout_config_valid"])
 
-    def test_hitpay_missing_recent_reconciliation_is_degraded_without_blocking(self):
+    def test_chip_missing_recent_reconciliation_is_degraded_without_blocking(self):
         with patch.dict(os.environ, {
-            "SUBSCRIPTION_PAYMENT_GATEWAY": "hitpay",
-            "HITPAY_ENABLED": "true",
-            "HITPAY_ENV": "sandbox",
-            "HITPAY_API_KEY": "test-key",
-            "HITPAY_WEBHOOK_SALT": "test-salt",
-            "HITPAY_REDIRECT_URL": "https://example.test/profile.html",
-            "HITPAY_WEBHOOK_URL": "https://example.test/api/billing/hitpay/webhook",
             "BILLING_SCHEDULER_ENABLED": "true",
         }, clear=False), patch(
             "app.services.billing_scheduler_service.get_last_successful_run",
@@ -439,7 +436,60 @@ class TestHealthCheck(unittest.TestCase):
         data = resp.get_json()
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(data["status"], "degraded")
-        self.assertFalse(data["checks"]["hitpay_recent_reconciliation"])
+        self.assertTrue(data["checks"]["chip_checkout_config_valid"])
+        self.assertFalse(data["checks"]["chip_recent_reconciliation"])
+
+    def test_public_health_burst_shares_database_probes_across_addresses(self):
+        self.client.application.config["RATELIMIT_ENABLED"] = False
+        with patch("app.database.db.supabase") as database, patch(
+            "app.routes.billing_routes.monotonic", return_value=100.0,
+        ):
+            for address in range(100):
+                response = self.client.get(
+                    "/api/billing/health",
+                    environ_overrides={"REMOTE_ADDR": f"192.0.2.{address}"},
+                )
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.get_json()["checks"]["supabase_connectivity"])
+            self.assertEqual(database.table.call_count, 3)
+
+    def test_failed_health_probes_are_cached_and_recover_after_expiry(self):
+        with patch("app.database.db.supabase") as database, patch(
+            "app.routes.billing_routes.monotonic", return_value=100.0,
+        ) as clock:
+            probe = database.table.return_value.select.return_value.limit.return_value.execute
+            probe.side_effect = RuntimeError("Synthetic database outage")
+            first = self.client.get("/api/billing/health").get_json()
+            self.assertFalse(first["checks"]["supabase_connectivity"])
+            self.assertFalse(first["checks"]["company_subscription_orders_chip_storage"])
+            self.assertFalse(first["checks"]["ai_credit_topup_orders_chip_storage"])
+            probe.side_effect = None
+            clock.return_value = 129.0
+            cached = self.client.get("/api/billing/health").get_json()
+            self.assertFalse(cached["checks"]["supabase_connectivity"])
+            self.assertEqual(database.table.call_count, 3)
+            clock.return_value = 130.0
+            recovered = self.client.get("/api/billing/health").get_json()
+            self.assertTrue(recovered["checks"]["supabase_connectivity"])
+            self.assertTrue(recovered["checks"]["company_subscription_orders_chip_storage"])
+            self.assertTrue(recovered["checks"]["ai_credit_topup_orders_chip_storage"])
+            self.assertEqual(database.table.call_count, 6)
+
+    def test_cached_storage_does_not_cache_configuration_or_scheduler_health(self):
+        with patch("app.database.db.supabase") as database, patch(
+            "app.routes.billing_routes.monotonic", return_value=100.0,
+        ), patch(
+            "app.services.billing_scheduler_service.get_last_successful_run", return_value=100.0,
+        ) as last_run, patch("time.monotonic", return_value=100.0):
+            first = self.client.get("/api/billing/health").get_json()
+            self.assertTrue(first["checks"]["chip_checkout_config_valid"])
+            self.assertTrue(first["checks"]["chip_recent_reconciliation"])
+            last_run.return_value = None
+            with patch.dict(os.environ, {"CHIP_TEST_API_KEY": ""}):
+                updated = self.client.get("/api/billing/health").get_json()
+            self.assertFalse(updated["checks"]["chip_checkout_config_valid"])
+            self.assertFalse(updated["checks"]["chip_recent_reconciliation"])
+            self.assertEqual(database.table.call_count, 3)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """Tests for AI-credit top-up checkout access enforcement.
 
 Route-level tests confirming that Free/trial users are blocked from
-POST /api/billing/toyyibpay/checkout and paid users can proceed.
+POST /api/billing/chip/checkout and paid users can proceed.
 """
 
 import os
@@ -103,7 +103,7 @@ class TestToyyibPayCheckoutTopUpEnforcement(unittest.TestCase):
         if return_value is None:
             return_value = self.service_result
         return patch(
-            "app.routes.billing_routes.create_toyyibpay_topup_checkout",
+            "app.routes.billing_routes.create_chip_topup_checkout",
             return_value=return_value,
             side_effect=side_effect,
         )
@@ -140,9 +140,9 @@ class TestToyyibPayCheckoutTopUpEnforcement(unittest.TestCase):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), \
              self._patch_ai_access_blocked(), self._patch_get_subscription():
             resp = self.client.post(
-                "/api/billing/toyyibpay/checkout",
+                "/api/billing/chip/checkout",
                 json=self.valid_body,
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 403)
 
@@ -153,9 +153,9 @@ class TestToyyibPayCheckoutTopUpEnforcement(unittest.TestCase):
                  denial_reason="Your trial has expired. Please subscribe to continue."), \
              self._patch_get_subscription():
             resp = self.client.post(
-                "/api/billing/toyyibpay/checkout",
+                "/api/billing/chip/checkout",
                 json=self.valid_body,
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             data = resp.get_json()
             self.assertEqual(data["status"], "error")
@@ -167,9 +167,9 @@ class TestToyyibPayCheckoutTopUpEnforcement(unittest.TestCase):
              self._patch_ai_access_blocked(denial_reason=None), \
              self._patch_get_subscription():
             resp = self.client.post(
-                "/api/billing/toyyibpay/checkout",
+                "/api/billing/chip/checkout",
                 json=self.valid_body,
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             data = resp.get_json()
             self.assertEqual(data["status"], "error")
@@ -181,9 +181,9 @@ class TestToyyibPayCheckoutTopUpEnforcement(unittest.TestCase):
              self._patch_ai_access_blocked(), self._patch_get_subscription(), \
              self._patch_checkout_service() as mock_checkout:
             self.client.post(
-                "/api/billing/toyyibpay/checkout",
+                "/api/billing/chip/checkout",
                 json=self.valid_body,
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             mock_checkout.assert_not_called()
 
@@ -196,9 +196,9 @@ class TestToyyibPayCheckoutTopUpEnforcement(unittest.TestCase):
              self._patch_get_subscription({"id": 99, "plan_name": "pro"}), \
              self._patch_checkout_service() as mock_checkout:
             resp = self.client.post(
-                "/api/billing/toyyibpay/checkout",
+                "/api/billing/chip/checkout",
                 json=self.valid_body,
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 201)
             mock_checkout.assert_called_once()
@@ -212,9 +212,9 @@ class TestToyyibPayCheckoutTopUpEnforcement(unittest.TestCase):
         """Invalid amount is rejected early (before access policy or user lookup)."""
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.post(
-                "/api/billing/toyyibpay/checkout",
+                "/api/billing/chip/checkout",
                 json={"amount_micro_myr": "not-a-number"},
-                headers={"Authorization": "Bearer test-token"},
+                headers={"Authorization": "Bearer test-token", "Idempotency-Key": "5a5f7de0-482c-4d28-96f1-d82a23f80bf4"},
             )
             self.assertEqual(resp.status_code, 400)
 
@@ -223,7 +223,7 @@ class TestToyyibPayCheckoutTopUpEnforcement(unittest.TestCase):
     def test_unauthenticated_returns_401_before_policy_check(self):
         """Unauthenticated request is rejected before consulting access policy."""
         resp = self.client.post(
-            "/api/billing/toyyibpay/checkout",
+            "/api/billing/chip/checkout",
             json=self.valid_body,
         )
         self.assertEqual(resp.status_code, 401)

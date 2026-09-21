@@ -1,5 +1,9 @@
 # Testing Guide
 
+Payment status (2026-09-15): CHIP replaces ToyyibPay and HitPay in the current code.
+Local tests and a provider sandbox payment are verified; deployment is pending.
+Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, configuration, and rollout.
+
 ## Goals
 
 The test strategy should:
@@ -15,7 +19,7 @@ The test strategy should:
 
 The strongest recorded automated coverage is around:
 
-- ToyyibPay service behavior
+- CHIP provider behavior and test/live isolation
 - Checkout routes
 - Callback routes
 - Callback processing
@@ -48,7 +52,7 @@ Do not use a copied virtual environment from another machine.
 
 Tests must not:
 
-- Call live ToyyibPay
+- Call real payment providers from the automated suite
 - Call live messaging APIs
 - Call live AI providers
 - Modify production Supabase data
@@ -63,7 +67,7 @@ Mock:
 - Email sending
 - AI providers
 - Messaging providers
-- ToyyibPay
+- CHIP
 
 ## Recommended Test Order
 
@@ -82,9 +86,9 @@ python -m compileall app tests
 Examples:
 
 ```powershell
-python -m pytest tests/test_billing_routes.py -q
-python -m pytest tests/test_toyyibpay_service.py -q
-python -m pytest tests/test_ai_credit_topup_callback_service.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_billing_routes.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_chip_service.py tests/test_chip_payment_service.py tests/test_chip_topup.py -q
+.\.venv\Scripts\python.exe -m pytest tests/test_ai_credit_topup_callback_service.py -q
 ```
 
 ### 3. Full safe suite

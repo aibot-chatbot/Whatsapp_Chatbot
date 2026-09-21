@@ -1,5 +1,9 @@
 # Project Overview
 
+Payment status (2026-09-15): CHIP replaces ToyyibPay and HitPay in the current code.
+Local tests and a provider sandbox payment are verified; deployment is pending.
+Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, configuration, and rollout.
+
 ## Purpose
 
 This project is a multi-tenant platform for creating, configuring, operating, and monitoring AI chatbots across messaging channels.
@@ -20,7 +24,7 @@ They can:
 - Review conversations and CRM leads
 - Manage team members and roles
 - Review subscription limits and AI-credit balances
-- Purchase additional AI credit through ToyyibPay
+- Purchase additional AI credit through CHIP (deployment pending)
 
 ### Team members
 
@@ -85,7 +89,7 @@ The dashboard and analytics modules provide message metrics, workflow status, he
 
 The platform applies subscription limits and tracks AI-credit balances. AI usage can deduct monetary-value credit, stored internally in micro-MYR.
 
-Authorized users can purchase additional credit through ToyyibPay. The backend manages checkout creation, callback processing, order status, idempotency, and credit granting.
+The current backend supports additional credit purchases through CHIP; deployment remains pending. The backend manages checkout creation, callback processing, order status, idempotency, and credit granting.
 
 ## Current Maturity
 
@@ -93,7 +97,7 @@ The platform is in late-stage development.
 
 Major product areas are implemented, but verification maturity differs across modules:
 
-- Billing and ToyyibPay flows have the strongest recorded automated coverage.
+- Billing has historical automated coverage; current CHIP verification is recorded in the [payment guide](CHIP_PAYMENT_GATEWAY.md#verification-evidence).
 - Several core product modules are implemented but need broader automated regression coverage.
 - External integrations require controlled environment verification.
 - Database RPC definitions and live Supabase security settings need stronger repository documentation.
@@ -107,7 +111,7 @@ The repository contains the application code and some SQL scripts, but certain o
 - Deployed PostgreSQL RPC definitions
 - External provider configuration
 - Meta business and app review state
-- ToyyibPay account and production configuration
+- CHIP merchant account and test/live configuration
 - Messaging platform webhook configuration
 
 These must be verified against the live environment before production release.

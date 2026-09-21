@@ -1,5 +1,9 @@
 # Deployment Checklist
 
+Payment status (2026-09-15): CHIP replaces ToyyibPay and HitPay in the current code.
+Local tests and a provider sandbox payment are verified; deployment is pending.
+Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, configuration, and rollout.
+
 ## 1. Pre-Deployment
 
 ### Environment Configuration
@@ -14,11 +18,7 @@
 | `CORS_ORIGINS` | **Required** | Comma-separated production origins; startup raises if missing/empty |
 | `RATELIMIT_STORAGE_URI` | Optional | No code requires it; `app/config.py:63` silently defaults to `memory://`. Note `redis` is **not** in `requirements.txt`, so a `redis://` value cannot work in the image as built. Acceptable only because the service is pinned to one instance and one worker. |
 | `RATELIMIT_ENABLED` | `true` | Enable rate limiting in production |
-| `TOYYIBPAY_ENV` | `production` | Switch from sandbox to production |
-| `TOYYIBPAY_CATEGORY_CODE` | Required | Production ToyyibPay category |
-| `TOYYIBPAY_USER_SECRET_KEY` | Required | Production ToyyibPay secret |
-| `TOYYIBPAY_CALLBACK_URL` | Required | Public HTTPS URL where ToyyibPay sends payment callbacks (`/api/billing/toyyibpay/callback`). Must be a deployed production URL. |
-| `TOYYIBPAY_RETURN_URL` | Required | URL where customers are redirected after payment. Must be a production URL. |
+| `CHIP_*` | Required before enabling payments | Use the [CHIP configuration and staged rollout](CHIP_PAYMENT_GATEWAY.md); start in test mode. |
 | `OPENROUTER_API_KEY` | Required | Paid-plan generative AI routing key for tenant-selected supported models |
 | `OPENAI_API_KEY` | Optional / legacy | Direct OpenAI helper key; not the normal current chatbot/RAG generative path |
 | `GEMINI_API_KEY` | Required | Gemini embedding infrastructure key for vector generation and semantic retrieval |
@@ -74,7 +74,7 @@ External callbacks require a separately deployed public HTTPS server.
 - [ ] SECRET_KEY (Flask session) is strong and unique
 - [ ] Weak or missing JWT_SECRET or SECRET_KEY blocks production startup (RuntimeError)
 - [ ] OTP values are not logged (confirmed by code audit)
-- [ ] ToyyibPay callback signature verification is enabled
+- [ ] CHIP raw-body signature verification and authoritative purchase validation are enabled
 
 ### Exposed Credentials Requiring Rotation
 
@@ -102,7 +102,7 @@ Categories originally listed, kept for reference:
 
 ### Database Migrations
 
-Apply in order (003 through 019). Each migration is safe to run sequentially on the Supabase project.
+Historical billing baseline (003 through 019). Review the [current CHIP database rollout](CHIP_PAYMENT_GATEWAY.md#database-rollout) for additional requirements, including unapplied proposal 059, before changing the approved target.
 Migration 019 (`data/019_set_trial_ai_credit.sql`) initialises a trial AI-credit
 allowance for new Free plan companies. Apply it before registering trial users.
 Back up the database before applying migrations.
@@ -173,11 +173,12 @@ notifications, and audit clarity.
 
 ## 4. Smoke Test Checklist
 
-Perform these tests after deployment on a staging/production environment:
+After an authorized test deployment, verify CHIP callbacks and stored `test_paid` completion without granting plans or credits.
+The entitlement checks below apply only to a separately approved live payment verification; deployment is currently pending.
 
 ### A. New Subscription
 - [ ] Create checkout via pricing page
-- [ ] Complete payment via ToyyibPay
+- [ ] Complete payment via CHIP in the approved mode
 - [ ] Callback received and verified
 - [ ] Subscription activated with correct plan
 - [ ] Included AI credit granted

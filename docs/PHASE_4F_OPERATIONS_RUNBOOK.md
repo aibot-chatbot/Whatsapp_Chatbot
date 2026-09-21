@@ -1,8 +1,12 @@
 # Phase 4F — Production Operations Runbook
 
+Payment status (2026-09-15): CHIP replaces ToyyibPay and HitPay in the current code.
+Local tests and a provider sandbox payment are verified; deployment is pending.
+Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, configuration, and rollout.
+
 ## Required Migrations
 
-Apply in order:
+Historical Phase 4F migration baseline (current CHIP additions are in the guide above):
 
 1. data/001_seed_subscription_plans.sql
 2. data/002_update_company_subscriptions_plan_id.sql
@@ -18,8 +22,8 @@ Apply in order:
 12. data/012_subscription_reconciliation_rpc.sql
 13. data/013_subscription_included_credit_rpc.sql
 
-Each migration is idempotent (IF NOT EXISTS).  Execute via Supabase SQL editor
-or psql with service_role.
+Review the target schema and the [current CHIP database rollout](CHIP_PAYMENT_GATEWAY.md#database-rollout) before applying migrations.
+This original Phase 4F list does not include later payment migrations.
 
 ## Environment Variables
 
@@ -28,23 +32,18 @@ or psql with service_role.
 | SUPABASE_URL | Yes | Supabase project URL |
 | SUPABASE_SERVICE_ROLE_KEY | Yes | Service-role key for admin DB access |
 | SECRET_KEY | Yes | JWT signing secret |
-| TOYYIBPAY_USER_SECRET_KEY | Yes | ToyyibPay API secret |
-| TOYYIBPAY_CATEGORY_CODE | Yes | ToyyibPay bill category |
-| TOYYIBPAY_REDIRECT_URL | Yes | Post-payment redirect URL |
+| CHIP_* | Yes, before enabling CHIP | Follow the [CHIP configuration](CHIP_PAYMENT_GATEWAY.md#required-configuration); start in test mode |
 | AI_CREDIT_ENFORCEMENT_ENABLED | No | Set 'true' to enforce credit checks (default false) |
 
 ## Webhook Configuration
 
-ToyyibPay sends callbacks to:
+The purchase success callback uses `POST /api/billing/chip/callback`.
+Set `CHIP_WEBHOOK_URL` to the deployed public HTTPS URL for that endpoint.
+An optional registered event webhook uses `POST /api/billing/chip/webhook`
+and its separate webhook public key. See the [CHIP HTTP contract](CHIP_PAYMENT_GATEWAY.md#http-contract).
 
-POST /api/toyyibpay/callback
-
-Configure in ToyyibPay admin panel:
-- Callback URL: https://your-domain.com/api/toyyibpay/callback
-- Redirect URL: https://your-domain.com/profile
-
-The callback verifies the illcode matches a pending order's gateway_order_id.
-Idempotency is ensured via idempotency_key unique constraint.
+Callbacks verify the original bytes and fetch the purchase before matching the
+stored identity, mode, brand, currency and exact amount. Test payments never grant entitlements.
 
 ## Reconciliation Command
 
@@ -56,9 +55,11 @@ Options:
 - --order-reference UUID (single order)
 - --company-id N (single company)
 
-### Recommended Schedule
+### Historical Schedule Example
 
-Run every 15 minutes via cron or scheduled task:
+The existing billing scheduler includes subscription and CHIP top-up reconciliation when enabled.
+Retain one authorized scheduler runtime; do not enable a second process.
+The original subscription-only cron example below does not include top-up recovery:
 
 */15 * * * * cd /app && venv/bin/python -m app.jobs.reconcile_subscription_orders --batch-size 50
 
@@ -136,9 +137,9 @@ To verify limits for a specific company:
 ## Production Smoke-Test Checklist
 
 Pre-deployment:
-- [ ] All 13 SQL migrations applied
+- [ ] Historical Phase 4F migrations and current CHIP migration requirements reviewed/applied to the approved target
 - [ ] Service role grants verified on all tables/RPCs
-- [ ] ToyyibPay callback URL configured
+- [ ] CHIP callback URL and the appropriate public key configured
 - [ ] Redirect URL points to profile page
 - [ ] Reconciliation service importable (no circular deps)
 - [ ] Environment variables set

@@ -1,5 +1,40 @@
 # Development Roadmap
 
+## CHIP payment replacement — 2026-09-15
+
+**Deployed in CHIP LIVE mode on Fly release 20.**
+The real RM39 subscription test and deployed Sentry reporting are verified.
+Migrations 051/059 are applied; nine approved legacy bills/orders are retired
+with payment history preserved. All 4,226 tests passed; three medium security
+findings passed targeted fix verification, with two low policy findings retained.
+Test payments grant no paid entitlements. [Rollout and evidence](CHIP_PAYMENT_GATEWAY.md).
+The separate live key, unpaid live connection check, runtime configuration,
+274 deployed file hashes, and billing health are verified. The probe and
+abandoned test orders 27/29 were cancelled without charges or grants; unused
+ToyyibPay runtime secrets are removed. The user requested live mode before the
+deployed top-up test completed. Paid live processing and independent callback
+delivery remain unverified; local top-up tests passed.
+This supersedes earlier HitPay/ToyyibPay active-gateway descriptions below.
+
+
+### Client document protection — 2026-09-14
+
+Upload/privacy protections, authoritative R2 storage, and a verified-before-startup
+migration are implemented. The user approved R2 billing and a bucket-only token;
+the private APAC Standard bucket exists and four Fly secrets are deployed. Final
+local checks passed: 359 tests, 108 subtests, 12 runtime-file compilation checks,
+and diff checks. Fly v18 is live on the existing single Machine/volume; the marker
+confirms 43 migrated files / 8,622,343 bytes. Runtime hashes, health, and synthetic
+storage/media checks passed. Anonymous bucket access is denied, synthetic files
+were removed, and final remote verification completed with exit 0. This storage
+deployment is complete.
+
+Fly `/media/` URLs remain anonymously shareable. Complete erasure, revocable
+provider sharing, and database defense in depth remain separate work. Zone WAF
+needs a user-controlled domain; R2 does not provide that edge protection. The
+Codex Security scan is waived for this task. See the
+[document protection review](CLIENT_DOCUMENT_PROTECTION.md) for exact evidence.
+
 ### All-channel replacement and Resolve-only handoff — 2026-09-14
 
 The approved prototype is implemented for Telegram, Meta WhatsApp and WASender.

@@ -1,5 +1,9 @@
 # Security and Tenant Isolation
 
+Payment status (2026-09-15): CHIP replaces ToyyibPay and HitPay in the current code.
+Local tests and a provider sandbox payment are verified; deployment is pending.
+Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, configuration, and rollout.
+
 ## Security Model
 
 The platform is a multi-tenant server-side application.
@@ -105,10 +109,11 @@ Requirements:
 
 ## Webhook Security
 
-### ToyyibPay
+### CHIP Collect
 
-- Verify callback authenticity
-- Validate expected order and amount
+- Verify RSA/SHA256 `X-Signature` over the original callback bytes, then fetch authoritative purchase state
+- Match stored purchase ID, reference, brand, mode, MYR, and exact integer amount
+- Keep test payments separate; they cannot grant subscriptions or AI credit
 - Enforce idempotency
 - Never grant credit solely from frontend return parameters
 - Record processing state
@@ -135,7 +140,7 @@ Secrets include:
 - AI-provider API keys
 - Messaging provider tokens
 - Meta app secret and access tokens
-- ToyyibPay credentials
+- Separate CHIP test/live API keys
 - Email credentials
 
 Rules:

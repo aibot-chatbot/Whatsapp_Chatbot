@@ -3,8 +3,7 @@
 import logging
 import os
 import uuid
-from datetime import datetime, time, timedelta, timezone
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from datetime import datetime, timedelta, timezone
 
 from app.services.billing_service import get_current_subscription
 from app.services.free_trial_status_service import (
@@ -17,33 +16,26 @@ from app.database.company_subscription_order_repository import (
     create_subscription_order,
     get_subscription_order_by_reference,
     get_subscription_order_by_activation_sequence_key,
-    expire_pending_subscription_order_for_checkout_retry,
     fail_pending_subscription_order_without_gateway_and_release_key,
     update_subscription_order_activation_state,
-    update_subscription_order_status,
 )
-from app.services.hitpay_service import (
-    HitPayAmbiguousError,
-    HitPayConfig,
-    HitPayConfigError,
-    HitPayRequestRejectedError,
-    create_payment_request,
-)
-from app.services.toyyibpay_service import (
-    ToyyibPayConfig,
-    ToyyibPayConfigError,
-    ToyyibPayBillRejectedError,
-    create_bill,
+from app.observability import capture_payment_failure
+from app.services.chip_service import (
+    ChipConfig,
+    ChipConfigError,
+    ChipRequestRejectedError,
+    create_purchase,
+    validate_checkout_url,
 )
 
 logger = logging.getLogger(__name__)
 
-_PAYMENT_GATEWAYS = frozenset({"hitpay", "toyyibpay"})
+_PAYMENT_GATEWAYS = frozenset({"chip"})
 
 _PLAN_CODE_TO_SEN = {
     "essential": 3900,
     "advanced": 8900,
-    "pro": 16900,
+    "pro": 100,
 }
 
 _VALID_PLAN_CODES = frozenset(_PLAN_CODE_TO_SEN.keys())
@@ -51,9 +43,7 @@ _VALID_PLAN_CODES = frozenset(_PLAN_CODE_TO_SEN.keys())
 _TERMINAL_ORDER_STATUSES = frozenset({"failed", "expired", "cancelled", "credited"})
 
 _DEFAULT_CHECKOUT_EXPIRY_DAYS = 1
-_MAX_TOYYIBPAY_EXPIRY_DAYS = 100
-_TOYYIBPAY_EXPIRY_TIMEZONE_KEY = "Asia/Kuala_Lumpur"
-_TOYYIBPAY_EXPIRY_TIMEZONE = None
+_MAX_CHECKOUT_EXPIRY_DAYS = 100
 NULL_SOURCE_PERIOD_END_ACTIVATION_SENTINEL = "null-period-end"
 
 
@@ -62,43 +52,25 @@ def _clean(value: object) -> str:
 
 
 def _has_usable_checkout(order: dict) -> bool:
-    checkout_url = _clean(order.get("checkout_url"))
-    gateway_order_id = _clean(order.get("gateway_order_id"))
-    payment_gateway = _clean(order.get("payment_gateway")).lower() or "toyyibpay"
-    prefixes = {
-        "hitpay": (
-            "https://securecheckout.sandbox.hit-pay.com/",
-            "https://securecheckout.hit-pay.com/",
-        ),
-        "toyyibpay": (
-            "https://toyyibpay.com/",
-            "https://dev.toyyibpay.com/",
-        ),
-    }
-    return (
-        bool(gateway_order_id)
-        and payment_gateway in prefixes
-        and checkout_url.startswith(prefixes[payment_gateway])
-    )
+    if order.get("payment_gateway") != "chip" or not _clean(order.get("gateway_order_id")):
+        return False
+    config = ChipConfig.from_env()
+    if (
+        order.get("gateway_environment") != config.environment
+        or order.get("gateway_brand_id") != config.brand_id
+        or order.get("currency") != "MYR"
+    ):
+        return False
+    try:
+        validate_checkout_url(order.get("checkout_url"))
+    except ValueError:
+        return False
+    return True
 
 
 def get_subscription_payment_gateway(company_id: int | None = None) -> str:
-    """Resolve the server-controlled gateway, with an optional HitPay canary list."""
-    raw_canaries = os.getenv("HITPAY_CANARY_COMPANY_IDS", "").strip()
-    if raw_canaries and company_id is not None:
-        try:
-            canaries = {int(value.strip()) for value in raw_canaries.split(",") if value.strip()}
-        except ValueError as exc:
-            raise RuntimeError("HITPAY_CANARY_COMPANY_IDS must contain integer IDs") from exc
-        if company_id in canaries:
-            return "hitpay"
-
-    gateway = os.getenv("SUBSCRIPTION_PAYMENT_GATEWAY", "toyyibpay").strip().lower()
-    if gateway not in _PAYMENT_GATEWAYS:
-        raise RuntimeError(
-            "SUBSCRIPTION_PAYMENT_GATEWAY must be 'toyyibpay' or 'hitpay'"
-        )
-    return gateway
+    """CHIP is the only active payment gateway; historical provider rows remain."""
+    return "chip"
 
 
 def _is_incomplete_pending_checkout(order: dict) -> bool:
@@ -121,7 +93,7 @@ def _checkout_expiry_days() -> int:
         days = int(raw)
     except ValueError as exc:
         raise RuntimeError("SUBSCRIPTION_CHECKOUT_EXPIRY_DAYS must be an integer") from exc
-    if days < 1 or days > _MAX_TOYYIBPAY_EXPIRY_DAYS:
+    if days < 1 or days > _MAX_CHECKOUT_EXPIRY_DAYS:
         raise RuntimeError(
             "SUBSCRIPTION_CHECKOUT_EXPIRY_DAYS must be between 1 and 100"
         )
@@ -132,19 +104,6 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _toyyibpay_expiry_timezone() -> ZoneInfo:
-    global _TOYYIBPAY_EXPIRY_TIMEZONE
-    if _TOYYIBPAY_EXPIRY_TIMEZONE is None:
-        try:
-            _TOYYIBPAY_EXPIRY_TIMEZONE = ZoneInfo(_TOYYIBPAY_EXPIRY_TIMEZONE_KEY)
-        except ZoneInfoNotFoundError as exc:
-            raise RuntimeError(
-                "IANA timezone data is required for subscription checkout expiry. "
-                "Install the runtime dependency 'tzdata'."
-            ) from exc
-    return _TOYYIBPAY_EXPIRY_TIMEZONE
-
-
 def _build_checkout_expires_at(now: datetime | None = None) -> str:
     base = now or _now_utc()
     if base.tzinfo is None:
@@ -152,16 +111,7 @@ def _build_checkout_expires_at(now: datetime | None = None) -> str:
     else:
         base = base.astimezone(timezone.utc)
 
-    expiry_days = _checkout_expiry_days()
-    local_timezone = _toyyibpay_expiry_timezone()
-    local_base = base.astimezone(local_timezone)
-    final_date = local_base.date() + timedelta(days=expiry_days)
-    final_local = datetime.combine(
-        final_date,
-        time(23, 59, 59),
-        tzinfo=local_timezone,
-    )
-    return final_local.astimezone(timezone.utc).isoformat()
+    return (base + timedelta(days=_checkout_expiry_days())).replace(microsecond=0).isoformat()
 
 
 def _parse_datetime(value: object) -> datetime | None:
@@ -193,17 +143,16 @@ def _is_pending_checkout_expired(order: dict, now: datetime | None = None) -> bo
     return expires_at <= check_time
 
 
-def _is_pending_checkout_reusable(order: dict) -> bool:
+def _is_pending_checkout_reusable(
+    order: dict, expected_amount_sen: int | None = None
+) -> bool:
+    if expected_amount_sen is not None and order.get("amount_sen") != expected_amount_sen:
+        return False
     return (
         _has_usable_checkout(order)
         and _parse_datetime(order.get("expires_at")) is not None
         and not _is_pending_checkout_expired(order)
     )
-
-
-def _released_activation_sequence_key(order: dict, activation_sequence_key: str) -> str:
-    order_id = order.get("id") or "unknown"
-    return f"released:checkout-expired:order:{order_id}:{activation_sequence_key}"
 
 
 def _gateway_rejected_activation_sequence_key(order: dict, activation_sequence_key: str) -> str:
@@ -212,40 +161,43 @@ def _gateway_rejected_activation_sequence_key(order: dict, activation_sequence_k
 
 
 def _expire_existing_pending_checkout_if_needed(order: dict, activation_sequence_key: str) -> bool:
+    # A local deadline cannot prove a provider purchase is no longer payable.
+    # Legacy orders and ambiguous creates retain their activation claim.
+    if order.get("payment_gateway") != "chip" or not order.get("gateway_order_id"):
+        return False
     if not _is_pending_checkout_expired(order):
         return False
     order_reference = _clean(order.get("order_reference"))
     if not order_reference or not activation_sequence_key:
         return False
-    expire_pending_subscription_order_for_checkout_retry(
-        order_reference=order_reference,
-        activation_sequence_key=activation_sequence_key,
-        expired_activation_sequence_key=_released_activation_sequence_key(
-            order, activation_sequence_key
-        ),
+    from app.services.subscription_reconciliation_service import reconcile_subscription_order
+    reconcile_subscription_order(order_reference, company_id=order.get("company_id"))
+    current = get_subscription_order_by_reference(order_reference)
+    return bool(
+        current
+        and current.get("status") in {"failed", "expired", "cancelled"}
+        and current.get("activation_sequence_key") != activation_sequence_key
+        and str(current.get("activation_sequence_key") or "").startswith("released:chip:")
     )
-    logger.info(
-        "Expired subscription checkout order %s and released activation sequence",
-        order_reference,
-    )
-    return True
 
 
-def _activation_sequence_conflict_message(existing_order: dict) -> str:
+def _activation_sequence_conflict_message(
+    existing_order: dict, expected_amount_sen: int | None = None
+) -> str:
     status = (existing_order.get("status") or "").strip().lower()
     activation_status = (existing_order.get("activation_status") or "").strip().lower()
 
     if _is_incomplete_pending_checkout(existing_order):
-        if existing_order.get("expires_at"):
-            return (
-                "A pending subscription checkout has expired. "
-                "Please try creating the checkout again."
-            )
         return (
             "A pending subscription checkout was started, but its payment link is not available. "
             "Please contact support so we can safely reset this checkout."
         )
     if status == "pending":
+        if expected_amount_sen is not None and existing_order.get("amount_sen") != expected_amount_sen:
+            return (
+                "A pending subscription checkout uses an outdated price. "
+                "Please contact support before retrying this checkout."
+            )
         return (
             "A pending subscription checkout already exists for this billing period. "
             "Please complete or wait for the existing order to expire."
@@ -299,7 +251,8 @@ def _build_existing_checkout_result(order: dict) -> dict:
         "checkout_url": checkout_url,
         "amount_sen": amount_sen,
         "expires_at": order.get("expires_at"),
-        "payment_gateway": _clean(order.get("payment_gateway")).lower() or "toyyibpay",
+        "payment_gateway": "chip",
+        "is_test": order.get("gateway_environment") == "test",
         "existing_order": True,
     }
 
@@ -309,20 +262,23 @@ def prepare_subscription_checkout_order(
     user_id: int,
     plan_code: str,
     *,
-    payment_gateway: str = "toyyibpay",
+    payment_gateway: str = "chip",
     allow_existing_reusable_checkout: bool = False,
+    config: ChipConfig | None = None,
 ) -> dict:
     """Create a pending subscription order without contacting a gateway."""
     payment_gateway = _clean(payment_gateway).lower()
     if payment_gateway not in _PAYMENT_GATEWAYS:
         raise ValueError("Unsupported subscription payment gateway")
     # --- Validate plan code ---
-    norm_code = plan_code.strip().lower()
+    norm_code = plan_code.strip().lower() if isinstance(plan_code, str) else ""
     if norm_code not in _VALID_PLAN_CODES:
         raise ValueError(
             f"Invalid plan code: {plan_code!r}. "
             f"Must be one of: {sorted(_VALID_PLAN_CODES)}"
         )
+    config = config or ChipConfig.from_env()
+    config.validate_for_checkout()
 
     # --- Look up the plan in the database ---
     plan = get_plan_by_code(norm_code)
@@ -488,10 +444,12 @@ def prepare_subscription_checkout_order(
             and
             existing_status == "pending"
             and existing_sequence_order.get("new_plan_id") == plan_id
-            and _is_pending_checkout_reusable(existing_sequence_order)
+            and _is_pending_checkout_reusable(existing_sequence_order, amount_sen)
         ):
             return _build_existing_checkout_result(existing_sequence_order)
-        raise ValueError(_activation_sequence_conflict_message(existing_sequence_order))
+        raise ValueError(
+            _activation_sequence_conflict_message(existing_sequence_order, amount_sen)
+        )
 
     if norm_code in _paid_plan_codes:
         from app.database.company_subscription_order_repository import list_subscription_orders_for_company
@@ -527,6 +485,9 @@ def prepare_subscription_checkout_order(
             activation_type=activation_type,
             activation_sequence_key=activation_sequence_key,
             order_schema_version=2,
+            gateway_environment=config.environment,
+            gateway_brand_id=config.brand_id,
+            currency="MYR",
         )
     except Exception as exc:
         if _is_activation_sequence_unique_violation(exc):
@@ -563,31 +524,21 @@ def create_subscription_checkout(
     *,
     payment_gateway: str | None = None,
 ) -> dict:
-    """Validate the plan, create an order, and generate a hosted checkout.
-
-    Args:
-        company_id: Authenticated company ID.
-        user_id: Authenticated user ID.
-        plan_code: Lowercase plan code ("essential", "advanced", "pro").
-        customer_name: Display name for the bill.
-        customer_email: Email for the bill.
-        customer_phone: Optional phone for ToyyibPay.
-
-    Returns:
-        Dictionary with order_reference (UUID), checkout_url, amount_sen.
-
-    Raises:
-        ValueError: If plan_code is invalid, plan is inactive, or company
-            has no current subscription.
-        RuntimeError: If gateway checkout creation fails.
-    """
+    """Create one mode-bound CHIP purchase for the authenticated company."""
+    if not isinstance(plan_code, str) or plan_code.strip().lower() not in _VALID_PLAN_CODES:
+        raise ValueError("Invalid subscription plan code")
     payment_gateway = payment_gateway or get_subscription_payment_gateway(company_id)
+    if payment_gateway != "chip":
+        raise ValueError("Unsupported subscription payment gateway")
+    config = ChipConfig.from_env()
+    config.validate_for_checkout()
     prepared = prepare_subscription_checkout_order(
         company_id=company_id,
         user_id=user_id,
         plan_code=plan_code,
         payment_gateway=payment_gateway,
         allow_existing_reusable_checkout=True,
+        config=config,
     )
     if prepared.get("existing_order"):
         return prepared
@@ -596,42 +547,20 @@ def create_subscription_checkout(
     order_reference = prepared["order_reference"]
     amount_sen = prepared["amount_sen"]
     expires_at = prepared["expires_at"]
-    norm_code = prepared["plan_code"]
     activation_sequence_key = prepared["activation_sequence_key"]
-
     try:
-        if payment_gateway == "hitpay":
-            expiry_days = _checkout_expiry_days()
-            bill = create_payment_request(
-                config=HitPayConfig.from_env(),
-                order_reference=order_reference,
-                amount_sen=amount_sen,
-                customer_name=customer_name,
-                customer_email=customer_email,
-                customer_phone=customer_phone,
-                description=f"Subscription - {norm_code.title()}",
-                expires_after=(
-                    f"{expiry_days} day" if expiry_days == 1 else f"{expiry_days} days"
-                ),
-            )
-        else:
-            bill = create_bill(
-                order_reference=order_reference,
-                amount_micro_myr=amount_sen * 10_000,
-                customer_name=customer_name,
-                customer_email=customer_email,
-                customer_phone=customer_phone,
-                description=f"Subscription - {norm_code.title()}",
-                bill_expiry_days=_checkout_expiry_days(),
-            )
-    except (
-        ValueError,
-        HitPayConfigError,
-        HitPayRequestRejectedError,
-        ToyyibPayConfigError,
-        ToyyibPayBillRejectedError,
-    ) as exc:
-        # Definite no-bill failures can release the source activation key.
+        purchase = create_purchase(
+            config=config,
+            order_reference=order_reference,
+            amount_sen=amount_sen,
+            customer_name=customer_name,
+            customer_email=customer_email,
+            customer_phone=customer_phone,
+            description=f"Subscription - {prepared['plan_code'].title()}",
+            due=int(datetime.fromisoformat(expires_at).timestamp()),
+        )
+    except (ValueError, ChipConfigError, ChipRequestRejectedError) as exc:
+        capture_payment_failure("checkout", reason="provider_rejected", mode=config.environment, exc=exc)
         try:
             fail_pending_subscription_order_without_gateway_and_release_key(
                 order_reference=order_reference,
@@ -640,81 +569,56 @@ def create_subscription_checkout(
                     order, activation_sequence_key
                 ),
             )
-        except Exception:
-            logger.exception(
-                "Failed to release subscription order %s after definite no-bill error",
-                order_reference,
-            )
-        logger.exception("Payment gateway bill creation was rejected for order %s", order_reference)
+        except Exception as persistence_error:
+            capture_payment_failure("checkout", reason="persistence", mode=config.environment, exc=persistence_error)
+        raise RuntimeError("Payment gateway purchase creation failed. Please try again later.") from exc
+    except Exception as exc:
+        capture_payment_failure("checkout", reason="provider_unavailable", mode=config.environment, exc=exc)
+        _mark_checkout_for_reconciliation(order_reference, config.environment)
         raise RuntimeError(
-            "Payment gateway bill creation failed. Please try again later."
-        ) from exc
-    except HitPayAmbiguousError as exc:
-        try:
-            update_subscription_order_activation_state(
-                order_reference=order_reference,
-                activation_error_code="gateway_create_ambiguous",
-                activation_error_message="HitPay checkout creation requires reconciliation.",
-                reconciliation_required=True,
-            )
-        except Exception:
-            logger.exception(
-                "Failed to mark HitPay order %s for reconciliation", order_reference
-            )
-        logger.exception(
-            "HitPay checkout creation outcome is ambiguous for order %s", order_reference
-        )
-        raise RuntimeError(
-            "Payment gateway checkout outcome is pending verification. "
-            "Please do not retry yet."
-        ) from exc
-    except RuntimeError as exc:
-        # Ambiguous gateway outcomes keep the canonical activation key so a
-        # second payable bill cannot be created before support checks ToyyibPay.
-        try:
-            update_subscription_order_status(
-                order_reference,
-                "failed",
-                activation_status=None,
-                reconciliation_required=False,
-            )
-        except Exception:
-            logger.exception(
-                "Failed to mark subscription order %s as failed after ambiguous bill error",
-                order_reference,
-            )
-        logger.exception("Payment gateway bill creation outcome is ambiguous for order %s", order_reference)
-        raise RuntimeError(
-            "Payment gateway bill creation failed. Please try again later."
+            "Payment gateway checkout outcome is pending verification. Please do not retry yet."
         ) from exc
 
-    gateway_order_id = bill.get("billcode") or bill.get("gateway_order_id", "")
-    checkout_url = bill.get("checkout_url", "")
-
-    # --- Save gateway details ---
     try:
+        gateway_order_id = _clean(purchase.get("gateway_order_id"))
+        checkout_url = validate_checkout_url(purchase.get("checkout_url"))
+        if (
+            not gateway_order_id
+            or purchase.get("is_test") is not config.is_test
+            or purchase.get("brand_id") != config.brand_id
+        ):
+            raise ValueError("CHIP purchase identity does not match checkout configuration")
         attach_pending_subscription_gateway_details(
             order_reference=order_reference,
-            payment_gateway=payment_gateway,
+            payment_gateway="chip",
             gateway_order_id=gateway_order_id,
             checkout_url=checkout_url,
         )
-    except Exception:
-        logger.exception("Failed to save gateway details for order %s", order_reference)
+    except Exception as exc:
+        capture_payment_failure("checkout", reason="persistence", mode=config.environment, exc=exc)
+        _mark_checkout_for_reconciliation(order_reference, config.environment)
         raise RuntimeError(
             "Payment checkout was created but could not be recorded safely. "
             "Please contact support before retrying."
-        )
-
-    logger.info(
-        "Subscription checkout for company %d: reference=%s, gateway=%s",
-        company_id, order_reference, gateway_order_id,
-    )
+        ) from exc
 
     return {
         "order_reference": order_reference,
         "checkout_url": checkout_url,
         "amount_sen": amount_sen,
         "expires_at": expires_at,
-        "payment_gateway": payment_gateway,
+        "payment_gateway": "chip",
+        "is_test": config.is_test,
     }
+
+
+def _mark_checkout_for_reconciliation(order_reference: str, mode: str) -> None:
+    try:
+        update_subscription_order_activation_state(
+            order_reference=order_reference,
+            activation_error_code="gateway_create_ambiguous",
+            activation_error_message="CHIP checkout creation requires operator reconciliation.",
+            reconciliation_required=True,
+        )
+    except Exception as exc:
+        capture_payment_failure("checkout", reason="persistence", mode=mode, exc=exc)

@@ -18,6 +18,68 @@ logger = logging.getLogger(__name__)
 TABLE = "ai_credit_topup_orders"
 
 
+def claim_chip_topup_checkout(order_reference, claim_token, environment, brand_id):
+    """Claim once for CHIP. Never steal an expired ambiguous provider request."""
+    response = (
+        supabase.table(TABLE).update({
+            "checkout_claim_token": claim_token, "checkout_claimed_at": _now_iso(),
+            "gateway_environment": environment, "gateway_brand_id": brand_id,
+            "updated_at": _now_iso(),
+        })
+        .eq("order_reference", order_reference).eq("payment_gateway", "chip")
+        .eq("status", "pending").is_("checkout_claim_token", "null")
+        .is_("gateway_order_id", "null").execute()
+    )
+    return _single_row(response, "claim_chip_topup_checkout")
+
+
+def close_chip_topup_order(order_reference, status, reason):
+    """Close a verified unpaid/test purchase without modifying a paid order."""
+    if status not in {"failed", "expired", "cancelled"}:
+        raise ValueError("Invalid terminal top-up status")
+    response = (
+        supabase.table(TABLE).update({"status": status, "failure_reason": reason,
+                                      "updated_at": _now_iso()})
+        .eq("order_reference", order_reference).eq("payment_gateway", "chip")
+        .eq("status", "pending").execute()
+    )
+    return _single_row(response, "close_chip_topup_order")
+
+
+def mark_chip_topup_order_for_review(order_reference, gateway_order_id):
+    """Record operator review without changing payment or credit history."""
+    response = (
+        supabase.table(TABLE).update({
+            "failure_reason": "chip_status_review", "updated_at": _now_iso(),
+        })
+        .eq("order_reference", order_reference).eq("payment_gateway", "chip")
+        .eq("gateway_order_id", gateway_order_id).execute()
+    )
+    updated = _single_row(response, "mark_chip_topup_order_for_review")
+    if not isinstance(updated, dict) or (
+        updated.get("order_reference") != order_reference
+        or updated.get("gateway_order_id") != gateway_order_id
+        or updated.get("payment_gateway") != "chip"
+        or updated.get("failure_reason") != "chip_status_review"
+    ):
+        raise RuntimeError("CHIP top-up review could not be recorded safely")
+    return updated
+
+
+def get_pending_chip_topup_orders(environment, brand_id, limit=100):
+    response = (supabase.table(TABLE).select("*").eq("payment_gateway", "chip")
+                .eq("gateway_environment", environment).eq("gateway_brand_id", brand_id)
+                .in_("status", ["pending", "paid"]).order("updated_at")
+                .limit(limit).execute())
+    return response.data or []
+
+
+def touch_chip_topup_reconciliation(order_reference):
+    (supabase.table(TABLE).update({"updated_at": _now_iso()})
+     .eq("order_reference", order_reference).eq("payment_gateway", "chip")
+     .in_("status", ["pending", "paid"]).execute())
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -139,7 +201,7 @@ def create_topup_order(
         created_by_user_id: Authenticated user who initiated the order.
         amount_micro_myr: Amount in micro-MYR (positive integer).
         currency: Currency code (must be "MYR").
-        payment_gateway: Payment gateway name (e.g. "stripe", "toyyibpay").
+        payment_gateway: Payment gateway name ("chip" for new checkouts).
         idempotency_key: Unique key for duplicate protection.
         expires_at: Optional ISO-8601 timestamp for order expiry.
 
@@ -546,7 +608,7 @@ def complete_topup_checkout(
     """Complete a claimed top-up checkout with payment gateway details.
 
     Calls the ``complete_ai_credit_topup_checkout`` RPC, which
-    transitions a ``claimed`` order to ``pending`` and stores the
+    checks a pending order's claim token and stores the
     gateway bill ID and checkout URL.
 
     Args:
@@ -609,7 +671,7 @@ def fail_topup_checkout(
     """Fail a claimed top-up checkout.
 
     Calls the ``fail_ai_credit_topup_checkout`` RPC, which transitions
-    a ``claimed`` order to ``failed`` and stores the failure reason.
+    a claimed pending order to ``failed`` and stores the failure reason.
 
     Args:
         order_reference: The claimed order.
@@ -653,4 +715,3 @@ def fail_topup_checkout(
         )
 
     return row
-

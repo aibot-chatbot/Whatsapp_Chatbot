@@ -1,5 +1,7 @@
 # HitPay Payment Gateway Integration Proposal
 
+> Historical proposal: active integration retired by the [CHIP replacement](CHIP_PAYMENT_GATEWAY.md).
+
 Status: approved implementation proposal; HitPay remains dormant until the
 focused test, security, merchant-dashboard, and controlled-pilot gates in this
 document are complete.

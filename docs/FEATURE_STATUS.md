@@ -1,5 +1,42 @@
 # Feature Status
 
+## CHIP payment replacement — 2026-09-15
+
+**Deployed in CHIP LIVE mode on Fly release 20.**
+The real RM39 subscription test and deployed Sentry reporting are verified.
+Migrations 051/059 are applied; nine approved legacy bills/orders are retired
+with payment history preserved. All 4,226 tests passed; three medium security
+findings passed targeted fix verification, with two low policy findings retained.
+Test payments grant no paid entitlements. [Rollout and evidence](CHIP_PAYMENT_GATEWAY.md).
+The separate live key, unpaid live connection check, runtime configuration,
+274 deployed file hashes, and billing health are verified. The probe and
+abandoned test orders 27/29 were cancelled without charges or grants; unused
+ToyyibPay runtime secrets are removed. The user requested live mode before the
+deployed top-up test completed. Paid live processing and independent callback
+delivery remain unverified; local top-up tests passed.
+This supersedes earlier HitPay/ToyyibPay active-gateway descriptions below.
+
+
+## Client document protection — 2026-09-14
+
+**Deployed and verified on Fly v18 with private R2 storage.** Upload limits,
+PDF size/signature validation, no-store responses, safe errors, and deleted-cache
+guards now accompany authoritative private R2 storage for originals, candidates,
+README/history, and media. The user approved R2 recurring billing and a bucket-only
+token. `aibot-client-documents` exists in APAC Standard with public access disabled;
+four Fly secrets are deployed. The migration marker confirms 43 files totaling
+8,622,343 bytes on the existing single Machine/volume; local originals are preserved.
+Final local verification:
+**359 tests and 108 subtests passed**; 12 runtime files compiled and diff checks passed.
+
+The live image/runtime hashes, health, synthetic storage/media checks, and anonymous
+bucket-access denial passed. Final remote verification completed with exit 0;
+synthetic files were removed, leaving 43 objects.
+Existing Fly `/media/` URLs remain anonymously shareable with providers. R2 does not
+add zone WAF protection, and deletion/AI-provider limits remain explicit. The user
+waived the Codex Security scan; no scan pass is claimed. See the
+[document protection review](CLIENT_DOCUMENT_PROTECTION.md) for release evidence.
+
 ## All-channel replacement and customer-service handoff — 2026-09-14
 
 **Implemented; final release verification in progress.** The user approved the
@@ -284,7 +321,7 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Subscription plans | Implemented | Plan catalogue active for Free trial, Essential (RM39/month), Advanced (RM89/month), and Pro (RM169/month); included AI credits are RM1 Free trial, RM5 Essential, RM20 Advanced, and RM60 Pro. Free stores `model_access_tier=economy` for compatibility, but customer-facing trial access is DeepSeek Only and the active trial provider policy is direct DeepSeek only. Public landing pricing uses a tested duplicate catalogue; the Pro public description is application-only safe copy until `subscription_plans.description` is corrected through a reviewed data migration. |
+| Subscription plans | Implemented | Plan catalogue active for Free trial, Essential (RM39/month), Advanced (RM89/month), and Pro (RM1/month); included AI credits are RM1 Free trial, RM5 Essential, RM20 Advanced, and RM60 Pro. Free stores `model_access_tier=economy` for compatibility, but customer-facing trial access is DeepSeek Only and the active trial provider policy is direct DeepSeek only. Public landing pricing uses a tested duplicate catalogue; the Pro public description is application-only safe copy until `subscription_plans.description` is corrected through a reviewed data migration. Existing orders retain their original amounts. |
 | Current subscription | Implemented | Company-scoped |
 | AI-access policy resolver | Implemented | Central resolve_ai_access() in ai_access_policy.py handles trial/paid/denied states |
 | Trial initialization | Implemented | New companies get Free plan + status=trialing + 7-day trial_ends_at |

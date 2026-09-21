@@ -1,4 +1,4 @@
-﻿"""ai_credit_topup_callback_service.py -- Internal generic callback processing for top-up orders.
+"""ai_credit_topup_callback_service.py -- Internal generic callback processing for top-up orders.
 
 This module processes an already-verified callback from any supported payment
 gateway to:
@@ -136,6 +136,11 @@ def process_topup_payment_callback(normalized_callback: dict) -> dict:
     # ------------------------------------------------------------------
     # 5. Validate amount matches the order
     # ------------------------------------------------------------------
+    if payment_gateway == "chip" and (
+        callback_amount_micro_myr is None or callback_amount_micro_myr != order_amount_micro_myr
+        or order.get("gateway_environment") != "live"
+    ):
+        raise ValueError("CHIP live payment amount or environment does not match the order")
     # Gateway fees may cause callback total to exceed the order amount.
     # Log the callback total for auditing but do not reject the transaction.
     if callback_amount_micro_myr is not None and callback_amount_micro_myr != order_amount_micro_myr:
@@ -156,12 +161,8 @@ def process_topup_payment_callback(normalized_callback: dict) -> dict:
     # ------------------------------------------------------------------
     # 6. Verify callback order_id matches stored order_reference
     # ------------------------------------------------------------------
-    # The callback order_id is covered by the verified ToyyibPay hash
-    # (MD5(secretKey + status + order_id + refno + "ok")).
-    # After looking up the order by billcode, we must verify that the
-    # signed order_id matches the stored order_reference.
-    # This prevents a valid billcode from being paired with a different
-    # order's callback data.
+    # Match the provider-verified reference to the stored order, independently
+    # of its provider ID, before any credit or status change.
     callback_order_reference = normalized_callback.get("order_reference")
     if not callback_order_reference:
         raise ValueError(
@@ -307,19 +308,14 @@ def _handle_pending_order(
         order_reference,
     )
 
-    try:
-        _mark_order_paid(
-            order_reference=order_reference,
-            gateway_payment_id=callback_bill_id,
-            payment_reference=callback_txn_id,
-            paid_at=callback_paid_at,
-        )
-    except (ValueError, RuntimeError):
-        logger.warning(
-            "Order %s could not be marked paid (may already be paid); "
-            "continuing with credit grant",
-            order_reference,
-        )
+    # A durable paid claim is required before credit. Storage/conflict errors
+    # must remain retryable and cannot authorize fulfillment.
+    _mark_order_paid(
+        order_reference=order_reference,
+        gateway_payment_id=callback_bill_id,
+        payment_reference=callback_txn_id,
+        paid_at=callback_paid_at,
+    )
 
     return _apply_credit_and_mark_credited(
         order_reference=order_reference,

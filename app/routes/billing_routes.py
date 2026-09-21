@@ -1,8 +1,11 @@
+from app.services.chip_service import ChipConfigError
 import logging
 import re
+from threading import Lock
+from time import monotonic
 from app.rate_limit import limiter
 
-from flask import Blueprint, jsonify, g, request
+from flask import Blueprint, current_app, jsonify, g, request
 
 import csv
 import io
@@ -22,7 +25,7 @@ from app.services.ai_credit_service import (
 )
 import uuid
 from app.services.ai_credit_topup_checkout_service import (
-    create_toyyibpay_topup_checkout,
+    create_chip_topup_checkout, CheckoutRestartRequired,
 )
 from app.services.subscription_checkout_service import (
     create_subscription_checkout,
@@ -45,10 +48,12 @@ from app.database.subscription_plan_repository import get_plan_by_id as _get_pla
 
 
 billing_bp = Blueprint("billing", __name__, url_prefix="/api/billing")
+_BILLING_STORAGE_HEALTH_LOCK = Lock()
+_BILLING_STORAGE_HEALTH_TTL_SECONDS = 30
 
 
-def _validate_toyyibpay_customer_phone(customer_phone: str | None) -> str | None:
-    """Return a normalized ToyyibPay phone string or None when invalid."""
+def _validate_customer_phone(customer_phone: str | None) -> str | None:
+    """Return a normalized CHIP phone string or None when invalid."""
     if not customer_phone:
         return None
     stripped_phone = re.sub(r"[\s\-\(\)]", "", customer_phone)
@@ -410,15 +415,15 @@ def fetch_ai_credit_analytics():
 
 
 # ---------------------------------------------------------------------------
-# ToyyibPay AI-credit top-up checkout
+# CHIP AI-credit top-up checkout
 # ---------------------------------------------------------------------------
 
-@billing_bp.route("/toyyibpay/checkout", methods=["POST"])
+@billing_bp.route("/chip/checkout", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_CHECKOUT", "5/minute"))
 @token_required
 @company_operational_required
-def toyyibpay_checkout():
-    """Create a ToyyibPay bill for AI-credit top-up.
+def chip_checkout():
+    """Create a CHIP bill for AI-credit top-up.
 
     Resolves company_id, user_id, customer name, and email from the
     authenticated JWT token.  Never accepts company_id from request body.
@@ -443,7 +448,7 @@ def toyyibpay_checkout():
         # Parse and validate request body
         # ------------------------------------------------------------------
         body = request.get_json(silent=True)
-        if not body:
+        if not isinstance(body, dict) or not body:
             return jsonify({
                 "status": "error",
                 "message": "Request body must be valid JSON."
@@ -501,13 +506,7 @@ def toyyibpay_checkout():
             }), 400
 
 
-        # Validate phone before proceeding
-        normalized_phone = _validate_toyyibpay_customer_phone(customer_phone)
-        if not normalized_phone:
-            return jsonify({
-                "status": "error",
-                "message": "A valid phone number is required before creating a ToyyibPay checkout."
-            }), 400
+        normalized_phone = _validate_customer_phone(customer_phone) if customer_phone else None
 
         # Resolve subscription_id
         subscription = get_current_subscription(company_id)
@@ -529,9 +528,13 @@ def toyyibpay_checkout():
         # ------------------------------------------------------------------
         # Create the checkout
         # ------------------------------------------------------------------
-        idempotency_key = str(uuid.uuid4())
+        try:
+            attempt_key = str(uuid.UUID(request.headers.get("Idempotency-Key", "")))
+        except (ValueError, AttributeError):
+            return jsonify({"status": "error", "message": "A UUID Idempotency-Key header is required."}), 400
+        idempotency_key = f"chip-topup:{company_id}:{user_id}:{attempt_key}"
 
-        result = create_toyyibpay_topup_checkout(
+        result = create_chip_topup_checkout(
             company_id=company_id,
             subscription_id=subscription_id,
             created_by_user_id=user_id,
@@ -547,22 +550,31 @@ def toyyibpay_checkout():
             "data": result,
         }), 201
 
+    except CheckoutRestartRequired:
+        return jsonify(status="error", code="checkout_restart_required", message="This attempt is closed. Click Top Up Credit to start a new attempt."), 409
+
+    except ChipConfigError as exc:
+        from app.observability import capture_payment_failure
+        capture_payment_failure("checkout", reason="configuration", exc=exc)
+        return jsonify(status="error", message="CHIP checkout is not configured."), 503
+
     except ValueError as e:
         return jsonify({
             "status": "error",
             "message": str(e),
         }), 400
 
-    except Exception:
-        logging.exception("ToyyibPay checkout creation failed")
+    except Exception as exc:
+        from app.observability import capture_payment_failure
+        capture_payment_failure("checkout", exc=exc)
         return jsonify({
             "status": "error",
             "message": "Unable to create checkout. Please try again later.",
         }), 500
 
-@billing_bp.route('/toyyibpay/orders/<order_reference>', methods=['GET'])
+@billing_bp.route('/chip/orders/<order_reference>', methods=['GET'])
 @token_required
-def toyyibpay_order_status(order_reference):
+def chip_order_status(order_reference):
     """Return the status of an AI-credit top-up order.
 
     The order is looked up by its internal UUID reference and scoped
@@ -609,6 +621,8 @@ def toyyibpay_order_status(order_reference):
             'currency': order.get('currency', 'MYR'),
             'payment_gateway': order.get('payment_gateway'),
             'credited': is_credited,
+            'is_test': order.get('gateway_environment') == 'test',
+            'test_paid': order.get('failure_reason') == 'chip_test_paid',
             'created_at': order.get('created_at'),
             'paid_at': order.get('paid_at'),
             'credited_at': order.get('credited_at'),
@@ -668,13 +682,14 @@ def subscription_checkout():
             }), 401
 
         body = request.get_json(silent=True)
-        if not body:
+        if not isinstance(body, dict) or not body:
             return jsonify({
                 "status": "error",
                 "message": "Request body must be valid JSON."
             }), 400
 
-        plan_code = body.get("plan_code", "").strip()
+        plan_code = body.get("plan_code", "")
+        plan_code = plan_code.strip() if isinstance(plan_code, str) else ""
         if not plan_code:
             return jsonify({
                 "status": "error",
@@ -698,13 +713,7 @@ def subscription_checkout():
                 "message": "Authenticated user has no email."
             }), 400
         payment_gateway = get_subscription_payment_gateway(company_id)
-        normalized_phone = _validate_toyyibpay_customer_phone(customer_phone)
-        if payment_gateway == "toyyibpay" and not normalized_phone:
-            return jsonify({
-                "status": "error",
-                "message": "A valid phone number is required before creating a ToyyibPay checkout."
-            }), 400
-
+        normalized_phone = _validate_customer_phone(customer_phone)
         result = create_subscription_checkout(
             company_id=company_id,
             user_id=user_id,
@@ -723,8 +732,14 @@ def subscription_checkout():
                 "amount_sen": result["amount_sen"],
                 "expires_at": result.get("expires_at"),
                 "payment_gateway": result.get("payment_gateway", payment_gateway),
+                "is_test": result.get("is_test", False),
             },
         }), 200
+
+    except ChipConfigError as exc:
+        from app.observability import capture_payment_failure
+        capture_payment_failure("checkout", reason="configuration", exc=exc)
+        return jsonify({"status": "error", "message": "Payment checkout is not configured."}), 503
 
     except ValueError as e:
         return jsonify({
@@ -732,15 +747,17 @@ def subscription_checkout():
             "message": str(e),
         }), 400
 
-    except RuntimeError:
-        logging.exception("Subscription checkout failed")
+    except RuntimeError as exc:
+        from app.observability import capture_payment_failure
+        capture_payment_failure("checkout", exc=exc)
         return jsonify({
             "status": "error",
             "message": "Unable to create checkout. Please try again later.",
         }), 502
 
-    except Exception:
-        logging.exception("Unexpected error creating subscription checkout")
+    except Exception as exc:
+        from app.observability import capture_payment_failure
+        capture_payment_failure("checkout", exc=exc)
         return jsonify({
             "status": "error",
             "message": "Unable to create checkout. Please try again later."
@@ -939,6 +956,8 @@ def fetch_subscription_order_status(reference):
             "currency": "MYR",
             "reconciliation_required": reconciliation_required,
             "activation_error_code": activation_error_code,
+            "is_test": order.get("gateway_environment") == "test",
+            "test_paid": activation_error_code == "chip_test_paid",
             "retry_allowed": retry_allowed,
             "message": safe_message,
     }
@@ -1065,6 +1084,11 @@ def retry_subscription_order(order_reference):
         result = reconcile_subscription_order(order_reference=order_reference, company_id=company_id)
         outcome = result.get("outcome")
         order_status = result.get("order_status")
+        if outcome in ("chip_pending", "chip_test_paid"):
+            return jsonify(status="success", data={"outcome": outcome, "order_status": order_status,
+                           "is_test": outcome == "chip_test_paid"}), 200
+        if outcome == "chip_terminal":
+            return jsonify(status="error", code=outcome, message="This CHIP checkout has closed without payment."), 409
         if outcome in ("reconciled_and_completed", "credit_retry_completed"):
             return jsonify({"status": "success", "data": {"outcome": outcome, "order_status": order_status}}), 200
         if outcome == "already_completed":
@@ -2033,6 +2057,36 @@ def billing_report_export_csv():
         logging.exception("Failed to export billing CSV report")
         return jsonify({"status": "error", "message": "Unable to export report."}), 500
 
+def _billing_storage_health():
+    """Share three bounded database probes across all callers for 30 seconds."""
+    from app.database.db import supabase
+
+    # Serialize refreshes so concurrent requests cannot multiply database work.
+    # Each application keeps one entry, including failed probes, regardless of IP.
+    with _BILLING_STORAGE_HEALTH_LOCK:
+        cache = current_app.extensions.get("billing_storage_health")
+        if cache and monotonic() < cache["expires_at"]:
+            return dict(cache["checks"])
+        checks = {}
+        for table, columns, check_name in (
+            ("subscription_plans", "id", "supabase_connectivity"),
+            ("company_subscription_orders", "id,gateway_environment,gateway_brand_id",
+             "company_subscription_orders_chip_storage"),
+            ("ai_credit_topup_orders", "id,gateway_environment,gateway_brand_id",
+             "ai_credit_topup_orders_chip_storage"),
+        ):
+            try:
+                supabase.table(table).select(columns).limit(1).execute()
+                checks[check_name] = True
+            except Exception:
+                checks[check_name] = False
+        current_app.extensions["billing_storage_health"] = {
+            "expires_at": monotonic() + _BILLING_STORAGE_HEALTH_TTL_SECONDS,
+            "checks": checks,
+        }
+        return dict(checks)
+
+
 @billing_bp.route("/health", methods=["GET"])
 def billing_health_check():
     """Safe billing health check endpoint.
@@ -2043,82 +2097,37 @@ def billing_health_check():
     try:
         import os
         import time
-        from app.services.hitpay_service import HitPayConfig, HitPayConfigError
-
-        try:
-            selected_gateway = get_subscription_payment_gateway()
-        except RuntimeError:
-            selected_gateway = "invalid"
+        from app.services.chip_service import ChipConfig, ChipConfigError
+        selected_gateway = "chip"
         checks = {
             "secret_key": bool(os.environ.get("SECRET_KEY")),
             "supabase_url": bool(os.environ.get("SUPABASE_URL")),
             "supabase_key": bool(os.environ.get("SUPABASE_SERVICE_ROLE_KEY")),
-            "subscription_gateway_valid": selected_gateway in {"toyyibpay", "hitpay"},
+            "subscription_gateway_valid": True,
+            "sentry_configured": bool(os.environ.get("SENTRY_DSN")),
         }
-        if selected_gateway == "toyyibpay":
-            checks.update({
-                "toyyibpay_secret_key": bool(os.environ.get("TOYYIBPAY_USER_SECRET_KEY")),
-                "toyyibpay_category_code": bool(os.environ.get("TOYYIBPAY_CATEGORY_CODE")),
-            })
-
-        hitpay_required = (
-            selected_gateway == "hitpay"
-            or bool(os.environ.get("HITPAY_CANARY_COMPANY_IDS", "").strip())
-            or os.environ.get("HITPAY_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}
-        )
-        if hitpay_required:
-            try:
-                hitpay = HitPayConfig.from_env()
-                hitpay_environment_valid = hitpay.environment in {"sandbox", "production"}
-            except HitPayConfigError:
-                hitpay = None
-                hitpay_environment_valid = False
-            checks.update({
-                "hitpay_enabled": bool(hitpay and hitpay.enabled),
-                "hitpay_environment_valid": hitpay_environment_valid,
-                "hitpay_api_key": bool(hitpay and hitpay.api_key),
-                "hitpay_webhook_salt": bool(hitpay and hitpay.webhook_salt),
-                "hitpay_redirect_url": bool(hitpay and hitpay.redirect_url),
-                "hitpay_webhook_url": bool(hitpay and hitpay.webhook_url),
-                "hitpay_reconciliation_enabled": os.environ.get(
-                    "BILLING_SCHEDULER_ENABLED", "true"
-                ).strip().lower() in {"1", "true", "yes", "on"},
-            })
-            try:
-                if hitpay is None:
-                    raise HitPayConfigError("HitPay configuration is unavailable")
-                hitpay.validate_for_checkout()
-                checks["hitpay_checkout_config_valid"] = True
-            except HitPayConfigError:
-                checks["hitpay_checkout_config_valid"] = False
-
-            from app.services.billing_scheduler_service import (
-                RECONCILE_INTERVAL_SECONDS,
-                get_last_successful_run,
-            )
-            last_reconciliation = get_last_successful_run(
-                "reconcile_subscription_orders"
-            )
-            checks["hitpay_recent_reconciliation"] = bool(
-                last_reconciliation is not None
-                and time.monotonic() - last_reconciliation
-                <= RECONCILE_INTERVAL_SECONDS * 2
-            )
-
-        from app.database.db import supabase
-        supabase_ok = False
         try:
-            supabase.table("subscription_plans").select("id").limit(1).execute()
-            supabase_ok = True
-        except Exception:
-            pass
-        checks["supabase_connectivity"] = supabase_ok
-        if hitpay_required:
-            try:
-                supabase.table("company_subscription_orders").select("id").limit(1).execute()
-                checks["hitpay_order_storage"] = True
-            except Exception:
-                checks["hitpay_order_storage"] = False
+            chip = ChipConfig.from_env()
+            chip.validate_for_checkout()
+            checks["chip_checkout_config_valid"] = True
+        except ChipConfigError:
+            checks["chip_checkout_config_valid"] = False
+        checks["chip_reconciliation_enabled"] = os.environ.get(
+            "BILLING_SCHEDULER_ENABLED", "false"
+        ).strip().lower() in {"1", "true", "yes", "on"}
+        from app.services.billing_scheduler_service import (
+            RECONCILE_INTERVAL_SECONDS,
+            _env_int,
+            get_last_successful_run,
+        )
+        last_reconciliation = get_last_successful_run("reconcile_subscription_orders")
+        interval = _env_int("BILLING_SCHEDULER_RECONCILE_SUBSCRIPTION_ORDERS_SECONDS", RECONCILE_INTERVAL_SECONDS)
+        checks["chip_recent_reconciliation"] = bool(
+            last_reconciliation is not None
+            and 0 <= time.monotonic() - last_reconciliation <= interval * 2
+        )
+
+        checks.update(_billing_storage_health())
 
         from app.services.subscription_reconciliation_service import reconcile_subscription_order
         checks["reconciliation_service_loaded"] = callable(reconcile_subscription_order)
