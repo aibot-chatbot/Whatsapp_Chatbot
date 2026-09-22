@@ -169,6 +169,8 @@ def apply_crm_stage_automation(
             chatbot_id=chatbot_id,
             event_type="crm_stage_transition",
             idempotency_key=event_key,
+            # Synchronous audit: never offer this row as executable queued work.
+            status="running",
             payload={
                 "lead_id": lead_id,
                 "from_status": current,

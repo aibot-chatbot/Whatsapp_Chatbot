@@ -73,6 +73,7 @@ from app.services.bot_config_fields import (
     DERIVED_PERSONA_FIELDS,
     PROVENANCE_DERIVED,
 )
+from app.services.industry_template_catalog import CLASSIFICATION_INSTRUCTIONS, normalize_suggestion
 
 # ── Terminal statuses ─────────────────────────────────────────────────────
 STATUS_SUCCEEDED: Final[str] = "succeeded"
@@ -183,9 +184,10 @@ class PersonaDerivationResult:
     settings: Mapping[str, Any] | None = None
     error_code: str | None = None
     error_message: str | None = None
+    industry_suggestion: Mapping[str, Any] | None = None
 
 
-def load_source_text(chatbot_id: int) -> str:
+def load_source_text(chatbot_id: int, source_file_id: int | None = None) -> str:
     """Read the text of the chatbot's active document from its saved chunks.
 
     Reuses the chunks the ingest just wrote rather than re-parsing the file:
@@ -194,7 +196,8 @@ def load_source_text(chatbot_id: int) -> str:
     """
     active_file = get_active_pdf_knowledge_file(chatbot_id)
 
-    if not active_file or not active_file.get("id"):
+    if (not active_file or not active_file.get("id")
+            or (source_file_id is not None and active_file["id"] != source_file_id)):
         return ""
 
     chunks = get_chunks_by_file_for_chatbot(chatbot_id, active_file["id"]) or []
@@ -273,7 +276,7 @@ def _request_persona(source_text: str, chatbot_id: int) -> Any:
     )
 
     return generate_system_response(
-        prompt=prompt,
+        prompt=prompt + "\n\n" + CLASSIFICATION_INSTRUCTIONS,
         chatbot_id=chatbot_id,
         provider=None,
         model=None,
@@ -287,6 +290,7 @@ def derive_persona_from_documents(
     chatbot_id: int,
     *,
     source_text: str | None = None,
+    source_file_id: int | None = None,
 ) -> PersonaDerivationResult:
     """Derive the persona for ``chatbot_id`` and store the fields it may store.
 
@@ -306,9 +310,10 @@ def derive_persona_from_documents(
         Database errors propagate -- see :func:`derive_persona_for_upload` for
         the caller that must not fail.
     """
-    text = (
-        source_text if source_text is not None else load_source_text(chatbot_id)
-    ) or ""
+    text = (source_text if source_text is not None else (
+        load_source_text(chatbot_id, source_file_id) if source_file_id is not None
+        else load_source_text(chatbot_id)
+    )) or ""
     text = text.strip()
 
     if not text:
@@ -358,6 +363,16 @@ def derive_persona_from_documents(
             error_message="Persona derivation did not return a JSON object.",
         )
 
+    industry_suggestion = (
+        normalize_suggestion(parsed.get("industry"), text[:MAX_SOURCE_CHARACTERS])
+        if "industry" in parsed or source_file_id is not None else None
+    )
+    if source_file_id is not None:
+        current_source = get_active_pdf_knowledge_file(chatbot_id)
+        if not current_source or current_source.get("id") != source_file_id:
+            return PersonaDerivationResult(status=STATUS_SKIPPED, error_code="source_changed",
+                                           error_message="A newer primary document replaced this upload.")
+
     values = {}
     for field in DERIVED_PERSONA_FIELDS:
         cleaned = _clean_value(field, parsed.get(field))
@@ -370,9 +385,10 @@ def derive_persona_from_documents(
             chatbot_id,
         )
         return PersonaDerivationResult(
-            status=STATUS_FAILED,
+            status=STATUS_PARTIAL if industry_suggestion is not None else STATUS_FAILED,
             error_code=ERROR_UNPARSEABLE,
             error_message="Persona derivation produced no usable value.",
+            industry_suggestion=industry_suggestion,
         )
 
     from app.services.settings_service import update_settings
@@ -390,6 +406,7 @@ def derive_persona_from_documents(
             settings=settings,
             error_code=ERROR_CLIENT_OVERRIDE,
             error_message="Every derivable field carries a client-entered value.",
+            industry_suggestion=industry_suggestion,
         )
 
     return PersonaDerivationResult(
@@ -400,6 +417,7 @@ def derive_persona_from_documents(
         ),
         values=MappingProxyType(dict(values)),
         settings=settings,
+        industry_suggestion=industry_suggestion,
     )
 
 
@@ -442,7 +460,7 @@ def _plan_denial(chatbot_id: int) -> PersonaDerivationResult | None:
         )
 
 
-def derive_persona_for_upload(chatbot_id: int) -> PersonaDerivationResult:
+def derive_persona_for_upload(chatbot_id: int, *, source_file_id: int | None = None) -> PersonaDerivationResult:
     """Derivation seam for an ingestion route.  Never raises.
 
     A document ingest that already succeeded must not be turned into a 500 by a
@@ -462,7 +480,17 @@ def derive_persona_for_upload(chatbot_id: int) -> PersonaDerivationResult:
         return denial
 
     try:
-        return derive_persona_from_documents(chatbot_id)
+        result = (derive_persona_from_documents(chatbot_id, source_file_id=source_file_id)
+                  if source_file_id is not None else derive_persona_from_documents(chatbot_id))
+        if source_file_id is not None and result.industry_suggestion is not None:
+            try:
+                from app.services.industry_template_service import save_industry_suggestion
+                save_industry_suggestion(chatbot_id, source_file_id, result.industry_suggestion)
+            except Exception:
+                # Industry metadata is optional enrichment; knowledge/persona remain usable.
+                logging.exception("[Industry] Could not save suggestion for chatbot_id=%s, file_id=%s",
+                                  chatbot_id, source_file_id)
+        return result
     except Exception as exc:
         logging.exception(
             "[Persona] Persona derivation crashed for chatbot_id=%s", chatbot_id

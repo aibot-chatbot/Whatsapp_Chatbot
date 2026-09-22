@@ -121,6 +121,17 @@
   .chat-status:empty { display: none; }
 
   .hidden { display: none !important; }
+  #trial-entry {padding:8px 16px;background:var(--panel)}
+  #trial-entry[hidden],#trial-dialog [hidden]{display:none!important}
+  #trial-entry button,#trial-dialog button{font:inherit;padding:9px 12px;border:1px solid var(--border);border-radius:9px;cursor:pointer;color:var(--text);background:var(--bg)}
+  #trial-dialog{width:min(560px,calc(100vw - 24px));max-height:90vh;margin:auto;padding:20px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:14px;overflow:auto}
+  #trial-dialog::backdrop{background:#0007}#trial-dialog h2{margin:0;font-size:20px}
+  #trial-dialog .trial-heading{display:flex;gap:12px;align-items:center;justify-content:space-between}
+  #trial-dialog label{display:block;margin:12px 0;font-size:14px}#trial-dialog input,#trial-dialog select{display:block;width:100%;min-width:0;margin-top:5px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg);color:var(--text);font:inherit}
+  #trial-dialog button:focus-visible,#trial-dialog input:focus-visible,#trial-dialog select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  #trial-dialog button:disabled{opacity:.5;cursor:not-allowed}#trial-dialog p{overflow-wrap:anywhere}#trial-dialog .trial-note{font-size:12px;color:var(--muted)}
+  #trial-dialog .trial-booking,#trial-review{border-top:1px solid var(--border);margin-top:16px;padding-top:12px}#trial-dialog .trial-booking button{margin:0 8px 8px 0}
+  #trial-confirm{background:var(--accent)!important;color:var(--on-accent)!important}#trial-status[data-error=true]{color:#b42318}
 </style>
 </head>
 <body>
@@ -141,6 +152,7 @@
   <p id="connection-status" class="chat-status" role="status" aria-live="polite"></p>
   <div id="log" role="log" aria-live="polite"></div>
   <div id="suggestions"></div>
+  <div id="trial-entry" hidden><button id="open-trials" type="button">Book a trial lesson</button></div>
 
   <form id="leadForm" class="hidden" autocomplete="on">
     <p id="leadPrompt"></p>
@@ -165,7 +177,22 @@
   </form>
   <div id="branding" class="hidden"></div>
 </div>
-
+<dialog id="trial-dialog" aria-labelledby="trial-title">
+  <div class="trial-heading"><h2 id="trial-title">Trial lessons</h2><button type="button" id="close-trials" aria-label="Close trial lessons">Close</button></div>
+  <p class="trial-note">Times are shown in Asia/Kuala_Lumpur (UTC+08:00). A trial is not formal enrollment.</p>
+  <p id="trial-status" role="status" aria-live="polite"></p>
+  <form id="trial-participant-form"><label>New participant name<input name="label" maxlength="80" required autocomplete="off"></label><button type="submit">Add participant</button></form>
+  <form id="trial-prepare-form">
+    <label for="trial-participant">Participant</label><select id="trial-participant" name="participant_id" required></select>
+    <label for="trial-session">Trial session</label><select id="trial-session" name="session_id" required></select>
+    <p id="trial-reschedule-note" hidden></p><button type="button" id="trial-new" hidden>Keep existing booking</button>
+    <p class="trial-note">Scheduled reminders are not available in web chat. Save your booking details.</p>
+    <button type="submit" id="trial-prepare">Review booking</button>
+  </form>
+  <section id="trial-review" hidden aria-label="Confirm trial booking"><div id="trial-review-details"></div><button id="trial-confirm" type="button">Confirm booking</button><button id="trial-back" type="button">Back</button></section>
+  <h3>Your bookings</h3><button id="trial-refresh" type="button">Refresh bookings</button><div id="trial-bookings"></div>
+</dialog>
+<script src="/assets/js/widget-tuition.js"></script>
 <script>
 (function () {
   "use strict";
@@ -363,6 +390,7 @@
 
   function stopChat(message) {
     state.stopped = true;
+    window.WidgetTuition?.setBlocked(true);
     clearTimeout(state.pollTimer);
     if (state.pollController) state.pollController.abort();
     els.connectionStatus.textContent = message;
@@ -422,6 +450,7 @@
       saveSession();
       els.connectionStatus.textContent = "";
       els.handoffStatus.textContent = data.awaiting_human ? "Waiting for the support team. Replies will appear here." : "";
+      window.WidgetTuition?.setBlocked(data.awaiting_human === true);
     } catch (error) {
       if (!state.pageHidden && !state.stopped) {
         if (sessionUnavailable(error)) stopChat(error.message || "This chat is unavailable.");
@@ -584,6 +613,7 @@
       if (state.stopped) return;
       if (!/^web_[0-9a-zA-Z_-]{16,64}$/.test(session.session_id || "")) throw new Error("This chat session is unavailable.");
       state.sessionId = session.session_id;
+      window.WidgetTuition?.init(PUBLIC_KEY, state.sessionId);
       saveSession();
       setBusy(false);
 

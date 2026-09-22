@@ -1042,7 +1042,7 @@ class UploadHookTests(unittest.TestCase):
 
     def test_upload_pdf_triggers_persona_derivation(self):
         self.assertIn("defer_processing=True", self.source)
-        self.assertIn("derive_persona_for_upload(chatbot_id)", self.job_source)
+        self.assertIn("derive_persona_for_upload(chatbot_id, source_file_id=file_id)", self.job_source)
 
     def test_upload_pdf_reports_the_derivation_outcome(self):
         # A derivation that failed must be visible to the client, not

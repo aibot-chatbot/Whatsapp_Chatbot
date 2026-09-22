@@ -1,5 +1,44 @@
 # Feature Status
 
+## Bot Analysis and Agent actions — 2026-09-23
+
+**Implemented locally; production deployment pending.** Analysis sits below
+Conversations for the selected Bot. Owner/admin report requests use that Bot's
+confirmed industry, role, authorized documents and source-backed business records.
+Web, PDF and Excel share an immutable snapshot. Non-clinic operations reports can
+analyze bounded customer-question samples with message IDs; clinic reports exclude
+customer/document free text. Unavailable revenue is never estimated from fees.
+
+Website and Telegram trial booking use real sessions, capacity locks, explicit
+confirmation and versioned cancellation; Telegram customers start with `/trial`.
+Other industries record customer intent without inventing a confirmed reservation.
+Schedules, recording and reminder flags remain disabled for rollout. Migrations
+062–067 and the private worker/Langflow/n8n deployment package are prepared.
+
+The final independent staged-snapshot suite passed **5,255 tests, 34 skipped,
+2,303 subtests**. The latest report/export regressions passed **117 tests** after
+the final industry transition guard; **20 browser checks** and isolated PostgreSQL checks
+also passed. Codex Security stopped before scanning because sign-in refresh failed;
+OCR has no configured endpoint. Supabase access to the configured production
+project was restored on 2026-09-23; live schema/ACL migration preflight passed.
+No migration, cloud resource or real customer
+message was performed by this feature. See [delivery evidence](ANALYSIS_IMPLEMENTATION.md),
+[data boundaries](ANALYSIS_DATA_PROTECTION.md) and [deployment gates](../deploy/agent-automation/README.md).
+
+## Industry templates — 2026-09-22
+
+**Verified complete locally; not deployed.** A primary document's
+existing persona call can suggest restaurant, clinic administration, tuition
+centre or a general fallback. The merchant reviews evidence and explicitly
+confirms the selection; fixed versioned rules then reach both default and custom
+reply prompts. New uploads and explicit re-review keep the previous confirmed
+industry effective. Migration 062 is prepared but not applied to production.
+The working-tree suite passed **4935 tests, 7 skipped, 2303 subtests**; **28 browser
+tests** and the isolated PostgreSQL migration check passed. Codex Security was
+blocked by sign-in refresh before scanning any file. No booking, clinical,
+payment or enrollment tool is enabled. See
+[workflow and verification](INDUSTRY_TEMPLATES.md).
+
 ## Website staff replies — 2026-09-22
 
 **Deployed and verified on Fly v35.** Conversations can save a

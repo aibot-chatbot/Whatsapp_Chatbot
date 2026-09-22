@@ -220,6 +220,11 @@ def test_all_bot_id_route_handlers_have_an_ownership_gate():
     for path in route_files:
         source = path.read_text(encoding="utf-8-sig")
         tree = ast.parse(source)
+        # New route families centralize ownership, plan and company checks.
+        # Only recognize a local helper whose body actually calls the gate.
+        local_gates = {item.name for item in tree.body if isinstance(item, ast.FunctionDef)
+                       and any(isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                               and call.func.id == "verify_chatbot_access" for call in ast.walk(item))}
         for node in ast.walk(tree):
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
@@ -236,6 +241,8 @@ def test_all_bot_id_route_handlers_have_an_ownership_gate():
                 continue
 
             has_direct_gate = "verify_chatbot_access(" in function_source
+            has_local_gate = any(isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                                 and call.func.id in local_gates for call in ast.walk(node))
             has_company_scoped_bot_service = any(
                 call in function_source
                 for call in (
@@ -264,13 +271,20 @@ def test_all_bot_id_route_handlers_have_an_ownership_gate():
                 and decorator.id == "worker_token_required"
                 for decorator in node.decorator_list
             )
+            has_analysis_worker_gate = (path.name == "analysis_routes.py"
+                and 'secrets.compare_digest(received, "Bearer " + expected)' in source
+                and 'os.getenv("AGENT_INTERNAL_TOKEN", "")' in source
+                and any(isinstance(decorator, ast.Name) and decorator.id == "_internal"
+                        for decorator in node.decorator_list))
 
             if not (
                 has_direct_gate
+                or has_local_gate
                 or has_company_scoped_bot_service
                 or has_company_scoped_analytics_service
                 or has_public_widget_gate
                 or has_platform_worker_gate
+                or has_analysis_worker_gate
             ):
                 missing_gates.append(f"{path}:{node.lineno}:{node.name}")
 

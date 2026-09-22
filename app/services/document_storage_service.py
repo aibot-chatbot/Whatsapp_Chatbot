@@ -78,7 +78,7 @@ def _client_and_bucket():
 
 
 def _safe_path_and_key(path, root, namespace):
-    if namespace not in {"knowledge", "media"}:
+    if namespace not in {"knowledge", "media", "reports"}:
         raise DocumentStorageError("Invalid document storage namespace.")
     try:
         resolved_root = os.path.realpath(os.path.abspath(os.fspath(root)))

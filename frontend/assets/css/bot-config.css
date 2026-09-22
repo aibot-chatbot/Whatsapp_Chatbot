@@ -713,3 +713,11 @@
 .dashboard-page .bc-setup-next h2 { margin: 0 0 8px; font-size: 20px; }
 .dashboard-page .bc-setup-next p { color: var(--control-text-secondary); line-height: 1.6; max-width: 62ch; }
 .dashboard-page .bc-setup-next .kw-btn { margin-top: 16px; }
+
+/* The industry review reuses the existing panel and form controls. */
+.dashboard-page #bc-industry-panel { overflow-wrap: anywhere; }
+.dashboard-page #bc-industry-form { margin-block: 16px; }
+.dashboard-page #bc-industry-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.dashboard-page #bc-industry-fields legend { margin-bottom: 8px; }
+.dashboard-page #bc-industry-panel ul { margin: 0; padding-inline-start: 1.25rem; }
+.dashboard-page #bc-industry-panel .kw-btn { max-width: 100%; white-space: normal; }

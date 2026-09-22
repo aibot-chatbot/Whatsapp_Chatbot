@@ -14,6 +14,7 @@ properties that made it safe to move that off the request thread:
 """
 
 from unittest.mock import Mock, patch
+from threading import Barrier
 import time
 
 import pytest
@@ -124,10 +125,11 @@ def test_persona_is_derived_before_the_graph_is_built(monkeypatch):
     derivation = Mock(status="succeeded", error_code=None, values={"tone": "Friendly"})
     with patch(
         "app.services.persona_derivation_service.derive_persona_for_upload",
-        Mock(side_effect=lambda _bot: order.append("persona") or derivation),
-    ):
+        Mock(side_effect=lambda _bot, **_kwargs: order.append("persona") or derivation),
+    ) as derive:
         job = _run_and_wait(monkeypatch)
 
+    derive.assert_called_once_with(7, source_file_id=55)
     assert order == ["read", "persona", "graph"]
     assert job["status"] == "completed"
     assert job["phase"] == jobs.PHASE_DONE
@@ -141,7 +143,8 @@ def test_the_document_is_not_reported_ready_before_the_persona_is_written(monkey
     monkeypatch.setattr(knowledge_service, "process_uploaded_pdf", Mock(return_value=COMPLETED))
     monkeypatch.setattr(jobs, "_saved_chunk_texts", Mock(return_value=[]))
 
-    def _derive(_bot):
+    def _derive(_bot, *, source_file_id):
+        assert source_file_id == 55
         seen.append(jobs.get_ingest_status(7, 55)["status"])
         return Mock(status="succeeded", error_code=None, values={})
 
@@ -240,23 +243,21 @@ def test_the_registry_does_not_grow_without_bound(monkeypatch):
 
 def test_embedding_chunks_concurrently_preserves_order_and_content(monkeypatch):
     chunks = [f"chunk {index}" for index in range(25)]
+    concurrent_pair = Barrier(2)
 
-    def slow_embed(text):
-        # Sleep so a sequential implementation cannot pass the timing check
-        # below by accident, and so out-of-order completion is possible.
-        time.sleep(0.02)
+    def concurrent_embed(text):
+        # Both first calls must be in flight together. Serial execution cannot
+        # release the barrier; correctness does not depend on machine speed.
+        if text in ("chunk 0", "chunk 1"):
+            concurrent_pair.wait(timeout=10)
         return [float(len(text))]
 
-    with patch("app.services.rag_service.generate_embedding", slow_embed):
-        started = time.perf_counter()
+    with patch("app.services.rag_service.generate_embedding", concurrent_embed):
         embedded = knowledge_service._embed_chunks(chunks)
-        elapsed = time.perf_counter() - started
 
     assert [index for index, _chunk, _embedding in embedded] == list(range(25))
     assert [chunk for _index, chunk, _embedding in embedded] == chunks
     assert all(embedding for _index, _chunk, embedding in embedded)
-    # 25 serial calls would be 0.5s; eight at a time is a quarter of that.
-    assert elapsed < 0.3
 
 
 def test_a_chunk_whose_embedding_failed_is_kept_out_of_the_index(monkeypatch):

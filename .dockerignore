@@ -5,12 +5,14 @@
 **
 !.dockerignore
 !Dockerfile
+!analysis_worker.py
 !app/__init__.py
 !app/config.py
 !app/database/agent_action_repository.py
 !app/database/ai_credit_repository.py
 !app/database/ai_credit_topup_order_repository.py
 !app/database/ai_usage_repository.py
+!app/database/analysis_repository.py
 !app/database/analytics_repository.py
 !app/database/automation_event_repository.py
 !app/database/billing_notification_repository.py
@@ -18,6 +20,7 @@
 !app/database/bot_media_attachment_repository.py
 !app/database/bot_repository.py
 !app/database/broadcast_repository.py
+!app/database/business_observation_repository.py
 !app/database/channel_lifecycle_repository.py
 !app/database/chat_history_repository.py
 !app/database/company_repository.py
@@ -31,6 +34,7 @@
 !app/database/flow_repository.py
 !app/database/handoff_control_repository.py
 !app/database/help_article_repository.py
+!app/database/industry_template_repository.py
 !app/database/invite_repository.py
 !app/database/knowledge_chunk_repository.py
 !app/database/knowledge_file_repository.py
@@ -53,6 +57,8 @@
 !app/database/subscription_plan_repository.py
 !app/database/telegram_channel_repository.py
 !app/database/tenant_support_repository.py
+!app/database/tuition_reminder_repository.py
+!app/database/tuition_repository.py
 !app/database/user_repository.py
 !app/database/wasender_channel_repository.py
 !app/database/web_widget_repository.py
@@ -70,6 +76,7 @@
 !app/routes/admin_billing_routes.py
 !app/routes/agent_routes.py
 !app/routes/ai_model_routes.py
+!app/routes/analysis_routes.py
 !app/routes/analytics_routes.py
 !app/routes/auth_routes.py
 !app/routes/automation_routes.py
@@ -95,6 +102,7 @@
 !app/routes/support_routes.py
 !app/routes/telegram_routes.py
 !app/routes/testbot_routes.py
+!app/routes/tuition_routes.py
 !app/routes/user_routes.py
 !app/routes/wasender_routes.py
 !app/routes/whatsapp_routes.py
@@ -108,6 +116,11 @@
 !app/services/ai_gateway.py
 !app/services/ai_router.py
 !app/services/ai_search_service.py
+!app/services/analysis_export_service.py
+!app/services/analysis_report_service.py
+!app/services/analysis_request_service.py
+!app/services/analysis_storage_service.py
+!app/services/analysis_worker_service.py
 !app/services/automation_service.py
 !app/services/billing_guard.py
 !app/services/billing_notification_service.py
@@ -118,6 +131,8 @@
 !app/services/billing_service.py
 !app/services/bot_config_fields.py
 !app/services/bot_service.py
+!app/services/business_observation_service.py
+!app/services/business_record_service.py
 !app/services/cf_queue.py
 !app/services/channel_delivery_service.py
 !app/services/chat_logic_service.py
@@ -142,6 +157,8 @@
 !app/services/handoff_request_detection.py
 !app/services/handoff_service.py
 !app/services/help_article_service.py
+!app/services/industry_template_catalog.py
+!app/services/industry_template_service.py
 !app/services/invitation_service.py
 !app/services/knowledge_ingest_job_service.py
 !app/services/knowledge_ingest_queue.py
@@ -174,6 +191,9 @@
 !app/services/subscription_reconciliation_service.py
 !app/services/tenant_support_service.py
 !app/services/test_scenario_service.py
+!app/services/tuition_reminder_service.py
+!app/services/tuition_service.py
+!app/services/tuition_telegram_service.py
 !app/services/turn_cache.py
 !app/services/turnstile_service.py
 !app/services/upload_validation_service.py
@@ -196,9 +216,15 @@
 !app/utils/telegram_utils.py
 !app/utils/whatsapp_utils.py
 !app/views.py
+!deploy/agent-automation/langflow.Dockerfile
+!deploy/agent-automation/langflow/components/agent_analysis/__init__.py
+!deploy/agent-automation/langflow/components/agent_analysis/model_step.py
+!deploy/agent-automation/worker.Dockerfile
 !frontend/accept-invite.html
 !frontend/admin.html
+!frontend/analysis.html
 !frontend/assets/css/admin-portal.css
+!frontend/assets/css/analysis.css
 !frontend/assets/css/auth-volleo.css
 !frontend/assets/css/behaviour.css
 !frontend/assets/css/billing.css
@@ -221,6 +247,8 @@
 !frontend/assets/css/team.css
 !frontend/assets/css/whatsapp-preview.css
 !frontend/assets/js/admin-portal.js
+!frontend/assets/js/analysis-tuition.js
+!frontend/assets/js/analysis.js
 !frontend/assets/js/auth-sentry.js
 !frontend/assets/js/auth.js
 !frontend/assets/js/behaviour.js
@@ -228,6 +256,7 @@
 !frontend/assets/js/bot-setup-journey.js
 !frontend/assets/js/broadcast.js
 !frontend/assets/js/control-room-motion.js
+!frontend/assets/js/industry-template.js
 !frontend/assets/js/insights-actions.js
 !frontend/assets/js/kw-a11y.js
 !frontend/assets/js/meta-templates.js
@@ -252,6 +281,7 @@
 !frontend/assets/js/superadmin-portal.js
 !frontend/assets/js/team.js
 !frontend/assets/js/turnstile-guard.js
+!frontend/assets/js/widget-tuition.js
 !frontend/behaviour.html
 !frontend/billing.html
 !frontend/bots.html

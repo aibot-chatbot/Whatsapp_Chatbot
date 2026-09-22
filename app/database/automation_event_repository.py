@@ -1,4 +1,5 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from uuid import UUID
 
 from app.database.db import supabase
 from app.database.db_errors import is_unique_violation
@@ -7,6 +8,11 @@ from app.database.db_errors import is_unique_violation
 AUTOMATION_EVENT_TYPES = {
     "knowledge_document_follow_up",
     "crm_stage_transition",
+    "agent_report",
+    "business_observation",
+    "tuition_reminder",
+    "agent_notification",
+    "schedule_tick",
 }
 AUTOMATION_EVENT_STATUSES = {
     "queued",
@@ -14,6 +20,7 @@ AUTOMATION_EVENT_STATUSES = {
     "completed",
     "failed",
     "blocked",
+    "needs_review",
 }
 
 
@@ -151,13 +158,20 @@ def update_automation_event_status(
         .eq("id", event_id)
         .eq("company_id", company_id)
         .eq("chatbot_id", chatbot_id)
+        .eq("event_type", "crm_stage_transition")
         .execute()
     )
     rows = response.data or []
     return rows[0] if rows else None
 
 
-WORKER_TERMINAL_STATUSES = {"completed", "failed"}
+WORKER_TERMINAL_STATUSES = {"completed", "failed", "needs_review"}
+WORKER_EVENT_TYPES = {
+    "agent_report": frozenset({"agent_report"}),
+    "business_observation": frozenset({"business_observation"}),
+    "tuition_reminder": frozenset({"tuition_reminder"}),
+    "n8n": frozenset({"knowledge_document_follow_up", "agent_notification", "schedule_tick"}),
+}
 DEFAULT_CLAIM_LIMIT = 10
 MAX_CLAIM_LIMIT = 50
 MIN_CLAIM_LEASE_SECONDS = 30
@@ -185,66 +199,60 @@ def get_automation_event_by_id(event_id):
     return rows[0] if rows else None
 
 
-def claim_queued_automation_events(*, limit=DEFAULT_CLAIM_LIMIT, lease_seconds=300):
-    """Claim outbox events for the out-of-process worker.
+def _worker_kind(value):
+    if value not in WORKER_EVENT_TYPES:
+        raise ValueError("Unsupported worker kind")
+    return value
 
-    Deliberately crosses tenants: the outbox worker is a platform actor, and
-    the token that reaches this path is a platform credential.
 
-    Each row is claimed with a conditional update on the status it was read
-    with, so two workers racing the same row leave exactly one winner instead
-    of both believing they own it.
+def _lease_token(value):
+    try:
+        return str(UUID(str(value)))
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise ValueError("A valid lease_token is required") from exc
 
-    ``running`` rows older than the lease are re-offered. Without that, a
-    worker that dies mid-event strands its row at ``running`` forever - the
-    same claim-check ordering failure that previously left payment orders
-    stuck at claimed.
+
+def claim_queued_automation_events(*, limit=DEFAULT_CLAIM_LIMIT, lease_seconds=300, worker_kind="n8n"):
+    """Atomically claim only the server-assigned worker's job types.
+
+    Migration 064 owns locking, expiry, fencing and the retry budget. A missing
+    RPC fails closed; never fall back to a read-then-write claim.
     """
-    safe_limit = min(max(int(limit or DEFAULT_CLAIM_LIMIT), 1), MAX_CLAIM_LIMIT)
-    safe_lease = min(
-        max(int(lease_seconds or 300), MIN_CLAIM_LEASE_SECONDS), MAX_CLAIM_LEASE_SECONDS
-    )
-    now = datetime.now(timezone.utc)
-    stale_before = (now - timedelta(seconds=safe_lease)).isoformat()
+    _worker_kind(worker_kind)
+    _positive_int(limit, "limit")
+    _positive_int(lease_seconds, "lease_seconds")
+    response = supabase.rpc("claim_automation_events_v1", {
+        "p_worker_kind": worker_kind,
+        "p_limit": min(limit, MAX_CLAIM_LIMIT),
+        "p_lease_seconds": min(max(lease_seconds, MIN_CLAIM_LEASE_SECONDS), MAX_CLAIM_LEASE_SECONDS),
+    }).execute()
+    return response.data or []
 
-    candidates = list(
-        (
-            supabase.table("automation_events")
-            .select("*")
-            .eq("status", "queued")
-            .order("created_at", desc=False)
-            .limit(safe_limit)
-            .execute()
-        ).data
-        or []
-    )
 
-    remaining = safe_limit - len(candidates)
-    if remaining > 0:
-        candidates.extend(
-            (
-                supabase.table("automation_events")
-                .select("*")
-                .eq("status", "running")
-                .lt("updated_at", stale_before)
-                .order("updated_at", desc=False)
-                .limit(remaining)
-                .execute()
-            ).data
-            or []
-        )
+def renew_automation_event_lease(*, event_id, lease_token, worker_kind, lease_seconds=300):
+    _positive_int(event_id, "event_id")
+    _positive_int(lease_seconds, "lease_seconds")
+    response = supabase.rpc("renew_automation_event_lease_v1", {
+        "p_event_id": event_id, "p_lease_token": _lease_token(lease_token),
+        "p_worker_kind": _worker_kind(worker_kind),
+        "p_lease_seconds": min(max(lease_seconds, MIN_CLAIM_LEASE_SECONDS), MAX_CLAIM_LEASE_SECONDS),
+    }).execute()
+    return next(iter(response.data or []), None)
 
-    claimed = []
-    for row in candidates:
-        previous = row.get("status")
-        won = (
-            supabase.table("automation_events")
-            .update({"status": "running", "updated_at": now.isoformat()})
-            .eq("id", row["id"])
-            .eq("status", previous)
-            .execute()
-        )
-        rows = won.data or []
-        if rows:
-            claimed.append(rows[0])
-    return claimed
+
+def finish_automation_event(*, event_id, lease_token, worker_kind, status, result=None,
+                            error_message=None, retryable=False):
+    _positive_int(event_id, "event_id")
+    if not isinstance(status, str) or status not in WORKER_TERMINAL_STATUSES:
+        raise ValueError("Unsupported worker outcome")
+    if result is not None and not isinstance(result, dict):
+        raise ValueError("result must be an object")
+    if not isinstance(retryable, bool):
+        raise ValueError("retryable must be a boolean")
+    response = supabase.rpc("finish_automation_event_v1", {
+        "p_event_id": event_id, "p_lease_token": _lease_token(lease_token),
+        "p_worker_kind": _worker_kind(worker_kind), "p_status": status,
+        "p_result": result, "p_error_message": str(error_message)[:500] if error_message else None,
+        "p_retryable": retryable,
+    }).execute()
+    return next(iter(response.data or []), None)

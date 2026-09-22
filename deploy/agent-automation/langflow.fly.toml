@@ -1,0 +1,41 @@
+# Private editor/API. Reach it with fly proxy, never a public services block.
+primary_region = "sin"
+kill_signal = "SIGTERM"
+kill_timeout = "60s"
+
+[build]
+  dockerfile = "deploy/agent-automation/langflow.Dockerfile"
+
+[env]
+  LANGFLOW_HOST = "::"
+  LANGFLOW_PORT = "7860"
+  LANGFLOW_CONFIG_DIR = "/var/lib/langflow"
+  LANGFLOW_SAVE_DB_IN_CONFIG_DIR = "true"
+  LANGFLOW_AUTO_LOGIN = "false"
+  LANGFLOW_LOG_LEVEL = "WARNING"
+  DO_NOT_TRACK = "true"
+  LANGFLOW_DO_NOT_TRACK = "true"
+
+[[mounts]]
+  source = "langflow_data"
+  destination = "/var/lib/langflow"
+  snapshot_retention = 7
+
+[deploy]
+  strategy = "immediate"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 2
+  memory = "2gb"
+
+[[restart]]
+  policy = "always"
+
+[checks.langflow]
+  type = "http"
+  port = 7860
+  path = "/health_check"
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "300s"

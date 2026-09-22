@@ -9,7 +9,7 @@ class Upload:
 
     def save(self, path):
         with open(path, "wb") as handle:
-            handle.write(b"pdf")
+            handle.write(b"%PDF-1.4\n")
 
 
 def test_completed_document_ingest_enqueues_follow_up(tmp_path):

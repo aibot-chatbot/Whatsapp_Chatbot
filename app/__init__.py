@@ -41,6 +41,8 @@ from app.routes.help_routes import help_bp
 from app.routes.widget_routes import widget_blueprint
 from app.routes.flow_routes import flow_blueprint
 from app.routes.automation_routes import automation_blueprint
+from app.routes.analysis_routes import analysis_blueprint
+from app.routes.tuition_routes import tuition_blueprint
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -166,6 +168,8 @@ def create_app():
     app.register_blueprint(widget_blueprint)
     app.register_blueprint(flow_blueprint)
     app.register_blueprint(automation_blueprint)
+    app.register_blueprint(analysis_blueprint)
+    app.register_blueprint(tuition_blueprint)
     if app.config.get("ENABLE_DEV_BILLING_ROUTES"):
         app.register_blueprint(dev_billing_bp)
 

@@ -1,10 +1,14 @@
 ﻿import logging
 from app.database.analytics_repository import get_transcript_logs
-from app.services.ai_router import generate_system_response, OPERATION_AI_REPORT
+from app.services.ai_router import generate_system_response, OPERATION_AI_REPORT, is_error_reply
 
 
 
 from app.database.bot_repository import get_bot_by_id
+
+
+class ReportGenerationError(RuntimeError):
+    pass
 
 def generate_weekly_report(chatbot_id: int, days: int = 7) -> str:
     """
@@ -20,7 +24,7 @@ def generate_weekly_report(chatbot_id: int, days: int = 7) -> str:
     # Format transcript data for context
     context_data = ""
     for idx, t in enumerate(transcripts):
-        masked_phone = t["phone"]
+        masked_phone = t.get("phone") or "Anonymous visitor"
         # Mask phone number slightly for user privacy in report context
         if len(masked_phone) > 4:
             masked_phone = masked_phone[:-4] + "****"
@@ -58,7 +62,9 @@ Structure the report clearly with bold Markdown headers. Do not use raw HTML tag
             temperature=0.3,
             operation_type=OPERATION_AI_REPORT,
         )
+        if not isinstance(reply, str) or is_error_reply(reply):
+            raise ReportGenerationError("Report generation failed.")
         return f"{reply.strip()}\n\n---\n*Report generated using model: **{provider} / {model or 'default'}***"
     except Exception as e:
-        logging.error(f"Error in generate_weekly_report: {e}")
-        return f"An error occurred while generating the report: {str(e)}"
+        logging.error("Weekly report generation failed (%s)", type(e).__name__)
+        raise ReportGenerationError("Report generation failed. Please try again later.") from None

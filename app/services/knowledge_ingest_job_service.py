@@ -172,7 +172,8 @@ def _run(accepted: dict) -> None:
         _record(chatbot_id, file_id, status=status, phase=PHASE_DONE)
         return
 
-    _derive_persona(chatbot_id, file_id)
+    if accepted.get("target_role") == "primary":
+        _derive_persona(chatbot_id, file_id)
 
     # Terminal only now, one LLM call after the document became answerable.
     # The client's next step is the settings form, and it must find the values
@@ -211,7 +212,7 @@ def _derive_persona(chatbot_id: int, file_id: int) -> None:
     """
     from app.services.persona_derivation_service import derive_persona_for_upload
 
-    derivation = derive_persona_for_upload(chatbot_id)
+    derivation = derive_persona_for_upload(chatbot_id, source_file_id=file_id)
 
     _record(
         chatbot_id,

@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme:dark">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Analysis | Omnexa</title>
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/analysis.css">
+    <script src="assets/js/shared-ui.js"></script>
+</head>
+<body class="dashboard-page analysis-page">
+    <script src="sidebar-component.js"></script><chatbot-sidebar></chatbot-sidebar>
+    <main class="main-container">
+        <header class="header"><div><a class="dashboard-back-link" href="bots.html">‹ My bots</a>
+            <h1>Analysis</h1><p>Ask your agent what happened, what customers need, and what to do next.</p></div>
+            <span class="analysis-context" id="bot-context">Loading bot…</span>
+        </header>
+        <p id="analysis-status" role="status" aria-live="polite">Checking access…</p>
+        <div class="analysis-layout">
+            <section class="analysis-panel analysis-chat" aria-labelledby="agent-heading">
+                <div class="analysis-panel-heading"><div><span class="analysis-eyebrow">YOUR BOT'S BUSINESS CONTEXT</span><h2 id="agent-heading">Ask for a report</h2></div><span id="industry-label" class="analysis-tag">Industry pending</span></div>
+                <p id="role-context" class="analysis-muted">Reports use this bot’s role, confirmed industry and uploaded knowledge.</p>
+                <div class="analysis-examples" aria-label="Report examples">
+                    <button type="button" data-prompt="Summarize last month's customer requests, bookings and follow-ups.">Last month's activity</button>
+                    <button type="button" data-prompt="Analyze common customer questions using this bot's uploaded documents. Include sources.">Questions &amp; documents</button>
+                    <button type="button" data-prompt="Which customer requests still need a team member to follow up?">Pending follow-ups</button>
+                </div>
+                <div id="report-thread" class="analysis-thread" aria-live="polite"><p class="analysis-empty">Your reports will appear here. Describe the period and what you want to understand.</p></div>
+                <button id="more-reports" type="button" hidden>Earlier reports</button>
+                <form id="report-form">
+                    <label for="report-command">Message your agent</label>
+                    <textarea id="report-command" maxlength="2000" rows="3" required placeholder="例如：生成上个月的预约、报名申请和客户咨询报告，列出待跟进事项。"></textarea>
+                    <div class="analysis-compose-footer"><small>Only records this bot can access. Revenue stays unavailable until connected.</small><button id="send-report" type="submit" disabled>Generate report →</button></div>
+                </form>
+            </section>
+            <aside class="analysis-rail">
+                <section class="analysis-panel"><div class="analysis-panel-heading"><h2>Customer activity</h2><button type="button" id="refresh-records">Refresh</button></div>
+                    <button type="button" id="manage-trials" hidden>Manage trial sessions</button>
+                    <label class="analysis-schedule"><span>Record customer requests <small>Analyze new messages with this bot's model. Uses AI credits.</small></span><input type="checkbox" id="recording-enabled" disabled></label>
+                    <p class="analysis-muted">Requests and completed actions are shown separately. A request does not reserve a place.</p>
+                    <div id="business-records"><p class="analysis-empty">Loading records…</p></div><button type="button" id="more-records" hidden>More records</button>
+                </section>
+                <section class="analysis-panel"><h2>Scheduled reports</h2><p class="analysis-muted">Asia/Kuala_Lumpur · Previous complete period.</p>
+                    <label class="analysis-schedule"><span>Weekly <small>Monday, 09:00</small></span><input type="checkbox" data-frequency="weekly" disabled></label>
+                    <label class="analysis-schedule"><span>Monthly <small>1st of the month, 09:00</small></span><input type="checkbox" data-frequency="monthly" disabled></label>
+                </section>
+                <section class="analysis-panel analysis-muted"><h2>Private to your business</h2><p>Records are scoped to your company and bot. Report downloads require an active administrator account.</p></section>
+            </aside>
+        </div>
+        <dialog id="report-dialog" aria-labelledby="report-title"><div class="analysis-panel-heading"><h2 id="report-title">Report</h2><button type="button" id="close-report" aria-label="Close report">Close ✕</button></div><div id="report-content"></div><div id="report-downloads" class="analysis-examples"></div></dialog>
+        <dialog id="tuition-dialog" aria-labelledby="tuition-title">
+            <div class="analysis-panel-heading"><h2 id="tuition-title">Trial sessions</h2><button type="button" id="close-tuition">Close trials</button></div>
+            <p class="analysis-muted">All times are in Asia/Kuala_Lumpur (UTC+08:00). A trial booking does not enroll a student or collect payment.</p>
+            <p id="tuition-status" role="status" aria-live="polite"></p>
+            <div class="tuition-forms">
+                <form id="tuition-course-form"><h3>Add course</h3><label>Course name<input name="name" maxlength="150" required></label><button type="submit">Add course</button></form>
+                <form id="tuition-class-form"><h3>Add class</h3><label>Course<select name="course_id" required></select></label><label>Class name<input name="name" maxlength="150" required></label><button type="submit">Add class</button></form>
+            </div>
+            <form id="tuition-session-form"><h3>Add session</h3><div class="tuition-fields">
+                <label>Class<select name="class_id" required></select></label>
+                <label>Start (Kuala Lumpur)<input type="datetime-local" name="starts_at" required></label>
+                <label>End (Kuala Lumpur)<input type="datetime-local" name="ends_at" required></label>
+                <label>Total capacity<input type="number" name="total_capacity" min="1" max="10000" step="1" required></label>
+                <label>Enrolled seats<input type="number" name="enrolled_seats" min="0" max="10000" step="1" value="0" required></label>
+                <label>Trial limit<input type="number" name="trial_limit" min="0" max="10000" step="1" required></label>
+            </div><button type="submit">Add session</button></form>
+            <h3>Upcoming sessions</h3><div id="tuition-sessions"></div>
+            <h3>Bookings</h3><button type="button" id="refresh-trials">Refresh trials</button><div id="tuition-bookings"></div>
+        </dialog>
+    </main>
+    <script src="assets/js/auth.js"></script><script src="assets/js/analysis-tuition.js"></script><script src="assets/js/analysis.js"></script>
+</body></html>

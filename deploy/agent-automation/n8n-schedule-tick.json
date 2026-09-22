@@ -1,0 +1,36 @@
+{
+  "name": "Analysis schedule tick (Flask owns schedules)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 1}]}},
+      "id": "analysis-schedule-clock",
+      "name": "Every minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://REPLACE_APPROVED_FLASK_HOST/internal/analysis/schedules/tick",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{}",
+        "options": {"timeout": 45000}
+      },
+      "id": "analysis-schedule-enqueue",
+      "name": "Enqueue due report periods",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0],
+      "credentials": {"httpHeaderAuth": {"id": "REPLACE_CREDENTIAL_ID", "name": "Analysis internal bearer"}},
+      "notes": "Authorization: Bearer AGENT_INTERNAL_TOKEN lives in the encrypted credential. Response means enqueued only. Do not add customer delivery or NoOp success nodes."
+    }
+  ],
+  "connections": {"Every minute": {"main": [[{"node": "Enqueue due report periods", "type": "main", "index": 0}]]}},
+  "settings": {"executionOrder": "v1", "timezone": "Asia/Kuala_Lumpur", "saveDataSuccessExecution": "none", "saveDataErrorExecution": "all"},
+  "pinData": {}
+}

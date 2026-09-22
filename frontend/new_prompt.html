@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="assets/css/bot-config.css">
     <link rel="stylesheet" href="assets/css/bot-setup-journey.css">
     <script src="assets/js/bot-setup-journey.js" defer></script>
+    <script src="assets/js/industry-template.js" defer></script>
 
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
@@ -130,6 +131,40 @@
                 </details>
             </div>
         </div>
+
+        <section class="kw-panel" id="bc-industry-panel" aria-labelledby="bc-industry-title" aria-busy="true">
+            <div class="kw-panel-head">
+                <h2 class="kw-panel-title" id="bc-industry-title">Industry guidance</h2>
+            </div>
+            <div class="kw-panel-body">
+                <p class="kw-help" id="bc-industry-status" role="status">Loading industry suggestion…</p>
+                <p class="kw-help" id="bc-industry-published">Current industry guidance has not been checked.</p>
+                <dl class="bc-deflist">
+                    <dt>Source document</dt><dd id="bc-industry-source">Not checked</dd>
+                    <dt>Why this was suggested</dt><dd><ul id="bc-industry-evidence"></ul></dd>
+                </dl>
+                <form id="bc-industry-form">
+                    <fieldset class="kw-field" id="bc-industry-fields" disabled>
+                        <legend class="kw-label">Review the industry template</legend>
+                        <label class="kw-label" for="bc-industry-select">Industry</label>
+                        <select class="kw-input" id="bc-industry-select" required aria-describedby="bc-industry-description bc-industry-effect">
+                            <option value="">Choose an industry</option>
+                        </select>
+                        <p class="kw-help" id="bc-industry-description"></p>
+                        <dl class="bc-deflist" id="bc-industry-details" hidden>
+                            <dt>Suggested questions</dt><dd><ul id="bc-industry-questions"></ul></dd>
+                            <dt>Check your documents include</dt><dd><ul id="bc-industry-checklist"></ul></dd>
+                            <dt>Actions this template cannot perform</dt><dd><ul id="bc-industry-unavailable"></ul></dd>
+                        </dl>
+                        <p class="kw-help" id="bc-industry-effect">Confirming applies this industry guidance to replies on connected bots immediately. Your profile, custom instructions and channel connections stay as they are.</p>
+                        <button type="submit" class="kw-btn kw-btn-primary" id="bc-industry-confirm" disabled>Confirm and apply industry</button>
+                    </fieldset>
+                </form>
+                <button type="button" class="kw-btn" id="bc-industry-change" hidden>Change industry</button>
+                <p class="bc-banner bc-banner-error" id="bc-industry-error" role="alert"></p>
+                <button type="button" class="kw-btn" id="bc-industry-reload">Reload industry suggestion</button>
+            </div>
+        </section>
 
         <!-- Step 3. POST /api/match/check compares the active profile against
              the active primary knowledge. -->
@@ -369,6 +404,7 @@
             }
 
             wireEvents();
+            IndustryTemplatePanel.init({ chatbotId: botId, fetch: authenticatedFetch });
             loadAll();
         });
 

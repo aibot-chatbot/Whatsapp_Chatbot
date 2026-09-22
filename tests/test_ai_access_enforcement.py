@@ -1274,11 +1274,10 @@ class TestReportEnforcement(unittest.TestCase):
         }
         mock_gsr.side_effect = RuntimeError("AI failed")
 
-        from app.services.report_service import generate_weekly_report
-        result = generate_weekly_report(chatbot_id=1, days=7)
-
-        self.assertIn("error occurred", result.lower())
-        self.assertNotIn("deepseek", result.lower())
+        from app.services.report_service import generate_weekly_report, ReportGenerationError
+        with self.assertRaises(ReportGenerationError):
+            generate_weekly_report(chatbot_id=1, days=7)
+        mock_gsr.assert_called_once()
 
     @patch("app.services.report_service.get_transcript_logs")
     @patch("app.services.report_service.get_bot_by_id")
@@ -1571,11 +1570,10 @@ class TestSystemProviderFallbackIsolation(unittest.TestCase):
         }
         mock_gsr.side_effect = RuntimeError("AI provider failed")
 
-        from app.services.report_service import generate_weekly_report
-        result = generate_weekly_report(chatbot_id=1, days=7)
-
+        from app.services.report_service import generate_weekly_report, ReportGenerationError
+        with self.assertRaises(ReportGenerationError):
+            generate_weekly_report(chatbot_id=1, days=7)
         mock_gsr.assert_called_once()
-        self.assertIn("error occurred", result.lower())
 
 
 
@@ -1689,11 +1687,10 @@ class TestAICreditSingleCharge(unittest.TestCase):
         }
         mock_gsr.side_effect = RuntimeError("AI failed")
 
-        from app.services.report_service import generate_weekly_report
-        result = generate_weekly_report(chatbot_id=1, days=7)
-
+        from app.services.report_service import generate_weekly_report, ReportGenerationError
+        with self.assertRaises(ReportGenerationError):
+            generate_weekly_report(chatbot_id=1, days=7)
         self.assertEqual(mock_gsr.call_count, 1)
-        self.assertIn("error", result.lower())
 
     @patch("app.services.ai_router.generate_system_response")
     def test_website_failure_does_not_double_charge(self, mock_gsr):

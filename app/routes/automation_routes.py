@@ -18,7 +18,9 @@ from app.database.automation_event_repository import (
     claim_queued_automation_events,
     get_automation_event_by_id,
     list_automation_events,
-    update_automation_event_status,
+    finish_automation_event,
+    renew_automation_event_lease,
+    WORKER_EVENT_TYPES,
 )
 from app.utils.access_control import role_required, verify_chatbot_access
 
@@ -151,18 +153,22 @@ def claim_automation_worker_events():
     if not n8n_worker_enabled():
         return jsonify({"status": "error", "message": "Automation worker is disabled"}), 503
 
-    data = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        return jsonify({"status": "error", "message": "JSON object required"}), 400
     requested = data.get("limit", 10)
     if isinstance(requested, bool) or not isinstance(requested, int):
         return jsonify({"status": "error", "message": "limit must be an integer"}), 400
 
     lease = worker_lease_seconds()
     try:
-        events = claim_queued_automation_events(limit=requested, lease_seconds=lease)
+        events = claim_queued_automation_events(limit=requested, lease_seconds=lease, worker_kind="n8n")
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
     except Exception:
-        return jsonify({"status": "error", "message": "Unable to claim automation events."}), 500
+        return jsonify({"status": "error", "message": "Unable to claim automation events."}), 503
 
     return jsonify({
         "status": "success",
@@ -176,65 +182,51 @@ def claim_automation_worker_events():
 @limiter.limit(lambda: current_app.config.get("RATELIMIT_AUTOMATION_WORKER", "60/minute"))
 @worker_token_required
 def report_automation_worker_event(event_id):
-    """Close out one leased event as completed or failed.
-
-    company_id and chatbot_id come from the stored row, never from the request,
-    so a worker cannot aim an update at a row it was not handed. A repeated
-    callback on an already-finished event is a success with no write, because
-    n8n retries are expected and must not reopen or rewrite settled work.
-    """
+    """A stored row supplies tenancy; a current lease fences every callback."""
     if not n8n_worker_enabled():
         return jsonify({"status": "error", "message": "Automation worker is disabled"}), 503
-
-    data = request.get_json(silent=True) or {}
-    status = str(data.get("status") or "").strip().lower()
-    if status not in WORKER_TERMINAL_STATUSES:
-        return jsonify({
-            "status": "error",
-            "message": "status must be completed or failed",
-        }), 400
-
-    result = data.get("result")
-    if result is not None and not isinstance(result, dict):
-        return jsonify({"status": "error", "message": "result must be an object"}), 400
-
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"status": "error", "message": "JSON object required"}), 400
+    status = data.get("status")
+    if not isinstance(status, str) or status not in WORKER_TERMINAL_STATUSES:
+        return jsonify({"status": "error", "message": "Invalid worker outcome"}), 400
     try:
         event = get_automation_event_by_id(event_id)
-    except ValueError as exc:
-        return jsonify({"status": "error", "message": str(exc)}), 400
-    except Exception:
-        return jsonify({"status": "error", "message": "Unable to load automation event."}), 500
-
-    if not event:
-        return jsonify({"status": "error", "message": "Automation event not found"}), 404
-
-    current = str(event.get("status") or "")
-    if current in WORKER_TERMINAL_STATUSES:
-        return jsonify({
-            "status": "success",
-            "data": {"event": event, "changed": False},
-        }), 200
-    if current != "running":
-        return jsonify({
-            "status": "error",
-            "message": "Only a claimed event can be reported",
-        }), 409
-
-    try:
-        updated = update_automation_event_status(
-            company_id=event["company_id"],
-            chatbot_id=event["chatbot_id"],
-            event_id=event_id,
-            status=status,
-            result=result,
-            error_message=data.get("error_message"),
+        if not event or event.get("event_type") not in WORKER_EVENT_TYPES["n8n"]:
+            return jsonify({"status": "error", "message": "Automation event not found"}), 404
+        updated = finish_automation_event(
+            event_id=event_id, lease_token=data.get("lease_token"), worker_kind="n8n",
+            status=status, result=data.get("result"), error_message=data.get("error_message"),
+            retryable=data.get("retryable", False),
         )
+        if not updated:
+            return jsonify({"status": "error", "message": "Lease expired or no longer owned"}), 409
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
     except Exception:
-        return jsonify({"status": "error", "message": "Unable to update automation event."}), 500
+        return jsonify({"status": "error", "message": "Unable to update automation event."}), 503
+    return jsonify({"status": "success", "data": {"event": updated, "changed": event.get("status") != updated.get("status")}}), 200
 
-    return jsonify({
-        "status": "success",
-        "data": {"event": updated or event, "changed": bool(updated)},
-    }), 200
+
+@automation_blueprint.route("/api/automation/worker/events/<int:event_id>/renew", methods=["POST"])
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_AUTOMATION_WORKER", "60/minute"))
+@worker_token_required
+def renew_automation_worker_event(event_id):
+    if not n8n_worker_enabled():
+        return jsonify({"status": "error", "message": "Automation worker is disabled"}), 503
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"status": "error", "message": "JSON object required"}), 400
+    try:
+        event = renew_automation_event_lease(
+            event_id=event_id, lease_token=data.get("lease_token"), worker_kind="n8n",
+            lease_seconds=worker_lease_seconds(),
+        )
+        if not event:
+            return jsonify({"status": "error", "message": "Lease expired or no longer owned"}), 409
+        return jsonify({"status": "success", "data": {"event": event}}), 200
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    except Exception:
+        return jsonify({"status": "error", "message": "Unable to renew automation event."}), 503

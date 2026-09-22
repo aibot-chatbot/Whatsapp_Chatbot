@@ -171,6 +171,9 @@ def edit_bot(bot_id, data, company_id):
     if not existing_bot:
         raise ValueError("Bot not found")
 
+    if {"industry_template_draft", "industry_template_published"}.intersection(data):
+        raise ValueError("Use the industry review and confirmation workflow to change industry guidance.")
+
     if "bot_name" in data:
         data["bot_name"] = data.get("bot_name", "").strip()
 

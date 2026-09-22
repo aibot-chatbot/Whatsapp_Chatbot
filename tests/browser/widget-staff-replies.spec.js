@@ -29,6 +29,7 @@ async function openWidget(page, world = {}) {
       world.sessions += 1;
       return route.fulfill(ok({ session_id: SESSION }));
     }
+    if (endpoint === 'tuition') return route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ code: 'tuition_disabled' }) });
     const body = route.request().postDataJSON();
     expect(route.request().method()).toBe('POST');
     expect(url.search).toBe('');

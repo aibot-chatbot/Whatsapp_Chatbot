@@ -118,6 +118,7 @@ def test_crm_stage_automation_allows_only_forward_or_terminal_transition():
         to_status="qualified",
     )
     create_event.assert_called_once()
+    assert create_event.call_args.kwargs["status"] == "running"
     assert create_event.call_args.kwargs["payload"] == {
         "lead_id": 5,
         "from_status": "contacted",

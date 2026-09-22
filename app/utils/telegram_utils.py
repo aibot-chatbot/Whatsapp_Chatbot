@@ -323,11 +323,23 @@ def _process_claimed_telegram_update(update, channel, progress):
     paused = is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation)
     progress["started"] = True
 
+    from app.services.tuition_telegram_service import handle_tuition_update, is_tuition_update
+    trial_update = is_tuition_update(update)
+
     # Human service pauses every automatic response, including contact prompts.
     if paused:
+        if trial_update:
+            # Buttons/commands are deterministic controls, not observation input.
+            # In particular, never save bearer confirmation tokens as transcript.
+            return
         save_message(conversation_id=conversation["id"], sender_type="customer",
                      message_text=message_text or "[Customer attachment]", message_type="text",
                      platform_message_id=str(message_id), delivery_status="received", ai_generated=False)
+        return
+
+    # Explicit customer booking controls bypass phone capture and model billing.
+    # The adapter rechecks scope, plan, channel and handoff before writes/sends.
+    if trial_update and handle_tuition_update(update, conversation=conversation, channel=channel):
         return
 
     # A participant's contact card is not the group's customer profile.
