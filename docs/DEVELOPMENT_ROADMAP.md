@@ -1,5 +1,13 @@
 # Development Roadmap
 
+## Human handoff Phase A/B — 2026-09-22
+
+Waiting visibility is deployed on Fly v34. The persistent control API and
+migration 060 are deployed, verified and deliberately disabled. Next connect
+customer requests, queue UI, assignee-authorized replies and dispatch epochs to
+the new control state, then verify the complete flow before enabling it.
+See [release evidence and remaining work](HANDOFF_PHASE_AB_RELEASE.md).
+
 ## CHIP payment replacement — 2026-09-15
 
 **Deployed in CHIP LIVE mode on Fly release 20.**

@@ -325,6 +325,16 @@
             return urlBotId || '';
         })();
 
+        // The dashboard's "Waiting for human" card links here with ?awaiting=1
+        // so the queue opens already filtered. Without it the agent lands on
+        // every conversation and has to find the waiting ones again, which is
+        // the work the alert was meant to save them.
+        const ARRIVED_AWAITING = new URLSearchParams(window.location.search).get('awaiting') === '1';
+
+        // Captured before anything can prefix a count onto it, so the title
+        // never accumulates "(3) (2) Conversations".
+        const BASE_TITLE = document.title;
+
         const STAGES = ['new', 'contacted', 'qualified', 'won', 'lost'];
         const STAGE_LABEL = { new: 'New', contacted: 'Contacted', qualified: 'Qualified', won: 'Won', lost: 'Lost' };
         const STAGE_ALIASES = { in_progress: 'contacted', closed: 'lost' };
@@ -491,7 +501,7 @@
             intentsCache: new Map(),
             transcriptMessages: [],
             transcriptSearch: '',
-            filters: { search: '', bot: ARRIVED_BOT_ID, channel: '', awaitingHuman: false, overdue: false },
+            filters: { search: '', bot: ARRIVED_BOT_ID, channel: '', awaitingHuman: ARRIVED_AWAITING, overdue: false },
             selectedConversationId: null,
             ownerLocked: false,
             pollTimer: null,
@@ -801,6 +811,17 @@
             state.chatbotIds = chatbotIds;
             state.leadsByConv = leadsByConv;
             state.escalationsByConv = escalationsByConv;
+            setWaitingTitle(escalationsByConv.size);
+        }
+
+        /**
+         * Put the waiting count in the browser tab, the same way the dashboard
+         * does. This page polls every 10s, so it is the freshest source in the
+         * app -- an agent who leaves this tab open in the background still
+         * sees the count climb without switching to it.
+         */
+        function setWaitingTitle(count) {
+            document.title = count > 0 ? `(${count}) ${BASE_TITLE}` : BASE_TITLE;
         }
 
         async function refresh(isPoll) {
@@ -1501,6 +1522,14 @@
         /* ── Boot ──────────────────────────────────────────────────────── */
 
         (async function boot() {
+            // The chip has to show the filter that is already applied, or the
+            // agent sees a short list with no visible reason for it and clears
+            // a filter they never knowingly set.
+            if (ARRIVED_AWAITING) {
+                const awaitingChip = document.getElementById('conv-chip-awaiting');
+                if (awaitingChip) awaitingChip.setAttribute('aria-pressed', 'true');
+            }
+
             await refresh(false);
             startPolling();
 

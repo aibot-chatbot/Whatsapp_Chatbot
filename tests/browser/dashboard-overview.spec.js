@@ -116,6 +116,42 @@ async function openDashboard(page) {
   return counters;
 }
 
+for (const count of [0, 3, 50]) {
+  test(`waiting queue shows ${count} requests with a truthful tab count`, async ({ page }) => {
+    await installSession(page);
+    await mockApis(page);
+    await page.route("**/api/agent/escalations?*", route => route.fulfill(json({
+      status: "success", data: Array.from({ length: count }, (_, id) => ({ id }))
+    })));
+    await page.goto(`/index.html?bot_id=${BOT_ID}`);
+    const display = count === 50 ? "50+" : String(count);
+    await expect(page.locator("#stat-waiting-human")).toHaveText(display);
+    if (count) {
+      await expect(page).toHaveTitle(new RegExp(`^\\(${display.replace('+', '\\+')}\\) `));
+      const link = new URL(await page.locator("#stat-waiting-link").getAttribute("href"), page.url());
+      expect(link.searchParams.get("awaiting")).toBe("1");
+      expect(link.searchParams.get("bot_id")).toBe(BOT_ID);
+      await expect(page.locator("#stat-waiting-link")).toBeVisible();
+    } else {
+      await expect(page.locator("#stat-waiting-note")).toHaveText("Nobody waiting");
+      await expect(page.locator("#stat-waiting-link")).toBeHidden();
+      await expect(page).not.toHaveTitle(/^\(/);
+    }
+  });
+}
+
+test("unavailable waiting count does not report zero or lose the queue link", async ({ page }) => {
+  await installSession(page);
+  await mockApis(page);
+  await page.route("**/api/agent/escalations?*", route => route.fulfill({
+    status: 403, contentType: "application/json", body: JSON.stringify({ status: "error" })
+  }));
+  await page.goto(`/index.html?bot_id=${BOT_ID}`);
+  await expect(page.locator("#stat-waiting-note")).toContainText("Unavailable");
+  await expect(page.locator("#stat-waiting-human")).toHaveText("—");
+  await expect(page.locator("#stat-waiting-link")).toBeVisible();
+});
+
 test("desktop dashboard matches the mockup structure", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1100 });
   await openDashboard(page);

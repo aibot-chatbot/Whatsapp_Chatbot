@@ -1,5 +1,17 @@
 # Feature Status
 
+## Human handoff Phase A/B — 2026-09-22
+
+**Phase A deployed and verified on Fly v34; Phase B schema/API deployed but
+disabled.** The dashboard shows waiting requests, links to the filtered queue,
+and distinguishes unavailable counts from zero. Migration 060 and its validated
+message-author FK are live. Seven staff APIs include atomic control updates and
+same-chatbot/tenant checks. Full working-tree tests passed: 4771 tests, 5 skipped,
+2303 subtests; all 289 deployed runtime hashes matched. The complete new
+claim/reply/automatic-send workflow is not connected, so the handoff flag stays
+off. Codex Security authentication blocked its scan; no security pass is claimed.
+See [release evidence and activation limits](HANDOFF_PHASE_AB_RELEASE.md).
+
 ## CHIP payment replacement — 2026-09-15
 
 **Deployed in CHIP LIVE mode on Fly release 20.**
