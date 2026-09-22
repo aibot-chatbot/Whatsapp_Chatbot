@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.database.db import supabase
 from app.database.db_errors import is_unique_violation
@@ -155,3 +155,96 @@ def update_automation_event_status(
     )
     rows = response.data or []
     return rows[0] if rows else None
+
+
+WORKER_TERMINAL_STATUSES = {"completed", "failed"}
+DEFAULT_CLAIM_LIMIT = 10
+MAX_CLAIM_LIMIT = 50
+MIN_CLAIM_LEASE_SECONDS = 30
+MAX_CLAIM_LEASE_SECONDS = 3600
+
+
+def get_automation_event_by_id(event_id):
+    """Fetch one event without a tenant filter, for the platform worker path.
+
+    Every other read here is company-scoped. This one is not, because the
+    outbox worker reports on events it was handed across tenants; callers must
+    take company_id and chatbot_id from the returned row rather than from the
+    request, so a worker can never redirect an update at another tenant's row.
+    """
+    _positive_int(event_id, "event_id")
+
+    result = (
+        supabase.table("automation_events")
+        .select("*")
+        .eq("id", event_id)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
+def claim_queued_automation_events(*, limit=DEFAULT_CLAIM_LIMIT, lease_seconds=300):
+    """Claim outbox events for the out-of-process worker.
+
+    Deliberately crosses tenants: the outbox worker is a platform actor, and
+    the token that reaches this path is a platform credential.
+
+    Each row is claimed with a conditional update on the status it was read
+    with, so two workers racing the same row leave exactly one winner instead
+    of both believing they own it.
+
+    ``running`` rows older than the lease are re-offered. Without that, a
+    worker that dies mid-event strands its row at ``running`` forever - the
+    same claim-check ordering failure that previously left payment orders
+    stuck at claimed.
+    """
+    safe_limit = min(max(int(limit or DEFAULT_CLAIM_LIMIT), 1), MAX_CLAIM_LIMIT)
+    safe_lease = min(
+        max(int(lease_seconds or 300), MIN_CLAIM_LEASE_SECONDS), MAX_CLAIM_LEASE_SECONDS
+    )
+    now = datetime.now(timezone.utc)
+    stale_before = (now - timedelta(seconds=safe_lease)).isoformat()
+
+    candidates = list(
+        (
+            supabase.table("automation_events")
+            .select("*")
+            .eq("status", "queued")
+            .order("created_at", desc=False)
+            .limit(safe_limit)
+            .execute()
+        ).data
+        or []
+    )
+
+    remaining = safe_limit - len(candidates)
+    if remaining > 0:
+        candidates.extend(
+            (
+                supabase.table("automation_events")
+                .select("*")
+                .eq("status", "running")
+                .lt("updated_at", stale_before)
+                .order("updated_at", desc=False)
+                .limit(remaining)
+                .execute()
+            ).data
+            or []
+        )
+
+    claimed = []
+    for row in candidates:
+        previous = row.get("status")
+        won = (
+            supabase.table("automation_events")
+            .update({"status": "running", "updated_at": now.isoformat()})
+            .eq("id", row["id"])
+            .eq("status", previous)
+            .execute()
+        )
+        rows = won.data or []
+        if rows:
+            claimed.append(rows[0])
+    return claimed

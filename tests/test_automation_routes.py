@@ -101,6 +101,9 @@ def test_automation_health_reports_degraded_when_event_table_is_unavailable(clie
     ), patch(
         "app.routes.automation_routes.langflow_automation_health",
         return_value={"status": "disabled"},
+    ), patch(
+        "app.routes.automation_routes.n8n_automation_health",
+        return_value={"status": "disabled"},
     ):
         response = client.get("/api/automation/health")
 
@@ -110,6 +113,7 @@ def test_automation_health_reports_degraded_when_event_table_is_unavailable(clie
         "checks": {
             "automation_events": False,
             "langflow": {"status": "disabled"},
+            "n8n": {"status": "disabled"},
         },
     }
 
@@ -121,6 +125,9 @@ def test_automation_health_reports_degraded_when_langflow_is_unavailable(client)
     ), patch(
         "app.routes.automation_routes.langflow_automation_health",
         return_value={"status": "unavailable"},
+    ), patch(
+        "app.routes.automation_routes.n8n_automation_health",
+        return_value={"status": "disabled"},
     ):
         response = client.get("/api/automation/health")
 
@@ -130,6 +137,31 @@ def test_automation_health_reports_degraded_when_langflow_is_unavailable(client)
         "checks": {
             "automation_events": True,
             "langflow": {"status": "unavailable"},
+            "n8n": {"status": "disabled"},
+        },
+    }
+
+
+def test_automation_health_reports_degraded_when_n8n_is_unavailable(client):
+    with patch(
+        "app.routes.automation_routes.automation_events_table_available",
+        return_value=True,
+    ), patch(
+        "app.routes.automation_routes.langflow_automation_health",
+        return_value={"status": "ok"},
+    ), patch(
+        "app.routes.automation_routes.n8n_automation_health",
+        return_value={"status": "unavailable"},
+    ):
+        response = client.get("/api/automation/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "status": "degraded",
+        "checks": {
+            "automation_events": True,
+            "langflow": {"status": "ok"},
+            "n8n": {"status": "unavailable"},
         },
     }
 

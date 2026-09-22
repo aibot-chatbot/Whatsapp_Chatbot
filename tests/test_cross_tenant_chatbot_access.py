@@ -254,12 +254,23 @@ def test_all_bot_id_route_handlers_have_an_ownership_gate():
             # widget is enabled, the chatbot is active, and the calling
             # origin is on the widget's domain allowlist.
             has_public_widget_gate = "_load_widget_or_error(" in function_source
+            # The automation outbox worker is a platform actor, not a tenant
+            # one, so there is no logged-in company to scope against. Its gate
+            # is the platform worker token, and company_id/chatbot_id are read
+            # back off the stored event row rather than taken from the request,
+            # so a worker can never aim an update at a row it was not handed.
+            has_platform_worker_gate = any(
+                isinstance(decorator, ast.Name)
+                and decorator.id == "worker_token_required"
+                for decorator in node.decorator_list
+            )
 
             if not (
                 has_direct_gate
                 or has_company_scoped_bot_service
                 or has_company_scoped_analytics_service
                 or has_public_widget_gate
+                or has_platform_worker_gate
             ):
                 missing_gates.append(f"{path}:{node.lineno}:{node.name}")
 
