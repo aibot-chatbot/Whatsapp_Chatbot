@@ -2,7 +2,7 @@
 
 ## Bot Analysis and Agent actions — 2026-09-23
 
-**Implemented locally; production deployment pending.** Analysis sits below
+**Code and schema deployed; execution disabled by user choice.** Analysis sits below
 Conversations for the selected Bot. Owner/admin report requests use that Bot's
 confirmed industry, role, authorized documents and source-backed business records.
 Web, PDF and Excel share an immutable snapshot. Non-clinic operations reports can
@@ -12,27 +12,30 @@ customer/document free text. Unavailable revenue is never estimated from fees.
 Website and Telegram trial booking use real sessions, capacity locks, explicit
 confirmation and versioned cancellation; Telegram customers start with `/trial`.
 Other industries record customer intent without inventing a confirmed reservation.
-Schedules, recording and reminder flags remain disabled for rollout. Migrations
-062–067 and the private worker/Langflow/n8n deployment package are prepared.
+Report, trial, schedule, recording and reminder execution remains disabled.
+Migrations 062–067 are applied; Flask v36 is healthy, with 313 runtime file hashes
+matching `f3f7f77`. The n8n private database account is provisioned and TLS/permissions
+verified, but n8n and the report Worker are not deployed.
 
 The final independent staged-snapshot suite passed **5,255 tests, 34 skipped,
 2,303 subtests**. The latest report/export regressions passed **117 tests** after
 the final industry transition guard; **20 browser checks** and isolated PostgreSQL checks
 also passed. Codex Security stopped before scanning because sign-in refresh failed;
 OCR has no configured endpoint. Supabase access to the configured production
-project was restored on 2026-09-23; live schema/ACL migration preflight passed.
-No migration, cloud resource or real customer
-message was performed by this feature. See [delivery evidence](ANALYSIS_IMPLEMENTATION.md),
+project was restored on 2026-09-23; live schema/ACL checks passed. Langflow has an
+empty app and 2 GB volume; secret upload was rejected by automatic approval, so
+it has not started. The temporary builder/cache was deleted with user approval.
+No real customer message or paid model smoke was performed. See [delivery evidence](ANALYSIS_IMPLEMENTATION.md),
 [data boundaries](ANALYSIS_DATA_PROTECTION.md) and [deployment gates](../deploy/agent-automation/README.md).
 
 ## Industry templates — 2026-09-22
 
-**Verified complete locally; not deployed.** A primary document's
+**Deployed in Fly v36; real-model classification accuracy remains unverified.** A primary document's
 existing persona call can suggest restaurant, clinic administration, tuition
 centre or a general fallback. The merchant reviews evidence and explicitly
 confirms the selection; fixed versioned rules then reach both default and custom
 reply prompts. New uploads and explicit re-review keep the previous confirmed
-industry effective. Migration 062 is prepared but not applied to production.
+industry effective. Migration 062 is applied and its constraint validated in production.
 The working-tree suite passed **4935 tests, 7 skipped, 2303 subtests**; **28 browser
 tests** and the isolated PostgreSQL migration check passed. Codex Security was
 blocked by sign-in refresh before scanning any file. No booking, clinical,

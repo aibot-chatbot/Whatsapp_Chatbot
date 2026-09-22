@@ -4,12 +4,14 @@
 
 The approved in-system Analysis interface, industry-aware reports, private exports,
 durable action observations, website/Telegram tuition trials and scheduling code
-are implemented locally. Restaurant and clinic booking integrations, formal
+are deployed in Flask v36 with report/trial/reminder execution disabled. Restaurant and clinic booking integrations, formal
 enrollment and merchant payments remain outside this first release.
 
 Local tests and independent review passed; automated security scanning is blocked
 by authentication. Access to the actual Supabase project was restored on
-2026-09-23; remaining release gates are migrations, the security scan and cloud
+2026-09-23; migrations 062–067 and the n8n private database account are complete.
+The user deferred security login and chose to keep new execution flags off.
+Remaining gates are the security scan, Langflow secret upload approval and cloud
 runtime validation. Always-running Fly
 configurations are prepared within the proposed incremental US$50/month envelope;
 24/7 operation, actual resource use, backups/restores and alerts are not yet proven.
@@ -23,7 +25,7 @@ merchant confirmation; explicit correction without re-upload; published-only
 prompt integration. It reuses the current upload, persona billing and instructions
 page. Local verification passed 4935 tests, 2303 subtests, 28 browser checks and
 the isolated PostgreSQL migration check; 7 optional tests skipped. Production
-migration 062 and deployment remain pending. Actual reservations,
+migration 062 and Fly v36 deployment are complete. Actual reservations,
 queue tickets, enrollment, reporting and dynamic tool authorization are separate
 work, not capabilities granted by this template selection. See
 [implementation and verification](INDUSTRY_TEMPLATES.md).

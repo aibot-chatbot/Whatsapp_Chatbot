@@ -1,5 +1,10 @@
 # Document-derived industry templates
 
+Deployment update (2026-09-23): migration 062 was applied in two transactions and
+validated; the reviewed implementation is deployed in Fly v36 (`f3f7f77`). The
+local evidence below does not establish real-model classification accuracy. No
+existing Bot was automatically reclassified. See [release evidence](ANALYSIS_IMPLEMENTATION.md).
+
 ## Merchant workflow
 
 1. Upload a readable primary PDF in **Add knowledge**. Industry identification

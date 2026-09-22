@@ -5,10 +5,10 @@ Prototype approved on 2026-09-22. Analysis belongs immediately below Conversatio
 ## Acceptance and progress
 
 1. **Done:** clickable prototype and navigation approved.
-2. **Implemented locally:** tenant-scoped business records, durable report jobs, per-Bot industry/document context, Analysis page and private exports.
-3. **Implemented locally:** tuition trial capacity/confirmation, report schedules and Telegram reminder worker. Website and Telegram customer booking flows are connected; the Bot gives truthful instructions for these explicit confirmation controls.
+2. **Deployed, report execution disabled:** tenant-scoped business records, durable report APIs, per-Bot industry/document context, Analysis page and private exports are in Fly v36.
+3. **Deployed, trial/reminder execution disabled:** tuition capacity/confirmation APIs and website/Telegram controls are deployed. The independent worker and scheduler services are not running yet.
 4. **Local tests and independent review complete:** full mocked suite, focused PostgreSQL concurrency checks and browser checks passed. Automated security verification remains incomplete: Codex Security could not refresh its saved ChatGPT login; Open Code Review has no configured provider. Neither is a passed scan.
-5. Pending: target-project migration, cloud deployment within US$50 incremental monthly budget, synthetic recovery and 24/7 verification. Keep feature flags off until their production checks pass.
+5. **Database migration and Flask deployment complete; automation rollout pending.** The user chose to defer Codex Security login and keep report, trial and reminder flags off on 2026-09-23. Cloud workers, synthetic recovery and 24/7 verification remain incomplete.
 
 ## Product and data contract
 
@@ -32,6 +32,7 @@ Prototype approved on 2026-09-22. Analysis belongs immediately below Conversatio
 | Isolated PostgreSQL trials | 3 passed | Capacity races, replay, rescheduling and versioned cancellation |
 | Isolated PostgreSQL observations | 9 passed | Trigger scope, source authority and duplicate handling |
 | Isolated PostgreSQL reminders | 8 passed | Consent, lease fencing, late-reminder behavior and concurrent reschedule protection |
+| Isolated PostgreSQL n8n provisioning | 1 passed | Non-superuser CREATEROLE provisioning, removal of temporary privileges, password administration and full rollback on isolation-guard failure; added after the main feature suite |
 | Syntax / diff | Passed | 70 staged Python files compiled, Analysis/trial JavaScript parsed, `git diff --check` clean |
 | Independent Security Architect review | No remaining confirmed High/Medium finding reported | Manual review is not a substitute for the blocked automated scan or production verification |
 
@@ -47,10 +48,21 @@ Local completion logs: `%TEMP%/analysis-staged-pytest-20260923.log` and `%TEMP%/
 
 Each lane reads its Agency role, Prompt Master and the smallest relevant installed skills, and uses a callable MCP/plugin within scope. No live credentials in tests.
 
+## Production release evidence — 2026-09-23
+
+- Commits: `bbd8a3f` removes the obsolete Toyyibpay test dependency; `f3f7f77` contains the tested feature; `cafbb06` fixes PostgreSQL 16+ n8n provisioning permissions.
+- Supabase `parjsxypengvubziwwjp`: migrations `20260922233353` / `20260922233405` apply and validate 062 separately; `20260922233421`–`20260922233431` apply 063–067. Post-migration checks verified all ten new tables have RLS, browser roles have no data access, all 23 new functions have restricted execution and fixed search paths, constraints are validated, and the customer-message trigger is SECURITY INVOKER.
+- The n8n account/schema migration also succeeded after reproducing and fixing `42501 must be able to SET ROLE` in isolated PostgreSQL. Production `agent_n8n` login passed certificate/hostname validation with TLS 1.3. It can create in its own schema, cannot read Analysis reports or call the worker-claim RPC, and the administrator has no residual SET/INHERIT access. No plaintext password is stored in Git or the migration; a SCRAM verifier was used.
+- Fly **v36** is healthy on existing Singapore Machine `185de27f125998`, image `registry.fly.io/aibot-chatbot-my@sha256:a5ae44718bd1a754ab4f0b2fe2e86ec811be8d2e6dcc8a6643613d1b3d8b3b32`. All **313 application/frontend/flow file hashes** match commit `f3f7f77`. `/`, `/analysis.html` and the Analysis script returned 200; unauthenticated Analysis API access returned 401.
+- Runtime checks confirm `AGENT_ANALYSIS_ENABLED`, `TUITION_TRIALS_ENABLED`, `TUITION_REMINDERS_ENABLED`, `HANDOFF_CONTROL_ENABLED` and `N8N_WORKER_ENABLED` are false. Report rows, active schedules, opted-in recording Bots and trial bookings were all zero at verification. The internal bearer is configured; no customer send or paid model smoke was run.
+- Langflow app `aibot-agent-langflow-my` and encrypted 2 GB volume `vol_4qlkqqozjlpxzmwr` exist in `sin`; there are **zero Machines, public IPs and imported secrets**. Automatic approval rejected its secret upload with only `blocked by policy`, so it was not started and no alternate upload path was attempted. Local credential backups use current-user Windows DPAPI; they are not an off-machine recovery proof.
+- The cancelled legacy build automatically created an unused builder and 50 GB cache volume. With explicit user approval, `fly-builder-wandering-bush-1031`, Machine `48e4d5db0197e8` and cache `vol_v3g577mxl95kyq14` were deleted and absence verified. The retained Langflow volume is approximately **US$0.30/month**; there are no new always-running compute charges. Use Depot and explicit Dockerfile paths when resuming.
+- Supabase advisors report INFO for RLS-without-policies, expected for these server-only tables with browser grants revoked. Existing warnings concern two knowledge-search functions and the public vector extension; this feature did not modify those objects. See [RLS advisory](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy), [function search paths](https://supabase.com/docs/guides/database/database-linter?lint=0011_function_search_path_mutable) and [extension schema](https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public).
+
 ## Known production verification gaps
 
-- Supabase access was restored on 2026-09-23: direct project lookup and SQL access to `parjsxypengvubziwwjp` succeed. The project list still returns old entries; direct verified project access is authoritative. Live schema/ACL preflight passed (52 referenced columns match, no conflicting RPCs, observation trigger privileges present). Existing migration history ends at 061; 062–067 await application. Migration 062 must be applied as two transactions to release the column-add lock before validation.
+- Supabase project listing can be stale after reconnection. Direct lookup and SQL access to the verified project work; do not reapply the completed migrations based on the old project list or earlier notes.
 - Codex Security retry on 2026-09-23 exited 2 during preflight at 0/65 files because the stored ChatGPT sign-in could not refresh. A saved login status alone does not prove the required token refresh works. Open Code Review also lacks a configured provider.
-- Local tests do not prove a successful image build, cloud delivery, reminders, restart recovery or backups. Feature flags remain off until each capability is verified.
+- The Flask image build/deployment is verified. Langflow flow import, n8n runtime, the worker, paid report generation, reminders, restart recovery, backup restoration and alerts are not verified. Keep their execution flags off as the user requested.
 - The local machine has 7.68 GiB RAM, only 0.58–0.92 GiB available during verification. Docker is installed but stopped; the 2 GiB Langflow runtime was not started. Flow import, real response envelope and memory requirements remain unverified.
 - The reviewed feature includes the approved industry-template dependency. Independent staged-snapshot validation also found a baseline collection failure: the committed payment test still imported the removed Toyyibpay route. Its existing workspace cleanup is preserved as a separate prerequisite test commit. Other unrelated payment/media edits, user documents, secrets and local tool configuration remain excluded.
