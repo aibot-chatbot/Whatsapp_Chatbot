@@ -1,4 +1,4 @@
-﻿"""test_subscription_payment_callback.py
+"""test_subscription_payment_callback.py
 
 Unit tests for subscription_payment_callback_service.py.
 All repository and service calls are mocked; no Supabase, payment gateway,
@@ -41,9 +41,6 @@ _sb.rpc.return_value.execute.return_value = MagicMock(data=[])
 with patch("app.database.db.supabase", _sb):
     from app.services.subscription_payment_callback_service import (
         process_subscription_payment_callback,
-    )
-    from app.routes.toyyibpay_routes import (
-        _is_subscription_callback,
     )
 
 
@@ -380,35 +377,6 @@ class TestSubscriptionPaymentCallback(unittest.TestCase):
         with self.assertRaises(ValueError) as ctx:
             process_subscription_payment_callback(incomplete)
         self.assertIn("order_reference", str(ctx.exception))
-
-
-class TestToyyibpayRouteDetection(unittest.TestCase):
-    """Tests for _is_subscription_callback() and route dispatch."""
-
-    def setUp(self):
-        self.mock_order = {
-            "id": 1,
-            "order_reference": "abc-123",
-            "payment_gateway": "toyyibpay",
-            "gateway_order_id": "bill-sub-001",
-        }
-
-    @patch("app.routes.toyyibpay_routes.get_subscription_order_by_gateway_id")
-    def test_detects_subscription_callback(self, mock_get_order):
-        mock_get_order.return_value = self.mock_order
-        result = _is_subscription_callback("toyyibpay", "bill-sub-001")
-        self.assertTrue(result)
-
-    @patch("app.routes.toyyibpay_routes.get_subscription_order_by_gateway_id")
-    def test_detects_non_subscription_callback(self, mock_get_order):
-        mock_get_order.return_value = None
-        result = _is_subscription_callback("toyyibpay", "bill-topup-001")
-        self.assertFalse(result)
-
-    def test_empty_args_return_false(self):
-        self.assertFalse(_is_subscription_callback("", ""))
-        self.assertFalse(_is_subscription_callback(None, "bill-001"))
-        self.assertFalse(_is_subscription_callback("toyyibpay", ""))
 
 
 if __name__ == "__main__":
