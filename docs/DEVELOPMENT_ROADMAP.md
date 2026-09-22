@@ -1,5 +1,15 @@
 # Development Roadmap
 
+## Website staff replies — 2026-09-22
+
+The missing share-link/widget return path is deployed on Fly v35: staff
+compose/send, visitor polling, reload continuity, and paused customer follow-ups.
+Migration 061 prevents concurrent first messages from creating duplicate open
+sessions. Full tests and read-only production verification passed, with the
+Codex Security sign-in blocker recorded. This completes the legacy website handoff reply
+path without activating Phase B assignment controls. See
+[workflow and evidence](WEB_STAFF_REPLIES.md).
+
 ## Human handoff Phase A/B — 2026-09-22
 
 Waiting visibility is deployed on Fly v34. The persistent control API and

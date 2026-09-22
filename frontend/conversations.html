@@ -216,8 +216,8 @@
                                 <svg class="dashboard-icon" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
                             </span>
                             <div>
-                                <h4>Replies cannot reach this visitor yet</h4>
-                                <p>This conversation came in through your share link. There is no live channel back to them yet, so only the bot can answer. You can still resolve the handoff request below.</p>
+                                <h4>No visitor chat is available for replies</h4>
+                                <p>Test Lab sessions and conversations without a valid visitor session cannot receive replies. You can still resolve a handoff request below.</p>
                             </div>
                         </div>
 
@@ -1102,6 +1102,7 @@
             const signal = signalMap.get(message.id);
             const delivery = message.sender_type === 'customer' ? '' : deliveryStatusLabel(message);
             el.innerHTML = `
+                ${message.sender_type === 'human' ? '<strong data-part="sender">Support team</strong>' : ''}
                 <span data-part="text">${escapeHtml(message.message_text || '')}</span>
                 <time data-part="meta" datetime="${escapeHtml(message.created_at || '')}">${escapeHtml(formatClockTime(message.created_at))}</time>
                 ${delivery ? `<span data-part="delivery">${escapeHtml(delivery)}</span>` : ''}
@@ -1112,6 +1113,7 @@
 
         function deliveryStatusLabel(message) {
             const status = String(message.delivery_status || '').toLowerCase();
+            if (message.sender_type === 'human' && currentConversation()?.source_channel === 'web' && status === 'sent') return 'Saved';
             const retries = Number(message.retry_count || 0);
             if (status === 'failed') return 'Failed to send - Auto retrying';
             if (status === 'retrying') return 'Retrying now...';
@@ -1213,8 +1215,8 @@
         function syncComposebarVisibility() {
             const conv = currentConversation();
             if (!conv) return;
-            const isWeb = conv.source_channel === 'web';
-            const canReply = !isWeb && ['whatsapp', 'wasender', 'telegram'].includes(conv.source_channel);
+            const canReply = ['whatsapp', 'wasender', 'telegram'].includes(conv.source_channel)
+                || (conv.source_channel === 'web' && /^web_[0-9a-zA-Z_-]{16,64}$/.test(conv.platform_user_id || ''));
             document.getElementById('conv-web-notice').hidden = canReply;
             document.getElementById('conv-reply-row').hidden = !canReply;
             document.getElementById('conv-resolve-btn').hidden = !state.escalationsByConv.has(conv.id);
@@ -1232,24 +1234,35 @@
             const conv = currentConversation();
             if (!conv) return;
             const textarea = document.getElementById('conv-reply-text');
-            const text = textarea.value.trim();
+            const draft = textarea.value;
+            const text = draft.trim();
             if (!text) return;
             const sendBtn = document.getElementById('conv-reply-send');
+            if (sendBtn.disabled || document.getElementById('conv-reply-row').hidden) return;
             const statusEl = document.getElementById('conv-compose-status');
             sendBtn.disabled = true;
             flashStatus(statusEl, 'Sending...', 0);
 
-            const result = await getJson(`/api/conversations/${conv.id}/agent-reply`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chatbot_id: conv.chatbot_id, text })
-            });
-
-            sendBtn.disabled = false;
+            let result;
+            try {
+                result = await getJson(`/api/conversations/${conv.id}/agent-reply`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chatbot_id: conv.chatbot_id, text })
+                });
+            } catch (_) {
+                if (state.selectedConversationId === conv.id) flashStatus(statusEl, 'Could not send. Your draft is still here. Try again.', 6000);
+                return;
+            } finally {
+                sendBtn.disabled = false;
+            }
+            if (state.selectedConversationId !== conv.id) return;
             if (result.ok) {
-                textarea.value = '';
-                flashStatus(statusEl, 'Sent.', 4000);
-                announce('workspace', 'Reply sent.');
+                if (textarea.value === draft) textarea.value = '';
+                const notice = conv.source_channel === 'web'
+                    ? 'Reply saved. The visitor will receive it in this chat.' : 'Sent.';
+                flashStatus(statusEl, notice, conv.source_channel === 'web' ? 8000 : 4000);
+                announce('workspace', conv.source_channel === 'web' ? notice : 'Reply sent.');
                 await refreshOpenTranscript(false);
             } else {
                 flashStatus(statusEl, (result.body && result.body.message) || 'Could not send. Try again.', 6000);
@@ -1466,7 +1479,7 @@
 
         function transcriptText() {
             return state.transcriptMessages.map(message => {
-                const sender = message.sender_type === 'customer' ? 'Customer' : 'Bot';
+                const sender = message.sender_type === 'customer' ? 'Customer' : message.sender_type === 'human' ? 'Support team' : 'Bot';
                 return `[${formatClockTime(message.created_at)}] ${sender}: ${message.message_text || ''}`;
             }).join('\n');
         }

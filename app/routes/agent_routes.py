@@ -18,6 +18,7 @@ from app.utils.telegram_utils import send_telegram_message
 from app.services.wasender_service import send_wasender_text_message
 from app.services.channel_delivery_service import ChannelDeliveryError, get_bound_channel, delivery_accepted
 from app.services.conversation_delivery_lock import conversation_delivery_lock
+from app.services.web_staff_reply_service import send_web_staff_reply, WebStaffReplyError
 
 # HO-2 staff handoff API (see the block at the foot of this file).
 from app.database import handoff_control_repository
@@ -120,17 +121,33 @@ def resolve_esc(action_id):
 def agent_reply(conversation_id):
     try:
         data = request.get_json() or {}
+        if not isinstance(data, dict):
+            return jsonify({"status": "error", "message": "A JSON object is required"}), 400
         chatbot_id = data.get("chatbot_id")
         text = data.get("text")
 
         if not chatbot_id or not text:
             return jsonify({"status": "error", "message": "chatbot_id and text are required"}), 400
 
-        verify_chatbot_access(chatbot_id)
+        access = verify_chatbot_access(chatbot_id)
 
         conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
         if not conversation:
             return jsonify({"status": "error", "message": "Conversation not found"}), 404
+
+        if conversation.get("source_channel") == "web":
+            try:
+                accepted = send_web_staff_reply(
+                    conversation, company_id=access["company_id"],
+                    actor_user_id=g.user_id, text=text,
+                )
+            except WebStaffReplyError as error:
+                return jsonify({"status": "error", "code": error.code, "message": str(error)}), error.status_code
+            return jsonify({
+                "status": "success",
+                "message": "Reply saved. The visitor will receive it in this chat.",
+                "data": accepted,
+            }), 200
 
         try:
             _dispatch_conversation_reply(conversation, text)
@@ -159,8 +176,8 @@ def agent_reply(conversation_id):
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        logging.error(f"Agent reply error: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logging.error("Agent reply unavailable (%s)", type(e).__name__)
+        return jsonify({"status": "error", "message": "The reply could not be confirmed. Refresh the conversation before retrying."}), 503
 
 
 def _dispatch_conversation_reply(conversation, text):

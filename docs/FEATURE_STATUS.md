@@ -1,5 +1,17 @@
 # Feature Status
 
+## Website staff replies — 2026-09-22
+
+**Deployed and verified on Fly v35.** Conversations can save a
+human reply for the original share-link/widget visitor; visitor polling receives
+it and retains the same session on reload. Pending handoffs suppress AI while
+customer follow-ups are saved. Migration 061 enforces one open visitor session.
+Full working-tree tests passed 4828 tests, 6 skipped and 2303 subtests; 19 browser
+checks passed, and all 290 deployed runtime hashes matched. The live widget and
+polling endpoints passed read-only browser checks; no real customer send was used.
+Phase B remains disabled. Codex Security authentication blocked its scan. See
+[workflow, boundaries and release evidence](WEB_STAFF_REPLIES.md).
+
 ## Human handoff Phase A/B — 2026-09-22
 
 **Phase A deployed and verified on Fly v34; Phase B schema/API deployed but

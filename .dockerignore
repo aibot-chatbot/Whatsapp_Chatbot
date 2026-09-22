@@ -179,6 +179,7 @@
 !app/services/upload_validation_service.py
 !app/services/wasender_retry_service.py
 !app/services/wasender_service.py
+!app/services/web_staff_reply_service.py
 !app/services/web_widget_service.py
 !app/services/webhook_worker.py
 !app/services/workflow_tracker.py

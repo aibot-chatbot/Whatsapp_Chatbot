@@ -63,7 +63,8 @@
   }
 
   .msg { max-width: 84%; padding: 10px 13px; border-radius: var(--radius); white-space: pre-wrap; word-wrap: break-word; }
-  .msg.bot  { align-self: flex-start; background: var(--bubble-bot); border-bottom-left-radius: 4px; }
+  .msg.bot, .msg.human { align-self: flex-start; background: var(--bubble-bot); border-bottom-left-radius: 4px; }
+  .msg .sender { display: block; font-size: 12px; font-weight: 650; margin-bottom: 4px; }
   .msg.user { align-self: flex-end; background: var(--accent); color: var(--on-accent); border-bottom-right-radius: 4px; }
   .msg.error{ align-self: center; background: #FEF2F2; color: #991B1B; font-size: 13.5px; text-align: center; max-width: 92%; }
   .msg a { color: inherit; text-decoration: underline; }
@@ -116,6 +117,8 @@
   #send svg { width: 19px; height: 19px; }
 
   #branding { text-align: center; font-size: 11.5px; color: var(--muted); padding: 0 0 10px; background: var(--bg); }
+  .chat-status { margin: 0; padding: 8px 16px; font-size: 12.5px; color: var(--muted); background: var(--panel); }
+  .chat-status:empty { display: none; }
 
   .hidden { display: none !important; }
 </style>
@@ -134,6 +137,8 @@
     </button>
   </header>
 
+  <p id="handoff-status" class="chat-status" role="status" aria-live="polite"></p>
+  <p id="connection-status" class="chat-status" role="status" aria-live="polite"></p>
   <div id="log" role="log" aria-live="polite"></div>
   <div id="suggestions"></div>
 
@@ -180,6 +185,8 @@
     suggestions: document.getElementById("suggestions"),
     title: document.getElementById("title"),
     subtitle: document.getElementById("subtitle"),
+    connectionStatus: document.getElementById("connection-status"),
+    handoffStatus: document.getElementById("handoff-status"),
     avatar: document.getElementById("avatar"),
     branding: document.getElementById("branding"),
     closeBtn: document.getElementById("closeBtn"),
@@ -191,7 +198,13 @@
     leadSkip: document.getElementById("leadSkip")
   };
 
-  var state = { config: null, sessionId: null, sending: false, leadDone: false };
+  var STORAGE_KEY = "widget-chat:" + ORIGIN + ":" + PUBLIC_KEY;
+  var MAX_SAVED_MESSAGES = 80;
+  var state = {
+    config: null, sessionId: null, sending: false, leadDone: false,
+    messages: [], lastMessageId: 0, polling: false,
+    pollTimer: null, pollController: null, stopped: false, pageHidden: false
+  };
 
   if (IS_EMBEDDED) document.body.classList.add("is-embedded");
 
@@ -221,14 +234,56 @@
     }
   }
 
-  function addMessage(text, kind) {
+  function addMessage(text, kind, id, restoring) {
     if (!text) return null;
     var bubble = document.createElement("div");
     bubble.className = "msg " + (kind || "bot");
+    if (kind === "human") {
+      var sender = document.createElement("span");
+      sender.className = "sender";
+      sender.textContent = "Support team";
+      bubble.appendChild(sender);
+      bubble.dataset.messageId = String(id);
+    }
     renderText(bubble, String(text));
     els.log.appendChild(bubble);
     scrollToEnd();
+    if (!restoring && kind !== "error") {
+      state.messages = state.messages.concat({ text: String(text), kind: kind || "bot", id: id || null }).slice(-MAX_SAVED_MESSAGES);
+      saveSession();
+    }
     return bubble;
+  }
+
+  function saveSession() {
+    if (!state.sessionId) return;
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        sessionId: state.sessionId, messages: state.messages,
+        lastMessageId: state.lastMessageId, leadDone: state.leadDone
+      }));
+    } catch (_) { /* Private browsing or a full store must not interrupt this chat. */ }
+  }
+
+  function restoreSession() {
+    var raw;
+    try { raw = sessionStorage.getItem(STORAGE_KEY); } catch (_) { return false; }
+    if (!raw) return false;
+    try {
+      var saved = JSON.parse(raw);
+      if (!saved || !/^web_[0-9a-zA-Z_-]{16,64}$/.test(saved.sessionId || "")) throw new Error("Invalid saved session");
+      state.sessionId = saved.sessionId;
+      state.lastMessageId = Number.isSafeInteger(saved.lastMessageId) && saved.lastMessageId >= 0 ? saved.lastMessageId : 0;
+      state.leadDone = saved.leadDone === true;
+      state.messages = (Array.isArray(saved.messages) ? saved.messages : []).filter(function (message) {
+        return message && typeof message.text === "string" && ["bot", "user", "human"].includes(message.kind)
+          && (message.kind !== "human" || Number.isSafeInteger(message.id));
+      }).slice(-MAX_SAVED_MESSAGES);
+      state.messages.forEach(function (message) { addMessage(message.text, message.kind, message.id, true); });
+    } catch (_) {
+      stopChat("This saved chat could not be restored. Please contact the support team.");
+    }
+    return true;
   }
 
   function showTyping() {
@@ -242,8 +297,8 @@
 
   function setBusy(busy) {
     state.sending = busy;
-    els.send.disabled = busy;
-    els.input.disabled = busy;
+    els.send.disabled = busy || state.stopped;
+    els.input.disabled = busy || state.stopped;
   }
 
   function applyTheme(config) {
@@ -298,6 +353,7 @@
             if (!response.ok || body.status !== "success") {
               var err = new Error(body.message || "Request failed");
               err.code = body.code;
+              err.status = response.status;
               throw err;
             }
             return body.data || {};
@@ -305,9 +361,84 @@
       });
   }
 
+  function stopChat(message) {
+    state.stopped = true;
+    clearTimeout(state.pollTimer);
+    if (state.pollController) state.pollController.abort();
+    els.connectionStatus.textContent = message;
+    els.handoffStatus.textContent = "";
+    els.suggestions.innerHTML = "";
+    els.leadForm.classList.add("hidden");
+    setBusy(false);
+    saveSession();
+  }
+
+  function sessionUnavailable(error) {
+    return [403, 404, 410].includes(error.status) || [
+      "invalid_session", "widget_disabled", "widget_not_found", "chatbot_inactive", "chatbot_not_found"
+    ].includes(error.code);
+  }
+
+  function schedulePoll(delay) {
+    clearTimeout(state.pollTimer);
+    if (state.stopped || state.pageHidden || !state.sessionId) return;
+    state.pollTimer = setTimeout(pollMessages, delay === undefined
+      ? (document.visibilityState === "hidden" ? 15000 : 3000) : delay);
+  }
+
+  function requestPoll() {
+    clearTimeout(state.pollTimer);
+    if (state.polling) return;
+    pollMessages();
+  }
+
+  async function pollMessages() {
+    if (state.polling || state.stopped || state.pageHidden || !state.sessionId) return;
+    state.polling = true;
+    var hasMore = false;
+    var controller = new AbortController();
+    state.pollController = controller;
+    var timeout = setTimeout(function () { controller.abort(); }, 12000);
+    try {
+      var data = await api("/messages", {
+        method: "POST", headers: { "Content-Type": "application/json" }, signal: controller.signal,
+        body: JSON.stringify({ session_id: state.sessionId, after_id: state.lastMessageId })
+      });
+      if (state.pageHidden || state.stopped) return;
+      if (!Array.isArray(data.messages) || !Number.isSafeInteger(data.last_message_id)
+          || data.last_message_id < state.lastMessageId || data.messages.some(function (message) {
+            return !message || !Number.isSafeInteger(message.id) || message.id <= 0
+              || message.id > data.last_message_id || message.sender_type !== "human" || typeof message.message_text !== "string";
+          })) throw new Error("Unreadable chat updates");
+      var seen = new Set(state.messages.filter(function (message) { return message.kind === "human"; }).map(function (message) { return message.id; }));
+      data.messages.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (message) {
+        if (message.id > state.lastMessageId && !seen.has(message.id)) {
+          addMessage(message.message_text, "human", message.id);
+          seen.add(message.id);
+        }
+      });
+      hasMore = data.has_more === true && data.last_message_id > state.lastMessageId;
+      state.lastMessageId = data.last_message_id;
+      saveSession();
+      els.connectionStatus.textContent = "";
+      els.handoffStatus.textContent = data.awaiting_human ? "Waiting for the support team. Replies will appear here." : "";
+    } catch (error) {
+      if (!state.pageHidden && !state.stopped) {
+        if (sessionUnavailable(error)) stopChat(error.message || "This chat is unavailable.");
+        else els.connectionStatus.textContent = "Reconnecting to chat updates. Your messages will stay here.";
+      }
+    } finally {
+      clearTimeout(timeout);
+      state.pollController = null;
+      state.polling = false;
+      if (hasMore && !state.stopped && !state.pageHidden) pollMessages();
+      else schedulePoll();
+    }
+  }
+
   function sendMessage(text) {
     var message = (text !== undefined ? text : els.input.value).trim();
-    if (!message || state.sending || !state.sessionId) return;
+    if (!message || state.sending || state.stopped || !state.sessionId) return;
 
     els.suggestions.innerHTML = "";
     addMessage(message, "user");
@@ -328,6 +459,7 @@
       })
       .catch(function (error) {
         typing.remove();
+        if (sessionUnavailable(error)) { stopChat(error.message || "This chat is unavailable."); return; }
         addMessage(error.message || "Something went wrong. Please try again.", "error");
         if (error.code === "session_limit_reached") {
           els.composer.classList.add("hidden");
@@ -335,7 +467,8 @@
       })
       .finally(function () {
         setBusy(false);
-        if (!IS_EMBEDDED || document.hasFocus()) els.input.focus();
+        requestPoll();
+        if (!state.stopped && (!IS_EMBEDDED || document.hasFocus())) els.input.focus();
       });
   }
 
@@ -354,7 +487,9 @@
   }
 
   function dismissLeadForm() {
+    if (state.stopped) return;
     state.leadDone = true;
+    saveSession();
     els.leadForm.classList.add("hidden");
     els.composer.classList.remove("hidden");
     renderSuggestions(state.config.suggested_questions);
@@ -407,7 +542,24 @@
   });
 
   window.addEventListener("message", function (event) {
-    if ((event.data || {}).type === "aichat:focus") els.input.focus();
+    if ((event.data || {}).type === "aichat:focus") { els.input.focus(); requestPoll(); }
+  });
+
+  window.addEventListener("focus", function () { if (document.visibilityState !== "hidden") requestPoll(); });
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") schedulePoll();
+    else requestPoll();
+  });
+  window.addEventListener("pagehide", function () {
+    state.pageHidden = true;
+    clearTimeout(state.pollTimer);
+    if (state.pollController) state.pollController.abort();
+    saveSession();
+  });
+  window.addEventListener("pageshow", function () {
+    if (!state.pageHidden) return;
+    state.pageHidden = false;
+    requestPoll();
   });
 
   // ── Boot ──────────────────────────────────────────────────
@@ -417,19 +569,25 @@
     return;
   }
 
+  var restored = restoreSession();
   setBusy(true);
 
   api("/config", { method: "GET" })
     .then(function (config) {
       state.config = config;
       applyTheme(config);
+      if (state.stopped) return {};
+      if (state.sessionId) return { session_id: state.sessionId };
       return api("/session", { method: "POST" });
     })
     .then(function (session) {
+      if (state.stopped) return;
+      if (!/^web_[0-9a-zA-Z_-]{16,64}$/.test(session.session_id || "")) throw new Error("This chat session is unavailable.");
       state.sessionId = session.session_id;
+      saveSession();
       setBusy(false);
 
-      if (state.config.welcome_message) {
+      if (!restored && state.config.welcome_message) {
         addMessage(state.config.welcome_message, "bot");
       }
 
@@ -439,14 +597,10 @@
         );
         if (!IS_EMBEDDED) els.input.focus();
       }
+      requestPoll();
     })
     .catch(function (error) {
-      setBusy(false);
-      addMessage(
-        error.message || "This chatbot is not available right now.",
-        "error"
-      );
-      els.composer.classList.add("hidden");
+      stopChat(error.message || "This chatbot is not available right now.");
     });
 })();
 </script>
