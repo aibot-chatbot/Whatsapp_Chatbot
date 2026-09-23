@@ -19,6 +19,25 @@ from app.utils.api_errors import server_error
 
 bot_blueprint = Blueprint("bots", __name__)
 
+# Columns the bot editor pages (bots.html, behaviour.js) may change through
+# PUT /api/bots/<id>. Everything else has its own guarded workflow.
+EDITABLE_BOT_FIELDS = frozenset({
+    "bot_name",
+    "bot_description",
+    "language",
+    "tone",
+    "welcome_message",
+    "fallback_message",
+    "ai_provider",
+    "model_name",
+    "temperature",
+    "telegram_buttons_enabled",
+    "telegram_markdown_enabled",
+    "whatsapp_buttons_enabled",
+    "whatsapp_markdown_enabled",
+    "welcome_menu_labels",
+})
+
 
 def get_current_company_id():
     company_id = getattr(g, "company_id", None)
@@ -140,7 +159,19 @@ def create_new_bot():
 @company_operational_required
 def update_existing_bot(bot_id):
     try:
-        data = request.get_json() or {}
+        data = request.get_json(silent=True)
+        if data is None:
+            data = {}
+        if not isinstance(data, dict):
+            raise ValueError("Request body must be a JSON object")
+
+        # Allowlist, not blocklist: update_bot writes whatever it is given, so
+        # an unknown key here would reach the row (company_id moves the bot to
+        # another tenant; analysis_recording_enabled skips the Pro gate).
+        not_editable = sorted(set(data) - EDITABLE_BOT_FIELDS)
+        if not_editable:
+            raise ValueError(f"These fields cannot be changed here: {', '.join(not_editable)}")
+
         company_id = get_current_company_id()
 
         bot = edit_bot(bot_id, data, company_id)
