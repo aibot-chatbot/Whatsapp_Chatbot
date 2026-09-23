@@ -4,15 +4,21 @@
 
 The approved in-system Analysis interface, industry-aware reports, private exports,
 durable action observations, website/Telegram tuition trials and scheduling code
-are deployed in Flask v36 with report/trial/reminder execution disabled. Restaurant and clinic booking integrations, formal
+are deployed in Flask v38 with report/trial/reminder execution disabled. The release
+also closes the bot-ownership update gap and adds industry reports and Pro automation
+gates while preserving v37's live Cloudflare/pricing files. Restaurant and clinic booking integrations, formal
 enrollment and merchant payments remain outside this first release.
 
-Local tests and independent review passed; automated security scanning is blocked
+Release checks passed with six backend and one browser failure reproduced on the
+preexisting v37 baseline; independent integration review found no blocking issue.
+Automated security scanning is blocked
 by authentication. Access to the actual Supabase project was restored on
 2026-09-23; migrations 062–067 and the n8n private database account are complete.
 The user deferred security login and chose to keep new execution flags off.
-Remaining gates are the security scan, Langflow secret upload approval and cloud
-runtime validation. Always-running Fly
+Migration 068's Pro-only matrix and 069's schema permission are verified. Original
+n8n credentials were recovered and their TLS login verified; a database password
+reset is unnecessary. Remaining gates are the security scan, automation-service
+provisioning, monitoring and cloud runtime validation. Always-running Fly
 configurations are prepared within the proposed incremental US$50/month envelope;
 24/7 operation, actual resource use, backups/restores and alerts are not yet proven.
 See [current delivery state](ANALYSIS_IMPLEMENTATION.md).

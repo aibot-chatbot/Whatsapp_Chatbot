@@ -2,6 +2,21 @@
 
 Prototype approved on 2026-09-22. Analysis belongs immediately below Conversations in the existing selected-Bot sidebar. Reports are for authenticated owners/admins.
 
+## Latest deployment: Fly v38, 2026-09-23
+
+- Runtime source: `c3282e1` on `codex/release-91542de-preserve-v37`, pushed to origin. It combines `91542de` with the 12 Cloudflare/pricing runtime files already running in v37. The owner explicitly chose to preserve those live changes. The main checkout and its unrelated unfinished work were not modified.
+- The bot-update allowlist, industry reports and Pro-only automation gates are deployed. Existing execution flags remain unset/default-false; billing scheduling remains enabled. Deployment does not activate reports, trials, reminders, n8n or Langflow.
+- Image: `registry.fly.io/aibot-chatbot-my@sha256:008f391f21d0b5df7a2e769f1ad746a2cf48b149d38745a01cbf5ab8fad38963`. Existing Singapore Machine `185de27f125998` is started and healthy, with the same `chatbot_data` volume mounted at `/app/data`.
+- All 316 deployed runtime-file hashes match the exact build snapshot; the 12 retained v37 files are byte-for-byte unchanged. Sorted path/hash manifest SHA-256: `b2754337f6ee054411a515d7c31be1bde730320fac96aae022b1bd351eb8b8bd`. Windows line endings are included in this build evidence; do not compare it to normalized Git blobs without accounting for them.
+- Public landing, Analysis, pricing and selected JavaScript reads returned 200. Unauthenticated `/api/chatbots/1/analysis` returned 401. No customer data was mutated, no customer message was sent, and no paid model call was made for verification.
+- Combined backend suite: **5,380 passed, 35 skipped, 2,330 subtests passed, 6 failed**. All six failures reproduced against reconstructed v37 runtime files: legacy trial/provider expectations, model/pricing text and system-AI fixture expectations. Browser checks: **25 passed, 1 preexisting pricing-label expectation failed**, also reproduced against v37. The isolated `91542de` security/Analysis gate first passed **427 tests and 94 subtests**. Python/JavaScript syntax, container manifest, Fly config and diff checks passed. Independent integration review found no release-blocking incompatibility.
+- Codex Security remains **incomplete**: its saved ChatGPT login could not refresh during preflight at 0/929 files. No successful security scan is claimed.
+- Production readback confirms `automation_workflows=true` only for Pro, false for Free/Essential/Advanced. The n8n role has database/schema CREATE and no SELECT on `public.chatbots`.
+- Original current-user DPAPI credentials were recovered without printing values. The existing `agent_n8n` password authenticated with certificate/hostname verification over TLS 1.3; **no password reset is needed**. The supplied dashboard password is a separate credential and was not used as a database password. Generated replacement `.omnexa-secrets` files are not the active credential source and must not be imported blindly.
+- n8n and worker Fly apps do not exist; Langflow still has zero machines, secrets and public IPs plus its retained 2 GB volume. Their deployment, flow/credential setup, monitoring, recovery drills and activation remain outstanding.
+
+The sections below retain the earlier v36 acceptance and migration evidence.
+
 ## Acceptance and progress
 
 1. **Done:** clickable prototype and navigation approved.

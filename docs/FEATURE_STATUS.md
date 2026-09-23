@@ -13,11 +13,19 @@ Website and Telegram trial booking use real sessions, capacity locks, explicit
 confirmation and versioned cancellation; Telegram customers start with `/trial`.
 Other industries record customer intent without inventing a confirmed reservation.
 Report, trial, schedule, recording and reminder execution remains disabled.
-Migrations 062–067 are applied; Flask v36 is healthy, with 313 runtime file hashes
-matching `f3f7f77`. The n8n private database account is provisioned and TLS/permissions
-verified, but n8n and the report Worker are not deployed.
+Flask v38 is healthy: `c3282e1` combines the bot-ownership fix and industry/Pro gates
+from `91542de` with the existing v37 Cloudflare/pricing files. All 316 runtime hashes
+match the build snapshot; the 12 retained v37 files are unchanged. Migration 068's
+Pro-only flag matrix and 069's n8n schema permission are verified in production.
+The original n8n database password was recovered and verified over TLS 1.3; no reset
+is needed. n8n, Langflow and the report Worker are still not running.
 
-The final independent staged-snapshot suite passed **5,255 tests, 34 skipped,
+Latest combined checks: **5,380 backend tests and 2,330 subtests passed, 35 skipped**;
+six failures reproduced on the v37 baseline. **25 browser checks passed** with one
+existing pricing-label expectation failure. Automated security remains incomplete
+because saved-login refresh failed. See the latest deployment evidence below.
+
+The earlier v36 independent staged-snapshot suite passed **5,255 tests, 34 skipped,
 2,303 subtests**. The latest report/export regressions passed **117 tests** after
 the final industry transition guard; **20 browser checks** and isolated PostgreSQL checks
 also passed. Codex Security stopped before scanning because sign-in refresh failed;
