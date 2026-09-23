@@ -8,6 +8,8 @@ kill_timeout = "300s"
 
 [env]
   ANALYSIS_WORKER_ENABLED = "true"
+  # Flask serves report downloads from R2; the default "local" would strand them here.
+  DOCUMENT_STORAGE_BACKEND = "r2"
   BILLING_SCHEDULER_ENABLED = "false"
   INGEST_QUEUE_ENABLED = "false"
   WASENDER_RETRY_WORKER_ENABLED = "false"

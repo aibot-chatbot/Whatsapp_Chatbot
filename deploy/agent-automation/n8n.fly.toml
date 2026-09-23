@@ -27,11 +27,11 @@ kill_timeout = "60s"
   EXECUTIONS_DATA_MAX_AGE = "168"
   GENERIC_TIMEZONE = "Asia/Kuala_Lumpur"
   TZ = "Asia/Kuala_Lumpur"
-
-[[mounts]]
-  source = "n8n_data"
-  destination = "/home/node/.n8n"
-  snapshot_retention = 7
+  # Heap cap below the 1 GB VM so memory exhaustion is a clean restart, not an OOM kill.
+  NODE_OPTIONS = "--max-old-space-size=700"
+  # No volume: workflows, credentials and executions live in the agent_n8n schema, and
+  # N8N_ENCRYPTION_KEY is a secret. A root-owned Fly volume would break the `node` user.
+  # Required secret DB_POSTGRESDB_SSL_CA (Supabase CA PEM): TLS rejects unauthorized certs.
 
 [deploy]
   strategy = "immediate"
@@ -50,4 +50,5 @@ kill_timeout = "60s"
   path = "/healthz/readiness"
   interval = "30s"
   timeout = "5s"
-  grace_period = "120s"
+  # First boot runs ~140 migrations (90-155 s on a fast local machine).
+  grace_period = "300s"

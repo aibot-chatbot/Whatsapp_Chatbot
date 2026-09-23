@@ -1,0 +1,115 @@
+{
+  "name": "Health pings (Healthchecks.io dead-man switch)",
+  "active": false,
+  "nodes": [
+    {
+      "parameters": {"rule": {"interval": [{"field": "minutes", "minutesInterval": 5}]}},
+      "id": "health-clock",
+      "name": "Every 5 minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 200]
+    },
+    {
+      "parameters": {"url": "https://hc-ping.com/REPLACE_HC_PING_KEY/aibot-n8n", "options": {"timeout": 10000}},
+      "id": "health-ping-n8n",
+      "name": "Ping n8n alive",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0],
+      "onError": "continueRegularOutput",
+      "notes": "Proves this n8n instance is scheduling. Replace REPLACE_HC_PING_KEY in the editor; never commit the real key."
+    },
+    {
+      "parameters": {"url": "http://aibot-agent-worker-my.internal:8081/healthz", "options": {"timeout": 10000}},
+      "id": "health-worker",
+      "name": "Worker /healthz",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 200],
+      "onError": "continueErrorOutput",
+      "notes": "503 means no successful queue poll for 15 minutes or a failed DB poll."
+    },
+    {
+      "parameters": {"url": "https://hc-ping.com/REPLACE_HC_PING_KEY/aibot-agent-worker", "options": {"timeout": 10000}},
+      "id": "health-worker-ok",
+      "name": "Ping worker OK",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 140],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {"url": "https://hc-ping.com/REPLACE_HC_PING_KEY/aibot-agent-worker/fail", "options": {"timeout": 10000}},
+      "id": "health-worker-fail",
+      "name": "Ping worker FAIL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 260],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {"url": "http://aibot-agent-langflow-my.internal:7860/health_check", "options": {"timeout": 10000}},
+      "id": "health-langflow",
+      "name": "Langflow /health_check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 420],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {"url": "https://hc-ping.com/REPLACE_HC_PING_KEY/aibot-agent-langflow", "options": {"timeout": 10000}},
+      "id": "health-langflow-ok",
+      "name": "Ping Langflow OK",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 360],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {"url": "https://hc-ping.com/REPLACE_HC_PING_KEY/aibot-agent-langflow/fail", "options": {"timeout": 10000}},
+      "id": "health-langflow-fail",
+      "name": "Ping Langflow FAIL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, 480],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {},
+      "id": "health-error-trigger",
+      "name": "Workflow failed",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [0, 640],
+      "notes": "Set this workflow as the Error workflow of the schedule and reminder ticks. A failed tick marks the n8n check down until the next alive ping."
+    },
+    {
+      "parameters": {"url": "https://hc-ping.com/REPLACE_HC_PING_KEY/aibot-n8n/fail", "options": {"timeout": 10000}},
+      "id": "health-tick-fail",
+      "name": "Ping tick FAIL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 640],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Every 5 minutes": {"main": [[
+      {"node": "Ping n8n alive", "type": "main", "index": 0},
+      {"node": "Worker /healthz", "type": "main", "index": 0},
+      {"node": "Langflow /health_check", "type": "main", "index": 0}
+    ]]},
+    "Worker /healthz": {"main": [
+      [{"node": "Ping worker OK", "type": "main", "index": 0}],
+      [{"node": "Ping worker FAIL", "type": "main", "index": 0}]
+    ]},
+    "Langflow /health_check": {"main": [
+      [{"node": "Ping Langflow OK", "type": "main", "index": 0}],
+      [{"node": "Ping Langflow FAIL", "type": "main", "index": 0}]
+    ]},
+    "Workflow failed": {"main": [[{"node": "Ping tick FAIL", "type": "main", "index": 0}]]}
+  },
+  "settings": {"executionOrder": "v1", "timezone": "Asia/Kuala_Lumpur", "saveDataSuccessExecution": "none", "saveDataErrorExecution": "all"},
+  "pinData": {}
+}
