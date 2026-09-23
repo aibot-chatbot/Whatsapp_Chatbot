@@ -50,7 +50,7 @@ def execute(setup):
 def test_telegram_reminder_is_fenced_then_sent_under_shared_lock(setup):
     assert execute(setup)["status"]=="completed"
     assert setup[2]["calls"]==["inspect","begin","finish"]
-    setup[5].assert_called_once_with(1,"ai_generated_reports")
+    assert [call.args for call in setup[5].call_args_list]==[(1,"ai_generated_reports"),(1,"automation_workflows")]
     assert setup[7].call_args.args[1]=="123"
     assert "30 Sep 2026, 10:00" in setup[7].call_args.args[2]
     assert setup[7].call_args.kwargs=={"parse_mode":None}
@@ -124,3 +124,13 @@ def test_worker_bridge_only_transmits_trusted_identifiers(setup,monkeypatch):
     assert transport.return_value.__enter__.return_value.post.call_args.kwargs["json"]=={
         "event_id":8,"lease_token":setup[0]["lease_token"]}
     assert transport.call_args.kwargs["follow_redirects"] is False
+
+
+def test_reminder_off_pro_is_skipped_before_the_send_marker(setup):
+    def gate(_company_id,key):
+        if key=="automation_workflows":raise BillingLimitError("Not on this plan",code="feature_not_available")
+        return True
+    setup[5].side_effect=gate
+    assert execute(setup)["status"]=="completed"
+    assert setup[2]["calls"]==["inspect","skip"]
+    setup[7].assert_not_called()

@@ -17,16 +17,77 @@
         if (className) node.className = className;
         return node;
     }
-    function status(message, error = false) { $("analysis-status").textContent = message; $("analysis-status").dataset.error = String(error); }
+    const UPGRADE_MESSAGE = "This feature needs the Pro plan.";
+    function status(message, error = false, upgrade = false) {
+        const node = $("analysis-status");
+        node.textContent = message; node.dataset.error = String(error);
+        if (upgrade) { const link = el("a", "Upgrade in Billing"); link.href = "billing.html"; node.append(" ", link); }
+    }
+    function showError(error) { status(error.message, true, error.code === "feature_not_available"); }
+    function requestError(response, body, fallback) {
+        // Plan denials get a friendly upgrade prompt, never the raw server feature key.
+        const upgrade = response.status === 403 && body?.code === "feature_not_available";
+        const error = new Error(upgrade ? UPGRADE_MESSAGE : body?.message || fallback);
+        error.code = upgrade ? "feature_not_available" : body?.code;
+        return error;
+    }
     async function api(path, options = {}) {
         const response = await authenticatedFetch(base + path, options);
         let body;
         try { body = await response.json(); } catch (_) { throw new Error("Analysis is temporarily unavailable."); }
-        if (!response.ok) throw new Error(body.message || "Analysis request failed.");
+        if (!response.ok) throw requestError(response, body, "Analysis request failed.");
         return body;
+    }
+    async function planFeatures() {
+        // Fail closed: an unverifiable plan keeps Pro-only automation locked; the server still enforces it.
+        try {
+            const response = await authenticatedFetch("/api/billing/subscription");
+            const body = await response.json();
+            const flags = body?.data?.plan?.feature_flags;
+            return response.ok && body.status === "success" && flags && typeof flags === "object" && !Array.isArray(flags) ? flags : {};
+        } catch (_) { return {}; }
     }
     function button(text, handler) { const b = el("button", text); b.type = "button"; b.addEventListener("click", handler); return b; }
     function date(value) { const d = new Date(value); return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(); }
+    const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const HOURS = Array.from({length: 24}, (_, hour) => String(hour).padStart(2, "0"));
+    function validMatrix(matrix) {
+        return Array.isArray(matrix) && matrix.length === 7 && matrix.every(row => Array.isArray(row) && row.length === 24
+            && row.every(value => Number.isInteger(value) && value >= 0));
+    }
+    function heatmap(item) {
+        // Day x hour counts as a real table: numbers stay readable to screen readers and in any colour scheme.
+        const label = String(item.label || item.key || "Activity");
+        const section = el("section", null, "analysis-heatmap-block");
+        section.append(el("h3", label), el("p", `${item.timezone || "Asia/Kuala_Lumpur"} · ${item.note || ""}`, "analysis-muted"));
+        if (item.status === "unavailable" || !validMatrix(item.matrix)) {
+            section.append(el("p", "Unavailable: this grid is unknown, not zero.", "analysis-muted"));
+            return section;
+        }
+        if (item.status === "partial") section.append(el("p", `Limited coverage: ${item.unreadable_count || 0} record(s) could not be plotted or the source reached its limit.`, "analysis-muted"));
+        const max = Math.max(1, ...item.matrix.flat());
+        const scroll = el("div", null, "analysis-heatmap-scroll");
+        scroll.tabIndex = 0; scroll.setAttribute("role", "region"); scroll.setAttribute("aria-label", `${label}, scrollable table`);
+        const table = el("table", null, "analysis-heatmap");
+        table.append(el("caption", `${label} · total ${item.total ?? 0}`));
+        const head = el("tr"); head.append(Object.assign(el("th", "Day"), {scope: "col"}));
+        for (const hour of HOURS) head.append(Object.assign(el("th", hour), {scope: "col"}));
+        const thead = el("thead"); thead.append(head);
+        const tbody = el("tbody");
+        item.matrix.forEach((counts, day) => {
+            const row = el("tr"); const name = (Array.isArray(item.days) && item.days[day]) || DAYS[day];
+            row.append(Object.assign(el("th", name), {scope: "row"}));
+            counts.forEach((count, hour) => {
+                const cell = el("td", count);
+                cell.dataset.level = String(count ? Math.ceil(count / max * 4) : 0);
+                cell.title = `${name} ${HOURS[hour]}:00–${HOURS[hour]}:59 · ${count}`;
+                row.append(cell);
+            });
+            tbody.append(row);
+        });
+        table.append(thead, tbody); scroll.append(table); section.append(scroll);
+        return section;
+    }
     function renderReports() {
         const thread = $("report-thread"); thread.replaceChildren();
         if (!reports.size) { thread.append(el("p", "No reports yet. Ask your agent for a period and business question.", "analysis-empty")); return; }
@@ -89,9 +150,12 @@
                 const card = el("div", metric.label || metric.key, "analysis-metric");
                 card.append(el("strong", ["available", "partial"].includes(metric.status) && metric.value != null ? metric.value : "Not connected / unavailable"));
                 if (metric.status === "partial") card.append(el("small", "Limited source coverage"));
+                if (typeof metric.reason === "string") card.append(el("small", metric.reason));
                 grid.append(card);
             }
             content.append(grid);
+            const grids = Array.isArray(snapshot.distributions) ? snapshot.distributions : [];
+            if (grids.length) { content.append(el("h3", "Activity by day and hour")); for (const item of grids) content.append(heatmap(item)); }
             if (typeof result.narrative === "string") content.append(el("p", result.narrative));
             for (const section of result.narrative ? [] : result.sections || []) {
                 content.append(el("h3", section.title || section.heading || "Analysis"));
@@ -109,16 +173,16 @@
             const downloads = $("report-downloads"); downloads.replaceChildren();
             for (const format of row.formats || []) downloads.append(button(`Download ${format.toUpperCase()}`, () => download(id, format)));
             $("report-dialog").showModal();
-        } catch (error) { status(error.message, true); }
+        } catch (error) { showError(error); }
     }
     async function download(id, format) {
         try {
             const response = await authenticatedFetch(`${base}/reports/${encodeURIComponent(id)}/download?format=${encodeURIComponent(format)}`);
-            if (!response.ok) { const body = await response.json(); throw new Error(body.message || "Download is unavailable."); }
+            if (!response.ok) { let body = {}; try { body = await response.json(); } catch (_) { /* non-JSON error body */ } throw requestError(response, body, "Download is unavailable."); }
             const url = URL.createObjectURL(await response.blob());
             const link = el("a"); link.href = url; link.download = `report-${id}.${format}`; link.click();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-        } catch (error) { status(error.message, true); }
+        } catch (error) { showError(error); }
     }
     function schedulePoll() {
         clearTimeout(timer);
@@ -141,27 +205,39 @@
             const body = await api("/messages", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, client_message_id: requestKey})});
             merge([body.data]); requestKey = null; $("report-command").value = ""; failures = 0;
             status("Request saved. You can leave this page while the report runs."); schedulePoll();
-        } catch (error) { status(error.message, true); }
+        } catch (error) { showError(error); }
         finally { sending = false; $("send-report").disabled = false; }
     });
     $("report-command").addEventListener("input", () => { if (!sending) requestKey = null; });
     document.querySelectorAll("[data-prompt]").forEach(node => node.addEventListener("click", () => { $("report-command").value = node.dataset.prompt; requestKey = null; $("report-command").focus(); }));
+    let automationEnabled = false;
+    function applyAutomation(enabled) {
+        // Pro-only automation (schedules, request recording) stays visible but locked, with an upgrade note.
+        automationEnabled = enabled;
+        document.querySelectorAll("[data-plan-lock]").forEach(node => { node.hidden = enabled; });
+        // The lock blocks turning automation ON only; a downgraded tenant must still be able to switch it OFF.
+        document.querySelectorAll("[data-frequency], #recording-enabled").forEach(node => { node.disabled = !enabled && !node.checked; });
+    }
+    function automationError(node, error) {
+        node.checked = !node.checked; showError(error);
+        if (error.code === "feature_not_available") applyAutomation(false);
+    }
     document.querySelectorAll("[data-frequency]").forEach(node => node.addEventListener("change", async () => {
         node.disabled = true;
         try { await api("/schedules", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({frequency: node.dataset.frequency, enabled: node.checked})}); status(node.checked ? "Schedule enabled." : "Schedule paused."); }
-        catch (error) { node.checked = !node.checked; status(error.message, true); }
-        finally { node.disabled = false; }
+        catch (error) { automationError(node, error); }
+        finally { node.disabled = !automationEnabled && !node.checked; }
     }));
     $("recording-enabled").addEventListener("change", async event => {
         const node = event.target; node.disabled = true;
         try { await api("/recording", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({enabled:node.checked})}); status(node.checked ? "New customer requests will be recorded. AI credit usage applies." : "Automatic request recording paused."); }
-        catch (error) { node.checked = !node.checked; status(error.message, true); }
-        finally { node.disabled = false; }
+        catch (error) { automationError(node, error); }
+        finally { node.disabled = !automationEnabled && !node.checked; }
     });
     $("close-report").addEventListener("click", () => $("report-dialog").close());
-    $("refresh-records").addEventListener("click", () => loadRecords().catch(error => status(error.message, true)));
-    $("more-records").addEventListener("click", () => loadRecords(true).catch(error => status(error.message, true)));
-    $("more-reports").addEventListener("click", () => loadReports(true).catch(error => status(error.message, true)));
+    $("refresh-records").addEventListener("click", () => loadRecords().catch(error => showError(error)));
+    $("more-records").addEventListener("click", () => loadRecords(true).catch(error => showError(error)));
+    $("more-reports").addEventListener("click", () => loadReports(true).catch(error => showError(error)));
     window.addEventListener("pagehide", () => { stopped = true; clearTimeout(timer); });
     document.addEventListener("visibilitychange", () => { if (!document.hidden) document.title = "Analysis | Omnexa"; schedulePoll(); });
     async function initialize() {
@@ -175,12 +251,20 @@
             $("role-context").textContent = data.role.business_description || "Reports use this bot's role and authorized knowledge. Confirm its industry in Bot instructions for tailored analysis.";
             window.AnalysisTuition?.init(botId, data.industry);
             await loadReports(); await loadRecords();
-            const recording = (await api("/recording")).data;
-            $("recording-enabled").checked = recording.enabled === true; $("recording-enabled").disabled = false;
-            const schedules = (await api("/schedules")).data || [];
-            document.querySelectorAll("[data-frequency]").forEach(node => { node.checked = schedules.some(row => row.frequency === node.dataset.frequency && row.enabled); node.disabled = false; });
+            let automation = (await planFeatures()).automation_workflows === true;
+            try {
+                const recording = (await api("/recording")).data;
+                $("recording-enabled").checked = recording.enabled === true;
+                const schedules = (await api("/schedules")).data || [];
+                document.querySelectorAll("[data-frequency]").forEach(node => { node.checked = schedules.some(row => row.frequency === node.dataset.frequency && row.enabled); });
+            } catch (error) {
+                // A plan denial on automation settings must not take the reports page down with it.
+                if (error.code !== "feature_not_available") throw error;
+                automation = false;
+            }
+            applyAutomation(automation);
             $("send-report").disabled = false; status("Connected to this bot's business records."); schedulePoll();
-        } catch (error) { status(error.message, true); $("business-records").replaceChildren(el("p", "Records are unavailable. This does not mean there are no requests.", "analysis-empty")); }
+        } catch (error) { showError(error); $("business-records").replaceChildren(el("p", "Records are unavailable. This does not mean there are no requests.", "analysis-empty")); }
     }
     initialize();
 })();

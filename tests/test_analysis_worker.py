@@ -259,3 +259,52 @@ def test_deployment_exports_keep_private_network_and_reviewed_component():
         assert workflow["active"] is False
         assert [node["type"] for node in workflow["nodes"]] == ["n8n-nodes-base.scheduleTrigger","n8n-nodes-base.httpRequest"]
         assert endpoint in workflow["nodes"][1]["parameters"]["url"]
+
+
+def _deny_automation(_company_id, key):
+    if key == "automation_workflows":
+        raise BillingLimitError("Not on this plan", code="feature_not_available")
+    return True
+
+
+def test_scheduled_report_needs_automation_workflows_before_any_model(job, access_guards):
+    row = {**report(job), "client_message_id": "schedule:00000000-0000-4000-8000-000000000001:weekly:2026-09-14"}
+    access_guards[1].side_effect = _deny_automation
+    with patch.object(worker.reports, "get_report", return_value=row), patch.object(worker, "LeaseHeartbeat", Lease), \
+            patch.object(worker.reports, "finish_report") as finish:
+        step = Mock()
+        with pytest.raises(BillingLimitError):
+            worker.process_report_event(job, step_executor=step)
+    step.assert_not_called()
+    finish.assert_not_called()
+
+
+def test_scheduled_model_step_rechecks_automation_workflows(job, access_guards):
+    row = {**report(job), "client_message_id": "schedule:00000000-0000-4000-8000-000000000001:weekly:2026-09-14"}
+    access_guards[1].side_effect = _deny_automation
+    with patch.object(worker.reports, "get_report_by_run_id", return_value=row), patch.object(
+            worker.queue, "get_automation_event_by_id", return_value=job), patch(
+            "app.services.analysis_report_service.plan_report_request") as model:
+        with pytest.raises(BillingLimitError):
+            worker.execute_model_step(run_id=row["run_id"], step_id="plan")
+    model.assert_not_called()
+
+
+def test_manual_report_is_not_gated_on_automation_workflows(job, access_guards):
+    row = {**report(job), "client_message_id": "browser-request-1"}
+    with patch.object(worker.reports, "get_report_by_run_id", return_value=row), patch.object(
+            worker.queue, "get_automation_event_by_id", return_value=job), patch(
+            "app.services.analysis_report_service.plan_report_request", return_value={"status": "ready"}):
+        worker.execute_model_step(run_id=row["run_id"], step_id="plan")
+    assert {call.args[1] for call in access_guards[1].call_args_list} == {"ai_generated_reports"}
+
+
+def test_plan_denied_worker_failure_is_not_retried(job, access_guards):
+    access_guards[1].side_effect = _deny_automation
+    row = {**report(job), "client_message_id": "schedule:x:weekly:2026-09-14"}
+    with patch.object(worker.queue, "claim_queued_automation_events", return_value=[job]), patch.object(
+            worker.reports, "get_report", return_value=row), patch.object(worker, "LeaseHeartbeat", Lease), patch.object(
+            worker.queue, "finish_automation_event") as finish:
+        worker.run_once(step_executor=Mock())
+    assert finish.call_args.kwargs["retryable"] is False
+    assert finish.call_args.kwargs["status"] == "failed"

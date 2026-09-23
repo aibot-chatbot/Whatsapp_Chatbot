@@ -29,6 +29,9 @@ def enqueue_due_reminders(*, limit=100):
 def _authorize(company_id):
     ensure_company_operational(company_id)
     can_use_plan_feature(company_id, "ai_generated_reports")
+    # Reminders are an automatic working flow (Pro-only). Enqueue is a
+    # cross-tenant SQL tick; this execution-time check is the gate.
+    can_use_plan_feature(company_id, "automation_workflows")
 
 
 def _text(context):

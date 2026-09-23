@@ -237,16 +237,21 @@ def get_report_context(company_id, chatbot_id):
 get_bot_context = get_report_context
 
 
-def _page_source(factory, maximum=2000):
-    rows, cursor = [], 0
+def _page_source(factory, maximum=2000, *, cursor=0):
+    """Keyset pages by id. Pass cursor=None for UUID keys: the first page has no lower bound.
+
+    Canonical lowercase UUID strings sort in the same order as PostgreSQL uuid values.
+    """
+    rows = []
     try:
         while len(rows) <= maximum:
-            page = _rows(factory().gt("id", cursor).order("id").limit(min(200, maximum + 1 - len(rows))))
+            query = factory() if cursor is None else factory().gt("id", cursor)
+            page = _rows(query.order("id").limit(min(200, maximum + 1 - len(rows))))
             if not page:
                 break
             rows.extend(page)
             new_cursor = page[-1]["id"]
-            if new_cursor <= cursor:
+            if cursor is not None and new_cursor <= cursor:
                 raise AnalysisUnavailable("Invalid source cursor")
             cursor = new_cursor
             if len(rows) > maximum:
@@ -269,7 +274,50 @@ def list_report_documents(company_id, chatbot_id):
     return [{**row, "role": "primary" if row.get("is_active") else "supporting"} for row in source["rows"]]
 
 
-def load_report_sources(company_id, chatbot_id, date_from, date_to, as_of, document_ids=None, *, include_customer_questions=False):
+MAX_TUITION_SESSIONS = 500
+MAX_TUITION_BOOKINGS = 5000
+TUITION_SESSION_CHUNK = 100  # Keeps each PostgREST in.(...) filter well under URL limits.
+
+
+def _unavailable_source():
+    return {"rows": [], "available": False, "truncated": False, "error_code": "source_unavailable"}
+
+
+def _tuition_sources(company_id, chatbot_id, date_from, date_to, as_of):
+    """Trial sessions starting in the period and their bookings, scoped to one company Bot.
+
+    Only capacity/status columns are read: never contact keys, participants or conversations.
+    """
+    def sessions_query():
+        query = (supabase.table("tuition_sessions").select("id,company_id,chatbot_id,starts_at,trial_limit,created_at")
+                 .eq("company_id", company_id).eq("chatbot_id", chatbot_id))
+        if date_from:
+            query = query.gte("starts_at", str(date_from))
+        if date_to:
+            query = query.lt("starts_at", str(date_to))
+        return query.lte("created_at", str(as_of))
+    sessions = _page_source(sessions_query, MAX_TUITION_SESSIONS, cursor=None)
+    if not sessions["available"]:
+        return {"tuition_sessions": sessions, "tuition_bookings": _unavailable_source()}
+    ids = [row["id"] for row in sessions["rows"]]
+    bookings = {"rows": [], "available": True, "truncated": False, "error_code": None}
+    for index in range(0, len(ids), TUITION_SESSION_CHUNK):
+        chunk = ids[index:index + TUITION_SESSION_CHUNK]
+        page = _page_source(lambda chunk=chunk: supabase.table("tuition_bookings")
+            .select("id,company_id,chatbot_id,session_id,status,reminder_status,created_at")
+            .eq("company_id", company_id).eq("chatbot_id", chatbot_id).in_("session_id", chunk)
+            .lte("created_at", str(as_of)), MAX_TUITION_BOOKINGS - len(bookings["rows"]), cursor=None)
+        if not page["available"]:
+            return {"tuition_sessions": sessions, "tuition_bookings": _unavailable_source()}
+        bookings["rows"] += page["rows"]
+        if page["truncated"]:
+            bookings["truncated"] = True
+            break
+    return {"tuition_sessions": sessions, "tuition_bookings": bookings}
+
+
+def load_report_sources(company_id, chatbot_id, date_from, date_to, as_of, document_ids=None, *,
+                        include_customer_questions=False, include_tuition=False):
     """Bounded source pages, with explicit unavailable/truncated states, never fake zeros."""
     get_report_context(company_id, chatbot_id)
     as_of = as_of or datetime.now(timezone.utc).isoformat()
@@ -302,6 +350,8 @@ def load_report_sources(company_id, chatbot_id, date_from, date_to, as_of, docum
     sources["crm_leads"] = _page_source(lambda: period(supabase.table("crm_leads")
         .select("id,company_id,chatbot_id,conversation_id,lead_type,status,priority,created_at,updated_at")
         .eq("company_id", company_id).eq("chatbot_id", chatbot_id)))
+    if include_tuition:
+        sources.update(_tuition_sources(company_id, chatbot_id, date_from, date_to, as_of))
     try:
         documents = list_report_documents(company_id, chatbot_id)
         allowed = {row["id"] for row in documents}
@@ -335,11 +385,42 @@ def upsert_schedule(company_id, chatbot_id, actor_user_id, *, frequency, enabled
         "p_timezone": timezone, "p_enabled": enabled, "p_next_due_at": next_due_at})
 
 
-def list_due_schedules(*, now=None, limit=100):
-    """Platform scheduler only; tenant requests cannot choose this read path."""
+def list_due_schedules(*, now=None, limit=100, offset=0):
+    """Platform scheduler only; tenant requests cannot choose this read path.
+
+    ``offset`` lets the tick step past rows it could not move out of the due
+    set (actor gone, company suspended), so they never starve later tenants.
+    """
+    if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        raise ValueError("offset must be a non-negative integer")
+    size = min(_positive(limit, "limit"), 100)
     return _rows(supabase.table("analysis_schedules").select("*").eq("enabled", True)
         .lte("next_due_at", now or datetime.now(timezone.utc).isoformat())
-        .order("next_due_at").limit(min(_positive(limit, "limit"), 100)))
+        .order("next_due_at").order("id").range(offset, offset + size - 1))
+
+
+def list_enabled_company_schedules(company_id):
+    """Platform maintenance (plan downgrade) only; never a tenant read path."""
+    _positive(company_id, "company_id")
+    # ponytail: at most 2 schedules per Bot; 100 caps a runaway company.
+    return _rows(supabase.table("analysis_schedules").select("*").eq("company_id", company_id)
+        .eq("enabled", True).limit(100))
+
+
+def _reschedule(schedule, *, enabled, next_due_at):
+    # service_role cannot UPDATE analysis_schedules; the RPC is the only writer
+    # and re-verifies the stored actor.
+    return upsert_schedule(schedule["company_id"], schedule["chatbot_id"], schedule["actor_user_id"],
+        frequency=schedule["frequency"], enabled=enabled, next_due_at=next_due_at)
+
+
+def skip_schedule_period(schedule, *, next_due_at):
+    """Move an enabled schedule past its current period without a report."""
+    return _reschedule(schedule, enabled=True, next_due_at=next_due_at)
+
+
+def disable_schedule(schedule):
+    return _reschedule(schedule, enabled=False, next_due_at=None)
 
 
 def enqueue_schedule_report(company_id, chatbot_id, schedule_id, *, period_key, request_spec, next_due_at):

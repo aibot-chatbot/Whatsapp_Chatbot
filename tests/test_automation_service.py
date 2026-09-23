@@ -6,6 +6,47 @@ from app.services.automation_service import (
     apply_crm_stage_automation,
     schedule_knowledge_document_follow_up,
 )
+from app.services.billing_guard import BillingLimitError
+
+
+@pytest.fixture(autouse=True)
+def plan_gate():
+    """Pro by default; denial tests flip side_effect."""
+    with patch("app.services.automation_service.can_use_plan_feature", return_value=True) as gate:
+        yield gate
+
+
+def _denied(*_args, **_kwargs):
+    raise BillingLimitError("Not on this plan", code="feature_not_available")
+
+
+def test_crm_stage_automation_is_denied_before_langflow_or_any_write(plan_gate):
+    plan_gate.side_effect = _denied
+    with patch("app.services.automation_service.get_crm_lead_by_id") as lead, \
+         patch("app.services.automation_service.crm_stage_decision") as decision, \
+         patch("app.services.automation_service.create_automation_event") as create_event, \
+         patch("app.services.automation_service.transition_crm_lead_stage") as transition:
+        with pytest.raises(BillingLimitError):
+            apply_crm_stage_automation(company_id=42, chatbot_id=7, lead_id=5, target_status="qualified")
+    plan_gate.assert_called_once_with(42, "automation_workflows")
+    lead.assert_not_called()
+    decision.assert_not_called()
+    create_event.assert_not_called()
+    transition.assert_not_called()
+
+
+def test_knowledge_follow_up_is_skipped_quietly_off_pro(plan_gate, caplog):
+    plan_gate.side_effect = _denied
+    with patch("app.services.automation_service.knowledge_document_decision") as decision, \
+         patch("app.services.automation_service.create_automation_event") as create_event, \
+         caplog.at_level("INFO", logger="app.services.automation_service"):
+        result = schedule_knowledge_document_follow_up(
+            company_id=42, chatbot_id=7, file_id=99, display_name="policy.pdf", chunk_count=3)
+    assert result is None
+    plan_gate.assert_called_once_with(42, "automation_workflows")
+    decision.assert_not_called()
+    create_event.assert_not_called()
+    assert any(r.levelname == "INFO" and "automation_workflows" in r.getMessage() for r in caplog.records)
 
 
 @pytest.fixture(autouse=True)

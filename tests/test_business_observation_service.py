@@ -211,7 +211,10 @@ def test_current_company_and_plan_checked_before_inspect_start_and_publication(s
     from app.services.company_status_service import CompanyOperationalStatusError
     error = (BillingLimitError("Plan no longer allows reports") if guard == "feature"
              else CompanyOperationalStatusError("company_suspended", "Company suspended"))
-    getattr(setup, guard).side_effect = [True] * (boundary - 1) + [error]
+    # _authorize makes one operational call and two plan calls (report data +
+    # automation_workflows) per boundary; fail the boundary-th authorization.
+    calls_per_boundary = 2 if guard == "feature" else 1
+    getattr(setup, guard).side_effect = [True] * (calls_per_boundary * (boundary - 1)) + [error]
     expected = service.AnalysisNeedsReview if boundary == 3 else type(error)
     with pytest.raises(expected):
         service.process_business_observation(setup.event)
@@ -256,3 +259,18 @@ def test_settings_require_explicit_tenant(company, bot):
 def test_settings_do_not_coerce_opt_in_values():
     with pytest.raises(ValueError):
         repository.set_recording_enabled(10, 7, "true")
+
+
+def test_observation_requires_automation_workflows_before_inspect(setup):
+    from app.services.billing_guard import BillingLimitError
+
+    def gate(_company_id, key):
+        if key == "automation_workflows":
+            raise BillingLimitError("Not on this plan", code="feature_not_available")
+        return True
+
+    setup.feature.side_effect = gate
+    with pytest.raises(BillingLimitError):
+        service.process_business_observation(setup.event)
+    assert setup.calls == []
+    setup.model.assert_not_called()

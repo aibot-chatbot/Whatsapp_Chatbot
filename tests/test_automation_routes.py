@@ -94,6 +94,27 @@ def test_crm_stage_automation_requires_tenant_verified_chatbot(client, authentic
     )
 
 
+def test_crm_stage_automation_off_pro_is_a_403_with_the_feature_code(client, authenticated):
+    from app.services.billing_guard import BillingLimitError
+
+    denial = BillingLimitError("Not on this plan", code="feature_not_available")
+    with patch(
+        "app.routes.automation_routes.verify_chatbot_access",
+        return_value={"id": 7, "company_id": 42},
+    ), patch(
+        "app.routes.automation_routes.apply_crm_stage_automation",
+        side_effect=denial,
+    ):
+        response = client.post(
+            "/api/automation/crm-stage",
+            json={"chatbot_id": 7, "lead_id": 5, "target_status": "qualified"},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 403
+    assert response.get_json()["code"] == "feature_not_available"
+
+
 def test_automation_health_reports_degraded_when_event_table_is_unavailable(client):
     with patch(
         "app.routes.automation_routes.automation_events_table_available",

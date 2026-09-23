@@ -859,3 +859,61 @@ class TestDueQueryCoverage(unittest.TestCase):
             self.assertEqual(result["result"], "cancellation_applied")
             mock_trans.assert_called_once()
 
+
+
+# =============================================================================
+# Tests: downgrade off automation_workflows stops automatic working flows
+# =============================================================================
+
+
+class TestDowngradeDisablesAutomation(unittest.TestCase):
+    """A downgrade to a plan without automation_workflows turns automation off."""
+
+    USAGE = {"usage": {"chatbots": {"used": 1}, "team_members": {"used": 1}, "knowledge_files": {"used": 1},
+                       "knowledge_storage_bytes": {"used": 1}, "channels": {"used": 1}}}
+    SCHEDULE = {"id": "00000000-0000-4000-8000-000000000001", "company_id": 42, "chatbot_id": 7,
+                "actor_user_id": 31, "frequency": "weekly", "enabled": True}
+
+    def _downgrade(self, feature_flags, *, schedules=None, bots=None, disable=None):
+        plan = {"id": 3, "code": "advanced", "chatbot_limit": 2, "team_member_limit": 3,
+                "knowledge_file_limit": 25, "knowledge_storage_limit_bytes": 262144000, "channel_limit": 2,
+                "feature_flags": feature_flags}
+        with patch("app.database.subscription_plan_repository.get_plan_by_id", return_value=plan), \
+             patch("app.services.billing_service.get_company_usage", return_value=self.USAGE), \
+             patch(_LIFECYCLE + ".transition_subscription_status"), \
+             patch(_LIFECYCLE + "._update_sub", return_value=_mk_sub()), \
+             patch("app.database.analysis_repository.list_enabled_company_schedules",
+                   return_value=[self.SCHEDULE] if schedules is None else schedules) as listed, \
+             patch("app.database.analysis_repository.disable_schedule", side_effect=disable) as disabled, \
+             patch("app.database.bot_repository.get_all_bots",
+                   return_value=bots if bots is not None else [
+                       {"id": 7, "analysis_recording_enabled": True},
+                       {"id": 8, "analysis_recording_enabled": False}]), \
+             patch("app.database.business_observation_repository.set_recording_enabled") as recording:
+            result = _apply_scheduled_downgrade(42, 3, _mk_sub({"pending_plan_id": 3}), now=NOW)
+        return result, listed, disabled, recording
+
+    def test_downgrade_off_automation_disables_schedules_and_recording(self):
+        result, _listed, disabled, recording = self._downgrade({"automation_workflows": False})
+        self.assertEqual(result["result"], "downgrade_applied")
+        disabled.assert_called_once_with(self.SCHEDULE)
+        recording.assert_called_once_with(42, 7, False)
+        self.assertEqual(result["automation_disabled"], {"schedules": 1, "recording": 1})
+
+    def test_a_plan_that_keeps_automation_touches_nothing(self):
+        result, listed, disabled, recording = self._downgrade({"automation_workflows": True})
+        listed.assert_not_called()
+        disabled.assert_not_called()
+        recording.assert_not_called()
+        self.assertEqual(result["automation_disabled"], {"schedules": 0, "recording": 0})
+
+    def test_an_absent_key_counts_as_no_automation(self):
+        _result, _listed, disabled, _recording = self._downgrade({})
+        disabled.assert_called_once()
+
+    def test_cleanup_failure_never_blocks_the_downgrade(self):
+        result, _listed, _disabled, recording = self._downgrade(
+            {"automation_workflows": False}, disable=PermissionError("actor gone"))
+        self.assertEqual(result["result"], "downgrade_applied")
+        self.assertEqual(result["automation_disabled"]["schedules"], 0)
+        recording.assert_called_once_with(42, 7, False)

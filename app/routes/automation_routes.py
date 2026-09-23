@@ -6,6 +6,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 from app.decorators.auth_decorator import token_required
 from app.decorators.security import worker_token_required
 from app.rate_limit import limiter
+from app.services.billing_guard import BillingLimitError, can_use_plan_feature
 from app.services.company_status_service import company_operational_required
 from app.services.langflow_adapter import langflow_automation_health
 from app.services.n8n_adapter import n8n_automation_health, n8n_worker_enabled, worker_lease_seconds
@@ -26,6 +27,8 @@ from app.utils.access_control import role_required, verify_chatbot_access
 
 
 automation_blueprint = Blueprint("automation", __name__)
+
+AUTOMATION_FEATURE = "automation_workflows"
 
 
 @automation_blueprint.route("/api/automation/health", methods=["GET"])
@@ -130,6 +133,8 @@ def automate_crm_stage():
             idempotency_key=data.get("idempotency_key"),
         )
         return jsonify({"status": "success", "data": result}), 200
+    except BillingLimitError as exc:
+        return jsonify({"status": "error", "code": exc.code, "message": str(exc)}), 403
     except PermissionError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 403
     except LookupError as exc:
@@ -170,10 +175,40 @@ def claim_automation_worker_events():
     except Exception:
         return jsonify({"status": "error", "message": "Unable to claim automation events."}), 503
 
+    # Re-check the plan at execution time: a tenant can downgrade after the
+    # event was queued. Denied events are never handed to n8n.
+    allowed = [event for event in events if _automation_still_allowed(event)]
     return jsonify({
         "status": "success",
-        "data": {"events": events, "lease_seconds": lease},
+        "data": {"events": allowed, "lease_seconds": lease},
     }), 200
+
+
+def _automation_still_allowed(event):
+    """True if the event's tenant may still run automation; else settle it.
+
+    Only a read that proves the plan lacks the feature is final. Anything else
+    (billing lookup failure, which can_use_plan_feature reports as
+    no_subscription) is settled retryable so 064's backoff re-queues it
+    instead of losing it. Unverified work is never handed to n8n.
+    """
+    try:
+        can_use_plan_feature(event.get("company_id"), AUTOMATION_FEATURE)
+        return True
+    except BillingLimitError as exc:
+        permanent = exc.code == "feature_not_available"
+    except Exception:
+        permanent = False
+    try:
+        finish_automation_event(
+            event_id=event["id"], lease_token=event.get("lease_token"), worker_kind="n8n",
+            status="failed", error_message="feature_not_available" if permanent else "entitlement_unverified",
+            retryable=not permanent,
+        )
+    except Exception:
+        current_app.logger.warning(
+            "Unable to settle plan-checked automation event %s", event.get("id"))
+    return False
 
 
 @automation_blueprint.route(

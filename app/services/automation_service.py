@@ -14,10 +14,13 @@ from app.database.crm_lead_repository import (
     get_crm_lead_by_id,
     transition_crm_lead_stage,
 )
+from app.services.billing_guard import BillingLimitError, can_use_plan_feature
 from app.services.langflow_decision import (
     crm_stage_decision,
     knowledge_document_decision,
 )
+
+AUTOMATION_FEATURE = "automation_workflows"
 
 
 CRM_STAGE_TRANSITIONS = {
@@ -44,6 +47,17 @@ def schedule_knowledge_document_follow_up(
     _positive_int(chunk_count, "chunk_count")
     if target_role not in {"primary", "supporting"}:
         raise ValueError("target_role must be primary or supporting")
+
+    # Pro-only automation. The upload itself already succeeded; off Pro only
+    # this advisory follow-up (and its Langflow call) is skipped.
+    try:
+        can_use_plan_feature(company_id, AUTOMATION_FEATURE)
+    except BillingLimitError:
+        logger.info(
+            "Knowledge follow-up skipped for company_id=%s chatbot_id=%s: "
+            "plan lacks automation_workflows", company_id, chatbot_id,
+        )
+        return None
 
     safe_name = str(display_name or "knowledge document").strip()[:200]
 
@@ -93,6 +107,8 @@ def apply_crm_stage_automation(
     _positive_int(company_id, "company_id")
     _positive_int(chatbot_id, "chatbot_id")
     _positive_int(lead_id, "lead_id")
+    # Pro-only automation, checked before any lead read or Langflow call.
+    can_use_plan_feature(company_id, AUTOMATION_FEATURE)
 
     target = normalize_crm_lead_status(target_status)
     if target not in CRM_STAGE_TRANSITIONS:

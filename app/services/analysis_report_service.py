@@ -10,6 +10,7 @@ from datetime import date, datetime, time, timedelta, timezone
 import hashlib
 import json
 import re
+from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.services.industry_template_catalog import get_template
@@ -27,6 +28,8 @@ MAX_CUSTOMER_MESSAGES = 100
 MAX_CUSTOMER_MESSAGE_CHARACTERS = 600
 MAX_CUSTOMER_SAMPLE_CHARACTERS = 12000
 KINDS = {"business", "operations", "documents"}
+NOTIFICATION_ACTIONS = {"trial_reminder"}
+DAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 SPEC_FIELDS = {"kind", "timezone", "period_start", "period_end", "document_ids"}
 
 
@@ -289,15 +292,31 @@ def _safe_records(source, scope):
         authoritative = row.get("source") == "business_service" and bool(row.get("record_id"))
         if status in {"confirmed", "completed", "cancelled", "rescheduled"} and not authoritative:
             raise AnalysisReportError("Business record lacks authoritative evidence.", "invalid_business_evidence", 503)
-        records.append({key: deepcopy(row.get(key)) for key in (
+        records.append({**{key: deepcopy(row.get(key)) for key in (
             "id", "action_type", "status", "record_id", "source", "conversation_id",
-            "evidence_message_ids", "occurred_at", "created_at")})
+            "evidence_message_ids", "occurred_at", "created_at")}, "details": _trial_details(row.get("details"))})
     return records
 
 
+def _trial_details(value):
+    """Keep only the trial link needed for session analysis; drop every other detail."""
+    kept = {}
+    if not isinstance(value, dict):
+        return kept
+    if value.get("booking_type") == "trial":
+        kept["booking_type"] = "trial"
+    try:
+        kept["session_id"] = str(UUID(value["session_id"]))
+    except (KeyError, ValueError, TypeError, AttributeError):
+        pass
+    return kept
+
+
 def _business_metrics(source, records):
+    # Notifications (e.g. trial reminders) are verified service effects but not
+    # business outcomes; counting them would inflate "successful records".
     succeeded = [row for row in records if row["status"] in {"confirmed", "completed"}
-                 and row["source"] == "business_service"]
+                 and row["source"] == "business_service" and row["action_type"] not in NOTIFICATION_ACTIONS]
     metrics = [_metric("business_actions_confirmed", "Verified successful business records",
                        len({(row["action_type"], row["record_id"]) for row in succeeded}), "business_events", source)]
     for status, label in (("intent", "Recorded interests"), ("requested", "Submitted requests"),
@@ -420,6 +439,146 @@ def _customer_question_snapshot(source, scope, start, end, captured):
     return result
 
 
+def _slot(value, window, *, capture_bound=True):
+    """Local (weekday, hour) of an aware in-period timestamp; None when unusable.
+
+    capture_bound=False is for timetable times (trial session starts), which
+    may lie after capture and are still real, scheduled slots."""
+    if not isinstance(value, str):
+        return None  # _utc(None) would mean "now", which is not evidence.
+    try:
+        moment = _utc(value)
+    except (ValueError, TypeError):
+        return None
+    if (capture_bound and moment > window["captured"]) or (window["start"] and moment < window["start"]) or (
+            window["end"] and moment >= window["end"]):
+        return None
+    local = moment.astimezone(window["tz"])
+    return local.weekday(), local.hour
+
+
+def _heatmap(key, label, name, source, stamps, window, note, *, capture_bound=True):
+    """Day-of-week x hour totals. An unreadable source is unknown, never an empty grid."""
+    base = {"key": key, "label": label, "source": name, "timezone": window["timezone"],
+            "days": list(DAYS), "note": note}
+    if not source["available"]:
+        return {**base, "status": "unavailable", "matrix": None, "total": None, "unreadable_count": None}
+    matrix, unreadable = [[0] * 24 for _ in DAYS], 0
+    for value, weight in stamps:
+        slot = _slot(value, window, capture_bound=capture_bound)
+        if slot is None:
+            unreadable += 1
+            continue
+        matrix[slot[0]][slot[1]] += weight
+    return {**base, "status": "partial" if source.get("truncated") or unreadable else "available",
+            "matrix": matrix, "total": sum(map(sum, matrix)), "unreadable_count": unreadable}
+
+
+def _distribution_limitations(distributions):
+    lines = []
+    for item in distributions:
+        if item["status"] == "unavailable":
+            lines.append(f"{item['label']}: unavailable; the grid is unknown, not empty.")
+            continue
+        if item["unreadable_count"]:
+            lines.append(f"{item['label']}: {item['unreadable_count']} record(s) with missing, invalid or "
+                         "out-of-period timestamps were not plotted.")
+    return lines
+
+
+def _verify_tuition_rows(sessions, bookings, scope):
+    """Tenant and session scope for tuition rows, even when the repository is replaced."""
+    session_ids = set()
+    for row in sessions["rows"]:
+        if row.get("company_id") != scope["company_id"] or row.get("chatbot_id") != scope["chatbot_id"]:
+            raise AnalysisReportError("Trial session scope could not be verified.", "source_scope_mismatch", 403)
+        limit = row.get("trial_limit")
+        if not isinstance(limit, int) or isinstance(limit, bool) or limit < 0:
+            raise AnalysisReportError("Trial session capacity could not be verified.", "invalid_tuition_source", 503)
+        session_ids.add(row.get("id"))
+    for row in bookings["rows"]:
+        if (row.get("company_id") != scope["company_id"] or row.get("chatbot_id") != scope["chatbot_id"]
+                or row.get("session_id") not in session_ids):
+            raise AnalysisReportError("Trial booking scope could not be verified.", "source_scope_mismatch", 403)
+
+
+def _tuition_sections(sections, sources, records, window):
+    events, sessions, bookings = (sources[key] for key in ("business_events", "tuition_sessions", "tuition_bookings"))
+    trial = [row for row in records if row["source"] == "business_service" and row["action_type"] == "booking"
+             and row["details"].get("booking_type") == "trial"]
+    observed = [row for row in records if row["source"] == "observation" and row["action_type"] == "booking"]
+    stages = (("interest", "Booking interest in customer messages", sum(row["status"] == "intent" for row in observed)),
+              ("requested", "Booking requests in customer messages", sum(row["status"] == "requested" for row in observed)),
+              *((status, f"Trial bookings {status}", len({row["record_id"] for row in trial if row["status"] == status}))
+                for status in ("confirmed", "rescheduled", "cancelled")))
+    sections["metrics"] += [_metric(f"trial_funnel_{key}", f"Trial funnel: {label} (events in period)", value,
+                                    "business_events", events) for key, label, value in stages]
+    # Seats need both tables; one unreadable table makes every seat figure unknown.
+    seats = {"available": sessions["available"] and bookings["available"],
+             "truncated": bool(sessions.get("truncated") or bookings.get("truncated"))}
+    booked = Counter(row["session_id"] for row in bookings["rows"] if row.get("status") in {"confirmed", "completed"})
+    offered = sum(row["trial_limit"] for row in sessions["rows"])
+    fill = _metric("trial_fill_rate", "Trial seat fill rate at capture (% of trial limit)",
+                   round(sum(booked.values()) * 100 / offered, 1) if offered else None, "tuition_bookings", seats)
+    if seats["available"] and not offered:
+        fill.update(status="unavailable", reason="No trial seats were offered in sessions starting in this period.")
+    reminders = Counter(row.get("reminder_status") for row in bookings["rows"])
+    sections["metrics"] += [
+        _metric("trial_sessions", "Trial sessions starting in period", len(sessions["rows"]), "tuition_sessions", sessions),
+        _metric("trial_seats_offered", "Trial seats offered (sum of trial limits)", offered, "tuition_sessions", sessions),
+        _metric("trial_seats_booked", "Trial seats booked at capture", sum(booked.values()), "tuition_bookings", seats),
+        fill, *(_metric(f"trial_reminders_{state}", f"Trial reminders {label} (bookings in period, at capture)",
+                        reminders[state], "tuition_bookings", bookings)
+                for state, label in (("sent", "sent"), ("failed", "failed"), ("unsupported", "not supported on channel")))]
+    sections["distributions"].append(_heatmap(
+        "trial_booked_slots", "When booked trial sessions take place (seats booked at capture)", "tuition_sessions",
+        seats, [(row.get("starts_at"), booked[row.get("id")]) for row in sessions["rows"] if booked[row.get("id")]],
+        window, "Session start times weighted by confirmed or completed trial seats at capture.",
+        capture_bound=False))
+    sections["limitations"] += [
+        "Trial funnel stages count events recorded in the period; they are not a cohort conversion rate.",
+        "Trial seats, fill rate and reminders use booking status at capture time for sessions starting in the period.",
+        "Trial attendance and no-shows are not recorded, so they cannot be reported."]
+
+
+def _industry_sections(kind, industry_id, sources, records, window):
+    """Deterministic activity facts per industry; the model narrates but never computes them."""
+    sections = {"metrics": [], "distributions": [], "limitations": []}
+    if kind == "documents":
+        return sections
+    messages = sources["messages"]
+    sections["distributions"].append(_heatmap(
+        "customer_inquiry_hours", "Customer inquiry times (customer messages by local day and hour)", "messages",
+        messages, [(row.get("created_at"), 1) for row in messages["rows"] if row.get("sender_type") == "customer"],
+        window, "Customer messages only; staff, bot and AI replies are excluded. Timestamps only, no message text."))
+    conversations = sources["conversations"]
+    if not conversations["available"]:
+        sections["metrics"].append(_metric("channel_mix", "Conversations by channel", None, "conversations", conversations))
+    else:
+        channels = Counter(row["source_channel"] if isinstance(row.get("source_channel"), str)
+                           and re.fullmatch(r"[a-z][a-z0-9_]{0,31}", row["source_channel"]) else "unknown"
+                           for row in conversations["rows"])
+        sections["metrics"] += [_metric(f"channel_{channel}", f"Conversations created in period: {channel}", count,
+                                        "conversations", conversations) for channel, count in sorted(channels.items())]
+    events = sources["business_events"]
+    interest = [row for row in records if row["source"] == "observation" and row["action_type"] == "booking"
+                and row["status"] in {"intent", "requested"}]
+    if industry_id != "tuition_center":  # Tuition reports this inside the verified trial funnel.
+        sections["metrics"] += [
+            _metric("booking_interest_expressed", "Booking interest expressed in customer messages (not reservations)",
+                    len(interest), "business_events", events),
+            _metric("booking_interest_requested", "Explicit booking requests in customer messages (not reservations)",
+                    sum(row["status"] == "requested" for row in interest), "business_events", events)]
+        sections["distributions"].append(_heatmap(
+            "booking_interest_hours", "Booking interest by time expressed (not reservations)", "business_events",
+            events, [(row.get("created_at"), 1) for row in interest], window,
+            "AI-classified interest and requests in customer messages. Not reservations, appointments or confirmed bookings."))
+    else:
+        _tuition_sections(sections, sources, records, window)
+    sections["limitations"].extend(_distribution_limitations(sections["distributions"]))
+    return sections
+
+
 def build_report_snapshot(*, company_id, chatbot_id, request_spec, as_of=None):
     context = _context(company_id, chatbot_id)
     spec = validate_request_spec(request_spec)
@@ -430,20 +589,26 @@ def build_report_snapshot(*, company_id, chatbot_id, request_spec, as_of=None):
     industry = _industry(context["bot"])
     clinic = industry["id"] == "clinic"
     include_questions = spec["kind"] == "operations" and not clinic
+    include_tuition = industry["id"] == "tuition_center" and spec["kind"] != "documents"
     raw = _repository().load_report_sources(company_id, chatbot_id,
                                            start.isoformat() if start else None,
                                            end.isoformat() if end else None,
                                            captured.isoformat(), document_ids=spec["document_ids"] or None,
-                                           include_customer_questions=include_questions)
+                                           include_customer_questions=include_questions,
+                                           include_tuition=include_tuition)
     if not isinstance(raw, dict):
         raise AnalysisReportError("Report data is unavailable.", "source_unavailable", 503)
     names = ("business_events", "conversations", "messages", "crm_leads", "documents", "chunks")
     if include_questions:
         names += ("customer_questions",)
+    if include_tuition:
+        names += ("tuition_sessions", "tuition_bookings")
     sources = {name: _source(raw, name) for name in names}
     scope = {"company_id": company_id, "chatbot_id": chatbot_id,
              "bot_name": _clean_text(context["bot"].get("bot_name"), 180), **spec}
     records = _safe_records(sources["business_events"], scope)
+    if include_tuition:
+        _verify_tuition_rows(sources["tuition_sessions"], sources["tuition_bookings"], scope)
     # Defensive scope validation even when the repository is replaced/mocked.
     for name in ("conversations", "crm_leads", "documents", "chunks"):
         for row in sources[name]["rows"]:
@@ -483,6 +648,9 @@ def build_report_snapshot(*, company_id, chatbot_id, request_spec, as_of=None):
         statuses = Counter(row.get("status") or "unknown" for row in leads["rows"])
         for status, count in sorted(statuses.items()):
             metrics.append(_metric(f"crm_status_{status}", f"CRM stage at capture: {status}", count, "crm_leads", leads))
+    window = {"tz": tz, "start": start, "end": end, "captured": captured, "timezone": spec["timezone"]}
+    sections = _industry_sections(spec["kind"], industry["id"], sources, records, window)
+    metrics.extend(sections["metrics"])
     documents = _document_snapshot(sources["documents"], sources["chunks"], selected, clinic)
     questions = (_customer_question_snapshot(sources["customer_questions"], scope, start, end, captured)
                  if include_questions else {"status": "restricted" if clinic else "not_requested", "available": False,
@@ -490,11 +658,13 @@ def build_report_snapshot(*, company_id, chatbot_id, request_spec, as_of=None):
                      "error_code": "clinic_free_text_not_supported" if clinic else None})
     required = {"documents", "chunks"}
     if spec["kind"] != "documents":
-        required.add("business_events")
+        required |= {"business_events", "messages", "conversations"}
     if spec["kind"] == "operations":
         required |= {"conversations", "messages", "crm_leads"}
     if include_questions:
         required.add("customer_questions")
+    if include_tuition:
+        required |= {"tuition_sessions", "tuition_bookings"}
     if not any(sources[name]["available"] for name in required):
         raise AnalysisReportError("No requested report sources could be read.", "no_report_sources", 503)
     if spec["kind"] == "documents" and not any(item["excerpts"] for item in documents):
@@ -536,18 +706,20 @@ def build_report_snapshot(*, company_id, chatbot_id, request_spec, as_of=None):
             limitations.append(f"Customer message sample omitted {questions['unreadable_count']} unreadable text records.")
         if questions["truncated"]:
             limitations.append("Customer message sample reached a read or text limit; omitted messages or text may contain additional questions.")
+    limitations.extend(sections["limitations"])
     # Only non-clinic operations include bounded contact-redacted customer
     # excerpts; raw message collections and CRM contact fields are never copied.
-    snapshot = {"schema_version": 1, "scope": scope, "captured_at": captured.isoformat(),
+    snapshot = {"schema_version": 2, "scope": scope, "captured_at": captured.isoformat(),
                 "industry": industry, "role": _role(context),
                 "sources": {name: {"available": source["available"], "row_count": len(source["rows"]) if source["available"] else None,
                                     "truncated": bool(source.get("truncated")), "error_code": source.get("error_code")}
                             for name, source in sources.items()},
                 "metrics": metrics, "records": records[:MAX_RECORDS], "documents": documents,
-                "customer_questions": questions,
+                "customer_questions": questions, "distributions": sections["distributions"],
                 "limitations": limitations,
                 "coverage": "partial" if any(not sources[name]["available"] or sources[name].get("truncated") for name in required)
                             or any(item["truncated"] or item["status"] != "available" for item in documents)
+                            or any(item["status"] != "available" for item in sections["distributions"])
                             or (include_questions and questions["status"] != "available")
                             or len(sources["documents"]["rows"]) > MAX_DOCUMENTS else "complete"}
     serialized = _json(snapshot).encode("utf-8")
@@ -588,6 +760,9 @@ def generate_report(snapshot, *, command="", begin_model_step, finish_model_step
               "not a fixed tuition template. If industry is unconfirmed say general/unconfirmed. "
               "For clinic context write administration only: no diagnosis, health interpretation, patient profiling or raw health details. "
               "Explain processing limits, source IDs, period and capture time. Revenue is unavailable without a connected source. "
+              "Distribution grids are deterministic day-of-week x hour counts in the report timezone; describe peaks only "
+              "from them and treat partial/unavailable grids as incomplete, never as zero. Booking interest is not a "
+              "reservation, appointment or confirmed booking. Trial funnel stages are event counts, not conversion rates. "
               "Analyze FAQ/customer-question themes ONLY from customer_questions.excerpts, citing message_id and conversation_id "
               "for each theme. These are customer message samples, not a preclassified list of questions. Distinguish questions "
               "from statements; do not invent questions from message counts or document content. If excerpts are absent or "

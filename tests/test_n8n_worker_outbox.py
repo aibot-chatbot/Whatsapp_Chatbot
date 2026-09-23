@@ -121,6 +121,55 @@ def test_claim_route_owns_kind(client,worker_env):
     claim.assert_called_once_with(limit=5,lease_seconds=worker_lease_seconds(),worker_kind="n8n")
 
 
+def _plan_by_company(allowed):
+    from app.services.billing_guard import BillingLimitError
+
+    def gate(company_id, feature_key):
+        assert feature_key == "automation_workflows"
+        if company_id not in allowed:
+            raise BillingLimitError("Not on this plan", code="feature_not_available")
+        return True
+    return gate
+
+
+def test_claim_rechecks_plan_and_fails_denied_events_non_retryably(client,worker_env):
+    pro, downgraded = _event(event_id=9), {**_event(event_id=10), "company_id": 43}
+    with patch("app.routes.automation_routes.claim_queued_automation_events",return_value=[pro, downgraded]), patch(
+        "app.routes.automation_routes.can_use_plan_feature",side_effect=_plan_by_company({42})), patch(
+        "app.routes.automation_routes.finish_automation_event") as finish:
+        response=client.post("/api/automation/worker/events",headers=WORKER_HEADERS,json={"limit":5})
+    assert response.status_code==200
+    assert [event["id"] for event in response.get_json()["data"]["events"]]==[9]
+    finish.assert_called_once_with(event_id=10,lease_token=LEASE,worker_kind="n8n",status="failed",
+        error_message="feature_not_available",retryable=False)
+
+
+@pytest.mark.parametrize("error", ["billing_lookup", "no_subscription"])
+def test_unverified_entitlement_withholds_event_as_retryable(client,worker_env,error):
+    # A billing read blip must not permanently lose the event; only a read
+    # that proves the plan lacks the feature is final.
+    from app.services.billing_guard import BillingLimitError
+
+    side = RuntimeError("db down") if error == "billing_lookup" else BillingLimitError("x", code="no_subscription")
+    with patch("app.routes.automation_routes.claim_queued_automation_events",return_value=[_event()]), patch(
+        "app.routes.automation_routes.can_use_plan_feature",side_effect=side), patch(
+        "app.routes.automation_routes.finish_automation_event") as finish:
+        response=client.post("/api/automation/worker/events",headers=WORKER_HEADERS,json={"limit":5})
+    assert response.status_code==200
+    assert response.get_json()["data"]["events"]==[]
+    finish.assert_called_once_with(event_id=9,lease_token=LEASE,worker_kind="n8n",status="failed",
+        error_message="entitlement_unverified",retryable=True)
+
+
+def test_denied_event_is_withheld_even_when_failing_it_errors(client,worker_env):
+    with patch("app.routes.automation_routes.claim_queued_automation_events",return_value=[_event()]), patch(
+        "app.routes.automation_routes.can_use_plan_feature",side_effect=_plan_by_company(set())), patch(
+        "app.routes.automation_routes.finish_automation_event",side_effect=RuntimeError("rpc down")):
+        response=client.post("/api/automation/worker/events",headers=WORKER_HEADERS,json={"limit":5})
+    assert response.status_code==200
+    assert response.get_json()["data"]["events"]==[]
+
+
 @pytest.mark.parametrize("body", [[1], {"limit":"all"},{"limit":True}])
 def test_claim_bad_body(client,worker_env,body):
     assert client.post("/api/automation/worker/events",headers=WORKER_HEADERS,json=body).status_code==400

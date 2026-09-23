@@ -21,6 +21,8 @@ _CLINIC_AMBIGUOUS = re.compile(
 def _authorize(company_id):
     ensure_company_operational(company_id)
     can_use_plan_feature(company_id, "ai_generated_reports")
+    # Recording customer requests is an automatic working flow (Pro-only).
+    can_use_plan_feature(company_id, "automation_workflows")
 
 
 def _scope(event, input):

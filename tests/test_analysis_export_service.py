@@ -181,3 +181,52 @@ def test_question_evidence_survives_all_export_formats(report):
     with pymupdf.open(stream=service.export_report(report, "pdf")["content"], filetype="pdf") as document:
         text = " ".join(" ".join(page.get_text() for page in document).split())
         assert "Message 901; conversation 99" in text and "Can I book a table?" in text
+
+
+DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def grid(key, label, status="available"):
+    matrix = None
+    if status != "unavailable":
+        matrix = [[0] * 24 for _ in DAYS]
+        matrix[1][9], matrix[6][0] = 3, 1
+    return {"key": key, "label": label, "source": "messages", "timezone": "Asia/Kuala_Lumpur", "days": DAYS,
+            "note": "Timestamps only.", "status": status, "matrix": matrix,
+            "total": 4 if matrix else None, "unreadable_count": 0 if matrix else None}
+
+
+@pytest.fixture
+def grids(report):
+    report["snapshot"]["distributions"] = [
+        grid("customer_inquiry_hours", "Customer inquiry times (local day and hour)"),
+        grid("trial_booked_slots", "When booked trial sessions take place", "unavailable")]
+    sign(report["snapshot"])
+    return report
+
+
+def test_activity_grids_are_exported_as_day_by_hour_rows_in_xlsx(grids):
+    from openpyxl import load_workbook
+    workbook = load_workbook(BytesIO(service.export_report(grids, "xlsx")["content"]))
+    rows = list(workbook["Activity grids"].iter_rows(values_only=True))
+    header = rows[0]
+    assert header[:4] == ("Grid", "Timezone", "Coverage", "Day") and header[4] == "00" and header[27] == "23"
+    tuesday = next(row for row in rows if row[0].startswith("Customer inquiry") and row[3] == "Tue")
+    assert tuesday[4 + 9] == 3 and tuesday[-1] == 3
+    unavailable = next(row for row in rows if row[0].startswith("When booked"))
+    assert unavailable[2] == "unavailable" and "not zero" in unavailable[3]
+
+
+def test_activity_grids_are_readable_in_pdf(grids):
+    import pymupdf
+    with pymupdf.open(stream=service.export_report(grids, "pdf")["content"], filetype="pdf") as document:
+        text = " ".join(" ".join(page.get_text() for page in document).split())
+    assert "Customer inquiry times" in text and "Asia/Kuala_Lumpur" in text and "Tue" in text
+    assert "When booked trial sessions take place" in text and "unknown, not zero" in text
+
+
+def test_snapshots_without_grids_still_export(report):
+    from openpyxl import load_workbook
+    workbook = load_workbook(BytesIO(service.export_report(report, "xlsx")["content"]))
+    assert list(workbook["Activity grids"].iter_rows(values_only=True))[1:] == []
+    assert service.export_report(report, "pdf")["content"].startswith(b"%PDF")

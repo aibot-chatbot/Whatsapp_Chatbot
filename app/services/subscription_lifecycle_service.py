@@ -1108,7 +1108,65 @@ def _apply_scheduled_downgrade(
         "result": "downgrade_applied",
         "from_plan_id": sub.get("plan_id"),
         "to_plan_id": target_plan_id,
+        "automation_disabled": _disable_automation_after_downgrade(company_id, target_plan),
     }
+
+
+def _disable_automation_after_downgrade(company_id: int, target_plan: dict) -> dict:
+    """Turn automatic working flows off when the new plan lacks them.
+
+    Idempotent (only enabled rows are touched) and best effort: a cleanup
+    failure is logged and never blocks the downgrade, because every worker
+    and the schedule tick re-check automation_workflows at execution time.
+    """
+    flags = (target_plan or {}).get("feature_flags")
+    if isinstance(flags, dict) and flags.get("automation_workflows") is True:
+        return {"schedules": 0, "recording": 0}
+    counts = {
+        "schedules": _disable_company_schedules(company_id),
+        "recording": _disable_company_recording(company_id),
+    }
+    logger.info("Automation disabled after downgrade for company %s: %s", company_id, counts)
+    return counts
+
+
+def _disable_company_schedules(company_id: int) -> int:
+    from app.database import analysis_repository
+
+    disabled = 0
+    try:
+        schedules = analysis_repository.list_enabled_company_schedules(company_id)
+    except Exception:
+        logger.warning("Could not list Analysis schedules for company %s after downgrade", company_id)
+        return 0
+    for schedule in schedules:
+        try:
+            analysis_repository.disable_schedule(schedule)
+            disabled += 1
+        except Exception:
+            logger.warning("Could not disable Analysis schedule %s after downgrade", schedule.get("id"))
+    return disabled
+
+
+def _disable_company_recording(company_id: int) -> int:
+    from app.database import business_observation_repository
+    from app.database.bot_repository import get_all_bots
+
+    disabled = 0
+    try:
+        bots = get_all_bots(company_id)
+    except Exception:
+        logger.warning("Could not list Bots for company %s after downgrade", company_id)
+        return 0
+    for bot in bots:
+        if bot.get("analysis_recording_enabled") is not True:
+            continue
+        try:
+            business_observation_repository.set_recording_enabled(company_id, bot["id"], False)
+            disabled += 1
+        except Exception:
+            logger.warning("Could not disable recording for Bot %s after downgrade", bot.get("id"))
+    return disabled
 
 
 def _clear_all_scheduling(subscription_id: int, company_id: int) -> dict:

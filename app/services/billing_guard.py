@@ -357,6 +357,10 @@ PLAN_FEATURES = frozenset({
     "ai_derived_persona",
     "conversation_memory",
     "knowledge_refinement",
+    # Automatic working flows (data/068): n8n outbox work, the Langflow
+    # decision layer, scheduled Analysis, recording and tuition reminders.
+    # Pro-only. Manual Analysis reports stay on ai_generated_reports.
+    "automation_workflows",
 })
 
 

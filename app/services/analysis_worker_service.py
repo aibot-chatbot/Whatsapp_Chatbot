@@ -11,6 +11,7 @@ import httpx
 
 from app.database import analysis_repository as reports
 from app.database import automation_event_repository as queue
+from app.services.analysis_request_service import is_scheduled_report
 from app.services.billing_guard import BillingLimitError, can_use_plan_feature
 from app.services.company_status_service import CompanyOperationalStatusError, ensure_company_operational
 
@@ -22,9 +23,18 @@ class LeaseLost(RuntimeError):
     pass
 
 
-def _authorize_report_company(company_id):
+def _authorize_report(report):
+    """Re-check entitlement at execution time; the plan may change after enqueue.
+
+    Every report needs ai_generated_reports. A scheduled report is also an
+    automatic working flow, so it needs automation_workflows (Pro-only); a
+    manual, on-demand report does not.
+    """
+    company_id = report["company_id"]
     ensure_company_operational(company_id)
     can_use_plan_feature(company_id, "ai_generated_reports")
+    if is_scheduled_report(report):
+        can_use_plan_feature(company_id, "automation_workflows")
 
 
 def _scope(report, event):
@@ -60,7 +70,7 @@ def execute_model_step(*, run_id, step_id):
     if not event:
         raise LeaseLost("Report job not found")
     scope = _scope(report, event)
-    _authorize_report_company(report["company_id"])
+    _authorize_report(report)
     callbacks = {
         "begin_model_step": lambda **kwargs: reports.begin_model_step(**scope, **kwargs),
         "finish_model_step": lambda **kwargs: reports.finish_model_step(**scope, **kwargs),
@@ -154,7 +164,7 @@ def process_report_event(event, *, step_executor=run_langflow_step):
     if not report:
         raise reports.AnalysisScopeDenied("Report not found")
     scope = _scope(report, event)
-    _authorize_report_company(report["company_id"])
+    _authorize_report(report)
     with LeaseHeartbeat(event) as lease:
         if report.get("snapshot"):
             snapshot = report["snapshot"]
@@ -182,7 +192,7 @@ def process_report_event(event, *, step_executor=run_langflow_step):
                 "analysis_status": "needs_review",
                 "limitations": ["AI analysis could not be confirmed. Facts are available; billing needs review."]}
         lease.check()
-        _authorize_report_company(report["company_id"])
+        _authorize_report(report)
         if result.get("status") not in {"complete", "partial"}:
             raise ValueError("Invalid analysis result")
         # The model/bridge cannot replace numeric facts already frozen in the DB.
@@ -195,7 +205,7 @@ def process_report_event(event, *, step_executor=run_langflow_step):
             manifest[format] = store_export(company_id=report["company_id"], chatbot_id=report["chatbot_id"],
                 report_id=report["id"], lease_token=event["lease_token"], format=format, content=artifact["content"])
         lease.check()
-        _authorize_report_company(report["company_id"])
+        _authorize_report(report)
         # One transaction publishes files + result and settles the owned queue lease.
         return reports.finish_report(**scope, status=result["status"], result=result, manifest=manifest)
 

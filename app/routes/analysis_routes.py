@@ -9,13 +9,23 @@ from flask import Blueprint, g, jsonify, request, send_file
 from app.database import analysis_repository as repo
 from app.decorators.auth_decorator import token_required
 from app.rate_limit import limiter
-from app.services.analysis_request_service import validate_request_spec, schedule_period
+from app.services.analysis_request_service import (
+    SCHEDULED_KEY_PREFIX, validate_request_spec, schedule_period, schedule_owner_durably_unentitled,
+)
 from app.services.analysis_storage_service import read_export, FORMATS
 from app.services.billing_guard import BillingLimitError, can_use_plan_feature
 from app.services.company_status_service import ensure_company_operational, CompanyOperationalStatusError
 from app.utils.access_control import role_required, verify_chatbot_access
 
 analysis_blueprint = Blueprint("analysis", __name__)
+
+# Automatic working flows (schedules, recording) are Pro-only; manual reports
+# stay on ai_generated_reports alone.
+AUTOMATION_FEATURE = "automation_workflows"
+DUE_PAGE_SIZE = 100
+# ponytail: 10 pages = 1,000 due rows a tick can step past; raise it (or add
+# a plan-aware due query) if more stuck schedules than that ever accumulate.
+MAX_DUE_PAGES = 10
 
 
 def _enabled():
@@ -110,6 +120,8 @@ def messages(bot_id):
     key = body.get("client_message_id")
     if not isinstance(key, str) or not 1 <= len(key) <= 200:
         raise ValueError("A request identifier is required.")
+    if key.startswith(SCHEDULED_KEY_PREFIX):
+        raise ValueError("That request identifier is reserved.")
     spec = validate_request_spec(body.get("request_spec", {}))
     row = repo.create_report_request(g.company_id, bot_id, g.user_id, key, text.strip(), request_spec=spec)
     return jsonify(data=_public_report(row)), 202
@@ -159,6 +171,9 @@ def schedules(bot_id):
     body = _body({"frequency", "enabled"})
     if type(body.get("enabled")) is not bool:
         raise ValueError("Choose whether the schedule is enabled.")
+    if body["enabled"]:
+        # Turning automation off never needs the entitlement.
+        can_use_plan_feature(g.company_id, AUTOMATION_FEATURE)
     period = schedule_period(body.get("frequency"))
     row = repo.upsert_schedule(g.company_id, bot_id, g.user_id, frequency=body["frequency"],
                                enabled=body["enabled"], next_due_at=period["next_due_at"])
@@ -177,6 +192,8 @@ def recording(bot_id):
     body = _body({"enabled"})
     if type(body.get("enabled")) is not bool:
         raise ValueError("Choose whether to record customer requests.")
+    if body["enabled"]:
+        can_use_plan_feature(g.company_id, AUTOMATION_FEATURE)
     enabled = set_recording_enabled(g.company_id, bot_id, body["enabled"])
     return jsonify(data={"enabled": enabled})
 
@@ -186,7 +203,10 @@ def _internal(fn):
     def wrapped(*args, **kwargs):
         expected = os.getenv("AGENT_INTERNAL_TOKEN", "")
         received = request.headers.get("Authorization", "")
-        if len(expected) < 32 or not secrets.compare_digest(received, "Bearer " + expected):
+        # Compare bytes: compare_digest raises TypeError on non-ASCII str input.
+        if len(expected) < 32 or not secrets.compare_digest(
+            received.encode("utf-8"), ("Bearer " + expected).encode("utf-8"),
+        ):
             return jsonify(message="Unauthorized."), 401
         return fn(*args, **kwargs)
     return wrapped
@@ -197,18 +217,48 @@ def _internal(fn):
 @_errors
 def schedule_tick():
     _body(set())
-    processed = 0
-    for schedule in repo.list_due_schedules(limit=100):
-        # RPC rechecks current actor role/company/Bot; plan is checked at tick and worker.
+    counts = {"enqueued": 0, "skipped": 0, "still_due": 0}
+    for _ in range(MAX_DUE_PAGES):
+        # Rows that stay due are stepped past, never re-read at the head: one
+        # tenant's stuck schedule must not starve every tenant behind it.
+        page = repo.list_due_schedules(limit=DUE_PAGE_SIZE, offset=counts["still_due"])
+        for schedule in page:
+            counts[_tick_schedule(schedule)] += 1
+        if len(page) < DUE_PAGE_SIZE:
+            break
+    return jsonify(data={"enqueued": counts["enqueued"], "skipped": counts["skipped"]})
+
+
+def _tick_schedule(schedule):
+    """Enqueue one due schedule; return enqueued, skipped or still_due."""
+    company_id = schedule["company_id"]
+    try:
+        ensure_company_operational(company_id)
+        # A scheduled report is both a report and an automatic working flow.
+        can_use_plan_feature(company_id, "ai_generated_reports")
+        can_use_plan_feature(company_id, AUTOMATION_FEATURE)
+    except CompanyOperationalStatusError:
+        return "still_due"
+    except BillingLimitError as exc:
+        # Skip the period only when billing was read: a plan without the flag,
+        # or a churned (cancelled/expired) subscription. A failed billing
+        # lookup keeps the period intact.
+        if exc.code != "feature_not_available" and not schedule_owner_durably_unentitled(company_id):
+            return "still_due"
         try:
-            ensure_company_operational(schedule["company_id"])
-            can_use_plan_feature(schedule["company_id"], "ai_generated_reports")
-            period = schedule_period(schedule["frequency"])
-            result = repo.enqueue_schedule_report(schedule["company_id"], schedule["chatbot_id"], schedule["id"], **period)
-            processed += int(bool(result.get("enqueued")))
-        except (PermissionError, BillingLimitError, CompanyOperationalStatusError):
-            continue
-    return jsonify(data={"enqueued": processed})
+            repo.skip_schedule_period(schedule, next_due_at=schedule_period(schedule["frequency"])["next_due_at"])
+        except (PermissionError, ValueError):
+            return "still_due"
+        return "skipped"
+    try:
+        # RPC rechecks current actor role/company/Bot; the worker rechecks plan.
+        period = schedule_period(schedule["frequency"])
+        result = repo.enqueue_schedule_report(company_id, schedule["chatbot_id"], schedule["id"], **period)
+    except (PermissionError, ValueError):
+        # Actor removed, pending-report limit, conflicting request: this
+        # schedule waits; the tick carries on for everyone else.
+        return "still_due"
+    return "enqueued" if result.get("enqueued") else "still_due"
 
 
 @analysis_blueprint.route("/internal/agent-model-steps", methods=["POST"])

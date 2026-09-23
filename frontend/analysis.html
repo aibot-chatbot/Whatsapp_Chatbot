@@ -36,13 +36,15 @@
             <aside class="analysis-rail">
                 <section class="analysis-panel"><div class="analysis-panel-heading"><h2>Customer activity</h2><button type="button" id="refresh-records">Refresh</button></div>
                     <button type="button" id="manage-trials" hidden>Manage trial sessions</button>
-                    <label class="analysis-schedule"><span>Record customer requests <small>Analyze new messages with this bot's model. Uses AI credits.</small></span><input type="checkbox" id="recording-enabled" disabled></label>
+                    <label class="analysis-schedule"><span>Record customer requests <small>Analyze new messages with this bot's model. Uses AI credits.</small></span><input type="checkbox" id="recording-enabled" aria-describedby="recording-plan-lock" disabled></label>
+                    <p class="analysis-plan-lock" id="recording-plan-lock" data-plan-lock hidden>Automatic request recording is a Pro plan feature. <a href="billing.html">Upgrade in Billing</a></p>
                     <p class="analysis-muted">Requests and completed actions are shown separately. A request does not reserve a place.</p>
                     <div id="business-records"><p class="analysis-empty">Loading records…</p></div><button type="button" id="more-records" hidden>More records</button>
                 </section>
                 <section class="analysis-panel"><h2>Scheduled reports</h2><p class="analysis-muted">Asia/Kuala_Lumpur · Previous complete period.</p>
-                    <label class="analysis-schedule"><span>Weekly <small>Monday, 09:00</small></span><input type="checkbox" data-frequency="weekly" disabled></label>
-                    <label class="analysis-schedule"><span>Monthly <small>1st of the month, 09:00</small></span><input type="checkbox" data-frequency="monthly" disabled></label>
+                    <label class="analysis-schedule"><span>Weekly <small>Monday, 09:00</small></span><input type="checkbox" data-frequency="weekly" aria-describedby="schedule-plan-lock" disabled></label>
+                    <label class="analysis-schedule"><span>Monthly <small>1st of the month, 09:00</small></span><input type="checkbox" data-frequency="monthly" aria-describedby="schedule-plan-lock" disabled></label>
+                    <p class="analysis-plan-lock" id="schedule-plan-lock" data-plan-lock hidden>Scheduled reports are a Pro plan feature. <a href="billing.html">Upgrade in Billing</a></p>
                 </section>
                 <section class="analysis-panel analysis-muted"><h2>Private to your business</h2><p>Records are scoped to your company and bot. Report downloads require an active administrator account.</p></section>
             </aside>

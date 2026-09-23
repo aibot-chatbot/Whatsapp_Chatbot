@@ -42,6 +42,34 @@ def _scalar(value):
     return value
 
 
+HOURS = [f"{hour:02d}" for hour in range(24)]
+UNKNOWN_GRID = "Unavailable (unknown, not zero)"
+
+
+def _grid_rows(grid):
+    """Day rows of one activity grid; an unavailable grid is one explicit row, never zeros."""
+    if not isinstance(grid.get("matrix"), list):
+        return [[UNKNOWN_GRID]]
+    return [[day, *counts, sum(counts)] for day, counts in zip(grid["days"], grid["matrix"])]
+
+
+def _pdf_grids(snapshot):
+    parts = []
+    for grid in snapshot.get("distributions", []):
+        rows = _grid_rows(grid)
+        total = "" if len(rows[0]) == 1 else f" · total {escape(str(grid.get('total')))}"
+        parts.append(f"<h3>{escape(grid['label'])}</h3><p>{escape(grid['timezone'])} · coverage {escape(grid['status'])}"
+                     f"{total}. {escape(grid.get('note') or '')}</p>")
+        if len(rows[0]) == 1:
+            parts.append(f"<p>{UNKNOWN_GRID}</p>")
+            continue
+        parts.append('<table class="grid"><tr><th>Day</th>' + "".join(f"<th>{hour}</th>" for hour in HOURS)
+                     + "<th>Total</th></tr>")
+        parts.extend("<tr>" + "".join(f"<td>{escape(str(value))}</td>" for value in row) + "</tr>" for row in rows)
+        parts.append("</table>")
+    return parts
+
+
 def _pdf(report):
     import pymupdf
 
@@ -57,7 +85,12 @@ def _pdf(report):
     for metric in snapshot["metrics"]:
         parts.append("<tr>" + "".join(f"<td>{escape(str(_scalar(value)))}</td>" for value in
                                      (metric["label"], metric["value"], metric["status"])) + "</tr>")
-    parts.append("</table><h2>AI commentary</h2>")
+    parts.append("</table>")
+    grids = _pdf_grids(snapshot)
+    if grids:
+        parts.append("<h2>Activity by day and hour</h2>")
+        parts.extend(grids)
+    parts.append("<h2>AI commentary</h2>")
     # Escape every byte of model/document text. Never render model HTML/images.
     parts.extend(f"<p>{escape(paragraph).replace(chr(10), '<br>')}</p>"
                  for paragraph in report["narrative"].split("\n\n"))
@@ -80,7 +113,8 @@ def _pdf(report):
     story = pymupdf.Story("<html><body>" + "".join(parts) + "</body></html>", user_css=(
         "body { font-family: sans-serif; font-size: 10pt; line-height: 1.4; } "
         "h1 { font-size: 18pt; } h2 { font-size: 13pt; margin-top: 16pt; } "
-        "table { width: 100%; border-collapse: collapse; } th,td { border: 0.5pt solid #ccc; padding: 5pt; }"))
+        "table { width: 100%; border-collapse: collapse; } th,td { border: 0.5pt solid #ccc; padding: 5pt; } "
+        "h3 { font-size: 11pt; margin-top: 10pt; } table.grid th, table.grid td { font-size: 6pt; padding: 1pt; text-align: center; }"))
     buffer = BytesIO()
     writer = pymupdf.DocumentWriter(buffer)
     box = pymupdf.paper_rect("a4")
@@ -138,6 +172,9 @@ def _xlsx(report):
         ["Snapshot SHA256", snapshot["snapshot_sha256"]]])
     sheet("Metrics", ["Key", "Metric", "Value", "Coverage", "Source"],
           [[item[key] for key in ("key", "label", "value", "status", "source")] for item in snapshot["metrics"]])
+    sheet("Activity grids", ["Grid", "Timezone", "Coverage", "Day", *HOURS, "Day total"],
+          [[grid["label"], grid["timezone"], grid["status"], *row]
+           for grid in snapshot.get("distributions", []) for row in _grid_rows(grid)])
     sheet("Commentary", ["Paragraph"], [[paragraph] for paragraph in report["narrative"].split("\n\n")])
     sheet("Limitations", ["Limitation"], [[item] for item in snapshot["limitations"] + report["limitations"]])
     sheet("Sources", ["Source", "Available", "Rows", "Truncated", "Error"],
