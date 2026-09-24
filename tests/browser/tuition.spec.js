@@ -78,11 +78,12 @@ async function guest(page, {disabled = false, existing = false} = {}) {
 
 test("administrator creates catalogue and sessions in Kuala Lumpur time and updates versioned capacity", async ({page}) => {
     const world = await admin(page);
-    await page.getByRole("button",{name:"Manage trial sessions"}).click();
+    await page.getByRole("button",{name:"Manage trial lessons"}).click();
     await expect(page.locator("#tuition-bookings")).toContainText(booking.id);
     await page.locator("#tuition-course-form input").fill("Science");
     await page.locator("#tuition-course-form button").click();
     await expect(page.locator("#tuition-status")).toHaveText("Course added.");
+    await expect(page.locator("#tuition-course-form button")).toBeFocused();
     await page.locator("#tuition-class-form select").selectOption(uid(5));
     await page.locator("#tuition-class-form input").fill("Year 6");
     await page.locator("#tuition-class-form button").click();
@@ -100,6 +101,7 @@ test("administrator creates catalogue and sessions in Kuala Lumpur time and upda
     await page.locator('#tuition-sessions [name="trial_limit"]').fill("1");
     await page.getByRole("button",{name:"Save capacity"}).click();
     await expect(page.locator("#tuition-status")).toHaveText("Capacity updated.");
+    await expect(page.getByRole("button",{name:"Save capacity"})).toBeFocused();
     expect(world.posts[3].body).toEqual({expected_version:3,total_capacity:10,enrolled_seats:8,trial_limit:1});
     expect(world.posts.every(row => row.body.company_id === undefined)).toBe(true);
     expect(world.errors).toEqual([]);

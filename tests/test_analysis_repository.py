@@ -91,6 +91,26 @@ def test_selected_document_ids_are_checked_against_this_bot(monkeypatch):
         repo.load_report_sources(10, 7, None, None, "2026-09-22T00:00:00+00:00", [99])
 
 
+def test_customer_activity_is_newest_first_and_pages_below_the_cursor(monkeypatch):
+    from unittest.mock import MagicMock, call
+    query = MagicMock()
+    for method in ("table", "select", "eq", "gt", "lt", "order", "limit"):
+        getattr(query, method).return_value = query
+    query.execute.return_value = SimpleNamespace(data=[{"id": 9}, {"id": 8}])
+    monkeypatch.setattr(repo, "supabase", query)
+
+    assert [row["id"] for row in repo.list_business_events(10, 7)] == [9, 8]
+    assert query.order.call_args_list == [call("id", desc=True)]
+    query.lt.assert_not_called()
+    query.gt.assert_not_called()
+
+    query.reset_mock()
+    repo.list_business_events(10, 7, after_id=8)
+    assert query.lt.call_args_list == [call("id", 8)]
+    query.gt.assert_not_called()
+    assert query.order.call_args_list == [call("id", desc=True)]
+
+
 def test_timestamp_only_pagination_rejected(db):
     with pytest.raises(ValueError, match="tie breaker"):
         repo.list_reports(10, 7, before_created_at="2026-09-22T00:00:00+00:00")

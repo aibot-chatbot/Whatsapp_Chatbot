@@ -201,15 +201,18 @@ def record_business_event(*, company_id, chatbot_id, conversation_id, actor_user
 
 
 def list_business_events(company_id, chatbot_id, *, after_id=0, limit=100, start_at=None, end_at=None):
+    """Newest first. after_id is the last id of the previous page (0 = first page)."""
     _scope(company_id, chatbot_id)
     if isinstance(after_id, bool) or not isinstance(after_id, int) or after_id < 0:
         raise ValueError("Invalid event cursor")
-    query = supabase.table("business_events").select("*").eq("company_id", company_id).eq("chatbot_id", chatbot_id).gt("id", after_id)
+    query = supabase.table("business_events").select("*").eq("company_id", company_id).eq("chatbot_id", chatbot_id)
+    if after_id:
+        query = query.lt("id", after_id)
     if start_at:
         query = query.gte("created_at", start_at)
     if end_at:
         query = query.lt("created_at", end_at)
-    return _rows(query.order("id").limit(min(_positive(limit, "limit"), 500)))
+    return _rows(query.order("id", desc=True).limit(min(_positive(limit, "limit"), 500)))
 
 
 def get_report_context(company_id, chatbot_id):
