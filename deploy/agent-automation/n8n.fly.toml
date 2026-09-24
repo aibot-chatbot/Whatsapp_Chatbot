@@ -10,6 +10,15 @@ kill_timeout = "60s"
   N8N_PORT = "5678"
   N8N_PROTOCOL = "http"
   N8N_SECURE_COOKIE = "true"
+  # Public editor behind Fly's TLS edge (owner decision 2026-09-24: the private
+  # fly-proxy tunnel stalls on uploads over ~8 KB from the operator PC). The
+  # listener stays plain HTTP; these only set the URLs n8n shows and trusts.
+  N8N_HOST = "aibot-agent-n8n-my.fly.dev"
+  N8N_EDITOR_BASE_URL = "https://aibot-agent-n8n-my.fly.dev/"
+  WEBHOOK_URL = "https://aibot-agent-n8n-my.fly.dev/"
+  N8N_PROXY_HOPS = "1"
+  N8N_PUBLIC_API_DISABLED = "true"
+  N8N_PUBLIC_API_SWAGGERUI_DISABLED = "true"
   N8N_DIAGNOSTICS_ENABLED = "false"
   N8N_VERSION_NOTIFICATIONS_ENABLED = "false"
   N8N_PERSONALIZATION_ENABLED = "false"
@@ -32,6 +41,14 @@ kill_timeout = "60s"
   # No volume: workflows, credentials and executions live in the agent_n8n schema, and
   # N8N_ENCRYPTION_KEY is a secret. A root-owned Fly volume would break the `node` user.
   # Required secret DB_POSTGRESDB_SSL_CA (Supabase CA PEM): TLS rejects unauthorized certs.
+
+[http_service]
+  internal_port = 5678
+  force_https = true
+  # 24/7: the schedule tick must never wait for a cold start.
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
 
 [deploy]
   strategy = "immediate"
