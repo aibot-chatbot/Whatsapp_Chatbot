@@ -11,6 +11,7 @@ from app.decorators.auth_decorator import token_required
 from app.rate_limit import limiter
 from app.services.analysis_request_service import (
     SCHEDULED_KEY_PREFIX, validate_request_spec, schedule_period, schedule_owner_durably_unentitled,
+    validate_schedule_choice,
 )
 from app.services.analysis_storage_service import read_export, FORMATS
 from app.services.billing_guard import BillingLimitError, can_use_plan_feature
@@ -22,6 +23,8 @@ analysis_blueprint = Blueprint("analysis", __name__)
 # Automatic working flows (schedules, recording) are Pro-only; manual reports
 # stay on ai_generated_reports alone.
 AUTOMATION_FEATURE = "automation_workflows"
+# The owner's schedule slot: weekday (weekly) or day (monthly) plus time.
+SLOT_FIELDS = ("run_weekday", "run_day", "run_time")
 DUE_PAGE_SIZE = 100
 # ponytail: 10 pages = 1,000 due rows a tick can step past; raise it (or add
 # a plan-aware due query) if more stuck schedules than that ever accumulate.
@@ -168,15 +171,19 @@ def schedules(bot_id):
     _authorize(bot_id)
     if request.method == "GET":
         return jsonify(data=repo.list_schedules(g.company_id, bot_id))
-    body = _body({"frequency", "enabled"})
+    body = _body({"frequency", "enabled", *SLOT_FIELDS})
     if type(body.get("enabled")) is not bool:
         raise ValueError("Choose whether the schedule is enabled.")
+    slot = validate_schedule_choice(body.get("frequency"), **{field: body.get(field) for field in SLOT_FIELDS})
+    next_due_at = None
     if body["enabled"]:
         # Turning automation off never needs the entitlement.
         can_use_plan_feature(g.company_id, AUTOMATION_FEATURE)
-    period = schedule_period(body.get("frequency"))
+        # Enabling always carries the whole slot, so a new day/time takes
+        # effect at once; disabling sends none and the stored choice stays.
+        next_due_at = schedule_period(body["frequency"], **slot)["next_due_at"]
     row = repo.upsert_schedule(g.company_id, bot_id, g.user_id, frequency=body["frequency"],
-                               enabled=body["enabled"], next_due_at=period["next_due_at"])
+                               enabled=body["enabled"], next_due_at=next_due_at, **slot)
     return jsonify(data=row)
 
 
@@ -229,6 +236,11 @@ def schedule_tick():
     return jsonify(data={"enqueued": counts["enqueued"], "skipped": counts["skipped"]})
 
 
+def _owner_period(schedule):
+    # A row without a slot raises ValueError, which leaves it still_due.
+    return schedule_period(schedule["frequency"], **{field: schedule.get(field) for field in SLOT_FIELDS})
+
+
 def _tick_schedule(schedule):
     """Enqueue one due schedule; return enqueued, skipped or still_due."""
     company_id = schedule["company_id"]
@@ -246,19 +258,30 @@ def _tick_schedule(schedule):
         if exc.code != "feature_not_available" and not schedule_owner_durably_unentitled(company_id):
             return "still_due"
         try:
-            repo.skip_schedule_period(schedule, next_due_at=schedule_period(schedule["frequency"])["next_due_at"])
+            repo.skip_schedule_period(schedule, next_due_at=_owner_period(schedule)["next_due_at"])
         except (PermissionError, ValueError):
             return "still_due"
         return "skipped"
     try:
         # RPC rechecks current actor role/company/Bot; the worker rechecks plan.
-        period = schedule_period(schedule["frequency"])
+        period = _owner_period(schedule)
         result = repo.enqueue_schedule_report(company_id, schedule["chatbot_id"], schedule["id"], **period)
     except (PermissionError, ValueError):
         # Actor removed, pending-report limit, conflicting request: this
         # schedule waits; the tick carries on for everyone else.
         return "still_due"
-    return "enqueued" if result.get("enqueued") else "still_due"
+    if result.get("enqueued"):
+        return "enqueued"
+    if schedule.get("last_period_key") == period["period_key"]:
+        # This period already ran (the owner moved today's slot later after
+        # it fired). The RPC declines it without moving next_due_at, so step
+        # to the next slot instead of staying due for a whole period.
+        try:
+            repo.skip_schedule_period(schedule, next_due_at=period["next_due_at"])
+        except (PermissionError, ValueError):
+            return "still_due"
+        return "skipped"
+    return "still_due"
 
 
 @analysis_blueprint.route("/internal/agent-model-steps", methods=["POST"])

@@ -5,9 +5,27 @@ test.beforeAll(async () => { server = await startServer(); });
 test.afterAll(async () => { await new Promise(resolve => server.close(resolve)); });
 const id = "00000000-0000-4000-8000-000000000001";
 const OLDER_ID = "00000000-0000-4000-8000-000000000003";
-async function setup(page, {role = "owner", disabled = false, disabledCode = false, locked = false, pollAdds = false, moreReports = false, formats = [], downloadFails = false, automation = true, denyFeature = false, denyReads = false, distributions = [], active = false} = {}) {
+async function setup(page, {role = "owner", disabled = false, disabledCode = false, locked = false, pollAdds = false, moreReports = false, formats = [], downloadFails = false, automation = true, denyFeature = false, denyReads = false, distributions = [], active = false, legacyActive = false, holdEnables = false, scheduleRejects = ""} = {}) {
     const posts = [];
     let reportLists = 0;
+    // Schedules follow the API contract: stored choices survive a switch-off, and the next run is computed from them.
+    const blank = frequency => ({frequency, enabled:false, run_weekday:null, run_day:null, run_time:null, next_due_at:null});
+    const store = {weekly:active ? {frequency:"weekly", enabled:true, run_weekday:3, run_day:null, run_time:"18:15", next_due_at:"2026-10-01T10:15:00Z"}
+        : legacyActive ? {...blank("weekly"), enabled:true, next_due_at:"2026-10-01T01:00:00Z"} : blank("weekly"), monthly:blank("monthly")};
+    // holdEnables: saves that switch a schedule on wait until the test calls posts.release(), to hold a save "in flight".
+    let releaseEnables = () => {};
+    const enablesHeld = new Promise(resolve => { releaseEnables = resolve; });
+    const nextDue = row => {
+        const [hour, minute] = row.run_time.split(":").map(Number);
+        const day = row.frequency === "weekly" ? 1 : row.run_day === "last" ? 0 : row.run_day;
+        return new Date(Date.UTC(2026, 9, day, hour - 8, minute)).toISOString();  // Malaysia is UTC+8
+    };
+    const saveSchedule = body => {
+        const row = {...store[body.frequency], enabled:body.enabled};
+        for (const key of ["run_weekday", "run_day", "run_time"]) if (key in body) row[key] = body[key];
+        row.next_due_at = row.enabled ? nextDue(row) : null;
+        return store[body.frequency] = row;
+    };
     await page.addInitScript(role => {
         sessionStorage.setItem("token", "test-token");
         sessionStorage.setItem("user", JSON.stringify({id: 31, company_id: 42, role, status: "active"}));
@@ -27,6 +45,12 @@ async function setup(page, {role = "owner", disabled = false, disabledCode = fal
         if (route.request().method() === "POST" && denyFeature && path.endsWith("/schedules")) return respond({code:"feature_not_available", message:"The feature \"automation_workflows\" is not available on your current subscription plan."}, 403);
         if (route.request().method() === "POST") {
             posts.push({path, body:route.request().postDataJSON()});
+            if (path.endsWith("/schedules")) {
+                const body = posts.at(-1).body;
+                if (scheduleRejects) return respond({message:scheduleRejects}, 400);
+                if (holdEnables && body.enabled) await enablesHeld;
+                return respond({data:saveSchedule(body)});
+            }
             return respond({data:path.endsWith("/messages") ? {id, status:"queued", request_text:posts.at(-1).body.text, created_at:"2026-09-22T10:00:00Z"} : {}},202);
         }
         if (path.endsWith("/messages")) {
@@ -36,14 +60,20 @@ async function setup(page, {role = "owner", disabled = false, disabledCode = fal
         }
         if (path.endsWith("/download")) return downloadFails ? respond({message:"Download is unavailable right now."}, 500) : route.fulfill({status:200, contentType:"application/pdf", body:"%PDF-1.4"});
         if (path.endsWith("/records")) return respond({data:[{id:1, action_type:"booking", status:"requested", conversation_id:9, created_at:"2026-09-22T09:00:00Z"}], next_cursor:null});
-        if (path.endsWith("/schedules")) return respond({data:active ? [{frequency:"weekly", enabled:true}] : []});
+        if (path.endsWith("/schedules")) return respond({data:Object.values(store)});
         if (path.endsWith("/recording")) return respond({data:{enabled:active}});
         if (path.includes("/reports/")) return respond({data:{id, status:"partial", request_text:"Analyze my restaurant requests", formats, snapshot:{metrics:[{label:"Revenue",status:"unavailable",value:null}], limitations:["Bookings system not connected."],distributions,customer_questions:{excerpts:[{message_id:901,conversation_id:9,text:"<img src=x>Can I book a table?"}]}},result:{narrative:"<img src=x onerror=alert(1)>Only an application was recorded."}}});
         return respond({data:{bot:{id:7,bot_name:"Laksa assistant"},industry:{template_id:"restaurant",confirmed_at:"2026-09-22T09:00:00Z"},role:{business_description:"Restaurant customer service"}}});
     });
     await page.goto("/analysis.html?bot_id=7");
+    posts.release = () => releaseEnables();
     return posts;
 }
+async function chooseWeekly(page, day = "3", time = "18:15") {
+    await page.getByLabel("Weekly report day").selectOption(day);
+    await page.getByLabel("Weekly report time").selectOption(time);
+}
+const schedulePosts = posts => posts.filter(post => post.path.endsWith("/schedules")).map(post => post.body);
 test("industry context, request state, safe report rendering and schedule opt-in", async ({page}) => {
     const posts = await setup(page);
     await expect(page.locator("#send-report")).toBeEnabled();
@@ -65,6 +95,7 @@ test("industry context, request state, safe report rendering and schedule opt-in
     await expect(page.locator("#report-thread")).toContainText("Waiting to start");
     expect(posts[0].body.company_id).toBeUndefined();
     expect(posts[0].body.client_message_id).toMatch(/^[a-f0-9-]{36}$/);
+    await chooseWeekly(page);
     await page.locator('[data-frequency="weekly"]').check();
     await expect(page.locator("#analysis-status")).toHaveText("Schedule enabled.");
     await expect(page.locator("#recording-enabled")).not.toBeChecked();
@@ -139,6 +170,7 @@ test("automation controls are locked with a Pro plan note when the plan lacks au
 test("server plan denial shows an upgrade prompt instead of the raw message", async ({page}) => {
     await setup(page, {denyFeature:true});
     await expect(page.locator('[data-frequency="weekly"]')).toBeEnabled();
+    await chooseWeekly(page);
     // click, not check: the page reverts the box after the server refuses, so check()'s own "is checked" wait races it.
     await page.locator('[data-frequency="weekly"]').click();
     await expect(page.locator("#analysis-status")).toContainText("Pro plan");
@@ -302,6 +334,7 @@ test("every keyboard stop in the report stays visible at 320 by 256", async ({pa
 test("keyboard focus stays put when a control pauses while saving", async ({page}) => {
     await setup(page);
     const weekly = page.locator('[data-frequency="weekly"]');
+    await chooseWeekly(page);
     await weekly.focus();
     await page.keyboard.press("Space");
     await expect(page.locator("#analysis-status")).toHaveText("Schedule enabled.");
@@ -342,4 +375,150 @@ test("a blank request explains what to type", async ({page}) => {
     await expect(page.locator("#report-hint")).toHaveText("Type what you want to know first.");
     await expect(page.locator("#report-command")).toHaveAttribute("aria-invalid", "true");
     await expect(page.locator("#report-command")).toBeFocused();
+});
+test("schedule pickers start empty and offer every quarter hour in 12-hour time", async ({page}) => {
+    await setup(page);
+    await expect(page.locator("#send-report")).toBeEnabled();
+    for (const name of ["Weekly report day", "Weekly report time", "Monthly report day", "Monthly report time"]) await expect(page.getByLabel(name)).toHaveValue("");
+    await expect(page.getByLabel("Weekly report day").locator("option")).toHaveText(["Choose a day", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+    const monthlyDays = page.getByLabel("Monthly report day").locator("option");
+    await expect(monthlyDays).toHaveCount(30);
+    await expect(monthlyDays.nth(1)).toHaveText("1st");
+    await expect(monthlyDays.nth(22)).toHaveText("22nd");
+    await expect(monthlyDays.nth(29)).toHaveText("Last day of the month");
+    const times = page.getByLabel("Weekly report time").locator("option");
+    await expect(times).toHaveCount(97);
+    await expect(times.nth(0)).toHaveText("Choose a time");
+    await expect(times.nth(1)).toHaveText("12:00 am");
+    await expect(page.getByLabel("Weekly report time").locator('option[value="18:15"]')).toHaveText("6:15 pm");
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("Off — covers the 7 days before each report");
+    await expect(page.locator("#schedule-monthly-help")).toHaveText("Off — covers the month before each report");
+});
+test("a schedule cannot switch on until a day and time are chosen", async ({page}) => {
+    const posts = await setup(page);
+    const weekly = page.locator('[data-frequency="weekly"]');
+    await expect(weekly).toBeEnabled();
+    await weekly.click();
+    await expect(weekly).not.toBeChecked();
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("Choose a day and time first.");
+    await expect(page.getByLabel("Weekly report day")).toBeFocused();
+    await page.getByLabel("Weekly report day").selectOption("3");
+    await weekly.click();
+    await expect(page.getByLabel("Weekly report time")).toBeFocused();
+    expect(schedulePosts(posts)).toEqual([]);
+});
+test("choosing a day and time then switching on saves them and shows the next report", async ({page}) => {
+    const posts = await setup(page);
+    await chooseWeekly(page);
+    await page.locator('[data-frequency="weekly"]').check();
+    await expect(page.locator("#analysis-status")).toHaveText("Schedule enabled.");
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("On — next report Thursday 1 Oct, 6:15 pm");
+    await page.getByLabel("Monthly report day").selectOption("last");
+    await page.getByLabel("Monthly report time").selectOption("09:00");
+    await page.locator('[data-frequency="monthly"]').check();
+    await expect(page.locator("#schedule-monthly-help")).toHaveText("On — next report Wednesday 30 Sep, 9:00 am");
+    expect(schedulePosts(posts)).toEqual([
+        {frequency:"weekly", enabled:true, run_weekday:3, run_time:"18:15"},
+        {frequency:"monthly", enabled:true, run_day:"last", run_time:"09:00"},
+    ]);
+    await page.getByLabel("Monthly report day").selectOption("15");
+    await expect.poll(() => schedulePosts(posts).at(-1)).toEqual({frequency:"monthly", enabled:true, run_day:15, run_time:"09:00"});
+});
+test("changing the time of an active schedule saves it and shows the new next report", async ({page}) => {
+    const posts = await setup(page, {active:true});
+    await expect(page.getByLabel("Weekly report day")).toHaveValue("3");
+    await expect(page.getByLabel("Weekly report time")).toHaveValue("18:15");
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("On — next report Thursday 1 Oct, 6:15 pm");
+    await page.getByLabel("Weekly report time").selectOption("07:30");
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("On — next report Thursday 1 Oct, 7:30 am");
+    await expect(page.locator("#analysis-status")).toHaveText("Schedule updated. Next report Thursday 1 Oct, 7:30 am.");
+    expect(schedulePosts(posts)).toEqual([{frequency:"weekly", enabled:true, run_weekday:3, run_time:"07:30"}]);
+    await page.locator('[data-frequency="weekly"]').uncheck();
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("Off — covers the 7 days before each report");
+    await expect(page.getByLabel("Weekly report time")).toHaveValue("07:30");
+    expect(schedulePosts(posts).at(-1)).toEqual({frequency:"weekly", enabled:false});
+});
+test("a schedule the server refuses shows its message in the row", async ({page}) => {
+    await setup(page, {scheduleRejects:"Choose a day and time first."});
+    await chooseWeekly(page);
+    await page.locator('[data-frequency="weekly"]').click();
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("Choose a day and time first.");
+    await expect(page.locator('[data-frequency="weekly"]')).not.toBeChecked();
+});
+test("a plan without automation locks the schedule pickers too", async ({page}) => {
+    await setup(page, {automation:false});
+    await expect(page.locator("#send-report")).toBeEnabled();
+    for (const name of ["Weekly report day", "Weekly report time", "Monthly report day", "Monthly report time"]) await expect(page.getByLabel(name)).toBeDisabled();
+    const downgraded = await page.context().newPage();
+    await setup(downgraded, {automation:false, active:true});
+    await expect(downgraded.locator('[data-frequency="weekly"]')).toBeEnabled();
+    await expect(downgraded.getByLabel("Weekly report day")).toBeDisabled();
+    await expect(downgraded.getByLabel("Weekly report time")).toBeDisabled();
+    await expect(downgraded.getByLabel("Weekly report time")).toHaveAttribute("aria-describedby", "schedule-weekly-help schedule-plan-lock");
+});
+test("switching off within the save delay of a time change keeps the schedule off", async ({page}) => {
+    await page.clock.install();
+    const posts = await setup(page, {active:true});
+    const weekly = page.locator('[data-frequency="weekly"]');
+    await expect(weekly).toBeChecked();
+    await page.getByLabel("Weekly report time").selectOption("07:30");
+    await weekly.uncheck();
+    await page.clock.fastForward(1000);
+    await expect.poll(() => schedulePosts(posts).length).toBeGreaterThan(0);
+    await page.clock.fastForward(1000);
+    expect(schedulePosts(posts).at(-1)).toEqual({frequency:"weekly", enabled:false});
+    expect(schedulePosts(posts).some(body => body.enabled)).toBe(false);
+    await expect(weekly).not.toBeChecked();
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("Off — covers the 7 days before each report");
+});
+test("switching off while a time change is still saving keeps the schedule off", async ({page}) => {
+    await page.clock.install();
+    const posts = await setup(page, {active:true, holdEnables:true});
+    const weekly = page.locator('[data-frequency="weekly"]');
+    await page.getByLabel("Weekly report time").selectOption("07:30");
+    await page.clock.fastForward(1000);
+    await expect.poll(() => schedulePosts(posts)).toEqual([{frequency:"weekly", enabled:true, run_weekday:3, run_time:"07:30"}]);
+    await weekly.uncheck();
+    // The switch-off waits for the in-flight save, so the server sees on-then-off, never off-then-on.
+    expect(schedulePosts(posts)).toHaveLength(1);
+    posts.release();
+    await expect.poll(() => schedulePosts(posts).at(-1)).toEqual({frequency:"weekly", enabled:false});
+    await expect(page.locator("#analysis-status")).toHaveText("Schedule paused.");
+    await expect(weekly).not.toBeChecked();
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("Off — covers the 7 days before each report");
+});
+test("an active schedule with no stored day never saves a guessed Monday", async ({page}) => {
+    await page.clock.install();
+    const posts = await setup(page, {legacyActive:true});
+    await expect(page.locator('[data-frequency="weekly"]')).toBeChecked();
+    await page.getByLabel("Weekly report time").selectOption("07:30");
+    await page.clock.fastForward(1000);
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("Choose a day and time first.");
+    expect(schedulePosts(posts)).toEqual([]);
+    await page.getByLabel("Weekly report day").selectOption("3");
+    await page.clock.fastForward(1000);
+    await expect.poll(() => schedulePosts(posts)).toEqual([{frequency:"weekly", enabled:true, run_weekday:3, run_time:"07:30"}]);
+});
+test("changing a time and changing it back does not re-save the schedule", async ({page}) => {
+    await page.clock.install();
+    const posts = await setup(page, {active:true});
+    await page.getByLabel("Weekly report time").selectOption("07:30");
+    await page.getByLabel("Weekly report time").selectOption("18:15");
+    await page.clock.fastForward(1000);
+    await expect(page.locator("#schedule-weekly-help")).toHaveText("On — next report Thursday 1 Oct, 6:15 pm");
+    await page.clock.fastForward(1000);
+    expect(schedulePosts(posts)).toEqual([]);
+});
+test("a day or time change shows Saving until the save returns", async ({page}) => {
+    await page.clock.install();
+    const posts = await setup(page, {active:true, holdEnables:true});
+    const help = page.locator("#schedule-weekly-help");
+    await page.getByLabel("Weekly report time").selectOption("07:30");
+    await expect(help).toHaveText("Saving…");
+    await expect(help).not.toHaveClass(/analysis-hint-error/);
+    await page.clock.fastForward(1000);
+    await expect.poll(() => schedulePosts(posts).length).toBe(1);
+    await expect(help).toHaveText("Saving…");
+    posts.release();
+    await expect(help).toHaveText("On — next report Thursday 1 Oct, 7:30 am");
 });

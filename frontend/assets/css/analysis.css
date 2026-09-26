@@ -329,8 +329,41 @@
     border-bottom-color: var(--control-border);
 }
 
-.analysis-toggles-first .analysis-toggle:first-child {
+.analysis-toggles-first .analysis-toggle:first-child,
+.analysis-schedule:first-child .analysis-toggle {
     padding-top: 0;
+}
+
+/* Schedule rows: the switch, then its day and time pickers on one line where they fit, stacked where they don't. */
+.analysis-schedule + .analysis-schedule {
+    border-top: 1px solid var(--control-border);
+}
+
+.analysis-page .analysis-schedule .analysis-toggle {
+    padding-bottom: 8px;
+    border-bottom: 0;
+}
+
+.analysis-schedule-pickers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 0 14px;
+}
+
+/* Sized for the longest real labels ("Last day of the month", "Choose a time"), so neither is ever clipped. */
+.analysis-page .analysis-schedule-pickers .kw-select {
+    flex: 1 1 11.5rem;
+    min-width: 0;
+}
+
+.analysis-page .analysis-schedule-pickers .kw-select[data-schedule-part="time"] {
+    flex: 1 1 8.25rem;
+}
+
+.analysis-page .analysis-schedule-pickers .kw-select:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
 }
 
 .analysis-page .analysis-toggle input {
@@ -868,6 +901,7 @@
 @media (pointer: coarse) {
     .analysis-page .kw-chip,
     .analysis-page .kw-btn,
+    .analysis-page .kw-select,
     .analysis-page .kw-locked .kw-btn,
     .analysis-page .kw-check,
     .analysis-page .analysis-toggle,

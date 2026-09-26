@@ -911,6 +911,27 @@ class TestDowngradeDisablesAutomation(unittest.TestCase):
         _result, _listed, disabled, _recording = self._downgrade({})
         disabled.assert_called_once()
 
+    def test_downgrade_turns_schedules_off_but_keeps_the_owners_day_and_time(self):
+        # Real repository down to the mocked RPC: the disable call carries no
+        # day/time, so analysis_upsert_schedule (data/070) keeps the stored slot
+        # and re-enabling after an upgrade offers the owner's own choice back.
+        from unittest.mock import MagicMock
+        from app.database import analysis_repository as repository
+
+        db = MagicMock()
+        db.rpc.return_value.execute.return_value.data = {**self.SCHEDULE, "enabled": False,
+                                                         "run_weekday": 3, "run_time": "18:15:00"}
+        schedule = {**self.SCHEDULE, "run_weekday": 3, "run_day": None, "run_time": "18:15"}
+        with patch.object(repository, "supabase", db):
+            result, _listed, _disabled, _recording = self._downgrade(
+                {"automation_workflows": False}, schedules=[schedule], disable=repository.disable_schedule)
+        self.assertEqual(result["automation_disabled"]["schedules"], 1)
+        name, params = db.rpc.call_args.args
+        self.assertEqual(name, "analysis_upsert_schedule")
+        self.assertIs(params["p_enabled"], False)
+        self.assertEqual(params["p_actor_user_id"], 31)
+        self.assertFalse({"p_run_weekday", "p_run_day", "p_run_time"} & set(params))
+
     def test_cleanup_failure_never_blocks_the_downgrade(self):
         result, _listed, _disabled, recording = self._downgrade(
             {"automation_workflows": False}, disable=PermissionError("actor gone"))

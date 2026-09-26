@@ -192,18 +192,43 @@
                     </div>
                     <div class="kw-panel-body">
                         <div class="analysis-toggles analysis-toggles-first">
-                            <div class="kw-check analysis-toggle">
-                                <input type="checkbox" id="schedule-weekly" data-frequency="weekly" data-lock="schedule-plan-lock" aria-describedby="schedule-weekly-help" disabled>
-                                <div>
-                                    <label for="schedule-weekly">Weekly report</label>
-                                    <p class="kw-help" id="schedule-weekly-help" data-off="Every Monday, 9:00 am — covers last week">Every Monday, 9:00 am — covers last week</p>
+                            <!-- Day and time start empty on purpose: the owner chooses them; nothing is preset. -->
+                            <div class="analysis-schedule" data-schedule="weekly">
+                                <div class="kw-check analysis-toggle">
+                                    <input type="checkbox" id="schedule-weekly" data-frequency="weekly" data-lock="schedule-plan-lock" aria-describedby="schedule-weekly-help" disabled>
+                                    <div>
+                                        <label for="schedule-weekly">Weekly report</label>
+                                        <p class="kw-help" id="schedule-weekly-help">Off — covers the 7 days before each report</p>
+                                    </div>
+                                </div>
+                                <div class="analysis-schedule-pickers">
+                                    <label class="kw-visually-hidden" for="schedule-weekly-day">Weekly report day</label>
+                                    <select class="kw-select" id="schedule-weekly-day" data-schedule-part="day" aria-describedby="schedule-weekly-help" disabled>
+                                        <option value="" disabled selected>Choose a day</option>
+                                    </select>
+                                    <label class="kw-visually-hidden" for="schedule-weekly-time">Weekly report time</label>
+                                    <select class="kw-select" id="schedule-weekly-time" data-schedule-part="time" aria-describedby="schedule-weekly-help" disabled>
+                                        <option value="" disabled selected>Choose a time</option>
+                                    </select>
                                 </div>
                             </div>
-                            <div class="kw-check analysis-toggle">
-                                <input type="checkbox" id="schedule-monthly" data-frequency="monthly" data-lock="schedule-plan-lock" aria-describedby="schedule-monthly-help" disabled>
-                                <div>
-                                    <label for="schedule-monthly">Monthly report</label>
-                                    <p class="kw-help" id="schedule-monthly-help" data-off="1st of each month, 9:00 am — covers last month">1st of each month, 9:00 am — covers last month</p>
+                            <div class="analysis-schedule" data-schedule="monthly">
+                                <div class="kw-check analysis-toggle">
+                                    <input type="checkbox" id="schedule-monthly" data-frequency="monthly" data-lock="schedule-plan-lock" aria-describedby="schedule-monthly-help" disabled>
+                                    <div>
+                                        <label for="schedule-monthly">Monthly report</label>
+                                        <p class="kw-help" id="schedule-monthly-help">Off — covers the month before each report</p>
+                                    </div>
+                                </div>
+                                <div class="analysis-schedule-pickers">
+                                    <label class="kw-visually-hidden" for="schedule-monthly-day">Monthly report day</label>
+                                    <select class="kw-select" id="schedule-monthly-day" data-schedule-part="day" aria-describedby="schedule-monthly-help" disabled>
+                                        <option value="" disabled selected>Choose a day</option>
+                                    </select>
+                                    <label class="kw-visually-hidden" for="schedule-monthly-time">Monthly report time</label>
+                                    <select class="kw-select" id="schedule-monthly-time" data-schedule-part="time" aria-describedby="schedule-monthly-help" disabled>
+                                        <option value="" disabled selected>Choose a time</option>
+                                    </select>
                                 </div>
                             </div>
                         </div>

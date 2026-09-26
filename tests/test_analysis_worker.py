@@ -239,8 +239,17 @@ def test_deployment_exports_keep_private_network_and_reviewed_component():
     for name in ("worker", "langflow", "n8n"):
         config = tomllib.loads((deploy / (name + ".fly.toml")).read_text())
         assert config["primary_region"] == "sin"
-        assert "services" not in config and "http_service" not in config
+        assert "services" not in config
         assert config["restart"] == [{"policy":"always"}]
+        if name != "n8n":
+            assert "http_service" not in config  # worker and Langflow stay private
+    # Owner decision 2026-09-24: the n8n editor is public, but only over HTTPS,
+    # never auto-stopped, and without n8n's public API.
+    n8n = tomllib.loads((deploy / "n8n.fly.toml").read_text())
+    assert n8n["http_service"]["force_https"] is True
+    assert n8n["http_service"]["auto_stop_machines"] == "off"
+    assert n8n["http_service"]["min_machines_running"] == 1
+    assert n8n["env"]["N8N_PUBLIC_API_DISABLED"] == "true"
     flow_path = deploy / "langflow/analysis-model-bridge.langflow.json"
     flow = json.loads(flow_path.read_text(encoding="utf-8"))
     nodes = flow["data"]["nodes"]

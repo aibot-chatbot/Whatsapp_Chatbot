@@ -374,18 +374,39 @@ def load_report_sources(company_id, chatbot_id, date_from, date_to, as_of, docum
     return sources
 
 
+LAST_DAY = 0  # data/070: run_day 0 stores "last day of the month"
+
+
+def _schedule(row):
+    """Database row -> API form: run_day 0 -> "last", run_time "HH:MM:SS" -> "HH:MM"."""
+    run_day, run_time = row.get("run_day"), row.get("run_time")
+    return {**row, "run_weekday": row.get("run_weekday"),
+            "run_day": "last" if run_day == LAST_DAY else run_day,
+            "run_time": run_time[:5] if isinstance(run_time, str) else None}
+
+
 def list_schedules(company_id, chatbot_id):
     _scope(company_id, chatbot_id)
-    return _rows(supabase.table("analysis_schedules").select("*").eq("company_id", company_id)
-        .eq("chatbot_id", chatbot_id).order("frequency").limit(2))
+    return [_schedule(row) for row in _rows(supabase.table("analysis_schedules").select("*")
+        .eq("company_id", company_id).eq("chatbot_id", chatbot_id).order("frequency").limit(2))]
 
 
-def upsert_schedule(company_id, chatbot_id, actor_user_id, *, frequency, enabled, timezone="Asia/Kuala_Lumpur", next_due_at=None):
+def upsert_schedule(company_id, chatbot_id, actor_user_id, *, frequency, enabled, timezone="Asia/Kuala_Lumpur",
+                    next_due_at=None, run_weekday=None, run_day=None, run_time=None):
+    """Values are validated by analysis_request_service.validate_schedule_choice.
+
+    A slot argument left as None is not sent: the RPC then keeps the stored
+    value, so skip/disable never wipe the owner's choice, and a call with no
+    slot is the pre-070 7-argument call that resolves on either schema.
+    """
     if frequency not in {"weekly", "monthly"} or timezone != "Asia/Kuala_Lumpur" or not isinstance(enabled, bool):
         raise ValueError("Invalid schedule")
-    return _rpc("analysis_upsert_schedule", {**_scope(company_id, chatbot_id),
+    slot = {"p_run_weekday": run_weekday, "p_run_day": LAST_DAY if run_day == "last" else run_day,
+            "p_run_time": run_time}
+    return _schedule(_rpc("analysis_upsert_schedule", {**_scope(company_id, chatbot_id),
         "p_actor_user_id": _positive(actor_user_id, "actor_user_id"), "p_frequency": frequency,
-        "p_timezone": timezone, "p_enabled": enabled, "p_next_due_at": next_due_at})
+        "p_timezone": timezone, "p_enabled": enabled, "p_next_due_at": next_due_at,
+        **{key: value for key, value in slot.items() if value is not None}}))
 
 
 def list_due_schedules(*, now=None, limit=100, offset=0):
@@ -397,17 +418,17 @@ def list_due_schedules(*, now=None, limit=100, offset=0):
     if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
         raise ValueError("offset must be a non-negative integer")
     size = min(_positive(limit, "limit"), 100)
-    return _rows(supabase.table("analysis_schedules").select("*").eq("enabled", True)
+    return [_schedule(row) for row in _rows(supabase.table("analysis_schedules").select("*").eq("enabled", True)
         .lte("next_due_at", now or datetime.now(timezone.utc).isoformat())
-        .order("next_due_at").order("id").range(offset, offset + size - 1))
+        .order("next_due_at").order("id").range(offset, offset + size - 1))]
 
 
 def list_enabled_company_schedules(company_id):
     """Platform maintenance (plan downgrade) only; never a tenant read path."""
     _positive(company_id, "company_id")
     # ponytail: at most 2 schedules per Bot; 100 caps a runaway company.
-    return _rows(supabase.table("analysis_schedules").select("*").eq("company_id", company_id)
-        .eq("enabled", True).limit(100))
+    return [_schedule(row) for row in _rows(supabase.table("analysis_schedules").select("*")
+        .eq("company_id", company_id).eq("enabled", True).limit(100))]
 
 
 def _reschedule(schedule, *, enabled, next_due_at):

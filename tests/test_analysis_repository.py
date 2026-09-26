@@ -147,3 +147,65 @@ def test_customer_text_requires_explicit_bounded_source_request(monkeypatch):
     assert call("conversations.chatbot_id", 7) in query.eq.call_args_list
     assert call("sender_type", "customer") in query.eq.call_args_list
     assert call("actor_user_id", "null") in query.is_.call_args_list
+
+
+# --- owner-chosen schedule slot (data/070) ----------------------------------
+
+STORED_SCHEDULE = {"id": "00000000-0000-4000-8000-000000000001", "company_id": 10, "chatbot_id": 7,
+                   "actor_user_id": 3, "frequency": "monthly", "enabled": True,
+                   "run_weekday": None, "run_day": 0, "run_time": "18:15:00",
+                   "next_due_at": "2026-10-31T10:15:00+00:00"}
+
+
+def _query(monkeypatch, rows):
+    query = Mock()
+    for method in ("table", "select", "eq", "lte", "order", "range", "limit"):
+        getattr(query, method).return_value = query
+    query.execute.return_value = SimpleNamespace(data=rows)
+    monkeypatch.setattr(repo, "supabase", query)
+    return query
+
+
+def test_slot_is_stored_in_database_form_and_returned_in_api_form(db):
+    db.rpc.return_value.execute.return_value = SimpleNamespace(data=STORED_SCHEDULE)
+    row = repo.upsert_schedule(10, 7, 3, frequency="monthly", enabled=True,
+                               next_due_at="2026-10-31T10:15:00+00:00", run_day="last", run_time="18:15")
+    name, params = db.rpc.call_args.args
+    assert name == "analysis_upsert_schedule"
+    assert params["p_run_day"] == 0 and params["p_run_time"] == "18:15"
+    assert "p_run_weekday" not in params
+    assert (row["run_day"], row["run_time"], row["run_weekday"]) == ("last", "18:15", None)
+
+
+def test_numbered_day_and_weekday_pass_through(db):
+    repo.upsert_schedule(10, 7, 3, frequency="weekly", enabled=True, run_weekday=0, run_time="09:00")
+    assert db.rpc.call_args.args[1]["p_run_weekday"] == 0
+    repo.upsert_schedule(10, 7, 3, frequency="monthly", enabled=True, run_day=15, run_time="09:00")
+    assert db.rpc.call_args.args[1]["p_run_day"] == 15
+
+
+@pytest.mark.parametrize("action", [
+    lambda: repo.skip_schedule_period(STORED_SCHEDULE, next_due_at="2026-11-30T10:15:00+00:00"),
+    lambda: repo.disable_schedule(STORED_SCHEDULE),
+    lambda: repo.upsert_schedule(10, 7, 3, frequency="monthly", enabled=False),
+])
+def test_skip_and_disable_never_send_a_slot_so_the_stored_choice_survives(db, action):
+    # The RPC keeps the stored value for every argument not sent; sending only
+    # the 7 pre-070 arguments also keeps these calls working on either schema.
+    action()
+    params = db.rpc.call_args.args[1]
+    assert not {"p_run_weekday", "p_run_day", "p_run_time"} & set(params)
+
+
+def test_schedule_reads_return_the_api_form(monkeypatch):
+    _query(monkeypatch, [dict(STORED_SCHEDULE)])
+    assert repo.list_schedules(10, 7)[0]["run_day"] == "last"
+    due = repo.list_due_schedules()[0]
+    assert (due["run_day"], due["run_time"]) == ("last", "18:15")
+    assert repo.list_enabled_company_schedules(10)[0]["run_time"] == "18:15"
+
+
+def test_rows_without_a_slot_read_as_null(monkeypatch):
+    _query(monkeypatch, [{**STORED_SCHEDULE, "enabled": False, "run_day": None, "run_time": None}])
+    row = repo.list_schedules(10, 7)[0]
+    assert (row["run_weekday"], row["run_day"], row["run_time"]) == (None, None, None)

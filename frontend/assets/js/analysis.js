@@ -36,7 +36,14 @@
     const INDUSTRIES = {restaurant: "Restaurant", clinic: "Clinic", tuition_center: "Tuition centre", general: "General business"};
     const ACTIONS = {booking: "Booking", registration: "Registration", order: "Order", service_request: "Service request"};
     const RECORD_STATES = {intent: "Interested", requested: "Requested", confirmed: "Confirmed", completed: "Done", failed: "Didn't go through", cancelled: "Cancelled", rescheduled: "Moved to a new time"};
-    const SCHEDULE_ON = {weekly: "On — next report Monday, 9:00 am", monthly: "On — next report on the 1st, 9:00 am"};
+    // Schedules: the owner picks the day and time (Malaysia time, 15-minute steps); periods roll back from each run.
+    const FREQUENCIES = ["weekly", "monthly"];
+    const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const SCHEDULE_OFF = {weekly: "Off — covers the 7 days before each report", monthly: "Off — covers the month before each report"};
+    const CHOOSE_FIRST = "Choose a day and time first.";
+    const PICKER_SAVE_MS = 400;
+    const NEXT_RUN = new Intl.DateTimeFormat("en-GB", {weekday: "long", day: "numeric", month: "numeric", hour: "numeric", minute: "2-digit", hour12: true, timeZone: "Asia/Kuala_Lumpur"});
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     // JSON stays an API format; owners get PDF and Excel.
     const DOWNLOADS = [["pdf", "Download PDF"], ["xlsx", "Download Excel"]];
     const SVG = "http://www.w3.org/2000/svg";
@@ -87,10 +94,11 @@
     function focusable(node) { return node && node.isConnected && !node.disabled && !node.closest("[hidden]"); }
 
     // ── Status line: the page's live region ────────────────────────────
-    function status(message, {error = false, upgrade = false, retry = false} = {}) {
+    function status(message, {error = false, upgrade = false, retry = false, force = false} = {}) {
         const live = ready && !error && failures === 0;
         const key = [message, error, upgrade, retry, live].join("|");
-        if (key === lastStatus) return;  // an unchanged message is never announced twice
+        // An unchanged message is not re-announced, unless a new action produced it (force).
+        if (key === lastStatus && !force) return;
         lastStatus = key;
         const node = $("analysis-status"), line = $("analysis-statusline"), retryButton = $("analysis-retry");
         node.textContent = message; node.dataset.error = String(error);
@@ -508,12 +516,101 @@
     // ── D/E. Pro-only automation toggles ───────────────────────────────
     const scheduleToggles = () => [...document.querySelectorAll("[data-frequency]")];
     const automationToggles = () => [...scheduleToggles(), $("recording-enabled")];
-    function paintSchedule(node) {
-        const help = $(`${node.id}-help`);
-        setText(help, node.checked ? SCHEDULE_ON[node.dataset.frequency] : help.dataset.off);
+    const picker = (frequency, part) => $(`schedule-${frequency}-${part}`);
+    const pickers = () => FREQUENCIES.flatMap(frequency => [picker(frequency, "day"), picker(frequency, "time")]);
+    const savedSchedules = {weekly: {frequency: "weekly", enabled: false}, monthly: {frequency: "monthly", enabled: false}};
+    // One save queue per schedule, so switch and picker saves reach the server in the order the owner made them.
+    // switchChanges counts switch flips: a save that returns after a newer flip must not repaint the switch.
+    const pickerTimers = {}, scheduleSaves = {}, switchChanges = {weekly: 0, monthly: 0};
+    function queueSave(frequency, task) {
+        scheduleSaves[frequency] = (scheduleSaves[frequency] || Promise.resolve()).then(task).catch(() => undefined);
+    }
+    function ordinal(day) {
+        const teen = day % 100 >= 11 && day % 100 <= 13;
+        return `${day}${teen ? "th" : {1: "st", 2: "nd", 3: "rd"}[day % 10] || "th"}`;
+    }
+    function timeLabel(value) {
+        const [hour, minute] = value.split(":").map(Number);
+        return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "am" : "pm"}`;
+    }
+    function formatNextRun(value) {
+        const date = value ? new Date(value) : null;
+        if (!date || Number.isNaN(date.getTime())) return "";
+        // Built from parts so the wording never depends on a browser's locale punctuation.
+        const part = Object.fromEntries(NEXT_RUN.formatToParts(date).map(({type, value: text}) => [type, text]));
+        return `${part.weekday} ${Number(part.day)} ${MONTHS[Number(part.month) - 1]}, ${Number(part.hour)}:${part.minute} ${String(part.dayPeriod).toLowerCase()}`;
+    }
+    function buildPickers() {
+        const times = Array.from({length: 96}, (_, step) => `${String(Math.floor(step / 4)).padStart(2, "0")}:${String(step % 4 * 15).padStart(2, "0")}`);
+        const days = {
+            weekly: WEEKDAYS.map((name, index) => [String(index), name]),
+            monthly: [...Array.from({length: 28}, (_, index) => [String(index + 1), ordinal(index + 1)]), ["last", "Last day of the month"]],
+        };
+        for (const frequency of FREQUENCIES) {
+            picker(frequency, "day").append(...days[frequency].map(([value, label]) => new Option(label, value)));
+            picker(frequency, "time").append(...times.map(value => new Option(timeLabel(value), value)));
+        }
+    }
+    function setPicker(select, value) {
+        // A stored value outside the list is shown as-is rather than silently replaced by the placeholder.
+        if (value && ![...select.options].some(option => option.value === value)) {
+            select.append(new Option(select.dataset.schedulePart === "time" ? timeLabel(value) : value, value));
+        }
+        select.value = value;
+    }
+    function scheduleSummary(frequency) {
+        const day = picker(frequency, "day").value, time = picker(frequency, "time").value;
+        if (!day || !time) return "On";
+        const when = frequency === "weekly" ? `every ${WEEKDAYS[Number(day)]}`
+            : day === "last" ? "on the last day of each month" : `on the ${ordinal(Number(day))} of each month`;
+        return `On — ${when}, ${timeLabel(time)}`;
+    }
+    function paintSchedule(frequency, message = "", {error = true} = {}) {
+        const help = $(`schedule-${frequency}-help`);
+        const next = formatNextRun(savedSchedules[frequency].next_due_at);
+        const text = message || (!$(`schedule-${frequency}`).checked ? SCHEDULE_OFF[frequency]
+            : next ? `On — next report ${next}` : scheduleSummary(frequency));
+        setText(help, text);
+        help.classList.toggle("analysis-hint-error", Boolean(message) && error);
+    }
+    function rememberSchedule(frequency, row, {syncPickers = false} = {}) {
+        savedSchedules[frequency] = {...savedSchedules[frequency], ...row, frequency};
+        const saved = savedSchedules[frequency];
+        $(`schedule-${frequency}`).checked = saved.enabled === true;
+        if (syncPickers) {
+            const day = frequency === "weekly" ? saved.run_weekday : saved.run_day;
+            setPicker(picker(frequency, "day"), day == null ? "" : String(day));
+            setPicker(picker(frequency, "time"), typeof saved.run_time === "string" ? saved.run_time : "");
+        }
+        paintSchedule(frequency);
+    }
+    function storeSchedule(frequency, row, change) {
+        // A reply from before the owner's latest switch flip updates what is saved, never what the switch shows.
+        if (change === switchChanges[frequency]) rememberSchedule(frequency, row);
+        else savedSchedules[frequency] = {...savedSchedules[frequency], ...row, frequency};
+    }
+    const choicesMade = frequency => Boolean(picker(frequency, "day").value && picker(frequency, "time").value);
+    function scheduleBody(frequency, enabled) {
+        // Switching off sends no day or time: the server keeps the stored choice.
+        if (!enabled) return {frequency, enabled};
+        // An empty picker is never turned into a number: Number("") would silently mean Monday.
+        const day = picker(frequency, "day").value, time = picker(frequency, "time").value;
+        const dayValue = day === "" ? null : day === "last" ? "last" : Number(day);
+        const dayField = frequency === "weekly" ? {run_weekday: dayValue} : {run_day: dayValue};
+        return {frequency, enabled, ...dayField, run_time: time === "" ? null : time};
+    }
+    function matchesSaved(frequency, body) {
+        const saved = savedSchedules[frequency];
+        const dayKey = frequency === "weekly" ? "run_weekday" : "run_day";
+        return saved.enabled === true && saved[dayKey] === body[dayKey] && saved.run_time === body.run_time;
+    }
+    function lockFocus(node) {
+        // A control that just locked cannot hold focus; the upgrade link beside it is the next useful stop.
+        const lockLink = $(node.dataset.lock || "schedule-plan-lock").querySelector("a");
+        [node, lockLink, $("analysis-statusline")].find(focusable)?.focus();
     }
     function applyAutomation(enabled) {
-        // Locked automation stays visible with an upgrade note that joins the toggle's description while it applies.
+        // Locked automation stays visible with an upgrade note that joins each control's description while it applies.
         automationEnabled = enabled;
         document.querySelectorAll("[data-plan-lock]").forEach(node => { node.hidden = enabled; });
         for (const node of automationToggles()) {
@@ -521,28 +618,89 @@
             node.disabled = !enabled && !node.checked;
             node.setAttribute("aria-describedby", enabled ? `${node.id}-help` : `${node.id}-help ${node.dataset.lock}`);
         }
-    }
-    function automationError(node, error) {
-        node.checked = !node.checked; showError(error);
-        if (error.code === "feature_not_available") applyAutomation(false);
-    }
-    async function saveAutomation(node, path, body, message) {
-        const hadFocus = document.activeElement === node;
-        node.disabled = true;
-        try { await api(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)}); status(message); }
-        catch (error) { automationError(node, error); }
-        finally {
-            if (node.dataset.frequency) paintSchedule(node);
-            node.disabled = !automationEnabled && !node.checked;
-            if (hadFocus) {
-                // A toggle that just locked cannot hold focus; the upgrade link beside it is the next useful stop.
-                const lockLink = $(node.dataset.lock).querySelector("a");
-                [node, lockLink, $("analysis-statusline")].find(focusable)?.focus();
-            }
+        for (const select of pickers()) {
+            // Changing a day or time re-saves an active schedule, which the plan no longer allows.
+            select.disabled = !enabled;
+            const help = select.getAttribute("aria-describedby").split(" ")[0];
+            select.setAttribute("aria-describedby", enabled ? help : `${help} schedule-plan-lock`);
         }
     }
-    scheduleToggles().forEach(node => node.addEventListener("change", () => saveAutomation(node, "/schedules",
-        {frequency: node.dataset.frequency, enabled: node.checked}, node.checked ? "Schedule enabled." : "Schedule paused.")));
+    async function saveAutomation(node, path, body, message, onSaved) {
+        const hadFocus = document.activeElement === node;
+        const frequency = node.dataset.frequency;
+        node.disabled = true;
+        try {
+            const response = await api(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+            onSaved?.(response.data);
+            status(message, {force: true});
+        } catch (error) {
+            // Show what is actually saved, not the opposite of what was clicked.
+            node.checked = frequency ? savedSchedules[frequency].enabled === true : !node.checked;
+            showError(error);
+            const planDenied = error.code === "feature_not_available";
+            if (planDenied) applyAutomation(false);
+            if (frequency) paintSchedule(frequency, planDenied ? "" : error.message);
+        } finally {
+            node.disabled = !automationEnabled && !node.checked;
+            if (hadFocus) lockFocus(node);
+        }
+    }
+    function toggleSchedule(node) {
+        const frequency = node.dataset.frequency;
+        // The switch supersedes a day/time change still waiting to save.
+        clearTimeout(pickerTimers[frequency]);
+        if (node.checked && !choicesMade(frequency)) {
+            // Blocked here, before any request: the schedule needs both a day and a time.
+            const missing = [picker(frequency, "day"), picker(frequency, "time")].find(select => !select.value);
+            node.checked = false;
+            paintSchedule(frequency, CHOOSE_FIRST);
+            (focusable(missing) ? missing : node).focus();
+            return;
+        }
+        const change = ++switchChanges[frequency];
+        const body = scheduleBody(frequency, node.checked);
+        const message = node.checked ? "Schedule enabled." : "Schedule paused.";
+        // Queued behind any day/time save already in flight, so the server never sees off-then-on.
+        queueSave(frequency, () => saveAutomation(node, "/schedules", body, message,
+            data => storeSchedule(frequency, {...body, ...(isObject(data) ? data : {})}, change)));
+    }
+    async function savePickers(frequency) {
+        // The owner may have switched the schedule off, or left a picker empty, since the change.
+        if (!$(`schedule-${frequency}`).checked) return;
+        if (!choicesMade(frequency)) { paintSchedule(frequency, CHOOSE_FIRST); return; }
+        const body = scheduleBody(frequency, true);
+        // Changed and changed back: re-saving would only risk dropping a due period.
+        if (matchesSaved(frequency, body)) { paintSchedule(frequency); return; }
+        const change = switchChanges[frequency];
+        const focused = document.activeElement;
+        try {
+            const data = (await api("/schedules", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)})).data;
+            storeSchedule(frequency, {...body, ...(isObject(data) ? data : {})}, change);
+            if (change !== switchChanges[frequency]) return;  // the switch changed meanwhile; its own save reports
+            const next = formatNextRun(savedSchedules[frequency].next_due_at);
+            status(next ? `Schedule updated. Next report ${next}.` : "Schedule updated.", {force: true});
+        } catch (error) {
+            if (change !== switchChanges[frequency]) return;
+            // Put the pickers back to what is saved and say why in the row.
+            rememberSchedule(frequency, {}, {syncPickers: true});
+            showError(error);
+            if (error.code === "feature_not_available") { applyAutomation(false); if (pickers().includes(focused)) lockFocus(focused); }
+            else paintSchedule(frequency, error.message);
+        }
+    }
+    function pickerChanged(frequency) {
+        clearTimeout(pickerTimers[frequency]);
+        if (!$(`schedule-${frequency}`).checked) { paintSchedule(frequency); return; }  // saved with the switch when it is turned on
+        if (!choicesMade(frequency)) { paintSchedule(frequency, CHOOSE_FIRST); return; }
+        paintSchedule(frequency, "Saving…", {error: false});
+        // Arrow keys on a closed select fire one change per step: wait for the owner to settle, then save in order.
+        pickerTimers[frequency] = setTimeout(() => queueSave(frequency, () => savePickers(frequency)), PICKER_SAVE_MS);
+    }
+    buildPickers();
+    scheduleToggles().forEach(node => node.addEventListener("change", () => toggleSchedule(node)));
+    for (const frequency of FREQUENCIES) {
+        for (const select of [picker(frequency, "day"), picker(frequency, "time")]) select.addEventListener("change", () => pickerChanged(frequency));
+    }
     $("recording-enabled").addEventListener("change", event => saveAutomation(event.target, "/recording", {enabled: event.target.checked},
         event.target.checked ? "Your bot will spot requests in new chats. AI credit usage applies." : "Spotting requests in new chats is off."));
     async function loadAutomation() {
@@ -551,9 +709,9 @@
             const recording = (await api("/recording")).data;
             $("recording-enabled").checked = isObject(recording) && recording.enabled === true;
             const schedules = (await api("/schedules")).data;
-            for (const node of scheduleToggles()) {
-                node.checked = Array.isArray(schedules) && schedules.some(row => row?.frequency === node.dataset.frequency && row.enabled);
-                paintSchedule(node);
+            for (const frequency of FREQUENCIES) {
+                const row = Array.isArray(schedules) ? schedules.find(item => isObject(item) && item.frequency === frequency) : null;
+                rememberSchedule(frequency, row || {enabled: false}, {syncPickers: true});
             }
         } catch (error) {
             // A plan denial on automation settings must not take the reports page down with it.
