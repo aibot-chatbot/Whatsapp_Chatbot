@@ -18,6 +18,8 @@ Langflow does not start through `langflow run`: that command probes the port ove
 
 The worker entrypoint is `python analysis_worker.py`. It never calls `create_app` or imports `wsgi`, and forcibly disables inherited billing, ingest and Wasender background flags. It still imports existing application modules and uses the tested Flask image's dependencies. Its memory usage must be measured during the isolated deployment smoke; it has not been benchmarked here.
 
+**Developer sandbox.** Other developers use `aibot-agent-langflow-dev` (`https://aibot-agent-langflow-dev.fly.dev`, `langflow-dev.fly.toml`), never production Langflow: any Langflow login can run custom Python on its server (`LANGFLOW_ALLOW_CUSTOM_COMPONENTS` defaults to true and is global), and production holds `AGENT_INTERNAL_TOKEN`. The sandbox has a public editor, its own accounts (sign-ups stay inactive until the admin activates them), no production secrets, its own Fly private network (`fly apps create --network langflow-dev`) and auto-stop when idle. Its admin login is in `%USERPROFILE%\.omnexa-secrets\langflow-dev.env`. Promote a finished flow by exporting its JSON and importing it into production through the `langflow-omnexa` MCP after review.
+
 ## Release prerequisites
 
 1. Verify the actual Supabase project through direct project lookup and SQL access. The verified target is `parjsxypengvubziwwjp`; a stale MCP project list did not reflect restored access. Do not migrate an unrelated project.
