@@ -21,7 +21,8 @@ project (`INDUSTRY_AGENT_CODEX_PLAN`, phase IA-3).
 
 - Five new profiles that detection can suggest and owners can confirm:
   `beauty_salon`, `property_agent`, `car_workshop`, `retail_shop`, `travel_agency`.
-- Adding a future industry changes the catalog (plus tests) and nothing else.
+- A future industry needs catalog entries and tests only: no migration, schema-enum
+  or frontend change (the observation prompt's examples are optional wording).
 - Bots already confirmed on the four existing profiles behave exactly as before.
 
 ## Non-goals
@@ -242,8 +243,8 @@ to `humanize`.
 ## Rollout
 
 1. Apply migration 071 to production (explicit approval).
-2. Deploy Flask from `release/2026-09-26`. It must contain `268996b`; see
-   [[whatsapp-chatbot-release-ancestry-check]].
+2. Deploy Flask from `release/2026-09-26`. It must contain `268996b`, the live
+   Cloudflare pricing release.
 3. Redeploy the worker with `APP_IMAGE` set to the new Flask digest, so
    observations use the new catalog.
 4. Verify on a test bot: upload a salon document, then check the suggestion,
