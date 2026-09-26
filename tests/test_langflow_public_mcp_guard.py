@@ -54,9 +54,13 @@ def test_public_port_404s_everything_but_the_mcp_endpoint(public_mcp_only, path)
     assert sent[0]["type"] == "http.response.start" and sent[0]["status"] == 404
 
 
+@pytest.mark.parametrize("port", [8080, 7860])
 @pytest.mark.parametrize("path", ["/api/v1/agentic/mcp", "/api/v1/agentic/mcp/"])
-def test_public_mcp_request_loops_back_to_the_private_listener(public_mcp_only, path):
-    seen, sent = call(public_mcp_only, http(path, 8080))
+def test_mcp_request_loops_back_to_the_private_listener(public_mcp_only, path, port):
+    # 7860 is also the public port of the dev sandbox (http_service maps it), where
+    # the unrewritten base URL is http://<app>.fly.dev and its HTTPS redirect turns
+    # the tools' POST /flows/ into a GET.
+    seen, sent = call(public_mcp_only, http(path, port))
     assert sent == []
     (scope,) = seen
     assert scope["scheme"] == "http"

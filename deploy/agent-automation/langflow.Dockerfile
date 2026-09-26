@@ -26,15 +26,17 @@ LOOPBACK_HOST = f"127.0.0.1:{PRIVATE_PORT}".encode()
 def public_mcp_only(app):
     """Serve the full app on the private port and only the MCP endpoint anywhere else."""
     async def guarded(scope, receive, send):
-        server = scope.get("server")
-        if scope["type"] == "lifespan" or (server and server[1] == PRIVATE_PORT):
-            return await app(scope, receive, send)
         if scope["type"] == "http" and scope["path"] in PUBLIC_PATHS:
             # MCP tools call the REST API back at request.base_url. Point that at the
-            # private listener so whole-flow writes never leave the machine.
+            # private listener on every listener: through Fly's edge the base URL is
+            # http://<app>.fly.dev, whose HTTPS redirect turns a POST into a GET, and
+            # through `fly proxy` it is a localhost port that does not exist here.
             headers = [(k, v) for k, v in scope["headers"] if k != b"host"]
             headers.append((b"host", LOOPBACK_HOST))
             return await app({**scope, "headers": headers, "scheme": "http"}, receive, send)
+        server = scope.get("server")
+        if scope["type"] == "lifespan" or (server and server[1] == PRIVATE_PORT):
+            return await app(scope, receive, send)
         if scope["type"] == "websocket":
             return await send({"type": "websocket.close", "code": 1008})
         await send({"type": "http.response.start", "status": 404,
